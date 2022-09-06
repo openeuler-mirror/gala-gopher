@@ -1,0 +1,41 @@
+version = "1.0.0"
+measurements:
+(
+    {
+        table_name: "dnsmasq_link",
+        entity_name: "dnsmasq_link",
+        fields:
+        (
+            {
+                description: "client ip",
+                type: "Unknown",
+                name: "client_ip",
+            },
+            {
+                description: "dns ip",
+                type: "Unknown",
+                name: "virtual_ip",
+            },
+            {
+                description: "family",
+                type: "Unknown",
+                name: "family",
+            },
+            {
+                description: "link count",
+                type: "Unknown",
+                name: "link_count",
+            },
+            {
+                description: "pid",
+                type: "Unknown",
+                name: "pid",
+            },
+            {
+                description: "process_comm",
+                type: "Unknown",
+                name: "process_comm",
+            }
+        )
+    }
+)

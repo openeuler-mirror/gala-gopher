@@ -1,0 +1,66 @@
+version = "1.0.0"
+measurements:
+(
+    {
+        table_name: "redis_sli",
+        entity_name: "sli",
+        fields:
+        (
+            {
+                description: "the tgid of server process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "the socket fd of client connection",
+                type: "key",
+                name: "conn_fd",
+            },
+            {
+                description: "the protocol type",
+                type: "label",
+                name: "protocol",
+            },
+            {
+                description: "the IP of server",
+                type: "label",
+                name: "server_ip",
+            },
+            {
+                description: "the port of server",
+                type: "label",
+                name: "server_port",
+            },
+            {
+                description: "the IP of client",
+                type: "label",
+                name: "client_ip",
+            },
+            {
+                description: "the port of client",
+                type: "label",
+                name: "client_port",
+            },
+            {
+                description: "the cmd of req",
+                type: "label",
+                name: "command",
+            },
+            {
+                description: "the rtt(ns) of req",
+                type: "gauge",
+                name: "rtt_nsec",
+            },
+            {
+                description: "the cmd of max rtt req",
+                type: "label",
+                name: "max_command",
+            },
+            {
+                description: "the rtt(ns) of max rtt req",
+                type: "gauge",
+                name: "max_rtt_nsec",
+            }
+        )
+    }
+)

@@ -1,0 +1,28 @@
+version = "1.0.0"
+
+measurements:
+(
+    {
+        table_name: "example",
+        entity_name: "example",
+        fields:
+        (
+            {
+                description: "example cpu usage",
+                type: "gauge",
+                name: "cpu_usage",
+            },
+            {
+                description: "example memory usage",
+                type: "gauge",
+                name: "memory_usage",
+            },
+            {
+                description: "example tcp connection num",
+                type: "counter",
+                name: "tcp_connection_num",
+            },
+        )
+    }
+)
+

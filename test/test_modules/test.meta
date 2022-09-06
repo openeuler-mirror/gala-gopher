@@ -1,0 +1,53 @@
+version: "1.0.0"
+
+measurements:
+(
+    {
+        table_name: "test",
+        entity_name: "test",
+        fields:
+        (
+            {
+                description: "test memory total",
+                type: "gauge",
+                name: "TestMemTotal",
+            },
+            {
+                description: "test memory free",
+                type: "counter",
+                name: "TestMemFree",
+            },
+            {
+                description: "test memory available",
+                type: "counter",
+                name: "TestMemAvailable",
+            },
+            {
+                description: "test buffers",
+                type: "histogram",
+                name: "TestBuffers",
+            },
+            {
+                description: "test cached",
+                type: "summary",
+                name: "TestCached",
+            },
+            {
+                description: "test swap cached",
+                type: "counter",
+                name: "TestSwapCached",
+            },
+            {
+                description: "test active",
+                type: "counter",
+                name: "TestActive",
+            },
+            {
+                description: "test inactive",
+                type: "counter",
+                name: "TestInactive",
+            },
+        )
+    }
+)
+

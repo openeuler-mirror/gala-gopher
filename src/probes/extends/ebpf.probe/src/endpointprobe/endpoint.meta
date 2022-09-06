@@ -1,0 +1,193 @@
+
+version = "1.0.0"
+measurements:
+(
+    {
+        table_name: "udp",
+        entity_name: "endpoint",
+        fields:
+        (
+            {
+                description: "tgid of the process",
+                type: "key",
+                name: "tgid",
+            },
+	        {
+                description: "socket address of the endpoint",
+                type: "key",
+                name: "s_addr",
+            },
+	        {
+                description: "socket port of the endpoint",
+                type: "key",
+                name: "s_port",
+            },
+	        {
+                description: "Type of the endpoint(include tcp, udp, connect and bind)",
+                type: "key",
+                name: "ep_type",
+            },
+	        {
+                description: "rcv queue drops of the endpoint",
+                type: "gauge",
+                name: "udp_rcv_drops",
+            },
+	        {
+                description: "sends of the endpoint",
+                type: "gauge",
+                name: "udp_sends",
+            },
+	        {
+                description: "rcvs of the endpoint",
+                type: "gauge",
+                name: "udp_rcvs",
+            },
+	        {
+                description: "rcv queue drops err code",
+                type: "gauge",
+                name: "udp_err",
+            }
+        )
+    },
+    {
+        table_name: "listen",
+        entity_name: "endpoint",
+        fields:
+        (
+            {
+                description: "tgid of the process",
+                type: "key",
+                name: "tgid",
+            },
+	        {
+                description: "socket address of the endpoint",
+                type: "key",
+                name: "s_addr",
+            },
+	        {
+                description: "socket port of the endpoint",
+                type: "key",
+                name: "s_port",
+            },
+	        {
+                description: "Type of the endpoint(include tcp, udp, connect and bind)",
+                type: "key",
+                name: "ep_type",
+            },
+	        {
+                description: "listen drops of the endpoint",
+                type: "gauge",
+                name: "listendrop",
+            },
+	        {
+                description: "listen overflows of accepted queue",
+                type: "gauge",
+                name: "accept_overflow",
+            },
+            {
+                description: "listen overflows of syn queue",
+                type: "gauge",
+                name: "syn_overflow",
+            },
+	        {
+                description: "passive opens of the endpoint",
+                type: "gauge",
+                name: "passive_open",
+            },
+	        {
+                description: "failed passive opens of the endpoint",
+                type: "gauge",
+                name: "passive_open_failed",
+            },
+            {
+                description: "synack retrans",
+                type: "gauge",
+                name: "retran_synacks",
+            }
+        )
+    },
+    {
+        table_name: "connect",
+        entity_name: "endpoint",
+        fields:
+        (
+            {
+                description: "tgid of the process",
+                type: "key",
+                name: "tgid",
+            },
+	        {
+                description: "socket address of the endpoint",
+                type: "key",
+                name: "s_addr",
+            },
+	        {
+                description: "socket port of the endpoint",
+                type: "key",
+                name: "s_port",
+            },
+	        {
+                description: "Type of the endpoint(include tcp, udp, connect and bind)",
+                type: "key",
+                name: "ep_type",
+            },
+	        {
+                description: "active opens of the endpoint",
+                type: "gauge",
+                name: "active_open",
+            },
+	        {
+                description: "failed active opens of the endpoint",
+                type: "gauge",
+                name: "active_open_failed",
+            }
+        )
+    },
+    {
+        table_name: "bind",
+        entity_name: "endpoint",
+        fields:
+        (
+            {
+                description: "tgid of the process",
+                type: "key",
+                name: "tgid",
+            },
+	        {
+                description: "socket address of the endpoint",
+                type: "key",
+                name: "s_addr",
+            },
+	        {
+                description: "socket port of the endpoint",
+                type: "key",
+                name: "s_port",
+            },
+	        {
+                description: "Type of the endpoint(include tcp, udp, connect and bind)",
+                type: "key",
+                name: "ep_type",
+            },
+	        {
+                description: "rcv queue drops of the endpoint",
+                type: "gauge",
+                name: "bind_rcv_drops",
+            },
+	        {
+                description: "sends of the endpoint",
+                type: "gauge",
+                name: "bind_sends",
+            },
+	        {
+                description: "rcvs of the endpoint",
+                type: "gauge",
+                name: "bind_rcvs",
+            },
+	        {
+                description: "rcv queue drops err code",
+                type: "gauge",
+                name: "bind_err",
+            }
+        )
+    }
+)

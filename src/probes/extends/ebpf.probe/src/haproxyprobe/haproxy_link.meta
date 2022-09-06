@@ -1,0 +1,46 @@
+version = "1.0.0"
+measurements:
+(
+    {
+        table_name: "haproxy_link",
+        entity_name: "haproxy_link",
+        fields:
+        (
+            {
+                description: "client ip",
+                type: "Unknown",
+                name: "client_ip",
+            },
+            {
+                description: "virtual ip",
+                type: "Unknown",
+                name: "virtual_ip",
+            },
+            {
+                description: "server ip",
+                type: "Unknown",
+                name: "server_ip",
+            },
+            {
+                description: "virtual port",
+                type: "Unknown",
+                name: "virtual_port",
+            },
+            {
+                description: "server port",
+                type: "Unknown",
+                name: "server_port",
+            },
+            {
+                description: "protocol",
+                type: "Unknown",
+                name: "protocol",
+            },
+            {
+                description: "link count",
+                type: "Unknown",
+                name: "link_count",
+            }
+        )
+    }
+)
