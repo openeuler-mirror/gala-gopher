@@ -1,0 +1,334 @@
+version = "1.0.0"
+measurements:
+(
+    {
+        table_name: "proc_syscall",
+        entity_name: "proc",
+        fields:
+        (
+            {
+                description: "ID of the process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "comm of the process",
+                type: "label",
+                name: "comm",
+            },
+            {
+                description: "Number of process system call failures.",
+                type: "gauge",
+                name: "syscall_failed",
+            }
+        )
+    },
+    {
+        table_name: "proc_syscall_io",
+        entity_name: "proc",
+        fields:
+        (
+            {
+                description: "ID of the process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "comm of the process",
+                type: "label",
+                name: "comm",
+            },
+            {
+                description: "Process mount operation duration, in ns.",
+                type: "gauge",
+                name: "ns_mount",
+            },
+            {
+                description: "Process umount operation duration, in ns.",
+                type: "gauge",
+                name: "ns_umount",
+            },
+            {
+                description: "Process read operation duration, in ns.",
+                type: "gauge",
+                name: "ns_read",
+            },
+            {
+                description: "Process write operation duration, in ns.",
+                type: "gauge",
+                name: "ns_write",
+            }
+        )
+    },
+    {
+        table_name: "proc_syscall_net",
+        entity_name: "proc",
+        fields:
+        (
+            {
+                description: "ID of the process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "comm of the process",
+                type: "label",
+                name: "comm",
+            },
+            {
+                description: "Process sendmsg operation duration, in ns.",
+                type: "gauge",
+                name: "ns_sendmsg",
+            },
+            {
+                description: "Process recvmsg operation duration, in ns.",
+                type: "gauge",
+                name: "ns_recvmsg",
+            }
+        )
+    },
+    {
+        table_name: "proc_syscall_sched",
+        entity_name: "proc",
+        fields:
+        (
+            {
+                description: "ID of the process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "comm of the process",
+                type: "label",
+                name: "comm",
+            },
+            {
+                description: "Process sched_yield operation duration, in ns.",
+                type: "gauge",
+                name: "ns_sched_yield",
+            },
+            {
+                description: "Process futex operation duration, in ns.",
+                type: "gauge",
+                name: "ns_futex",
+            },
+            {
+                description: "Process epoll_wait operation duration, in ns.",
+                type: "gauge",
+                name: "ns_epoll_wait",
+            },
+            {
+                description: "Process epoll_pwait operation duration, in ns.",
+                type: "gauge",
+                name: "ns_epoll_pwait",
+            }
+        )
+    },
+    {
+        table_name: "proc_syscall_fork",
+        entity_name: "proc",
+        fields:
+        (
+            {
+                description: "ID of the process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "comm of the process",
+                type: "label",
+                name: "comm",
+            },
+            {
+                description: "Process fork operation duration, in ns.",
+                type: "gauge",
+                name: "ns_fork",
+            },
+            {
+                description: "Process vfork operation duration, in ns.",
+                type: "gauge",
+                name: "ns_vfork",
+            },
+            {
+                description: "Process clone operation duration, in ns.",
+                type: "gauge",
+                name: "ns_clone",
+            }
+        )
+    },
+    {
+        table_name: "proc_ext4",
+        entity_name: "proc",
+        fields:
+        (
+            {
+                description: "ID of the process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "comm of the process",
+                type: "label",
+                name: "comm",
+            },
+            {
+                description: "Process read operation duration in ext4 file-system, in ns.",
+                type: "gauge",
+                name: "ns_ext4_read",
+            },
+            {
+                description: "Process write operation duration in ext4 file-system, in ns.",
+                type: "gauge",
+                name: "ns_ext4_write",
+            },
+            {
+                description: "Process open operation duration in ext4 file-system, in ns.",
+                type: "gauge",
+                name: "ns_ext4_open",
+            },
+            {
+                description: "Process flush operation duration in ext4 file-system, in ns.",
+                type: "gauge",
+                name: "ns_ext4_flush",
+            }
+        )
+    },
+    {
+        table_name: "proc_overlay",
+        entity_name: "proc",
+        fields:
+        (
+            {
+                description: "ID of the process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "comm of the process",
+                type: "label",
+                name: "comm",
+            },
+            {
+                description: "Process read operation duration in overlay file-system, in ns.",
+                type: "gauge",
+                name: "ns_overlay_read",
+            },
+            {
+                description: "Process write operation duration in overlay file-system, in ns.",
+                type: "gauge",
+                name: "ns_overlay_write",
+            },
+            {
+                description: "Process open operation duration in overlay file-system, in ns.",
+                type: "gauge",
+                name: "ns_overlay_open",
+            },
+            {
+                description: "Process flush operation duration in overlay file-system, in ns.",
+                type: "gauge",
+                name: "ns_overlay_flush",
+            }
+        )
+    },
+    {
+        table_name: "proc_tmpfs",
+        entity_name: "proc",
+        fields:
+        (
+            {
+                description: "ID of the process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "comm of the process",
+                type: "label",
+                name: "comm",
+            },
+            {
+                description: "Process read operation duration in tmpfs file-system, in ns.",
+                type: "gauge",
+                name: "ns_tmpfs_read",
+            },
+            {
+                description: "Process write operation duration in tmpfs file-system, in ns.",
+                type: "gauge",
+                name: "ns_tmpfs_write",
+            },
+            {
+                description: "Process flush operation duration in tmpfs file-system, in ns.",
+                type: "gauge",
+                name: "ns_tmpfs_flush",
+            }
+        )
+    },
+    {
+        table_name: "proc_page",
+        entity_name: "proc",
+        fields:
+        (
+            {
+                description: "ID of the process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "comm of the process",
+                type: "label",
+                name: "comm",
+            },
+            {
+                description: "Duration for a process to reclaim virtual memory, in ns.",
+                type: "gauge",
+                name: "reclaim_ns",
+            },
+            {
+                description: "Number of page cache accesses by processes.",
+                type: "gauge",
+                name: "access_pagecache",
+            },
+            {
+                description: "Number of dirty page buffers marked by processes.",
+                type: "gauge",
+                name: "mark_buffer_dirty",
+            },
+            {
+                description: "Number of page cache loaded by processes.",
+                type: "gauge",
+                name: "load_page_cache",
+            },
+            {
+                description: "Number of dirty page marked by processes.",
+                type: "gauge",
+                name: "mark_page_dirty",
+            }
+        )
+    },
+    {
+        table_name: "proc_dns",
+        entity_name: "proc",
+        fields:
+        (
+            {
+                description: "ID of the process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "comm of the process",
+                type: "label",
+                name: "comm",
+            },
+            {
+                description: "Number of failed DNS obtaining by processes.",
+                type: "gauge",
+                name: "gethostname_failed",
+            },
+            {
+                description: "Duration for a process to obtain a DNS address, in ns.",
+                type: "gauge",
+                name: "ns_gethostname",
+            }
+        )
+    }
+)

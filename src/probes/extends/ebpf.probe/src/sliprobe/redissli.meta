@@ -1,0 +1,41 @@
+version = "1.0.0"
+measurements:
+(
+    {
+        table_name: "redissli",
+        entity_name: "redissli",
+        fields:
+        (
+            {
+                description: "the tgid of redis process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "the fd of redis client connection",
+                type: "key",
+                name: "conn_fd",
+            },
+            {
+                description: "the redis executable file",
+                type: "label",
+                name: "exec_file",
+            },
+            {
+                description: "the redis version",
+                type: "label",
+                name: "version",
+            },
+            {
+                description: "the redis command name of redis client connection",
+                type: "label",
+                name: "cmd_name",
+            },
+            {
+                description: "the redis command delay(ns) in application layer of redis client connection",
+                type: "gauge",
+                name: "cmd_delay_ns",
+            }
+        )
+    }
+)

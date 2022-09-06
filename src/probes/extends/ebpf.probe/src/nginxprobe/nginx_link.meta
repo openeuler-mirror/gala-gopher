@@ -1,0 +1,46 @@
+version = "1.0.0"
+measurements:
+(
+    {
+        table_name: "nginx_link",
+        entity_name: "nginx_link",
+        fields:
+        (
+            {
+                description: "client ip",
+                type: "Unknown",
+                name: "client_ip",
+            },
+            {
+                description: "virtual ip",
+                type: "Unknown",
+                name: "virtual_ip",
+            },
+            {
+                description: "server_ip",
+                type: "Unknown",
+                name: "server_ip",
+            },
+            {
+                description: "virtual port",
+                type: "Unknown",
+                name: "virtual_port",
+            },
+            {
+                description: "server port",
+                type: "Unknown",
+                name: "server_port",
+            },
+            {
+                description: "is_l7",
+                type: "Unknown",
+                name: "is_l7",
+            },
+            {
+                description: "link count",
+                type: "Unknown",
+                name: "link_count",
+            }
+        )
+    }
+)

@@ -1,0 +1,58 @@
+version = "1.0.0"
+
+measurements:
+(
+    {
+        table_name: "jvm",
+        entity_name: "jvm",
+        fields:
+        (
+           {
+                description: "ID of current java process ",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "pkg_name-java_main_class",
+                type: "label",
+                name: "pkg_name_main_class",
+            },
+            {
+                description: "Specification Version of JVM ",
+                type: "label",
+                name: "version",
+            },
+	    {
+                description: "Type of JVM ",
+                type: "label",
+                name: "type",
+            },
+            {
+                description: "Process start time in seconds",
+                type: "gauge",
+                name: "process_start_time_seconds",
+            },
+            {
+                description: "Process total time in seconds",
+                type: "gauge",
+                name: "process_cpu_seconds_total",
+            },
+            {
+		description: "The number of threads in the current java process",
+		type: "gauge",
+		name: "threads_current",
+            },
+            {
+		description: "The peak number of threads of the java process",
+                type: "gauge",
+                name: "threads_peak",
+            },
+            {
+                description: "Deadlocked JVM thread number",
+                type: "gauge",
+                name: "threads_deadlocked",
+            },        	
+        )
+    }
+)
+

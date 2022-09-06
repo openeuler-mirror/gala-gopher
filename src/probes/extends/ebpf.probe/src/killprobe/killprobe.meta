@@ -1,0 +1,31 @@
+version = "1.0.0"
+measurements:
+(
+    {
+        table_name: "kill_info",
+        entity_name: "kill_info",
+        fields:
+        (
+            {
+                description: "Indicates the PID of the kill action.",
+                type: "Unknown",
+                name: "killer_pid",
+            },
+            {
+                description: "Signal of the kill action",
+                type: "Unknown",
+                name: "signal",
+            },
+            {
+                description: "PID of the killed process",
+                type: "Unknown",
+                name: "killed_pid",
+            },
+            {
+                description: "Indicates the comm of the kill action.",
+                type: "Unknown",
+                name: "comm",
+            }
+        )
+    }
+)

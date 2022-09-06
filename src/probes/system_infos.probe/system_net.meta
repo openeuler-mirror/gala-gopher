@@ -1,0 +1,118 @@
+version = "1.0.0"
+
+measurements:
+(
+    {
+        table_name: "system_net",
+        entity_name: "nic",
+        fields:
+        (
+            {
+                description: "dev_name",
+                type: "key",
+                name: "dev_name",
+            },
+            {
+                description: "rx_bytes",
+                type: "gauge",
+                name: "rx_bytes",
+            },
+            {
+                description: "rx_packets",
+                type: "gauge",
+                name: "rx_packets",
+            },
+            {
+                description: "rx_errs",
+                type: "gauge",
+                name: "rx_errs",
+            },
+            {
+                description: "rx_dropped",
+                type: "gauge",
+                name: "rx_dropped",
+            },
+            {
+                description: "tx_bytes",
+                type: "gauge",
+                name: "tx_bytes",
+            },
+            {
+                description: "tx_packets",
+                type: "gauge",
+                name: "tx_packets",
+            },
+            {
+                description: "tx_errs",
+                type: "gauge",
+                name: "tx_errs",
+            },
+            {
+                description: "tx_dropped",
+                type: "gauge",
+                name: "tx_dropped",
+            },
+        )
+    },
+    {
+        table_name: "system_tcp",
+        entity_name: "system_tcp",
+        fields:
+        (
+            {
+                description: "origin",
+                type: "key",
+                name: "origin",
+            },
+            {
+                description: "tcp_curr_estab",
+                type: "gauge",
+                name: "curr_estab",
+            },
+            {
+                description: "tcp_in_segs",
+                type: "gauge",
+                name: "in_segs",
+            },
+            {
+                description: "tcp_out_segs",
+                type: "gauge",
+                name: "out_segs",
+            },
+            {
+                description: "tcp_retrans_segs",
+                type: "gauge",
+                name: "retrans_segs",
+            },
+            {
+                description: "tcp_in_errs",
+                type: "gauge",
+                name: "in_errs",
+            }
+        )
+    },
+    {
+        table_name: "system_udp",
+        entity_name: "system_udp",
+        fields:
+        (
+            {
+                description: "origin",
+                type: "key",
+                name: "origin",
+            },
+            {
+                description: "udp_indata_grams",
+                type: "gauge",
+                name: "indata_grams",
+            },
+            {
+                description: "udp_outdata_grams",
+                type: "gauge",
+                name: "outdata_grams",
+            }
+        )
+    }
+
+)
+

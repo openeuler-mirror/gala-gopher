@@ -1,0 +1,67 @@
+version = "1.0.0"
+
+measurements:
+(
+    {
+        table_name: "system_cpu",
+        entity_name: "cpu",
+        fields:
+        (
+            {
+                description: "Cpu number",
+                type: "key",
+                name: "cpu_num",
+            },
+            {
+                description: "Count of rcu lock in softirqs",
+                type: "gauge",
+                name: "rcu",
+            },
+            {
+                description: "Count of timer in softirqs",
+                type: "gauge",
+                name: "timer",
+            },
+            {
+                description: "Count of schedules in softirqs",
+                type: "gauge",
+                name: "sched",
+            },
+            {
+                description: "Count of network receive in softirqs",
+                type: "gauge",
+                name: "net_rx",
+            },
+            {
+                description: "cpu_user_total_second",
+                type: "gauge",
+                name: "user_total_second",
+            },
+            {
+                description: "cpu_nice_total_second",
+                type: "gauge",
+                name: "nice_total_second",
+            },
+            {
+                description: "cpu_system_total_second",
+                type: "gauge",
+                name: "system_total_second",
+            },
+            {
+                description: "cpu_iowait_total_second",
+                type: "gauge",
+                name: "iowait_total_second",
+            },
+            {
+                description: "cpu_irq_total_second",
+                type: "gauge",
+                name: "irq_total_second",
+            },
+            {
+                description: "cpu_softirq_total_second",
+                type: "gauge",
+                name: "softirq_total_second",
+            }
+        )
+    }
+)

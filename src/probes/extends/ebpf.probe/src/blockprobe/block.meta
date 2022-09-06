@@ -1,0 +1,191 @@
+version = "1.0.0"
+measurements:
+(
+    {
+        table_name: "block",
+        entity_name: "block",
+        fields:
+        (
+            {
+                description: "Major id of block",
+                type: "key",
+                name: "major",
+            },
+            {
+                description: "First minor id of block",
+                type: "key",
+                name: "first_minor",
+            },
+            {
+                description: "Type of block, such as disk, part.",
+                type: "label",
+                name: "blk_type",
+            },
+            {
+                description: "Name of block",
+                type: "label",
+                name: "blk_name",
+            },
+            {
+                description: "Name of disk",
+                type: "label",
+                name: "disk_name",
+            },
+            {
+                description: "Max latency of request consumed, include block queued time",
+                type: "gauge",
+                name: "latency_req_max",
+            },
+            {
+                description: "Last latency of request consumed, include block queued time",
+                type: "gauge",
+                name: "latency_req_last",
+            },
+            {
+                description: "Sum latency of request consumed, include block queued time",
+                type: "gauge",
+                name: "latency_req_sum",
+            },
+            {
+                description: "Jitter latency of request consumed, include block queued time",
+                type: "gauge",
+                name: "latency_req_jitter",
+            },
+            {
+                description: "Count of request consumed",
+                type: "gauge",
+                name: "count_latency_req",
+            },
+            {
+                description: "Max latency of flush operation consumed, include block queued time",
+                type: "gauge",
+                name: "latency_flush_max",
+            },
+            {
+                description: "last latency of flush operation consumed, include block queued time",
+                type: "gauge",
+                name: "latency_flush_last",
+            },
+            {
+                description: "Sum latency of flush operation consumed, include block queued time",
+                type: "gauge",
+                name: "latency_flush_sum",
+            },
+            {
+                description: "Jitter latency of flush operation consumed, include block queued time",
+                type: "gauge",
+                name: "latency_flush_jitter",
+            },
+            {
+                description: "Count of flush operation",
+                type: "gauge",
+                name: "count_latency_flush",
+            },
+            {
+                description: "Max latency of driver operation consumed",
+                type: "gauge",
+                name: "latency_driver_max",
+            },
+            {
+                description: "last latency of driver operation consumed",
+                type: "gauge",
+                name: "latency_driver_last",
+            },
+            {
+                description: "Sum latency of driver operation consumed",
+                type: "gauge",
+                name: "latency_driver_sum",
+            },
+            {
+                description: "Jitter latency of driver operation consumed",
+                type: "gauge",
+                name: "latency_driver_jitter",
+            },
+            {
+                description: "Count of driver operation",
+                type: "gauge",
+                name: "count_latency_driver",
+            },
+            {
+                description: "Max latency of device operation consumed",
+                type: "gauge",
+                name: "latency_device_max",
+            },
+            {
+                description: "last latency of device operation consumed",
+                type: "gauge",
+                name: "latency_device_last",
+            },
+            {
+                description: "Sum latency of device operation consumed",
+                type: "gauge",
+                name: "latency_device_sum",
+            },
+            {
+                description: "Jitter latency of device operation consumed",
+                type: "gauge",
+                name: "latency_device_jitter",
+            },
+            {
+                description: "Count of device operation",
+                type: "gauge",
+                name: "count_latency_device",
+            },
+            {
+                description: "Count of iscsi operation time out",
+                type: "gauge",
+                name: "count_iscsi_tmout",
+            },
+            {
+                description: "Count of iscsi operation error",
+                type: "gauge",
+                name: "count_iscsi_err",
+            },
+            {
+                description: "Count of iscsi transport bad op-code",
+                type: "gauge",
+                name: "conn_err_bad_opcode",
+            },
+            {
+                description: "Count of iscsi transport xmit failed",
+                type: "gauge",
+                name: "conn_err_xmit_failed",
+            },
+            {
+                description: "Count of iscsi transport time out",
+                type: "gauge",
+                name: "conn_err_tmout",
+            },
+            {
+                description: "Count of iscsi transport connection failed",
+                type: "gauge",
+                name: "conn_err_connect_failed",
+            },
+            {
+                description: "Count of iscsi sas abort",
+                type: "gauge",
+                name: "count_sas_abort",
+            },
+            {
+                description: "Count of page cache accesses",
+                type: "gauge",
+                name: "access_pagecache",
+            },
+            {
+                description: "Count of mark buffer dirty",
+                type: "gauge",
+                name: "mark_buffer_dirty",
+            },
+            {
+                description: "Count of load page to lru",
+                type: "gauge",
+                name: "load_page_cache",
+            },
+            {
+                description: "Count of mark page dirty",
+                type: "gauge",
+                name: "mark_page_dirty",
+            }
+        )
+    }
+)

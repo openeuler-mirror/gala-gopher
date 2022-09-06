@@ -1,0 +1,528 @@
+version = "1.0.0"
+measurements:
+(
+    {
+        table_name: "tcp_tx_rx",
+        entity_name: "tcp_link",
+        fields:
+        (
+            {
+                description: "id of process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "role",
+                type: "key",
+                name: "role",
+            },
+            {
+                description: "client ip",
+                type: "key",
+                name: "client_ip",
+            },
+            {
+                description: "server ip",
+                type: "key",
+                name: "server_ip",
+            },
+            {
+                description: "client port",
+                type: "key",
+                name: "client_port",
+            },
+            {
+                description: "server port",
+                type: "key",
+                name: "server_port",
+            },
+            {
+                description: "protocol",
+                type: "key",
+                name: "protocol",
+            },
+            {
+                description: "rx bytes",
+                type: "gauge",
+                name: "rx_bytes",
+            },
+            {
+                description: "tx bytes",
+                type: "gauge",
+                name: "tx_bytes",
+            },
+            {
+                description: "total number of segments rcvd",
+                type: "gauge",
+                name: "segs_in",
+            },
+            {
+                description: "total number of segments sent",
+                type: "gauge",
+                name: "segs_out",
+            }
+        )
+    },
+    {
+        table_name: "tcp_rtt",
+        entity_name: "tcp_link",
+        fields:
+        (
+            {
+                description: "id of process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "role",
+                type: "key",
+                name: "role",
+            },
+            {
+                description: "client ip",
+                type: "key",
+                name: "client_ip",
+            },
+            {
+                description: "server ip",
+                type: "key",
+                name: "server_ip",
+            },
+            {
+                description: "client port",
+                type: "key",
+                name: "client_port",
+            },
+            {
+                description: "server port",
+                type: "key",
+                name: "server_port",
+            },
+            {
+                description: "protocol",
+                type: "key",
+                name: "protocol",
+            },
+            {
+                description: "Smoothed Round Trip Time(us).",
+                type: "gauge",
+                name: "srtt",
+            },
+            {
+                description: "Receive end RTT (unidirectional measurement).",
+                type: "gauge",
+                name: "rcv_rtt",
+            }
+        )
+    },
+    {
+        table_name: "tcp_windows",
+        entity_name: "tcp_link",
+        fields:
+        (
+            {
+                description: "id of process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "role",
+                type: "key",
+                name: "role",
+            },
+            {
+                description: "client ip",
+                type: "key",
+                name: "client_ip",
+            },
+            {
+                description: "server ip",
+                type: "key",
+                name: "server_ip",
+            },
+            {
+                description: "client port",
+                type: "key",
+                name: "client_port",
+            },
+            {
+                description: "server port",
+                type: "key",
+                name: "server_port",
+            },
+            {
+                description: "protocol",
+                type: "key",
+                name: "protocol",
+            },
+            {
+                description: "Congestion Control Window Size.",
+                type: "gauge",
+                name: "snd_cwnd",
+            },
+            {
+                description: "Number of bytes not sent currently.",
+                type: "gauge",
+                name: "notsent_bytes",
+            },
+            {
+                description: "Number of bytes not ack currently.",
+                type: "gauge",
+                name: "notack_bytes",
+            },
+            {
+                description: "Segments to be reordered.",
+                type: "gauge",
+                name: "reordering",
+            },
+            {
+                description: "Size of TCP send window.",
+                type: "gauge",
+                name: "snd_wnd",
+            },
+            {
+                description: "Size of TCP receive window.",
+                type: "gauge",
+                name: "rcv_wnd",
+            }
+        )
+    },
+    {
+        table_name: "tcp_rate",
+        entity_name: "tcp_link",
+        fields:
+        (
+            {
+                description: "id of process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "role",
+                type: "key",
+                name: "role",
+            },
+            {
+                description: "client ip",
+                type: "key",
+                name: "client_ip",
+            },
+            {
+                description: "server ip",
+                type: "key",
+                name: "server_ip",
+            },
+            {
+                description: "client port",
+                type: "key",
+                name: "client_port",
+            },
+            {
+                description: "server port",
+                type: "key",
+                name: "server_port",
+            },
+            {
+                description: "protocol",
+                type: "key",
+                name: "protocol",
+            },
+            {
+                description: "Retransmission timeOut(us)",
+                type: "gauge",
+                name: "rto",
+            },
+            {
+                description: "Estimated value of delayed ACK(us)",
+                type: "gauge",
+                name: "ato",
+            },
+            {
+                description: "Slow start threshold for congestion control.",
+                type: "gauge",
+                name: "snd_ssthresh",
+            },
+            {
+                description: "Current receive window size.",
+                type: "gauge",
+                name: "rcv_ssthresh",
+            },
+            {
+                description: "Local MSS upper limit.",
+                type: "gauge",
+                name: "advmss",
+            },
+            {
+                description: "Current receive buffer size.",
+                type: "gauge",
+                name: "rcv_space",
+            },
+            {
+                description: "Current transmit rate (multiple different from the actual value).",
+                type: "gauge",
+                name: "delivery_rate",
+            },
+            {
+                description: "Time (jiffies) busy sending data.",
+                type: "gauge",
+                name: "busy_time",
+            },
+            {
+                description: "Time (jiffies) limited by receive window.",
+                type: "gauge",
+                name: "rwnd_limited",
+            },
+            {
+                description: "Time (jiffies) limited by send buffer.",
+                type: "gauge",
+                name: "sndbuf_limited",
+            },
+            {
+                description: "TCP pacing rate, bytes per second",
+                type: "gauge",
+                name: "pacing_rate",
+            },
+            {
+                description: "MAX TCP pacing rate, bytes per second",
+                type: "gauge",
+                name: "max_pacing_rate",
+            }
+        )
+    },
+    {
+        table_name: "tcp_srtt",
+        entity_name: "tcp_link",
+        fields:
+        (
+            {
+                description: "id of process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "role",
+                type: "key",
+                name: "role",
+            },
+            {
+                description: "client ip",
+                type: "key",
+                name: "client_ip",
+            },
+            {
+                description: "server ip",
+                type: "key",
+                name: "server_ip",
+            },
+            {
+                description: "client port",
+                type: "key",
+                name: "client_port",
+            },
+            {
+                description: "server port",
+                type: "key",
+                name: "server_port",
+            },
+            {
+                description: "protocol",
+                type: "key",
+                name: "protocol",
+            },
+            {
+                description: "RTT of syn packet(us).",
+                type: "gauge",
+                name: "syn_srtt",
+            }
+        )
+    },
+    {
+        table_name: "tcp_sockbuf",
+        entity_name: "tcp_link",
+        fields:
+        (
+            {
+                description: "id of process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "role",
+                type: "key",
+                name: "role",
+            },
+            {
+                description: "client ip",
+                type: "key",
+                name: "client_ip",
+            },
+            {
+                description: "server ip",
+                type: "key",
+                name: "server_ip",
+            },
+            {
+                description: "client port",
+                type: "key",
+                name: "client_port",
+            },
+            {
+                description: "server port",
+                type: "key",
+                name: "server_port",
+            },
+            {
+                description: "protocol",
+                type: "key",
+                name: "protocol",
+            },
+            {
+                description: "Size of error queue in sock.",
+                type: "gauge",
+                name: "sk_err_que_size",
+            },
+            {
+                description: "Size of receive queue in sock.",
+                type: "gauge",
+                name: "sk_rcv_que_size",
+            },
+            {
+                description: "Size of write queue in sock.",
+                type: "gauge",
+                name: "sk_wri_que_size",
+            },
+            {
+                description: "Size of backlog queue in sock.",
+                type: "gauge",
+                name: "sk_backlog_size",
+            },
+            {
+                description: "Size of omem in sock.",
+                type: "gauge",
+                name: "sk_omem_size",
+            },
+            {
+                description: "Size of forward in sock.",
+                type: "gauge",
+                name: "sk_forward_size",
+            },
+            {
+                description: "Size of wmem in sock.",
+                type: "gauge",
+                name: "sk_wmem_size",
+            }
+        )
+    },
+    {
+        table_name: "tcp_abn",
+        entity_name: "tcp_link",
+        fields:
+        (
+            {
+                description: "id of process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "role",
+                type: "key",
+                name: "role",
+            },
+            {
+                description: "client ip",
+                type: "key",
+                name: "client_ip",
+            },
+            {
+                description: "server ip",
+                type: "key",
+                name: "server_ip",
+            },
+            {
+                description: "client port",
+                type: "key",
+                name: "client_port",
+            },
+            {
+                description: "server port",
+                type: "key",
+                name: "server_port",
+            },
+            {
+                description: "protocol",
+                type: "key",
+                name: "protocol",
+            },
+            {
+                description: "retrans packets",
+                type: "gauge",
+                name: "retran_packets",
+            },
+            {
+                description: "drops caused by backlog queue full",
+                type: "gauge",
+                name: "backlog_drops",
+            },
+            {
+                description: "sock drop counter",
+                type: "gauge",
+                name: "sk_drops",
+            },
+            {
+                description: "tcp lost counter",
+                type: "gauge",
+                name: "lost_out",
+            },
+            {
+                description: "tcp sacked out counter",
+                type: "gauge",
+                name: "sacked_out",
+            },
+            {
+                description: "drops caused by socket filter",
+                type: "gauge",
+                name: "filter_drops",
+            },
+            {
+                description: "counter of tcp link timeout",
+                type: "gauge",
+                name: "tmout_count",
+            },
+            {
+                description: "counter of limits when allocate wmem",
+                type: "gauge",
+                name: "snd_buf_limit_count",
+            },
+            {
+                description: "rmem is not enough",
+                type: "gauge",
+                name: "rmem_scheduls",
+            },
+            {
+                description: "tcp out of memory",
+                type: "gauge",
+                name: "tcp_oom",
+            },
+            {
+                description: "send_rsts",
+                type: "gauge",
+                name: "send_rsts",
+            },
+            {
+                description: "receive_rsts",
+                type: "gauge",
+                name: "receive_rsts",
+            },
+            {
+                description: "sk_err",
+                type: "gauge",
+                name: "sk_err",
+            },
+            {
+                description: "sk_err_soft",
+                type: "gauge",
+                name: "sk_err_soft",
+            }
+        )
+    }
+)

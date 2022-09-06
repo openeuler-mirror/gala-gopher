@@ -1,0 +1,120 @@
+version = "1.0.0"
+
+measurements:
+(
+    {
+        table_name: "system_iostat",
+        entity_name: "disk",
+        fields:
+        (
+            {
+                description: "disk name",
+                type: "key",
+                name: "disk_name",
+            },
+            {
+                description: "r/s",
+                type: "gauge",
+                name: "rspeed",
+            },
+            {
+                description: "rkB/s",
+                type: "gauge",
+                name: "rspeed_kB",
+            },
+            {
+                description: "r_await",
+                type: "gauge",
+                name: "r_await",
+            },
+            {
+                description: "rareq-sz",
+                type: "gauge",
+                name: "rareq",
+            },
+            {
+                description: "w/s",
+                type: "gauge",
+                name: "wspeed",
+            },
+            {
+                description: "wkB/s",
+                type: "gauge",
+                name: "wspeed_kB",
+            },
+            {
+                description: "w_await",
+                type: "gauge",
+                name: "w_await",
+            },
+            {
+                description: "wareq-sz",
+                type: "gauge",
+                name: "wareq",
+            },
+            {
+                description: "util",
+                type: "gauge",
+                name: "util",
+            }
+        )
+    },
+    {
+        table_name: "system_df",
+        entity_name: "file_system",
+        fields:
+        (
+            {
+                description: "MountOn",
+                type: "key",
+                name: "MountOn",
+            },
+            {
+                description: "File System Type",
+                type: "label",
+                name: "File_sys",
+            },
+            {
+                description: "Inodes",
+                type: "label",
+                name: "Inodes",
+            },
+            {
+                description: "IUsed",
+                type: "gauge",
+                name: "IUsed",
+            },
+            {
+                description: "IFree",
+                type: "gauge",
+                name: "IFree",
+            },
+            {
+                description: "IUse(%)",
+                type: "gauge",
+                name: "IUsePer",
+            },
+            {
+                description: "amount of disk space(1K)",
+                type: "label",
+                name: "Blocks",
+            },
+            {
+                description: "disk used(KB)",
+                type: "gauge",
+                name: "Used",
+            },
+            {
+                description: "disk remaining(KB)",
+                type: "gauge",
+                name: "Free",
+            },
+            {
+                description: "disk usage(%)",
+                type: "gauge",
+                name: "UsePer",
+            }
+        )
+    }
+)
+
