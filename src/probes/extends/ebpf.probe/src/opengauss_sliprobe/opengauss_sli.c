@@ -47,6 +47,7 @@
 #define OPENGAUSS_ARGS_PATH          "/sys/fs/bpf/probe/__opengauss_args"
 #define OPENGAUSS_CONN_PATH          "/sys/fs/bpf/probe/__opengauss_conn"
 #define OPENGAUSS_CONN_SAMP_PATH     "/sys/fs/bpf/probe/__opengauss_conn_samp"
+#define OPENGAUSS_OUTPUT_PATH        "/sys/fs/bpf/probe/__opengauss_output"
 
 #define RM_OPENGAUSS_PATH "/usr/bin/rm -rf /sys/fs/bpf/probe/__opengauss*"
 
@@ -55,6 +56,7 @@
     MAP_SET_PIN_PATH(probe_name, args_map, OPENGAUSS_ARGS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, conn_map, OPENGAUSS_CONN_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, conn_samp_map, OPENGAUSS_CONN_SAMP_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, output, OPENGAUSS_OUTPUT_PATH, load); \
     LOAD_ATTACH(probe_name, end, load)
 
 static volatile sig_atomic_t stop;
@@ -373,6 +375,12 @@ int main(int argc, char **argv)
     }
     printf("arg parse interval time:%us\n", params.period);
 
+#ifdef KERNEL_SUPPORT_TSTAMP
+    load_tc_bpf(params.netcard_list, TC_TSTAMP_PROG, TC_TYPE_INGRESS);
+#else
+    printf("The kernel version does not support loading the tc tstamp program\n");
+#endif
+
     fp = popen(RM_OPENGAUSS_PATH, "r");
     if (fp != NULL) {
         (void)pclose(fp);
@@ -424,7 +432,7 @@ int main(int argc, char **argv)
         clear_invalid_bpf_link();
         if (init == 0) {
             load_args(GET_MAP_FD(ogsli_kprobe, args_map), &params);
-            err = init_conn_mgt_process(GET_MAP_FD(ogsli_uprobe, msg_event_map));
+            err = init_conn_mgt_process(GET_MAP_FD(ogsli_kprobe, output));
             if (err != 0) {
                 fprintf(stderr, "Init connection management process failed.\n");
                 goto init_err;
@@ -434,12 +442,13 @@ int main(int argc, char **argv)
         sleep(params.period);
     }
 
-
-
 init_err:
     clear_all_bpf_link();
     UNLOAD(ogsli_uprobe);
 init_k_err:
     UNLOAD(ogsli_kprobe);
+#ifdef KERNEL_SUPPORT_TSTAMP
+    offload_tc_bpf(TC_TYPE_INGRESS);
+#endif
     return -err;
 }

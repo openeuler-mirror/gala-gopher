@@ -15,6 +15,8 @@
 #ifndef __OPENGAUSS_SLI_H__
 #define __OPENGAUSS_SLI_H__
 
+#define TC_PROG "tc_tstamp.bpf.o"
+
 #define SLI_OK       0
 #define SLI_ERR      (-1)
 
