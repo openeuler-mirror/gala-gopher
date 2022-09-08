@@ -53,7 +53,6 @@ struct bpf_map_def SEC("maps") args_map = {
 enum samp_status_t {
     SAMP_INIT = 0,
     SAMP_READ_READY,
-    SAMP_WRITE_READY,
     SAMP_SKB_READY,
     SAMP_FINISHED,
 };
@@ -73,31 +72,6 @@ struct bpf_map_def SEC("maps") conn_samp_map = {
     .max_entries = MAX_CONN_LEN,
 };
 
-static __always_inline char is_redis_proc(void)
-{
-    u32 key = 0;
-    char comm[TASK_COMM_LEN] = {0};
-
-    struct ksli_args_s *args;
-    args = (struct ksli_args_s *)bpf_map_lookup_elem(&args_map, &key);
-
-    (void)bpf_get_current_comm(&comm, TASK_COMM_LEN);
-
-    if (args == NULL) {
-        if ((comm[0] == 'r') && (comm[1] == 'e')
-            && (comm[2] == 'd') && (comm[3] == 'i') && (comm[4] == 's')) {
-            return 1;
-        }
-    } else {
-        if ((comm[0] == args->redis_proc[0]) && (comm[1] == args->redis_proc[1])
-            && (comm[2] == args->redis_proc[2]) && (comm[3] == args->redis_proc[3])
-            && (comm[4] == args->redis_proc[4])) {
-            return 1;
-        }
-    }
-
-    return 0;
-}
 
 static __always_inline void init_conn_key(struct conn_key_t *conn_key, int fd, int tgid)
 {
@@ -134,6 +108,28 @@ static __always_inline int init_conn_samp_data(struct sock *sk)
     return bpf_map_update_elem(&conn_samp_map, &sk, &csd, BPF_ANY);
 }
 
+#ifndef __PERIOD
+#define __PERIOD NS(30)
+#endif
+static __always_inline void get_args(struct conn_data_t *conn_data)
+{
+    u32 key = 0;
+    u64 period = __PERIOD;
+    char cycle_sampling_flag = 0;
+
+    struct ksli_args_s *args;
+    args = (struct ksli_args_s *)bpf_map_lookup_elem(&args_map, &key);
+    if (args) {
+        period = args->period;
+        cycle_sampling_flag = args->cycle_sampling_flag;
+    }
+
+    conn_data->report_period = period;
+    conn_data->cycle_sampling_flag = cycle_sampling_flag;
+
+    return;
+}
+
 static __always_inline int update_conn_map_n_conn_samp_map(int fd, int tgid, struct conn_key_t *conn_key)
 {
     long err;
@@ -149,9 +145,7 @@ static __always_inline int update_conn_map_n_conn_samp_map(int fd, int tgid, str
         return SLI_ERR;
     }
 
-    if (is_redis_proc()) {
-        conn_data.id.protocol = PROTOCOL_REDIS;
-    }
+    get_args(&conn_data);
 
     err = bpf_map_update_elem(&conn_map, conn_key, &conn_data, BPF_ANY);
     if (err < 0) {
@@ -159,24 +153,6 @@ static __always_inline int update_conn_map_n_conn_samp_map(int fd, int tgid, str
     }
 
     return init_conn_samp_data(sk);
-}
-
-// 创建服务端 tcp 连接
-KRETPROBE(__sys_accept4, pt_regs)
-{
-    int fd = PT_REGS_RC(ctx);
-    u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;
-
-    struct conn_key_t conn_key = {0};
-
-    if (fd < 0) {
-        return;
-    }
-
-    init_conn_key(&conn_key, fd, tgid);
-    (void)update_conn_map_n_conn_samp_map(fd, tgid, &conn_key);
-
-    return;
 }
 
 // 关闭 tcp 连接
@@ -211,31 +187,25 @@ static __always_inline void parse_msg_to_redis_cmd(char msg_char, int *j, char *
             break;
             
         case FIND1_PARM_NUM:
-            if ((msg_char >= '0' && msg_char <= '9') || msg_char == '\r' || msg_char == '\n') {
-                ;
-            } else if (msg_char == '$') {
+            if (msg_char == '$') {
                 *find_state = FIND2_CMD_LEN;
-            } else {
-                *find_state = FIND_MSG_ERR_STOP;
             }
             break;
         case FIND2_CMD_LEN:
-            if ((msg_char >= '0' && msg_char <= '9') || msg_char == '\r') {
-                ;
-            } else if (msg_char == '\n') {
+            if (msg_char == '\n') {
                 *find_state = FIND3_CMD_STR;
-            } else {
-                *find_state = FIND_MSG_ERR_STOP;
             }
             break;
         case FIND3_CMD_STR:
+            if (*j == 3) {
+                *find_state = FIND_MSG_OK_STOP;
+                break;
+            }
             if (msg_char >= 'a') 
                 msg_char = msg_char - ('a'-'A');
             if (msg_char >= 'A' && msg_char <= 'Z') {
                 command[*j] = msg_char;
                 *j = *j + 1;
-            } else if (msg_char == '\r' || msg_char == '\n') {
-                *find_state = FIND_MSG_OK_STOP;
             } else {
                 *find_state = FIND_MSG_ERR_STOP;
             }
@@ -280,43 +250,28 @@ static __always_inline int parse_req(struct conn_data_t *conn_data, const unsign
 
     // 解析请求中的command，确认协议
     if (identify_protocol_redis(msg, conn_data->current.command) == SLI_OK) {
+        conn_data->current.command[3] = 0;
         return PROTOCOL_REDIS;
     }
 
     return PROTOCOL_UNKNOWN;
 }
 
-#ifndef __PERIOD
-#define __PERIOD NS(30)
-#endif
-static __always_inline u64 get_period()
-{
-    u32 key = 0;
-    u64 period = __PERIOD;
-
-    struct ksli_args_s *args;
-    args = (struct ksli_args_s *)bpf_map_lookup_elem(&args_map, &key);
-    if (args) {
-        period = args->period;
-    }
-
-    return period; // units from second to nanosecond
-}
-
-static __always_inline void periodic_report(u64 ts_nsec, struct conn_data_t *conn_data, struct pt_regs *ctx)
+static __always_inline int periodic_report(u64 ts_nsec, struct conn_data_t *conn_data, struct pt_regs *ctx)
 {
     long err;
-    u64 period = get_period();
+    int ret = 0;
+    u64 period = conn_data->report_period;
 
     // 表示没有任何采样数据，不上报
     if (conn_data->latency.rtt_nsec == 0) {
-        return;
+        return 0;
     }
 
     if (ts_nsec > conn_data->last_report_ts_nsec &&
         ts_nsec - conn_data->last_report_ts_nsec >= period) {
         // rtt larger than period is considered an invalid value
-        if (conn_data->latency.rtt_nsec < period && conn_data->max.rtt_nsec < period) {
+        if (conn_data->latency.rtt_nsec < period) {
             struct msg_event_data_t msg_evt_data = {0};
             msg_evt_data.conn_id = conn_data->id;
             msg_evt_data.server_ip_info = conn_data->id.server_ip_info;
@@ -332,8 +287,9 @@ static __always_inline void periodic_report(u64 ts_nsec, struct conn_data_t *con
         conn_data->latency.rtt_nsec = 0;
         conn_data->max.rtt_nsec = 0;
         conn_data->last_report_ts_nsec = ts_nsec;
+        ret = 1;
     }
-    return;
+    return ret;
 }
 
 static __always_inline void sample_finished(struct conn_data_t *conn_data, struct conn_samp_data_t *csd)
@@ -342,22 +298,23 @@ static __always_inline void sample_finished(struct conn_data_t *conn_data, struc
         conn_data->latency.rtt_nsec = csd->rtt_ts_nsec;
         __builtin_memcpy(&conn_data->latency.command, &csd->command, MAX_COMMAND_REQ_SIZE);
     }
-    if (conn_data->max.rtt_nsec < csd->rtt_ts_nsec) {
-        conn_data->max.rtt_nsec = csd->rtt_ts_nsec;
-        __builtin_memcpy(&conn_data->max.command, &csd->command, MAX_COMMAND_REQ_SIZE);
+    if (conn_data->cycle_sampling_flag) {
+        if (conn_data->max.rtt_nsec < csd->rtt_ts_nsec) {
+            conn_data->max.rtt_nsec = csd->rtt_ts_nsec;
+            __builtin_memcpy(&conn_data->max.command, &csd->command, MAX_COMMAND_REQ_SIZE);
+        }
     }
     csd->status = SAMP_INIT;
 }
 
-static __always_inline void process_rdwr_msg(int fd, const char *buf, const unsigned int count, enum msg_event_rw_t rw_type,
+static __always_inline void process_rdwr_msg(u32 tgid, int fd, const char *buf, const unsigned int count,
                                              struct pt_regs *ctx)
 {
-    u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;
     struct conn_key_t conn_key = {0};
     struct conn_data_t *conn_data;
     u64 ts_nsec = bpf_ktime_get_ns();
     struct conn_samp_data_t *csd;
-    int parsed = 0;
+    int reported = 0;
 
     init_conn_key(&conn_key, fd, tgid);
     conn_data = (struct conn_data_t *)bpf_map_lookup_elem(&conn_map, &conn_key);
@@ -369,53 +326,68 @@ static __always_inline void process_rdwr_msg(int fd, const char *buf, const unsi
         return;
     }
 
-    if ((rw_type == MSG_READ) && (conn_data->id.protocol == PROTOCOL_UNKNOWN)) {
-        enum conn_protocol_t protocol = parse_req(conn_data, count, buf);
-        conn_data->id.protocol = protocol;
-        parsed = 1;
+    if (csd->status == SAMP_FINISHED) {
+        sample_finished(conn_data, csd);
     }
 
-    if (conn_data->id.protocol == PROTOCOL_UNKNOWN) {
+    // 周期上报
+    reported = periodic_report(ts_nsec, conn_data, ctx);
+
+    if (csd->status != SAMP_INIT) {
+        // 超过采样周期，则重置采样状态，避免采样状态一直处于不可达的情况
+        if (ts_nsec > csd->start_ts_nsec &&
+            ts_nsec - csd->start_ts_nsec >= __PERIOD) {
+            csd->status = SAMP_INIT;
+        }
         return;
     }
 
-    if (rw_type == MSG_READ) {
-        if (csd->status == SAMP_FINISHED) {
-            sample_finished(conn_data, csd);
-        }
+    // 非循环采样每次上报后就返回，等待下次上报周期再采样。这种方式无法获取周期内max sli。
+    if (!conn_data->cycle_sampling_flag && reported)
+        return;
 
-        // 周期上报
-        periodic_report(ts_nsec, conn_data, ctx);
+    enum conn_protocol_t protocol = parse_req(conn_data, count, buf);
+    if (protocol == PROTOCOL_UNKNOWN) {
+        return;
+    }
+	conn_data->id.protocol = protocol;
 
-        if (csd->status != SAMP_INIT) {
-            // 超过采样周期，则重置采样状态，避免采样状态一直处于不可达的情况
-            if (ts_nsec > csd->start_ts_nsec &&
-                ts_nsec - csd->start_ts_nsec >= __PERIOD) {
-                csd->status = SAMP_INIT;
-            }
-            return;
-        }
-
-        if (!parsed) {
-            (void)parse_req(conn_data, count, buf);
-        }
-        __builtin_memcpy(&csd->command, conn_data->current.command, MAX_COMMAND_REQ_SIZE);
+    __builtin_memcpy(&csd->command, conn_data->current.command, MAX_COMMAND_REQ_SIZE);
 
 #ifndef KERNEL_SUPPORT_TSTAMP
-        csd->start_ts_nsec = ts_nsec;
+    csd->start_ts_nsec = ts_nsec;
 #endif
-        csd->status = SAMP_READ_READY;
-    } else {
-        if (csd->status == SAMP_READ_READY) {
-            csd->status = SAMP_WRITE_READY;
-        }
-    }
+    csd->status = SAMP_READ_READY;
 
     return;
 }
 
+KPROBE(ksys_read, pt_regs)
+{
+    int fd = (int)PT_REGS_PARM1(ctx);
+    struct conn_key_t conn_key = {0};
+    u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;
+    init_conn_key(&conn_key, fd, tgid);
+
+    struct conn_data_t * conn_data = (struct conn_data_t *)bpf_map_lookup_elem(&conn_map, &conn_key);
+    if (conn_data == (void *)0) {
+        if (update_conn_map_n_conn_samp_map(fd, tgid, &conn_key) != SLI_OK)
+            return;
+    }
+    
+    if (conn_data == (void *)0)
+        return;
+
+    if (!conn_data->cycle_sampling_flag) {
+        if (bpf_ktime_get_ns() - conn_data->last_report_ts_nsec < conn_data->report_period)
+            return;
+    }
+
+    KPROBE_PARMS_STASH(ksys_read, ctx, CTX_USER);
+}
+
 // 跟踪连接 read 读消息
-KSLIPROBE_RET(ksys_read, pt_regs, CTX_USER)
+KRETPROBE(ksys_read, pt_regs)
 {
     int fd;
     u32 tgid __maybe_unused = bpf_get_current_pid_tgid() >> INT_LEN;
@@ -436,23 +408,7 @@ KSLIPROBE_RET(ksys_read, pt_regs, CTX_USER)
     fd = (int)PROBE_PARM1(val);
     buf = (char *)PROBE_PARM2(val);
 
-    process_rdwr_msg(fd, buf, count, MSG_READ, ctx);
-
-    return;
-}
-
-// 跟踪连接 write 写消息
-KPROBE(ksys_write, pt_regs)
-{
-    int fd;
-    u32 tgid __maybe_unused = bpf_get_current_pid_tgid() >> INT_LEN;
-    char *buf;
-
-    fd = (int)PT_REGS_PARM1(ctx);
-    buf = (char *)PT_REGS_PARM2(ctx);
-
-    // MSG_WRITE doesn't need pass count
-    process_rdwr_msg(fd, buf, 0, MSG_WRITE, ctx);
+    process_rdwr_msg(tgid, fd, buf, count, ctx);
 
     return;
 }
@@ -469,7 +425,7 @@ KPROBE(tcp_event_new_data_sent, pt_regs)
 
     csd = (struct conn_samp_data_t *)bpf_map_lookup_elem(&conn_samp_map, &sk);
     if (csd != (void *)0) {
-        if (csd->status == SAMP_WRITE_READY) {
+        if (csd->status == SAMP_READ_READY) {
             csd->end_seq = _(TCP_SKB_CB(skb)->end_seq);
             csd->status = SAMP_SKB_READY;
         }
