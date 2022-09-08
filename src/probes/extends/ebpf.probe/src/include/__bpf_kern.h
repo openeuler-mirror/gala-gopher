@@ -125,8 +125,6 @@ static __always_inline __maybe_unused char is_compat_task(struct task_struct *ta
 #endif
 
 
-
-
 static __always_inline __maybe_unused struct sock *sock_get_by_fd(int fd, struct task_struct *task)
 {
     struct files_struct *files = _(task->files);
@@ -155,9 +153,8 @@ static __always_inline __maybe_unused struct sock *sock_get_by_fd(int fd, struct
     return sk;
 }
 
-#define KPROBE_RET(func, type, caller_type) \
-    bpf_section("kprobe/" #func) \
-    void __kprobe_bpf_##func(struct type *ctx) { \
+#define KPROBE_PARMS_STASH(func, ctx, caller_type) \
+    do { \
         int ret; \
         struct __probe_key __key = {0}; \
         struct __probe_val __val = {0}; \
@@ -172,6 +169,12 @@ static __always_inline __maybe_unused struct sock *sock_get_by_fd(int fd, struct
         if (ret < 0) { \
             bpf_printk("---KPROBE_RET[" #func "] push failed.\n"); \
         } \
+    } while (0)
+
+#define KPROBE_RET(func, type, caller_type) \
+    bpf_section("kprobe/" #func) \
+    void __kprobe_bpf_##func(struct type *ctx) { \
+        KPROBE_PARMS_STASH(func, ctx, caller_type); \
     } \
     \
     bpf_section("kretprobe/" #func) \
