@@ -37,9 +37,10 @@
 #define OO_NAME "sli"
 #define DEFAULT_REDIS_PROC_NAME "redis"
 #define SLI_TBL_NAME "redis_sli"
+#define MAX_SLI_TBL_NAME "redis_max_sli"
 
 static volatile sig_atomic_t stop;
-static struct probe_params params = {.period = DEFAULT_PERIOD};
+static struct probe_params params = {.period = DEFAULT_PERIOD, .cycle_sampling_flag = 0};
 
 static void sig_int(int signo)
 {
@@ -108,19 +109,32 @@ static void msg_event_handler(void *ctx, int cpu, void *data, unsigned int size)
             break;
     }
     fprintf(stdout,
-            "|%s|%d|%d|%s|%s|%u|%s|%u|%s|%llu|%s|%llu|\n",
+            "|%s|%d|%d|%s|%s|%s|%u|%s|%u|%llu|\n",
             SLI_TBL_NAME,
             msg_evt_data->conn_id.tgid,
             msg_evt_data->conn_id.fd,
             protocol,
+            msg_evt_data->latency.command,
             ser_ip_str,
             msg_evt_data->server_ip_info.port,
             cli_ip_str,
             ntohs(msg_evt_data->client_ip_info.port),
-            msg_evt_data->latency.command,
-            msg_evt_data->latency.rtt_nsec,
+            msg_evt_data->latency.rtt_nsec);
+    if (params.cycle_sampling_flag) {
+        fprintf(stdout,
+            "|%s|%d|%d|%s|%s|%s|%u|%s|%u|%llu|\n",
+            MAX_SLI_TBL_NAME,
+            msg_evt_data->conn_id.tgid,
+            msg_evt_data->conn_id.fd,
+            protocol,
             msg_evt_data->max.command,
+            ser_ip_str,
+            msg_evt_data->server_ip_info.port,
+            cli_ip_str,
+            ntohs(msg_evt_data->client_ip_info.port),
             msg_evt_data->max.rtt_nsec);
+    }
+
     (void)fflush(stdout);
 
     return;
@@ -166,12 +180,7 @@ static void load_args(int args_fd, struct probe_params* params)
     struct ksli_args_s args = {0};
 
     args.period = NS(params->period);
-    if (strlen(params->proc_name) > 0) {
-        (void)snprintf(args.redis_proc, MAX_PROC_NAME_LEN, "%s", params->proc_name);
-    } else {
-        (void)snprintf(args.redis_proc, MAX_PROC_NAME_LEN, "%s", DEFAULT_REDIS_PROC_NAME);
-    }
-    args.redis_proc[MAX_REDIS_PROC_NAME_SIZE - 1] = 0;
+    args.cycle_sampling_flag = params->cycle_sampling_flag;
 
     (void)bpf_map_update_elem(args_fd, &key, &args, BPF_ANY);
 }
@@ -185,6 +194,7 @@ int main(int argc, char **argv)
         return -1;
     }
     printf("arg parse interval time:%us\n", params.period);
+    printf("arg parse if cycle sampling:%s\n", params.cycle_sampling_flag ? "true": "false");
 
 #ifdef KERNEL_SUPPORT_TSTAMP
     load_tc_bpf(params.netcard_list, TC_PROG, TC_TYPE_INGRESS);

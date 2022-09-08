@@ -19,7 +19,6 @@
 #include "bpf.h"
 #include <bpf/bpf_endian.h>
 
-#include "ksliprobe.h"
 
 SEC("tc")
 int get_start_ts(struct __sk_buff *skb)

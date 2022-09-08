@@ -127,10 +127,8 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
                 params->load_probe = DEFAULT_LOAD_PROBE;
             }
             break;
-        case 'N':
-            if (arg != NULL) {
-                (void)snprintf((void *)params->proc_name, MAX_PROC_NAME_LEN, "%s", arg);
-            }
+        case 'C':
+            params->cycle_sampling_flag = 1;
             break;
         default:
             return -1;
@@ -148,11 +146,6 @@ static int __args_parse(int argc, char **argv, char *opt_str, struct probe_param
     }
 
     while ((ch = getopt(argc, argv, opt_str)) != -1) {
-        if (!optarg) {
-            printf("optarg is null(%c).\n", ch);
-            return -1;
-        }
-
         if (__period_arg_parse(ch, optarg, params) != 0) {
             return -1;
         }
