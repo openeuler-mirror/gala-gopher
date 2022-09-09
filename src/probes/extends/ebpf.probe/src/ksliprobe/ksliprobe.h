@@ -47,6 +47,7 @@ enum msg_event_rw_t {
 enum conn_protocol_t {
     PROTOCOL_UNKNOWN,
     PROTOCOL_REDIS,
+    PROTOCOL_NO_REDIS,
 };
 
 struct ip {
@@ -89,6 +90,7 @@ struct conn_data_t {
     __u64 last_report_ts_nsec;              // 上一次上报完成的时间点
     __u64 report_period;                    // 上报周期
     char cycle_sampling_flag;
+    char procotol_check_times;
 };
 
 struct msg_event_data_t {
