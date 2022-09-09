@@ -16,16 +16,19 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <dirent.h>
 #include "event.h"
 #include "nprobe_fprintf.h"
 #include "system_net.h"
 
 #define METRICS_TCP_NAME        "system_tcp"
 #define METRICS_UDP_NAME        "system_udp"
-#define METRICS_NET_NAME        "system_net"
+#define METRICS_NIC_NAME        "nic"
+#define ENTITY_NIC_NAME         "nic"
 #define SYSTEM_NET_SNMP_PATH    "/proc/net/snmp"
 #define SYSTEM_NET_DEV_PATH     "/proc/net/dev"
-#define SYSTEM_NETDEV_NUM       "/usr/bin/ls /sys/class/net | wc -l"
+#define SYSTEM_NET_DEV_STATUS   "ethtool %s | grep \"Link detected\" | awk '{print $NF}'"
+#define SYSTEM_NET_QDISC_SHOW   "tc -s -d qdisc show dev"
 
 #define NETSNMP_TCP_FIELD_NUM   5
 #define NETSNMP_UDP_FIELD_NUM   2
@@ -34,7 +37,7 @@ static int get_netsnmp_fileds(const char *net_snmp_info, net_snmp_stat *stats)
     int ret;
     char *colon = strchr(net_snmp_info, ':');
     if (colon == NULL) {
-        printf("net_snmp not find symbol ':' \n");
+        printf("[SYSTEM_NET] net_snmp not find symbol ':' \n");
         return -1;
     }
     *colon = '\0';
@@ -118,24 +121,20 @@ void system_tcp_init(void)
     (void)memset(&g_snmp_stats, 0, sizeof(net_snmp_stat));
 }
 
-static int get_netdev_num(int *num)
+static int get_netdev_name(const char *line, char dev_name[])
 {
-    FILE *f = NULL;
-    char line[LINE_BUF_LEN];
+    int i;
+    int index = 0;
 
-    f = popen(SYSTEM_NETDEV_NUM, "r");
-    if (f == NULL) {
-        printf("[SYSTEM_PROBE] ls fail, popen error.\n");
+    if (line == NULL) {
         return -1;
     }
-    line[0] = 0;
-    if (fgets(line, LINE_BUF_LEN, f) == NULL) {
-        (void)pclose(f);
-        return -1;
+    for (i = 0; (line[i] != ':') && (line[i] != '\0'); i++) {
+        if (line[i] != ' ') {
+            dev_name[index++] = line[i];
+        }
     }
-    SPLIT_NEWLINE_SYMBOL(line);
-    *num = atoi(line);
-    (void)pclose(f);
+    dev_name[index] = '\0';
     return 0;
 }
 
@@ -144,22 +143,119 @@ static int get_netdev_fileds(const char *net_dev_info, net_dev_stat *stats)
 {
     int i, ret;
     char *devinfo = (char *)net_dev_info;
-    int index = 0;
 
-    /* obtain netdev name(delete useless spaces) */
-    for (i = 0; (devinfo[i] != ':') && (devinfo[i] != '\0'); i++) {
-        if (devinfo[i] != ' ') {
-            stats->dev_name[index++] = devinfo[i];
-        }
-    }
     /* parse fileds */
     ret = sscanf(devinfo,
         "%*s %llu %llu %llu %llu %*Lu %*Lu %*Lu %*Lu %llu %llu %llu %llu %*Lu %*Lu %*Lu %*Lu",
         &stats->rx_bytes, &stats->rx_packets, &stats->rx_errs, &stats->rx_dropped,
         &stats->tx_bytes, &stats->tx_packets, &stats->tx_errs, &stats->tx_dropped);
     if (ret < NETDEV_FIELD_NUM) {
-        printf("system_net.probe faild get net_dev metrics.\n");
+        printf("[SYSTEM_NET] system_net.probe faild get net_dev metrics.\n");
         return -1;
+    }
+    return 0;
+}
+
+static int get_netdev_status(net_dev_stat *stats)
+{
+    FILE *f = NULL;
+    char cmd[COMMAND_LEN];
+    char line[LINE_BUF_LEN];
+
+    // default is DOWN
+    stats->net_status = 0;
+
+    cmd[0] = 0;
+    (void)snprintf(cmd, COMMAND_LEN, SYSTEM_NET_DEV_STATUS, stats->dev_name);
+    f = popen(cmd, "r");
+    if (f == NULL) {
+        printf("[SYSTEM_NET] ethtool dev(%s) failed, popen error.\n", stats->dev_name);
+        return -1;
+    }
+    line[0] = 0;
+    if (fgets(line, LINE_BUF_LEN, f) == NULL) {
+        printf("[SYSTEM_NET] ethtool dev(%s) failed, line is NULL.\n", stats->dev_name);
+        (void)pclose(f);
+        return -1;
+    }
+    SPLIT_NEWLINE_SYMBOL(line);
+    if (!strcasecmp(line, "yes")) {
+        stats->net_status = 1;
+    }
+
+    (void)pclose(f);
+    return 0;
+}
+
+static int do_read_qdisc_line(char *dev_name, char *keywords, char *filter, char line[])
+{
+    FILE *f = NULL;
+    char cmd[COMMAND_LEN];
+    char *fmt = "%s %s | grep \"%s\" | awk \'%s\'";  // eg: tc qdis show dev eth0 | grep "backlog" | awk '{print $NF}'
+
+    cmd[0] = 0;
+    (void)snprintf(cmd, COMMAND_LEN, fmt, SYSTEM_NET_QDISC_SHOW, dev_name, keywords, filter);
+    f = popen(cmd, "r");
+    if (f == NULL) {
+        printf("[SYSTEM_NET] get net(%s) qdisc(%s) failed, popen error.\n", dev_name, keywords);
+        return -1;
+    }
+    line[0] = 0;
+    if (fgets(line, LINE_BUF_LEN, f) == NULL) {
+        printf("[SYSTEM_NET] get net(%s) qdisc(%s) failed, line is NULL.\n", dev_name, keywords);
+        (void)pclose(f);
+        return -1;
+    }
+    SPLIT_NEWLINE_SYMBOL(line);
+
+    (void)pclose(f);
+    return 0;
+}
+
+#define QDISC_SENT_FILED_NUM        2
+#define QDISC_BACKLOG_FIELD_NUM     1
+static int get_netdev_qdisc(net_dev_stat *stats)
+{
+    int ret;
+    char line[LINE_BUF_LEN];
+
+    ret = do_read_qdisc_line(stats->dev_name, "Sent", "NR==1{print $7$9}", line);
+    if (ret < 0 || line == NULL) {
+        return -1;
+    }
+    ret = sscanf(line, "%d%*c%d",&stats->tc_sent_drop_count, &stats->tc_sent_overlimits_count);
+    if (ret < QDISC_SENT_FILED_NUM) {
+        printf("[SYSTEM_NET] faild get qdisc sent metrics.\n");
+        return -1;
+    }
+
+    ret = do_read_qdisc_line(stats->dev_name, "backlog", "NR==1{print $3}", line);
+    if (ret < 0 || line == NULL) {
+        return -1;
+    }
+    ret = sscanf(line, "%d%*c",&stats->tc_backlog_count);
+    if (ret < QDISC_BACKLOG_FIELD_NUM) {
+        printf("[SYSTEM_NET] faild get qdisc backlog metrics.\n");
+        return -1;
+    }
+
+    ret = do_read_qdisc_line(stats->dev_name, "ecn_mark", "{print $NF}", line);
+    if (ret < 0 || line == NULL) {
+        return -1;
+    }
+    stats->tc_ecn_mark = (u64)atoi(line);
+
+    return 0;
+}
+
+static char g_phy_netdev_list[MAX_NETDEV_NUM][NET_DEVICE_NAME_SIZE];
+
+static int is_physical_netdev(char *dev_name, int dev_num)
+{
+    for (int i = 0; i < dev_num; i++) {
+        if (!strcmp(dev_name, g_phy_netdev_list[i])) {
+            return 1;
+        }
     }
     return 0;
 }
@@ -169,6 +265,8 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
     char entityid[LINE_BUF_LEN];
     u64 tx_drops;
     u64 rx_drops;
+    u64 tx_errs;
+    u64 rx_errs;
 
     if (params->logs == 0) {
         return;
@@ -177,10 +275,12 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
     entityid[0] = 0;
     tx_drops = new_info->tx_dropped - old_info->tx_dropped;
     rx_drops = new_info->rx_dropped - old_info->rx_dropped;
+    tx_errs = new_info->tx_errs - old_info->tx_errs;
+    rx_errs = new_info->rx_errs - old_info->rx_errs;
 
     if (tx_drops > params->drops_count_thr) {
         (void)strncpy(entityid, new_info->dev_name, LINE_BUF_LEN - 1);
-        report_logs(METRICS_NET_NAME,
+        report_logs(ENTITY_NIC_NAME,
                     entityid,
                     "net_device_tx_drops",
                     EVT_SEC_WARN,
@@ -191,12 +291,34 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
         if (entityid[0] == 0) {
             (void)strncpy(entityid, new_info->dev_name, LINE_BUF_LEN - 1);
         }
-        report_logs(METRICS_NET_NAME,
+        report_logs(ENTITY_NIC_NAME,
                     entityid,
                     "net_device_rx_drops",
                     EVT_SEC_WARN,
                     "net device rx queue drops(%llu).",
                     rx_drops);
+    }
+    if (tx_errs > params->drops_count_thr) {
+        if (entityid[0] == 0) {
+            (void)strncpy(entityid, new_info->dev_name, LINE_BUF_LEN - 1);
+        }
+        report_logs(ENTITY_NIC_NAME,
+                    entityid,
+                    "net_device_tx_errors",
+                    EVT_SEC_WARN,
+                    "net device tx queue errors(%llu).",
+                    tx_errs);
+    }
+    if (rx_errs > params->drops_count_thr) {
+        if (entityid[0] == 0) {
+            (void)strncpy(entityid, new_info->dev_name, LINE_BUF_LEN - 1);
+        }
+        report_logs(ENTITY_NIC_NAME,
+                    entityid,
+                    "net_device_rx_errs",
+                    EVT_SEC_WARN,
+                    "net device rx queue errors(%llu).",
+                    rx_errs);
     }
 }
 
@@ -214,8 +336,8 @@ int system_net_probe(struct probe_params *params)
 {
     FILE* f = NULL;
     char line[LINE_BUF_LEN];
+    char dev_name[NET_DEVICE_NAME_SIZE];
     net_dev_stat temp;
-    int ret;
     int index = 0;
 
     f = fopen(SYSTEM_NET_DEV_PATH, "r");
@@ -228,23 +350,31 @@ int system_net_probe(struct probe_params *params)
             fclose(f);
             return 0;
         }
-        if (strstr(line, "Inter") != NULL ||
-            strstr(line, "face") != NULL ||
-            strstr(line, "lo") != NULL) {
+        if (strchr(line, '|') != NULL) {
             continue;
         }
-        if (index >= g_netdev_num) {
-            printf("[SYSTEM_PROBE] net_probe records beyond max netdev nums(%d).\n", g_netdev_num);
-            (void)fclose(f);
-            return -1;
+        if (index > g_netdev_num) {
+            printf("[SYSTEM_NET] net_probe records beyond max netdev nums(%d).\n", g_netdev_num);
+            continue;
         }
+        (void)get_netdev_name(line, dev_name);
+        if (is_physical_netdev(dev_name, g_netdev_num) != 1) {
+            continue;
+        }
+        (void)strncpy(g_dev_stats[index].dev_name, dev_name, NET_DEVICE_NAME_SIZE - 1);
+
         (void)memcpy(&temp, &g_dev_stats[index], sizeof(net_dev_stat));
         if (get_netdev_fileds(line, &g_dev_stats[index]) < 0) {
             continue;
         }
-        (void)nprobe_fprintf(stdout, "|%6s|%s|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|\n",
-            METRICS_NET_NAME,
+        get_netdev_status(&g_dev_stats[index]);
+        get_netdev_qdisc(&g_dev_stats[index]);
+
+        (void)nprobe_fprintf(stdout,
+            "|%s|%s|%s|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|%.2f|%llu|%llu|%llu|%llu|\n",
+            METRICS_NIC_NAME,
             g_dev_stats[index].dev_name,
+            g_dev_stats[index].net_status == 1 ? "UP" : "DOWN",
             g_dev_stats[index].rx_bytes - temp.rx_bytes,
             g_dev_stats[index].rx_packets - temp.rx_packets,
             g_dev_stats[index].rx_errs - temp.rx_errs,
@@ -252,7 +382,13 @@ int system_net_probe(struct probe_params *params)
             g_dev_stats[index].tx_bytes - temp.tx_bytes,
             g_dev_stats[index].tx_packets - temp.tx_packets,
             g_dev_stats[index].tx_errs - temp.tx_errs,
-            g_dev_stats[index].tx_dropped - temp.tx_dropped);
+            g_dev_stats[index].tx_dropped - temp.tx_dropped,
+            SPEED_VALUE(temp.rx_bytes, g_dev_stats[index].rx_bytes, params->period),
+            SPEED_VALUE(temp.tx_bytes, g_dev_stats[index].tx_bytes, params->period),
+            g_dev_stats[index].tc_sent_drop_count - temp.tc_sent_drop_count,
+            g_dev_stats[index].tc_sent_overlimits_count - temp.tc_sent_overlimits_count,
+            g_dev_stats[index].tc_backlog_count,
+            g_dev_stats[index].tc_ecn_mark);
         /* output event */
         report_netdev(&g_dev_stats[index], &temp, params);
         index++;
@@ -262,10 +398,32 @@ int system_net_probe(struct probe_params *params)
     return 0;
 }
 
+static int load_physical_device(void)
+{
+    DIR *dir = NULL;
+    struct dirent *entry;
+    char fpath[COMMAND_LEN];
+    g_netdev_num = 0;
+
+    dir = opendir("/sys/class/net");
+    if (dir == NULL) {
+        return -1;
+    }
+    while (entry = readdir(dir)) {
+        fpath[0] = 0;
+        (void)snprintf(fpath, COMMAND_LEN, "/sys/devices/virtual/net/%s", entry->d_name);
+        if (access((const char *)fpath, 0) < 0) {
+            // this is not virtual device
+            strncpy(g_phy_netdev_list[g_netdev_num++], entry->d_name, NET_DEVICE_NAME_SIZE - 1);
+        }
+    }
+    closedir(dir);
+    return 0;
+}
+
 int system_net_init(void)
 {
-    int ret = get_netdev_num(&g_netdev_num);
-    if (ret < 0 || g_netdev_num <= 0) {
+    if (load_physical_device() < 0 || g_netdev_num <= 0) {
         return -1;
     }
     g_dev_stats = (net_dev_stat *)malloc(g_netdev_num * sizeof(net_dev_stat));

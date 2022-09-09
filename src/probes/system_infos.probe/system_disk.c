@@ -22,21 +22,23 @@
 
 #define METRICS_DF_NAME         "system_df"
 #define METRICS_IOSTAT_NAME     "system_iostat"
-#define SYSTEM_INODE_COMMAND    "/usr/bin/df -i | /usr/bin/awk 'NR>1 {print $0}'"
-#define SYSTEM_BLOCK_CMD        "/usr/bin/df | /usr/bin/awk '{if($6==\"%s\"){print $0}}'"
+#define ENTITY_FS_NAME          "fs"
+#define ENTITY_DISK_NAME        "disk"
+#define SYSTEM_INODE_COMMAND    "/usr/bin/df -T -i | /usr/bin/awk 'NR>1 {print $0}'"
+#define SYSTEM_BLOCK_CMD        "/usr/bin/df -T | /usr/bin/awk '{if($7==\"%s\"){print $0}}'"
 #define SYSTEM_DISKSTATS_CMD    "/usr/bin/cat /proc/diskstats"
 #define SYSTEM_DISK_DEV_NUM     "/usr/bin/cat /proc/diskstats | wc -l"
 
-#define DF_FIELD_NUM            6
+#define DF_FIELD_NUM            7
 static int get_df_fields(char *line, df_stats *stats)
 {
     int ret;
 
-    ret = sscanf(line, "%s %ld %ld %ld %ld%*s %s",
-        &stats->fsys_type, &stats->inode_or_blk_sum, &stats->inode_or_blk_used,
+    ret = sscanf(line, "%s %s %ld %ld %ld %ld%*s %s",
+        &stats->fsname, &stats->fstype, &stats->inode_or_blk_sum, &stats->inode_or_blk_used,
         &stats->inode_or_blk_free, &stats->inode_or_blk_used_per, &stats->mount_on);
     if (ret < DF_FIELD_NUM) {
-        printf("[SYSTEM_PROBE] get df stats fields fail.\n");
+        printf("[SYSTEM_DISK] get df stats fields fail.\n");
         return -1;
     }
     return 0;
@@ -54,7 +56,7 @@ static void report_disk_status(df_stats inode_stats, df_stats blk_stats, struct 
 
     if (inode_stats.inode_or_blk_used_per > params->res_percent_upper) {
         (void)strncpy(entityid, inode_stats.mount_on, LINE_BUF_LEN - 1);
-        report_logs(METRICS_DF_NAME,
+        report_logs(ENTITY_FS_NAME,
                     entityid,
                     "inode_userd_per",
                     EVT_SEC_WARN,
@@ -65,7 +67,7 @@ static void report_disk_status(df_stats inode_stats, df_stats blk_stats, struct 
         if (entityid[0] == 0) {
             (void)strncpy(entityid, blk_stats.mount_on, LINE_BUF_LEN - 1);
         }
-        report_logs(METRICS_DF_NAME,
+        report_logs(ENTITY_FS_NAME,
                     entityid,
                     "block_userd_per",
                     EVT_SEC_WARN,
@@ -134,10 +136,11 @@ int system_disk_probe(struct probe_params *params)
             continue;
         }
         /* output */
-        (void)nprobe_fprintf(stdout, "|%s|%s|%s|%ld|%ld|%ld|%ld|%ld|%ld|%ld|%ld|\n",
+        (void)nprobe_fprintf(stdout, "|%s|%s|%s|%s|%ld|%ld|%ld|%ld|%ld|%ld|%ld|%ld|\n",
             METRICS_DF_NAME,
             inode_stats.mount_on,
-            inode_stats.fsys_type,
+            inode_stats.fsname,
+            inode_stats.fstype,
             inode_stats.inode_or_blk_sum,
             inode_stats.inode_or_blk_used,
             inode_stats.inode_or_blk_free,
@@ -153,17 +156,17 @@ int system_disk_probe(struct probe_params *params)
     return 0;
 }
 
-#define DISKSTAT_FIELD_NUM      8
+#define DISKSTAT_FIELD_NUM      9
 static int get_diskstats_fields(const char *line, disk_stats *stats)
 {
     int ret;
 
     ret = sscanf(line,
-        "%*Lu %*Lu %s %lu %*Lu %lu %u %lu %*Lu %lu %u %*Lu %u %*Lu %*Lu %*Lu %*Lu %*Lu",
+        "%*Lu %*Lu %s %lu %*Lu %lu %u %lu %*Lu %lu %u %*Lu %u %u %*Lu %*Lu %*Lu %*Lu",
         &stats->disk_name, &stats->rd_ios, &stats->rd_sectors, &stats->rd_ticks,
-        &stats->wr_ios, &stats->wr_sectors, &stats->wr_ticks, &stats->io_ticks);
+        &stats->wr_ios, &stats->wr_sectors, &stats->wr_ticks, &stats->io_ticks, &stats->time_in_queue);
     if (ret < DISKSTAT_FIELD_NUM) {
-        printf("[SYSTEM_PROBE] get disk stats fields fail.\n");
+        printf("[SYSTEM_DISK] get disk stats fields fail.\n");
         return -1;
     }
     return 0;
@@ -194,6 +197,8 @@ static void cal_disk_io_stats(disk_stats *last, disk_stats *cur, disk_io_stats *
 
     io_info->util = S_VALUE(last->io_ticks, cur->io_ticks, period) / 10.0;
 
+    io_info->aqu_sz = S_VALUE(last->time_in_queue, cur->time_in_queue, period) / 1000.0;
+
     return;
 }
 
@@ -209,7 +214,7 @@ static void report_disk_iostat(const char *disk_name, disk_io_stats *io_info, st
 
     if (io_info->util > params->res_percent_upper) {
         (void)strncpy(entityid, disk_name, LINE_BUF_LEN - 1);
-        report_logs(METRICS_IOSTAT_NAME,
+        report_logs(ENTITY_DISK_NAME,
                     entityid,
                     "iostat_util",
                     EVT_SEC_WARN,
@@ -263,7 +268,7 @@ int system_iostat_probe(struct probe_params *params)
         }
 
         (void)nprobe_fprintf(stdout,
-            "|%s|%s|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|\n",
+            "|%s|%s|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|\n",
             METRICS_IOSTAT_NAME,
             g_disk_stats[index].disk_name,
             io_datas.rd_speed,
@@ -274,6 +279,7 @@ int system_iostat_probe(struct probe_params *params)
             io_datas.wrkb_speed,
             io_datas.wr_await,
             io_datas.wareq_sz,
+            io_datas.aqu_sz,
             io_datas.util);
         /* event_output */
         report_disk_iostat(g_disk_stats[index].disk_name, &io_datas, params);

@@ -1,4 +1,4 @@
-version = "1.0.0"
+version = "1.0.1"
 
 measurements:
 (
@@ -53,6 +53,11 @@ measurements:
                 name: "wareq",
             },
             {
+                description: "aqu-sz",
+                type: "gauge",
+                name: "aqu",
+            },
+            {
                 description: "util",
                 type: "gauge",
                 name: "util",
@@ -61,7 +66,7 @@ measurements:
     },
     {
         table_name: "system_df",
-        entity_name: "file_system",
+        entity_name: "fs",
         fields:
         (
             {
@@ -70,9 +75,14 @@ measurements:
                 name: "MountOn",
             },
             {
+                description: "File System Name",
+                type: "label",
+                name: "Fsname",
+            },
+            {
                 description: "File System Type",
                 type: "label",
-                name: "File_sys",
+                name: "Fstype",
             },
             {
                 description: "Inodes",
