@@ -100,20 +100,13 @@ static void msg_event_handler(void *ctx, int cpu, void *data, unsigned int size)
         ser_ip_str, INET6_ADDRSTRLEN);
     ip_str(msg_evt_data->client_ip_info.family, (unsigned char *)&(msg_evt_data->client_ip_info.ipaddr),
         cli_ip_str, INET6_ADDRSTRLEN);
-    switch (msg_evt_data->conn_id.protocol) {
-        case PROTOCOL_REDIS:
-            protocol = "REDIS";
-            break;
-        default:
-            protocol = "unknown";
-            break;
-    }
+
     fprintf(stdout,
             "|%s|%d|%d|%s|%s|%s|%u|%s|%u|%llu|\n",
             SLI_TBL_NAME,
             msg_evt_data->conn_id.tgid,
             msg_evt_data->conn_id.fd,
-            protocol,
+            "REDIS",
             msg_evt_data->latency.command,
             ser_ip_str,
             msg_evt_data->server_ip_info.port,
@@ -126,7 +119,7 @@ static void msg_event_handler(void *ctx, int cpu, void *data, unsigned int size)
             MAX_SLI_TBL_NAME,
             msg_evt_data->conn_id.tgid,
             msg_evt_data->conn_id.fd,
-            protocol,
+            "REDIS",
             msg_evt_data->max.command,
             ser_ip_str,
             msg_evt_data->server_ip_info.port,

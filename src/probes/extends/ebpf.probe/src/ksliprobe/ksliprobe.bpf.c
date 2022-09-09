@@ -23,7 +23,8 @@
 #define BPF_F_INDEX_MASK        0xffffffffULL
 #define BPF_F_CURRENT_CPU       BPF_F_INDEX_MASK
 
-#define MAX_CONN_LEN            8192
+#define MAX_CONN_LEN                8192
+#define MAX_CHECK_TIMES                2
 
 #define TCP_SKB_CB(__skb) ((struct tcp_skb_cb *)&((__skb)->cb[0]))
 
@@ -109,7 +110,7 @@ static __always_inline int init_conn_samp_data(struct sock *sk)
 }
 
 #ifndef __PERIOD
-#define __PERIOD NS(30)
+#define __PERIOD NS(5)
 #endif
 static __always_inline void get_args(struct conn_data_t *conn_data)
 {
@@ -245,7 +246,7 @@ static __always_inline int parse_req(struct conn_data_t *conn_data, const unsign
     err = bpf_probe_read(msg, copy_size & MAX_COMMAND_REQ_SIZE, buf);
     if (err < 0) {
         bpf_printk("parse_req read buffer failed.\n");
-        return PROTOCOL_UNKNOWN;
+        return PROTOCOL_NO_REDIS;
     }
 
     // 解析请求中的command，确认协议
@@ -254,7 +255,7 @@ static __always_inline int parse_req(struct conn_data_t *conn_data, const unsign
         return PROTOCOL_REDIS;
     }
 
-    return PROTOCOL_UNKNOWN;
+    return PROTOCOL_NO_REDIS;
 }
 
 static __always_inline int periodic_report(u64 ts_nsec, struct conn_data_t *conn_data, struct pt_regs *ctx)
@@ -307,7 +308,13 @@ static __always_inline void sample_finished(struct conn_data_t *conn_data, struc
     csd->status = SAMP_INIT;
 }
 
-static __always_inline void process_rdwr_msg(u32 tgid, int fd, const char *buf, const unsigned int count,
+static __always_inline void mark_no_redis_conn(struct conn_data_t *conn_data)
+{
+    conn_data->id.protocol = PROTOCOL_NO_REDIS;
+    bpf_map_delete_elem(&conn_samp_map, &conn_data->sk);
+}
+
+static __always_inline void process_rd_msg(u32 tgid, int fd, const char *buf, const unsigned int count,
                                              struct pt_regs *ctx)
 {
     struct conn_key_t conn_key = {0};
@@ -342,15 +349,26 @@ static __always_inline void process_rdwr_msg(u32 tgid, int fd, const char *buf, 
         return;
     }
 
-    // 非循环采样每次上报后就返回，等待下次上报周期再采样。这种方式无法获取周期内max sli。
+    // 非循环采样每次上报后就返回，等待下次上报周期再采样。这种方式无法获取周期内max sli
     if (!conn_data->cycle_sampling_flag && reported)
         return;
 
+    // 连接的协议类型未知时，连续3次read报文时解析不出是redis协议，就确认此条连接非redis请求连接，不做采样
+    // 一旦确认为redis连接则不会再修改连接的协议类型
     enum conn_protocol_t protocol = parse_req(conn_data, count, buf);
-    if (protocol == PROTOCOL_UNKNOWN) {
+    if (protocol == PROTOCOL_NO_REDIS) {
+        if (conn_data->id.protocol == PROTOCOL_UNKNOWN) {
+            if (conn_data->procotol_check_times >= MAX_CHECK_TIMES) {
+                mark_no_redis_conn(conn_data);
+            } else {
+                conn_data->procotol_check_times++;
+            }
+        }
         return;
     }
-	conn_data->id.protocol = protocol;
+    if (conn_data->id.protocol == PROTOCOL_UNKNOWN) {
+        conn_data->id.protocol = PROTOCOL_REDIS;
+    }
 
     __builtin_memcpy(&csd->command, conn_data->current.command, MAX_COMMAND_REQ_SIZE);
 
@@ -376,6 +394,9 @@ KPROBE(ksys_read, pt_regs)
     }
     
     if (conn_data == (void *)0)
+        return;
+
+    if (conn_data->id.protocol == PROTOCOL_NO_REDIS)
         return;
 
     if (!conn_data->cycle_sampling_flag) {
@@ -408,7 +429,7 @@ KRETPROBE(ksys_read, pt_regs)
     fd = (int)PROBE_PARM1(val);
     buf = (char *)PROBE_PARM2(val);
 
-    process_rdwr_msg(tgid, fd, buf, count, ctx);
+    process_rd_msg(tgid, fd, buf, count, ctx);
 
     return;
 }
