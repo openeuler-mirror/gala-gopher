@@ -10,7 +10,7 @@
  * See the Mulan PSL v2 for more details.
  * Author: wo_cow
  * Create: 2022-8-16
- * Description: ogsli_kprobe bpf prog
+ * Description: pgsli_kprobe bpf prog
  ******************************************************************************/
 #ifdef BPF_PROG_USER
 #undef BPF_PROG_USER
@@ -18,8 +18,8 @@
 #define BPF_PROG_KERN
 #include "bpf.h"
 #include <bpf/bpf_endian.h>
-#include "opengauss_sli.h"
-#include "opengauss_bpf.h"
+#include "pgsliprobe.h"
+#include "pgsliprobe_bpf.h"
 
 #define TCP_SKB_CB(__skb) ((struct tcp_skb_cb *)&((__skb)->cb[0]))
 
