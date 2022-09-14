@@ -1,9 +1,9 @@
-version = "1.0.0"
+version = "1.0.1"
 
 measurements:
 (
     {
-        table_name: "system_net",
+        table_name: "nic",
         entity_name: "nic",
         fields:
         (
@@ -11,6 +11,11 @@ measurements:
                 description: "dev_name",
                 type: "key",
                 name: "dev_name",
+            },
+            {
+                description: "dev_status",
+                type: "key",
+                name: "status",
             },
             {
                 description: "rx_bytes",
@@ -52,11 +57,41 @@ measurements:
                 type: "gauge",
                 name: "tx_dropped",
             },
+            {
+                description: "rx Kbps",
+                type: "gauge",
+                name: "rxspeed_KB",
+            },
+            {
+                description: "tx Kbps",
+                type: "gauge",
+                name: "txspeed_KB",
+            },
+            {
+                description: "count of qdisc sent drop packets",
+                type: "gauge",
+                name: "tc_sent_drop",
+            },
+            {
+                description: "count of qdisc sent overlimits packets",
+                type: "gauge",
+                name: "tc_sent_overlimits",
+            },
+            {
+                description: "qdisc backlog count",
+                type: "gauge",
+                name: "tc_backlog",
+            },
+            {
+                description: "enc mark",
+                type: "gauge",
+                name: "tc_enc_mark",
+            }
         )
     },
     {
         table_name: "system_tcp",
-        entity_name: "system_tcp",
+        entity_name: "net",
         fields:
         (
             {
@@ -67,33 +102,33 @@ measurements:
             {
                 description: "tcp_curr_estab",
                 type: "gauge",
-                name: "curr_estab",
+                name: "tcp_curr_estab",
             },
             {
                 description: "tcp_in_segs",
                 type: "gauge",
-                name: "in_segs",
+                name: "tcp_in_segs",
             },
             {
                 description: "tcp_out_segs",
                 type: "gauge",
-                name: "out_segs",
+                name: "tcp_out_segs",
             },
             {
                 description: "tcp_retrans_segs",
                 type: "gauge",
-                name: "retrans_segs",
+                name: "tcp_retrans_segs",
             },
             {
                 description: "tcp_in_errs",
                 type: "gauge",
-                name: "in_errs",
+                name: "tcp_in_errs",
             }
         )
     },
     {
         table_name: "system_udp",
-        entity_name: "system_udp",
+        entity_name: "net",
         fields:
         (
             {
@@ -104,12 +139,12 @@ measurements:
             {
                 description: "udp_indata_grams",
                 type: "gauge",
-                name: "indata_grams",
+                name: "udp_indata_grams",
             },
             {
                 description: "udp_outdata_grams",
                 type: "gauge",
-                name: "outdata_grams",
+                name: "udp_outdata_grams",
             }
         )
     }

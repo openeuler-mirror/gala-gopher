@@ -18,6 +18,10 @@
 #include "common.h"
 
 #define NET_DEVICE_NAME_SIZE    16
+#define MAX_NETDEV_NUM          64
+
+/* the interval of time (@p) is given in second */
+#define SPEED_VALUE(m,n,p)      (((double) ((n) - (m))) / 1024 / (p))
 
 typedef struct net_snmp_stat {
     u64 tcp_curr_estab;
@@ -31,6 +35,7 @@ typedef struct net_snmp_stat {
 
 typedef struct net_dev_stat {
     char dev_name[NET_DEVICE_NAME_SIZE];
+    char net_status;    // 1:UP / 0:DOWN
     u64 rx_bytes;
     u64 rx_packets;
     u64 rx_dropped;
@@ -47,6 +52,10 @@ typedef struct net_dev_stat {
     u64 tx_colls;
     u64 tx_carrier;
     u64 tx_compressed;
+    u64 tc_sent_drop_count;
+    u64 tc_sent_overlimits_count;
+    u64 tc_backlog_count;
+    u64 tc_ecn_mark;
 } net_dev_stat;
 
 int system_tcp_probe(void);

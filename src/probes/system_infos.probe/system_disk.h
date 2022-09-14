@@ -26,7 +26,8 @@
 #define FSTYPE_LEN  64
 #define MOUNTON_LEN 128
 typedef struct {
-    char fsys_type[FSTYPE_LEN];
+    char fsname[FSTYPE_LEN];
+    char fstype[FSTYPE_LEN];
     char mount_on[MOUNTON_LEN];
     long inode_or_blk_sum;
     long inode_or_blk_used;
@@ -48,7 +49,7 @@ typedef struct {
     u32 wr_ticks;
     // u32 in_flight;
     u32 io_ticks;
-    // u32 time_in_queue;
+    u32 time_in_queue;
     // u32 discard_ios;
     // u32 discard_merges;
     // u32 discard_sectors;
@@ -65,6 +66,7 @@ typedef struct {
     float wr_await;
     float wareq_sz;
     float util;
+    float aqu_sz;
 } disk_io_stats;
 
 int system_disk_probe(struct probe_params *params);
