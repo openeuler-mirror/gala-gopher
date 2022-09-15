@@ -10,7 +10,7 @@
  * See the Mulan PSL v2 for more details.
  * Author: wo_cow
  * Create: 2022-7-29
- * Description: ogsli_uprobe bpf prog
+ * Description: pgsli_uprobe bpf prog
  ******************************************************************************/
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
@@ -19,8 +19,8 @@
 #define BPF_PROG_USER
 #include "bpf.h"
 #include <bpf/bpf_endian.h>
-#include "opengauss_sli.h"
-#include "opengauss_bpf.h"
+#include "pgsliprobe.h"
+#include "pgsliprobe_bpf.h"
 
 char g_license[] SEC("license") = "GPL";
 

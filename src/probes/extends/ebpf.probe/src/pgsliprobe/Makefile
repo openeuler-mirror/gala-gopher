@@ -1,7 +1,7 @@
 include ../mk/var.mk
 INCLUDES = $(BASE_INC)
 
-APP := opengauss_sli
+APP := pgsliprobe
 TC_BPF := tc_tstamp.bpf.o
 SRC_CPLUS := $(wildcard *.cpp)
 SRC_CPLUS += $(CPLUSFILES)

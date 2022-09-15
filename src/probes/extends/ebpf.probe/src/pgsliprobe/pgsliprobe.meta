@@ -2,7 +2,7 @@ version = "1.0.0"
 measurements:
 (
     {
-        table_name: "opengauss_sli",
+        table_name: "pg_sli",
         entity_name: "sli",
         fields:
         (
@@ -14,12 +14,17 @@ measurements:
             {
                 description: "the socket fd of client connection",
                 type: "key",
-                name: "conn_fd",
+                name: "ins_id",
             },
             {
                 description: "the protocol type",
-                type: "label",
-                name: "protocol",
+                type: "key",
+                name: "app",
+            },
+            {
+                description: "the cmd of req",
+                type: "key",
+                name: "method",
             },
             {
                 description: "the IP of server",
@@ -42,29 +47,56 @@ measurements:
                 name: "client_port",
             },
             {
-                description: "the cmd of req",
-                type: "label",
-                name: "req_cmd",
-            },
-            {
-                description: "the cmd of rsp",
-                type: "label",
-                name: "rsp_cmd",
-            },
-            {
                 description: "the rtt(ns) of req",
                 type: "gauge",
                 name: "rtt_nsec",
+            }
+        )
+    },
+    {
+        table_name: "pg_max_sli",
+        entity_name: "sli",
+        fields:
+        (
+            {
+                description: "the tgid of server process",
+                type: "key",
+                name: "tgid",
             },
             {
-                description: "the cmd of max rtt req",
-                type: "label",
-                name: "max_req_cmd",
+                description: "the socket fd of client connection",
+                type: "key",
+                name: "ins_id",
             },
             {
-                description: "the cmd of max rtt rsp",
+                description: "the protocol type",
+                type: "key",
+                name: "app",
+            },
+            {
+                description: "the cmd of req",
+                type: "key",
+                name: "method",
+            },
+            {
+                description: "the IP of server",
                 type: "label",
-                name: "max_rsp_cmd",
+                name: "server_ip",
+            },
+            {
+                description: "the port of server",
+                type: "label",
+                name: "server_port",
+            },
+            {
+                description: "the IP of client",
+                type: "label",
+                name: "client_ip",
+            },
+            {
+                description: "the port of client",
+                type: "label",
+                name: "client_port",
             },
             {
                 description: "the rtt(ns) of max rtt req",

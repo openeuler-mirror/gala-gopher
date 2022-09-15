@@ -10,7 +10,7 @@
  * See the Mulan PSL v2 for more details.
  * Author: wo_cow
  * Create: 2022-7-29
- * Description: opengauss_sli probe user prog
+ * Description: pgsliprobe probe user prog
  ******************************************************************************/
 #include <stdio.h>
 #include <unistd.h>
@@ -30,33 +30,34 @@
 #include "args.h"
 #include "event.h"
 #include "hash.h"
-#include "ogsli_kprobe.skel.h"
-#include "ogsli_uprobe.skel.h"
+#include "pgsli_kprobe.skel.h"
+#include "pgsli_uprobe.skel.h"
 #include "tc_loader.h"
 #include "container.h"
-#include "opengauss_sli.h"
+#include "pgsliprobe.h"
 
 #define OO_NAME "sli"
-#define SLI_TBL_NAME "opengauss_sli"
+#define SLI_TBL_NAME "pg_sli"
+#define MAX_SLI_TBL_NAME "pg_max_sli"
 #define GUASSDB_COMM "gaussdb"
 #define PLDD_LIBSSL_COMMAND "pldd %u | grep libssl"
 #define PID_COMM_COMMAND "ps -e -o pid,comm | grep %s | awk '{print $1}'"
 
 #define R_OK    4
 
-#define OPENGAUSS_ARGS_PATH          "/sys/fs/bpf/probe/__opengauss_args"
-#define OPENGAUSS_CONN_PATH          "/sys/fs/bpf/probe/__opengauss_conn"
-#define OPENGAUSS_CONN_SAMP_PATH     "/sys/fs/bpf/probe/__opengauss_conn_samp"
-#define OPENGAUSS_OUTPUT_PATH        "/sys/fs/bpf/probe/__opengauss_output"
+#define PGSLI_ARGS_PATH          "/sys/fs/bpf/probe/__pgsli_args"
+#define PGSLI_CONN_PATH          "/sys/fs/bpf/probe/__pgsli_conn"
+#define PGSLI_CONN_SAMP_PATH     "/sys/fs/bpf/probe/__pgsli_conn_samp"
+#define PGSLI_OUTPUT_PATH        "/sys/fs/bpf/probe/__pgsli_output"
 
-#define RM_OPENGAUSS_PATH "/usr/bin/rm -rf /sys/fs/bpf/probe/__opengauss*"
+#define RM_PGSLI_PATH "/usr/bin/rm -rf /sys/fs/bpf/probe/__pgsli*"
 
 #define __LOAD_OG_PROBE(probe_name, end, load) \
     OPEN(probe_name, end, load); \
-    MAP_SET_PIN_PATH(probe_name, args_map, OPENGAUSS_ARGS_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, conn_map, OPENGAUSS_CONN_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, conn_samp_map, OPENGAUSS_CONN_SAMP_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, output, OPENGAUSS_OUTPUT_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, args_map, PGSLI_ARGS_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, conn_map, PGSLI_CONN_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, conn_samp_map, PGSLI_CONN_SAMP_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, output, PGSLI_OUTPUT_PATH, load); \
     LOAD_ATTACH(probe_name, end, load)
 
 static volatile sig_atomic_t stop;
@@ -137,7 +138,7 @@ static void msg_event_handler(void *ctx, int cpu, void *data, unsigned int size)
     ip_str(msg_evt_data->conn_info.client_ip_info.family, (unsigned char *)&(msg_evt_data->conn_info.client_ip_info.ipaddr),
         cli_ip_str, INET6_ADDRSTRLEN);
     fprintf(stdout,
-            "|%s|%d|%d|%s|%s|%u|%s|%u|%c|%c|%llu|%c|%c|%llu|\n",
+            "|%s|%d|%d|%s|%s|%u|%s|%u|%c|%c|%llu|\n",
             SLI_TBL_NAME,
             msg_evt_data->tgid,
             msg_evt_data->fd,
@@ -148,10 +149,21 @@ static void msg_event_handler(void *ctx, int cpu, void *data, unsigned int size)
             ntohs(msg_evt_data->conn_info.client_ip_info.port),
             msg_evt_data->latency.req_cmd,
             msg_evt_data->latency.rsp_cmd,
-            msg_evt_data->latency.rtt_nsec,
+            msg_evt_data->latency.rtt_nsec);
+    fprintf(stdout,
+            "|%s|%d|%d|%s|%s|%u|%s|%u|%c|%c|%llu|\n",
+            MAX_SLI_TBL_NAME,
+            msg_evt_data->tgid,
+            msg_evt_data->fd,
+            "POSTGRE",
+            ser_ip_str,
+            msg_evt_data->conn_info.server_ip_info.port,
+            cli_ip_str,
+            ntohs(msg_evt_data->conn_info.client_ip_info.port),
             msg_evt_data->max.req_cmd,
             msg_evt_data->max.rsp_cmd,
             msg_evt_data->max.rtt_nsec);
+
     (void)fflush(stdout);
 
     return;
@@ -354,9 +366,9 @@ static void clear_all_bpf_link()
         return;
     }
     H_ITER(head, item, tmp) {
-        UNATTACH_ONELINK(ogsli_uprobe, item->v.bpf_link_read);
-        UNATTACH_ONELINK(ogsli_uprobe, item->v.bpf_link_read_ret);
-        UNATTACH_ONELINK(ogsli_uprobe, item->v.bpf_link_write);
+        UNATTACH_ONELINK(pgsli_uprobe, item->v.bpf_link_read);
+        UNATTACH_ONELINK(pgsli_uprobe, item->v.bpf_link_read_ret);
+        UNATTACH_ONELINK(pgsli_uprobe, item->v.bpf_link_write);
         H_DEL(head, item);
         (void)free(item);
     }
@@ -381,22 +393,22 @@ int main(int argc, char **argv)
     printf("The kernel version does not support loading the tc tstamp program\n");
 #endif
 
-    fp = popen(RM_OPENGAUSS_PATH, "r");
+    fp = popen(RM_PGSLI_PATH, "r");
     if (fp != NULL) {
         (void)pclose(fp);
         fp = NULL;
     }
 
-    INIT_BPF_APP(opengauss_sli, EBPF_RLIM_LIMITED);
-    __LOAD_OG_PROBE(ogsli_kprobe, init_k_err, 1);
-    __LOAD_OG_PROBE(ogsli_uprobe, init_err, 1);
+    INIT_BPF_APP(pgsliprobe, EBPF_RLIM_LIMITED);
+    __LOAD_OG_PROBE(pgsli_kprobe, init_k_err, 1);
+    __LOAD_OG_PROBE(pgsli_uprobe, init_err, 1);
 
     if (signal(SIGINT, sig_int) == SIG_ERR) {
         fprintf(stderr, "Can't set signal handler: %d\n", errno);
         goto init_err;
     }
 
-    printf("opengauss_sli probe successfully started!\n");
+    printf("pgsliprobe probe successfully started!\n");
 
     while (!stop) {
         set_bpf_link_inactive();
@@ -407,19 +419,19 @@ int main(int argc, char **argv)
         // attach to libssl
         H_ITER(head, item, tmp) {
             if (item->v.pid_state == PID_ELF_TOBE_ATTACHED) {
-                UBPF_ATTACH_ONELINK(ogsli_uprobe, SSL_read, item->v.elf_path, SSL_read,
+                UBPF_ATTACH_ONELINK(pgsli_uprobe, SSL_read, item->v.elf_path, SSL_read,
                     item->v.bpf_link_read, ret);
                 if (ret <= 0) {
                     fprintf(stderr, "Can't attach function SSL_read at elf_path %s.\n", item->v.elf_path);
                     goto init_err;
                 }
-                UBPF_RET_ATTACH_ONELINK(ogsli_uprobe, SSL_read, item->v.elf_path, SSL_read,
+                UBPF_RET_ATTACH_ONELINK(pgsli_uprobe, SSL_read, item->v.elf_path, SSL_read,
                     item->v.bpf_link_read_ret, ret);
                 if (ret <= 0) {
                     fprintf(stderr, "Can't attach ret function SSL_read at elf_path %s.\n", item->v.elf_path);
                     goto init_err;
                 }
-                UBPF_ATTACH_ONELINK(ogsli_uprobe, SSL_write, item->v.elf_path, SSL_write,
+                UBPF_ATTACH_ONELINK(pgsli_uprobe, SSL_write, item->v.elf_path, SSL_write,
                     item->v.bpf_link_write, ret);
                 if (ret <= 0) {
                     fprintf(stderr, "Can't attach function SSL_write at elf_path %s.\n", item->v.elf_path);
@@ -431,8 +443,8 @@ int main(int argc, char **argv)
 
         clear_invalid_bpf_link();
         if (init == 0) {
-            load_args(GET_MAP_FD(ogsli_kprobe, args_map), &params);
-            err = init_conn_mgt_process(GET_MAP_FD(ogsli_kprobe, output));
+            load_args(GET_MAP_FD(pgsli_kprobe, args_map), &params);
+            err = init_conn_mgt_process(GET_MAP_FD(pgsli_kprobe, output));
             if (err != 0) {
                 fprintf(stderr, "Init connection management process failed.\n");
                 goto init_err;
@@ -444,9 +456,9 @@ int main(int argc, char **argv)
 
 init_err:
     clear_all_bpf_link();
-    UNLOAD(ogsli_uprobe);
+    UNLOAD(pgsli_uprobe);
 init_k_err:
-    UNLOAD(ogsli_kprobe);
+    UNLOAD(pgsli_kprobe);
 #ifdef KERNEL_SUPPORT_TSTAMP
     offload_tc_bpf(TC_TYPE_INGRESS);
 #endif

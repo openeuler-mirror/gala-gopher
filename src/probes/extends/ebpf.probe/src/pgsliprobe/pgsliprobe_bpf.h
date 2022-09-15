@@ -10,10 +10,10 @@
  * See the Mulan PSL v2 for more details.
  * Author: wo_cow
  * Create: 2022-7-29
- * Description: opengauss_sli bpf header file
+ * Description: pgsliprobe bpf header file
  ******************************************************************************/
-#ifndef __OPENGAUSS_BPF_H__
-#define __OPENGAUSS_BPF_H__
+#ifndef __PGSLIPROBE_BPF_H__
+#define __PGSLIPROBE_BPF_H__
 
 #if ((CURRENT_KERNEL_VERSION == KERNEL_VERSION(4, 18, 0)) || (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(5, 10, 0)))
 #define KERNEL_SUPPORT_TSTAMP

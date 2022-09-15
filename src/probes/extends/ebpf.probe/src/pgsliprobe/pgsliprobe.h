@@ -10,10 +10,10 @@
  * See the Mulan PSL v2 for more details.
  * Author: wo_cow
  * Create: 2022-7-29
- * Description: opengauss_sli header file
+ * Description: pgsliprobe header file
  ******************************************************************************/
-#ifndef __OPENGAUSS_SLI_H__
-#define __OPENGAUSS_SLI_H__
+#ifndef __PGSLIPROBE_H__
+#define __PGSLIPROBE_H__
 
 #define TC_PROG "tc_tstamp.bpf.o"
 
