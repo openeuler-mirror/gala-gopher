@@ -22,9 +22,15 @@
 #include "system_net.h"
 #include "system_procs.h"
 #include "system_cpu.h"
+#include "system_meminfo.h"
 
 static int system_probe_init(struct probe_params * params)
 {
+    /* system meminfo init */
+    if (system_meminfo_init() < 0) {
+        return -1;
+    }
+
     /* system cpu init */
     if (system_cpu_init() < 0) {
         return -1;
@@ -49,6 +55,9 @@ static int system_probe_init(struct probe_params * params)
 
 static void system_probe_destroy(void)
 {
+    /* system meminfo destroy */
+    system_meminfo_destroy();
+
     /* system cpu destroy */
     system_cpu_destroy();
 
@@ -72,6 +81,11 @@ int main(struct probe_params * params)
     }
 
     for (;;) {
+        ret = system_meminfo_probe();
+        if (ret < 0) {
+            printf("[SYSTEM_PROBE] system meminfo probe fail.\n");
+            goto err;
+        }
         ret = system_cpu_probe();
         if (ret < 0) {
             printf("[SYSTEM_PROBE] system cpu probe fail.\n");

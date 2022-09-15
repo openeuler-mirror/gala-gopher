@@ -1,0 +1,72 @@
+version = "1.0.0"
+
+measurements:
+(
+    {
+        table_name: "system_meminfo",
+        entity_name: "mem",
+        fields:
+        (
+            {
+                description: "indexs of OS memory",
+                type: "key",
+                name: "infos",
+            },
+            {
+                description: "Memory size that the OS can control (KB)",
+                type:"gauge",
+                name: "total_kB",
+            },
+            {
+                description: "Physical memory not used by the OS (KB)",
+                type:"gauge" ,
+                name: "free_kB",
+            },
+            {
+                description: "Memory available to users (KB)",
+                type:"gauge",
+                name:"available_kB",
+            },
+            {
+                description: "Usage of OS memory (%)",
+                type:"gauge",
+                name: "util",
+            },
+            {
+                description: "Physical memory size used by buffer (KB)",
+                type:"gauge",
+                name: "buffers_kB",
+            },
+            {
+                description: "Physical memory size used by cache (KB)",
+                type:"gauge",
+                name: "cache_kB",
+            },
+            {
+                description: "Frequently used cache pagefile size (KB)",
+                type:"gauge",
+                name: "active_kB",
+            },
+            {
+                description: "Infrequently used cache file size indicating recyclable memory (KB)",
+                type:"gauge",
+                name: "inactive_kB",
+            },
+            {
+                description: "Total size of swap space (KB)",
+                type:"gauge",
+                name: "swap_total_kB",
+            },
+            {
+                description: "Unused swap space size (KB)",
+                type:"gauge",
+                name: "swap_free_kB",
+            },
+            {
+                description: "Usage of swap memory (%)",
+                type:"gauge",
+                name: "swap_util",
+            },
+        )
+    }
+)
