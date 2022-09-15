@@ -77,7 +77,7 @@ err:
 }
 
 static int gopher_iter_section_symb(Elf *e, Elf_Scn *sec,
-        Elf32_Word another_sec, size_t entry_size, elf_sym_cb cb, void *ctx)
+                Elf32_Word another_sec, size_t entry_size, elf_sym_cb cb, void *ctx)
 {
     ELF_CB_RET ret;
     int sym_count;
@@ -144,6 +144,43 @@ static int gopher_iter_elf_symb(Elf *e, elf_sym_cb cb, void *ctx)
     }
 
     return ret;
+}
+
+static Elf_Scn* gopher_get_elf_section(Elf *e, const char* sec_name)
+{
+    int ret = -1;
+    size_t index;
+    Elf_Scn *sec = NULL;
+    GElf_Shdr header;
+    char *name;
+
+    if ((ret = elf_getshdrstrndx(e, &index)) && ret < 0) {
+        goto err;
+    }
+
+    while ((sec = elf_nextscn(e, sec)) != 0) {
+        if (!gelf_getshdr(sec, &header)) {
+            continue;
+        }
+
+        name = elf_strptr(e, index, header.sh_name);
+        if (name && !strcmp(name, sec_name)) {
+            return sec;
+        }
+    }
+
+err:
+    return NULL;
+}
+
+static Elf_Data* gopher_get_elf_section_data(Elf *e, const char* sec_name)
+{
+    Elf_Scn *section = gopher_get_elf_section(e, sec_name);
+    if (!section) {
+        return NULL;
+    }
+
+    return elf_getdata(section, NULL);
 }
 
 static int gopher_get_elf_hdr_info(const char *elf_file, struct elf_header_s *hdr)
@@ -347,5 +384,73 @@ int gopher_get_elf_symb(const char *elf_file, char *symb_name, u64 *symb_offset)
         return 0;
     }
     return -1;
+}
+
+#define __ELF_BUILD_ID_LEN  16
+#define __ELF_BUILD_ID_GNU_OFFSET  12
+int gopher_get_elf_build_id(const char *elf_file, char build_id[], size_t len)
+{
+    char *d_buf;
+    size_t d_size;
+    int ret = 0, elf_fd = -1;
+    Elf *e = NULL;
+
+    if (open_elf(elf_file, &e, &elf_fd)) {
+        ret = -1;
+        goto err;
+    }
+
+    Elf_Data *data = gopher_get_elf_section_data(e, ".note.gnu.build-id");
+    if (!data || data->d_size <= __ELF_BUILD_ID_LEN || strcmp((char *)data->d_buf + __ELF_BUILD_ID_GNU_OFFSET, "GNU")) {
+        ret = -1;
+        goto err;
+    }
+
+    d_buf = (char *)data->d_buf + __ELF_BUILD_ID_LEN;
+    d_size = data->d_size - __ELF_BUILD_ID_LEN;
+    for (size_t i = 0; i < d_size; i++) {
+      snprintf(build_id + (i * 2), len ,"%02hhx", d_buf[i]);
+    }
+
+err:
+    if (e) {
+        elf_end(e);
+    }
+    if (elf_fd >= 0) {
+        close(elf_fd);
+    }
+    return ret;
+}
+
+#define __ELF_DEBUG_LINK_LEN  5
+int gopher_get_elf_debug_link(const char *elf_file, char debug_link[], size_t len)
+{
+    int ret = 0, elf_fd = -1;
+    Elf *e = NULL;
+    char *debug_file;
+
+    if (open_elf(elf_file, &e, &elf_fd)) {
+        ret = -1;
+        goto err;
+    }
+
+    Elf_Data *data = gopher_get_elf_section_data(e, ".gnu_debuglink");
+    if (!data || data->d_size <= __ELF_DEBUG_LINK_LEN) {
+        ret = -1;
+        goto err;
+    }
+
+    debug_file = (char *)data->d_buf;
+
+    (void)strncpy(debug_link, debug_file, len - 1);
+
+err:
+    if (e) {
+        elf_end(e);
+    }
+    if (elf_fd >= 0) {
+        close(elf_fd);
+    }
+    return ret;
 }
 

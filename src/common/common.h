@@ -72,7 +72,7 @@
 #endif
 
 #ifndef PERF_MAX_STACK_DEPTH
-#define PERF_MAX_STACK_DEPTH        64
+#define PERF_MAX_STACK_DEPTH    127
 #endif
 
 void debug_logs(const char* format, ...);
