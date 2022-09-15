@@ -138,32 +138,29 @@ static void msg_event_handler(void *ctx, int cpu, void *data, unsigned int size)
     ip_str(msg_evt_data->conn_info.client_ip_info.family, (unsigned char *)&(msg_evt_data->conn_info.client_ip_info.ipaddr),
         cli_ip_str, INET6_ADDRSTRLEN);
     fprintf(stdout,
-            "|%s|%d|%d|%s|%s|%u|%s|%u|%c|%c|%llu|\n",
+            "|%s|%d|%d|%s|%c|%s|%u|%s|%u|%llu|\n",
             SLI_TBL_NAME,
             msg_evt_data->tgid,
             msg_evt_data->fd,
             "POSTGRE",
+            msg_evt_data->latency.req_cmd,
             ser_ip_str,
             msg_evt_data->conn_info.server_ip_info.port,
             cli_ip_str,
             ntohs(msg_evt_data->conn_info.client_ip_info.port),
-            msg_evt_data->latency.req_cmd,
-            msg_evt_data->latency.rsp_cmd,
             msg_evt_data->latency.rtt_nsec);
     fprintf(stdout,
-            "|%s|%d|%d|%s|%s|%u|%s|%u|%c|%c|%llu|\n",
+            "|%s|%d|%d|%s|%c|%s|%u|%s|%u|%llu|\n",
             MAX_SLI_TBL_NAME,
             msg_evt_data->tgid,
             msg_evt_data->fd,
             "POSTGRE",
+            msg_evt_data->max.req_cmd,
             ser_ip_str,
             msg_evt_data->conn_info.server_ip_info.port,
             cli_ip_str,
             ntohs(msg_evt_data->conn_info.client_ip_info.port),
-            msg_evt_data->max.req_cmd,
-            msg_evt_data->max.rsp_cmd,
             msg_evt_data->max.rtt_nsec);
-
     (void)fflush(stdout);
 
     return;
