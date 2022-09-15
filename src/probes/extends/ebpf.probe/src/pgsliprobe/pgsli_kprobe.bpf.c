@@ -23,7 +23,7 @@
 
 #define TCP_SKB_CB(__skb) ((struct tcp_skb_cb *)&((__skb)->cb[0]))
 
-#define LO_IPADDR 16777343 // 127.0.0.1
+#define LO_IP4ADDR 16777343 // 127.0.0.1
 
 char g_license[] SEC("license") = "GPL";
 
@@ -33,12 +33,15 @@ static __always_inline int init_conn_info(struct conn_info_t *conn_info, struct 
     if (conn_info->client_ip_info.family == AF_INET) {
         conn_info->server_ip_info.ipaddr.ip4 = _(sk->sk_rcv_saddr);
         conn_info->client_ip_info.ipaddr.ip4 = _(sk->sk_daddr);
-        if (conn_info->server_ip_info.ipaddr.ip4 == LO_IPADDR && conn_info->client_ip_info.ipaddr.ip4 == LO_IPADDR) {
+        if (conn_info->client_ip_info.ipaddr.ip4 == LO_IP4ADDR) {
             return SLI_ERR;
         }
     } else if (conn_info->client_ip_info.family == AF_INET6) {
         bpf_probe_read(conn_info->server_ip_info.ipaddr.ip6, IP6_LEN, &sk->sk_v6_rcv_saddr);
         bpf_probe_read(conn_info->client_ip_info.ipaddr.ip6, IP6_LEN, &sk->sk_v6_daddr);
+        if (conn_info->client_ip_info.ipaddr.ip6 == 0) {
+            return SLI_ERR;
+        }
     } else {
         return SLI_ERR;
     }
