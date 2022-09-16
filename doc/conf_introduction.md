@@ -1,171 +1,190 @@
 配置文件介绍
 ================
 
-## 介绍
+gala-gopher启动必须的外部参数通过配置文件定义；主要的配置项包括：设置数据上报周期、数据库信息、探针定义、cache数据库配置等。
 
-gala-gopher启动必须的外部参数通过配置文件定义；主要的配置项包括：设置数据上报周期、数据库信息、探针定义、cache数据库配置等；
+## 配置介绍
 
-## 配置文件详解
+配置文件归档在[config目录](../config)，安装路径 `/opt/gala-gopher/gala-gopher.conf`。该文件配置项说明如下：
 
-配置文件开发路径归档在 `A-Ops/gala-gopher/config/gala-gopher.conf`，安装路径 `/opt/gala-gopher/gala-gopher.conf`。
+- global：gala-gopher全局配置信息
+  - log_directory：gala-gopher日志文件名
+  - log_level：gala-gopher日志级别（暂未开放此功能）
+  - pin_path：ebpf探针共享map存放路径（建议维持默认配置）
 
-配置文件各部分详解如下：
+- metric：指标数据metrics输出方式配置
+  - out_channel：metrics输出通道，支持配置web_server|kafka，配置为空则输出通道关闭
+  - kafka_topic：若输出通道为kafka，此为topic配置信息
 
-### global
+- event：异常事件event输出方式配置
+  - out_channel：event输出通道，支持配置logs|kafka，配置为空则输出通道关闭
+  - kafka_topic：若输出通道为kafka，此为topic配置信息
 
-```shell
-global =									# gala-gopher引擎配置
+- meta：元数据metadata输出方式配置
+  - out_channel：metadata输出通道，支持logs|kafka，配置为空则输出通道关闭
+  - kafka_topic：若输出通道为kafka，此为topic配置信息
+
+- ingress：探针数据上报相关配置
+  - interval：暂未使用
+
+- egress：上报数据库相关配置
+  - interval：暂未使用
+  - time_range：暂未使用
+
+- imdb：cache缓存规格配置
+  - max_tables_num：最大的cache表个数，/opt/gala-gopher/meta目录下每个meta对应一个表
+  - max_records_num：每张cache表最大记录数，通常每个探针在一个观测周期内产生至少1条观测记录
+  - max_metrics_num：每条观测记录包含的最大的metric指标个数
+  - record_timeout：cache表老化时间，若cache表中某条记录超过该时间未刷新则删除记录，单位为秒
+- web_server：输出通道web_server配置
+  - port：监听端口
+- kafka：输出通道kafka配置
+  - kafka_broker：kafka服务器的IP和port
+- logs：输出通道logs配置
+  - metric_dir：metrics指标数据日志路径
+  - event_dir：异常事件数据日志路径
+  - meta_dir：metadata元数据日志路径
+  - debug_dir：gala-gopher运行日志路径
+
+- probes：native探针配置
+  - name：探针名称，要求与native探针名一致，如example.probe 探针名为example
+  - param ：探针启动参数，支持的参数详见[启动参数介绍表](#启动参数介绍)
+  - switch：探针是否启动，支持配置 on | off
+- extend_probes ：第三方探针配置
+  - name：探针名称
+  - command：探针启动命令
+  - param：探针启动参数，支持的参数详见[启动参数介绍表](#启动参数介绍)
+  - start_check：switch为auto时，需要根据start_check执行结果判定探针是否需要启动
+  - switch：探针是否启动，支持配置on | off | auto，auto会根据start_check判定结果决定是否启动探针
+
+
+
+## 启动参数介绍
+
+配置文件中`probes`和`extend_probes`部分`param`字段用于设置各个探针启动参数，启动参数介绍如下：
+
+| 参数项 | 含义                                                         |
+| ------ | ------------------------------------------------------------ |
+| -l     | 是否开启异常事件上报                                         |
+| -t     | 采样周期，单位为秒，默认配置为探针5s上报一次数据             |
+| -T     | 延迟时间阈值，单位为ms，默认配置为0ms，用于异常事件          |
+| -J     | 抖动时间阈值，单位为ms，默认配置为0ms，用于异常事件          |
+| -O     | 离线时间阈值，单位为ms，默认配置为0ms，用于异常事件          |
+| -D     | 丢包阈值，默认配置为0(个)，用于异常事件                      |
+| -F     | 配置为`task`表示按照`task_whitelist.conf`过滤；配置为具体进程的pid表示仅监控此进程 |
+| -P     | 指定每个探针加载的探测程序范围，目前tcpprobe、taskprobe探针涉及 |
+| -U     | 资源利用率阈值(上限)，默认为0%，用于异常事件                 |
+| -L     | 资源利用率阈值(下限)，默认为0%，用于异常事件                 |
+| -c     | 指示探针(tcp)是否标识client_port，默认配置为0(否)            |
+| -C     | 指定探针(ksliprobe)是否开启周期采样，增加该参数则连续采集数据，不加该参数则周期性(如5s)采样一次 |
+| -p     | 指定待观测进程的二进制文件路径，比如nginx_probe，通过 -p /user/local/sbin/nginx指定nginx文件路径，默认配置为NULL |
+| -w     | 筛选应用程序监控范围，如-w  /opt/gala-gopher/task_whitelist.conf，用户可将需要监控的程序名写入task_whitelist.conf中，默认配置为NULL表示不筛选，system_infos、taskprobe探针涉及 |
+| -n     | 指定某个网卡挂载tc ebpf，默认配置为NULL表示所有网卡均挂载；示例： -n eth0 |
+
+> 说明：上表中某些参数用于异常事件，目前异常事件范围参考[系统异常范围](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech_abnormal.md)。
+
+
+
+## 示例
+
+```yaml
+global =
 {
-    log_directory = "gopher.log";	   # gala-gopher引擎日志路径
-    log_level = "debug";	# gala-gopher日志级别，可配置 "debug|info|error|warnning|fatal"
-    pin_path = "/sys/fs/bpf/probe";	   # 共享map存放路径，建议维持默认配置
+    log_file_name = "gopher.log";
+    log_level = "debug";
+    pin_path = "/sys/fs/bpf/probe";
 };
-```
 
-### metric
-
-```shell
-metric =									# 用于配置metrics指标数据输出方式
+metric =
 {
-    out_channel = "web_server";  # metric输出通道，支持web_server|kafka，配置为空或者其他字符串不输出
-    kafka_topic = "gala_gopher"; # 若输出通道为kafka，此为topic配置信息
+    out_channel = "web_server";     # 设置metrics采用web上报方式
+    kafka_topic = "gala_gopher";
 };
-```
 
-### event
-
-```shell
-event =										# 用于配置异常事件数据输出方式
+event =
 {
-    out_channel = "kafka";       # event输出通道，支持logs|kafka，配置为空或者其他字符串则不输出
-    kafka_topic = "gala_gopher_event";      # 若输出通道为kafka，此为topic配置信息
+    out_channel = "kafka";          # 设置event采用kafka上报方式
+    kafka_topic = "gala_gopher_event";  # kafka方式下，对应的topic信息
 };
-```
 
-### meta
-
-```shell
-meta =										# 用于配置元数据输出方式
+meta =
 {
-    out_channel = "kafka";       # metadata输出通道，支持logs|kafka，配置为空或者其他字符串则不输出
-    kafka_topic = "gala_gopher_metadata";   # 若输出通道为kafka，此为topic配置信息
+    out_channel = "logs";           # 设置metadata采用logs上报方式
+    kafka_topic = "gala_gopher_metadata";
 };
-```
 
-### ingress 
-
-```shell
-ingress =									# 数据采集相关配置
+ingress =
 {
-    interval = 5;		# 探针数据采集周期(s)，如每5s触发探针数据采集
+    interval = 5;
 };
-```
 
-### egress
-
-```shell
-egress =									# 数据上报相关配置
+egress =
 {
-    interval = 5;		# 探针数据上报egress的周期(s)
-    time_range = 5;		# 未用
+    interval = 5;
+    time_range = 5;
 };
-```
 
-### imdb
-
-```shell
-imdb =										# cache缓存规格，定义了支持的指标项规格
+imdb =
 {
-    max_tables_num = 1024;   # cache最大支持的表个数，/opt/gala-gopher/meta目录下每个meta对应一个表
-    max_records_num = 1024;	 # 每张cache表最大记录数，通常每个探针在一个观测周期内产生至少1条观测记录
-    max_metrics_num = 1024;	 # metric最大个数，定义了每条观测记录最大的metric指标个数
-    record_timeout = 60;     # 单位为秒，cache表老化时间，若某条记录超过该时间未更新，则删除
+    max_tables_num = 1024;
+    max_records_num = 1024;
+    max_metrics_num = 64;
+    record_timeout = 60;
 };
-```
 
-### webServer配置
-
-gala-gopher可以启动一个webServer，对外提供查询metric指标的接口，promethous可以基于该接口查询指标信息。
-
-```shell
 web_server =
 {
-    port = 8888;		# 监听端口
+    port = 8888;
 };
-```
 
-### kafka配置
-
-gala-gopher支持配置为kafka客户端，作为生产者将采集的数据上送kafka，用户可以通过消费kafka数据获取采集的指标数据。
-
-```shell
 kafka =
 {
-    kafka_broker = "localhost:9092";
-    batch_num_messages = 10000;	    # 在一个MessageSet中批处理的最大消息数
-    compression_codec = "none";	    # 用于压缩消息集的压缩编解码器：none、gzip 或 snappy
-    queue_buffering_max_messages = 100000;	# 生产者队列上允许的最大消息数
-    queue_buffering_max_kbytes = 1048576;	# 生产者队列上允许的最大byte数(kB)
-    queue_buffering_max_ms = 5;	    # 生产者队列上缓冲数据的最长时间(毫秒)
+    kafka_broker = "10.137.10.xx:9092";
+    batch_num_messages = 10000;
+    compression_codec = "none";
+    queue_buffering_max_messages = 100000;
+    queue_buffering_max_kbytes = 1048576;
+    queue_buffering_max_ms = 5;
 };
-```
 
-### logs配置
-
-```shell
 logs =
 {
-    metric_dir = "/var/log/gala-gopher/metrics";    # metrics指标数据日志路径
-    event_dir = "/var/log/gala-gopher/event";       # 异常事件数据日志路径
-    meta_dir = "/var/log/gala-gopher/meta";         # metadata元数据日志路径
-    debug_dir = "/var/log/gala-gopher/debug";       #gala-gopher运行日志路径
+    metric_dir = "/var/log/gala-gopher/metrics";
+    event_dir = "/var/log/gala-gopher/event";
+    meta_dir = "/var/log/gala-gopher/meta";
+    debug_dir = "/var/log/gala-gopher/debug";
 };
-```
 
-### probes 
-
-```shell
-probes =								# native探针配置，定义gala-gopher需要启动的探针
+probes =                             # 仅列出switch为on的探针
 (
     {
-        name = "example";  # 探针名称，要求与native探针名一致，如example.probe 探针名为example
-        switch = "on";     # 运行时是否启动，支持配置 on | off
-        interval = 1;      # 探针执行周期(s)
-    },
-    {
-        name = "system_net";
-        switch = "on";     # 'on'表示gala-gopher运行时会启动该探针
-        interval = 2;
-    },
-    ... ...
+        name = "system_infos";
+        param = "-t 5 -w /opt/gala-gopher/task_whitelist.conf -l warn -U 80";
+        switch = "on";
+    }
 );
-```
 
-### extend_probes
-
-```shell
-extend_probes =							# 三方探针开关配置
+extend_probes =
 (
     {
-        name = "tcp";            # 探针名称
-        command = "/opt/gala-gopher/extend_probes/tcpprobe";  # 探针启动命令
-        param = "";              # 探针启动参数，支持设置执行周期(-t)、可执行文件路径(-p uprobe使用)
-        switch = "on";           # 运行时是否启动，支持配置 on | off | auto
+        name = "tcp";
+        command = "/opt/gala-gopher/extend_probes/tcpprobe";
+        param = "-l warn -c 1 -P 7";
+        switch = "on";              # tcp探针默认开启
     },
     {
         name = "lvs";
         command = "/opt/gala-gopher/extend_probes/trace_lvs";
         param = "";
-        start_check = "lsmod | grep ip_vs | wc -l"; # switch为auto时，需要根据start_check执行结果判定探针是否需要启动
-        check_type = "count"；  # start_check执行结果的检查类型，count：执行结果>0，启动探针
-        switch = "auto";        # auto表示根据start_check判定结果决定是否启动探针
+        start_check = "lsmod | grep ip_vs | wc -l";
+        check_type = "count";
+        switch = "auto";            # 仅在当前环境有ip_vs.ko的时候开启lvs探针
     },
     {
         name = "task";
         command = "/opt/gala-gopher/extend_probes/taskprobe";
-        param = "-w /opt/gala-gopher/task_whitelist.conf";	# -w选项用于给task探针指定白名单，用户可以将想要观测的函数名写入配置文件
+        param = "-w /opt/gala-gopher/task_whitelist.conf -P 3174";
         switch = "on";
-    },
-    ... ...
+    }
 );
 ```

@@ -134,15 +134,11 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
 
 #### 开发指南
 
-[开发指南](doc/design_coe.md)
+[开发指南](doc/how_to_add_probe.md)
 
 #### 配置文件介绍
 
 [配置文件介绍](doc/conf_introduction.md)
-
-#### 如何开发一个探针
-
-[如何开发一个探针](doc/how_to_add_probe.md)
 
 #### eBPF探针开发指南
 

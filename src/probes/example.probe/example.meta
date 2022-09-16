@@ -8,6 +8,11 @@ measurements:
         fields:
         (
             {
+                description: "example keyword",
+                type: "key",
+                name: "key_name",
+            },
+            {
                 description: "example cpu usage",
                 type: "gauge",
                 name: "cpu_usage",
