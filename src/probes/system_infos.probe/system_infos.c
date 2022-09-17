@@ -86,7 +86,7 @@ int main(struct probe_params * params)
             printf("[SYSTEM_PROBE] system meminfo probe fail.\n");
             goto err;
         }
-        ret = system_cpu_probe();
+        ret = system_cpu_probe(params);
         if (ret < 0) {
             printf("[SYSTEM_PROBE] system cpu probe fail.\n");
             goto err;

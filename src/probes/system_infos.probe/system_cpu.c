@@ -8,35 +8,106 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Author: Ernest
+ * Author: Ernest, ChenHua Li, Haiyue Fung
  * Create: 2022-06-21
- * Description: system probe just in 1 thread, include tcp/net/iostat/inode
+ * Description: system cpu probe
  ******************************************************************************/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include "common.h"
 #include "nprobe_fprintf.h"
+#include "event.h"
 #include "system_cpu.h"
 
-#define METRICS_CPU_NAME        "system_cpu"
-#define SYSTEM_PROCESSOR_INFO   "cat /proc/softirqs | grep -E '\\sRCU:\\s|\\sTIMER:\\s|\\sSCHED:\\s|\\sNET_RX:\\s'"
-#define SYSTEM_PROC_STAT_PATH   "/proc/stat"
-#define PROC_STAT_FILEDS_NUM    6
-#define BUF_SIZE                512
-#define MAX_CPU_NUM             1024
-#define LINE_SIZE               2048
+#define METRICS_CPU_NAME            "system_cpu"
+#define METRICS_CPU_UTIL_NAME       "system_cpu_util"
+#define ENTITY_NAME                 "cpu"
+#define SYSTEM_PROCESSOR_INFO       "cat /proc/softirqs | grep -E '\\sRCU:\\s|\\sTIMER:\\s|\\sSCHED:\\s|\\sNET_RX:\\s'"
+#define SYSTEM_PROC_STAT_PATH       "/proc/stat"
+#define SOFTNET_STAT_PATH           "/proc/net/softnet_stat"
+#define PROC_STAT_FILEDS_NUM        6
+#define PROC_STAT_COL_NUM           8
+#define PROC_STAT_IDLE_COL          4
+#define PROC_STAT_IOWAIT_COL        5
+#define SOFTNET_DROP_COL            2
+#define SOFTNET_RPS_COL             10
+#define BASE_HEX                    16
+#define MAX_CPU_NUM                 1024
+#define FULL_PER                    100
 
 static struct cpu_stat **cur_cpus = NULL;
 static struct cpu_stat **old_cpus = NULL;
 static int cpus_num = 0;
 static bool is_first_get = true;
+static u64 last_time_total, cur_time_total, last_time_used, cur_time_used;
+static float util_per;
 
-static int get_proc_stat_fileds(void)
+/*
+ * time_total = user + nice + sys + irq + softirq + steal + idle + iowait (前8列)
+ * time_idle = idle + iowait
+ * time_used = user + nice + sys + irq + softirq + steal
+ */
+static void get_cpu_time_in_jiff(char *cpu_total_line, u64 *time_total, u64 *time_used)
+{
+    char *retrieved_time = NULL, *save;
+    int i = 0;
+    *time_total = 0;
+    *time_used = 0;
+    u64 time;
+
+    (void)__strtok_r(cpu_total_line, " ", &save);
+
+    while (i++ < PROC_STAT_COL_NUM) {
+        retrieved_time = __strtok_r(NULL, " ", &save);
+        time = atoll(retrieved_time);
+
+        *time_total += time;
+
+        if (i != PROC_STAT_IDLE_COL && i != PROC_STAT_IOWAIT_COL) {
+            *time_used += time;
+        }
+    }
+}
+
+static void report_cpu_status(struct probe_params *params)
+{
+    char entityId[INT_LEN];
+    if (params->logs == 0) {
+        return;
+    }
+
+    entityId[0] = 0;
+    (void)strcpy(entityId, "cpu");
+
+    if (util_per > params->res_percent_upper) {
+        report_logs(ENTITY_NAME,
+                    entityId,
+                    "used_per",
+                    EVT_SEC_WARN,
+                    "Too high cpu utilization(%.2f%%).",
+                    util_per);
+    }
+}
+
+static void get_cpu_time(char *src)
+{
+    if (is_first_get == true) {
+        get_cpu_time_in_jiff(src, &cur_time_total, &cur_time_used);
+    } else {
+        last_time_total = cur_time_total;
+        last_time_used = cur_time_used;
+        get_cpu_time_in_jiff(src, &cur_time_total, &cur_time_used);
+    }
+}
+
+static int get_proc_stat_info(void)
 {
     FILE *f = NULL;
-    char line[LINE_SIZE];
+    char line[LINE_BUF_LEN];
+    char first_line[LINE_BUF_LEN];
     int ret;
     int index = 0;
     bool is_first_line = true;
@@ -45,14 +116,20 @@ static int get_proc_stat_fileds(void)
     if (f == NULL) {
         return -1;
     }
+    first_line[0] = 0;
     while (!feof(f)) {
         line[0] = 0;
-        if (fgets(line, LINE_SIZE, f) == NULL) {
+        if (fgets(line, LINE_BUF_LEN, f) == NULL) {
             fclose(f);
             return 0;
         }
-        if (strstr(line, "cpu") == NULL || is_first_line) {
+        if (is_first_line) {
+            strncpy(first_line, line, strlen(line) + 1);
+            get_cpu_time(first_line);
             is_first_line = false;
+            continue;
+        }
+        if (strstr(line, "cpu") == NULL) {
             continue;
         }
         if (index >= cpus_num) {
@@ -77,17 +154,17 @@ static int get_proc_stat_fileds(void)
     return 0;
 }
 
-static int get_cpu_info(void)
+static int get_softirq_info(void)
 {
     FILE *f = NULL;
     char *field, *save;
-    char line[LINE_SIZE] = {0};
+    char line[LINE_BUF_LEN] = {0};
 
     f = popen(SYSTEM_PROCESSOR_INFO, "r");
     if (f == NULL) {
         return -1;
     }
-    while (fgets(line, LINE_SIZE, f) != NULL) {
+    while (fgets(line, LINE_BUF_LEN, f) != NULL) {
         field = __strtok_r(line, " ", &save);
         if (strcmp(field, "RCU:") == 0) {
             for (size_t i = 0; i < cpus_num; i++) {
@@ -109,8 +186,56 @@ static int get_cpu_info(void)
         line[0] = 0;
     }
     pclose(f);
-    if (get_proc_stat_fileds()) {
-        printf("[SYSTEM_PROBE] fail to collect cpus info\n");
+    return 0;
+}
+
+static int get_softnet_stat_info(void)
+{
+    FILE *f = fopen(SOFTNET_STAT_PATH, "r");
+    char line[LINE_BUF_LEN];
+    char *val, *save, *endptr;
+    int ret;
+
+    if (f == NULL) {
+        return -1;
+    }
+
+    int i = 0;
+    line[0] = 0;
+    while (fgets(line, LINE_BUF_LEN, f) != NULL) {
+        int t = 2;
+        val = __strtok_r(line, " ", &save);
+        while (val != NULL) {
+            val = __strtok_r(NULL, " ", &save);
+            if (t == SOFTNET_DROP_COL) {
+                cur_cpus[i]->backlog_drops = strtoll(val, &endptr, BASE_HEX);
+            }
+            if (t == SOFTNET_RPS_COL) {
+                cur_cpus[i]->rps_count = strtoll(val, &endptr, BASE_HEX);
+                break;
+            }
+            t++;
+        }
+        line[0] = 0;
+        i++;
+    }
+    
+    (void)fclose(f);
+    return 0;
+}
+
+static int get_cpu_info(void)
+{
+    if (get_softirq_info() < 0) {
+        printf("[SYSTEM_PROBE] fail to collect softirq info\n");
+        return -1;
+    }
+    if (get_proc_stat_info() < 0) {
+        printf("[SYSTEM_PROBE] fail to collect proc stat info\n");
+        return -1;
+    }
+    if (get_softnet_stat_info() < 0) {
+        printf("[SYSTEM_PROBE] fail to collect softnet stat info\n");
         return -1;
     }
     return 0;
@@ -179,7 +304,7 @@ void system_cpu_destroy(void)
     old_cpus = NULL;
 }
 
-int system_cpu_probe(void)
+int system_cpu_probe(struct probe_params *params)
 {
     struct cpu_stat **tmp_pptr;
     struct cpu_stat *tmp_ptr;
@@ -195,6 +320,8 @@ int system_cpu_probe(void)
         is_first_get = false;
         return 0;
     }
+    util_per = (cur_time_used - last_time_used) * FULL_PER * 1.0 / (cur_time_total - last_time_total);
+    report_cpu_status(params);
     for (size_t i = 0; i < cpus_num; i++) {
         ret = nprobe_fprintf(stdout, "|%s|%d|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|\n",
             METRICS_CPU_NAME,
@@ -208,13 +335,22 @@ int system_cpu_probe(void)
             cur_cpus[i]->cpu_system_total_second - old_cpus[i]->cpu_system_total_second,
             cur_cpus[i]->cpu_iowait_total_second - old_cpus[i]->cpu_iowait_total_second,
             cur_cpus[i]->cpu_irq_total_second - old_cpus[i]->cpu_irq_total_second,
-            cur_cpus[i]->cpu_softirq_total_second - old_cpus[i]->cpu_softirq_total_second);
+            cur_cpus[i]->cpu_softirq_total_second - old_cpus[i]->cpu_softirq_total_second,
+            cur_cpus[i]->backlog_drops - old_cpus[i]->backlog_drops,
+            cur_cpus[i]->rps_count - old_cpus[i]->rps_count);
         tmp_ptr = old_cpus[i];
         old_cpus[i] = cur_cpus[i];
         cur_cpus[i] = tmp_ptr;
         if (ret < 0) {
             return -1;
         }
+    }
+    ret = nprobe_fprintf(stdout, "|%s|%s|%.2f|\n",
+        METRICS_CPU_UTIL_NAME,
+        "cpu",
+        util_per);
+    if (ret < 0) {
+        return -1;
     }
     return 0;
 }

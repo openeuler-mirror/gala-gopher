@@ -17,22 +17,27 @@
 
 #pragma once
 
+#include "args.h"
+#include "common.h"
+
 struct cpu_stat {
     int cpu_num;
-    unsigned long long rcu;
-    unsigned long long timer;
-    unsigned long long sched;
-    unsigned long long net_rx;
-    unsigned long long cpu_user_total_second;
-    unsigned long long cpu_nice_total_second;
-    unsigned long long cpu_system_total_second;
-    unsigned long long cpu_iowait_total_second;
-    unsigned long long cpu_irq_total_second;
-    unsigned long long cpu_softirq_total_second;
+    u64 rcu;
+    u64 timer;
+    u64 sched;
+    u64 net_rx;
+    u64 cpu_user_total_second;
+    u64 cpu_nice_total_second;
+    u64 cpu_system_total_second;
+    u64 cpu_iowait_total_second;
+    u64 cpu_irq_total_second;
+    u64 cpu_softirq_total_second;
+    u64 backlog_drops;
+    u64 rps_count;
 };
 
 int system_cpu_init(void);
-int system_cpu_probe(void);
+int system_cpu_probe(struct probe_params *params);
 void system_cpu_destroy(void);
 
 #endif
