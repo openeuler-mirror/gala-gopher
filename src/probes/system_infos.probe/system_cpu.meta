@@ -10,7 +10,7 @@ measurements:
             {
                 description: "Cpu number",
                 type: "key",
-                name: "cpu_num",
+                name: "cpu",
             },
             {
                 description: "Count of rcu lock in softirqs",
