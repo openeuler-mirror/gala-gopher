@@ -61,6 +61,33 @@ measurements:
                 description: "cpu_softirq_total_second",
                 type: "gauge",
                 name: "softirq_total_second",
+            },
+            {
+                description: "Count of dropped packets due to full processing queue",
+                type: "gauge",
+                name: "backlog_drops",
+            },
+            {
+                description: "times has been woken up to process packets via Inter-processor Interrupt",
+                type: "gauge",
+                name: "rps_count",
+            }
+        )
+    },
+    {
+        table_name: "system_cpu_util",
+        entity_name: "cpu",
+        fields:
+        (
+            {
+                description: "cpu name",
+                type: "key",
+                name: "cpu",
+            },
+            {
+                description: "Total CPU utilization (%)",
+                type: "gauge",
+                name: "total_used_per",
             }
         )
     }
