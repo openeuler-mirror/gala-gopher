@@ -5,8 +5,9 @@
 
 void example_collect_data()
 {
-    nprobe_fprintf(stdout, "|%s|%s|%s|%s|\n",
+    nprobe_fprintf(stdout, "|%s|%s|%s|%s|%s|\n",
         "example",
+        "system",
         "10",
         "88",
         "15"
