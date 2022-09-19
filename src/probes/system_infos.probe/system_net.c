@@ -37,7 +37,7 @@ static int get_netsnmp_fileds(const char *net_snmp_info, net_snmp_stat *stats)
     int ret;
     char *colon = strchr(net_snmp_info, ':');
     if (colon == NULL) {
-        printf("[SYSTEM_NET] net_snmp not find symbol ':' \n");
+        DEBUG("[SYSTEM_NET] net_snmp not find symbol ':' \n");
         return -1;
     }
     *colon = '\0';
@@ -150,7 +150,7 @@ static int get_netdev_fileds(const char *net_dev_info, net_dev_stat *stats)
         &stats->rx_bytes, &stats->rx_packets, &stats->rx_errs, &stats->rx_dropped,
         &stats->tx_bytes, &stats->tx_packets, &stats->tx_errs, &stats->tx_dropped);
     if (ret < NETDEV_FIELD_NUM) {
-        printf("[SYSTEM_NET] system_net.probe faild get net_dev metrics.\n");
+        DEBUG("[SYSTEM_NET] system_net.probe faild get net_dev metrics.\n");
         return -1;
     }
     return 0;
@@ -169,12 +169,12 @@ static int get_netdev_status(net_dev_stat *stats)
     (void)snprintf(cmd, COMMAND_LEN, SYSTEM_NET_DEV_STATUS, stats->dev_name);
     f = popen(cmd, "r");
     if (f == NULL) {
-        printf("[SYSTEM_NET] ethtool dev(%s) failed, popen error.\n", stats->dev_name);
+        ERROR("[SYSTEM_NET] ethtool dev(%s) failed, popen error.\n", stats->dev_name);
         return -1;
     }
     line[0] = 0;
     if (fgets(line, LINE_BUF_LEN, f) == NULL) {
-        printf("[SYSTEM_NET] ethtool dev(%s) failed, line is NULL.\n", stats->dev_name);
+        ERROR("[SYSTEM_NET] ethtool dev(%s) failed, line is NULL.\n", stats->dev_name);
         (void)pclose(f);
         return -1;
     }
@@ -197,12 +197,12 @@ static int do_read_qdisc_line(char *dev_name, char *keywords, char *filter, char
     (void)snprintf(cmd, COMMAND_LEN, fmt, SYSTEM_NET_QDISC_SHOW, dev_name, keywords, filter);
     f = popen(cmd, "r");
     if (f == NULL) {
-        printf("[SYSTEM_NET] get net(%s) qdisc(%s) failed, popen error.\n", dev_name, keywords);
+        ERROR("[SYSTEM_NET] get net(%s) qdisc(%s) failed, popen error.\n", dev_name, keywords);
         return -1;
     }
     line[0] = 0;
     if (fgets(line, LINE_BUF_LEN, f) == NULL) {
-        printf("[SYSTEM_NET] get net(%s) qdisc(%s) failed, line is NULL.\n", dev_name, keywords);
+        ERROR("[SYSTEM_NET] get net(%s) qdisc(%s) failed, line is NULL.\n", dev_name, keywords);
         (void)pclose(f);
         return -1;
     }
@@ -225,7 +225,7 @@ static int get_netdev_qdisc(net_dev_stat *stats)
     }
     ret = sscanf(line, "%d%*c%d",&stats->tc_sent_drop_count, &stats->tc_sent_overlimits_count);
     if (ret < QDISC_SENT_FILED_NUM) {
-        printf("[SYSTEM_NET] faild get qdisc sent metrics.\n");
+        ERROR("[SYSTEM_NET] faild get qdisc sent metrics.\n");
         return -1;
     }
 
@@ -235,7 +235,7 @@ static int get_netdev_qdisc(net_dev_stat *stats)
     }
     ret = sscanf(line, "%d%*c",&stats->tc_backlog_count);
     if (ret < QDISC_BACKLOG_FIELD_NUM) {
-        printf("[SYSTEM_NET] faild get qdisc backlog metrics.\n");
+        ERROR("[SYSTEM_NET] faild get qdisc backlog metrics.\n");
         return -1;
     }
 
@@ -354,7 +354,7 @@ int system_net_probe(struct probe_params *params)
             continue;
         }
         if (index > g_netdev_num) {
-            printf("[SYSTEM_NET] net_probe records beyond max netdev nums(%d).\n", g_netdev_num);
+            ERROR("[SYSTEM_NET] net_probe records beyond max netdev nums(%d).\n", g_netdev_num);
             continue;
         }
         (void)get_netdev_name(line, dev_name);

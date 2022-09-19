@@ -17,7 +17,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <getopt.h>
-
+#include "logs.h"
 #include "args.h"
 
 #define OUT_PUT_PERIOD_MAX     (120) // 2mim
@@ -68,7 +68,7 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
         case 't':
             interval = (unsigned int)atoi(arg);
             if (interval < OUT_PUT_PERIOD_MIN || interval > OUT_PUT_PERIOD_MAX) {
-                printf("Please check arg(t), val shold inside 1~120.\n");
+                ERROR("Please check arg(t), val shold inside 1~120.\n");
                 return -1;
             }
             params->period = interval;
@@ -86,7 +86,7 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
         case 'c':
             cport_flag = (unsigned int)atoi(arg);
             if (cport_flag != 0 && cport_flag != 1) {
-                printf("Please check arg(t), val shold be 1:cport_valid 0:cport_invalid.\n");
+                ERROR("Please check arg(t), val shold be 1:cport_valid 0:cport_invalid.\n");
                 return -1;
             }
             params->cport_flag = (unsigned char)cport_flag;

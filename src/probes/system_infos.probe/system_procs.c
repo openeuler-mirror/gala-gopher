@@ -147,12 +147,12 @@ static int do_read_line(const char* pid, const char *command, const char *fname,
     (void)snprintf(fname_or_cmd, LINE_BUF_LEN, command, pid);
     f = popen(fname_or_cmd, "r");
     if (f == NULL) {
-        printf("[SYSTEM_PROBE] proc cat fail, popen error.\n");
+        ERROR("[SYSTEM_PROBE] proc cat fail, popen error.\n");
         return -1;
     }
     if (fgets(line, LINE_BUF_LEN, f) == NULL) {
         (void)pclose(f);
-        printf("[SYSTEM_PROBE] proc get_info fail, line is null.\n");
+        ERROR("[SYSTEM_PROBE] proc get_info fail, line is null.\n");
         return -1;
     }
     
@@ -242,7 +242,7 @@ static void get_java_proc_cmd(const char* pid, proc_info_t *proc_info)
     char cmd[LINE_BUF_LEN];
     char line[LINE_BUF_LEN];
     if (is_jinfo_installed() == JINFO_NOT_INSTALLED) {
-        printf("[SYSTEM_PROBE] jinfo not installed, please check.\n");
+        ERROR("[SYSTEM_PROBE] jinfo not installed, please check.\n");
         return;
     }
     cmd[0] = 0;

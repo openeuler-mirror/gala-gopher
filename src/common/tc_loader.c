@@ -114,7 +114,7 @@ static int disable_one_netcard(const char *ethdev)
         return TC_ERR;
     }
     
-    printf("offload netcard[%s] tc bpf success\n", ethdev);
+    INFO("offload netcard[%s] tc bpf success\n", ethdev);
     return TC_OK;
 }
 
@@ -123,7 +123,7 @@ static int enable_one_netcard(const char *ethdev)
     unsigned long i;
     int ret;
     if (netcard_enabled_the_tc_bpf(ethdev)) {
-        printf("netcard[%s] has already enabled tc bpf\n", ethdev);
+        WARN("netcard[%s] has already enabled tc bpf\n", ethdev);
         return TC_OK;
     }
 
@@ -151,7 +151,7 @@ static int enable_one_netcard(const char *ethdev)
         }
     }
 
-    printf("load netcard[%s] tc bpf success\n", ethdev);
+    INFO("load netcard[%s] tc bpf success\n", ethdev);
     return TC_OK;
 
 clear:
@@ -284,7 +284,7 @@ static int init_global(const char *tc_bpf_o, enum tc_type_e tc_type)
 void load_tc_bpf(char netcard_list[], const char *tc_bpf_o, enum tc_type_e tc_type)
 {
     if (init_global(tc_bpf_o, tc_type) < 0) {
-        printf("load no tc bpf");
+        ERROR("load no tc bpf.\n");
         return;
     }
 

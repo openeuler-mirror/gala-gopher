@@ -133,7 +133,7 @@ static int get_proc_stat_info(void)
             continue;
         }
         if (index >= cpus_num) {
-            printf("[SYSTEM_PROBE] cpu_probe records beyond max cpu nums(%d).\n", cpus_num);
+            ERROR("[SYSTEM_PROBE] cpu_probe records beyond max cpu nums(%d).\n", cpus_num);
             (void)fclose(f);
             return -1;
         }
@@ -146,7 +146,7 @@ static int get_proc_stat_info(void)
             &cur_cpus[index]->cpu_irq_total_second,
             &cur_cpus[index]->cpu_softirq_total_second);
         if (ret < PROC_STAT_FILEDS_NUM) {
-            printf("system_cpu.probe faild get proc_stat metrics.\n");
+            DEBUG("system_cpu.probe faild get proc_stat metrics.\n");
         }
         index++;
     }
@@ -227,15 +227,15 @@ static int get_softnet_stat_info(void)
 static int get_cpu_info(void)
 {
     if (get_softirq_info() < 0) {
-        printf("[SYSTEM_PROBE] fail to collect softirq info\n");
+        ERROR("[SYSTEM_PROBE] fail to collect softirq info\n");
         return -1;
     }
     if (get_proc_stat_info() < 0) {
-        printf("[SYSTEM_PROBE] fail to collect proc stat info\n");
+        ERROR("[SYSTEM_PROBE] fail to collect proc stat info\n");
         return -1;
     }
     if (get_softnet_stat_info() < 0) {
-        printf("[SYSTEM_PROBE] fail to collect softnet stat info\n");
+        ERROR("[SYSTEM_PROBE] fail to collect softnet stat info\n");
         return -1;
     }
     return 0;
@@ -276,13 +276,13 @@ int system_cpu_init(void)
 {
     cpus_num = (int)sysconf(_SC_NPROCESSORS_CONF);
     if (cpus_num < 0 || cpus_num > MAX_CPU_NUM) {
-        printf("[SYSTEM_PROBE] sysconf to read the number of cpus error\n");
+        ERROR("[SYSTEM_PROBE] sysconf to read the number of cpus error\n");
         return -1;
     }
     cur_cpus = alloc_memory();
     old_cpus = alloc_memory();
     if (cur_cpus == NULL || old_cpus == NULL) {
-        printf("[SYSTEM_PROBE] fail alloc memory for cpu probe structure\n");
+        ERROR("[SYSTEM_PROBE] fail alloc memory for cpu probe structure\n");
         if (cur_cpus != NULL) {
             dealloc_memory(cur_cpus);
             cur_cpus = NULL;
@@ -310,7 +310,7 @@ int system_cpu_probe(struct probe_params *params)
     struct cpu_stat *tmp_ptr;
     int ret;
     if (get_cpu_info()) {
-        printf("[SYSTEM_PROBE] fail to collect cpus info\n");
+        ERROR("[SYSTEM_PROBE] fail to collect cpus info\n");
         return -1;
     }
     if (is_first_get == true) {

@@ -65,7 +65,7 @@ static void print_tcp_listen_metrics(struct endpoint_val_t *value)
             "|%s|%d|%s|%d|%s|%lu|%lu|%lu|%lu|%lu|%lu|\n",
             LISTEN_TBL_NAME,
             value->key.key.tcp_listen_key.tgid,
-            "",
+            "*",
             value->key.key.tcp_listen_key.port,
             LISTEN_TBL_NAME,
             value->ep_stats.stats[EP_STATS_LISTEN_DROPS],
@@ -141,7 +141,7 @@ static void build_entity_id(struct endpoint_val_t *ep, char *buf, int buf_len)
     if (ep->key.type == SK_TYPE_LISTEN_TCP) {
         (void)snprintf(buf, buf_len, "%d_%s_%d_%s",
                         ep->key.key.tcp_listen_key.tgid,
-                        "",
+                        "*",
                         ep->key.key.tcp_listen_key.port,
                         LISTEN_TBL_NAME);
     } else if (ep->key.type == SK_TYPE_CLIENT_TCP) {

@@ -221,7 +221,7 @@ static int ConfigMgrLoadEgressConfig(void *config, config_setting_t *settings)
 
     ret = config_setting_lookup_int(settings, "time_range", &intVal);
     if (ret == 0) {
-        printf("[CONFIG] load config for egress time_range failed.\n");
+        ERROR("[CONFIG] load config for egress time_range failed.\n");
         return -1;
     }
     egressConfig->timeRange = intVal;
