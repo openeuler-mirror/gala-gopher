@@ -36,6 +36,7 @@ int system_meminfo_init(void)
         "Active", "Inactive", "SwapTotal", "SwapFree"};
     for (int i = MEM_TOTAL; i < TOTAL_DATA_INDEX; i++) {
         strcpy(meminfo_fields[i].key, key_[i]);
+        meminfo_fields[i].value = 0;
     }
     return 0;
 }
@@ -50,7 +51,7 @@ void system_meminfo_destroy(void)
 }
 
 // get key & value from the line text, and assign to the target key.
-static int get_meminfosp_fileds(const char* line, const int cur_index)
+static int set_meminfosp_fileds(const char* line, const int cur_index)
 {
     int ret = 0;
 
@@ -75,13 +76,17 @@ static void output_info(void)
 {
     //  v3.2.8 used = total - free; v3.3.10 used = total - free - cache - buffers; cur_ver=v5.10
     // alculate memusage
-    double mem_usage = (double)(meminfo_fields[MEM_TOTAL].value - meminfo_fields[MEM_FREE].value - \
+    double mem_usage = 0;
+    if (meminfo_fields[MEM_TOTAL].value > 0) {
+        mem_usage = (double)(meminfo_fields[MEM_TOTAL].value - meminfo_fields[MEM_FREE].value - \
                     meminfo_fields[BUFFERS].value - meminfo_fields[CACHED].value) / meminfo_fields[MEM_TOTAL].value * 100.0;
-
+    }
     // calculate swapusage
-    double swap_usage = (double)(meminfo_fields[SWAP_TOTAL].value - meminfo_fields[SWAP_FREE].value);
-    swap_usage /= meminfo_fields[SWAP_TOTAL].value * 100.0;
-	
+    double swap_usage = 0;
+    if (meminfo_fields[SWAP_TOTAL].value > 0) {
+        swap_usage = (double)(meminfo_fields[SWAP_TOTAL].value - meminfo_fields[SWAP_FREE].value);
+        swap_usage /= meminfo_fields[SWAP_TOTAL].value * 100.0;
+    }
     // report data
     (void)nprobe_fprintf(stdout, "|%s|%s|%llu|%llu|%llu|%.2f|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|\n",
         METRICS_MEMINFO_NAME,
@@ -116,7 +121,7 @@ int system_meminfo_probe()
         if (fgets(line, LINE_BUF_LEN, f) == NULL) {
             break;
         }
-        ret = get_meminfosp_fileds(line, cur_index);
+        ret = set_meminfosp_fileds(line, cur_index);
         if (!ret) {
             cur_index++;
         }
