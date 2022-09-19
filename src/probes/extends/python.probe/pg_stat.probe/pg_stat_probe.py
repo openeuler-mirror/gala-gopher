@@ -3,7 +3,6 @@ import time
 import signal
 import subprocess
 import os
-import io
 import getopt
 import libconf
 import psycopg2
@@ -38,7 +37,7 @@ def get_tgid(port):
 def init_conns():
     global g_servers
     meta_path = os.path.join(PROJECT_PATH, "extend_probes/pg_stat_probe.conf")
-    with io.open(meta_path, encoding='utf-8') as f:
+    with open(meta_path, 'r') as f:
         conf = libconf.load(f)
         for server in conf.servers:
             conn = psycopg2.connect("host=%s port=%s dbname=%s user=%s password=%s"
@@ -48,8 +47,7 @@ def init_conns():
             cursor = conn.cursor()
             tgid = get_tgid(server.port)
             tgid_num = int(tgid)
-            server_addr = server.ip + "|" + server.port
-            g_servers.append(Connection(server.ip, server.port, tgid, conn, cursor, server_addr))
+            g_servers.append(Connection(server.ip, server.port, tgid, conn, cursor))
 
 
 def get_metrics():
@@ -65,14 +63,14 @@ def get_metrics():
             numbackends
             xact_commit
             '''
-            metric_str = "|pg_tps|%s|%s|POSTGRE|0|%s|%s|%s|" % (server.tgid, line[0], server.ip, server.port, line[1])
+            metric_key = server.tgid + '|' + str(line[0])
             metric_new_value = int(line[3])
-            hashed_metric_str = hash(metric_str)
-            if hashed_metric_str in g_metric:
-                metric_rate = (metric_new_value - g_metric[hashed_metric_str]) / g_period
+            if metric_key in g_metric:
+                metric_str = "|pg_tps|%s|POSTGRE|0|%s|%s|%s|" % (metric_key, server.ip, server.port, line[1])
+                metric_rate = (metric_new_value - g_metric[metric_key]) / g_period
                 print(metric_str + str(metric_rate) + "|")
                 sys.stdout.flush()
-            g_metric[hashed_metric_str] = metric_new_value
+            g_metric[metric_key] = metric_new_value
 
 
 def stop_conns():
@@ -89,13 +87,12 @@ def signal_handler(signum, frame):
 
 
 class Connection(object):
-    def __init__(self, ip, port, tgid, conn, cursor, metric_header):
+    def __init__(self, ip, port, tgid, conn, cursor):
         self.ip = ip
         self.port = port
         self.tgid = tgid
         self.conn = conn
         self.cursor = cursor
-        self.metric_header = metric_header
 
 
 def init_param():
