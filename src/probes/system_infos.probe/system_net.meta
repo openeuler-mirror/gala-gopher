@@ -14,7 +14,7 @@ measurements:
             },
             {
                 description: "dev_status",
-                type: "key",
+                type: "label",
                 name: "status",
             },
             {

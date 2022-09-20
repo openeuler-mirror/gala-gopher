@@ -83,37 +83,37 @@ int main(struct probe_params * params)
     for (;;) {
         ret = system_meminfo_probe();
         if (ret < 0) {
-            printf("[SYSTEM_PROBE] system meminfo probe fail.\n");
+            ERROR("[SYSTEM_PROBE] system meminfo probe fail.\n");
             goto err;
         }
         ret = system_cpu_probe(params);
         if (ret < 0) {
-            printf("[SYSTEM_PROBE] system cpu probe fail.\n");
+            ERROR("[SYSTEM_PROBE] system cpu probe fail.\n");
             goto err;
         }
         ret = system_tcp_probe();
         if (ret < 0) {
-            printf("[SYSTEM_PROBE] system tcp probe fail.\n");
+            ERROR("[SYSTEM_PROBE] system tcp probe fail.\n");
             goto err;
         }
         ret = system_net_probe(params);
         if (ret < 0) {
-            printf("[SYSTEM_PROBE] system net probe fail.\n");
+            ERROR("[SYSTEM_PROBE] system net probe fail.\n");
             goto err;
         }
         ret = system_disk_probe(params);
         if (ret < 0) {
-            printf("[SYSTEM_PROBE] system disk probe fail.\n");
+            ERROR("[SYSTEM_PROBE] system disk probe fail.\n");
             goto err;
         }
         ret = system_iostat_probe(params);
         if (ret < 0) {
-            printf("[SYSTEM_PROBE] system iostat probe fail.\n");
+            ERROR("[SYSTEM_PROBE] system iostat probe fail.\n");
             goto err;
         }
         ret = system_proc_probe();
         if (ret < 0) {
-            printf("[SYSTEM_PROBE] system proc probe fail.\n");
+            ERROR("[SYSTEM_PROBE] system proc probe fail.\n");
             goto err;
         }
         sleep(params->period);

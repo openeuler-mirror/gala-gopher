@@ -63,13 +63,12 @@ static int WebRequestCallback(void *cls,
     }
 
     if (ReadMetricsLogs(log_file_name) < 0) {
-        fprintf(stderr, "Failed to get metric log filename.\n");
         return MHD_NO;
     }
 
     fd = open(log_file_name, O_RDONLY);
     if (fd < 0) {
-        fprintf(stderr, "Failed to open '%s': %s\n", log_file_name, strerror(errno));
+        ERROR("Failed to open '%s': %s\n", log_file_name, strerror(errno));
         return MHD_NO;
     }
     if ((fstat(fd, &buf) == -1) || !S_ISREG(buf.st_mode)) {

@@ -90,7 +90,7 @@ static int get_file_name(struct log_mgr_s* mgr, char is_metrics, int file_id, ch
     }
 
     if (path_len == 0) {
-        (void)fprintf(stderr, "Path is null.\n");
+        ERROR("Get file_name failed, path is null.\n");
         return -1;
     }
 
@@ -132,7 +132,7 @@ static int en_queue(struct files_queue_s *files_que, int file_id, size_t len)
 {
     int pos;
     if (is_full_queue(files_que)) {
-        (void)fprintf(stderr, "Files queue is full.(front = %d, rear = %d)\n", files_que->front, files_que->rear);
+        ERROR("Files queue is full.(front = %d, rear = %d)\n", files_que->front, files_que->rear);
         return -1;
     }
 
@@ -263,7 +263,7 @@ static char que_current_is_invalid(struct log_mgr_s *mgr, int is_metrics, int ma
 
     char full_path[PATH_LEN];
     if (get_file_name(mgr, is_metrics, files_que->current.file_id, full_path, PATH_LEN)) {
-        (void)fprintf(stderr, "is current invalid fail(get file name).\n");
+        ERROR("is current invalid fail(get file name).\n");
         invalid = 1;
         goto out;
     }
@@ -314,7 +314,7 @@ static int append_meta_logger(struct log_mgr_s * mgr)
 
     size_t path_len = strlen(mgr->meta_path);
     if (path_len == 0) {
-        (void)fprintf(stderr, "Meta path is null.\n");
+        ERROR("Meta path is null.\n");
         return -1;
     }
 
@@ -339,7 +339,7 @@ static int append_raw_logger(struct log_mgr_s * mgr)
 {
     size_t path_len = strlen(mgr->raw_path);
     if (path_len == 0) {
-        (void)fprintf(stderr, "Raw path is null.\n");
+        ERROR("Raw path is null.\n");
         return -1;
     }
 
@@ -362,7 +362,7 @@ static int append_debug_logger(struct log_mgr_s * mgr)
 
     size_t path_len = strlen(mgr->debug_path);
     if (path_len == 0) {
-        (void)fprintf(stderr, "Debug path is null.\n");
+        ERROR("Debug path is null.\n");
         return -1;
     }
 
@@ -395,12 +395,12 @@ static int append_metrics_logger(struct log_mgr_s * mgr)
     char full_path[PATH_LEN];
 
     if (que_get_next_file(mgr->metrics_files)) {
-        (void)fprintf(stderr, "Append metrics logger failed(get next file).\n");
+        ERROR("Append metrics logger failed(get next file).\n");
         return -1;
     }
 
     if (get_file_name(mgr, 1, mgr->metrics_files->current.file_id, full_path, PATH_LEN)) {
-        (void)fprintf(stderr, "Append metrics logger failed(get file name).\n");
+        ERROR("Append metrics logger failed(get file name).\n");
         return -1;
     }
 
@@ -419,12 +419,12 @@ static int append_event_logger(struct log_mgr_s * mgr)
     char full_path[PATH_LEN];
 
     if (que_get_next_file(mgr->event_files)) {
-        (void)fprintf(stderr, "Append event logger failed(get next file).\n");
+        ERROR("Append event logger failed(get next file).\n");
         return -1;
     }
 
     if (get_file_name(mgr, 0, mgr->event_files->current.file_id, full_path, PATH_LEN)) {
-        (void)fprintf(stderr, "Append event logger failed(get file name).\n");
+        ERROR("Append event logger failed(get file name).\n");
         return -1;
     }
 
@@ -572,16 +572,18 @@ int read_metrics_logs(char logs_file_name[], size_t size)
 
     struct log_mgr_s *mgr = local;
     if (!mgr) {
+        ERROR("Read metrics_logs failed, mgr is null.\n");
         return -1;
     }
 
     file_id = que_pop_file(mgr->metrics_files);
     if (!IS_VALID_FILE_ID(file_id)) {
-        (void)fprintf(stderr, "File id invalid(%d)!\n", file_id);
+        DEBUG("File id invalid(%d)!\n", file_id);
         return -1;
     }
 
     if (get_file_name(mgr, 1, file_id, logs_file_name, size)) {
+        ERROR("Read metrics_logs failed, get log's file_name failed.\n");
         return -1;
     }
     return 0;
@@ -611,16 +613,18 @@ int read_event_logs(char logs_file_name[], size_t size)
 
     struct log_mgr_s *mgr = local;
     if (!mgr) {
+        ERROR("Read event_logs failed, mgr is null.\n");
         return -1;
     }
 
     file_id = que_pop_file(mgr->event_files);
     if (!IS_VALID_FILE_ID(file_id)) {
-        (void)fprintf(stderr, "File id invalid(%d)!\n", file_id);
+        DEBUG("File id invalid(%d)!\n", file_id);
         return -1;
     }
 
     if (get_file_name(mgr, 0, file_id, logs_file_name, size)) {
+        ERROR("Read event_logs failed, get log's file_name failed.\n");
         return -1;
     }
     return 0;

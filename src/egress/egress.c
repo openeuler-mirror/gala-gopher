@@ -81,19 +81,19 @@ static int EgressInit(EgressMgr *mgr)
     m_event.data.ptr = mgr->metric_fifo;
     ret = epoll_ctl(mgr->epoll_fd, EPOLL_CTL_ADD, mgr->metric_fifo->triggerFd, &m_event);
     if (ret < 0) {
-        printf("[EGRESS] add EPOLLIN m_event failed.\n");
+        ERROR("[EGRESS] add EPOLLIN m_event failed.\n");
         return -1;
     }
-    printf("[EGRESS] add EGRESS METRIC FIFO trigger success.\n");
+    INFO("[EGRESS] add EGRESS METRIC FIFO trigger success.\n");
 
     e_event.events = EPOLLIN;
     e_event.data.ptr = mgr->event_fifo;
     ret = epoll_ctl(mgr->epoll_fd, EPOLL_CTL_ADD, mgr->event_fifo->triggerFd, &e_event);
     if (ret < 0) {
-        printf("[EGRESS] add EPOLLIN e_event failed.\n");
+        ERROR("[EGRESS] add EPOLLIN e_event failed.\n");
         return -1;
     }
-    printf("[EGRESS] add EGRESS EVENT FIFO trigger success.\n");
+    INFO("[EGRESS] add EGRESS EVENT FIFO trigger success.\n");
 
     return 0;
 }

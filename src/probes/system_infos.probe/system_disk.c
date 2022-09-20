@@ -38,7 +38,7 @@ static int get_df_fields(char *line, df_stats *stats)
         &stats->fsname, &stats->fstype, &stats->inode_or_blk_sum, &stats->inode_or_blk_used,
         &stats->inode_or_blk_free, &stats->inode_or_blk_used_per, &stats->mount_on);
     if (ret < DF_FIELD_NUM) {
-        printf("[SYSTEM_DISK] get df stats fields fail.\n");
+        DEBUG("[SYSTEM_DISK] get df stats fields fail.\n");
         return -1;
     }
     return 0;
@@ -166,7 +166,7 @@ static int get_diskstats_fields(const char *line, disk_stats *stats)
         &stats->disk_name, &stats->rd_ios, &stats->rd_sectors, &stats->rd_ticks,
         &stats->wr_ios, &stats->wr_sectors, &stats->wr_ticks, &stats->io_ticks, &stats->time_in_queue);
     if (ret < DISKSTAT_FIELD_NUM) {
-        printf("[SYSTEM_DISK] get disk stats fields fail.\n");
+        DEBUG("[SYSTEM_DISK] get disk stats fields fail.\n");
         return -1;
     }
     return 0;

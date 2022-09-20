@@ -21,13 +21,7 @@ extern "C" {
 #pragma once
 
 #include <pthread.h>
-
-#if !defined(UTEST)
 #include "common.h"
-#else
-#define COMMAND_LEN             256
-#define PATH_LEN                256
-#endif
 
 #define LOGS_SWITCH_ON  1
 

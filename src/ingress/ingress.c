@@ -62,11 +62,11 @@ static int IngressInit(IngressMgr *mgr)
 
         ret = epoll_ctl(mgr->epoll_fd, EPOLL_CTL_ADD, probe->fifo->triggerFd, &event);
         if (ret < 0) {
-            printf("[INGRESS] add EPOLLIN event failed, probe %s.\n", probe->name);
+            ERROR("[INGRESS] add EPOLLIN event failed, probe %s.\n", probe->name);
             return -1;
         }
 
-        printf("[INGRESS] Add EPOLLIN event success, probe %s.\n", probe->name);
+        INFO("[INGRESS] Add EPOLLIN event success, probe %s.\n", probe->name);
     }
 
     // add all extend probe triggerfd into mgr->epoll_fd
@@ -78,11 +78,11 @@ static int IngressInit(IngressMgr *mgr)
 
         ret = epoll_ctl(mgr->epoll_fd, EPOLL_CTL_ADD, extendProbe->fifo->triggerFd, &event);
         if (ret < 0) {
-            printf("[INGRESS] add EPOLLIN event failed, extend probe %s.\n", extendProbe->name);
+            ERROR("[INGRESS] add EPOLLIN event failed, extend probe %s.\n", extendProbe->name);
             return -1;
         }
 
-        printf("[INGRESS] Add EPOLLIN event success, extend probe %s.\n", extendProbe->name);
+        INFO("[INGRESS] Add EPOLLIN event success, extend probe %s.\n", extendProbe->name);
     }
 
     return 0;
