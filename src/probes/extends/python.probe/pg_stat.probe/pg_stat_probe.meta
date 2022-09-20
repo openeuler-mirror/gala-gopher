@@ -1,0 +1,51 @@
+version = "1.0.0"
+measurements:
+(
+    {
+        table_name: "pg_tps",
+        entity_name: "sli",
+        fields:
+        (
+            {
+                description: "the tgid of server process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "OID of a database",
+                type: "key",
+                name: "ins_id",
+            },
+            {
+                description: "the protocol type",
+                type: "key",
+                name: "app",
+            },
+            {
+                description: "the cmd of req",
+                type: "key",
+                name: "method",
+            },
+            {
+                description: "the IP of server",
+                type: "label",
+                name: "server_ip",
+            },
+            {
+                description: "the port of server",
+                type: "label",
+                name: "server_port",
+            },
+            {
+                description: "Name of this database",
+                type: "label",
+                name: "datname",
+            },
+            {
+                description: "Number of transactions in this database that have been committed",
+                type: "gauge",
+                name: "tps",
+            }
+        )
+    }
+)
