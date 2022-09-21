@@ -81,7 +81,7 @@ int main(struct probe_params * params)
     }
 
     for (;;) {
-        ret = system_meminfo_probe();
+        ret = system_meminfo_probe(params);
         if (ret < 0) {
             ERROR("[SYSTEM_PROBE] system meminfo probe fail.\n");
             goto err;

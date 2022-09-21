@@ -17,8 +17,9 @@
 
 #pragma once
 
+#include "common.h"
+#include "args.h"
 #define KEY_BUF_LEN 256
-
 
 struct system_meminfo_field {
     char key[KEY_BUF_LEN];
@@ -42,7 +43,7 @@ enum mem_infos {
 
 int system_meminfo_init(void);
 void system_meminfo_destroy(void);
-int system_meminfo_probe(void);
+int system_meminfo_probe(struct probe_params *params);
 
 
 #endif

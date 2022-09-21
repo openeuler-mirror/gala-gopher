@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include "common.h"
+#include "event.h"
 #include "nprobe_fprintf.h"
 #include "system_meminfo.h"
 
@@ -71,8 +72,39 @@ static int set_meminfosp_fileds(const char* line, const int cur_index)
     return -1;
 }
 
+static void report_meminfo_status(struct probe_params *params, double mem_util, double swap_util)
+{
+    char entityId[INT_LEN];
+    char entityName[INT_LEN];
+    if (params->logs == 0) {
+        return;
+    }
 
-static void output_info(void)
+    entityId[0] = 0;
+    entityName[0] = 0;
+    (void)strcpy(entityId, "/proc/meminfo");
+    (void)strcpy(entityName, "mem");
+    // mem util
+    if (mem_util > params->res_percent_upper) {
+        report_logs(entityName,
+                    entityId,
+                    "util",
+                    EVT_SEC_WARN,
+                    "Too high mem utilization(%.2f%%).",
+                    mem_util);
+    }
+    // swap util
+    if (swap_util > params->res_percent_upper) {
+        report_logs(entityName,
+                    entityId,
+                    "swap_util",
+                    EVT_SEC_WARN,
+                    "Too high swap utilization(%.2f%%).",
+                    swap_util);
+    }
+}
+
+static void output_info(struct probe_params *params)
 {
     //  v3.2.8 used = total - free; v3.3.10 used = total - free - cache - buffers; cur_ver=v5.10
     // alculate memusage
@@ -87,6 +119,7 @@ static void output_info(void)
         swap_usage = (double)(meminfo_fields[SWAP_TOTAL].value - meminfo_fields[SWAP_FREE].value);
         swap_usage /= meminfo_fields[SWAP_TOTAL].value * 100.0;
     }
+    report_meminfo_status(params, mem_usage, swap_usage);
     // report data
     (void)nprobe_fprintf(stdout, "|%s|%s|%llu|%llu|%llu|%.2f|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|\n",
         METRICS_MEMINFO_NAME,
@@ -105,7 +138,7 @@ static void output_info(void)
 }
 
 // probes
-int system_meminfo_probe()
+int system_meminfo_probe(struct probe_params *params)
 {
     FILE* f = NULL;
     char line[LINE_BUF_LEN];
@@ -133,6 +166,7 @@ int system_meminfo_probe()
     }
 	
     (void)fclose(f);
-    output_info();
+    
+    output_info(params);
     return 0;
 }
