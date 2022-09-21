@@ -43,6 +43,7 @@ SET(SOURCES main.c test_probes.c
     ${PROBE_DIR}/probe.c
     ${PROBE_DIR}/extend_probe.c
     ${IMDB_DIR}/imdb.c
+    ${IMDB_DIR}/metrics.c
     ${WEBSERVER_DIR}/web_server.c
 
     ${COMMON_DIR}/util.c

@@ -15,10 +15,58 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <CUnit/Basic.h>
+#include "probe.h"
+#include "../../probes/system_infos.probe/system_cpu.h"
 
-void test_probe_meta_coinstance(void)
+static void TestSystemCpuInit(void)
 {
     uint32_t ret = 0;
+    ret = system_cpu_init();
     CU_ASSERT(ret == 0);
+    system_cpu_destroy();
+}
+
+static void TestSystemCpuProbe(void)
+{
+    uint32_t ret = 0;
+    uint32_t *elemP = NULL;
+    struct probe_params params = {.period = DEFAULT_PERIOD};
+    ret = system_cpu_init();
+    CU_ASSERT(ret == 0);
+
+    ret = system_cpu_probe(&params);
+    CU_ASSERT(ret == 0);
+
+    // nprobe_fprintf的g_probe是null，需要初始化 
+    // 按照代码逻辑，第二次上报指标信息，需要检测两次
+    g_probe = ProbeCreate();
+    CU_ASSERT(g_probe != NULL);
+
+    if (g_probe != NULL) {
+        CU_ASSERT(g_probe->fifo != NULL);
+        (void)snprintf(g_probe->name, MAX_PROBE_NAME_LEN - 1, "test_cpu_probe");
+    
+        ret = system_cpu_probe(&params);
+        CU_ASSERT(ret == 0);
+
+        ret = FifoGet(g_probe->fifo, (void **) &elemP);
+        CU_ASSERT(ret == 0);
+        CU_ASSERT(g_probe->fifo->out == 1);
+
+        ProbeDestroy(g_probe);
+    }
+    system_cpu_destroy();
+}
+
+static void TestSystemCpu(void)
+{
+    TestSystemCpuInit();
+    TestSystemCpuProbe();
+}
+
+
+void testProbesMain(void)
+{
+    TestSystemCpu();
 }
 
