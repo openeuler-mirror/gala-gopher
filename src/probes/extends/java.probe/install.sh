@@ -11,6 +11,4 @@ if [ $# -eq 1 ]; then
 		  \cp ${file} $1
        fi
    done
-fi
-
-rm -rf *.class  
+fi 
