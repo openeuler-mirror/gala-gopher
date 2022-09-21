@@ -23,6 +23,7 @@
 #include "system_procs.h"
 #include "system_cpu.h"
 #include "system_meminfo.h"
+#include "system_os.h"
 
 static int system_probe_init(struct probe_params * params)
 {
@@ -114,6 +115,11 @@ int main(struct probe_params * params)
         ret = system_proc_probe();
         if (ret < 0) {
             ERROR("[SYSTEM_PROBE] system proc probe fail.\n");
+            goto err;
+        }
+        ret = system_os_probe();
+        if (ret < 0) {
+            ERROR("[SYSTEM_PROBE] system os probe fail.\n");
             goto err;
         }
         sleep(params->period);
