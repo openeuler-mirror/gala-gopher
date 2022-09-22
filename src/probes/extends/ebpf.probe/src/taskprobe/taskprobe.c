@@ -49,10 +49,7 @@ static struct probe_params tp_params = {.period = DEFAULT_PERIOD,
                                         .task_whitelist = {0}};
 
 static struct task_name_t task_range[] = {
-    {"go",              TASK_TYPE_APP},
-    {"java",            TASK_TYPE_APP},
-    {"python",          TASK_TYPE_APP},
-    {"python3",         TASK_TYPE_APP}
+    // eg: {"go",              TASK_TYPE_APP},
 };
 
 static void sig_int(int signal)

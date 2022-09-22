@@ -289,12 +289,6 @@ IMDB_DataBaseMgr *IMDB_DataBaseMgrCreate(uint32_t capacity)
         return NULL;
     }
 
-    ret = gethostname(mgr->nodeInfo.hostName, sizeof(mgr->nodeInfo.hostName));
-    if (ret != 0) {
-        free(mgr);
-        return NULL;
-    }
-
     mgr->tables = (IMDB_Table **)malloc(sizeof(IMDB_Table *) * capacity);
     if (mgr->tables == NULL) {
         free(mgr);
@@ -773,9 +767,8 @@ static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
         first_flag = 0;
     }
 
-    // append machine_id and hostname
-    ret = __snprintf(&p, size, &size, ",machine_id=\"%s\",hostname=\"%s\"",
-                    mgr->nodeInfo.machineId, mgr->nodeInfo.hostName);
+    // append machine_id
+    ret = __snprintf(&p, size, &size, ",machine_id=\"%s\"", mgr->nodeInfo.machineId);
     if (ret < 0) {
         goto err;
     }
@@ -993,16 +986,6 @@ static int IMDB_Record2Json(const IMDB_DataBaseMgr *mgr, const IMDB_Table *table
     }
 
     ret = snprintf(json_cursor, maxLen, ", \"machine_id\": \"%s\"", mgr->nodeInfo.machineId);
-    if (ret < 0)  {
-        return -1;
-    }
-    json_cursor += ret;
-    maxLen -= ret;
-    if (maxLen < 0)  {
-        return -1;
-    }
-
-    ret = snprintf(json_cursor, maxLen, ", \"hostname\": \"%s\"", mgr->nodeInfo.hostName);
     if (ret < 0)  {
         return -1;
     }

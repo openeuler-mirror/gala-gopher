@@ -1,0 +1,48 @@
+version = "1.0.0"
+
+measurements:
+(
+    {
+        table_name: "system_os",
+        entity_name: "host",
+        fields:
+        (
+            {
+                description: "operating system version",
+                type: "key",
+                name: "os_version",
+            },
+            {
+                description: "host name",
+                type: "label",
+                name: "hostname",
+            },
+            {
+                description: "kernel version",
+                type: "label",
+                name: "kversion",
+            },
+            {
+                description: "total CPUs",
+                type: "label",
+                name: "cpu_num",
+            },
+            {
+                description: "total memory(MB)",
+                type: "label",
+                name: "memory_MB",
+            },
+            {
+                description: "host IP info",
+                type: "label",
+                name: "ip_addr",
+            },
+            {
+                description: "a fixed num as metric",
+                type: "gauge",
+                name: "value",
+            }
+        )
+    }
+)
+

@@ -45,12 +45,7 @@
 static proc_hash_t *g_procmap = NULL;
 static proc_info_t g_pre_proc_info;
 
-static char proc_range[PROC_MAX_RANGE][PROC_NAME_MAX] = {
-    "go",
-    "java",
-    "python",
-    "python3"
-};
+static char proc_range[PROC_MAX_RANGE][PROC_NAME_MAX] = {0};
 static int g_proc_range_len = 0;
 
 static void add_proc_obj(const int pid)
@@ -700,13 +695,6 @@ void system_proc_init(char *task_whitelist)
     char line[PROC_NAME_MAX];
 
     obj_module_init();
-
-    for (int i = 0; i < PROC_MAX_RANGE; i++) {
-        if (strlen(proc_range[i]) == 0) {
-            g_proc_range_len = i;       // init proc_range's length
-            break;
-        }
-    }
 
     if (task_whitelist == NULL || strlen(task_whitelist) == 0) {
         return;
