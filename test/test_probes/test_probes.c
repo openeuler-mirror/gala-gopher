@@ -18,12 +18,47 @@
 #include "probe.h"
 #include "../../probes/system_infos.probe/system_cpu.h"
 
+static void TestSystemMeminfoInit(void)
+{
+    // init meminfo_fileds[]
+    uint32_t ret = system_meminfo_init();
+    CU_ASSERT(ret == 0);
+    
+    // destroy meminfo_fileds[]
+    system_meminfo_destroy();
+}
+
 static void TestSystemCpuInit(void)
 {
     uint32_t ret = 0;
     ret = system_cpu_init();
     CU_ASSERT(ret == 0);
     system_cpu_destroy();
+}
+
+static void TestSystemMeminfoProbe(void)
+{
+    uint32_t ret = system_meminfo_init();
+    CU_ASSERT_FATAL(ret == 0);
+    
+    struct probe_params params = {.period = DEFAULT_PERIOD};
+
+    // sample test for nprobe_fprintf
+    g_probe = ProbeCreate();
+    CU_ASSERT(g_probe != NULL);
+    CU_ASSERT(g_probe->fifo != NULL);
+    (void)snprintf(g_probe->name, MAX_PROBE_NAME_LEN - 1, "test_meminfo_probe");
+
+    // probe reads the data in file
+    ret = system_meminfo_probe(&params);
+    CU_ASSERT(ret == 0);
+    // test the nprintf function
+    uint32_t *elements = NULL;
+    ret = FifoGet(g_probe->fifo, (void**) &elements);
+    CU_ASSERT(g_probe->fifo->out == 1);
+
+    ProbeDestroy(g_probe);
+    system_meminfo_destroy();
 }
 
 static void TestSystemCpuProbe(void)
@@ -64,9 +99,15 @@ static void TestSystemCpu(void)
     TestSystemCpuProbe();
 }
 
+static void TestSystemMeminfo(void)
+{
+    TestSystemMeminfoInit();
+    TestSystemMeminfoProbe();
+}
 
 void testProbesMain(void)
 {
     TestSystemCpu();
+    TestSystemMeminfo();
 }
 
