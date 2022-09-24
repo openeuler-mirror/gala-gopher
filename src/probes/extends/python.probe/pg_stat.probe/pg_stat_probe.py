@@ -4,7 +4,7 @@ import signal
 import subprocess
 import os
 import getopt
-import libconf
+import yaml
 import psycopg2
 
 
@@ -38,16 +38,25 @@ def init_conns():
     global g_servers
     meta_path = os.path.join(PROJECT_PATH, "extend_probes/pg_stat_probe.conf")
     with open(meta_path, 'r') as f:
-        conf = libconf.load(f)
-        for server in conf.servers:
-            conn = psycopg2.connect("host=%s port=%s dbname=%s user=%s password=%s"
-                % (server.ip, server.port, server.dbname, server.user, server.password))
+        conf = yaml.safe_load(f.read())
+        for server in conf['servers']:
+            ip = server['ip']
+            port = server['port']
+            dbname = server['dbname']
+            user = server['user']
+            password = server['password']
+            try:
+                conn = psycopg2.connect("host=%s port=%s dbname=%s user=%s password=%s"
+                    % (ip, port, dbname, user, password))
+            except Exception as e:
+                print("[pg_stat_probe]connect to %s:%s failed! %s" % (ip, port, repr(e)))
+                sys.exit(1)
             print("[pg_stat_probe]connect to %s:%s success!"
-                % ( server.ip, server.port))
+                % (ip, port))
             cursor = conn.cursor()
-            tgid = get_tgid(server.port)
+            tgid = get_tgid(port)
             tgid_num = int(tgid)
-            g_servers.append(Connection(server.ip, server.port, tgid, conn, cursor))
+            g_servers.append(Connection(ip, port, tgid, conn, cursor))
 
 
 def get_metrics():

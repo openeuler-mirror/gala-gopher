@@ -16,6 +16,7 @@ FILTER_BY_TASKPROBE = "task"
 PROJECT_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # /opt/gala-gopher/
 PATTERN = re.compile(r'/[a-z0-9]+')
 COUNTER = "counter"
+LABEL = "label"
 g_meta = None
 g_metric = dict()
 g_object_lib = None
@@ -183,7 +184,10 @@ def print_metrics():
             if table in g_meta:
                 for field_name, field_type in g_meta[table].items():
                     if field_name not in record:
-                        value = ""
+                        if field_type == LABEL:
+                            value = "NA"
+                        else:
+                            value = ""
                     else:
                         if field_type == COUNTER:
                             value = str(record[field_name][1] - record[field_name][0])
