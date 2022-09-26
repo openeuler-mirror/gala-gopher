@@ -66,7 +66,6 @@ struct conn_samp_data_t {
     u64 start_ts_nsec;
     u64 rtt_ts_nsec;
     char req_cmd;
-    char rsp_cmd;
 };
 
 struct bpf_map_def SEC("maps") conn_map = {
@@ -103,12 +102,10 @@ static __always_inline void sample_finished(struct conn_data_t *conn_data, struc
     if (conn_data->latency.rtt_nsec == 0) {
         conn_data->latency.rtt_nsec = csd->rtt_ts_nsec;
         conn_data->latency.req_cmd = csd->req_cmd;
-        conn_data->latency.rsp_cmd = csd->rsp_cmd;
     }
     if (conn_data->max.rtt_nsec < csd->rtt_ts_nsec) {
         conn_data->max.rtt_nsec = csd->rtt_ts_nsec;
         conn_data->max.req_cmd = csd->req_cmd;
-        conn_data->max.rsp_cmd = csd->rsp_cmd;
     }
     csd->status = SAMP_INIT;
 }
@@ -128,7 +125,7 @@ static __always_inline u64 get_period()
 }
 
 
-static __always_inline char read_first_byte_from_buf(const char *ori_buf, int ori_len)
+static __always_inline char read_first_byte_from_buf(const char *ori_buf, int ori_len, enum msg_event_rw_t rw_type)
 {
     char msg[MAX_MSG_LEN_SSL] = {0};
     const char *buf;
@@ -140,11 +137,15 @@ static __always_inline char read_first_byte_from_buf(const char *ori_buf, int or
     bpf_probe_read(&buf, sizeof(const char*), &ori_buf);
     len = ori_len < MAX_MSG_LEN_SSL ? (ori_len & (MAX_MSG_LEN_SSL - 1)) : MAX_MSG_LEN_SSL;
     bpf_probe_read_user(msg, len, buf);
-
-    if (msg[0] < '0' || msg[0] >'z') {
-        return 0;
+    if (rw_type == MSG_READ) {
+        if (msg[0] == 'B' || msg[0] == 'Q')
+            return msg[0];
+        else
+            return 0;
     }
-    return msg[0];
+    if (msg[0] == '2' || msg[0] == 'C' || msg[0] == 'T')
+        return msg[0];
+    return 0;
 }
 
 static __always_inline void periodic_report(u64 ts_nsec, struct conn_data_t *conn_data,
@@ -222,7 +223,7 @@ static __always_inline void process_rdwr_msg(int fd, const char *buf, int count,
             }
             return;
         }
-        cmd = read_first_byte_from_buf(buf, count);
+        cmd = read_first_byte_from_buf(buf, count, rw_type);
         if (cmd == 0) {
             return;
         }
@@ -233,12 +234,11 @@ static __always_inline void process_rdwr_msg(int fd, const char *buf, int count,
         csd->status = SAMP_READ_READY;
     } else {  // MSG_WRITE
         if (csd->status == SAMP_READ_READY) {
-            cmd = read_first_byte_from_buf(buf, count);
+            cmd = read_first_byte_from_buf(buf, count, rw_type);
             if (cmd == 0) {
                 return;
             }
             csd->status = SAMP_WRITE_READY;
-            csd->rsp_cmd = cmd;
         }
     }
 

@@ -44,7 +44,6 @@ struct conn_info_t {
 
 struct rtt_cmd_t {
     char req_cmd;
-    char rsp_cmd;
     __u64 rtt_nsec;
 };
 
