@@ -39,9 +39,6 @@ static __always_inline int init_conn_info(struct conn_info_t *conn_info, struct 
     } else if (conn_info->client_ip_info.family == AF_INET6) {
         bpf_probe_read(conn_info->server_ip_info.ipaddr.ip6, IP6_LEN, &sk->sk_v6_rcv_saddr);
         bpf_probe_read(conn_info->client_ip_info.ipaddr.ip6, IP6_LEN, &sk->sk_v6_daddr);
-        if (conn_info->client_ip_info.ipaddr.ip6 == 0) {
-            return SLI_ERR;
-        }
     } else {
         return SLI_ERR;
     }

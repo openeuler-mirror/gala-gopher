@@ -143,9 +143,8 @@ static __always_inline char read_first_byte_from_buf(const char *ori_buf, int or
         else
             return 0;
     }
-    if (msg[0] == '2' || msg[0] == 'C' || msg[0] == 'T')
-        return msg[0];
-    return 0;
+
+    return msg[0];
 }
 
 static __always_inline void periodic_report(u64 ts_nsec, struct conn_data_t *conn_data,
