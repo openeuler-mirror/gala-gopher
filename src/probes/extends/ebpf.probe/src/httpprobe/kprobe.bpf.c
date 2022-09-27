@@ -19,6 +19,9 @@
 
 #include "httpprobe.bpf.h"
 
+#define BPF_F_INDEX_MASK        0xffffffffULL
+#define BPF_F_CURRENT_CPU       BPF_F_INDEX_MASK
+
 char g_linsence[] SEC("license") = "GPL";
 
 struct bpf_map_def SEC("maps") http_events = {
