@@ -301,15 +301,54 @@ static int get_map_fd_by_name(const char* map_name)
     return bpf_map_get_fd_by_id(id);
 }
 
-char obj_module_init_ok(void)
+int obj_module_create_map(char *name)
 {
-    if ((__obj_module.cgrp_map_fd == 0) ||
-        (__obj_module.nm_map_fd == 0) ||
-        (__obj_module.proc_map_fd == 0)) {
-        return 0;
+    int map_fd = -1;
+    char pin_path[PATH_LEN];
+    int limit = 100 * 1024 * 1024;    // 100M
+
+    struct rlimit rlim_new = {
+        .rlim_cur   = limit,
+        .rlim_max   = limit,
+    };
+    if (setrlimit(RLIMIT_MEMLOCK, (const struct rlimit *)&rlim_new) != 0) {
+        ERROR("object module failed to increase RLIMIT_MEMLOCK limit!\n");
+        return -1;
     }
 
-    return 1;
+    pin_path[0] = 0;
+    if (!strcmp(name, "proc_obj_map")) {
+        map_fd = bpf_create_map_name(BPF_MAP_TYPE_HASH, "proc_obj_map",
+                                     sizeof(struct proc_s), sizeof(struct obj_ref_s), PROC_MAP_MAX_ENTRIES, 0);
+        if (map_fd < 0) {
+            ERROR("object module create %s failed.\n", name);
+            return -1;
+        }
+        strncpy(pin_path, PROC_MAP_PATH, PATH_LEN - 1);
+    }
+    if (bpf_obj_pin(map_fd, pin_path) < 0) {
+        ERROR("object module pin %s failed.\n", name);
+        return -1;
+    }
+
+    return 0;
+}
+
+char obj_module_init_ok(void)
+{
+    int flag = 0;
+
+    if (__obj_module.cgrp_map_fd > 0) {
+        flag |= CGRP_MAP_INIT_OK;
+    }
+    if (__obj_module.nm_map_fd > 0) {
+        flag |= NM_MAP_INIT_OK;
+    }
+    if (__obj_module.proc_map_fd > 0) {
+        flag |= PROC_MAP_INIT_OK;
+    }
+
+    return flag;
 }
 
 void obj_module_set_maps_fd(void)
@@ -360,5 +399,3 @@ void obj_module_exit(void)
     (void)pthread_rwlock_destroy(&(__obj_module.rwlock));
     (void)memset(&__obj_module, 0, sizeof(__obj_module));
 }
-
-

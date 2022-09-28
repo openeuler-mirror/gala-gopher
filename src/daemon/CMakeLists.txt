@@ -29,11 +29,11 @@ SET(COMMON_DIR      ${SRC_DIR}/common)
 
 SET(LIBRDKAFKA_DIR /usr/include/librdkafka)
 
-SET(CMAKE_C_FLAGS "-rdynamic -g -DNATIVE_PROBE_FPRINTF \
+SET(CMAKE_C_FLAGS "-rdynamic -g -Wl,-z,relro,-z,now -DNATIVE_PROBE_FPRINTF \
     -DPROBES_LIST=\"${PROBES_LIST}\" \
     -DPROBES_META_LIST=\"${PROBES_META_LIST}\" "
 )
-SET(CMAKE_CXX_FLAGS "-rdynamic -g -DNATIVE_PROBE_FPRINTF")
+SET(CMAKE_CXX_FLAGS "-rdynamic -g -Wl,-z,relro,-z,now -DNATIVE_PROBE_FPRINTF")
 
 SET(SOURCES main.c daemon.c
     ${RESOURCE_DIR}/resource.c

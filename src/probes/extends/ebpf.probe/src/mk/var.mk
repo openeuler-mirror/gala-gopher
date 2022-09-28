@@ -36,7 +36,7 @@ EXTRA_CDEFINE ?= -D__TARGET_ARCH_$(ARCH)
 CFLAGS := $(EXTRA_CFLAGS) $(EXTRA_CDEFINE)
 CFLAGS += -DKER_VER_MAJOR=$(KER_VER_MAJOR) -DKER_VER_MINOR=$(KER_VER_MINOR) -DKER_VER_PATCH=$(KER_VER_PATCH)
 CFLAGS += -DKER_RELEASE=$(KER_RELEASE)
-LDFLAGS += -Wl,--copy-dt-needed-entries
+LDFLAGS += -Wl,--copy-dt-needed-entries -Wl,-z,relro,-z,now
 
 CXXFLAGS += -std=c++11 -g -O2 -Wall -fPIC
 C++ = g++
