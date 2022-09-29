@@ -23,6 +23,10 @@
 #define NM_MAP_MAX_ENTRIES          100
 #define PROC_MAP_MAX_ENTRIES        1000
 
+#define CGRP_MAP_INIT_OK            (u32)(1)
+#define NM_MAP_INIT_OK              (u32)(1 << 1)
+#define PROC_MAP_INIT_OK            (u32)(1 << 2)
+
 enum cgp_type_e {
     CGP_TYPE_CPUACCT = 0,
     CGP_TYPE_MEM,
@@ -74,6 +78,7 @@ char obj_module_init_ok(void);
 void obj_module_set_maps_fd(void);
 void obj_module_init(void);
 void obj_module_exit(void);
+int obj_module_create_map(char *name);
 #endif
 
 #endif

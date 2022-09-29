@@ -6,7 +6,7 @@ else ifeq ($(ARCH), aarch64)
 endif
 
 LINK_TARGET := -lpthread -lbpf -lelf -lz
-EXTRA_CFLAGS := -g -O2 -Wall -fPIC -shared
+EXTRA_CFLAGS := -g -O2 -Wall -fPIC -shared -Wl,-z,relro,-z,now
 EXTRA_CDEFINE := -D__TARGET_ARCH_$(ARCH)
 CFLAGS := $(EXTRA_CFLAGS) $(EXTRA_CDEFINE)
 

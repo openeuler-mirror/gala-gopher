@@ -695,6 +695,12 @@ void system_proc_init(char *task_whitelist)
     char line[PROC_NAME_MAX];
 
     obj_module_init();
+    // if proc_obj_map's fd is 0, create obj_map
+    if (!(obj_module_init_ok() & PROC_MAP_INIT_OK)) {
+        DEBUG("[SYSTEM_PROC] proc_obj_map init pok, create map here.\n");
+        (void)obj_module_create_map("proc_obj_map");
+        obj_module_set_maps_fd();
+    }
 
     if (task_whitelist == NULL || strlen(task_whitelist) == 0) {
         return;

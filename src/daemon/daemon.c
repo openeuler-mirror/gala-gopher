@@ -167,9 +167,9 @@ static void DaemonKeeplive(int sig)
             }
 #endif
             (void)pthread_create(&probe->tid, NULL, DaemonRunSingleExtendProbe, probe);
-            (void)pthread_join(probe->tid, NULL);
+            (void)pthread_detach(probe->tid);
 
-            INFO("[DAEMON] keeplive probe(%s) success.\n", probe->name);
+            INFO("[DAEMON] keeplive create probe(%s) thread.\n", probe->name);
             break;
         }
     }
