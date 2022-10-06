@@ -74,7 +74,7 @@ static void TestSystemCpuProbe(void)
     ret = system_cpu_probe(&params);
     CU_ASSERT(ret == 0);
 
-    // nprobe_fprintf的g_probe是null，需要初始化 
+    // nprobe_fprintf的g_probe是null，需要初始化
     // 按照代码逻辑，第二次上报指标信息，需要检测两次
     g_probe = ProbeCreate();
     CU_ASSERT(g_probe != NULL);
@@ -83,6 +83,20 @@ static void TestSystemCpuProbe(void)
         CU_ASSERT(g_probe->fifo != NULL);
         (void)snprintf(g_probe->name, MAX_PROBE_NAME_LEN - 1, "test_cpu_probe");
     
+        // logs = 1, 上报
+        params.logs = 1;
+        ret = system_cpu_probe(&params);
+        CU_ASSERT(ret == 0);
+
+        ret = FifoGet(g_probe->fifo, (void **) &elemP);
+        CU_ASSERT(ret == 0);
+        CU_ASSERT(g_probe->fifo->out == 1);
+
+        g_probe->fifo->in = 0;
+        g_probe->fifo->out = 0;
+
+        // logs = 0, 未上报
+        params.logs = 0;
         ret = system_cpu_probe(&params);
         CU_ASSERT(ret == 0);
 

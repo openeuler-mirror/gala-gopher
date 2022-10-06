@@ -132,11 +132,6 @@ static int get_proc_stat_info(void)
         if (strstr(line, "cpu") == NULL) {
             continue;
         }
-        if (index >= cpus_num) {
-            ERROR("[SYSTEM_PROBE] cpu_probe records beyond max cpu nums(%d).\n", cpus_num);
-            (void)fclose(f);
-            return -1;
-        }
         ret = sscanf(line,
             "%*s %llu %llu %llu %*llu %llu %llu %llu %*llu %*llu %*llu",
             &cur_cpus[index]->cpu_user_total_second,
@@ -309,7 +304,7 @@ int system_cpu_probe(struct probe_params *params)
     struct cpu_stat **tmp_pptr;
     struct cpu_stat *tmp_ptr;
     int ret;
-    if (get_cpu_info()) {
+    if (get_cpu_info() < 0) {
         ERROR("[SYSTEM_PROBE] fail to collect cpus info\n");
         return -1;
     }
