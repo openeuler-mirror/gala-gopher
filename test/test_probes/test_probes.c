@@ -48,8 +48,10 @@ static void TestSystemMeminfoProbe(void)
     CU_ASSERT(g_probe != NULL);
     CU_ASSERT(g_probe->fifo != NULL);
     (void)snprintf(g_probe->name, MAX_PROBE_NAME_LEN - 1, "test_meminfo_probe");
-
-    // probe reads the data in file
+    
+    // cover  report_log the function
+    params.logs = 1;
+    // call the mem probe
     ret = system_meminfo_probe(&params);
     CU_ASSERT(ret == 0);
     // test the nprintf function
