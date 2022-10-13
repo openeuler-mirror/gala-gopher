@@ -243,7 +243,7 @@ int set_flame_graph_path(struct stack_svg_mng_s *svg_mng, const char* path, enum
 
     dir[0] = 0;
     if (path[0] == '/') {
-        (void)strncpy(dir, path, len - 1);
+        (void)strncpy(dir, path, len);
     } else {
         (void)strncpy(dir, path, PATH_LEN - 1);
     }
