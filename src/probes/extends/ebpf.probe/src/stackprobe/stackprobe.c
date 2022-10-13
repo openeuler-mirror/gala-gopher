@@ -799,6 +799,49 @@ err:
 static int load_bpf_prog(struct satck_trace_s *st)
 {
     int ret;
+    struct bpf_program *prog;
+
+    st->obj = bpf_object__open_file(ON_CPU_PROG, NULL);
+    ret = libbpf_get_error(st->obj);
+    if (ret) {
+        ERROR("[STACKPROBE]: opening BPF object file failed(err = %d).\n", ret);
+        goto err;
+    }
+
+    ret = BPF_PIN_MAP_PATH(st->obj, "proc_obj_map", PROC_MAP_PATH);
+    if (ret) {
+        ERROR("[STACKPROBE]: Failed to pin bpf map(err = %d).\n", ret);
+        goto err;
+    }
+
+    ret = bpf_object__load(st->obj);
+    if (ret) {
+        ERROR("[STACKPROBE]: Failed to load bpf prog(err = %d).\n", ret);
+        goto err;
+    }
+
+    prog = bpf_program__next(NULL, st->obj);
+    if (prog == NULL) {
+        ERROR("[STACKPROBE]: Cannot find bpf_prog.\n");
+        goto err;
+    }
+    st->bpf_prog_fd = bpf_program__fd(prog);
+    st->convert_map_fd = BPF_GET_MAP_FD(st->obj, "convert_map");
+    st->stackmap_a_fd = BPF_GET_MAP_FD(st->obj, "stackmap_a");
+    st->stackmap_b_fd = BPF_GET_MAP_FD(st->obj, "stackmap_b");
+    st->stackmap_perf_a_fd = BPF_GET_MAP_FD(st->obj, "stackmap_perf_a");
+    st->stackmap_perf_b_fd = BPF_GET_MAP_FD(st->obj, "stackmap_perf_b");
+
+    INFO("[STACKPROBE]: load bpf prog succeed(%s).\n", ON_CPU_PROG);
+    return 0;
+
+err:
+    return -1;
+}
+
+static int perf_and_attach_bpf_prog(struct satck_trace_s *st)
+{
+    int ret;
 
     struct perf_event_attr attr_type_sw = {
         .sample_freq = SAMPLE_PERIOD,
@@ -806,26 +849,6 @@ static int load_bpf_prog(struct satck_trace_s *st)
         .type = PERF_TYPE_SOFTWARE,
         .config = PERF_COUNT_SW_CPU_CLOCK,
     };
-
-    ret = bpf_prog_load(ON_CPU_PROG, BPF_PROG_TYPE_PERF_EVENT, &(st->obj), &(st->bpf_prog_fd));
-    if (ret) {
-        ERROR("[STACKPROBE]: Failed to load bpf prog(err = %d).\n", ret);
-        goto err;
-    }
-
-    INFO("[STACKPROBE]: load bpf prog succeed(%s).\n", ON_CPU_PROG);
-
-    st->convert_map_fd = BPF_GET_MAP_FD(st->obj, "convert_map");
-    st->stackmap_a_fd = BPF_GET_MAP_FD(st->obj, "stackmap_a");
-    st->stackmap_b_fd = BPF_GET_MAP_FD(st->obj, "stackmap_b");
-    st->stackmap_perf_a_fd = BPF_GET_MAP_FD(st->obj, "stackmap_perf_a");
-    st->stackmap_perf_b_fd = BPF_GET_MAP_FD(st->obj, "stackmap_perf_b");
-
-    ret = BPF_PIN_MAP_PATH(st->obj, "proc_obj_map", PROC_MAP_PATH);
-    if (ret) {
-        ERROR("[STACKPROBE]: Failed to pin bpf map(err = %d).\n", ret);
-        goto err;
-    }
 
     st->pb_a = create_pref_buffer2(st->stackmap_perf_a_fd, process_raw_stack_trace, process_loss_data);
     if (!st->pb_a) {
@@ -993,6 +1016,10 @@ int main(int argc, char **argv)
     }
 
     if (load_bpf_prog(g_st)) {
+        goto err;
+    }
+
+    if (perf_and_attach_bpf_prog(g_st)) {
         goto err;
     }
 
