@@ -57,6 +57,8 @@ function  make_probe_jar()
 	fi
 
 	rm -rf tmp  2>/dev/null
+ 
+	return 0
 }
 
 function compile_clean()
@@ -77,7 +79,7 @@ javac_link=$(which javac 2>/dev/null)
 if [ -z $java_link ] || [ -z $javac_link ]; 
 then
     echo "Error: java and javac : command not found"
-    return 1
+    exit 1
 else 
     find_jars	
     if [ $? -eq 1 ];
