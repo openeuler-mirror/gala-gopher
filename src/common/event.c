@@ -25,7 +25,14 @@
 #include "nprobe_fprintf.h"
 #endif
 
-static void __get_local_time(char *buf, int buf_len)
+static struct evt_ts_hash_t *g_evt_head = NULL;
+static unsigned int g_evt_period = 0;
+
+static void hash_clear_older_evt(time_t cur_time);
+static unsigned int hash_count_evt(void);
+static int is_evt_need_report(const char *entityId, time_t cur_time);
+
+static void __get_local_time(char *buf, int buf_len, time_t *cur_time)
 {
     time_t rawtime;
     struct tm tm;
@@ -35,6 +42,7 @@ static void __get_local_time(char *buf, int buf_len)
     asctime_r(localtime_r(&rawtime, &tm), time_str);
     SPLIT_NEWLINE_SYMBOL(time_str);
     (void)snprintf(buf, (const int)buf_len, "%s", time_str);
+    *cur_time = rawtime;
 }
 
 #define __SEC_TXT_LEN  32
@@ -61,9 +69,15 @@ void report_logs(const char* entityName,
     va_list args;
     char body[__EVT_BODY_LEN];
     char *p;
+    time_t cur_time;
 
     body[0] = 0;
-    __get_local_time(body, __EVT_BODY_LEN);
+    __get_local_time(body, __EVT_BODY_LEN, &cur_time);
+    if ((g_evt_period > 0) && (!is_evt_need_report(entityId, cur_time))) {
+        DEBUG("event not report, bacause entityId[%s] in event_period.\n", entityId);
+        return;
+    }
+
     p = body + strlen(body);
     len = __EVT_BODY_LEN - strlen(body);
 
@@ -95,4 +109,90 @@ void report_logs(const char* entityName,
                           body);
 #endif
     return;
+}
+
+static void hash_add_evt(const char *entityId, time_t cur_time)
+{
+    struct evt_ts_hash_t *item = NULL;
+
+    if (hash_count_evt() >= MAX_EVT_NUM) {
+        // clear older events when event num beyond 1000
+        hash_clear_older_evt(cur_time);
+    }
+
+    item = malloc(sizeof(struct evt_ts_hash_t));
+    if (item == NULL) {
+        ERROR("event malloc error\n");
+        return;
+    }
+    item->entity_id[0] = 0;
+    strncpy(item->entity_id, entityId, MAX_ENTITY_NAME_LEN - 1);
+    item->evt_ts = cur_time;
+    H_ADD_S(g_evt_head, entity_id, item);
+}
+
+static struct evt_ts_hash_t *hash_find_evt(const char *entityId)
+{
+    char str[MAX_ENTITY_NAME_LEN];
+    struct evt_ts_hash_t *item = NULL;
+    if (g_evt_head == NULL) {
+        return NULL;
+    }
+
+    str[0] = 0;
+    strncpy(str, entityId, MAX_ENTITY_NAME_LEN - 1);
+    H_FIND_S(g_evt_head, str, item);
+    if (item == NULL) {
+        return NULL;
+    }
+    return item;
+}
+
+static void hash_clear_older_evt(time_t cur_time)
+{
+    if (g_evt_head == NULL) {
+        return;
+    }
+
+    struct evt_ts_hash_t *item, *tmp;
+    H_ITER(g_evt_head, item, tmp) {
+        if ((cur_time - item->evt_ts) <= g_evt_period) {
+            continue;
+        }
+        H_DEL(g_evt_head, item);
+        (void)free(item);
+    }
+}
+
+static unsigned int hash_count_evt(void)
+{
+    unsigned int evt_num;
+    evt_num = H_COUNT(g_evt_head);
+    return evt_num;
+}
+
+static int is_evt_need_report(const char *entityId, time_t cur_time)
+{
+    struct evt_ts_hash_t *item = NULL;
+
+    item = hash_find_evt(entityId);
+    if (item == NULL) {
+        hash_add_evt(entityId, cur_time);
+        if (hash_find_evt(entityId) == NULL) {
+            ERROR("evt_hash add eventid[%s] failed.\n", entityId);
+            return 0;
+        } else {
+            return 1;
+        }
+    }
+    if ((cur_time > item->evt_ts) && (cur_time - item->evt_ts >= g_evt_period)) {
+        item->evt_ts = cur_time;
+        return 1;
+    }
+    return 0;
+}
+
+void init_event_mgr(unsigned int time_out)
+{
+    g_evt_period = time_out;
 }

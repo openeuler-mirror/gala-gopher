@@ -1,20 +1,20 @@
 # gala-gopher
 
 ### 介绍
-gala-gopher是基于eBPF的低负载探针框架，致力于提供裸机/虚机/容器场景下的云原生观测引擎（cloud observation engine），帮助业务快速创新。
+gala-gopher一款基于eBPF技术的探针框架，通过协同各种内核观测工具（包括CPU、网络、I/O、内存等）实现将操作系统运行状态白盒化呈现，并通过扩展能力提供系统性能瓶颈分析，应用性能劣化故障诊断等特性。
 
 ### 软件架构
 gala-gopher集成了常用的native探针以及知名中间件探针；gala-gopher有良好的扩展性，能方便的集成各种类型的探针程序，发挥社区的力量丰富探针框架的能力；gala-gopher中的几个主要部件：
 
 - gala-gopher框架
 
-  gala-gopher的基础框架，负责配置文件解析、native探针/三方探针的管理、探针数据收集管理、探针数据上报对接、集成测试等；
+  gala-gopher的基础框架，负责配置文件解析、native探针/extend探针的管理、探针数据收集管理、探针数据上报对接、集成测试等；
 
 - native探针
 
   原生探针，主要是基于linux的proc文件系统收集的系统观测指标；
 
-- 三方探针
+- extend探针
 
   支持shell/java/python/c等不同语言的第三方探针程序，仅需满足轻量的数据上报格式即可集成到gala-gopher框架中；方便满足各种应用场景下的观测诉求；目前已实现知名中间件程序的探针观测及指标上报，如：lvs、nginx、haproxy、dnsmasq、dnsbind、kafka、rabbitmq等；
 
@@ -123,6 +123,16 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
   ```
 
 ### 运行架构
+
+技术特征
+
+•**统一观测标准**：支持对接prometheus、kafka、openTelemetry标准。
+
+•**低底噪**：提供eBPF观测技术，通过优化eBPF运行时性能、动态装卸载等技术降低观测底噪。
+
+•**协同观测**：提供探针框架，根据场景协同各探针调整观测范围，避免观测碎片化。
+
+•**对象式**：定义（且可扩展）系统观测实体以及实体间关系，实时构建出云服务数据流拓扑。
 
 ![runtime_arch](doc/pic/coe_runtime_arch.JPG)
 

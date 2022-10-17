@@ -39,6 +39,8 @@
 
 #include "logs.h"
 
+#include "event.h"
+
 typedef struct {
     // config
     ConfigMgr *configMgr;
