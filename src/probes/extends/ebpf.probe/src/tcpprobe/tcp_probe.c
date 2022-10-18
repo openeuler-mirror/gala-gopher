@@ -282,7 +282,7 @@ static void output_tcp_sockbuf(void *ctx, int cpu, void *data, __u32 size)
 
     (void)fprintf(stdout,
         "|%s|%u|%u|%s|%s|%u|%u|%u"
-        "|%u|%u|%u|%u|%u|%u|%u|\n",
+        "|%u|%u|%u|%u|%u|%u|%u|%d|%d|\n",
         TCP_TBL_SOCKBUF,
         link->tgid,
         link->role,
@@ -298,7 +298,9 @@ static void output_tcp_sockbuf(void *ctx, int cpu, void *data, __u32 size)
         metrics->sockbuf_stats.tcpi_sk_backlog_size,
         metrics->sockbuf_stats.tcpi_sk_omem_size,
         metrics->sockbuf_stats.tcpi_sk_forward_size,
-        metrics->sockbuf_stats.tcpi_sk_wmem_size);
+        metrics->sockbuf_stats.tcpi_sk_wmem_size,
+        metrics->sockbuf_stats.sk_rcvbuf,
+        metrics->sockbuf_stats.sk_sndbuf);
     (void)fflush(stdout);
 }
 #if 0

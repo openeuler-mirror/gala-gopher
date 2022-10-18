@@ -57,6 +57,10 @@ static void get_tcp_sock_buf(struct sock *sk, struct tcp_sockbuf* stats)
     stats->tcpi_sk_omem_size    = (u32)_(sk->sk_omem_alloc.counter);
     stats->tcpi_sk_forward_size = (u32)_(sk->sk_forward_alloc);
     stats->tcpi_sk_wmem_size    = (u32)_(sk->sk_wmem_alloc.refs.counter);
+
+    stats->sk_rcvbuf    = (int)_(sk->sk_rcvbuf);
+    stats->sk_sndbuf    = (int)_(sk->sk_sndbuf);
+
 }
 
 static void set_last_sockbuf_stats(struct tcp_sockbuf* stats, struct tcp_sockbuf* last_stats)
@@ -69,22 +73,36 @@ static int is_sockbuf_stats_changed(struct tcp_sockbuf* stats, struct tcp_sockbu
     if (last_stats->tcpi_sk_err_que_size != stats->tcpi_sk_err_que_size) {
         return 1;
     }
+
     if (last_stats->tcpi_sk_rcv_que_size != stats->tcpi_sk_rcv_que_size) {
         return 1;
     }
+
     if (last_stats->tcpi_sk_wri_que_size != stats->tcpi_sk_wri_que_size) {
         return 1;
     }
+
     if (last_stats->tcpi_sk_backlog_size != stats->tcpi_sk_backlog_size) {
         return 1;
     }
+
     if (last_stats->tcpi_sk_omem_size != stats->tcpi_sk_omem_size) {
         return 1;
     }
+
     if  (last_stats->tcpi_sk_forward_size != stats->tcpi_sk_forward_size) {
         return 1;
     }
+
     if (last_stats->tcpi_sk_wmem_size != stats->tcpi_sk_wmem_size) {
+        return 1;
+    }
+
+    if (last_stats->sk_rcvbuf != stats->sk_rcvbuf) {
+        return 1;
+    }
+
+    if (last_stats->sk_sndbuf != stats->sk_sndbuf) {
         return 1;
     }
     return 0;
