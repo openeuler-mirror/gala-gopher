@@ -101,6 +101,9 @@ struct tcp_sockbuf {
     __u32   tcpi_sk_omem_size;      // FROM sock.sk_omem_alloc
     __u32   tcpi_sk_forward_size;   // FROM sock.sk_forward_alloc
     __u32   tcpi_sk_wmem_size;      // FROM sock.sk_wmem_alloc
+
+    int   sk_rcvbuf;                    // FROM sock.sk_rcvbuf
+    int   sk_sndbuf;                // FROM sock.sk_sndbuf
 };
 
 struct tcp_rate {

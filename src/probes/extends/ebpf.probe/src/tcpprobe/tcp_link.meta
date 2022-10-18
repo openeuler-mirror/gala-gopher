@@ -410,6 +410,16 @@ measurements:
                 description: "Size of wmem in sock.",
                 type: "gauge",
                 name: "sk_wmem_size",
+            },
+            {
+                description: "Byte length of the RX buffer.",
+                type: "gauge",
+                name: "sk_rcvbuf",
+            },
+            {
+                description: "Byte length of the TX buffer.",
+                type: "gauge",
+                name: "sk_sndbuf",
             }
         )
     },
