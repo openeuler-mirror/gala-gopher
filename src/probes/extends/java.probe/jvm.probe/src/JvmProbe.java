@@ -16,7 +16,6 @@ public class JvmProbe {
     public static ExecutorService executorService;
     public static int time = 5;
     public static String agentPath;
-
     final static String agent = "management-agent.jar";
 
     public static void main(String[] args) {
@@ -34,9 +33,7 @@ public class JvmProbe {
                 TimeUnit.SECONDS.sleep(time);
             } catch (InterruptedException e) {
                 System.out.println(e.getMessage());
-                System.exit(1);
             }
-
         }
     }
 
@@ -63,7 +60,7 @@ public class JvmProbe {
                 try {
                     Vm vm = new Vm(virtualMachineDescriptor, agentPath);
                     vm.getData();
-                } catch (IOException | AgentLoadException | AttachNotSupportedException | AgentInitializationException | InterruptedException e) {
+                } catch (IOException | AgentLoadException | AttachNotSupportedException | AgentInitializationException  e) {
                     System.out.println(e.getMessage());
                 }
             });
@@ -76,11 +73,9 @@ public class JvmProbe {
         if(inputStream == null){
             throw new IOException("Resource not found in the JAR");
         }
-
         // create a temporary file
         File temporaryFile = File.createTempFile("resource", null);
         temporaryFile.deleteOnExit();
-
         // Copy the resource data into the temporary file
         Files.copy(inputStream, temporaryFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
         return temporaryFile.getAbsolutePath();
