@@ -74,7 +74,7 @@ static void __rm_svg(const char *svg_file)
     }
 }
 
-static int __new_svg(const char *flame_graph, const char *svg_file, enum stack_svg_type_e en_type)
+static int __new_svg(const char *flame_graph, const char *svg_file, int en_type)
 {
     const char *flamegraph_bin = FAMEGRAPH_BIN;
     char commad[__COMMAND_LEN];
@@ -152,7 +152,7 @@ static int __create_svg_files(struct stack_svg_s* svg_files, u32 period)
     return 0;
 }
 
-static int stack_get_next_svg_file(struct stack_svgs_s* svgs, enum stack_svg_type_e en_type, char svg_file[], size_t size)
+static int stack_get_next_svg_file(struct stack_svgs_s* svgs, char svg_file[], size_t size, int en_type)
 {
     int next;
     char svg_name[PATH_LEN];
@@ -186,9 +186,9 @@ static int stack_get_next_svg_file(struct stack_svgs_s* svgs, enum stack_svg_typ
 }
 #endif
 
-char is_svg_tmout(struct stack_svg_mng_s* svg_mng, enum stack_svg_type_e en_type)
+char is_svg_tmout(struct stack_svg_mng_s* svg_mng)
 {
-    struct stack_svgs_s *svgs = &(svg_mng->svgs[en_type]);
+    struct stack_svgs_s *svgs = &(svg_mng->svg);
     time_t current = (time_t)time(NULL);
     time_t secs;
 
@@ -202,14 +202,14 @@ char is_svg_tmout(struct stack_svg_mng_s* svg_mng, enum stack_svg_type_e en_type
     return 0;
 }
 
-int create_svg_file(struct stack_svg_mng_s* svg_mng, enum stack_svg_type_e en_type, const char *flame_graph)
+int create_svg_file(struct stack_svg_mng_s* svg_mng, const char *flame_graph, int en_type)
 {
-    char svg_file[PATH_LEN];
+    char svg_file[LINE_BUF_LEN];
     struct stack_svgs_s* svgs;
 
-    svgs = &(svg_mng->svgs[en_type]);
+    svgs = &(svg_mng->svg);
 
-    if (stack_get_next_svg_file(svgs, en_type, svg_file, PATH_LEN)) {
+    if (stack_get_next_svg_file(svgs, svg_file, LINE_BUF_LEN, en_type)) {
         return -1;
     }
 
@@ -218,20 +218,17 @@ int create_svg_file(struct stack_svg_mng_s* svg_mng, enum stack_svg_type_e en_ty
 
 struct stack_svg_mng_s* create_svg_mng(u32 default_period)
 {
-    struct stack_svgs_s *svgs;
-    enum stack_svg_type_e en_type = STACK_SVG_ONCPU;
     struct stack_svg_mng_s* svg_mng = malloc(sizeof(struct stack_svg_mng_s));
     if (!svg_mng) {
         return NULL;
     }
 
     (void)memset(svg_mng, 0, sizeof(struct stack_svg_mng_s));
-    for (; en_type < STACK_SVG_MAX; en_type++) {
-        svgs = &(svg_mng->svgs[en_type]);
-        svgs->last_create_time = (time_t)time(NULL);
-        svgs->period = default_period;
-        (void)__create_svg_files(&(svgs->svg_files), default_period);
-    }
+
+    svg_mng->svg.last_create_time = (time_t)time(NULL);
+    svg_mng->svg.period = default_period;
+    (void)__create_svg_files(&svg_mng->svg.svg_files, default_period);
+
     return svg_mng;
 }
 
@@ -246,47 +243,61 @@ void destroy_svg_mng(struct stack_svg_mng_s* svg_mng)
     }
 
     for (; en_type < STACK_SVG_MAX; en_type++) {
-        svgs = &(svg_mng->svgs[en_type]);
+        svgs = &(svg_mng->svg);
         __destroy_svg_files(&(svgs->svg_files));
 
-        flame_graph = &(svg_mng->flame_graphs[en_type]);
+        flame_graph = &(svg_mng->flame_graph);
         __destroy_flamegraph(flame_graph);
     }
     (void)free(svg_mng);
     return;
 }
 
-int set_svg_dir(struct stack_svg_mng_s* svg_mng, const char *dir, enum stack_svg_type_e en_type)
+static void __mkdir_svg_dir(struct stack_svgs_s *svg)
+{
+    FILE *fp;
+    char commad[LINE_BUF_LEN];
+
+    commad[0] = 0;
+    
+    (void)snprintf(commad, LINE_BUF_LEN, "/usr/bin/mkdir -p %s", svg->svg_dir ?: "/");
+    fp = popen(commad, "r");
+    if (fp != NULL) {
+        (void)pclose(fp);
+    }
+    return;
+}
+
+int set_svg_dir(struct stack_svgs_s *svg, const char *dir, const char *flame_name)
 {
     size_t len;
-    struct stack_svgs_s *svgs;
 
-    if (!svg_mng) {
+    if (!svg) {
         return -1;
     }
 
     len = strlen(dir);
-    if (len <= 1 || len >= PATH_LEN) {
+    if (len <= 1 || len + strlen(flame_name) >= PATH_LEN) {
         return -1;
     }
 
-    svgs = &(svg_mng->svgs[en_type]);
     if (dir[len - 1] == '/') {
-        (void)strncpy(svgs->svg_dir, dir, len - 1);
+        (void)snprintf(svg->svg_dir, PATH_LEN, "%s%s", dir, flame_name);
     } else {
-        (void)strncpy(svgs->svg_dir, dir, len);
+        (void)snprintf(svg->svg_dir, PATH_LEN, "%s/%s", dir, flame_name);
     }
+    __mkdir_svg_dir(svg);
     return 0;
 }
 
-int set_svg_period(struct stack_svg_mng_s* svg_mng, u32 period, enum stack_svg_type_e en_type)
+int set_svg_period(struct stack_svg_mng_s* svg_mng, u32 period)
 {
     struct stack_svgs_s *svgs;
 
     if (!svg_mng) {
         return -1;
     }
-    svgs = &(svg_mng->svgs[en_type]);
+    svgs = &(svg_mng->svg);
 
     __destroy_svg_files(&svgs->svg_files);
     if (__create_svg_files(&svgs->svg_files, period)) {

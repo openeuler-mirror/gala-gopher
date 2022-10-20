@@ -20,7 +20,7 @@
 #include "svg.h"
 #include "stackprobe.h"
 
-void wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct stack_trace_histo_s *head, enum stack_svg_type_e en_type);
-int set_flame_graph_path(struct stack_svg_mng_s *svg_mng, const char* path, enum stack_svg_type_e en_type);
+void wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct stack_trace_histo_s *head, int en_type);
+int set_flame_graph_path(struct stack_svg_mng_s *svg_mng, const char* path, const char *flame_name);
 
 #endif

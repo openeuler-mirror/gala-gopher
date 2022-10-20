@@ -39,40 +39,40 @@
 
 #if 1
 
-static char __test_flame_graph_flags(struct stack_svg_mng_s *svg_mng, enum stack_svg_type_e en_type, u32 flags)
+static char __test_flame_graph_flags(struct stack_svg_mng_s *svg_mng, u32 flags)
 {
     struct stack_flamegraph_s *sfg;
 
-    sfg = &(svg_mng->flame_graphs[en_type]);
+    sfg = &(svg_mng->flame_graph);
     if (sfg->flags & flags) {
         return 1;
     }
     return 0;
 }
 
-static void __set_flame_graph_flags(struct stack_svg_mng_s *svg_mng, enum stack_svg_type_e en_type, u32 flags)
+static void __set_flame_graph_flags(struct stack_svg_mng_s *svg_mng, u32 flags)
 {
     struct stack_flamegraph_s *sfg;
 
-    sfg = &(svg_mng->flame_graphs[en_type]);
+    sfg = &(svg_mng->flame_graph);
     sfg->flags |= flags;
     return;
 }
 
-static void __reset_flame_graph_flags(struct stack_svg_mng_s *svg_mng, enum stack_svg_type_e en_type, u32 flags)
+static void __reset_flame_graph_flags(struct stack_svg_mng_s *svg_mng, u32 flags)
 {
     struct stack_flamegraph_s *sfg;
 
-    sfg = &(svg_mng->flame_graphs[en_type]);
+    sfg = &(svg_mng->flame_graph);
     sfg->flags &= flags;
     return;
 }
 
-static FILE * __open_flame_graph_fp(struct stack_svg_mng_s *svg_mng, enum stack_svg_type_e en_type)
+static FILE *__open_flame_graph_fp(struct stack_svg_mng_s *svg_mng)
 {
     struct stack_flamegraph_s *sfg;
 
-    sfg = &(svg_mng->flame_graphs[en_type]);
+    sfg = &(svg_mng->flame_graph);
     if (sfg->fp) {
         (void)pclose(sfg->fp);
         sfg->fp = NULL;
@@ -84,23 +84,21 @@ static FILE * __open_flame_graph_fp(struct stack_svg_mng_s *svg_mng, enum stack_
     return sfg->fp;
 }
 
-static FILE * __get_flame_graph_fp(struct stack_svg_mng_s *svg_mng, enum stack_svg_type_e en_type)
+static FILE *__get_flame_graph_fp(struct stack_svg_mng_s *svg_mng)
 {
     struct stack_flamegraph_s *sfg;
 
-    sfg = &(svg_mng->flame_graphs[en_type]);
+    sfg = &(svg_mng->flame_graph);
     return sfg->fp;
 }
 
-static void __mkdir_flame_graph_path(struct stack_svg_mng_s *svg_mng, enum stack_svg_type_e en_type)
+static void __mkdir_flame_graph_path(struct stack_svg_mng_s *svg_mng)
 {
     FILE *fp;
-    struct stack_flamegraph_s *sfg;
     char commad[COMMAND_LEN];
 
-    sfg = &(svg_mng->flame_graphs[en_type]);
     commad[0] = 0;
-    (void)snprintf(commad, COMMAND_LEN, "/usr/bin/mkdir -p %s", sfg->flame_graph_dir ?: "/");
+    (void)snprintf(commad, COMMAND_LEN, "/usr/bin/mkdir -p %s", svg_mng->flame_graph.flame_graph_dir ?: "/");
     fp = popen(commad, "r");
     if (fp != NULL) {
         (void)pclose(fp);
@@ -108,44 +106,44 @@ static void __mkdir_flame_graph_path(struct stack_svg_mng_s *svg_mng, enum stack
     return;
 }
 
-static char* __get_flame_graph_file(struct stack_svg_mng_s *svg_mng, enum stack_svg_type_e en_type)
+static char *__get_flame_graph_file(struct stack_svg_mng_s *svg_mng)
 {
     struct stack_flamegraph_s *sfg;
 
-    sfg = &(svg_mng->flame_graphs[en_type]);
+    sfg = &(svg_mng->flame_graph);
     return sfg->flame_graph_file;
 }
 
-static void __flush_flame_graph_file(struct stack_svg_mng_s *svg_mng, enum stack_svg_type_e en_type)
+static void __flush_flame_graph_file(struct stack_svg_mng_s *svg_mng)
 {
     struct stack_flamegraph_s *sfg;
 
-    sfg = &(svg_mng->flame_graphs[en_type]);
+    sfg = &(svg_mng->flame_graph);
     if (sfg->fp) {
         (void)fflush(sfg->fp);
     }
     return;
 }
 
-static void __set_flame_graph_file(struct stack_svg_mng_s *svg_mng, enum stack_svg_type_e en_type)
+static void __set_flame_graph_file(struct stack_svg_mng_s *svg_mng)
 {
     const char *fmt = "%s/tmp_%s";
     struct stack_flamegraph_s *sfg;
 
-    sfg = &(svg_mng->flame_graphs[en_type]);
+    sfg = &(svg_mng->flame_graph);
     sfg->flame_graph_file[0] = 0;
     (void)snprintf(sfg->flame_graph_file, PATH_LEN, fmt, sfg->flame_graph_dir ?: "", get_cur_time());
     return;
 }
 
-static void __rm_flame_graph_file(struct stack_svg_mng_s *svg_mng, enum stack_svg_type_e en_type)
+static void __rm_flame_graph_file(struct stack_svg_mng_s *svg_mng)
 {
 #define __COMMAND_LEN   (2 * PATH_LEN)
     FILE *fp;
     char commad[__COMMAND_LEN];
     struct stack_flamegraph_s *sfg;
 
-    sfg = &(svg_mng->flame_graphs[en_type]);
+    sfg = &(svg_mng->flame_graph);
 
     if (!access(sfg->flame_graph_file, 0)) {
         commad[0] = 0;
@@ -162,19 +160,20 @@ static void __rm_flame_graph_file(struct stack_svg_mng_s *svg_mng, enum stack_sv
     }
 }
 
-static void __reopen_flame_graph_file(struct stack_svg_mng_s *svg_mng, enum stack_svg_type_e en_type)
+static void __reopen_flame_graph_file(struct stack_svg_mng_s *svg_mng)
 {
-    __rm_flame_graph_file(svg_mng, en_type);
-    __set_flame_graph_file(svg_mng, en_type);
-    (void)__open_flame_graph_fp(svg_mng, en_type);
-    __set_flame_graph_flags(svg_mng, en_type, FLAME_GRAPH_NEW);
+    __rm_flame_graph_file(svg_mng);
+    __set_flame_graph_file(svg_mng);
+    (void)__open_flame_graph_fp(svg_mng);
+    __set_flame_graph_flags(svg_mng, FLAME_GRAPH_NEW);
 }
 
 #define HISTO_TMP_LEN   (2 * STACK_SYMBS_LEN)
 static char __histo_tmp_str[HISTO_TMP_LEN];
-static int __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng, enum stack_svg_type_e en_type, struct stack_trace_histo_s *stack_trace_histo, int first)
+static int __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng,
+                               struct stack_trace_histo_s *stack_trace_histo, int first)
 {
-    FILE * fp = __get_flame_graph_fp(svg_mng, en_type);
+    FILE *fp = __get_flame_graph_fp(svg_mng);
     if (!fp) {
         ERROR("[FLAMEGRAPH]: Invalid fp.\n");
         return -1;
@@ -193,69 +192,62 @@ static int __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng, enum stack_svg_t
     return 0;
 }
 
-static void __do_wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct stack_trace_histo_s *head, enum stack_svg_type_e en_type)
+static void __do_wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct stack_trace_histo_s *head)
 {
     int first_flag = 0;
 
-    if (__test_flame_graph_flags(svg_mng, en_type, FLAME_GRAPH_NEW)) {
+    if (__test_flame_graph_flags(svg_mng, FLAME_GRAPH_NEW)) {
         first_flag = 1;
     }
 
     struct stack_trace_histo_s *item, *tmp;
 
     H_ITER(head, item, tmp) {
-        (void)__do_wr_stack_histo(svg_mng, en_type, item, first_flag);
+        (void)__do_wr_stack_histo(svg_mng, item, first_flag);
         first_flag = 0;
     }
 
-    __flush_flame_graph_file(svg_mng, en_type);
-    __reset_flame_graph_flags(svg_mng, en_type, ~FLAME_GRAPH_NEW);
+    __flush_flame_graph_file(svg_mng);
+    __reset_flame_graph_flags(svg_mng, ~FLAME_GRAPH_NEW);
 }
 
 #endif
 
-void wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct stack_trace_histo_s *head, enum stack_svg_type_e en_type)
+void wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct stack_trace_histo_s *head, int en_type)
 {
-    __do_wr_flamegraph(svg_mng, head, en_type);
-    if (is_svg_tmout(svg_mng, en_type)) {
+    __do_wr_flamegraph(svg_mng, head);
+    if (is_svg_tmout(svg_mng)) {
         (void)create_svg_file(svg_mng,
-                              en_type,
-                              __get_flame_graph_file(svg_mng, en_type));
+                              __get_flame_graph_file(svg_mng), en_type);
 
-        __reopen_flame_graph_file(svg_mng, en_type);
+        __reopen_flame_graph_file(svg_mng);
     }
 }
 
-int set_flame_graph_path(struct stack_svg_mng_s *svg_mng, const char* path, enum stack_svg_type_e en_type)
+int set_flame_graph_path(struct stack_svg_mng_s *svg_mng, const char* path, const char *flame_name)
 {
     size_t len;
-    char dir[PATH_LEN];
-    struct stack_flamegraph_s *sfg;
+    char dir[PATH_LEN] = {0};
 
     len = strlen(path);
-    if (len == 0 || len >= PATH_LEN) {
+    if (len == 0 || len + strlen(flame_name) >= PATH_LEN) {
         return -1;
     }
 
-    if (len == 1 && path[0] == '/') {
-        return 0;
-    }
-
-    dir[0] = 0;
-    if (path[0] == '/') {
-        (void)strncpy(dir, path, len);
+    if (path[len - 1] == '/') {
+        (void)snprintf(dir, PATH_LEN, "%s%s", path, flame_name);
     } else {
-        (void)strncpy(dir, path, PATH_LEN - 1);
+        (void)snprintf(dir, PATH_LEN, "%s/%s", path, flame_name);
     }
-    sfg = &(svg_mng->flame_graphs[en_type]);
-    sfg->flame_graph_dir = strdup(dir);
 
-    __mkdir_flame_graph_path(svg_mng, en_type);
-    __set_flame_graph_file(svg_mng, en_type);
-    if (__open_flame_graph_fp(svg_mng, en_type) == NULL) {
+    svg_mng->flame_graph.flame_graph_dir = strdup(dir);
+
+    __mkdir_flame_graph_path(svg_mng);
+    __set_flame_graph_file(svg_mng);
+    if (__open_flame_graph_fp(svg_mng) == NULL) {
         return -1;
     }
-    __set_flame_graph_flags(svg_mng, en_type, FLAME_GRAPH_NEW);
+    __set_flame_graph_flags(svg_mng, FLAME_GRAPH_NEW);
     return 0;
 }
 
