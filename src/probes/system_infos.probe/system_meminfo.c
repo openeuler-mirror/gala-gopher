@@ -116,8 +116,8 @@ static void output_info(struct probe_params *params)
     // calculate swapusage
     double swap_usage = 0;
     if (meminfo_fields[SWAP_TOTAL].value > 0) {
-        swap_usage = (double)(meminfo_fields[SWAP_TOTAL].value - meminfo_fields[SWAP_FREE].value);
-        swap_usage /= meminfo_fields[SWAP_TOTAL].value * 100.0;
+        swap_usage = (double)((meminfo_fields[SWAP_TOTAL].value - \
+				meminfo_fields[SWAP_FREE].value)) / meminfo_fields[SWAP_TOTAL].value * 100.0;
     }
     report_meminfo_status(params, mem_usage, swap_usage);
     // report data
