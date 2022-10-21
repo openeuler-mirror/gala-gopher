@@ -30,7 +30,7 @@ deps: $(DEPS)
 
 app: $(APP)
 %: %.c $(SRC_C)
-	$(CC) $(CFLAGS) $(patsubst %.cpp, %.o, $(SRC_CPLUS))  $(INCLUDES) $^ $(LDFLAGS) $(LINK_TARGET) -o $@
+	$(CC) $(CFLAGS) $(patsubst %.cpp, %.o, $(SRC_CPLUS))  $(INCLUDES) $^ $(LDFLAGS) $(LINK_TARGET) -lconfig -o $@
 	@echo $@ "compiling completed."
 clean:
 	rm -rf $(DEPS)

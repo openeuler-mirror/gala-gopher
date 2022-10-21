@@ -60,7 +60,8 @@ enum symbol_err_e {
 };
 #define __UNKNOW_NAME     "Unknow"
 static char __kern_unknow_symb[] = "[kernel]";
-#if 0   // def GOPHER_DEBUG
+
+#ifdef GOPHER_DEBUG
 
 #define __RANGE_COL_NUM       3
 static void __print_range_header(void)
@@ -1160,16 +1161,19 @@ int proc_search_addr_symb(struct proc_symbs_s *proc_symbs,
                 is_contain_range = 1;
                 if ((ret = search_elf_symb(proc_symbs->mods[i]->mod_symbs,
                         addr, target_addr, proc_symbs->comm, addr_symb)) && ret != 0) {
-                    // __print_mod_symbs(proc_symbs->mods[i]);
+#ifdef GOPHER_DEBUG
+                    __print_mod_symbs(proc_symbs->mods[i]);
+#endif
                 }
                 break;
             }
         }
     }
+#ifdef GOPHER_DEBUG
     if (!is_contain_range) {
-        // __print_proc_ranges(proc_symbs);
+        __print_proc_ranges(proc_symbs);
     }
-
+#endif
     return ret;
 }
 #endif

@@ -45,13 +45,13 @@ static int ParseConfigPath(const char *path)
         return -1;
     } else {
         g_galaConfPath = (char *)malloc(strlen(path) + 1);
-    if (g_galaConfPath == NULL) {
-        printf("g_galaConfPath: malloc failed!\n");
+        if (g_galaConfPath == NULL) {
+            printf("g_galaConfPath: malloc failed!\n");
             return -1;
-    }
+        }
 
         memset(g_galaConfPath, 0, strlen(path) + 1);
-    memcpy(g_galaConfPath, path, strlen(path));
+        memcpy(g_galaConfPath, path, strlen(path));
     }
 
     return 0;

@@ -53,15 +53,14 @@ struct stack_flamegraph_s {
 };
 
 struct stack_svg_mng_s {
-    struct stack_svgs_s svgs[STACK_SVG_MAX];
-    struct stack_flamegraph_s flame_graphs[STACK_SVG_MAX];
+    struct stack_svgs_s svg;
+    struct stack_flamegraph_s flame_graph;
 };
 
 struct stack_svg_mng_s* create_svg_mng(u32 default_period);
 void destroy_svg_mng(struct stack_svg_mng_s* svg_mng);
-int set_svg_dir(struct stack_svg_mng_s* svg_mng, const char *dir, enum stack_svg_type_e en_type);
-int set_svg_period(struct stack_svg_mng_s* svg_mng, u32 period, enum stack_svg_type_e en_type);
-int create_svg_file(struct stack_svg_mng_s* svg_mng, enum stack_svg_type_e en_type, const char *flame_graph);
-char is_svg_tmout(struct stack_svg_mng_s* svg_mng, enum stack_svg_type_e en_type);
+int set_svg_dir(struct stack_svgs_s *svg, const char *dir, const char *flame_name);
+int create_svg_file(struct stack_svg_mng_s* svg_mng, const char *flame_graph, int en_type);
+char is_svg_tmout(struct stack_svg_mng_s* svg_mng);
 
 #endif

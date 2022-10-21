@@ -45,9 +45,13 @@
 #include "flame_graph.h"
 #include "debug_elf_reader.h"
 #include "elf_symb.h"
+#include "stackprobe_conf.h"
 #include "stackprobe.h"
 
 #define ON_CPU_PROG    "./oncpu.bpf.o"
+#define OFF_CPU_PROG   "./offcpu.bpf.o"
+#define IO_PROG        "./io.bpf.o"
+
 #define IS_IEG_ADDR(addr)     ((addr) != 0xcccccccccccccccc && (addr) != 0xffffffffffffffff)
 
 #define BPF_GET_MAP_FD(obj, map_name)   \
@@ -70,10 +74,17 @@
                 __ret; \
             })
 
+typedef struct {
+    u32 sw;
+    enum stack_svg_type_e en_type;
+    char *flame_name;
+    char *prog_name;
+
+} FlameProc;
+
 static struct probe_params params = {.period = DEFAULT_PERIOD};
 static volatile sig_atomic_t g_stop;
-
-static struct satck_trace_s *g_st = NULL;
+static struct stack_trace_s *g_st = NULL;
 
 static void sig_int(int signo)
 {
@@ -82,14 +93,14 @@ static void sig_int(int signo)
 
 #if 1
 
-int stacktrace_create_log_mgr(struct satck_trace_s *st)
+int stacktrace_create_log_mgr(struct stack_trace_s *st, const char *logDir)
 {
     struct log_mgr_s* mgr = create_log_mgr(NULL, 0, 0);
     if (!mgr) {
         return -1;
     }
 
-    (void)strncpy(mgr->debug_path, st->stack_params.logs, PATH_LEN - 1);
+    (void)strncpy(mgr->debug_path, logDir, PATH_LEN - 1);
 
     if (init_log_mgr(mgr, 0)) {
         return -1;
@@ -100,7 +111,7 @@ int stacktrace_create_log_mgr(struct satck_trace_s *st)
     return 0;
 }
 
-void stacktrace_destroy_log_mgr(struct satck_trace_s *st)
+void stacktrace_destroy_log_mgr(struct stack_trace_s *st)
 {
     if (!st->log_mgr) {
         return;
@@ -113,7 +124,7 @@ void stacktrace_destroy_log_mgr(struct satck_trace_s *st)
 #endif
 
 #if 1
-static int get_stack_map_fd(struct satck_trace_s *st)
+static int get_stack_map_fd(struct stack_trace_s *st)
 {
     if (st->is_stackmap_a) {
         return st->stackmap_a_fd;
@@ -122,12 +133,12 @@ static int get_stack_map_fd(struct satck_trace_s *st)
     }
 }
 
-static struct perf_buffer* get_pb(struct satck_trace_s *st)
+static struct perf_buffer* get_pb(struct stack_trace_s *st, struct svg_stack_trace_s *svg_st)
 {
     if (st->is_stackmap_a) {
-        return st->pb_a;
+        return svg_st->pb_a;
     } else {
-        return st->pb_b;
+        return svg_st->pb_b;
     }
 }
 
@@ -146,7 +157,7 @@ static void __destroy_proc_cache(struct proc_cache_s *proc_cache)
     return;
 }
 
-static void destroy_proc_cache_tbl(struct satck_trace_s *st)
+static void destroy_proc_cache_tbl(struct stack_trace_s *st)
 {
     if (!st || !st->proc_cache) {
         return;
@@ -165,7 +176,7 @@ static void destroy_proc_cache_tbl(struct satck_trace_s *st)
     return;
 }
 
-static int __aging_proc_cache(struct satck_trace_s *st, struct proc_cache_s *aging_item)
+static int __aging_proc_cache(struct stack_trace_s *st, struct proc_cache_s *aging_item)
 {
     struct proc_cache_s *item = NULL;
     H_FIND(st->proc_cache, &(aging_item->k), sizeof(struct stack_pid_s), item);
@@ -179,7 +190,7 @@ static int __aging_proc_cache(struct satck_trace_s *st, struct proc_cache_s *agi
     return -1;
 }
 
-static int __add_proc_cache_mirro(struct satck_trace_s *st, struct proc_cache_s *new_item)
+static int __add_proc_cache_mirro(struct stack_trace_s *st, struct proc_cache_s *new_item)
 {
     struct proc_cache_s *aging_item;
     if (st->proc_cache_mirro_count < PROC_CACHE_MAX_COUNT) {
@@ -197,14 +208,14 @@ static int __add_proc_cache_mirro(struct satck_trace_s *st, struct proc_cache_s 
     return __aging_proc_cache(st, aging_item);
 }
 
-static struct proc_cache_s* __search_proc_cache(struct satck_trace_s *st, struct stack_pid_s *stack_pid)
+static struct proc_cache_s* __search_proc_cache(struct stack_trace_s *st, struct stack_pid_s *stack_pid)
 {
     struct proc_cache_s *item = NULL;
     H_FIND(st->proc_cache, stack_pid, sizeof(struct stack_pid_s), item);
     return item;
 }
 
-static struct proc_cache_s* __create_proc_cache(struct satck_trace_s *st, struct stack_pid_s *stack_pid)
+static struct proc_cache_s* __create_proc_cache(struct stack_trace_s *st, struct stack_pid_s *stack_pid)
 {
     struct proc_cache_s *new_item;
     struct proc_symbs_s* proc_symbs;
@@ -231,7 +242,7 @@ static struct proc_cache_s* __create_proc_cache(struct satck_trace_s *st, struct
     return new_item;
 }
 
-static int search_user_addr_symb(struct satck_trace_s *st,
+static int search_user_addr_symb(struct stack_trace_s *st,
         struct stack_pid_s *stack_pid, u64 addr, struct addr_symb_s *addr_symb)
 {
     struct proc_cache_s* proc_cache;
@@ -252,7 +263,7 @@ static int search_user_addr_symb(struct satck_trace_s *st,
 
 #if 1
 
-static void clear_raw_stack_trace(struct satck_trace_s *st)
+static void clear_raw_stack_trace(struct stack_trace_s *st)
 {
     if (!st || !st->raw_stack_traces) {
         return;
@@ -261,7 +272,7 @@ static void clear_raw_stack_trace(struct satck_trace_s *st)
     st->raw_stack_traces->raw_trace_count = 0;
 }
 
-static void destroy_raw_stack_trace(struct satck_trace_s *st)
+static void destroy_raw_stack_trace(struct stack_trace_s *st)
 {
     if (!st || !st->raw_stack_traces) {
         return;
@@ -272,7 +283,7 @@ static void destroy_raw_stack_trace(struct satck_trace_s *st)
     return;
 }
 
-static struct raw_stack_trace_s *create_raw_stack_trace(struct satck_trace_s *st)
+static struct raw_stack_trace_s *create_raw_stack_trace(struct stack_trace_s *st)
 {
     struct raw_stack_trace_s *raw_stack_trace;
 
@@ -289,7 +300,7 @@ static struct raw_stack_trace_s *create_raw_stack_trace(struct satck_trace_s *st
     return raw_stack_trace;
 }
 
-static int add_raw_stack_id(struct satck_trace_s *st, struct stack_id_s *raw_stack_id)
+static int add_raw_stack_id(struct stack_trace_s *st, struct stack_id_s *raw_stack_id)
 {
     if (!st || !st->raw_stack_traces) {
         return -1;
@@ -344,7 +355,7 @@ static int __stack_addrsymbs2string(struct addr_symb_s *addr_symb, int first, ch
     return (ret > 0 && ret < size) ? (ret) : -1;
 }
 
-static int __satck_symbs2string(struct stack_symbs_s *stack_symbs, char symbos_str[], size_t size)
+static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, char symbos_str[], size_t size)
 {
     int len;
     int first_flag = 1;
@@ -383,13 +394,13 @@ static int __satck_symbs2string(struct stack_symbs_s *stack_symbs, char symbos_s
     return 0;
 }
 
-static int add_stack_histo(struct satck_trace_s *st, struct stack_symbs_s *stack_symbs)
+static int add_stack_histo(struct stack_trace_s *st, struct stack_symbs_s *stack_symbs)
 {
     char str[STACK_SYMBS_LEN];
     struct stack_trace_histo_s *item = NULL, *new_item;
 
     str[0] = 0;
-    if (__satck_symbs2string(stack_symbs, str, STACK_SYMBS_LEN)) {
+    if (__stack_symbs2string(stack_symbs, str, STACK_SYMBS_LEN)) {
         // Statistic error, but program continues
         st->stats.count[STACK_STATS_HISTO_ERR]++;
     }
@@ -402,45 +413,51 @@ static int add_stack_histo(struct satck_trace_s *st, struct stack_symbs_s *stack
         return -1;
     }
 
-    H_FIND_S(st->oncpu_histo_tbl, str, item);
-    if (item) {
-        st->stats.count[STACK_STATS_HISTO_FOLDED]++;
-        item->count++;
-        return 0;
+    for (int i = 0; i < STACK_SVG_MAX; i++) {
+        if (st->svg_stack_traces[i] == NULL) {
+            continue;
+        }
+        H_FIND_S(st->svg_stack_traces[i]->histo_tbl, str, item);
+        if (item) {
+            st->stats.count[STACK_STATS_HISTO_FOLDED]++;
+            item->count++;
+            return 0;
+        }
+
+        new_item = (struct stack_trace_histo_s *)malloc(sizeof(struct stack_trace_histo_s));
+        if (!new_item) {
+            return -1;
+        }
+
+        new_item->stack_symbs_str[0] = 0;
+        (void)strncpy(new_item->stack_symbs_str, str, STACK_SYMBS_LEN - 1);
+        new_item->count = 1;
+        H_ADD_S(st->svg_stack_traces[i]->histo_tbl, stack_symbs_str, new_item);
     }
 
-    new_item = (struct stack_trace_histo_s *)malloc(sizeof(struct stack_trace_histo_s));
-    if (!new_item) {
-        return -1;
-    }
-
-    new_item->stack_symbs_str[0] = 0;
-    (void)strncpy(new_item->stack_symbs_str, str, STACK_SYMBS_LEN - 1);
-    new_item->count = 1;
-    H_ADD_S(st->oncpu_histo_tbl, stack_symbs_str, new_item);
     return 0;
 }
 
-static void clear_stack_histo(struct satck_trace_s *st)
+static void clear_stack_histo(struct svg_stack_trace_s *svg_st)
 {
-    if (!st || !st->oncpu_histo_tbl) {
+    if (!svg_st || !svg_st->histo_tbl) {
         return;
     }
 
-    struct stack_trace_histo_s *stack_trace_histo_tbl = st->oncpu_histo_tbl;
+    struct stack_trace_histo_s *stack_trace_histo_tbl = svg_st->histo_tbl;
     struct stack_trace_histo_s *item, *tmp;
 
     H_ITER(stack_trace_histo_tbl, item, tmp) {
         H_DEL(stack_trace_histo_tbl, item);
         (void)free(item);
     }
-    st->oncpu_histo_tbl = NULL;
+    svg_st->histo_tbl = NULL;
 }
 
 #endif
 
 #if 1
-static int stack_id2symbs_user(struct satck_trace_s *st, struct stack_id_s *stack_id,
+static int stack_id2symbs_user(struct stack_trace_s *st, struct stack_id_s *stack_id,
                                 struct addr_symb_s usr_stack_symbs[], size_t size)
 {
     int index = 0;
@@ -482,7 +499,7 @@ static char __is_cpu_idle(struct addr_symb_s *addr_symb)
     return 0;
 }
 
-static int stack_id2symbs_kern(struct satck_trace_s *st, u32 kern_stack_id,
+static int stack_id2symbs_kern(struct stack_trace_s *st, u32 kern_stack_id,
                                 struct addr_symb_s kern_stack_symbs[], size_t size)
 {
     int index = 0;
@@ -518,7 +535,7 @@ static int stack_id2symbs_kern(struct satck_trace_s *st, u32 kern_stack_id,
     return 0;
 }
 
-static int stack_id2symbs(struct satck_trace_s *st, struct stack_id_s *stack_id, struct stack_symbs_s *stack_symbs)
+static int stack_id2symbs(struct stack_trace_s *st, struct stack_id_s *stack_id, struct stack_symbs_s *stack_symbs)
 {
     int ret;
     (void)memcpy(&(stack_symbs->pid), &(stack_id->pid), sizeof(struct stack_pid_s));
@@ -545,7 +562,7 @@ static int stack_id2symbs(struct satck_trace_s *st, struct stack_id_s *stack_id,
     return 0;
 }
 
-static u64 __stack_count_symb(struct satck_trace_s *st)
+static u64 __stack_count_symb(struct stack_trace_s *st)
 {
     int i;
     u64 count = 0;
@@ -571,12 +588,11 @@ static u64 __stack_count_symb(struct satck_trace_s *st)
     return count;
 }
 
-static int stack_id2histogram(struct satck_trace_s *st)
+static int stack_id2histogram(struct stack_trace_s *st)
 {
     int ret;
     struct stack_id_s *stack_id;
     struct stack_symbs_s stack_symbs;
-
     if (!st->raw_stack_traces) {
         return -1;
     }
@@ -602,38 +618,7 @@ static int stack_id2histogram(struct satck_trace_s *st)
 
 #endif
 
-#if 1
-#define __SVG_TMOUT                 (3 * 60)    // 3min
-#define __SVG_DEFAULT_DIR           "/var/log/gala-gopher/stacktrace"
-#define __FLAME_GRAPH_DEFAULT_DIR   "/var/log/gala-gopher/flamegraph"
-#define __ELF_DEBUG_DIR             "/usr/lib/debug"
-#define __GOPHER_LOGS_FILE          "/var/log/gala-gopher/stacktrace/logs"
-
-static void init_stack_params(struct stack_param_s *stack_params)
-{
-    struct flame_graph_param_s *param;
-
-    (void)strncpy(stack_params->logs, __GOPHER_LOGS_FILE, PATH_LEN - 1);
-    (void)strncpy(stack_params->debug_dir, __ELF_DEBUG_DIR, PATH_LEN - 1);
-    stack_params->period = __SVG_TMOUT;
-
-    param = &(stack_params->params[STACK_SVG_ONCPU]);
-    (void)strncpy(param->svg_dir, __SVG_DEFAULT_DIR, PATH_LEN - 1);
-    (void)strncpy(param->flame_graph, __FLAME_GRAPH_DEFAULT_DIR, PATH_LEN - 1);
-
-    param = &(stack_params->params[STACK_SVG_OFFCPU]);
-    (void)strncpy(param->svg_dir, __SVG_DEFAULT_DIR, PATH_LEN - 1);
-    (void)strncpy(param->flame_graph, __FLAME_GRAPH_DEFAULT_DIR, PATH_LEN - 1);
-
-    param = &(stack_params->params[STACK_SVG_IO]);
-    (void)strncpy(param->svg_dir, __SVG_DEFAULT_DIR, PATH_LEN - 1);
-    (void)strncpy(param->flame_graph, __FLAME_GRAPH_DEFAULT_DIR, PATH_LEN - 1);
-
-    return;
-}
-#endif
-
-static char is_tmout(struct satck_trace_s *st)
+static char is_tmout(struct stack_trace_s *st)
 {
     time_t current = (time_t)time(NULL);
     time_t secs;
@@ -671,17 +656,41 @@ static void process_raw_stack_trace(void *ctx, int cpu, void *data, u32 size)
     return;
 }
 
-static void destroy_stack_trace(struct satck_trace_s **ptr_st)
+static void destroy_svg_stack_trace(struct svg_stack_trace_s **ptr_svg_st)
 {
-    struct satck_trace_s *st = *ptr_st;
+    struct svg_stack_trace_s *svg_st = *ptr_svg_st;
 
-    *ptr_st = NULL;
-    if (!st) {
+    *ptr_svg_st = NULL;
+    if (!svg_st) {
         return;
     }
 
-    if (st->obj) {
-        bpf_object__close(st->obj);
+    if (svg_st->obj) {
+        bpf_object__close(svg_st->obj);
+    }
+
+    if (svg_st->pb_a) {
+        perf_buffer__free(svg_st->pb_a);
+    }
+    if (svg_st->pb_b) {
+        perf_buffer__free(svg_st->pb_b);
+    }
+    if (svg_st->svg_mng) {
+        destroy_svg_mng(svg_st->svg_mng);
+    }
+
+    clear_stack_histo(svg_st);
+
+    (void)free(svg_st);
+    return;
+}
+
+static void destroy_stack_trace(struct stack_trace_s **ptr_st)
+{
+    struct stack_trace_s *st = *ptr_st;
+    *ptr_st = NULL;
+    if (!st) {
+        return;
     }
 
     for (int cpu = 0; cpu < st->cpus_num; cpu++) {
@@ -691,31 +700,12 @@ static void destroy_stack_trace(struct satck_trace_s **ptr_st)
         }
     }
 
-#if 0
-    if (st->symb_histogram) {
-        (void)free(st->symb_histogram);
-    }
-
-    if (st->stack_histogram) {
-        (void)free(st->stack_histogram);
-    }
-#endif
     if (st->ksymbs) {
         destroy_ksymbs_tbl(st->ksymbs);
         (void)free(st->ksymbs);
     }
 
-    if (st->pb_a) {
-        perf_buffer__free(st->pb_a);
-    }
-    if (st->pb_b) {
-        perf_buffer__free(st->pb_b);
-    }
-    if (st->svg_mng) {
-        destroy_svg_mng(st->svg_mng);
-    }
     destroy_raw_stack_trace(st);
-    clear_stack_histo(st);
     destroy_proc_cache_tbl(st);
 
     if (st->elf_reader) {
@@ -730,11 +720,41 @@ static void destroy_stack_trace(struct satck_trace_s **ptr_st)
     return;
 }
 
-static struct satck_trace_s *create_stack_trace(void)
+static struct svg_stack_trace_s *create_svg_stack_trace(StackprobeConfig *conf, const char *flame_name)
+{
+    struct svg_stack_trace_s *svg_st = (struct svg_stack_trace_s *)malloc(sizeof(struct svg_stack_trace_s));
+    if (!svg_st) {
+        return NULL;
+    }
+    memset(svg_st, 0, sizeof(struct svg_stack_trace_s));
+
+    svg_st->svg_mng = create_svg_mng(conf->generalConfig->period);
+    if (!svg_st->svg_mng) {
+        goto err;
+    }
+
+    if (set_svg_dir(&svg_st->svg_mng->svg, conf->generalConfig->svgDir, flame_name)) {
+        goto err;
+    }
+
+    if (set_flame_graph_path(svg_st->svg_mng, conf->generalConfig->flameDir, flame_name)) {
+        goto err;
+    }
+
+    INFO("[STACKPROBE]: create %s svg stack trace succeed.\n", flame_name);
+    return svg_st;
+
+err:
+    destroy_svg_stack_trace(&svg_st);
+    return NULL;
+}
+
+
+static struct stack_trace_s *create_stack_trace(StackprobeConfig *conf)
 {
     int cpus_num = NR_CPUS;
-    size_t size = sizeof(struct satck_trace_s) + cpus_num * sizeof(int);
-    struct satck_trace_s *st = (struct satck_trace_s *)malloc(size);
+    size_t size = sizeof(struct stack_trace_s) + cpus_num * sizeof(int);
+    struct stack_trace_s *st = (struct stack_trace_s *)malloc(size);
     if (!st) {
         return NULL;
     }
@@ -742,29 +762,14 @@ static struct satck_trace_s *create_stack_trace(void)
     (void)memset(st, 0, size);
     st->cpus_num = cpus_num;
 
-    init_stack_params(&(st->stack_params));
-
 #if 0
-    if (stacktrace_create_log_mgr(st)) {
+    if (stacktrace_create_log_mgr(st, conf->generalConfig->logDir)) {
         goto err;
     }
 #endif
 
-    st->svg_mng = create_svg_mng(st->stack_params.period);
-    if (!st->svg_mng) {
-        goto err;
-    }
-
-    st->elf_reader = create_elf_reader(st->stack_params.debug_dir);
+    st->elf_reader = create_elf_reader(conf->generalConfig->debugDir);
     if (!st->elf_reader) {
-        goto err;
-    }
-
-    if (set_svg_dir(st->svg_mng, st->stack_params.params[STACK_SVG_ONCPU].svg_dir, STACK_SVG_ONCPU)) {
-        goto err;
-    }
-
-    if (set_flame_graph_path(st->svg_mng, st->stack_params.params[STACK_SVG_ONCPU].flame_graph, STACK_SVG_ONCPU)) {
         goto err;
     }
 
@@ -786,7 +791,7 @@ static struct satck_trace_s *create_stack_trace(void)
     (void)sort_kern_syms(st->ksymbs);
 
     st->running_times = (time_t)time(NULL);
-
+    st->is_stackmap_a = ((st->convert_stack_count % 2) == 0);
     INFO("[STACKPROBE]: create stack trace succeed(cpus_num = %d, kern_symbols = %u).\n",
         st->cpus_num, st->ksymbs->ksym_size);
     return st;
@@ -796,41 +801,41 @@ err:
     return NULL;
 }
 
-static int load_bpf_prog(struct satck_trace_s *st)
+static int load_bpf_prog(struct svg_stack_trace_s *svg_st, const char *prog_name)
 {
     int ret;
     struct bpf_program *prog;
 
-    st->obj = bpf_object__open_file(ON_CPU_PROG, NULL);
-    ret = libbpf_get_error(st->obj);
+    svg_st->obj = bpf_object__open_file(prog_name, NULL);
+    ret = libbpf_get_error(svg_st->obj);
     if (ret) {
         ERROR("[STACKPROBE]: opening BPF object file failed(err = %d).\n", ret);
         goto err;
     }
 
-    ret = BPF_PIN_MAP_PATH(st->obj, "proc_obj_map", PROC_MAP_PATH);
+    ret = BPF_PIN_MAP_PATH(svg_st->obj, "proc_obj_map", PROC_MAP_PATH);
     if (ret) {
         ERROR("[STACKPROBE]: Failed to pin bpf map(err = %d).\n", ret);
         goto err;
     }
 
-    ret = bpf_object__load(st->obj);
+    ret = bpf_object__load(svg_st->obj);
     if (ret) {
         ERROR("[STACKPROBE]: Failed to load bpf prog(err = %d).\n", ret);
         goto err;
     }
 
-    prog = bpf_program__next(NULL, st->obj);
+    prog = bpf_program__next(NULL, svg_st->obj);
     if (prog == NULL) {
         ERROR("[STACKPROBE]: Cannot find bpf_prog.\n");
         goto err;
     }
-    st->bpf_prog_fd = bpf_program__fd(prog);
-    st->convert_map_fd = BPF_GET_MAP_FD(st->obj, "convert_map");
-    st->stackmap_a_fd = BPF_GET_MAP_FD(st->obj, "stackmap_a");
-    st->stackmap_b_fd = BPF_GET_MAP_FD(st->obj, "stackmap_b");
-    st->stackmap_perf_a_fd = BPF_GET_MAP_FD(st->obj, "stackmap_perf_a");
-    st->stackmap_perf_b_fd = BPF_GET_MAP_FD(st->obj, "stackmap_perf_b");
+    svg_st->bpf_prog_fd = bpf_program__fd(prog);
+    g_st->convert_map_fd = BPF_GET_MAP_FD(svg_st->obj, "convert_map");
+    g_st->stackmap_a_fd = BPF_GET_MAP_FD(svg_st->obj, "stackmap_a");
+    g_st->stackmap_b_fd = BPF_GET_MAP_FD(svg_st->obj, "stackmap_b");
+    svg_st->stackmap_perf_a_fd = BPF_GET_MAP_FD(svg_st->obj, "stackmap_perf_a");
+    svg_st->stackmap_perf_b_fd = BPF_GET_MAP_FD(svg_st->obj, "stackmap_perf_b");
 
     INFO("[STACKPROBE]: load bpf prog succeed(%s).\n", ON_CPU_PROG);
     return 0;
@@ -839,7 +844,7 @@ err:
     return -1;
 }
 
-static int perf_and_attach_bpf_prog(struct satck_trace_s *st)
+static int perf_and_attach_bpf_prog(struct svg_stack_trace_s *svg_st)
 {
     int ret;
 
@@ -850,30 +855,30 @@ static int perf_and_attach_bpf_prog(struct satck_trace_s *st)
         .config = PERF_COUNT_SW_CPU_CLOCK,
     };
 
-    st->pb_a = create_pref_buffer2(st->stackmap_perf_a_fd, process_raw_stack_trace, process_loss_data);
-    if (!st->pb_a) {
+    svg_st->pb_a = create_pref_buffer2(svg_st->stackmap_perf_a_fd, process_raw_stack_trace, process_loss_data);
+    if (!svg_st->pb_a) {
         goto err;
     }
 
-    st->pb_b = create_pref_buffer2(st->stackmap_perf_b_fd, process_raw_stack_trace, process_loss_data);
-    if (!st->pb_b) {
+    svg_st->pb_b = create_pref_buffer2(svg_st->stackmap_perf_b_fd, process_raw_stack_trace, process_loss_data);
+    if (!svg_st->pb_b) {
         goto err;
     }
 
-    for(int cpu = 0; cpu < st->cpus_num; cpu++) {
-        st->pmu_fd[cpu] = perf_event_open(&attr_type_sw, -1, cpu, -1, 0);
-        if (st->pmu_fd[cpu] < 0) {
+    for (int cpu = 0; cpu < g_st->cpus_num; cpu++) {
+        g_st->pmu_fd[cpu] = perf_event_open(&attr_type_sw, -1, cpu, -1, 0);
+        if (g_st->pmu_fd[cpu] < 0) {
             ERROR("[STACKPROBE]: Failed open perf event.\n");
             goto err;
         }
 
-        ret = ioctl(st->pmu_fd[cpu], PERF_EVENT_IOC_ENABLE, 0);
+        ret = ioctl(g_st->pmu_fd[cpu], PERF_EVENT_IOC_ENABLE, 0);
         if (ret) {
             ERROR("[STACKPROBE]: Failed to PERF_EVENT_IOC_ENABLE(err = %d).\n", ret);
             goto err;
         }
 
-        ret = ioctl(st->pmu_fd[cpu], PERF_EVENT_IOC_SET_BPF, st->bpf_prog_fd);
+        ret = ioctl(g_st->pmu_fd[cpu], PERF_EVENT_IOC_SET_BPF, svg_st->bpf_prog_fd);
         if (ret) {
             ERROR("[STACKPROBE]: Failed to PERF_EVENT_IOC_SET_BPF(err = %d).\n", ret);
             goto err;
@@ -888,10 +893,10 @@ err:
     return -1;
 }
 
-static void update_convert_counter(struct satck_trace_s *st)
+static void update_convert_counter()
 {
     u32 key = 0;
-    (void)bpf_map_update_elem(st->convert_map_fd, &key, &(st->convert_stack_count), BPF_ANY);
+    (void)bpf_map_update_elem(g_st->convert_map_fd, &key, &(g_st->convert_stack_count), BPF_ANY);
 }
 
 static void clear_stackmap(int stackmap_fd)
@@ -903,12 +908,17 @@ static void clear_stackmap(int stackmap_fd)
     }
 }
 
-static void clear_running_ctx(struct satck_trace_s *st)
+static void clear_running_ctx(struct stack_trace_s *st)
 {
     u64 pcache_crt, pcache_del;
     clear_raw_stack_trace(st);
     clear_stackmap(get_stack_map_fd(st));
-    clear_stack_histo(st);
+    for (int i = 0; i < STACK_SVG_MAX; i++) {
+        if (st->svg_stack_traces[i] == NULL) {
+            continue;
+        }
+        clear_stack_histo(st->svg_stack_traces[i]);
+    }
 
     pcache_del = st->stats.count[STACK_STATS_PCACHE_DEL];
     pcache_crt = st->stats.count[STACK_STATS_PCACHE_CRT];
@@ -917,7 +927,7 @@ static void clear_running_ctx(struct satck_trace_s *st)
     st->stats.count[STACK_STATS_PCACHE_CRT] = pcache_crt;
 }
 
-static void record_running_ctx(struct satck_trace_s *st)
+static void record_running_ctx(struct stack_trace_s *st)
 {
 #if 1 //GOPHER_DEBUG
     int i, len, ret;
@@ -957,37 +967,100 @@ static void record_running_ctx(struct satck_trace_s *st)
     return;
 }
 
-static void running(struct satck_trace_s *st)
+static void *__running(void *arg)
 {
     int ret;
-
-    // Obtains the data channel used to read stack-trace data.
-    st->is_stackmap_a = ((st->convert_stack_count % 2) == 0);
-    struct perf_buffer *pb = get_pb(st);
+    struct svg_stack_trace_s *svg_st = arg;
+    struct perf_buffer *pb = get_pb(g_st, svg_st);
 
     // Read raw stack-trace data from current data channel.
     while ((ret = perf_buffer__poll(pb, 0)) >= 0) {
-        if (is_tmout(st)) {
-            break;
-        }
         if (g_stop) {
             break;
         }
+        pb = get_pb(g_st, svg_st);
         sleep(1);
+    }
+    printf("fuck\n");
+    return NULL;
+}
+
+static void switch_stackmap()
+{
+    struct stack_trace_s *st = g_st;
+    st->is_stackmap_a = ((st->convert_stack_count % 2) == 0);
+
+    if (!is_tmout(st)) {
+        return;
     }
 
     // Notify BPF to switch to another channel
     st->convert_stack_count++;
-    update_convert_counter(st); 
-
+    update_convert_counter();
     (void)stack_id2histogram(st);
     // Histogram format to flame graph
-    wr_flamegraph(st->svg_mng, st->oncpu_histo_tbl, STACK_SVG_ONCPU);
-
+    for (int i = 0; i < STACK_SVG_MAX; i++) {
+        if (st->svg_stack_traces[i] == NULL) {
+            continue;
+        }
+        wr_flamegraph(st->svg_stack_traces[i]->svg_mng, st->svg_stack_traces[i]->histo_tbl, i);
+    }
     record_running_ctx(st);
-
     // Clear the context information of the running environment.
     clear_running_ctx(st);
+    sleep(1);
+}
+
+static void init_wr_flame_pthreads(struct svg_stack_trace_s *svg_st, const char *flame_name)
+{
+    int err;
+    pthread_t wr_flame_thd;
+
+    err = pthread_create(&wr_flame_thd, NULL, __running, (void *)svg_st);
+    if (err != 0) {
+        fprintf(stderr, "Failed to create %s wr_flame_pthread.\n", flame_name);
+        g_stop = 1;
+        return;
+    }
+    printf("%s wr_flame_pthread successfully started!\n", flame_name);
+
+    return;
+}
+
+static void init_enabled_svg_stack_traces(StackprobeConfig *conf)
+{
+    struct svg_stack_trace_s *svg_st;
+    FlameProc flameProcs[] = {
+        // This array order must be the same as the order of enum stack_svg_type_e
+        { conf->flameTypesConfig->oncpu, STACK_SVG_ONCPU, "oncpu", ON_CPU_PROG},
+        { conf->flameTypesConfig->offcpu, STACK_SVG_OFFCPU, "offcpu", OFF_CPU_PROG},
+        { conf->flameTypesConfig->io, STACK_SVG_IO, "io", IO_PROG}
+    };
+    
+    for (int i = 0; i < STACK_SVG_MAX; i++) {
+        if (!flameProcs[i].sw) {
+            continue;
+        }
+        
+        svg_st = create_svg_stack_trace(conf, flameProcs[i].flame_name);
+        if (!svg_st) {
+            continue;
+        }
+        g_st->svg_stack_traces[i] = svg_st;
+
+        if (load_bpf_prog(svg_st, flameProcs[i].prog_name)) {
+            destroy_svg_stack_trace(&svg_st);
+            continue;
+        }
+
+        if (perf_and_attach_bpf_prog(svg_st)) {
+            destroy_svg_stack_trace(&svg_st);
+            continue;
+        }
+        // Initializing the BPF Data Channel
+        update_convert_counter();
+        init_wr_flame_pthreads(svg_st, flameProcs[i].flame_name);
+    }
 }
 
 #ifdef EBPF_RLIM_LIMITED
@@ -997,10 +1070,17 @@ static void running(struct satck_trace_s *st)
 int main(int argc, char **argv)
 {
     int err = -1;
+    StackprobeConfig *conf;
+
 
     if (signal(SIGINT, sig_int) == SIG_ERR) {
         fprintf(stderr, "can't set signal handler: %d\n", errno);
         return errno;
+    }
+
+    err = configInit(&conf, STACKPROBE_CONF_PATH_DEFAULT);
+    if (err != 0) {
+        return -1;
     }
 
     err = args_parse(argc, argv, &params);
@@ -1010,30 +1090,19 @@ int main(int argc, char **argv)
 
     INIT_BPF_APP(stackprobe, EBPF_RLIM_LIMITED);
 
-    g_st = create_stack_trace();
+    g_st = create_stack_trace(conf);
     if (!g_st) {
         return -1;
     }
-
-    if (load_bpf_prog(g_st)) {
-        goto err;
-    }
-
-    if (perf_and_attach_bpf_prog(g_st)) {
-        goto err;
-    }
-
-    // Initializing the BPF Data Channel
-    update_convert_counter(g_st);
-
+    init_enabled_svg_stack_traces(conf);
     INFO("[STACKPROBE]: Started successfully.\n");
 
     while (!g_stop) {
-        running(g_st);
+        switch_stackmap();
         sleep(1);
     }
 
-err:
     destroy_stack_trace(&g_st);
+
     return -err;
 }

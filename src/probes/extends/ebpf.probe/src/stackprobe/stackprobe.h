@@ -22,6 +22,8 @@
 #include "svg.h"
 #include "stack.h"
 
+#define STACKPROBE_CONF_PATH_DEFAULT "/opt/gala-gopher/extend_probes/stackprobe.conf"
+
 struct stack_symbs_s {
     struct addr_symb_s user_stack_symbs[PERF_MAX_STACK_DEPTH];
     struct addr_symb_s kern_stack_symbs[PERF_MAX_STACK_DEPTH];
@@ -84,33 +86,35 @@ struct stack_param_s {
     struct flame_graph_param_s params[STACK_SVG_MAX];
 };
 
-struct satck_trace_s {
-    char is_stackmap_a;
+struct svg_stack_trace_s {
+    int bpf_prog_fd;
+    struct bpf_object *obj;
+
+    int stackmap_perf_a_fd;
+    int stackmap_perf_b_fd;
+    struct perf_buffer* pb_a;
+    struct perf_buffer* pb_b;
+
+    struct stack_svg_mng_s *svg_mng;
+    struct stack_trace_histo_s *histo_tbl;
+};
+
+struct stack_trace_s {
     char pad[3];
     int cpus_num;
-    int bpf_prog_fd;
+    char is_stackmap_a;
     int convert_map_fd;
     int stackmap_a_fd;
     int stackmap_b_fd;
-    int stackmap_perf_a_fd;
-    int stackmap_perf_b_fd;
+    u64 convert_stack_count;
     time_t running_times;
 
-    u64 convert_stack_count;
-
-    struct perf_buffer* pb_a;
-    struct perf_buffer* pb_b;
-    struct bpf_object *obj;
-
+    struct svg_stack_trace_s *svg_stack_traces[STACK_SVG_MAX];
     struct raw_stack_trace_s *raw_stack_traces;
-    struct stack_trace_histo_s *oncpu_histo_tbl;
-
     struct ksymb_tbl_s *ksymbs;
     struct proc_cache_s *proc_cache;
     u32 proc_cache_mirro_count;
     struct proc_cache_s *proc_cache_mirro[PROC_CACHE_MAX_COUNT]; // No release is required.
-
-    struct stack_svg_mng_s *svg_mng;
 
     struct elf_reader_s *elf_reader;
 
