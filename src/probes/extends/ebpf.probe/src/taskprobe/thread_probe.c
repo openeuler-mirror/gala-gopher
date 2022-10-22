@@ -32,7 +32,6 @@
 #include "thread.h"
 #include "event.h"
 #include "task.h"
-#include "thread_io.skel.h"
 #include "cpu.skel.h"
 #include "bpf_prog.h"
 
@@ -40,12 +39,9 @@
 #undef OO_NAME
 #endif
 #define OO_NAME  "thread"
-#define THREAD_TBL_IO       "thread_io"
 #define THREAD_TBL_CPU      "thread_cpu"
 
 static struct probe_params *g_args;
-
-#define US(ms)  ((u64)(ms) * 1000)
 
 #define __LOAD_PROBE(probe_name, end, load) \
     OPEN(probe_name, end, load); \
@@ -57,7 +53,7 @@ static struct probe_params *g_args;
 static void report_task_metrics(struct task_data *data)
 {
     char entityId[INT_LEN];
-    u64 latency_thr_us = US(g_args->latency_thr);
+    u64 offline_thr_us = US(g_args->offline_thr);
 
     if (g_args->logs == 0) {
         return;
@@ -66,7 +62,7 @@ static void report_task_metrics(struct task_data *data)
     entityId[0] = 0;
     (void)snprintf(entityId, INT_LEN, "%d", data->id.pid);
 
-    if (data->cpu.off_cpu_ns > 0) {
+    if (data->cpu.off_cpu_ns > offline_thr_us) {
         report_logs(OO_NAME,
                     entityId,
                     "off_cpu_ns",
@@ -78,57 +74,6 @@ static void report_task_metrics(struct task_data *data)
                     data->cpu.preempt_id,
                     data->cpu.off_cpu_ns);
     }
-
-    if (data->io.iowait_us > latency_thr_us) {
-        report_logs(OO_NAME,
-                    entityId,
-                    "iowait_us",
-                    EVT_SEC_WARN,
-                    "Process(COMM:%s TID:%d) iowait %llu us.",
-                    data->id.comm,
-                    data->id.pid,
-                    data->io.iowait_us);
-    }
-
-    if (data->io.hang_count > 0) {
-        report_logs(OO_NAME,
-                    entityId,
-                    "hang_count",
-                    EVT_SEC_WARN,
-                    "Process(COMM:%s TID:%d) io hang %u.",
-                    data->id.comm,
-                    data->id.pid,
-                    data->io.hang_count);
-    }
-
-    if (data->io.bio_err_count > 0) {
-        report_logs(OO_NAME,
-                    entityId,
-                    "bio_err_count",
-                    EVT_SEC_WARN,
-                    "Process(COMM:%s TID:%d) bio error %u.",
-                    data->id.comm,
-                    data->id.pid,
-                    data->io.bio_err_count);
-    }
-}
-
-static void output_task_metrics_io(struct task_data *task_data)
-{
-    (void)fprintf(stdout,
-        "|%s|%d|%d|%s|"
-        "%llu|%llu|%llu|%u|%u|\n",
-        THREAD_TBL_IO,
-        task_data->id.pid,
-        task_data->id.tgid,
-        task_data->id.comm,
-
-        task_data->io.bio_bytes_read,
-        task_data->io.bio_bytes_write,
-        task_data->io.iowait_us,
-        task_data->io.hang_count,
-        task_data->io.bio_err_count);
-    return;
 }
 
 static void output_task_metrics_cpu(struct task_data *task_data)
@@ -153,9 +98,7 @@ static void output_task_metrics(void *ctx, int cpu, void *data, __u32 size)
 
     report_task_metrics(task_data);
 
-    if (flags & TASK_PROBE_THREAD_IO) {
-        output_task_metrics_io(task_data);
-    } else if (flags & TASK_PROBE_THREAD_CPU) {
+    if (flags & TASK_PROBE_THREAD_CPU) {
         output_task_metrics_cpu(task_data);
     }
     (void)fflush(stdout);
@@ -176,25 +119,6 @@ static int load_task_create_pb(struct bpf_prog_s* prog, int fd)
         prog->pb = pb;
     }
     return 0;
-}
-
-static int load_task_io_prog(struct bpf_prog_s *prog, char is_load)
-{
-    int ret = 0;
-
-    __LOAD_PROBE(thread_io, err, is_load);
-    if (is_load) {
-        prog->skels[prog->num].skel = thread_io_skel;
-        prog->skels[prog->num].fn = (skel_destroy_fn)thread_io_bpf__destroy;
-        prog->num++;
-
-        ret = load_task_create_pb(prog, GET_MAP_FD(thread_io, g_task_output));
-    }
-
-    return ret;
-err:
-    UNLOAD(thread_io);
-    return -1;
 }
 
 static int load_task_cpu_prog(struct bpf_prog_s *prog, char is_load)
@@ -219,7 +143,7 @@ err:
 struct bpf_prog_s* load_task_bpf_prog(struct probe_params *args)
 {
     struct bpf_prog_s *prog;
-    char is_load_io, is_load_cpu;
+    char is_load_cpu;
 
     g_args = args;
     prog = alloc_bpf_prog();
@@ -227,12 +151,7 @@ struct bpf_prog_s* load_task_bpf_prog(struct probe_params *args)
         return NULL;
     }
 
-    is_load_io = is_load_probe(args, TASK_PROBE_THREAD_IO);
     is_load_cpu = is_load_probe(args, TASK_PROBE_THREAD_CPU);
-
-    if (load_task_io_prog(prog, is_load_io)) {
-        goto err;
-    }
 
     if (load_task_cpu_prog(prog, is_load_cpu)) {
         goto err;

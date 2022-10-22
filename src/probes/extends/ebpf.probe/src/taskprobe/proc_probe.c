@@ -41,6 +41,7 @@
 #include "overlay.skel.h"
 #include "tmpfs.skel.h"
 #include "page.skel.h"
+#include "proc_io.skel.h"
 #include "bpf_prog.h"
 
 #ifdef OO_NAME
@@ -63,6 +64,8 @@ static struct probe_params *g_args;
 #define PROC_TBL_PAGE           "proc_page"
 #define PROC_TBL_DNS            "proc_dns"
 
+#define PROC_TBL_IO             "proc_io"
+
 #define OVERLAY_MOD  "overlay"
 #define EXT4_MOD  "ext4"
 
@@ -76,6 +79,7 @@ static struct probe_params *g_args;
 static void report_proc_metrics(struct proc_data_s *proc)
 {
     char entityId[INT_LEN];
+    u64 latency_thr_us = US(g_args->latency_thr);
 
     if (g_args->logs == 0) {
         return;
@@ -106,6 +110,39 @@ static void report_proc_metrics(struct proc_data_s *proc)
                     proc->comm,
                     proc->proc_id,
                     proc->dns_op.gethostname_failed);
+    }
+
+    if (proc->proc_io.iowait_us > latency_thr_us) {
+        report_logs(OO_NAME,
+                    entityId,
+                    "iowait_us",
+                    EVT_SEC_WARN,
+                    "Process(COMM:%s PID:%u) iowait %llu us.",
+                    proc->comm,
+                    proc->proc_id,
+                    proc->proc_io.iowait_us);
+    }
+
+    if (proc->proc_io.hang_count > 0) {
+        report_logs(OO_NAME,
+                    entityId,
+                    "hang_count",
+                    EVT_SEC_WARN,
+                    "Process(COMM:%s PID:%u) hang count %u.",
+                    proc->comm,
+                    proc->proc_id,
+                    proc->proc_io.hang_count);
+    }
+
+    if (proc->proc_io.bio_err_count > 0) {
+        report_logs(OO_NAME,
+                    entityId,
+                    "bio_err_count",
+                    EVT_SEC_WARN,
+                    "Process(COMM:%s PID:%u) bio error %u.",
+                    proc->comm,
+                    proc->proc_id,
+                    proc->proc_io.bio_err_count);
     }
 }
 
@@ -254,6 +291,27 @@ static void output_proc_metrics_dns(struct proc_data_s *proc)
         proc->dns_op.gethostname_ns);
 }
 
+static void output_proc_io_stats(struct proc_data_s *proc)
+{
+    (void)fprintf(stdout,
+        "|%s|%u|%s|"
+        "%u|%u|%u|%u|"
+        "%u|%u|%u|%llu|\n",
+        PROC_TBL_IO,
+        proc->proc_id,
+        proc->comm,
+
+        proc->proc_io.less_4k_io_read,
+        proc->proc_io.less_4k_io_write,
+        proc->proc_io.greater_4k_io_read,
+        proc->proc_io.greater_4k_io_write,
+
+        proc->proc_io.bio_latency,
+        proc->proc_io.bio_err_count,
+        proc->proc_io.hang_count,
+        proc->proc_io.iowait_us);
+}
+
 static void output_proc_metrics(void *ctx, int cpu, void *data, __u32 size)
 {
     struct proc_data_s *proc = (struct proc_data_s *)data;
@@ -269,9 +327,8 @@ static void output_proc_metrics(void *ctx, int cpu, void *data, __u32 size)
         output_proc_metrics_syscall_net(proc);
     } else if (flags & TASK_PROBE_SCHED_SYSCALL) {
         output_proc_metrics_syscall_sched(proc);
-
-   } else if (flags & TASK_PROBE_FORK_SYSCALL) {
-    output_proc_metrics_syscall_fork(proc);
+    } else if (flags & TASK_PROBE_FORK_SYSCALL) {
+        output_proc_metrics_syscall_fork(proc);
     } else if (flags & TASK_PROBE_EXT4_OP) {
         output_proc_metrics_ext4(proc);
     } else if (flags & TASK_PROBE_OVERLAY_OP) {
@@ -282,6 +339,8 @@ static void output_proc_metrics(void *ctx, int cpu, void *data, __u32 size)
         output_proc_metrics_page(proc);
     } else if (flags & TASK_PROBE_DNS_OP) {
         output_proc_metrics_dns(proc);
+    } else if (flags & TASK_PROBE_IO) {
+        output_proc_io_stats(proc);
     }
 
     (void)fflush(stdout);
@@ -475,11 +534,30 @@ err:
     return -1;
 }
 
+static int load_proc_io_prog(struct bpf_prog_s *prog, char is_load)
+{
+    int ret = 0;
+
+    __LOAD_PROBE(proc_io, err, is_load);
+    if (is_load) {
+        prog->skels[prog->num].skel = proc_io_skel;
+        prog->skels[prog->num].fn = (skel_destroy_fn)proc_io_bpf__destroy;
+        prog->num++;
+
+        ret = load_proc_create_pb(prog, GET_MAP_FD(proc_io, g_proc_output));
+    }
+
+    return ret;
+err:
+    UNLOAD(proc_io);
+    return -1;
+}
+
 struct bpf_prog_s* load_proc_bpf_prog(struct probe_params *args)
 {
     struct bpf_prog_s *prog;
     char is_load_syscall, is_load_syscall_io, is_load_syscall_net;
-    char is_load_syscall_fork, is_load_syscall_sched;
+    char is_load_syscall_fork, is_load_syscall_sched, is_load_proc_io;
     char is_load_overlay, is_load_ext4, is_load_tmpfs, is_load_page;
 
     is_load_overlay = is_load_probe(args, TASK_PROBE_OVERLAY_OP) & is_exist_mod(OVERLAY_MOD);
@@ -493,6 +571,8 @@ struct bpf_prog_s* load_proc_bpf_prog(struct probe_params *args)
 
     is_load_tmpfs = is_load_probe(args, TASK_PROBE_TMPFS_OP);
     is_load_page = is_load_probe(args, TASK_PROBE_PAGE_OP);
+
+    is_load_proc_io = is_load_probe(args, TASK_PROBE_IO);
 
     g_args = args;
 
@@ -534,6 +614,10 @@ struct bpf_prog_s* load_proc_bpf_prog(struct probe_params *args)
     }
 
     if (load_proc_page_prog(prog, is_load_page)) {
+        goto err;
+    }
+
+    if (load_proc_io_prog(prog, is_load_proc_io)) {
         goto err;
     }
 

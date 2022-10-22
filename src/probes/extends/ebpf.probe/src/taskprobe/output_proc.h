@@ -75,6 +75,8 @@ static __always_inline __maybe_unused char is_proc_tmout(struct proc_data_s *pro
         IS_PROC_TMOUT(stats_ts, ts, period, page, tmout);
     } else if (flags & TASK_PROBE_DNS_OP) {
         IS_PROC_TMOUT(stats_ts, ts, period, dns, tmout);
+    } else if (flags & TASK_PROBE_IO) {
+        IS_PROC_TMOUT(stats_ts, ts, period, io, tmout);
     } else {
         tmout = 0;
     }
@@ -101,7 +103,6 @@ static __always_inline __maybe_unused void reset_proc_stats(struct proc_data_s *
         proc->syscall.ns_futex = 0;
         proc->syscall.ns_epoll_wait = 0;
         proc->syscall.ns_epoll_pwait = 0;
-
    } else if (flags & TASK_PROBE_FORK_SYSCALL) {
         proc->syscall.ns_fork = 0;
         proc->syscall.ns_vfork = 0;
@@ -116,6 +117,8 @@ static __always_inline __maybe_unused void reset_proc_stats(struct proc_data_s *
         __builtin_memset(&(proc->page_op), 0x0, sizeof(proc->page_op));
     } else if (flags & TASK_PROBE_DNS_OP) {
         __builtin_memset(&(proc->dns_op), 0x0, sizeof(proc->dns_op));
+    } else if (flags & TASK_PROBE_IO) {
+        __builtin_memset(&(proc->proc_io), 0x0, sizeof(proc->proc_io));
     }
 }
 
