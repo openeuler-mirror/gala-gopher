@@ -57,9 +57,7 @@ static __always_inline __maybe_unused char is_task_tmout(struct task_data *task,
 
     struct task_ts_s *stats_ts = &(task->stats_ts);
 
-    if (flags & TASK_PROBE_THREAD_IO) {
-        IS_TASK_TMOUT(stats_ts, ts, period, io, tmout);
-    } else if (flags & TASK_PROBE_THREAD_CPU) {
+    if (flags & TASK_PROBE_THREAD_CPU) {
         IS_TASK_TMOUT(stats_ts, ts, period, cpu, tmout);
     } else {
         tmout = 0;
@@ -78,9 +76,7 @@ static __always_inline __maybe_unused void report_task(void *ctx, struct task_da
     (void)bpf_perf_event_output(ctx, &g_task_output, BPF_F_CURRENT_CPU, val, sizeof(struct task_data));
     val->flags = 0;
 
-    if (flags & TASK_PROBE_THREAD_IO) {
-        __builtin_memset(&(val->io), 0x0, sizeof(val->io));
-    } else if (flags & TASK_PROBE_THREAD_CPU) {
+    if (flags & TASK_PROBE_THREAD_CPU) {
         __builtin_memset(&(val->cpu), 0x0, sizeof(val->cpu));
     }
 }

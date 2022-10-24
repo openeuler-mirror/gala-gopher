@@ -17,23 +17,11 @@
 
 #pragma once
 
-#define SHARE_MAP_TASK_MAX_ENTRIES (10 * 1024)
-
 enum task_status_type {
     TASK_STATUS_ACTIVE = 0,
     TASK_STATUS_INACTIVE,
     TASK_STATUS_INVALID,
     TASK_STATUS_MAX,
-};
-
-struct task_io_data {
-    __u64 bio_bytes_read;
-    __u64 bio_bytes_write;
-
-    __u64 iowait_us;
-    __u32 hang_count;
-
-    __u32 bio_err_count;
 };
 
 struct task_cpu_data {
@@ -56,7 +44,6 @@ struct task_id {
 };
 
 struct task_ts_s {
-    u64 ts_io;
     u64 ts_cpu;
 };
 
@@ -64,7 +51,6 @@ struct task_data {
     u32 flags;
     struct task_ts_s stats_ts;
     struct task_id id;
-    struct task_io_data io;
     struct task_cpu_data cpu;
 };
 

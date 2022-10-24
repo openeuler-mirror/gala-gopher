@@ -330,5 +330,62 @@ measurements:
                 name: "ns_gethostname",
             }
         )
+    },
+    {
+        table_name: "proc_io",
+        entity_name: "proc",
+        fields:
+        (
+            {
+                description: "ID of the process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "comm of the process",
+                type: "label",
+                name: "comm",
+            },
+            {
+                description: "Number of small I/O (less than 4 KB) read operations at the BIO layer.",
+                type: "gauge",
+                name: "less_4k_io_read",
+            },
+            {
+                description: "Number of small I/O (less than 4 KB) write operations at the BIO layer.",
+                type: "gauge",
+                name: "less_4k_io_write",
+            },
+            {
+                description: "Number of big I/O (greater than 4 KB) read operations at the BIO layer.",
+                type: "gauge",
+                name: "greater_4k_io_read",
+            },
+            {
+                description: "Number of big I/O (greater than 4 KB) write operations at the BIO layer.",
+                type: "gauge",
+                name: "greater_4k_io_write",
+            },
+            {
+                description: "I/O operation delay at the BIO layer (unit: us).",
+                type: "gauge",
+                name: "bio_latency",
+            },
+            {
+                description: "Number of I/O operation failures at the BIO layer.",
+                type: "gauge",
+                name: "bio_err_count",
+            },
+            {
+                description: "Number of process hang times.",
+                type: "gauge",
+                name: "hang_count",
+            },
+            {
+                description: "Process IO_wait time (unit: us).",
+                type: "gauge",
+                name: "iowait_us",
+            }
+        )
     }
 )

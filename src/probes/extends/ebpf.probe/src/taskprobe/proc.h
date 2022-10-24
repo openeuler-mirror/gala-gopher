@@ -81,6 +81,19 @@ struct proc_ts_s {
 
     u64 ts_page;
     u64 ts_dns;
+
+    u64 ts_io;
+};
+
+struct proc_io_s {
+    u32 less_4k_io_read;
+    u32 less_4k_io_write;
+    u32 greater_4k_io_read;
+    u32 greater_4k_io_write;
+    u32 bio_latency;
+    u32 bio_err_count;
+    u32 hang_count;
+    u64 iowait_us;
 };
 
 struct proc_data_s {
@@ -95,6 +108,7 @@ struct proc_data_s {
     struct fs_op_s op_tmpfs;
     struct page_op_s page_op;
     struct dns_op_s dns_op;
+    struct proc_io_s proc_io;
 };
 
 #endif
