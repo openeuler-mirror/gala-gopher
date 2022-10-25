@@ -15,10 +15,14 @@
 #ifndef __PGSLIPROBE_H__
 #define __PGSLIPROBE_H__
 
-#define TC_PROG "tc_tstamp.bpf.o"
+#define TC_TSTAMP_PROG "tc_tstamp.bpf.o"
 
 #define SLI_OK       0
 #define SLI_ERR      (-1)
+
+#if ((CURRENT_KERNEL_VERSION == KERNEL_VERSION(4, 18, 0)) || (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(5, 10, 0)))
+#define KERNEL_SUPPORT_TSTAMP
+#endif
 
 struct ogsli_args_s {
     __u64 period; // Sampling period, unit ns
