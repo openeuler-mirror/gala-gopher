@@ -33,7 +33,7 @@
 #define HTTP_PATCH              0x9
 #define HTTP_NUMS               0x9
 
-#define READY_FOR_UNKNOWN       0x0
+#define READY_FOR_WRITE         0x0
 #define READY_FOR_RECVIVE       0x1
 #define READY_FOR_SEND          0x2
 #define READY_FOR_SKBSENT       0x3
