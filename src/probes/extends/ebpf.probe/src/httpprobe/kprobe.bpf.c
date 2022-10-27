@@ -44,9 +44,8 @@ static __always_inline u64 get_period()
 {
     u32 key = 0;
     u64 period = PERIOD;
-    struct http_args_s *args;
 
-    args = (struct http_args_s *)bpf_map_lookup_elem(&args_map, &key);
+    struct http_args_s *args = (struct http_args_s *)bpf_map_lookup_elem(&args_map, &key);
     if (args) {
         period = args->period;
     }
@@ -98,12 +97,12 @@ static __always_inline void handle_req(struct pt_regs *ctx)
     struct conn_key_t key = {0};
     struct conn_data_t *data = NULL;
     struct probe_val val = {0};
+    u32 tgid __maybe_unused = bpf_get_current_pid_tgid() >> TGID_LSHIFT_LEN;
     
     if (PROBE_GET_PARMS(__sys_recvfrom, ctx, val, CTX_USER) < 0 || (int)PT_REGS_RC(ctx) < REQ_BUF_SIZE) {
-        bpf_printk("__sys_recvfrom fail...");
         return;
     }
-    key.tgid = bpf_get_current_pid_tgid() >> TGID_LSHIFT_LEN ;
+    key.tgid = tgid;
     key.skfd = (int)PROBE_PARM1(val);
     data = bpf_map_lookup_elem(&conn_map, &key);
     if (data == NULL || data->status == READY_FOR_SEND) {
@@ -127,20 +126,21 @@ KRETPROBE(__sys_accept4, pt_regs)
     struct conn_samp_key_t cskey = {0};
     struct conn_samp_data_t csdata = {0};
     struct task_struct *task_p = (struct task_struct *)bpf_get_current_task();
+    u32 tgid __maybe_unused = bpf_get_current_pid_tgid() >> TGID_LSHIFT_LEN;
 
     if (skfd < 0) {
-        bpf_printk("__sys_accept4 fail...");
         return;
     }
-    ckey.tgid = bpf_get_current_pid_tgid() >> TGID_LSHIFT_LEN;
+    ckey.tgid = tgid;
     ckey.skfd = skfd;
     cdata.status = READY_FOR_RECVIVE;
     cdata.sock = (u64)sock_get_by_fd(ckey.skfd, task_p);
     bpf_map_update_elem(&conn_map, &ckey, &cdata, BPF_ANY);
 
     cskey.sk = (struct sock *)cdata.sock;
-    csdata.tgid = bpf_get_current_pid_tgid() >> TGID_LSHIFT_LEN;
+    csdata.tgid = ckey.tgid;
     csdata.skfd = ckey.skfd;
+    csdata.status = READY_FOR_WRITE;
     bpf_map_update_elem(&conn_samp_map, &cskey, &csdata, BPF_ANY);
 }
 
@@ -154,20 +154,20 @@ KPROBE_RET(ksys_read, pt_regs, CTX_USER)
     handle_req(ctx);
 }
 
-KPROBE_RET(__x64_sys_writev, pt_regs, CTX_USER)
+KPROBE_RET(do_writev, pt_regs, CTX_USER)
 {
+    u32 tgid __maybe_unused = bpf_get_current_pid_tgid() >> TGID_LSHIFT_LEN;
     struct conn_key_t ckey = {0};
     struct conn_data_t *cdata = NULL;
     struct conn_samp_key_t cskey = {0};
     struct conn_samp_data_t *csdata = NULL;
     struct probe_val val = {0};
 
-    if (PROBE_GET_PARMS(__x64_sys_writev, ctx, val, CTX_USER) < 0 || (int)PT_REGS_RC(ctx) <= REQ_BUF_SIZE - 1) {
-        bpf_printk("__x64_sys_writev fail...");
+    if (PROBE_GET_PARMS(do_writev, ctx, val, CTX_USER) < 0 || (int)PT_REGS_RC(ctx) <= REQ_BUF_SIZE - 1) {
         return;
     }
-    ckey.tgid = bpf_get_current_pid_tgid() >> TGID_LSHIFT_LEN;
-    ckey.skfd = (int)PROBE_PARM2(val);
+    ckey.tgid = tgid;
+    ckey.skfd = (int)PROBE_PARM1(val);
     cdata = (struct conn_data_t *)bpf_map_lookup_elem(&conn_map, &ckey);
     if (cdata == NULL || cdata->status == READY_FOR_RECVIVE) {
         return;
@@ -177,7 +177,7 @@ KPROBE_RET(__x64_sys_writev, pt_regs, CTX_USER)
         return;
     }
     csdata = (struct conn_samp_data_t *)bpf_map_lookup_elem(&conn_samp_map, &cskey);
-    if (csdata == NULL) {
+    if (csdata == NULL || csdata->status != READY_FOR_WRITE) {
         return;
     }
     csdata->method = cdata->method;
@@ -217,7 +217,7 @@ KPROBE(tcp_rate_skb_delivered, pt_regs)
     snd_una = _(tcp_sk->snd_una);
     data = (struct conn_samp_data_t *)bpf_map_lookup_elem(&conn_samp_map, &key);
     if (data != NULL && data->endseq <= snd_una && data->status == READY_FOR_SKBACKED) {
-        data->status = READY_FOR_UNKNOWN;
+        data->status = READY_FOR_WRITE;
         data->ackedtime = bpf_ktime_get_ns();
         periodic_report(data, ctx, key.sk);
     }
