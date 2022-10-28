@@ -29,6 +29,7 @@ static void __set_default_params(struct probe_params *params)
 {
     (void)memset(params, 0, sizeof(struct probe_params));
     params->period = DEFAULT_PERIOD;
+    params->sample_period = DEFAULT_SAMPLE_PERIOD;
     params->load_probe = DEFAULT_LOAD_PROBE;
 }
 
@@ -55,7 +56,6 @@ static void __filter_arg_parse(char *arg, struct probe_params *params)
         return;
     }
 
-    (void)strncpy(params->filter_block, arg, BLOCK_NAME - 1);
     return;
 }
 
@@ -72,6 +72,10 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
                 return -1;
             }
             params->period = interval;
+            break;
+        case 's':
+            interval = (unsigned int)atoi(arg);
+            params->sample_period = interval;
             break;
         case 'p':
             if (arg != NULL) {
@@ -115,9 +119,10 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
         case 'l':
             params->logs = 1;
             break;
-        case 'n':
+        case 'd':
             if (arg != NULL) {
                 (void)snprintf((void *)params->netcard_list, MAX_PATH_LEN, "%s", arg);
+                (void)snprintf((void *)params->target_dev, DEV_NAME, "%s", arg);
             }
             break;
         case 'P':

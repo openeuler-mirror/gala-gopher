@@ -19,12 +19,14 @@
 
 #define DEFAULT_LOAD_PROBE  (0xFFFFFFFF)
 #define DEFAULT_PERIOD      5
+#define DEFAULT_SAMPLE_PERIOD      100
 #define MAX_PATH_LEN        512
 #define MAX_PROC_NAME_LEN   8
-#define BLOCK_NAME          32
-#define __OPT_S "t:T:J:O:D:F:lU:L:c:p:w:n:P:C"
+#define DEV_NAME            32
+#define __OPT_S "t:s:T:J:O:D:F:lU:L:c:p:w:d:P:C"
 struct probe_params {
-    unsigned int period;          // [-t <>] Sampling period, unit second, default is 5 seconds
+    unsigned int period;          // [-t <>] Report period, unit second, default is 5 seconds
+    unsigned int sample_period;   // [-s <>] Sampling period, unit milliseconds, default is 100 milliseconds
     unsigned int latency_thr;     // [-T <>] Threshold of latency time, unit ms, default is 0 milliseconds
     unsigned int jitter_thr;      // [-J <>] Threshold of jitter time, unit ms, default is 0 milliseconds
     unsigned int offline_thr;     // [-O <>] Threshold of offline time, unit ms, default is 0 milliseconds
@@ -38,10 +40,10 @@ struct probe_params {
     char res_percent_lower;       // [-L <>] Lower limit of resource percentage, default is 0%
     unsigned char cport_flag;     // [-c <>] Indicates whether the probes(such as tcp) identifies the client port, default is 0 (no identify)
     char cycle_sampling_flag;     // [-C <>] Enables the cycle sampling, default is 0
-    char filter_block[BLOCK_NAME];// [-F <>] Filtering block device monitoring ranges, default is null 
+    char target_dev[DEV_NAME];    // [-d <>] Device name, default is null 
     char elf_path[MAX_PATH_LEN];  // [-p <>] Set ELF file path of the monitored software, default is null 
     char task_whitelist[MAX_PATH_LEN]; // [-w <>] Filtering app monitoring ranges, default is null
-    char netcard_list[MAX_PATH_LEN]; // [-n <>] Network cards that need to enable tc ingress bpf, default is null
+    char netcard_list[MAX_PATH_LEN]; // [-d <>] Device name, default is null
 };
 int args_parse(int argc, char **argv, struct probe_params* params);
 int params_parse(char *s, struct probe_params *params);
