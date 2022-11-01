@@ -26,13 +26,6 @@ struct bpf_map_def SEC("maps") io_latency_channel_map = {
     .max_entries = __PERF_OUT_MAX,
 };
 
-struct bpf_map_def SEC("maps") io_err_channel_map = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = __PERF_OUT_MAX,
-};
-
 // Data collection args
 struct bpf_map_def SEC("maps") io_args_map = {
     .type = BPF_MAP_TYPE_ARRAY,
@@ -56,7 +49,7 @@ static __always_inline u64 get_report_period()
     return period;
 }
 
-static __always_inline u64 get_sample_interval()
+static __always_inline __maybe_unused u64 get_sample_interval()
 {
     u32 key = 0;
     u64 interval = 0;   // default
@@ -83,16 +76,16 @@ static __always_inline char is_target_dev(int major, int first_minor)
     return 1;
 }
 
-static __always_inline __maybe_unused char is_report_tmout(struct io_latency_s* io_latency)
+static __always_inline __maybe_unused char is_report_tmout(struct io_report_s* io_report)
 {
-    if (io_latency->ts == 0) {
-        io_latency->ts = bpf_ktime_get_ns();
+    if (io_report->ts == 0) {
+        io_report->ts = bpf_ktime_get_ns();
         return 0;
     }
 
     u64 ts = bpf_ktime_get_ns();
     u64 report_period = get_report_period();
-    if ((ts > io_latency->ts) && ((ts - io_latency->ts) >= report_period)) {
+    if ((ts > io_report->ts) && ((ts - io_report->ts) >= report_period)) {
         return 1;
     }
     return 0;
@@ -100,7 +93,7 @@ static __always_inline __maybe_unused char is_report_tmout(struct io_latency_s* 
 
 static __always_inline __maybe_unused void report_io_latency(void *ctx, struct io_latency_s* io_latency)
 {
-    if (is_report_tmout(io_latency)) {
+    if (is_report_tmout(&(io_latency->io_latency_ts))) {
         (void)bpf_perf_event_output(ctx,
                                     &io_latency_channel_map,
                                     BPF_F_ALL_CPU,
@@ -108,17 +101,11 @@ static __always_inline __maybe_unused void report_io_latency(void *ctx, struct i
                                     sizeof(struct io_latency_s));
         io_latency->proc_id = 0;
         io_latency->data_len = 0;
-        io_latency->err_count = 0;
-        io_latency->ts = 0;
+        io_latency->io_latency_ts.ts = 0;
         __builtin_memset(io_latency->comm, 0, sizeof(io_latency->comm));
         __builtin_memset(io_latency->rwbs, 0, sizeof(io_latency->rwbs));
         __builtin_memset(io_latency->latency, 0, sizeof(io_latency->latency));
     }
-}
-
-static __always_inline __maybe_unused void report_io_err(void *ctx, struct io_err_s* io_err)
-{
-    (void)bpf_perf_event_output(ctx, &io_err_channel_map, BPF_F_ALL_CPU, io_err, sizeof(struct io_err_s));
 }
 
 #endif

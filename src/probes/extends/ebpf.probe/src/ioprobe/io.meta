@@ -100,11 +100,75 @@ measurements:
                 description: "Count of device operation",
                 type: "gauge",
                 name: "count_latency_device",
+            }
+        )
+    },
+    {
+        table_name: "io_err",
+        entity_name: "block",
+        fields:
+        (
+            {
+                description: "Major id of block",
+                type: "key",
+                name: "major",
             },
             {
-                description: "Count of I/O err.",
+                description: "First minor id of block",
+                type: "key",
+                name: "first_minor",
+            },
+            {
+                description: "Name of block",
+                type: "label",
+                name: "blk_name",
+            },
+            {
+                description: "Name of disk",
+                type: "label",
+                name: "disk_name",
+            },
+            {
+                description: "Errer code of I/O operation.",
                 type: "gauge",
-                name: "count_io_err",
+                name: "err_code",
+            }
+        )
+    },
+    {
+        table_name: "io_count",
+        entity_name: "block",
+        fields:
+        (
+            {
+                description: "Major id of block",
+                type: "key",
+                name: "major",
+            },
+            {
+                description: "First minor id of block",
+                type: "key",
+                name: "first_minor",
+            },
+            {
+                description: "Name of block",
+                type: "label",
+                name: "blk_name",
+            },
+            {
+                description: "Name of disk",
+                type: "label",
+                name: "disk_name",
+            },
+            {
+                description: "Bytes of I/O read operations.",
+                type: "gauge",
+                name: "read_bytes",
+            },
+            {
+                description: "Bytes of I/O write operations.",
+                type: "gauge",
+                name: "write_bytes",
             }
         )
     },

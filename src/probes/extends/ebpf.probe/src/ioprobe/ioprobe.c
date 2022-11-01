@@ -33,33 +33,38 @@
 #include "io_trace_nvme.skel.h"
 #include "io_trace_virtblk.skel.h"
 #include "page_cache.skel.h"
+#include "io_err.skel.h"
+#include "io_count.skel.h"
 #include "io_trace.h"
 #include "event.h"
 
 #define OO_NAME "block"  // Observation Object name
 #define IO_TBL_LATENCY    "io_latency"
 #define IO_TBL_PAGECACHE  "io_pagecache"
+#define IO_TBL_ERR        "io_err"
+#define IO_TBL_COUNT      "io_count"
 
 /* Path to pin map */
 #define IO_ARGS_PATH            "/sys/fs/bpf/probe/__io_args"
 #define IO_SAMPLE_PATH          "/sys/fs/bpf/probe/__io_sample"
 #define IO_LATENCY_CHANNEL_PATH "/sys/fs/bpf/probe/__io_latency_channel"
-#define IO_ERR_CHANNEL_PATH     "/sys/fs/bpf/probe/__io_err_channel"
 #define IO_TRACE_PATH           "/sys/fs/bpf/probe/__io_trace"
-#define IO_ERR_PATH             "/sys/fs/bpf/probe/__io_err"
 #define IO_LATENCY_PATH         "/sys/fs/bpf/probe/__io_latency"
 
 #define RM_IO_PATH              "/usr/bin/rm -rf /sys/fs/bpf/probe/__io*"
 
-#define __LOAD_PROBE(probe_name, end, load) \
+#define __LOAD_IO_LATENCY(probe_name, end, load) \
     OPEN(probe_name, end, load); \
     MAP_SET_PIN_PATH(probe_name, io_args_map, IO_ARGS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, io_sample_map, IO_SAMPLE_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, io_latency_channel_map, IO_LATENCY_CHANNEL_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, io_err_channel_map, IO_ERR_CHANNEL_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, io_trace_map, IO_TRACE_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, io_err_map, IO_ERR_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, io_latency_map, IO_LATENCY_PATH, load); \
+    LOAD_ATTACH(probe_name, end, load)
+
+#define __LOAD_IO_PROBE(probe_name, end, load) \
+    OPEN(probe_name, end, load); \
+    MAP_SET_PIN_PATH(probe_name, io_args_map, IO_ARGS_PATH, load); \
     LOAD_ATTACH(probe_name, end, load)
 
 static volatile sig_atomic_t g_stop;
@@ -251,6 +256,31 @@ static void rcv_pagecache_stats(void *ctx, int cpu, void *data, __u32 size)
     (void)fflush(stdout);
 }
 
+static void rcv_io_count(void *ctx, int cpu, void *data, __u32 size)
+{
+    char dev_name[DISK_NAME_LEN];
+    char disk_name[DISK_NAME_LEN];
+    struct io_count_s *io_count = data;
+
+    dev_name[0] = 0;
+    disk_name[0] = 0;
+    get_devname(io_count->major, io_count->first_minor, dev_name, DISK_NAME_LEN);
+    get_diskname((const char*)dev_name, disk_name, DISK_NAME_LEN);
+
+    (void)fprintf(stdout, "|%s|%d|%d|%s|%s"
+        "|%llu|%llu|\n",
+
+        IO_TBL_COUNT,
+        io_count->major,
+        io_count->first_minor,
+        dev_name,
+        disk_name,
+
+        io_count->read_bytes,
+        io_count->write_bytes);
+    (void)fflush(stdout);
+}
+
 static void rcv_io_latency(void *ctx, int cpu, void *data, __u32 size)
 {
     char dev_name[DISK_NAME_LEN];
@@ -267,7 +297,7 @@ static void rcv_io_latency(void *ctx, int cpu, void *data, __u32 size)
     (void)fprintf(stdout, "|%s|%d|%d|%s|%s"
         "|%llu|%llu|%llu|%llu|%u"
         "|%llu|%llu|%llu|%llu|%u"
-        "|%llu|%llu|%llu|%llu|%u|%u|\n",
+        "|%llu|%llu|%llu|%llu|%u|\n",
 
         IO_TBL_LATENCY,
         io_latency->major,
@@ -291,8 +321,7 @@ static void rcv_io_latency(void *ctx, int cpu, void *data, __u32 size)
         io_latency->latency[IO_STAGE_DEVICE].last,
         io_latency->latency[IO_STAGE_DEVICE].sum,
         io_latency->latency[IO_STAGE_DEVICE].jitter,
-        io_latency->latency[IO_STAGE_DEVICE].count,
-        io_latency->err_count);
+        io_latency->latency[IO_STAGE_DEVICE].count);
     (void)fflush(stdout);
 }
 
@@ -307,10 +336,10 @@ static void rcv_io_err(void *ctx, int cpu, void *data, __u32 size)
 
     entityId[0] = 0;
     __build_entity_id(io_err->major, io_err->first_minor, entityId, __ENTITY_ID_LEN);
-
+    
     report_logs(OO_NAME,
                 entityId,
-                "count_io_err",
+                "err_code",
                 EVT_SEC_WARN,
                 "IO errors occured."
                 "(Block %d:%d, COMM %s, PID %u, op: %s, datalen %u, "
@@ -318,6 +347,8 @@ static void rcv_io_err(void *ctx, int cpu, void *data, __u32 size)
                 io_err->major, io_err->first_minor,
                 io_err->comm, io_err->proc_id, io_err->rwbs, io_err->data_len,
                 io_err->err_code, io_err->scsi_err, io_err->scsi_tmout);
+
+    (void)fflush(stdout);
 }
 
 #define VIRTBLK_PROBE   "virtio"
@@ -364,8 +395,10 @@ int main(int argc, char **argv)
 {
     int ret = 0;
     char scsi_probe, nvme_probe, virtblk_probe;
+    char is_load_err, is_load_count, is_load_pagecache;
     FILE *fp = NULL;
-    struct perf_buffer *io_err_pb = NULL, *io_latency_pb = NULL, *page_cache_pb = NULL;
+    struct perf_buffer *io_err_pb = NULL, *io_latency_pb = NULL;
+    struct perf_buffer *page_cache_pb = NULL, *io_count_pb = NULL;
 
     ret = args_parse(argc, argv, &params);
     if (ret != 0) {
@@ -378,50 +411,83 @@ int main(int argc, char **argv)
         fp = NULL;
     }
 
-    scsi_probe = is_load_probe(SCSI_PROBE);
-    nvme_probe = is_load_probe(NVME_PROBE);
-    virtblk_probe = is_load_probe(VIRTBLK_PROBE);
+    scsi_probe = is_load_probe(SCSI_PROBE) & IS_LOAD_PROBE(params.load_probe, IO_PROBE_TRACE);
+    nvme_probe = is_load_probe(NVME_PROBE) & IS_LOAD_PROBE(params.load_probe, IO_PROBE_TRACE);
+    virtblk_probe = is_load_probe(VIRTBLK_PROBE) & IS_LOAD_PROBE(params.load_probe, IO_PROBE_TRACE);
 
-    if (!scsi_probe && !nvme_probe && !virtblk_probe) {
-        fprintf(stderr, "Not found BLOCK(virtblk or SCSI or NVME).\n");
-        return -1;
-    }
+    is_load_err = IS_LOAD_PROBE(params.load_probe, IO_PROBE_ERR);
+    is_load_count = IS_LOAD_PROBE(params.load_probe, IO_PROBE_COUNT);
+    is_load_pagecache = IS_LOAD_PROBE(params.load_probe, IO_PROBE_PAGECACHE);
 
     INIT_BPF_APP(ioprobe, EBPF_RLIM_LIMITED);
 
-    __LOAD_PROBE(page_cache, err4, 1);
-    __LOAD_PROBE(io_trace_scsi, err3, scsi_probe);
-    __LOAD_PROBE(io_trace_nvme, err2, nvme_probe);
-    __LOAD_PROBE(io_trace_virtblk, err, virtblk_probe);
+    __LOAD_IO_PROBE(io_count, err6, is_load_count);
+    __LOAD_IO_PROBE(io_err, err5, is_load_err);
+    __LOAD_IO_PROBE(page_cache, err4, is_load_pagecache);
+    __LOAD_IO_LATENCY(io_trace_scsi, err3, scsi_probe);
+    __LOAD_IO_LATENCY(io_trace_nvme, err2, nvme_probe);
+    __LOAD_IO_LATENCY(io_trace_virtblk, err, virtblk_probe);
 
-    page_cache_pb = create_pref_buffer(GET_MAP_FD(page_cache, page_cache_channel_map),
-                                       rcv_pagecache_stats);
+    if (is_load_pagecache) {
+        page_cache_pb = create_pref_buffer(GET_MAP_FD(page_cache, page_cache_channel_map),
+                                           rcv_pagecache_stats);
+        io_args_fd = GET_MAP_FD(page_cache, io_args_map);
+    }
+
+    if (is_load_count) {
+        io_count_pb = create_pref_buffer(GET_MAP_FD(io_count, io_count_channel_map),
+                                           rcv_io_count);
+        io_args_fd = GET_MAP_FD(io_count, io_args_map);
+    }
+
+    if (is_load_err) {
+        io_err_pb = create_pref_buffer(GET_MAP_FD(io_err, io_err_channel_map),
+                                           rcv_io_err);
+        io_args_fd = GET_MAP_FD(io_err, io_args_map);
+    }
 
     if (scsi_probe) {
         io_latency_pb = create_pref_buffer(GET_MAP_FD(io_trace_scsi, io_latency_channel_map),
                                            rcv_io_latency);
-        io_err_pb = create_pref_buffer(GET_MAP_FD(io_trace_scsi, io_err_channel_map),
-                                           rcv_io_err);
-
         io_args_fd = GET_MAP_FD(io_trace_scsi, io_args_map);
     } else if (nvme_probe) {
         io_latency_pb = create_pref_buffer(GET_MAP_FD(io_trace_nvme, io_latency_channel_map),
                                            rcv_io_latency);
-        io_err_pb = create_pref_buffer(GET_MAP_FD(io_trace_nvme, io_err_channel_map),
-                                           rcv_io_err);
         io_args_fd = GET_MAP_FD(io_trace_nvme, io_args_map);
     } else if (virtblk_probe) {
         io_latency_pb = create_pref_buffer(GET_MAP_FD(io_trace_virtblk, io_latency_channel_map),
                                            rcv_io_latency);
-        io_err_pb = create_pref_buffer(GET_MAP_FD(io_trace_virtblk, io_err_channel_map),
-                                           rcv_io_err);
         io_args_fd = GET_MAP_FD(io_trace_virtblk, io_args_map);
     }
 
     load_io_args(io_args_fd, &params);
 
-    if ((io_latency_pb == NULL) || (io_err_pb == NULL) || (page_cache_pb == NULL)) {
-        goto err;
+    if (scsi_probe || nvme_probe || virtblk_probe) {
+        if (io_latency_pb == NULL) {
+            fprintf(stderr, "Load io latency prog failed.\n");
+            goto err;
+        }
+    }
+
+    if (is_load_pagecache) {
+        if (page_cache_pb == NULL) {
+            fprintf(stderr, "Load io page-cache prog failed.\n");
+            goto err;
+        }
+    }
+
+    if (is_load_count) {
+        if (io_count_pb == NULL) {
+            fprintf(stderr, "Load io count prog failed.\n");
+            goto err;
+        }
+    }
+
+    if (is_load_err) {
+        if (io_err_pb == NULL) {
+            fprintf(stderr, "Load io err prog failed.\n");
+            goto err;
+        }
     }
 
     if (signal(SIGINT, sig_int) == SIG_ERR) {
@@ -432,17 +498,32 @@ int main(int argc, char **argv)
     printf("Successfully started!\n");
 
     while (!g_stop) {
-        ret = perf_buffer__poll(io_latency_pb, THOUSAND);
-        if (ret < 0) {
-            break;
+        if (io_latency_pb) {
+            ret = perf_buffer__poll(io_latency_pb, THOUSAND);
+            if (ret < 0) {
+                break;
+            }
         }
-        ret = perf_buffer__poll(io_err_pb, THOUSAND);
-        if (ret < 0) {
-            break;
+
+        if (io_err_pb) {
+            ret = perf_buffer__poll(io_err_pb, THOUSAND);
+            if (ret < 0) {
+                break;
+            }
         }
-        ret = perf_buffer__poll(page_cache_pb, THOUSAND);
-        if (ret < 0) {
-            break;
+
+        if (io_count_pb) {
+            ret = perf_buffer__poll(io_count_pb, THOUSAND);
+            if (ret < 0) {
+                break;
+            }
+        }
+
+        if (page_cache_pb) {
+            ret = perf_buffer__poll(page_cache_pb, THOUSAND);
+            if (ret < 0) {
+                break;
+            }
         }
     }
 
@@ -452,6 +533,9 @@ err:
     }
     if (io_err_pb) {
         perf_buffer__free(io_err_pb);
+    }
+    if (io_count_pb) {
+        perf_buffer__free(io_count_pb);
     }
     if (page_cache_pb) {
         perf_buffer__free(page_cache_pb);
@@ -468,7 +552,17 @@ err3:
         UNLOAD(io_trace_scsi);
     }
 err4:
-    UNLOAD(page_cache);
+    if (is_load_pagecache) {
+        UNLOAD(page_cache);
+    }
+err5:
+    if (is_load_err) {
+        UNLOAD(io_err);
+    }
+err6:
+    if (is_load_count) {
+        UNLOAD(io_count);
+    }
     return ret;
 }
 
