@@ -44,6 +44,8 @@ static int WebServerInit(ResourceMgr *resourceMgr);
 static void WebServerDeinit(ResourceMgr *resourceMgr);
 static int LogsMgrInit(ResourceMgr *resourceMgr);
 static void LogsMgrDeinit(ResourceMgr *resourceMgr);
+static int EventMgrInit(ResourceMgr *resourceMgr);
+static void EventMgrDeinit(ResourceMgr *resourceMgr);
 #endif
 
 typedef struct tagSubModuleInitor {
@@ -64,7 +66,8 @@ SubModuleInitor gSubModuleInitorTbl[] = {
     { EgressMgrInit,        EgressMgrDeinit },      // egress must precede ingress
     { IngressMgrInit,       IngressMgrDeinit },
     { WebServerInit,        WebServerDeinit },
-    { LogsMgrInit,          LogsMgrDeinit }
+    { LogsMgrInit,          LogsMgrDeinit },
+    { EventMgrInit,         EventMgrDeinit }
 };
 
 ResourceMgr *ResourceMgrCreate(void)
@@ -596,6 +599,18 @@ static void LogsMgrDeinit(ResourceMgr *resourceMgr)
 {
     destroy_log_mgr(resourceMgr->logsMgr);
     resourceMgr->logsMgr = NULL;
+    return;
+}
+
+static int EventMgrInit(ResourceMgr *resourceMgr)
+{
+    ConfigMgr *configMgr = resourceMgr->configMgr;
+    init_event_mgr(configMgr->eventOutConfig->timeout);
+    return 0;
+}
+
+static void EventMgrDeinit(ResourceMgr *resourceMgr)
+{
     return;
 }
 

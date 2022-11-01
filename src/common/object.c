@@ -328,6 +328,7 @@ int obj_module_create_map(char *name)
     }
     if (bpf_obj_pin(map_fd, pin_path) < 0) {
         ERROR("object module pin %s failed.\n", name);
+        (void)close(map_fd);
         return -1;
     }
 

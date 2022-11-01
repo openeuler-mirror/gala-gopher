@@ -17,6 +17,11 @@
 
 #pragma once
 
+#include "hash.h"
+
+#define MAX_ENTITY_NAME_LEN     128
+#define MAX_EVT_NUM             1000
+
 enum evt_sec_e {
     EVT_SEC_INFO = 0,
     EVT_SEC_WARN,
@@ -26,10 +31,18 @@ enum evt_sec_e {
     EVT_SEC_MAX
 };
 
+struct evt_ts_hash_t {
+    H_HANDLE;
+    char entity_id[MAX_ENTITY_NAME_LEN];
+    time_t evt_ts;
+};
+
 void report_logs(const char* entityName,
                  const char* entityId,
                  const char* metrics,
                  enum evt_sec_e sec,
                  const char * fmt, ...);
+
+void init_event_mgr(unsigned int time_out);
 
 #endif

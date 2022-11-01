@@ -513,6 +513,7 @@ static int ConfigMgrLoadOutConfig(void *config, config_setting_t *settings)
     OutConfig *outConfig = (OutConfig  *)config;
     uint32_t ret = 0;
     const char *strVal = NULL;
+    int timeout = 0;
 
     ret = config_setting_lookup_string(settings, "out_channel", &strVal);
     if (ret == 0) {
@@ -536,6 +537,11 @@ static int ConfigMgrLoadOutConfig(void *config, config_setting_t *settings)
         return -1;
     }
     (void)strncpy(outConfig->kafka_topic, strVal, MAX_KAFKA_TOPIC_LEN - 1);
+
+    ret = config_setting_lookup_int(settings, "timeout", &timeout);
+    if (ret > 0) {
+        outConfig->timeout = (uint32_t)timeout;
+    }
 
     return 0;
 }
