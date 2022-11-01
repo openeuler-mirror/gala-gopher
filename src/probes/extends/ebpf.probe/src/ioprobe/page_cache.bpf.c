@@ -17,8 +17,11 @@
 #endif
 #define BPF_PROG_KERN
 #include "bpf.h"
-#include "io_trace.h"
-#include "io_trace_bpf.h"
+#include <bpf/bpf_helpers.h>
+#include <bpf/bpf_tracing.h>
+#include <bpf/bpf_core_read.h>
+
+#include "io_probe_channel.h"
 
 char g_linsence[] SEC("license") = "GPL";
 
@@ -99,24 +102,9 @@ static __always_inline struct pagecache_stats_s *get_page_cache(struct pagecache
     return lkup_page_cache(pagecache_entity);
 }
 
-static __always_inline char is_pagecache_tmout(struct pagecache_stats_s* page_cache)
-{
-    if (page_cache->ts == 0) {
-        page_cache->ts = bpf_ktime_get_ns();
-        return 0;
-    }
-
-    u64 ts = bpf_ktime_get_ns();
-    u64 report_period = get_report_period();
-    if ((ts > page_cache->ts) && ((ts - page_cache->ts) >= report_period)) {
-        return 1;
-    }
-    return 0;
-}
-
 static __always_inline void report_page_cache(void *ctx, struct pagecache_stats_s* page_cache)
 {
-    if (is_pagecache_tmout(page_cache)) {
+    if (is_report_tmout(&(page_cache->page_cache_ts))) {
         (void)bpf_perf_event_output(ctx,
                                     &page_cache_channel_map,
                                     BPF_F_ALL_CPU,
@@ -126,10 +114,9 @@ static __always_inline void report_page_cache(void *ctx, struct pagecache_stats_
         page_cache->mark_buffer_dirty = 0;
         page_cache->load_page_cache = 0;
         page_cache->mark_page_dirty = 0;
-        page_cache->ts = 0;
+        page_cache->page_cache_ts.ts = 0;
     }
 }
-
 
 KPROBE(mark_page_accessed, pt_regs)
 {

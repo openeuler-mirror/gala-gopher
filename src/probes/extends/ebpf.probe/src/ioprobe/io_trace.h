@@ -24,6 +24,15 @@
 #define MAJOR(dev)    ((unsigned int) ((dev) >> MINORBITS))
 #define MINOR(dev)    ((unsigned int) ((dev) & MINORMASK))
 
+#define IO_PROBE_TRACE      (u32)(1)
+#define IO_PROBE_ERR        (u32)(1 << 1)
+#define IO_PROBE_COUNT      (u32)(1 << 2)
+#define IO_PROBE_PAGECACHE  (u32)(1 << 3)
+#define IO_PROBE_ALL        (u32)(IO_PROBE_TRACE | IO_PROBE_ERR \
+                | IO_PROBE_COUNT | IO_PROBE_PAGECACHE)
+
+#define IS_LOAD_PROBE(LOAD_TYPE, PROG_TYPE) (LOAD_TYPE & PROG_TYPE)
+
 enum IO_ISSUE_E {
     IO_ISSUE_START = 0,
     IO_ISSUE_DRIVER,
@@ -38,6 +47,10 @@ enum IO_STAGE_E {
     IO_STAGE_DRIVER,
     IO_STAGE_DEVICE,
     IO_STAGE_MAX
+};
+
+struct io_report_s {
+    u64 ts;
 };
 
 struct latency_stats {
@@ -58,6 +71,14 @@ struct io_trace_s {
     u64 ts[IO_ISSUE_MAX];
 };
 
+struct io_count_s {
+    struct io_report_s io_count_ts;
+    int major;
+    int first_minor;
+    u64 read_bytes;
+    u64 write_bytes;
+};
+
 struct io_err_s {
     int major;
     int first_minor;
@@ -70,23 +91,22 @@ struct io_err_s {
     int scsi_err;
 };
 
-struct io_entity_s {
+struct io_req_s {
     void *request;
 };
 
 struct io_latency_s {
-    u64 ts;
+    struct io_report_s io_latency_ts;
     int major;
     int first_minor;
     u32 proc_id;
     char comm[TASK_COMM_LEN];
     char rwbs[RWBS_LEN];
     unsigned int data_len;
-    u32 err_count;
     struct latency_stats latency[IO_STAGE_MAX];
 };
 
-struct io_latency_entity_s {
+struct io_entity_s {
     int major;
     int first_minor;
 };
@@ -97,7 +117,7 @@ struct pagecache_entity_s {
 };
 
 struct pagecache_stats_s {
-    u64 ts;
+    struct io_report_s page_cache_ts;
     int major;
     int first_minor;
     u32 access_pagecache;

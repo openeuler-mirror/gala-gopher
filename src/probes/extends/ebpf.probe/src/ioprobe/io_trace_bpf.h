@@ -44,23 +44,15 @@ struct bpf_map_def SEC("maps") io_sample_map = {
 #define __IO_ENTRIES_MAX (5 * 1024)
 struct bpf_map_def SEC("maps") io_trace_map = {
     .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct io_entity_s),
+    .key_size = sizeof(struct io_req_s),
     .value_size = sizeof(struct io_trace_s),
     .max_entries = __IO_ENTRIES_MAX,
-};
-
-#define __IO_ERR_MAX (100)
-struct bpf_map_def SEC("maps") io_err_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct io_entity_s),
-    .value_size = sizeof(struct io_err_s),
-    .max_entries = __IO_ERR_MAX,
 };
 
 #define __IO_LATENCY_ENTRIES_MAX (100)
 struct bpf_map_def SEC("maps") io_latency_map = {
     .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct io_latency_entity_s),
+    .key_size = sizeof(struct io_entity_s),
     .value_size = sizeof(struct io_latency_s),
     .max_entries = __IO_LATENCY_ENTRIES_MAX,
 };
@@ -92,9 +84,9 @@ static __always_inline __maybe_unused char is_sample_tmout(u64 current_ts)
     return 0;
 }
 
-static __always_inline __maybe_unused void get_io_entity(struct io_entity_s *io_entity, struct request *req)
+static __always_inline __maybe_unused void get_io_req(struct io_req_s *io_req, struct request *req)
 {
-    io_entity->request = req;
+    io_req->request = req;
 }
 
 #define INIT_LATENCY_STATS(stats, delta) \
@@ -238,19 +230,19 @@ static __always_inline __maybe_unused char is_normal_io_trace(struct io_trace_s 
 
 static __always_inline struct io_trace_s* lkup_io_trace(struct request* req)
 {
-    struct io_entity_s io_entity = {0};
+    struct io_req_s io_req = {0};
 
     if (req == NULL) {
         return NULL;
     }
 
-    get_io_entity(&io_entity, req);
-    return (struct io_trace_s *)bpf_map_lookup_elem(&io_trace_map, &io_entity);
+    get_io_req(&io_req, req);
+    return (struct io_trace_s *)bpf_map_lookup_elem(&io_trace_map, &io_req);
 }
 
 static __always_inline struct io_trace_s* get_io_trace(struct request* req)
 {
-    struct io_entity_s io_entity = {0};
+    struct io_req_s io_req = {0};
     struct io_trace_s new_io_trace = {0};
     struct io_trace_s *io_trace;
     struct gendisk *disk;
@@ -259,8 +251,8 @@ static __always_inline struct io_trace_s* get_io_trace(struct request* req)
         return NULL;
     }
 
-    get_io_entity(&io_entity, req);
-    io_trace = (struct io_trace_s *)bpf_map_lookup_elem(&io_trace_map, &io_entity);
+    get_io_req(&io_req, req);
+    io_trace = (struct io_trace_s *)bpf_map_lookup_elem(&io_trace_map, &io_req);
     if (io_trace != NULL) {
         return io_trace;
     }
@@ -292,75 +284,30 @@ static __always_inline struct io_trace_s* get_io_trace(struct request* req)
     new_io_trace.major = major;
     new_io_trace.first_minor = first_minor;
 
-    bpf_map_update_elem(&io_trace_map, &io_entity, &new_io_trace, BPF_ANY);
+    bpf_map_update_elem(&io_trace_map, &io_req, &new_io_trace, BPF_ANY);
 
-    return (struct io_trace_s *)bpf_map_lookup_elem(&io_trace_map, &io_entity);
-}
-
-static __always_inline struct io_err_s* get_io_err(struct request* req)
-{
-    struct io_entity_s io_entity = {0};
-    struct io_err_s new_io_err = {0};
-    struct io_err_s *io_err;
-    struct gendisk *disk;
-
-    if (req == NULL) {
-        return NULL;
-    }
-
-    get_io_entity(&io_entity, req);
-    io_err = (struct io_err_s *)bpf_map_lookup_elem(&io_err_map, &io_entity);
-    if (io_err != NULL) {
-        return io_err;
-    }
-
-    disk = _(req->rq_disk);
-    if (disk == NULL) {
-        return NULL;
-    }
-
-    int major = _(disk->major);
-    int first_minor = _(disk->first_minor);
-    if (!is_target_dev(major, first_minor)) {
-        return NULL;
-    }
-
-    u32 proc_id = bpf_get_current_pid_tgid() >> INT_LEN;
-    if (proc_id) {
-        new_io_err.proc_id = proc_id;
-        (void)bpf_get_current_comm(&new_io_err.comm, sizeof(new_io_err.comm));
-    }
-
-    unsigned int cmd_flags = _(req->cmd_flags);
-    blk_fill_rwbs(new_io_err.rwbs, cmd_flags);
-    new_io_err.data_len = _(req->__data_len);
-    new_io_err.major = major;
-    new_io_err.first_minor = first_minor;
-
-    bpf_map_update_elem(&io_err_map, &io_entity, &new_io_err, BPF_ANY);
-
-    return (struct io_err_s *)bpf_map_lookup_elem(&io_err_map, &io_entity);
+    return (struct io_trace_s *)bpf_map_lookup_elem(&io_trace_map, &io_req);
 }
 
 static __always_inline struct io_latency_s* get_io_latency(struct io_trace_s* io_trace)
 {
-    struct io_latency_entity_s io_latency_entity = {0};
+    struct io_entity_s io_entity = {0};
     struct io_latency_s new_io_latency = {0};
     struct io_latency_s *io_latency;
 
-    io_latency_entity.major = io_trace->major;
-    io_latency_entity.first_minor = io_trace->first_minor;
+    io_entity.major = io_trace->major;
+    io_entity.first_minor = io_trace->first_minor;
 
-    io_latency = (struct io_latency_s *)bpf_map_lookup_elem(&io_latency_map, &io_latency_entity);
+    io_latency = (struct io_latency_s *)bpf_map_lookup_elem(&io_latency_map, &io_entity);
     if (io_latency != NULL) {
         return io_latency;
     }
 
-    new_io_latency.major = io_latency_entity.major;
-    new_io_latency.first_minor = io_latency_entity.first_minor;
-    bpf_map_update_elem(&io_latency_map, &io_latency_entity, &new_io_latency, BPF_ANY);
+    new_io_latency.major = io_entity.major;
+    new_io_latency.first_minor = io_entity.first_minor;
+    bpf_map_update_elem(&io_latency_map, &io_entity, &new_io_latency, BPF_ANY);
 
-    return (struct io_latency_s *)bpf_map_lookup_elem(&io_latency_map, &io_latency_entity);
+    return (struct io_latency_s *)bpf_map_lookup_elem(&io_latency_map, &io_entity);
 }
 
 KRAWTRACE(block_rq_issue, bpf_raw_tracepoint_args)
@@ -403,8 +350,7 @@ KPROBE(blk_mq_complete_request, pt_regs)
 KRAWTRACE(block_rq_complete, bpf_raw_tracepoint_args)
 {
     struct io_trace_s *io_trace = NULL;
-    struct io_err_s *io_err = NULL;
-    struct io_entity_s io_entity = {0};
+    struct io_req_s io_req = {0};
     struct request* req = (struct request *)ctx->args[0];
     int error = (int)ctx->args[1];
     struct io_latency_s* io_latency;
@@ -425,19 +371,9 @@ KRAWTRACE(block_rq_complete, bpf_raw_tracepoint_args)
             CALC_LATENCY(io_latency, io_trace);
             report_io_latency(ctx, io_latency);
         }
-    } else {
-        io_latency->err_count++;
-        io_err = get_io_err(req);
-        if (io_err) {
-            io_err->err_code = error;
-            report_io_err(ctx, io_err);
-        }
     }
-    get_io_entity(&io_entity, req);
-    bpf_map_delete_elem(&io_trace_map, &io_entity);
-    if (io_err) {
-        bpf_map_delete_elem(&io_err_map, &io_entity);
-    }
+    get_io_req(&io_req, req);
+    bpf_map_delete_elem(&io_trace_map, &io_req);
 }
 
 

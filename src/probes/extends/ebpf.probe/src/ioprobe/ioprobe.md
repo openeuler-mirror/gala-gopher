@@ -1,6 +1,6 @@
 # 功能介绍：
 
-IOProbe用于观测Block IO全栈能力，支持NVME、SCSI、VirtBlock三种类型。
+IOProbe用于观测Block IO全栈能力，支持NVME、SCSI、VirtBlock三种类型。目前提供四种采集数据：IO Trace（分阶段时延），IO error，IO count（读写字节数），Page Cache。
 
 # 使用方法：
 
