@@ -34,6 +34,7 @@
 #include "task.h"
 #include "cpu.skel.h"
 #include "bpf_prog.h"
+#include "taskprobe.h"
 
 #ifdef OO_NAME
 #undef OO_NAME
@@ -96,6 +97,10 @@ static void output_task_metrics(void *ctx, int cpu, void *data, __u32 size)
     struct task_data *task_data = (struct task_data *)data;
     u32 flags = task_data->flags;
 
+    if (is_task_cmdline_match(task_data->id.tgid, task_data->id.comm) == 0) {
+        // cmdline匹配不成功，不打印
+        return;
+    }
     report_task_metrics(task_data);
 
     if (flags & TASK_PROBE_THREAD_CPU) {

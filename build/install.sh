@@ -47,7 +47,7 @@ function install_daemon_bin()
 function install_conf()
 {
     GOPHER_CONF_FILE=${PROJECT_FOLDER}/config/gala-gopher.conf
-    TASKPROBE_WHITELIST_FILE=${PROJECT_FOLDER}/config/task_whitelist.conf
+    TASKPROBE_WHITELIST_FILE=${PROJECT_FOLDER}/config/gala-gopher-app.conf
     GOPHER_CONF_TARGET_DIR=/opt/gala-gopher
 
     if [ $# -eq 1 ]; then

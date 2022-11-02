@@ -43,6 +43,7 @@
 #include "page.skel.h"
 #include "proc_io.skel.h"
 #include "bpf_prog.h"
+#include "taskprobe.h"
 
 #ifdef OO_NAME
 #undef OO_NAME
@@ -316,6 +317,11 @@ static void output_proc_metrics(void *ctx, int cpu, void *data, __u32 size)
 {
     struct proc_data_s *proc = (struct proc_data_s *)data;
     u32 flags = proc->flags;
+
+    if (is_task_cmdline_match(proc->proc_id, proc->comm) == 0) {
+        // cmdline匹配不成功，不打印
+        return;
+    }
 
     report_proc_metrics(proc);
 

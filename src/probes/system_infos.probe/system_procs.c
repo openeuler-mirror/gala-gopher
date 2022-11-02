@@ -20,6 +20,7 @@
 #include <errno.h>
 #include "object.h"
 #include "nprobe_fprintf.h"
+#include "whitelist_config.h"
 #include "system_procs.h"
 
 #define METRICS_PROC_NAME   "system_proc"
@@ -45,7 +46,7 @@
 static proc_hash_t *g_procmap = NULL;
 static proc_info_t g_pre_proc_info;
 
-static char proc_range[PROC_MAX_RANGE][PROC_NAME_MAX] = {0};
+static struct proc_match_s proc_range[PROC_MAX_RANGE] = {0};
 static int g_proc_range_len = 0;
 
 static void add_proc_obj(const int pid)
@@ -261,23 +262,30 @@ out:
     return;
 }
 
-static int get_proc_cmdline(const char* pid, proc_info_t *proc_info)
+static char *get_proc_cmdline(const char *pid, int buf_len)
 {
     FILE *f = NULL;
     char path[LINE_BUF_LEN];
-    char line[LINE_BUF_LEN];
+    char *line = NULL;
     int index = 0;
 
+    line = malloc(sizeof(char) * buf_len);
+    if (line == NULL) {
+        ERROR("[SYSTEM_PROC] get cmdline failed, malloc failed.\n");
+        return NULL;
+    }
+    (void)memset(line, 0, sizeof(char) * buf_len);
+
     path[0] = 0;
-    line[0] = 0;
     (void)snprintf(path, LINE_BUF_LEN, PROC_CMDLINE_CMD, pid);
     f = fopen(path, "r");
     if (f == NULL) {
-        return -1;
+        (void)free(line);
+        return NULL;
     }
     /* parse line */
     while (!feof(f)) {
-        if (index >= LINE_BUF_LEN - 1) {
+        if (index >= buf_len - 1) {
             line[index] = '\0';
             break;
         }
@@ -289,15 +297,9 @@ static int get_proc_cmdline(const char* pid, proc_info_t *proc_info)
         }
         index++;
     }
-    if (index <= 1) {
-        goto out;
-    }
-    proc_info->cmdline = (char *)malloc(LINE_BUF_LEN);
-    (void)memset(proc_info->cmdline, 0, LINE_BUF_LEN);
-    (void)strncpy(proc_info->cmdline, line, LINE_BUF_LEN - 1);
-out:
+
     (void)fclose(f);
-    return 0;
+    return line;
 }
 
 static int get_proc_container_id(const char* pid, proc_info_t *proc_info)
@@ -559,12 +561,35 @@ static int update_proc_infos(const char *pid, proc_info_t *proc_info)
     return 0;
 }
 
-static int check_proc_probe_flag(const char *comm)
+static int check_proc_probe_flag(const char *pid, const char *comm)
 {
     int index;
+    char *cmdline = NULL;
+
     for (index = 0; index < g_proc_range_len; index++) {
-        if (strcmp(comm, proc_range[index]) == 0) {
+        // 如果comm匹配失败，继续下一轮检验
+        if (strcmp(comm, proc_range[index].name) != 0) {
+            continue;
+        }
+        // 如果comm匹配成功，且不需要匹配cmdline，返回1
+        if(proc_range[index].cmd_line == NULL) {
             return 1;
+        }
+        // 如果comm匹配成功，而且需要匹配cmdline
+        cmdline = get_proc_cmdline(pid, PROC_CMDLINE_MAX);
+        if (cmdline == NULL) {
+            // 获取cmdline失败，系统错误
+            ERROR("[SYSTEM_PROC] check proc probe flag failed, get (%s)'s cmdline failed.\n", pid);
+            break;
+        }
+        if (strstr(cmdline, proc_range[index].cmd_line) != NULL) {
+            // 如果cmdline部分匹配成功，返回1
+            (void)free(cmdline);
+            return 1;
+        } else {
+            // 否则返回0
+            (void)free(cmdline);
+            continue;
         }
     }
     return 0;
@@ -625,7 +650,7 @@ static proc_hash_t* init_one_proc(char *pid, char *stime, char *comm)
     if (strcmp(comm, "java") == 0) {
         get_java_proc_cmd(pid, &item->info);
     } else {
-        (void)get_proc_cmdline(pid, &item->info);
+        item->info.cmdline = get_proc_cmdline((const char *)pid, LINE_BUF_LEN);
     }
     (void)get_proc_container_id(pid, &item->info);
 
@@ -671,7 +696,7 @@ int system_proc_probe(void)
         (void)get_proc_comm(entry->d_name, comm);
 
         /* check proc whether in proc_range */
-        if (check_proc_probe_flag(comm) != PROC_IN_PROBE_RANGE) {
+        if (check_proc_probe_flag(entry->d_name, comm) != PROC_IN_PROBE_RANGE) {
             continue;
         }
         l = init_one_proc(entry->d_name, stime, comm);
@@ -691,8 +716,8 @@ void system_proc_destroy(void)
 
 void system_proc_init(char *task_whitelist)
 {
-    FILE *f = NULL;
-    char line[PROC_NAME_MAX];
+    int i;
+    ApplicationsConfig *conf;
 
     obj_module_init();
     // if proc_obj_map's fd is 0, create obj_map
@@ -702,28 +727,19 @@ void system_proc_init(char *task_whitelist)
         obj_module_set_maps_fd();
     }
 
-    if (task_whitelist == NULL || strlen(task_whitelist) == 0) {
+    if (parse_whitelist_config(&conf, task_whitelist) < 0) {
+        ERROR("[SYSTEM_PROC] parse whitelist failed.\n");
         return;
     }
 
-    f = fopen(task_whitelist, "r");
-    if (f == NULL) {
-        return;
+    for (i = 0; i < conf->apps_num; i++) {
+        ApplicationConfig *_app = conf->apps[i];
+        strncpy(proc_range[i].name, _app->comm, PROC_NAME_MAX - 1);
+        strncpy(proc_range[i].cmd_line, _app->cmd_line, PROC_CMD_LINE_MAX - 1);
     }
-    while (!feof(f)) {
-        line[0] = 0;
-        if (fgets(line, PROC_NAME_MAX, f) == NULL) {
-            goto out;
-        }
-        SPLIT_NEWLINE_SYMBOL(line);
-        if (strlen(line) == 0) {
-            continue;
-        }
-        /* update procname to proc_range list */
-        (void)strncpy(proc_range[g_proc_range_len], line, PROC_NAME_MAX - 1);
-        g_proc_range_len++;
-    }
-out:
-    fclose(f);
+    g_proc_range_len = i;
+
+    whitelist_config_destroy(conf);
+
     return;
 }

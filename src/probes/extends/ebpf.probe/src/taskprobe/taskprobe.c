@@ -34,8 +34,10 @@
 #include "bpf_prog.h"
 #include "proc.h"
 #include "thread.h"
+#include "whitelist_config.h"
 
 #define RM_TASK_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/probe/__taskprobe*"
+#define TASK_CMDLINE_PATH "/proc/%d/cmdline"
 
 #define LOAD_TASK_PROBE(probe_name, end, load) \
     OPEN(probe_name, end, load); \
@@ -49,12 +51,52 @@ static struct probe_params tp_params = {.period = DEFAULT_PERIOD,
                                         .task_whitelist = {0}};
 
 static struct task_name_t task_range[] = {
-    // eg: {"go",              TASK_TYPE_APP},
+    // eg: {"go", "",              TASK_TYPE_APP},
 };
 
 static void sig_int(int signal)
 {
     stop = 1;
+}
+
+static char *get_task_cmdline(int tgid, int buf_len)
+{
+    FILE *f = NULL;
+    char path[LINE_BUF_LEN];
+    char *line = NULL;
+    int index = 0;
+
+    line = malloc(sizeof(char) * buf_len);
+    if (line == NULL) {
+        ERROR("[TASKPROBE] get cmdline failed, malloc failed.\n");
+        return NULL;
+    }
+    (void)memset(line, 0, sizeof(char) * buf_len);
+
+    path[0] = 0;
+    (void)snprintf(path, LINE_BUF_LEN, TASK_CMDLINE_PATH, tgid);
+    f = fopen(path, "r");
+    if (f == NULL) {
+        (void)free(line);
+        return NULL;
+    }
+    /* parse line */
+    while (!feof(f)) {
+        if (index >= buf_len - 1) {
+            line[index] = '\0';
+            break;
+        }
+        line[index] = fgetc(f);
+        if (line[index] == '\0') {
+            line[index] = ' ';
+        } else if (line[index] == -1 && line[index - 1] == ' ') {
+            line[index - 1] = '\0';
+        }
+        index++;
+    }
+
+    (void)fclose(f);
+    return line;
 }
 
 static void load_daemon_proc(int task_map_fd, int proc_map_fd)
@@ -83,11 +125,11 @@ static void load_daemon_task(int app_fd, int task_map_fd)
 {
     struct probe_process ckey = {0};
     struct probe_process nkey = {0};
-    int flag;
+    struct probe_proc_info pinfo;
     int ret = -1;
 
     while (bpf_map_get_next_key(app_fd, &ckey, &nkey) != -1) {
-        ret = bpf_map_lookup_elem(app_fd, &nkey, &flag);
+        ret = bpf_map_lookup_elem(app_fd, &nkey, &pinfo);
         if (ret == 0) {
             load_daemon_task_by_name(task_map_fd, (const char *)nkey.name, 1);
             DEBUG("[TASKPROBE]: load daemon process '%s'.\n", nkey.name);
@@ -109,7 +151,7 @@ static void load_daemon_task(int app_fd, int task_map_fd)
 
 static void load_task_range(int fd)
 {
-    int flag = 1;
+    struct probe_proc_info pinfo;
     struct probe_process pname;
     uint32_t index = 0;
     uint32_t size = sizeof(task_range) / sizeof(task_range[0]);
@@ -119,8 +161,11 @@ static void load_task_range(int fd)
             (void)memset(pname.name, 0, TASK_COMM_LEN);
             (void)strncpy(pname.name, task_range[index].name, TASK_COMM_LEN - 1);
 
+            pinfo.flag = 1;
+            (void)memset(pinfo.cmd_line, 0, TASK_CMD_LINE_LEN);
+            (void)strncpy(pinfo.cmd_line, task_range[index].cmd_line, TASK_CMD_LINE_LEN - 1);
             /* update probe_proc_map */
-            (void)bpf_map_update_elem(fd, &pname, &flag, BPF_ANY);
+            (void)bpf_map_update_elem(fd, &pname, &pinfo, BPF_ANY);
 
             DEBUG("[TASKPROBE]: load probe process name '%s'.\n", pname.name);
         }
@@ -129,34 +174,30 @@ static void load_task_range(int fd)
 
 static void load_task_wl(int fd)
 {
-    FILE *f = NULL;
-    char line[TASK_COMM_LEN];
     struct probe_process pname;
-    int flag = 1;
+    struct probe_proc_info pinfo;
+    ApplicationsConfig *conf;
 
-    f = fopen(tp_params.task_whitelist, "r");
-    if (f == NULL) {
+    if (parse_whitelist_config(&conf, tp_params.task_whitelist) < 0) {
+        ERROR("[TASKPROBE] parse whitelist failed.\n");
         return;
     }
-    while (!feof(f)) {
-        (void)memset(line, 0, TASK_COMM_LEN);
-        if (fgets(line, TASK_COMM_LEN, f) == NULL) {
-            goto out;
-        }
-        SPLIT_NEWLINE_SYMBOL(line);
-        if (strlen(line) == 0) {
-            continue;
-        }
-        (void)memset(pname.name, 0, TASK_COMM_LEN);
-        (void)strncpy(pname.name, line, TASK_COMM_LEN - 1);
 
+    for (int i = 0; i < conf->apps_num; i++) {
+        ApplicationConfig *_app = conf->apps[i];
+        (void)memset(pname.name, 0, TASK_COMM_LEN);
+        (void)strncpy(pname.name, _app->comm, TASK_COMM_LEN - 1);
+        (void)memset(pinfo.cmd_line, 0, TASK_CMD_LINE_LEN);
+        (void)strncpy(pinfo.cmd_line, _app->cmd_line, TASK_CMD_LINE_LEN - 1);
+        pinfo.flag = 1;
         /* update probe_proc_map */
-        (void)bpf_map_update_elem(fd, &pname, &flag, BPF_ANY);
+        (void)bpf_map_update_elem(fd, &pname, &pinfo, BPF_ANY);
 
         DEBUG("[TASKPROBE]: load probe process name '%s'.\n", pname.name);
     }
-out:
-    fclose(f);
+
+    whitelist_config_destroy(conf);
+
     return;
 }
 
@@ -165,6 +206,36 @@ static void load_period(int period_fd, __u32 value)
     __u32 key = 0;
     __u64 period = NS(value);
     (void)bpf_map_update_elem(period_fd, &key, &period, BPF_ANY);
+}
+
+static int g_pmap_fd = -1;
+int is_task_cmdline_match(int tgid, const char *comm)
+{
+    int ret;
+    struct probe_proc_info pinfo = {0};
+    struct probe_process pname = {0};
+
+    strncpy(pname.name, comm, TASK_COMM_LEN - 1);
+    ret = bpf_map_lookup_elem(g_pmap_fd, &pname, &pinfo);
+    if (ret == 0) {
+        if (pinfo.cmd_line == NULL) {
+            // 表示不需要匹配cmdline
+            return 1;
+        }
+        char *cmdline = get_task_cmdline(tgid, TASK_CMDLINE_MAX_LEN);
+        if (cmdline == NULL) {
+            return 0;
+        }
+        if (strstr(cmdline, pinfo.cmd_line) == NULL) {
+            (void)free(cmdline);
+            return 0;
+        } else {
+            (void)free(cmdline);
+            return 1;
+        }
+    }
+
+    return 0;
 }
 
 int main(int argc, char **argv)
@@ -200,7 +271,7 @@ int main(int argc, char **argv)
     // load task probe bpf prog
     LOAD_TASK_PROBE(taskprobe, err, 1);
 
-    int pmap_fd = GET_MAP_FD(taskprobe, probe_proc_map);
+    g_pmap_fd = GET_MAP_FD(taskprobe, probe_proc_map);
     int task_map_fd = GET_MAP_FD(taskprobe, g_task_map);
     int period_fd = GET_MAP_FD(taskprobe, period_map);
     int proc_map_fd = GET_MAP_FD(taskprobe, g_proc_map);
@@ -209,13 +280,13 @@ int main(int argc, char **argv)
     load_period(period_fd, tp_params.period);
 
     // Set task probe observation range based on 'task->comm'
-    load_task_range(pmap_fd);
+    load_task_range(g_pmap_fd);
 
     // Set task probe whitelist.
-    load_task_wl(pmap_fd);
+    load_task_wl(g_pmap_fd);
 
     // Load task instances based on the whitelist.
-    load_daemon_task(pmap_fd, task_map_fd);
+    load_daemon_task(g_pmap_fd, task_map_fd);
 
     // Load proc instances from thread table.
     load_daemon_proc(task_map_fd, proc_map_fd);
