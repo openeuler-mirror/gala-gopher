@@ -63,6 +63,8 @@ static int get_tcp_abn_stats(struct sock *sk, struct tcp_abn* stats)
 {
     struct tcp_sock *tcp_sk = (struct tcp_sock *)sk;
 
+    stats->sk_err = _(sk->sk_err);
+    stats->sk_err_soft = _(sk->sk_err_soft);
     stats->sk_drops = _(sk->sk_drops.counter);
     stats->lost_out = _(tcp_sk->lost_out);
     stats->sacked_out = _(tcp_sk->sacked_out);
@@ -146,7 +148,7 @@ KPROBE(tcp_write_err, pt_regs)
     metrics = get_tcp_metrics(sk);
     if (metrics) {
         TCP_TMOUT_INC(metrics->abn_stats);
-        report_abn(ctx, metrics, sk, 0);
+        report_abn(ctx, metrics, sk, 1);
     }
 }
 #endif
@@ -172,7 +174,7 @@ KRAWTRACE(tcp_send_reset, bpf_raw_tracepoint_args)
     metrics = get_tcp_metrics(sk);
     if (metrics) {
         TCP_SEND_RSTS_INC(metrics->abn_stats);
-        report_abn(ctx, metrics, sk, 0);
+        report_abn(ctx, metrics, sk, 1);
     }
 }
 
@@ -185,7 +187,7 @@ KRAWTRACE(tcp_receive_reset, bpf_raw_tracepoint_args)
     metrics = get_tcp_metrics(sk);
     if (metrics) {
         TCP_RECEIVE_RSTS_INC(metrics->abn_stats);
-        report_abn(ctx, metrics, sk, 0);
+        report_abn(ctx, metrics, sk, 1);
     }
 }
 

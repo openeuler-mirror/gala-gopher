@@ -55,6 +55,50 @@ static void build_entity_id(struct tcp_link_s *link, char *buf, int buf_len)
 
 #define __ENTITY_ID_LEN 128
 
+void report_tcp_win_evt(struct probe_params *args, struct tcp_metrics_s *metrics)
+{
+    struct tcp_windows *win_stats;
+    char entityId[__ENTITY_ID_LEN];
+
+    if (args->logs == 0) {
+        return;
+    }
+
+    entityId[0] = 0;
+
+    win_stats = &(metrics->win_stats);
+    if (win_stats->tcpi_rcv_wnd == 0) {
+        build_entity_id(&metrics->link, entityId, __ENTITY_ID_LEN);
+        report_logs(OO_NAME,
+                    entityId,
+                    "rcv_wnd",
+                    EVT_SEC_WARN,
+                    "TCP zero receive windows.");
+    }
+
+    if (win_stats->tcpi_snd_wnd == 0) {
+        if (entityId[0] != 0) {
+            build_entity_id(&metrics->link, entityId, __ENTITY_ID_LEN);
+        }
+        report_logs(OO_NAME,
+                    entityId,
+                    "snd_wnd",
+                    EVT_SEC_WARN,
+                    "TCP zero send windows.");
+    }
+
+    if (win_stats->tcpi_avl_snd_wnd == 0 && win_stats->tcpi_snd_wnd != 0) {
+        if (entityId[0] != 0) {
+            build_entity_id(&metrics->link, entityId, __ENTITY_ID_LEN);
+        }
+        report_logs(OO_NAME,
+                    entityId,
+                    "avl_snd_wnd",
+                    EVT_SEC_WARN,
+                    "TCP zero available send windows.");
+    }
+}
+
 void report_tcp_abn_evt(struct probe_params *args, struct tcp_metrics_s *metrics)
 {
     struct tcp_abn *abn_stats;
@@ -100,6 +144,52 @@ void report_tcp_abn_evt(struct probe_params *args, struct tcp_metrics_s *metrics
                     "TCP filter drops(%u).",
                     abn_stats->filter_drops);
     }
+
+    u32 sk_drops_delta = (abn_stats->sk_drops >= abn_stats->last_time_sk_drops) ?
+        (abn_stats->sk_drops - abn_stats->last_time_sk_drops) : abn_stats->sk_drops;
+
+    if ((args->drops_count_thr != 0) && (sk_drops_delta > args->drops_count_thr)) {
+        if (entityId[0] != 0) {
+            build_entity_id(&metrics->link, entityId, __ENTITY_ID_LEN);
+        }
+        report_logs(OO_NAME,
+                    entityId,
+                    "sk_drops",
+                    EVT_SEC_WARN,
+                    "Number of lost packets in the TCP protocol stack(%u).",
+                    sk_drops_delta);
+    }
+
+    u32 lost_out_delta = (abn_stats->lost_out >= abn_stats->last_time_lost_out) ?
+        (abn_stats->lost_out - abn_stats->last_time_lost_out) : abn_stats->lost_out;
+    if ((args->drops_count_thr != 0) && (lost_out_delta > args->drops_count_thr)) {
+        if (entityId[0] != 0) {
+            build_entity_id(&metrics->link, entityId, __ENTITY_ID_LEN);
+        }
+        report_logs(OO_NAME,
+                    entityId,
+                    "lost_out",
+                    EVT_SEC_WARN,
+                    "Number of lost segments estimated by TCP congestion(%u).",
+                    lost_out_delta);
+    }
+
+
+    u32 sacked_out_delta = (abn_stats->sacked_out >= abn_stats->last_time_sacked_out) ?
+        (abn_stats->sacked_out - abn_stats->last_time_sacked_out) : abn_stats->sacked_out;
+
+    if ((args->drops_count_thr != 0) && (sacked_out_delta > args->drops_count_thr)) {
+        if (entityId[0] != 0) {
+            build_entity_id(&metrics->link, entityId, __ENTITY_ID_LEN);
+        }
+        report_logs(OO_NAME,
+                    entityId,
+                    "sacked_out",
+                    EVT_SEC_WARN,
+                    "Number of out-of-order TCP packets (SACK) or number of repeated TCP ACKs (NO SACK)(%u).",
+                    sacked_out_delta);
+    }
+
 }
 
 void report_tcp_syn_rtt_evt(struct probe_params *args, struct tcp_metrics_s *metrics)
