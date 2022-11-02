@@ -66,6 +66,7 @@ static void get_tcp_wnd(struct sock *sk, struct tcp_windows* stats)
     }
 
     stats->tcpi_snd_wnd = snd_wnd;
+    stats->tcpi_avl_snd_wnd = snd_una + snd_wnd - snd_nxt;
     stats->tcpi_rcv_wnd = rcv_wnd;
     stats->tcpi_reordering = _(tcp_sk->reordering);
     stats->tcpi_snd_cwnd = _(tcp_sk->snd_cwnd);
@@ -87,6 +88,9 @@ static int is_win_stats_changed(struct tcp_windows* stats, struct tcp_windows* l
         return 1;
     }
     if (stats->tcpi_snd_wnd != last_stats->tcpi_snd_wnd) {
+        return 1;
+    }
+    if (stats->tcpi_avl_snd_wnd != last_stats->tcpi_avl_snd_wnd) {
         return 1;
     }
     if (stats->tcpi_rcv_wnd != last_stats->tcpi_rcv_wnd) {

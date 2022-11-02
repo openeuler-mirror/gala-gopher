@@ -60,6 +60,8 @@ static void output_tcp_abn(void *ctx, int cpu, void *data, __u32 size)
 
     struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
 
+    report_tcp_abn_evt(g_args, metrics);
+
     link = &(metrics->link);
     ip_str(link->family, (unsigned char *)&(link->c_ip), src_ip_str, INET6_ADDRSTRLEN);
     ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
@@ -109,6 +111,8 @@ static void output_tcp_syn_rtt(void *ctx, int cpu, void *data, __u32 size)
     unsigned char dst_ip_str[INET6_ADDRSTRLEN];
 
     struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
+
+    report_tcp_syn_rtt_evt(g_args, metrics);
 
     link = &(metrics->link);
     ip_str(link->family, (unsigned char *)&(link->c_ip), src_ip_str, INET6_ADDRSTRLEN);
@@ -204,13 +208,15 @@ static void output_tcp_win(void *ctx, int cpu, void *data, __u32 size)
 
     struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
 
+    report_tcp_win_evt(g_args, metrics);
+
     link = &(metrics->link);
     ip_str(link->family, (unsigned char *)&(link->c_ip), src_ip_str, INET6_ADDRSTRLEN);
     ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
 
     (void)fprintf(stdout,
         "|%s|%u|%u|%s|%s|%u|%u|%u"
-        "|%u|%u|%u|%u|%u|%u|\n",
+        "|%u|%u|%u|%u|%u|%u|%u|\n",
         TCP_TBL_WIN,
         link->tgid,
         link->role,
@@ -225,7 +231,8 @@ static void output_tcp_win(void *ctx, int cpu, void *data, __u32 size)
         metrics->win_stats.tcpi_notack_bytes,
         metrics->win_stats.tcpi_reordering,
         metrics->win_stats.tcpi_snd_wnd,
-        metrics->win_stats.tcpi_rcv_wnd);
+        metrics->win_stats.tcpi_rcv_wnd,
+        metrics->win_stats.tcpi_avl_snd_wnd);
     (void)fflush(stdout);
 }
 

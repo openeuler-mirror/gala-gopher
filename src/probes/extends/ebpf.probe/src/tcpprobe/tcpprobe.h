@@ -130,6 +130,7 @@ struct tcp_windows {
     __u32   tcpi_notack_bytes;  // Number of bytes not ack currently.
     __u32   tcpi_snd_wnd;       // FROM tcp_sock.snd_wnd
     __u32   tcpi_rcv_wnd;       // FROM tcp_sock.rcv_wnd
+    __u32   tcpi_avl_snd_wnd;   // TCP Available Send Window
 
     __u32   tcpi_reordering;    // Segments to be reordered.
     __u32   tcpi_snd_cwnd;      // Congestion Control Window Size.

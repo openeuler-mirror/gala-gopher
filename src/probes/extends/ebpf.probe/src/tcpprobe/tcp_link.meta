@@ -184,6 +184,11 @@ measurements:
                 description: "Size of TCP receive window.",
                 type: "gauge",
                 name: "rcv_wnd",
+            },
+            {
+                description: "TCP available send window.",
+                type: "gauge",
+                name: "avl_snd_wnd",
             }
         )
     },
