@@ -12,6 +12,7 @@ enum {
     EP_STATS_PASSIVE_OPENS,
     EP_STATS_PASSIVE_FAILS,
     EP_STATS_RETRANS_SYNACK,
+    EP_STATS_LOST_SYNACK,
 
     // tcp connect statistic value
     EP_STATS_ACTIVE_OPENS,

@@ -356,3 +356,58 @@ KRAWTRACE(tcp_retransmit_synack, bpf_raw_tracepoint_args)
     return;
 }
 
+KPROBE(inet_csk_reqsk_queue_drop_and_put, pt_regs)
+{
+    int new_entry;
+    u8 num_timeout;
+    struct endpoint_val_t* value;
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    struct request_sock *req = (struct request_sock *)PT_REGS_PARM2(ctx);
+    struct inet_connection_sock *icsk = (struct inet_connection_sock *)sk;
+    struct net * net = _(sk->__sk_common.skc_net.net);
+    int sysctl_tcp_synack_retries = _(net->ipv4.sysctl_tcp_synack_retries);
+    int icsk_syn_retries = _(icsk->icsk_syn_retries);
+
+    int max_retries = icsk_syn_retries ? : sysctl_tcp_synack_retries;
+
+    value = get_tcp_val(sk, &new_entry);
+    if (value) {
+        bpf_probe_read(&num_timeout, sizeof(u8), (char *)&(req->num_retrans) + sizeof(u8));
+        num_timeout &= 0x7F;
+        if (num_timeout >= max_retries) {
+            ATOMIC_INC_EP_STATS(value, EP_STATS_LOST_SYNACK, 1);
+            report(ctx, value, new_entry);
+        }
+    }
+}
+
+KPROBE(tcp_retransmit_timer, pt_regs)
+{
+    int new_entry;
+    u8 num_timeout;
+    struct endpoint_val_t* value;
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    struct inet_connection_sock *icsk = (struct inet_connection_sock *)sk;
+    struct net * net = _(sk->__sk_common.skc_net.net);
+    struct tcp_sock *tp = (struct tcp_sock *)sk;
+    struct request_sock *req = _(tp->fastopen_rsk);
+    if (req == NULL) {
+        return;
+    }
+
+    int sysctl_tcp_synack_retries = _(net->ipv4.sysctl_tcp_synack_retries);
+    int icsk_syn_retries = _(icsk->icsk_syn_retries);
+
+    int max_retries = icsk_syn_retries ? : sysctl_tcp_synack_retries + 1;
+
+    value = get_tcp_val(sk, &new_entry);
+    if (value) {
+        bpf_probe_read(&num_timeout, sizeof(u8), (char *)&(req->num_retrans) + sizeof(u8));
+        num_timeout &= 0x7F;
+        if (num_timeout >= max_retries) {
+            ATOMIC_INC_EP_STATS(value, EP_STATS_LOST_SYNACK, 1);
+            report(ctx, value, new_entry);
+        }
+    }
+}
+
