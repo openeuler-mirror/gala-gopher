@@ -73,7 +73,8 @@ static void print_tcp_listen_metrics(struct endpoint_val_t *value)
             value->ep_stats.stats[EP_STATS_SYN_OVERFLOW],
             value->ep_stats.stats[EP_STATS_PASSIVE_OPENS],
             value->ep_stats.stats[EP_STATS_PASSIVE_FAILS],
-            value->ep_stats.stats[EP_STATS_RETRANS_SYNACK]);
+            value->ep_stats.stats[EP_STATS_RETRANS_SYNACK],
+            value->ep_stats.stats[EP_STATS_LOST_SYNACK]);
 }
 
 static void print_tcp_connect_metrics(struct endpoint_val_t *value)
@@ -262,6 +263,35 @@ static void report_ep(struct endpoint_val_t *ep)
                         ep->ep_stats.stats[EP_STATS_QUE_RCV_FAILED]);
         }
     }
+
+    entityId[0] = 0;
+    if (ep->ep_stats.stats[EP_STATS_LOST_SYNACK] != 0) {
+        build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
+
+        if (ep->key.type == SK_TYPE_LISTEN_TCP) {
+            report_logs(OO_NAME,
+                        entityId,
+                        "lost_synacks",
+                        EVT_SEC_WARN,
+                        "TCP connection setup failure due to loss of SYN/ACK(%lu).",
+                        ep->ep_stats.stats[EP_STATS_LOST_SYNACK]);
+        }
+    }
+
+    entityId[0] = 0;
+    if (ep->ep_stats.stats[EP_STATS_RETRANS_SYNACK] != 0) {
+        build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
+
+        if (ep->key.type == SK_TYPE_LISTEN_TCP) {
+            report_logs(OO_NAME,
+                        entityId,
+                        "retran_synacks",
+                        EVT_SEC_WARN,
+                        "TCP SYN/ACK retransmission occurs.(%lu).",
+                        ep->ep_stats.stats[EP_STATS_RETRANS_SYNACK]);
+        }
+    }
+
 }
 
 static void print_endpoint_metrics(void *ctx, int cpu, void *data, __u32 size)

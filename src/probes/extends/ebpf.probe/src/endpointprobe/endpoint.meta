@@ -103,6 +103,11 @@ measurements:
                 description: "synack retrans",
                 type: "gauge",
                 name: "retran_synacks",
+            },
+            {
+                description: "synack lost",
+                type: "gauge",
+                name: "lost_synacks",
             }
         )
     },
