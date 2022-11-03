@@ -47,7 +47,7 @@ gala-gopher
   │   └── Dockerfile_2003_sp1_x86_64  # Dockerfile文件
   ├── config/
   │   ├── gala-gopher.conf      # 项目配置文件
-  │   └── task_whitelist.conf   # APP白名单配置文件
+  │   └── gala-gopher-app.conf  # APP白名单配置文件
   ├── doc/                      # 项目开发和使用文档
   ├── service/                  # systemd启动配置
   │   └── gala-gopher.service

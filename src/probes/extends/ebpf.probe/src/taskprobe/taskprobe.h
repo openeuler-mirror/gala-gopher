@@ -16,6 +16,8 @@
 #define __TASKPROBE__H
 
 #define PROBE_PROC_MAP_ENTRY_SIZE   128
+#define TASK_CMD_LINE_LEN           128
+#define TASK_CMDLINE_MAX_LEN        4096
 
 enum task_type_e {
     TASK_TYPE_APP = 0,
@@ -26,6 +28,7 @@ enum task_type_e {
 /* daemon process be probed */
 struct task_name_t {
     char name[TASK_COMM_LEN];
+    char cmd_line[TASK_CMD_LINE_LEN];
     enum task_type_e type;
 };
 
@@ -34,6 +37,12 @@ struct probe_process {
     char name[TASK_COMM_LEN];
 };
 
+struct probe_proc_info {
+    int flag;
+    char cmd_line[TASK_CMD_LINE_LEN];
+};
+
 void load_daemon_task_by_name(int fd, const char *name, int is_whole_word);
+int is_task_cmdline_match(int tgid, const char *comm);
 
 #endif

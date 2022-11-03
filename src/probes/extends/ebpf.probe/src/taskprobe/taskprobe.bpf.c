@@ -27,7 +27,7 @@ char g_linsence[] SEC("license") = "GPL";
 struct bpf_map_def SEC("maps") probe_proc_map = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(struct probe_process),
-    .value_size = sizeof(int),
+    .value_size = sizeof(struct probe_proc_info),
     .max_entries = PROBE_PROC_MAP_ENTRY_SIZE,
 };
 
@@ -64,9 +64,9 @@ static __always_inline int is_task_in_probe_range(const char *comm)
 
     __builtin_memcpy(pname.name, comm, TASK_COMM_LEN);
 
-    char *buf = (char *)bpf_map_lookup_elem(&probe_proc_map, &pname);
-    if (buf != (char *)0) {
-        flag = *buf;
+    struct probe_proc_info *buf = (struct probe_proc_info *)bpf_map_lookup_elem(&probe_proc_map, &pname);
+    if (buf) {
+        flag = buf->flag;
     }
     return flag;
 }

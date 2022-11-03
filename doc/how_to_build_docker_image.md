@@ -80,7 +80,7 @@ gala-gopher涉及两个配置文件：gala-gopher.conf和task_whitelist.conf。g
 [root@localhost gopher_user_conf]# ll
 total 8.0K
 -rw-r--r--. 1 root root 3.2K Jun 28 09:43 gala-gopher.conf
--rw-r--r--. 1 root root  108 Jun 27 21:45 task_whitelist.conf
+-rw-r--r--. 1 root root  108 Jun 27 21:45 gala-gopher-app.conf
 ```
 
 请按照[配置文件介绍](conf_introduction.md)自定义修改配置文件。在执行docker run命令时，需要将宿主机上自定义的配置文件目录和容器内/gala-gopher/user_conf目录映射，从而将自定义的配置信息同步到容器内。
