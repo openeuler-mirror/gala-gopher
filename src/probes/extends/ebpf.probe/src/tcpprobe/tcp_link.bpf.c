@@ -86,6 +86,7 @@ static __always_inline int add_tcp_link(struct sock *sk, struct sock_info_s *inf
 
     link.role = info->role;
     link.tgid = tgid;
+    (void)bpf_get_current_comm(&link.comm, sizeof(link.comm));
     return create_tcp_link(sk, &link, info->syn_srtt);
 }
 
@@ -111,6 +112,14 @@ KPROBE(tcp_set_state, pt_regs)
     }
 
     if (new_state == TCP_CLOSE || new_state == TCP_CLOSE_WAIT || new_state == TCP_FIN_WAIT1) {
+        struct tcp_metrics_s *metrics;
+        metrics = get_tcp_metrics(sk);
+        if (metrics) {
+            metrics->report_flags |= (TCP_PROBE_ABN | TCP_PROBE_WINDOWS \
+                | TCP_PROBE_RTT | TCP_PROBE_TXRX | TCP_PROBE_SOCKBUF | TCP_PROBE_RATE);
+            report_srtt(ctx, metrics);
+        }
+
         (void)delete_tcp_link(sk);
     }
     return;
