@@ -75,6 +75,8 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
 
 #### 基于源码编译、安装、运行
 
+##### 仅编译二进制
+
 ​	建议在最低openEuler-20.03-LTS-SP1的环境执行编译动作，这是因为gala-gopher中ebpf探针编译依赖clang和llvm，大多数的bpf功能需要clang 10或者更高版本才可以正常工作，而20.03-SP1以下的发布版本中clang版本较低(低于10)。
 
 如下编译安装脚本在[build目录](./build)。
@@ -121,6 +123,59 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
   ```bash
   # gala-gopher
   ```
+
+##### 编译rpm包
+
+​	我们提供了OBS地址，用于用户编译最新的rpm包。当用户需要最新的rpm包时，可以按照如下步骤自行编译出最新版本的rpm包。
+
+- OBS路径如下：
+
+```sh
+EulerOS-V2R9C00 : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:20.03:LTS:SP1/gala-gopher-v2r9
+openEuler-20.03-LTS : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:20.03:LTS:SP1/gala-gopher-20.03lts
+openEuler-20.03-LTS-SP1 : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:20.03:LTS:SP1/gala-gopher
+openEuler-22.03-LTS : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:22.03:LTS/gala-gopher
+openEuler-22.09 : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:22.09:Epol/gala-gopher
+```
+
+编译前需要选择对应版本的路径，并通过 `Branch package` 按钮拉出个人分支包，如下图所示：
+
+![1667461889396](doc/pic/obs编译-branch_package.png)
+
+> 注：branch操作仅需在第一次编包的时候执行一次，后续可以直接在 **个人已有项目** 处找到，直接执行后续的打包、上传编译等步骤。
+
+- 源码打包
+
+```shell
+# 需要先将gala-gopher文件夹名重命名为gala-gopher-1.0.0
+# 然后打成tar包
+[root@master code]# tar zcvf gala-gopher-1.0.0.tar.gz gala-gopher-1.0.0/
+```
+
+- tar包上传并触发编译
+
+  还是以编译能够在openEuler-20.03-LTS环境运行的rpm包为例，需要在**外网操作**。参考如下视频：
+
+![obs编译-操作指南](doc/pic/obs编译-操作指南.gif)
+
+​	右侧 `Build Results` 框会显示编译结果，`building`表示还在编译中，`failed`表示编译失败，`succeeded`表示编译成功，编译成功则可以点击获取最新的rpm包。
+
+![1667461827079](doc/pic/obs编译-获取rpm包.png)
+
+- 安装
+
+```shell
+[root@master ~]# yum localinstall gala-gopher-1.0.0-2.oe1.x86_64.rpm
+```
+
+- 运行
+
+```shell
+# 前台运行
+[root@master ~]# gala-gopher
+# 通过systemd启动（推荐）
+[root@master ~]# systemctl start gala-gopher.service
+```
 
 ### 运行架构
 
