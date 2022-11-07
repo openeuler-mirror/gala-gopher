@@ -49,6 +49,9 @@
 
 static struct probe_params *g_args = NULL;
 
+static void output_tcp_metrics(void *ctx, int cpu, void *data, u32 size);
+static char is_load_probe(struct probe_params *args, u32 probe);
+
 static void output_tcp_abn(void *ctx, int cpu, void *data, __u32 size)
 {
     u32 sk_drops_delta;
@@ -76,7 +79,7 @@ static void output_tcp_abn(void *ctx, int cpu, void *data, __u32 size)
         (metrics->abn_stats.sacked_out - metrics->abn_stats.last_time_sacked_out) : metrics->abn_stats.sacked_out;
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u"
+        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
         "|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%d|%d|\n",
         TCP_TBL_ABN,
         link->tgid,
@@ -86,6 +89,7 @@ static void output_tcp_abn(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
+        link->comm,
 
         metrics->abn_stats.total_retrans,
         metrics->abn_stats.backlog_drops,
@@ -114,12 +118,14 @@ static void output_tcp_syn_rtt(void *ctx, int cpu, void *data, __u32 size)
 
     report_tcp_syn_rtt_evt(g_args, metrics);
 
+    output_tcp_metrics(ctx, cpu, data, size);
+
     link = &(metrics->link);
     ip_str(link->family, (unsigned char *)&(link->c_ip), src_ip_str, INET6_ADDRSTRLEN);
     ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u"
+        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
         "|%u|\n",
         TCP_TBL_SYNRTT,
         link->tgid,
@@ -129,6 +135,7 @@ static void output_tcp_syn_rtt(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
+        link->comm,
 
         metrics->srtt_stats.syn_srtt);
     (void)fflush(stdout);
@@ -147,7 +154,7 @@ static void output_tcp_rtt(void *ctx, int cpu, void *data, __u32 size)
     ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u"
+        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
         "|%u|%u|\n",
         TCP_TBL_RTT,
         link->tgid,
@@ -157,6 +164,7 @@ static void output_tcp_rtt(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
+        link->comm,
 
         metrics->rtt_stats.tcpi_srtt,
         metrics->rtt_stats.tcpi_rcv_rtt);
@@ -182,7 +190,7 @@ static void output_tcp_txrx(void *ctx, int cpu, void *data, __u32 size)
         (metrics->tx_rx_stats.segs_out - metrics->tx_rx_stats.last_time_segs_out) : metrics->tx_rx_stats.segs_out;
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u"
+        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
         "|%llu|%llu|%u|%u|\n",
         TCP_TBL_TXRX,
         link->tgid,
@@ -192,6 +200,7 @@ static void output_tcp_txrx(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
+        link->comm,
 
         metrics->tx_rx_stats.rx,
         metrics->tx_rx_stats.tx,
@@ -215,7 +224,7 @@ static void output_tcp_win(void *ctx, int cpu, void *data, __u32 size)
     ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u"
+        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
         "|%u|%u|%u|%u|%u|%u|%u|\n",
         TCP_TBL_WIN,
         link->tgid,
@@ -225,6 +234,7 @@ static void output_tcp_win(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
+        link->comm,
 
         metrics->win_stats.tcpi_snd_cwnd,
         metrics->win_stats.tcpi_notsent_bytes,
@@ -249,7 +259,7 @@ static void output_tcp_rate(void *ctx, int cpu, void *data, __u32 size)
     ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u"
+        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
         "|%u|%u|%u|%u|%u|%u|%llu|%u|%u|%u|%u|%u|\n",
         TCP_TBL_RATE,
         link->tgid,
@@ -259,6 +269,7 @@ static void output_tcp_rate(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
+        link->comm,
 
         metrics->rate_stats.tcpi_rto,
         metrics->rate_stats.tcpi_ato,
@@ -288,7 +299,7 @@ static void output_tcp_sockbuf(void *ctx, int cpu, void *data, __u32 size)
     ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u"
+        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
         "|%u|%u|%u|%u|%u|%u|%u|%d|%d|\n",
         TCP_TBL_SOCKBUF,
         link->tgid,
@@ -298,6 +309,7 @@ static void output_tcp_sockbuf(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
+        link->comm,
 
         metrics->sockbuf_stats.tcpi_sk_err_que_size,
         metrics->sockbuf_stats.tcpi_sk_rcv_que_size,
@@ -310,56 +322,52 @@ static void output_tcp_sockbuf(void *ctx, int cpu, void *data, __u32 size)
         metrics->sockbuf_stats.sk_sndbuf);
     (void)fflush(stdout);
 }
-#if 0
+
 static void output_tcp_metrics(void *ctx, int cpu, void *data, u32 size)
 {
     struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
+
+    char is_load_txrx, is_load_abn, is_load_win, is_load_rate, is_load_rtt, is_load_sockbuf;
+
+    is_load_txrx = is_load_probe(g_args, TCP_PROBE_TXRX);
+    is_load_abn = is_load_probe(g_args, TCP_PROBE_ABN);
+    is_load_rate = is_load_probe(g_args, TCP_PROBE_RATE);
+    is_load_win = is_load_probe(g_args, TCP_PROBE_WINDOWS);
+    is_load_rtt = is_load_probe(g_args, TCP_PROBE_RTT);
+    is_load_sockbuf = is_load_probe(g_args, TCP_PROBE_SOCKBUF);
+
     u32 flags = metrics->report_flags & TCP_PROBE_ALL;
-    switch (flags) {
-        case TCP_PROBE_ABN:
-        {
-            output_tcp_abn(ctx, cpu, data, size);
-            break;
-        }
-        case TCP_PROBE_WINDOWS:
-        {
-            output_tcp_win(ctx, cpu, data, size);
-            break;
-        }
-        case TCP_PROBE_RTT:
-        {
-            output_tcp_rtt(ctx, cpu, data, size);
-            break;
-        }
-        case TCP_PROBE_TXRX:
-        {
-            output_tcp_txrx(ctx, cpu, data, size);
-            break;
-        }
-        case TCP_PROBE_SOCKBUF:
-        {
-            output_tcp_sockbuf(ctx, cpu, data, size);
-            break;
-        }
-        case TCP_PROBE_RATE:
-        {
-            output_tcp_rate(ctx, cpu, data, size);
-            break;
-        }
-        case TCP_PROBE_SRTT:
-        {
-            output_tcp_syn_rtt(ctx, cpu, data, size);
-            break;
-        }
-        default:
-        {
-            ERROR("[TCPPROBE] Invalid output.\n");
-            break;
-        }
+
+    if ((flags & TCP_PROBE_ABN) && is_load_abn) {
+        output_tcp_abn(ctx, cpu, data, size);
     }
-    (void)fflush(stdout);
+
+    if ((flags & TCP_PROBE_WINDOWS) && is_load_win) {
+        output_tcp_win(ctx, cpu, data, size);
+    }
+
+
+    if ((flags & TCP_PROBE_RTT) && is_load_rtt) {
+        output_tcp_rtt(ctx, cpu, data, size);
+    }
+
+
+    if ((flags & TCP_PROBE_TXRX) && is_load_txrx) {
+        output_tcp_txrx(ctx, cpu, data, size);
+    }
+
+
+    if ((flags & TCP_PROBE_SOCKBUF) && is_load_sockbuf) {
+        output_tcp_sockbuf(ctx, cpu, data, size);
+    }
+
+
+    if ((flags & TCP_PROBE_RATE) && is_load_rate) {
+        output_tcp_rate(ctx, cpu, data, size);
+    }
+
 }
-#endif
+
 static char is_load_probe(struct probe_params *args, u32 probe)
 {
     return args->load_probe & probe;

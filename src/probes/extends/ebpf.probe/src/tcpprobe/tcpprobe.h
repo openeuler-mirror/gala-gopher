@@ -170,6 +170,7 @@ struct tcp_link_s {
     __u16 family;
     __u16 c_flag;   // c_port valid:1/invalid:0
     __u32 role;     // role: client:1/server:0
+    char comm[TASK_COMM_LEN];
 };
 
 struct tcp_metrics_s {
