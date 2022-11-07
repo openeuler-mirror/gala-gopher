@@ -17,42 +17,7 @@
 
 #pragma once
 
-#include "common.h"
-#include "hash.h"
-
-// example: ffff800009294000 t __nft_trace_packet   [nf_tables]
-#if defined(__TARGET_ARCH_x86)
-#define KERN_ADDR_SPACE     (0x00FFFFFFFFFFFFFF)
-#else
-#define KERN_ADDR_SPACE     (0x0)
-#endif
-
-#define IS_KERN_DATA_SYMBOL(S)  (((S) == 'B') || ((S) == 'b') || ((S) == 'd') \
-                                || ((S) == 'R') || ((S) == 'r') || ((S) == 'D'))
-
-struct ksymb_s {
-    u64 addr;
-    char *sym;
-    char *kmod;
-};
-
-struct ksymb_tbl_s {
-    u32 ksym_size;
-    struct ksymb_s ksyms[];
-};
-
-struct addr_symb_s {
-    char *sym;      // No release is required.
-    char *mod;      // No release is required.
-    u64 orign_addr;
-    u64 offset;
-};
-
-void destroy_ksymbs_tbl(struct ksymb_tbl_s *ksym_tbl);
-struct ksymb_tbl_s* create_ksymbs_tbl(void);
-int search_kern_addr_symb(struct ksymb_tbl_s *ksymbs, u64 addr, struct addr_symb_s *addr_symb);
-int sort_kern_syms(struct ksymb_tbl_s *ksymbs);
-int load_kern_syms(struct ksymb_tbl_s *ksymbs);
+#include "kern_symb.h"
 
 #define MOD_MAX_COUNT       1000
 #define SYMBS_MAX_COUNT     1000000
