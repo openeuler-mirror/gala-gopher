@@ -934,7 +934,7 @@ static int IMDB_Tbl2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Table *table, char *b
 
 int IMDB_DataBase2Prometheus(IMDB_DataBaseMgr *mgr, char *buffer, uint32_t maxLen, uint32_t *buf_len)
 {
-    pthread_rwlock_rdlock(&mgr->rwlock);
+    pthread_rwlock_wrlock(&mgr->rwlock);
 
     int ret = 0;
     char *cursor = buffer;
