@@ -93,6 +93,8 @@ typedef struct {
     IMDB_NodeInfo nodeInfo;
     pthread_rwlock_t rwlock;
     uint32_t webServerOn;
+
+    pthread_t metrics_tid;
 } IMDB_DataBaseMgr;
 
 IMDB_Metric *IMDB_MetricCreate(char *name, char *description, char *type);

@@ -266,8 +266,7 @@ int DaemonRun(const ResourceMgr *mgr)
     }
 
     // 4. start metadata_report thread
-    pthread_t meta_tid;
-    ret = pthread_create(&meta_tid, NULL, DaemonRunMetadataReport, mgr->mmMgr);
+    ret = pthread_create(&mgr->mmMgr->tid, NULL, DaemonRunMetadataReport, mgr->mmMgr);
     if (ret != 0) {
         ERROR("[DAEMON] create metadata_report thread failed. errno: %d\n", ret);
         return -1;
@@ -316,8 +315,7 @@ int DaemonRun(const ResourceMgr *mgr)
     }
 
     // 7. start write metricsLogs thread
-    pthread_t metrics_tid;
-    ret = pthread_create(&metrics_tid, NULL, DaemonRunMetricsWriteLogs, mgr->imdbMgr);
+    ret = pthread_create(&mgr->imdbMgr->metrics_tid, NULL, DaemonRunMetricsWriteLogs, mgr->imdbMgr);
     if (ret != 0) {
         ERROR("[DAEMON] create metrics_write_logs thread failed. errno: %d\n", errno);
         return -1;
@@ -351,17 +349,23 @@ int DaemonWaitDone(const ResourceMgr *mgr)
     // 2. wait egress done
     pthread_join(mgr->egressMgr->tid, NULL);
 
-    // 3. wait probe done
+    // 3. wait metadata_report done
+    pthread_join(mgr->mmMgr->tid, NULL);
+
+    // 4. wait probe done
     for (int i = 0; i < mgr->probeMgr->probesNum; i++) {
         pthread_join(mgr->probeMgr->probes[i]->tid, NULL);
     }
 
-    // 4. wait extend probe done
+    // 5. wait extend probe done
     for (int i = 0; i < mgr->extendProbeMgr->probesNum; i++) {
         pthread_join(mgr->extendProbeMgr->probes[i]->tid, NULL);
     }
 
-    // 5.wait ctl thread done
+    // 6. wait metric_write_logs done
+    pthread_join(mgr->imdbMgr->metrics_tid, NULL);
+
+    // 7.wait ctl thread done
     pthread_join(mgr->ctl_tid, NULL);
 
     return 0;
