@@ -37,6 +37,7 @@
 #define BASE_HEX                    16
 #define MAX_CPU_NUM                 1024
 #define FULL_PER                    100
+#define MAX_COL_NUM                 20
 
 static struct cpu_stat **cur_cpus = NULL;
 static struct cpu_stat **old_cpus = NULL;
@@ -44,6 +45,8 @@ static int cpus_num = 0;
 static bool is_first_get = true;
 static u64 last_time_total, cur_time_total, last_time_used, cur_time_used;
 static float util_per;
+static int softirq_line_num = 0;
+char *softirq_line = NULL;
 
 /*
  * time_total = user + nice + sys + irq + softirq + steal + idle + iowait (前8列)
@@ -153,14 +156,14 @@ static int get_softirq_info(void)
 {
     FILE *f = NULL;
     char *field, *save;
-    char line[LINE_BUF_LEN] = {0};
 
+    softirq_line[0] = 0;
     f = popen(SYSTEM_PROCESSOR_INFO, "r");
     if (f == NULL) {
         return -1;
     }
-    while (fgets(line, LINE_BUF_LEN, f) != NULL) {
-        field = __strtok_r(line, " ", &save);
+    while (fgets(softirq_line, softirq_line_num - 1, f) != NULL) {
+        field = __strtok_r(softirq_line, " ", &save);
         if (strcmp(field, "RCU:") == 0) {
             for (size_t i = 0; i < cpus_num; i++) {
                 cur_cpus[i]->rcu = atoll(__strtok_r(NULL, " ", &save));
@@ -178,7 +181,7 @@ static int get_softirq_info(void)
                 cur_cpus[i]->net_rx = atoll(__strtok_r(NULL, " ", &save));
             }
         }
-        line[0] = 0;
+        softirq_line[0] = 0;
     }
     pclose(f);
     return 0;
@@ -288,6 +291,8 @@ int system_cpu_init(void)
         }
         return -1;
     }
+    softirq_line_num = MAX_COL_NUM * (1 + cpus_num);
+    softirq_line = (char*)malloc(softirq_line_num);
     return 0;
 }
 
@@ -295,6 +300,10 @@ void system_cpu_destroy(void)
 {
     dealloc_memory(cur_cpus);
     dealloc_memory(old_cpus);
+    if (softirq_line != NULL) {
+        free(softirq_line);
+        softirq_line = NULL;
+    }
     cur_cpus = NULL;
     old_cpus = NULL;
 }
