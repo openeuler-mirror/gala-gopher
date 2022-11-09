@@ -29,6 +29,7 @@
 #define OS_LATEST_KVERSION      "/usr/bin/cat %s | grep kernelversion | awk -F'=' \'{print $2}\'"
 #define IS_CMD_HOSTNAME_EXIST   "which hostname 2>/dev/null"
 #define OS_GET_ALL_ADDRS        "hostname -I"
+#define OS_DETECT_VIRT_ENV      "systemd-detect-virt -v"
 #define LEN_1MB                 (1024 * 1024)     // 1 MB
 
 
@@ -165,6 +166,25 @@ static int get_host_name(struct node_infos *infos)
     return 0;
 }
 
+static int get_host_type(struct node_infos *infos)
+{
+    char line[LINE_BUF_LEN];
+
+    if (infos == NULL) {
+        return -1;
+    }
+    if (do_read_line(OS_DETECT_VIRT_ENV, line) < 0) {
+        ERROR("[SYSTEM_OS] systemd detect virt environment failed.\n");
+        return -1;
+    }
+    if (!strcmp(line, "none")) {
+        infos->is_host_vm = 0;
+    } else {
+        infos->is_host_vm = 1;
+    }
+    return 0;
+}
+
 static char g_first_get = 1;
 int system_os_probe(void)
 {
@@ -172,13 +192,14 @@ int system_os_probe(void)
     if (g_first_get == 1) {
         (void)get_os_release_info(&g_nodeinfos);
         (void)get_resource_info(&g_nodeinfos);
+        (void)get_host_type(&g_nodeinfos);
 
         g_first_get = 0;
     }
     (void)get_ip_addr(&g_nodeinfos);
     (void)get_host_name(&g_nodeinfos);
 
-    nprobe_fprintf(stdout, "|%s|%s|%s|%s|%llu|%llu|%s|%d|\n",
+    nprobe_fprintf(stdout, "|%s|%s|%s|%s|%llu|%llu|%s|%s|%d|\n",
         METRICS_OS_NAME,
         g_nodeinfos.os_version,
         g_nodeinfos.host_name,
@@ -186,6 +207,7 @@ int system_os_probe(void)
         g_nodeinfos.cpu_num,
         g_nodeinfos.total_memory,
         g_nodeinfos.ip_addr,
+        g_nodeinfos.is_host_vm == 0 ? "pm" : "vm",
         1); // metric is a fixed number
     return 0;
 }

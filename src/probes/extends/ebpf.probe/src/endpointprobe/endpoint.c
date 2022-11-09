@@ -62,7 +62,7 @@ static struct probe_params params = {.period = DEFAULT_PERIOD};
 static void print_tcp_listen_metrics(struct endpoint_val_t *value)
 {
     fprintf(stdout,
-            "|%s|%d|%s|%d|%s|%lu|%lu|%lu|%lu|%lu|%lu|\n",
+            "|%s|%d|%s|%d|%s|%lu|%lu|%lu|%lu|%lu|%lu|%lu|\n",
             LISTEN_TBL_NAME,
             value->key.key.tcp_listen_key.tgid,
             "*",

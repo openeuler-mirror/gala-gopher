@@ -38,6 +38,11 @@ measurements:
                 name: "ip_addr",
             },
             {
+                description: "host type: vm or pm",
+                type: "label",
+                name: "host_type",
+            },
+            {
                 description: "a fixed num as metric",
                 type: "gauge",
                 name: "value",
