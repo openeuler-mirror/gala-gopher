@@ -41,6 +41,7 @@ typedef struct {
     u32 oncpu;
     u32 offcpu;
     u32 io;
+    u32 memleak;
 } FlameTypesConfig;
 
 typedef struct {

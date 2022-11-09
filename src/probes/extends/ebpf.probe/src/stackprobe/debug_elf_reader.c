@@ -167,7 +167,8 @@ static int __get_container_id_by_pid(int pid, char container_id[], size_t len)
 
     buf[0] = 0;
     cmd[0] = 0;
-    (void)snprintf(cmd, COMMAND_LEN, __GET_CONTAINER_ID_CMD, pid);
+    (void)snprintf(cmd, COMMAND_LEN, __GET_CONTAINER_ID_CMD, pid);
+
     if (exec_cmd((const char *)cmd, buf, CONTAINER_ID_LEN)) {
         return -1;
     }
@@ -186,7 +187,8 @@ static int __get_pid_root_path(int pid, char root_path[], size_t len)
 
     root_path[0] = 0;
     cmd[0] = 0;
-    (void)snprintf(cmd, COMMAND_LEN, __GET_ROOT_PATH_CMD, pid);
+    (void)snprintf(cmd, COMMAND_LEN, __GET_ROOT_PATH_CMD, pid);
+
     if (exec_cmd((const char *)cmd, root_path, len)) {
         return -1;
     }
@@ -201,7 +203,8 @@ static int get_pid_root_path(int pid, char root_path[], size_t len)
     char container_id[CONTAINER_ABBR_ID_LEN + 1] = {0};
 
     pid_root[0] = 0;
-    if ((ret = __get_pid_root_path(pid, pid_root, PATH_LEN)) && ret != 0) {
+    ret = __get_pid_root_path(pid, pid_root, PATH_LEN);
+    if (ret != 0) {
         return ret;
     }
 
@@ -221,7 +224,8 @@ static int get_pid_root_path(int pid, char root_path[], size_t len)
     }
 
     container_root[0] = 0;
-    if ((ret = get_container_merged_path((const char *)container_id, container_root, PATH_LEN)) && ret != 0) {
+    ret = get_container_merged_path((const char *)container_id, container_root, PATH_LEN);
+    if (ret != 0) {
         return ret;
     }
 
@@ -460,7 +464,8 @@ int get_elf_debug_file(struct elf_reader_s* reader, int pid,
 
     // step1: get pid root path.
     pid_root_path[0] = 0;
-    if ((ret = get_pid_root_path(pid, pid_root_path, PATH_LEN)) && ret != 0) {
+    ret = get_pid_root_path(pid, pid_root_path, PATH_LEN);
+    if (ret != 0) {
         return ret;
     }
 
@@ -558,7 +563,8 @@ struct elf_symbo_s* get_elf_symbol(struct elf_reader_s* reader, int pid, const c
     char debug_file[PATH_LEN];
     struct elf_symbo_s *item = NULL, *new_item = NULL;
 
-    if ((ret = get_inode(elf_link, &inode)) && ret != 0) {
+    ret = get_inode(elf_link, &inode)
+    if (ret != 0) {
         return NULL;
     }
 
@@ -570,7 +576,8 @@ struct elf_symbo_s* get_elf_symbol(struct elf_reader_s* reader, int pid, const c
     }
 
     debug_file[0] = 0;
-    if ((ret = get_elf_debug_file(reader, pid, elf, elf_link, debug_file, PATH_LEN)) && ret != 0) {
+    ret = get_elf_debug_file(reader, pid, elf, elf_link, debug_file, PATH_LEN);
+    if (ret != 0) {
         goto err;
     }
 
@@ -588,7 +595,8 @@ struct elf_symbo_s* get_elf_symbol(struct elf_reader_s* reader, int pid, const c
         goto err;
     }
 
-    if ((ret = load_elf_symbol(new_item)) && ret != 0) {
+    ret = load_elf_symbol(new_item)
+    if (ret != 0) {
         ERROR("[DEBUG_ELF]: Failed to load symbol(%s).\n", new_item->file);
         goto err;
     }

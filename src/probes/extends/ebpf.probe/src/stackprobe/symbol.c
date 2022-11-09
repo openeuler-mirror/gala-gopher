@@ -601,7 +601,8 @@ static int add_mod(void *elf_reader, struct proc_symbs_s* proc_symbs, struct mod
     (void)memset(mod_info, 0, sizeof(struct mod_info_s));   // avoid refree
     new_mod->elf_reader = elf_reader;
 
-    if ((ret = load_symbs(new_mod)) && ret != 0) {
+    ret = load_symbs(new_mod);
+    if (ret != 0) {
         goto err;
     }
 
@@ -611,12 +612,13 @@ static int add_mod(void *elf_reader, struct proc_symbs_s* proc_symbs, struct mod
     }
 
 #if 0
-    if ((ret = sort_symbs(new_mod)) && ret != 0) {
+    ret = sort_symbs(new_mod);
+    if (ret != 0) {
         goto err;
     }
 #endif
-
-    if ((ret = get_mod_elf_so_offset(new_mod)) && ret != 0) {
+    ret = get_mod_elf_so_offset(new_mod);
+    if (ret != 0) {
         goto err;
     }
 
@@ -837,27 +839,29 @@ static int proc_iter_maps(void *elf_reader, struct proc_symbs_s* proc_symbs, FIL
         if (!MAPS_IS_EXEC_PERM(maps_perm)) {
             goto next;
         }
-
-        if ((ret = get_mod_name(&mod_info, line)) && ret != 0) {
+        ret = get_mod_name(&mod_info, line);
+        if (ret != 0) {
             goto next;
         }
 
         exist_mod = proc_get_mod_by_name(proc_symbs, (const char *)mod_info.name);
         if (exist_mod) {
-            if ((ret = add_mod_range(exist_mod, mod_info.start, mod_info.end, mod_info.f_offset)) && ret != 0) {
+            ret = add_mod_range(exist_mod, mod_info.start, mod_info.end, mod_info.f_offset);
+            if (ret != 0) {
                 goto next;
             }
             mod_info_destroy(&mod_info);
         } else {
-            if ((ret = get_mod_path(&mod_info, proc_symbs->proc_id)) && ret != 0) {
+            ret = get_mod_path(&mod_info, proc_symbs->proc_id);
+            if (ret != 0) {
                 goto next;
             }
-            
-            if ((ret = get_mod_type(&mod_info)) && ret != 0) {
+            ret = get_mod_type(&mod_info);
+            if (ret != 0) {
                 goto next;
             }
-
-            if ((ret = add_mod(elf_reader, proc_symbs, &mod_info)) && ret != 0) {
+            ret = add_mod(elf_reader, proc_symbs, &mod_info);
+            if (ret != 0) {
                 is_over = 1;
                 goto next;
             }
@@ -898,8 +902,8 @@ struct proc_symbs_s* proc_load_all_symbs(void *elf_reader, int proc_id, char *co
         ERROR("[SYMBOL]: Open proc maps-file failed.[%s].\n", maps_file);
         goto err;
     }
-
-    if ((ret = proc_iter_maps(elf_reader, proc_symbs, fp)) && ret != 0) {
+    ret = proc_iter_maps(elf_reader, proc_symbs, fp);
+    if (ret != 0) {
         ERROR("[SYMBOL]: Iter proc maps failed[proc = %d, ret = %d].\n", proc_id, ret);
         goto err;
     }
@@ -938,16 +942,19 @@ int proc_search_addr_symb(struct proc_symbs_s *proc_symbs,
     addr_symb->orign_addr = addr;
     for (int i = 0; i < proc_symbs->mods_count; i++) {
         target_addr = 0;
+        
         if (proc_symbs->mods[i]) {
-            if ((ret = search_elf_symb(proc_symbs->mods[i]->debug_symbs,
-                    addr, addr, proc_symbs->comm, addr_symb)) && ret == 0) {
+            ret = search_elf_symb(proc_symbs->mods[i]->debug_symbs,
+                    addr, addr, proc_symbs->comm, addr_symb);
+            if (ret == 0) {
                 break;
             }
 
             if (is_mod_contain_addr(proc_symbs->mods[i], addr, &target_addr)) {
                 is_contain_range = 1;
-                if ((ret = search_elf_symb(proc_symbs->mods[i]->mod_symbs,
-                        addr, target_addr, proc_symbs->comm, addr_symb)) && ret != 0) {
+                ret = search_elf_symb(proc_symbs->mods[i]->mod_symbs,
+                        addr, target_addr, proc_symbs->comm, addr_symb);
+                if (ret != 0) {
 #ifdef GOPHER_DEBUG
                     __print_mod_symbs(proc_symbs->mods[i]);
 #endif
@@ -956,11 +963,13 @@ int proc_search_addr_symb(struct proc_symbs_s *proc_symbs,
             }
         }
     }
-#ifdef GOPHER_DEBUG
+
     if (!is_contain_range) {
+#ifdef GOPHER_DEBUG
         __print_proc_ranges(proc_symbs);
-    }
 #endif
+    }
+
     return ret;
 }
 #endif
