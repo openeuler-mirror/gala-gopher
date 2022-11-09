@@ -47,6 +47,8 @@ typedef struct {
     KafkaMgr *meta_kafkaMgr;
     OutChannelType meta_out_channel;
 
+    pthread_t tid;
+
 } MeasurementMgr;
 
 MeasurementMgr *MeasurementMgrCreate(uint32_t measurementsCapability, uint32_t fields_num_max);
