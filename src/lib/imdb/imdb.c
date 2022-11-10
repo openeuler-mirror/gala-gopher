@@ -250,11 +250,11 @@ void IMDB_TableDestroy(IMDB_Table *table)
     return;
 }
 
-static int IMDB_GetMachineId(char *buffer, size_t size)
+static int IMDB_GetSystemUuid(char *buffer, size_t size)
 {
     FILE *fp = NULL;
 
-    fp = popen("cat /etc/machine-id", "r");
+    fp = popen("dmidecode -s system-uuid | tr 'A-Z' 'a-z'", "r");
     if (fp == NULL) {
         return -1;
     }
@@ -282,9 +282,9 @@ IMDB_DataBaseMgr *IMDB_DataBaseMgrCreate(uint32_t capacity)
 
     memset(mgr, 0, sizeof(IMDB_DataBaseMgr));
 
-    ret = IMDB_GetMachineId(mgr->nodeInfo.machineId, sizeof(mgr->nodeInfo.machineId));
+    ret = IMDB_GetSystemUuid(mgr->nodeInfo.systemUuid, sizeof(mgr->nodeInfo.systemUuid));
     if (ret != 0) {
-        ERROR("[IMDB] Can not get machine id.\n");
+        ERROR("[IMDB] Can not get system uuid.\n");
         free(mgr);
         return NULL;
     }
@@ -645,7 +645,7 @@ static int IMDB_BuildEntiyID(const IMDB_DataBaseMgr *mgr,
         return -1;
     }
 
-    return __snprintf(&p, size, &size, fmt, mgr->nodeInfo.machineId, entityName, entityId);
+    return __snprintf(&p, size, &size, fmt, mgr->nodeInfo.systemUuid, entityName, entityId);
 }
 
 static int IMDB_BuildEventID(const IMDB_DataBaseMgr *mgr,
@@ -662,7 +662,7 @@ static int IMDB_BuildEventID(const IMDB_DataBaseMgr *mgr,
         return -1;
     }
 
-    return __snprintf(&p, size, &size, fmt, timestamp, mgr->nodeInfo.machineId, entityName, entityId);
+    return __snprintf(&p, size, &size, fmt, timestamp, mgr->nodeInfo.systemUuid, entityName, entityId);
 }
 
 static int IMDB_BuildEventType(char *buffer, uint32_t maxLen)
@@ -768,7 +768,7 @@ static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
     }
 
     // append machine_id
-    ret = __snprintf(&p, size, &size, ",machine_id=\"%s\"", mgr->nodeInfo.machineId);
+    ret = __snprintf(&p, size, &size, ",machine_id=\"%s\"", mgr->nodeInfo.systemUuid);
     if (ret < 0) {
         goto err;
     }
@@ -985,7 +985,7 @@ static int IMDB_Record2Json(const IMDB_DataBaseMgr *mgr, const IMDB_Table *table
         return -1;
     }
 
-    ret = snprintf(json_cursor, maxLen, ", \"machine_id\": \"%s\"", mgr->nodeInfo.machineId);
+    ret = snprintf(json_cursor, maxLen, ", \"machine_id\": \"%s\"", mgr->nodeInfo.systemUuid);
     if (ret < 0)  {
         return -1;
     }

@@ -92,7 +92,7 @@ static void msg_event_handler(void *ctx, int cpu, void *data, unsigned int size)
     struct msg_event_data_t *msg_evt_data = (struct msg_event_data_t *)data;
     unsigned char ser_ip_str[INET6_ADDRSTRLEN];
     unsigned char cli_ip_str[INET6_ADDRSTRLEN];
-    const char *protocol;
+    //const char *protocol;
 
     report_sli_event(msg_evt_data);
 

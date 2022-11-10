@@ -30,7 +30,7 @@ KER_VER_PATCH = $(shell echo $(KER_VER) | awk -F'.' '{print $$3}')
 RELEASE_INFOS = $(shell uname -r | awk -F'-' '{print $$2}')
 KER_RELEASE = $(shell echo $(RELEASE_INFOS) | awk -F'.' '{print $$1}')
 
-LINK_TARGET ?= -lpthread -lbpf -lelf -llog4cplus -lz
+LINK_TARGET ?= -lpthread -lbpf -lelf -llog4cplus -lz -lconfig
 EXTRA_CFLAGS ?= -g -O2 -Wall -fPIC
 EXTRA_CDEFINE ?= -D__TARGET_ARCH_$(ARCH)
 CFLAGS := $(EXTRA_CFLAGS) $(EXTRA_CDEFINE)

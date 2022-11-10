@@ -256,10 +256,10 @@ static char que_current_is_invalid(struct log_mgr_s *mgr, int is_metrics, int ma
 
     (void)pthread_rwlock_wrlock(&(files_que->rwlock));
 
-    if (((int)files_que->current.len >= max_logs_len) || (files_que->current.len == 0)) {
-        invalid = 1;
-        goto out;
-    }
+    //if (((int)files_que->current.len >= max_logs_len) || (files_que->current.len == 0)) {
+    //    invalid = 1;
+    //    goto out;
+    //}
 
     char full_path[PATH_LEN];
     if (get_file_name(mgr, is_metrics, files_que->current.file_id, full_path, PATH_LEN)) {

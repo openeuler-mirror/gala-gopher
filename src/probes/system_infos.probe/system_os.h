@@ -32,6 +32,7 @@ struct node_infos {
     char ip_addr[MAX_IP_ADDRS_LEN];
     u64 cpu_num;
     u64 total_memory;
+    char is_host_vm;    // 1: vm / 0: pm
 };
 
 int system_os_probe(void);
