@@ -288,8 +288,8 @@ struct elf_symbo_s* get_elf_symb(const char* elf)
     int ret;
     u32 inode;
     struct elf_symbo_s* item = NULL, *new_item = NULL;
-
-    if ((ret = __get_inode(elf, &inode)) && (ret != 0)) {
+    ret = __get_inode(elf, &inode);
+    if (ret != 0) {
         return NULL;
     }
 
@@ -303,8 +303,8 @@ struct elf_symbo_s* get_elf_symb(const char* elf)
     if (!new_item) {
         goto err;
     }
-
-    if ((ret = __load_elf_symbol(new_item)) && ret != 0) {
+    ret = __load_elf_symbol(new_item);
+    if (ret != 0) {
         ERROR("[ELF_SYMBOL]: Failed to load symbol(%s).\n", new_item->elf);
         goto err;
     }
@@ -318,7 +318,8 @@ struct elf_symbo_s* get_elf_symb(const char* elf)
     return new_item;
 err:
     if (new_item) {
-        __destroy_elf_symbol(new_item);
+        __destroy_elf_symbol(new_item);
+
         (void)free(new_item);
     }
     return NULL;

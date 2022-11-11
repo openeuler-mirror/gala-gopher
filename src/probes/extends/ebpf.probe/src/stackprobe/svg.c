@@ -40,7 +40,7 @@
 
 #define __COMMAND_LEN       (2 * COMMAND_LEN)
 #define FAMEGRAPH_BIN       "/usr/bin/flamegraph.pl"
-#define ONCPU_SVG_COMMAND   "%s --title=\" %s \" %s %s > %s"
+#define SVG_COMMAND   "%s --title=\" %s \" %s %s > %s"
 
 struct svg_param_s {
     char *file_name;
@@ -51,7 +51,8 @@ struct svg_param_s {
 static struct svg_param_s svg_params[STACK_SVG_MAX] =
     {{"oncpu", "--countname=us", "On-CPU Time Flame Graph"},
     {"offcpu", "--countname=us", "Off-CPU Time Flame Graph"},
-    {"io", "--colors=io --countname=us", "IO Time Flame Graph"}};
+    {"io", "--colors=io --countname=us", "IO Time Flame Graph"},
+    {"memleak", "--colors=mem --countname=Bytes", "Memory Leak Flame Graph"}};
 
 #if 1
 static void __rm_svg(const char *svg_file)
@@ -91,7 +92,7 @@ static int __new_svg(const char *flame_graph, const char *svg_file, int en_type)
     }
 
     commad[0] = 0;
-    (void)snprintf(commad, __COMMAND_LEN, ONCPU_SVG_COMMAND,
+    (void)snprintf(commad, __COMMAND_LEN, SVG_COMMAND,
         flamegraph_bin, svg_params[en_type].titile,
         svg_params[en_type].params, flame_graph, svg_file);
 
@@ -122,6 +123,9 @@ static void __destroy_flamegraph(struct stack_flamegraph_s *flame_graph)
 static void __destroy_svg_files(struct stack_svg_s *svg_files)
 {
     char *file;
+    if (!svg_files->files) {
+        return;
+    }
     for (int i = 0; i < svg_files->capacity; i++) {
         file = svg_files->files[i];
         if (file) {

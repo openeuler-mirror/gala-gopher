@@ -228,6 +228,20 @@ static int configLoadFlameTypes(void *config, config_setting_t *settings)
     }
     flameTypesConfig->offcpu = intVal;
 
+    ret = config_setting_lookup_bool(settings, "io", &intVal);
+    if (ret == 0) {
+        ERROR("[STACKPROBE]: load config for flame_name io failed.\n");
+        return -1;
+    }
+    flameTypesConfig->io = intVal;
+
+    ret = config_setting_lookup_bool(settings, "memleak", &intVal);
+    if (ret == 0) {
+        ERROR("[STACKPROBE]: load config for flame_name memleak failed.\n");
+        return -1;
+    }
+    flameTypesConfig->memleak = intVal;
+
     return 0;
 }
 

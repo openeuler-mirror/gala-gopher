@@ -39,4 +39,9 @@ struct stack_id_s {
     struct stack_pid_s pid;
 };
 
+struct raw_trace_s {
+    s64 count;
+    struct stack_id_s stack_id;
+};
+
 #endif

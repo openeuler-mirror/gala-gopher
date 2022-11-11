@@ -33,7 +33,7 @@ struct stack_symbs_s {
 struct raw_stack_trace_s {
     u32 stack_size;
     u32 raw_trace_count;
-    struct stack_id_s raw_traces[];
+    struct raw_trace_s raw_traces[];
 };
 
 #define __FUNC_NAME_LEN     64
@@ -97,6 +97,7 @@ struct svg_stack_trace_s {
 
     struct stack_svg_mng_s *svg_mng;
     struct stack_trace_histo_s *histo_tbl;
+    struct raw_stack_trace_s *raw_stack_trace;
 };
 
 struct stack_trace_s {
@@ -110,7 +111,6 @@ struct stack_trace_s {
     time_t running_times;
 
     struct svg_stack_trace_s *svg_stack_traces[STACK_SVG_MAX];
-    struct raw_stack_trace_s *raw_stack_traces;
     struct ksymb_tbl_s *ksymbs;
     struct proc_cache_s *proc_cache;
     u32 proc_cache_mirro_count;
