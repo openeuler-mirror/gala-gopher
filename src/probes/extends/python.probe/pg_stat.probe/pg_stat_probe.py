@@ -46,7 +46,8 @@ def init_conns():
             user = server['user']
             password = server['password']
             try:
-                conn = psycopg2.connect("host=%s port=%s dbname=%s user=%s password=%s"
+                conn = psycopg2.connect(
+                    "host=%s port=%s dbname=%s user=%s password=%s connect_timeout=3"
                     % (ip, port, dbname, user, password))
             except Exception as e:
                 print("[pg_stat_probe]connect to %s:%s failed! %s" % (ip, port, repr(e)))
