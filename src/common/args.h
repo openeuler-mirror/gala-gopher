@@ -21,6 +21,7 @@
 #define DEFAULT_PERIOD      5
 #define DEFAULT_SAMPLE_PERIOD      100
 #define MAX_PATH_LEN        512
+#define MAX_COMM_LEN        17
 #define MAX_PROC_NAME_LEN   8
 #define DEV_NAME            32
 #define __OPT_S "t:s:T:J:O:D:F:lU:L:c:p:w:d:P:C"
@@ -44,6 +45,7 @@ struct probe_params {
     char elf_path[MAX_PATH_LEN];  // [-p <>] Set ELF file path of the monitored software, default is null 
     char task_whitelist[MAX_PATH_LEN]; // [-w <>] Filtering app monitoring ranges, default is null
     char netcard_list[MAX_PATH_LEN]; // [-d <>] Device name, default is null
+    char target_comm[MAX_COMM_LEN]; // [-F <>] Process comm name, default is null
 };
 int args_parse(int argc, char **argv, struct probe_params* params);
 int params_parse(char *s, struct probe_params *params);
