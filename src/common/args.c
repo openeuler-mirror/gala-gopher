@@ -56,6 +56,8 @@ static void __filter_arg_parse(char *arg, struct probe_params *params)
         return;
     }
 
+    (void)snprintf((void *)params->target_comm, MAX_COMM_LEN, "%s", arg);
+
     return;
 }
 

@@ -91,21 +91,22 @@ gala-gopher支持用户配置观测的应用范围，即支持用户设置关注
 
 | 参数项 | 含义                                                         |
 | ------ | ------------------------------------------------------------ |
-| -l     | 是否开启异常事件上报                                         |
-| -t     | 采样周期，单位为秒，默认配置为探针5s上报一次数据             |
+| -l     | 是否开启异常事件上报，目前仅支持warn                         |
+| -t     | 上报周期，单位为秒，默认配置为探针5s上报一次数据             |
+| -s     | 采样周期，单位为毫秒，默认配置为探针100ms采集一次数据        |
 | -T     | 延迟时间阈值，单位为ms，默认配置为0ms，用于异常事件          |
 | -J     | 抖动时间阈值，单位为ms，默认配置为0ms，用于异常事件          |
 | -O     | 离线时间阈值，单位为ms，默认配置为0ms，用于异常事件          |
 | -D     | 丢包阈值，默认配置为0(个)，用于异常事件                      |
-| -F     | 配置为`task`表示按照`gala-gopher-app.conf`过滤；配置为具体进程的pid表示仅监控此进程 |
+| -F     | 1）配置为`task`表示按照`gala-gopher-app.conf`过滤；2）配置为具体进程的pid表示仅监控此进程；3）配置为进程名表示基于进程名范围监控。 |
 | -P     | 指定每个探针加载的探测程序范围，目前tcpprobe、taskprobe探针涉及 |
 | -U     | 资源利用率阈值(上限)，默认为0%，用于异常事件                 |
 | -L     | 资源利用率阈值(下限)，默认为0%，用于异常事件                 |
-| -c     | 指示探针(tcp)是否标识client_port，默认配置为0(否)            |
-| -C     | 指定探针(ksliprobe)是否开启周期采样，增加该参数则连续采集数据，不加该参数则周期性(如5s)采样一次 |
+| -c     | 指示探针(tcp)是否采集client_port，默认配置为0(否)            |
 | -p     | 指定待观测进程的二进制文件路径，比如nginx_probe，通过 -p /user/local/sbin/nginx指定nginx文件路径，默认配置为NULL |
-| -w     | 筛选应用程序监控范围，如-w  /opt/gala-gopher/gala-gopher-app.conf，用户可将需要监控的程序名写入task_whitelist.conf中，默认配置为NULL表示不筛选，system_infos、taskprobe探针涉及 |
-| -n     | 指定某个网卡挂载tc ebpf，默认配置为NULL表示所有网卡均挂载；示例： -n eth0 |
+| -d     | 制定目标设备，包括磁盘、网卡等。示例：-d eth0                |
+| -C     | 指定探针(ksliprobe)是否开启周期采样，增加该参数则连续采集数据，不加该参数则周期性(如5s)采样一次 |
+| -w     | 筛选应用程序监控范围，如-w  /opt/gala-gopher/gala-gopher-app.conf，默认配置为NULL表示不筛选，system_infos、taskprobe探针涉及 |
 
 > 说明：上表中某些参数用于异常事件，目前异常事件范围参考[系统异常范围](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech_abnormal.md)。
 
