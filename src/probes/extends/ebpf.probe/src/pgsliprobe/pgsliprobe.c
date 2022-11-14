@@ -63,6 +63,7 @@
 static volatile sig_atomic_t stop;
 static struct probe_params params = {.period = DEFAULT_PERIOD};
 static struct bpf_link_hash_t *head = NULL;
+static int noDependLibssl;
 
 enum pid_state_t {
     PID_NOEXIST,
@@ -241,7 +242,8 @@ static int get_elf_path(unsigned int pid, char elf_path[], int max_path_len)
     // 1. get elf_path
     (void)snprintf(cmd, COMMAND_LEN, PLDD_LIBSSL_COMMAND, pid);
     if (exec_cmd((const char *)cmd, openssl_path, PATH_LEN) < 0) {
-        fprintf(stderr, "pldd %u grep libssl failed\n", pid);
+        noDependLibssl = 1;
+        INFO("[DAEMON] GaussDB does not depend on libssl\n");
         return SLI_ERR;
     }
 
@@ -318,13 +320,16 @@ static int add_bpf_link_by_search_pids()
         // find_bpf_link and add_bpf_link will set bpf_link status
         if (!find_bpf_link(pid)) {
             if (add_bpf_link(pid) != SLI_OK) {
+                if (noDependLibssl) {
+                    goto out;
+                }
                 fprintf(stderr, "add_bpf_link of pid %u failed\n", pid);
             } else {
                 printf("add_bpf_link of pid %u success\n", pid);
             }
         }
     }
-
+out:
     (void)pclose(f);
     return ret;
 }
@@ -375,7 +380,6 @@ int main(int argc, char **argv)
 {
     int err, ret;
     FILE *fp = NULL;
-    int init = 0;
     struct bpf_link_hash_t *item, *tmp;
 
     err = args_parse(argc, argv, &params);
@@ -405,11 +409,26 @@ int main(int argc, char **argv)
         goto init_err;
     }
 
+    load_args(GET_MAP_FD(pgsli_kprobe, args_map), &params);
+    err = init_conn_mgt_process(GET_MAP_FD(pgsli_kprobe, output));
+    if (err != 0) {
+        fprintf(stderr, "Init connection management process failed.\n");
+        goto init_err;
+    }
+
     printf("pgsliprobe probe successfully started!\n");
 
     while (!stop) {
+        sleep(params.period);
+        if (noDependLibssl) {
+            continue;
+        }
+
         set_bpf_link_inactive();
         if (add_bpf_link_by_search_pids() != SLI_OK) {
+            if (noDependLibssl) {
+                continue;
+            }
             goto init_err;
         }
 
@@ -437,18 +456,7 @@ int main(int argc, char **argv)
                 item->v.pid_state = PID_ELF_ATTACHED;
             }
         }
-
         clear_invalid_bpf_link();
-        if (init == 0) {
-            load_args(GET_MAP_FD(pgsli_kprobe, args_map), &params);
-            err = init_conn_mgt_process(GET_MAP_FD(pgsli_kprobe, output));
-            if (err != 0) {
-                fprintf(stderr, "Init connection management process failed.\n");
-                goto init_err;
-            }
-            init = 1;
-        }
-        sleep(params.period);
     }
 
 init_err:
