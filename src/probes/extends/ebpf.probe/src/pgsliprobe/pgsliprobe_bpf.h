@@ -223,9 +223,11 @@ static __always_inline void process_rdwr_msg(int fd, const char *buf, int count,
             return;
         }
         csd->req_cmd = cmd;
-#ifndef KERNEL_SUPPORT_TSTAMP
-        csd->start_ts_nsec = ts_nsec;
-#endif
+
+        if (csd->start_ts_nsec == 0) {
+            csd->start_ts_nsec = ts_nsec;
+        }
+
         csd->status = SAMP_READ_READY;
     } else {  // MSG_WRITE
         if (csd->status == SAMP_READ_READY) {
