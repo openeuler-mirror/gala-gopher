@@ -48,10 +48,10 @@
 #include "conf/stackprobe_conf.h"
 #include "stackprobe.h"
 
-#define ON_CPU_PROG    "stack_bpf/oncpu.bpf.o"
-#define OFF_CPU_PROG   "stack_bpf/offcpu.bpf.o"
-#define IO_PROG        "stack_bpf/io.bpf.o"
-#define MEMLEAK_PROG   "stack_bpf/memleak.bpf.o"
+#define ON_CPU_PROG    "/opt/gala-gopher/extend_probes/stack_bpf/oncpu.bpf.o"
+#define OFF_CPU_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/offcpu.bpf.o"
+#define IO_PROG        "/opt/gala-gopher/extend_probes/stack_bpf/io.bpf.o"
+#define MEMLEAK_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/memleak.bpf.o"
 
 #define RM_STACK_PATH "/usr/bin/rm -rf /sys/fs/bpf/probe/__stack*"
 #define STACK_CONVERT_PATH      "/sys/fs/bpf/probe/__stack_convert"
