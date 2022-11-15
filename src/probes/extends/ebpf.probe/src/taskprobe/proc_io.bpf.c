@@ -33,7 +33,7 @@ struct proc_bio_stats_s {
     u64 start_ts;
 };
 
-#define __BIO_MAX      1000
+#define __BIO_MAX      100000
 struct bpf_map_def SEC("maps") bio_map = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(struct bio*),
