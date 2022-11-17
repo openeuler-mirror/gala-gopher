@@ -19,9 +19,11 @@
 
 #include "common.h"
 
-
 #define KERNEL_VERSION(a, b, c) (((a) << 16) + ((b) << 8) + (c))
 #define CURRENT_KERNEL_VERSION KERNEL_VERSION(KER_VER_MAJOR, KER_VER_MINOR, KER_VER_PATCH)
+
+#define LIBBPF_VERSION(a, b) (((a) << 8) + (b))
+#define CURRENT_LIBBPF_VERSION LIBBPF_VERSION(LIBBPF_VER_MAJOR, LIBBPF_VER_MINOR)
 
 #include "__share_map_match.h"
 #include "__obj_map.h"

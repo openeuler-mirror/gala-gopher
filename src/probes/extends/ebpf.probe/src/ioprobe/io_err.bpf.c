@@ -112,7 +112,7 @@ static __always_inline void update_io_err(struct block_rq_complete_args* ctx, st
 }
 
 bpf_section("tracepoint/block/block_rq_complete")
-static void tracepoint_block_rq_complete(struct block_rq_complete_args *ctx)
+void tracepoint_block_rq_complete(struct block_rq_complete_args *ctx)
 {
     int major, minor;
     struct io_err_s *io_err = NULL;
