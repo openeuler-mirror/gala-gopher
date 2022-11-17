@@ -37,14 +37,6 @@
 
 #define bpf_section(NAME) __attribute__((section(NAME), used))
 
-#define UPROBE(func, type) \
-    bpf_section("uprobe/" #func) \
-    void ubpf_##func(struct type *ctx)
-
-#define URETPROBE(func, type) \
-    bpf_section("uretprobe/" #func) \
-    void ubpf_ret_##func(struct type *ctx)
-
 #define UPROBE_PARMS_STASH(func, ctx, prog_id) \
     do { \
         int ret; \
@@ -63,7 +55,30 @@
         } \
     } while (0)
 
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+#define UPROBE(func, type) \
+    bpf_section("uprobe") \
+    void ubpf_##func(struct type *ctx)
 
+#define URETPROBE(func, type) \
+    bpf_section("uretprobe") \
+    void ubpf_ret_##func(struct type *ctx)
+#define UPROBE_RET(func, type, prog_id) \
+    bpf_section("uprobe") \
+    void __uprobe_bpf_##func(struct type *ctx) { \
+        UPROBE_PARMS_STASH(func, ctx, prog_id); \
+    } \
+    \
+    bpf_section("uretprobe") \
+    void __uprobe_ret_bpf_##func(struct type *ctx)
+#else
+#define UPROBE(func, type) \
+    bpf_section("uprobe/" #func) \
+    void ubpf_##func(struct type *ctx)
+
+#define URETPROBE(func, type) \
+    bpf_section("uretprobe/" #func) \
+    void ubpf_ret_##func(struct type *ctx)
 #define UPROBE_RET(func, type, prog_id) \
     bpf_section("uprobe/" #func) \
     void __uprobe_bpf_##func(struct type *ctx) { \
@@ -72,6 +87,7 @@
     \
     bpf_section("uretprobe/" #func) \
     void __uprobe_ret_bpf_##func(struct type *ctx)
+#endif
 
 #endif
 

@@ -105,7 +105,7 @@ static __always_inline char is_write_bio(struct block_bio_queue_args *bio)
 }
 
 bpf_section("tracepoint/block/block_bio_queue")
-static void tracepoint_block_bio_queue(struct block_bio_queue_args *ctx)
+void tracepoint_block_bio_queue(struct block_bio_queue_args *ctx)
 {
     u32 bio_size;
     int major, minor;
