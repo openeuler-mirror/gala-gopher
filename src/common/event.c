@@ -58,7 +58,7 @@ static struct evt_sec_s secs[EVT_SEC_MAX] = {
     {21,              "FATAL"}
 };
 
-#define __EVT_BODY_LEN  256
+#define __EVT_BODY_LEN  512	// same as MAX_IMDB_METRIC_VAL_LEN
 void report_logs(const char* entityName,
                  const char* entityId,
                  const char* metrics,
