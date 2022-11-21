@@ -75,7 +75,7 @@ static struct probe_params params = { .period = DEFAULT_PERIOD };
 int set_kafka_config(struct KafkaConfig* cfg) 
 {
     // 设置需要绑定的网卡名与index
-    snprintf(cfg->ifname, MIDDLE_BUF_SIZE, "%s", params.ifname);
+    snprintf(cfg->ifname, MIDDLE_BUF_SIZE, "%s", params.target_dev);
     cfg->ifindex = if_nametoindex(cfg->ifname);
     if (cfg->ifindex == 0) {
         fprintf(stderr, "ERROR: ifname %s unknown\n", cfg->ifname);

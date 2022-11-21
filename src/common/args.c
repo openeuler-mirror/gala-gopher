@@ -33,7 +33,6 @@ static void __set_default_params(struct probe_params *params)
     params->sample_period = DEFAULT_SAMPLE_PERIOD;
     params->load_probe = DEFAULT_LOAD_PROBE;
     params->kafka_port = DEFAULT_KAFKA_PORT;
-    snprintf(params->ifname, MAX_PATH_LEN, "%s", "eth0");
 }
 
 static char __is_digit_str(const char *s)
@@ -146,11 +145,6 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
             if (params->kafka_port > MAX_PORT_NUM) {
                 ERROR("Please check arg(k), kafka port shold be less than 65535.\n");
                 return -1;
-            }
-            break;
-        case 'd':
-            if (arg != NULL) {
-                (void)snprintf((void *)params->ifname, MAX_PATH_LEN, "%s", arg);
             }
             break;
         default:
