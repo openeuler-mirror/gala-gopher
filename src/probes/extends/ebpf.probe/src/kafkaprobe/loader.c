@@ -10,23 +10,23 @@
 
 void set_native_mode(__u32 *flag)
 {
-	*flag = XDP_FLAGS_UPDATE_IF_NOEXIST;
+    *flag = XDP_FLAGS_UPDATE_IF_NOEXIST;
     *flag &= ~XDP_FLAGS_MODES;    /* Clear flags */
     *flag |= XDP_FLAGS_DRV_MODE;  /* Set   flag */
 }
 
 void set_socket_mode(__u32 *flag)
 {
-	*flag = XDP_FLAGS_UPDATE_IF_NOEXIST;
+    *flag = XDP_FLAGS_UPDATE_IF_NOEXIST;
     *flag &= ~XDP_FLAGS_MODES;    /* Clear flags */
-    *flag |= XDP_FLAGS_SKB_MODE;  /* Set   flag */	
+    *flag |= XDP_FLAGS_SKB_MODE;  /* Set   flag */    
 }
 
 void set_offload_mode(__u32 *flag)
 {
-	*flag = XDP_FLAGS_UPDATE_IF_NOEXIST;
+    *flag = XDP_FLAGS_UPDATE_IF_NOEXIST;
     *flag &= ~XDP_FLAGS_MODES;    /* Clear flags */
-    *flag |= XDP_FLAGS_HW_MODE;  /* Set   flag */		
+    *flag |= XDP_FLAGS_HW_MODE;  /* Set   flag */        
 }
 
 
@@ -40,16 +40,16 @@ struct bpf_object *load(struct KafkaConfig *cfg){
     };
 
     if (cfg->xdp_flag & XDP_FLAGS_HW_MODE)
-		load_attr.ifindex = cfg->ifindex;
+        load_attr.ifindex = cfg->ifindex;
 
     int ret;
     int first_prog_fd = -1;
 
     ret = bpf_prog_load_xattr(&load_attr, &obj, &first_prog_fd);
-	if (ret) {
-		fprintf(stderr, "ERROR: loading BPF-OBJ file %s fail\n",cfg->load_file_name);
-		return NULL;
-	}    
+    if (ret) {
+        fprintf(stderr, "ERROR: loading BPF-OBJ file %s fail\n",cfg->load_file_name);
+        return NULL;
+    }    
 
     return obj;
 }
@@ -59,8 +59,8 @@ int unload(struct bpf_object *obj){
 
     ret = bpf_object__unload(obj);
     if (ret){
-		fprintf(stderr, "ERROR: unloading BPF-OBJ file fail\n");
-		return 1;        
+        fprintf(stderr, "ERROR: unloading BPF-OBJ file fail\n");
+        return 1;        
     }
 
     return 0;
@@ -74,8 +74,8 @@ int link_xdp(struct KafkaConfig *cfg, struct bpf_object *obj){
 
     prog = bpf_program__next(NULL, obj);
     if(!prog){
-		fprintf(stderr, "ERROR: can't find prog in bpf object\n");
-		return 1;             
+        fprintf(stderr, "ERROR: can't find prog in bpf object\n");
+        return 1;             
     }
 
     prog_fd = bpf_program__fd(prog);
@@ -103,24 +103,24 @@ int unlink_xdp(struct KafkaConfig *cfg){
     int ret;
     __u32 prog_fd;
 
-	ret = bpf_get_link_xdp_id(cfg->ifindex, &prog_fd, cfg->xdp_flag);
-	if (ret) {
-		fprintf(stderr, "ERR: get link xdp prog fd failed \n");
-		return 1;
-	}
+    ret = bpf_get_link_xdp_id(cfg->ifindex, &prog_fd, cfg->xdp_flag);
+    if (ret) {
+        fprintf(stderr, "ERR: get link xdp prog fd failed \n");
+        return 1;
+    }
 
-	if (!prog_fd) {
+    if (!prog_fd) {
         printf("INFO: ifname %s has no XDP prog\n", cfg->ifname);
-		return 0;
-	}
+        return 0;
+    }
 
     ret = bpf_set_link_xdp_fd(cfg->ifindex, -1, cfg->xdp_flag);
-	if (ret < 0) {
-		fprintf(stderr, "ERROR: unlink xdp prog from net interface %s fail\n", cfg->ifname);
-		return 3;
-	}
+    if (ret < 0) {
+        fprintf(stderr, "ERROR: unlink xdp prog from net interface %s fail\n", cfg->ifname);
+        return 3;
+    }
 
-	return 0;
+    return 0;
 }
 
 int unpin(struct KafkaConfig *cfg, struct bpf_object *obj){
@@ -159,7 +159,7 @@ int pin(struct KafkaConfig *cfg, struct bpf_object *obj){
         return 1;            
     }
 
-	return 0;    
+    return 0;    
 }
 
 struct bpf_object *load_link_pin(struct KafkaConfig *cfg){
@@ -237,8 +237,8 @@ int open_bpf_map_file(struct KafkaConfig *cfg, const char *map_name, int *map_fd
     int fd;
     fd = bpf_obj_get(map_path);
     if(fd < 0){
-		printf("ERROR: Failed to open bpf map file:%s\n", map_path);
-		return 1;       
+        printf("ERROR: Failed to open bpf map file:%s\n", map_path);
+        return 1;       
     }
 
     *map_fd = fd;
@@ -279,5 +279,5 @@ int set_local_ip(char * ifname)
     printf("Error: can't find ip address the ifname %s attached!\n", ifname);
     freeifaddrs(if_addr);
     
-	return -1;
+    return -1;
 }

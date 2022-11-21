@@ -34,37 +34,37 @@ struct KafkaConfig {
 };
 
 struct KafkaData {
-	__u16 type;
-	__u16 len;
-	__u32 num;
-	__u32 src_ip;
-	__u16 src_port;	
-	__u16 dst_port;
-	__u8 data[SMALL_BUF_SIZE];
+    __u16 type;
+    __u16 len;
+    __u32 num;
+    __u32 src_ip;
+    __u16 src_port;
+    __u16 dst_port;
+    __u8 data[SMALL_BUF_SIZE];
 };
 
 struct PacketParser1{
-	__u32 param1;
-	__u32 param2;
+    __u32 param1;
+    __u32 param2;
 };
 
 struct PacketParser2{
-	__u8 param1;
-	__u8 param2;
+    __u8 param1;
+    __u8 param2;
 };
 
 struct PacketParser3{
-	__u8 null;
-	__u8 len;
-	__u8 data[32];
+    __u8 null;
+    __u8 len;
+    __u8 data[32];
 };
 
 struct hdr_cursor {
-	void *pos;
+    void *pos;
 };
 
 struct collect_vlans {
-	__u16 id[VLAN_MAX_DEPTH];
+    __u16 id[VLAN_MAX_DEPTH];
 };
 
 // loader.c
