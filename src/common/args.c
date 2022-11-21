@@ -22,7 +22,8 @@
 
 #define OUT_PUT_PERIOD_MAX     (120) // 2mim
 #define OUT_PUT_PERIOD_MIN     (1)  // 1s
-#define MAX_PARAM_LEN 128
+#define MAX_PARAM_LEN           128
+#define MAX_PORT_NUM            65535
 #define FILTER_BY_TASKPROBE    "task"
 
 static void __set_default_params(struct probe_params *params)
@@ -31,6 +32,8 @@ static void __set_default_params(struct probe_params *params)
     params->period = DEFAULT_PERIOD;
     params->sample_period = DEFAULT_SAMPLE_PERIOD;
     params->load_probe = DEFAULT_LOAD_PROBE;
+    params->kafka_port = DEFAULT_KAFKA_PORT;
+    snprintf(params->ifname, MAX_PATH_LEN, "%s", "eth0");
 }
 
 static char __is_digit_str(const char *s)
@@ -136,6 +139,19 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
             break;
         case 'C':
             params->cycle_sampling_flag = 1;
+            break;
+        case 'k':
+            params->kafka_port = (unsigned int)atoi(arg);
+            
+            if (params->kafka_port > MAX_PORT_NUM) {
+                ERROR("Please check arg(k), kafka port shold be less than 65535.\n");
+                return -1;
+            }
+            break;
+        case 'i':
+            if (arg != NULL) {
+                (void)snprintf((void *)params->ifname, MAX_PATH_LEN, "%s", arg);
+            }
             break;
         default:
             return -1;

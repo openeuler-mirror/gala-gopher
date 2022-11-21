@@ -1,0 +1,46 @@
+version = "1.0.0"
+measurements:
+(
+    {
+        table_name: "kafkaprobe",
+        entity_name: "kafka",
+        fields:
+        (
+            {
+                description: "the type of client",
+                type: "key",
+                name: "msg_type",
+            },
+            {
+                description: "the IP of client",
+                type: "key"
+                name: "client_ip",
+            },
+            {
+                description: "the port of Client",
+                type: "key",
+                name: "client_port",
+            },
+            {
+                description: "the number of produce/consume topic between sample period",
+                type: "gauge"
+                name: "num",
+            },            
+            {
+                description: "the topic of request",
+                type: "key",
+                name: "topic",
+            },
+            {
+                description: "the IP of server",
+                type: "key"
+                name: "server_ip",
+            },
+            {
+                description: "the port of server",
+                type: "key",
+                name: "server_port",
+            },
+        )
+    }
+)
