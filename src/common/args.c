@@ -148,7 +148,7 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
                 return -1;
             }
             break;
-        case 'i':
+        case 'd':
             if (arg != NULL) {
                 (void)snprintf((void *)params->ifname, MAX_PATH_LEN, "%s", arg);
             }
