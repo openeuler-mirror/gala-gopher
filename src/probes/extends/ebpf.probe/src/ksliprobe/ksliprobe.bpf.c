@@ -374,6 +374,10 @@ static __always_inline void process_rd_msg(u32 tgid, int fd, const char *buf, co
 
 #ifndef KERNEL_SUPPORT_TSTAMP
     csd->start_ts_nsec = ts_nsec;
+#else
+    if (csd->start_ts_nsec == 0) {
+        csd->start_ts_nsec = ts_nsec;
+    }
 #endif
     csd->status = SAMP_READ_READY;
 

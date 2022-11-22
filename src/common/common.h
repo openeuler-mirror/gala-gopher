@@ -168,6 +168,7 @@ unsigned short ntohs(unsigned short netshort);
 /* get uprobe func offset */
 int get_func_offset(char *proc_name, char *func_name, char *bin_file_path);
 
+char *get_cur_date(void);
 char *get_cur_time(void);
 
 void ip_str(unsigned int family, unsigned char *ip, unsigned char *ip_str, unsigned int ip_str_size);

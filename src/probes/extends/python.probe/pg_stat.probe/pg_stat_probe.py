@@ -121,5 +121,11 @@ if __name__ == "__main__":
 
     while True:
         time.sleep(g_period)
-        get_metrics()
+        try:
+            get_metrics()
+        except Exception as e:
+            print("[pg_stat_probe]get metrics failed. Err:" + str(e))
+            stop_conns()
+
+
 

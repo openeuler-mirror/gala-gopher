@@ -109,18 +109,10 @@ struct bpf_map_def SEC("maps") mmap_allocs = {
 };
 
 struct bpf_map_def SEC("maps") brk_allocs = {
-    .type = BPF_MAP_TYPE_HASH,
+    .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(u32), // tgid
     .value_size = sizeof(struct brk_info_t),
     .max_entries = 1000000,
-};
-
-// allocated memory for the process
-struct bpf_map_def SEC("maps") combined_allocs = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct stack_id_s),
-    .value_size = sizeof(struct combined_alloc_info_t),
-    .max_entries = 1000,
 };
 
 static __always_inline u64 get_real_start_time()
@@ -184,7 +176,6 @@ static inline void update_statistics(void *ctx, char stackmap_cur, s64 count, st
         (void)bpf_perf_event_output(ctx, &stackmap_perf_b, BPF_F_CURRENT_CPU, &raw_trace, sizeof(raw_trace));
     }
 }
-
 
 static inline int alloc_exit(void *ctx, u64 addr) {
     u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;

@@ -31,7 +31,7 @@
 #define PROC_START_TIME_CMD "/usr/bin/cat /proc/%s/stat | awk '{print $22}'"
 #define PROC_CMDLINE_CMD    "/proc/%s/cmdline"
 #define PROC_FD             "/proc/%s/fd"
-#define PROC_FD_CNT_CMD     "/usr/bin/ls -l /proc/%s/fd | wc -l"
+#define PROC_FD_CNT_CMD     "/usr/bin/ls -l /proc/%s/fd 2>/dev/null | wc -l 2>/dev/null"
 #define PROC_IO             "/proc/%s/io"
 #define PROC_IO_CMD         "/usr/bin/cat /proc/%s/io"
 #define PROC_SMAPS          "/proc/%s/smaps_rollup"

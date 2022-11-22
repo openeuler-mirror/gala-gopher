@@ -21,6 +21,25 @@
 #include <stdarg.h>
 #include "common.h"
 
+char *get_cur_date(void)
+{
+    /* return date str, ex: 2021/5/17 */
+    static char tm[TM_STR_LEN] = {0};
+    struct tm *tmp_ptr = NULL;
+    time_t t;
+
+    (void)time(&t);
+
+    tmp_ptr = localtime(&t);
+    (void)snprintf(tm,
+        TM_STR_LEN,
+        "%d-%d-%d",
+        (1900 + tmp_ptr->tm_year),
+        (1 + tmp_ptr->tm_mon),
+        tmp_ptr->tm_mday);
+    return tm;
+}
+
 char *get_cur_time(void)
 {
     /* return time str, ex: 2021/5/17 19:56:03 */

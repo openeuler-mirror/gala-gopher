@@ -156,7 +156,7 @@ static __always_inline void periodic_report(u64 ts_nsec, struct conn_data_t *con
     if (ts_nsec > conn_data->last_report_ts_nsec &&
         ts_nsec - conn_data->last_report_ts_nsec >= period) {
         // rtt larger than period is considered an invalid value
-        if (conn_data->latency.rtt_nsec < period && conn_data->max.rtt_nsec < period) {
+        if (conn_data->latency.rtt_nsec < period * 2 && conn_data->max.rtt_nsec < period * 2) {
             struct msg_event_data_t msg_evt_data = {0};
             msg_evt_data.tgid = conn_key->tgid;
             msg_evt_data.fd = conn_key->fd;
@@ -224,10 +224,13 @@ static __always_inline void process_rdwr_msg(int fd, const char *buf, int count,
         }
         csd->req_cmd = cmd;
 
+#ifndef KERNEL_SUPPORT_TSTAMP
+        csd->start_ts_nsec = ts_nsec;
+#else
         if (csd->start_ts_nsec == 0) {
             csd->start_ts_nsec = ts_nsec;
         }
-
+#endif
         csd->status = SAMP_READ_READY;
     } else {  // MSG_WRITE
         if (csd->status == SAMP_READ_READY) {
