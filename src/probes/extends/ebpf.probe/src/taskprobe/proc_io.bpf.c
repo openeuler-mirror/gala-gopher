@@ -33,7 +33,7 @@ struct proc_bio_stats_s {
     u64 start_ts;
 };
 
-#define __BIO_MAX      100000
+#define __BIO_MAX      1000
 struct bpf_map_def SEC("maps") bio_map = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(struct bio*),
@@ -136,9 +136,10 @@ KRAWTRACE(block_bio_queue, bpf_raw_tracepoint_args)
     }
 }
 
-KRAWTRACE(block_bio_complete, bpf_raw_tracepoint_args)
+// block_bio_complete, block_rq_complete exclusion, so use kprobe
+KPROBE(bio_endio, pt_regs)
 {
-    struct bio *bio = (struct bio*)ctx->args[1];
+    struct bio *bio = (struct bio*)PT_REGS_PARM1(ctx);
     end_bio(ctx, bio);
 }
 
