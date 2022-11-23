@@ -180,7 +180,6 @@ static void *msg_event_receiver(void *arg)
     }
 
     poll_pb(pb, params.period * 1000);
-
     stop = 1;
     return NULL;
 }
@@ -380,6 +379,7 @@ int main(int argc, char **argv)
 {
     int err, ret;
     FILE *fp = NULL;
+    int init = 0;
     struct bpf_link_hash_t *item, *tmp;
 
     err = args_parse(argc, argv, &params);
@@ -409,15 +409,6 @@ int main(int argc, char **argv)
         goto init_err;
     }
 
-    load_args(GET_MAP_FD(pgsli_kprobe, args_map), &params);
-    err = init_conn_mgt_process(GET_MAP_FD(pgsli_kprobe, output));
-    if (err != 0) {
-        fprintf(stderr, "Init connection management process failed.\n");
-        goto init_err;
-    }
-
-    printf("pgsliprobe probe successfully started!\n");
-
     while (!stop) {
         sleep(params.period);
         if (noDependLibssl) {
@@ -426,37 +417,46 @@ int main(int argc, char **argv)
 
         set_bpf_link_inactive();
         if (add_bpf_link_by_search_pids() != SLI_OK) {
-            if (noDependLibssl) {
-                continue;
+            if (!noDependLibssl) {
+                goto init_err;
             }
-            goto init_err;
-        }
-
-        // attach to libssl
-        H_ITER(head, item, tmp) {
-            if (item->v.pid_state == PID_ELF_TOBE_ATTACHED) {
-                UBPF_ATTACH_ONELINK(pgsli_uprobe, SSL_read, item->v.elf_path, SSL_read,
-                    item->v.bpf_link_read, ret);
-                if (ret <= 0) {
-                    fprintf(stderr, "Can't attach function SSL_read at elf_path %s.\n", item->v.elf_path);
-                    goto init_err;
+        } else {
+            // attach to libssl
+            H_ITER(head, item, tmp) {
+                if (item->v.pid_state == PID_ELF_TOBE_ATTACHED) {
+                    UBPF_ATTACH_ONELINK(pgsli_uprobe, SSL_read, item->v.elf_path, SSL_read,
+                        item->v.bpf_link_read, ret);
+                    if (ret <= 0) {
+                        fprintf(stderr, "Can't attach function SSL_read at elf_path %s.\n", item->v.elf_path);
+                        goto init_err;
+                    }
+                    UBPF_RET_ATTACH_ONELINK(pgsli_uprobe, SSL_read, item->v.elf_path, SSL_read,
+                        item->v.bpf_link_read_ret, ret);
+                    if (ret <= 0) {
+                        fprintf(stderr, "Can't attach ret function SSL_read at elf_path %s.\n", item->v.elf_path);
+                        goto init_err;
+                    }
+                    UBPF_ATTACH_ONELINK(pgsli_uprobe, SSL_write, item->v.elf_path, SSL_write,
+                        item->v.bpf_link_write, ret);
+                    if (ret <= 0) {
+                        fprintf(stderr, "Can't attach function SSL_write at elf_path %s.\n", item->v.elf_path);
+                        goto init_err;
+                    }
+                    item->v.pid_state = PID_ELF_ATTACHED;
                 }
-                UBPF_RET_ATTACH_ONELINK(pgsli_uprobe, SSL_read, item->v.elf_path, SSL_read,
-                    item->v.bpf_link_read_ret, ret);
-                if (ret <= 0) {
-                    fprintf(stderr, "Can't attach ret function SSL_read at elf_path %s.\n", item->v.elf_path);
-                    goto init_err;
-                }
-                UBPF_ATTACH_ONELINK(pgsli_uprobe, SSL_write, item->v.elf_path, SSL_write,
-                    item->v.bpf_link_write, ret);
-                if (ret <= 0) {
-                    fprintf(stderr, "Can't attach function SSL_write at elf_path %s.\n", item->v.elf_path);
-                    goto init_err;
-                }
-                item->v.pid_state = PID_ELF_ATTACHED;
             }
+            clear_invalid_bpf_link();
         }
-        clear_invalid_bpf_link();
+        if (init == 0) {
+            load_args(GET_MAP_FD(pgsli_kprobe, args_map), &params);
+            err = init_conn_mgt_process(GET_MAP_FD(pgsli_kprobe, output));
+            if (err != 0) {
+                fprintf(stderr, "Init connection management process failed.\n");
+                goto init_err;
+            }
+            printf("pgsliprobe probe successfully started!\n");
+            init = 1;
+        }
     }
 
 init_err:
