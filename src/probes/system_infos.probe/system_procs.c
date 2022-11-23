@@ -35,7 +35,7 @@
 #define PROC_IO             "/proc/%s/io"
 #define PROC_IO_CMD         "/usr/bin/cat /proc/%s/io"
 #define PROC_SMAPS          "/proc/%s/smaps_rollup"
-#define PROC_SMAPS_CMD      "/usr/bin/cat /proc/%s/smaps_rollup"
+#define PROC_SMAPS_CMD      "/usr/bin/cat /proc/%s/smaps_rollup 2> /dev/null"
 #define PROC_STAT_CMD       "/usr/bin/cat /proc/%s/stat | awk '{print $10\":\"$12\":\"$14\":\"$15\":\"$23\":\"$24}'"
 #define PROC_ID_CMD         "ps -eo pid,ppid,pgid,comm | /usr/bin/awk '{if($1==\"%s\"){print $2 \"|\" $3}}'"
 #define PROC_CPUSET         "/proc/%s/cpuset"
@@ -290,10 +290,19 @@ static char *get_proc_cmdline(const char *pid, int buf_len)
             break;
         }
         line[index] = fgetc(f);
-        if (line[index] == '\0') {
+        if (line[index] == '\"') {
+            if (index > buf_len - 2) {
+                line[index] = '\0';
+                break;
+            } else {
+                line[index] = '\\';
+                line[index + 1] = '\"';
+                index++;
+            }
+        } else if (line[index] == '\0') {
             line[index] = ' ';
-        } else if (line[index] == -1 && line[index - 1] == ' ') {
-            line[index - 1] = '\0';
+        } else if (line[index] == EOF) {
+            line[index] = '\0';
         }
         index++;
     }
@@ -650,7 +659,7 @@ static proc_hash_t* init_one_proc(char *pid, char *stime, char *comm)
     if (strcmp(comm, "java") == 0) {
         get_java_proc_cmd(pid, &item->info);
     } else {
-        item->info.cmdline = get_proc_cmdline((const char *)pid, LINE_BUF_LEN);
+        item->info.cmdline = get_proc_cmdline((const char *)pid, PROC_CMD_LINE_MAX);
     }
     (void)get_proc_container_id(pid, &item->info);
 
