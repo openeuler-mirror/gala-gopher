@@ -40,6 +40,8 @@ RUN yum update -y \
     && yum install -y libbpf-0.3-1.h0.oe1.aarch64.rpm \
     && yum install -y libbpf-devel-0.3-1.h0.oe1.aarch64.rpm \
     && yum install -y kmod \
+    && yum install -y docker \
+    && yum install -y iproute \
     && yum install -y gala-gopher-v1.1.0-52.aarch64.rpm
 
 # expose port
