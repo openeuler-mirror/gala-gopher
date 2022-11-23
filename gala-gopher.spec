@@ -14,7 +14,7 @@ BuildRequires: clang >= 10.0.1
 BuildRequires: llvm
 BuildRequires: libconfig-devel librdkafka-devel libmicrohttpd-devel
 BuildRequires: uthash-devel libbpf libbpf-devel log4cplus-devel
-Requires: bash glibc elfutils zlib elfutils-devel bpftool
+Requires: bash glibc elfutils zlib elfutils-devel bpftool iproute
 
 %description
 gala-gopher is a low-overhead eBPF-based probes framework
