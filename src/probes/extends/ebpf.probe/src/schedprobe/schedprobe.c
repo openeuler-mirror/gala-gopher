@@ -305,8 +305,15 @@ int main(int argc, char **argv)
     struct perf_buffer *sched_report_pb = NULL;
     char is_load_systime, is_load_syscall;
 
+    ret = __init_probe(&probe);
+    if (ret != 0) {
+        __deinit_probe(&probe);
+        return -1;
+    }
+
     ret = args_parse(argc, argv, &(probe.params));
     if (ret != 0) {
+        __deinit_probe(&probe);
         return -1;
     }
 
@@ -315,11 +322,6 @@ int main(int argc, char **argv)
 
     if (!is_load_systime && !is_load_syscall) {
         fprintf(stderr, "Not anything eBPF prog need load.\n");
-        return -1;
-    }
-
-    ret = __init_probe(&probe);
-    if (ret != 0) {
         __deinit_probe(&probe);
         return -1;
     }
