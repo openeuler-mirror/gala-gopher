@@ -111,4 +111,9 @@ struct proc_data_s {
     struct proc_io_s proc_io;
 };
 
+struct proc_exec_evt {
+    char filename[PATH_LEN];
+    u32 pid;
+};
+
 #endif

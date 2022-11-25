@@ -21,25 +21,44 @@
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
 
-// Data collection period
-struct bpf_map_def SEC("maps") period_map = {
+#include "task_args.h"
+
+struct bpf_map_def SEC("maps") args_map = {
     .type = BPF_MAP_TYPE_ARRAY,
     .key_size = sizeof(u32),    // const value 0
-    .value_size = sizeof(u64),  // period time as nanosecond
+    .value_size = sizeof(struct task_args_s),
     .max_entries = 1,
 };
 
-#define PERIOD NS(30)
+
+#define PERIOD NS(30)  // 30s
 static __always_inline __maybe_unused u64 get_period()
 {
     u32 key = 0;
     u64 period = PERIOD;
+    struct task_args_s *args;
 
-    u64 *value = (u64 *)bpf_map_lookup_elem(&period_map, &key);
-    if (value)
-        period = *value;
+    args = (struct task_args_s *)bpf_map_lookup_elem(&args_map, &key);
+    if (args && args->report_period != 0) {
+        period = args->report_period;
+    }
 
     return period; // units: nanosecond
+}
+
+#define OFFLINE_THR NS(5)  // 5s
+static __always_inline __maybe_unused u64 get_offline_thr()
+{
+    u32 key = 0;
+    u64 offline_thr = OFFLINE_THR;
+    struct task_args_s *args;
+
+    args = (struct task_args_s *)bpf_map_lookup_elem(&args_map, &key);
+    if (args && args->offline_thr != 0) {
+        offline_thr = args->offline_thr;
+    }
+
+    return offline_thr; // units: nanosecond
 }
 
 

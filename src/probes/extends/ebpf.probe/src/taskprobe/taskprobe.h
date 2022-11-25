@@ -15,34 +15,26 @@
 #ifndef __TASKPROBE__H
 #define __TASKPROBE__H
 
-#define PROBE_PROC_MAP_ENTRY_SIZE   128
-#define TASK_CMD_LINE_LEN           128
-#define TASK_CMDLINE_MAX_LEN        4096
+#include "common.h"
+#include "hash.h"
+#include "whitelist_config.h"
 
-enum task_type_e {
-    TASK_TYPE_APP = 0,
-    TASK_TYPE_KERN,
-    TASK_TYPE_OS
+struct proc_id_s {
+    H_HANDLE;
+    u32 id;
+    char comm[TASK_COMM_LEN];
 };
 
-/* daemon process be probed */
-struct task_name_t {
-    char name[TASK_COMM_LEN];
-    char cmd_line[TASK_CMD_LINE_LEN];
-    enum task_type_e type;
+struct task_probe_s {
+    struct probe_params params;
+    struct proc_id_s *procs;
+    ApplicationsConfig *conf;
+    int args_fd;
+    int thread_map_fd;
+    int proc_map_fd;
 };
 
-/* process needed to be probed */
-struct probe_process {
-    char name[TASK_COMM_LEN];
-};
-
-struct probe_proc_info {
-    int flag;
-    char cmd_line[TASK_CMD_LINE_LEN];
-};
-
-void load_daemon_task_by_name(int fd, const char *name, int is_whole_word);
-int is_task_cmdline_match(int tgid, const char *comm);
+void load_thread2bpf(u32 proc_id, int fd);
+void load_proc2bpf(u32 proc_id, const char *comm, int fd);
 
 #endif

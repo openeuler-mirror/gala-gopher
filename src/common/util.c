@@ -17,6 +17,7 @@
 #include <time.h>
 #include <signal.h>
 #include <unistd.h>
+#include <ctype.h>
 #include <string.h>
 #include <stdarg.h>
 #include "common.h"
@@ -183,3 +184,15 @@ int __snprintf(char **buf, const int bufLen, int *remainLen, const char *format,
 
     return 0;
 }
+
+char is_digit_str(const char *s)
+{
+    int len = (int)strlen(s);
+    for (int i = 0; i < len; i++) {
+        if (!(isdigit(s[i]))) {
+            return 0;
+        }
+    }
+    return 1;
+}
+

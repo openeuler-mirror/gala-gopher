@@ -33,6 +33,7 @@
 #include "event.h"
 #include "task.h"
 #include "cpu.skel.h"
+#include "thread.skel.h"
 #include "bpf_prog.h"
 #include "taskprobe.h"
 
@@ -46,76 +47,69 @@ static struct probe_params *g_args;
 
 #define __LOAD_PROBE(probe_name, end, load) \
     OPEN(probe_name, end, load); \
-    MAP_SET_PIN_PATH(probe_name, g_task_output, TASK_OUTPUT_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, period_map, PERIOD_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, g_task_map, TASK_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, g_thread_output, THREAD_OUTPUT_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, g_thread_map, THREAD_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, args_map, ARGS_PATH, load); \
     LOAD_ATTACH(probe_name, end, load)
 
-static void report_task_metrics(struct task_data *data)
+static void report_thread_metrics(struct thread_data *thr)
 {
     char entityId[INT_LEN];
-    u64 offline_thr_us = US(g_args->offline_thr);
 
     if (g_args->logs == 0) {
         return;
     }
 
     entityId[0] = 0;
-    (void)snprintf(entityId, INT_LEN, "%d", data->id.pid);
+    (void)snprintf(entityId, INT_LEN, "%d", thr->id.pid);
 
-    if (data->cpu.off_cpu_ns > offline_thr_us) {
-        report_logs(OO_NAME,
-                    entityId,
-                    "off_cpu_ns",
-                    EVT_SEC_WARN,
-                    "Process(COMM:%s TID:%d) is preempted(COMM:%s PID:%d) and off-CPU %llu ns.",
-                    data->id.comm,
-                    data->id.pid,
-                    data->cpu.preempt_comm,
-                    data->cpu.preempt_id,
-                    data->cpu.off_cpu_ns);
-    }
+    report_logs(OO_NAME,
+                entityId,
+                "off_cpu_ns",
+                EVT_SEC_WARN,
+                "Process(COMM:%s TID:%d) is preempted(COMM:%s PID:%d) and off-CPU %llu ns.",
+                thr->id.comm,
+                thr->id.pid,
+                thr->cpu.preempt_comm,
+                thr->cpu.preempt_id,
+                thr->cpu.off_cpu_ns);
 }
 
-static void output_task_metrics_cpu(struct task_data *task_data)
+static void output_thread_metrics_cpu(struct thread_data *thr)
 {
     (void)fprintf(stdout,
         "|%s|%d|%d|%s|"
         "%llu|%u|\n",
         THREAD_TBL_CPU,
-        task_data->id.pid,
-        task_data->id.tgid,
-        task_data->id.comm,
+        thr->id.pid,
+        thr->id.tgid,
+        thr->id.comm,
 
-        task_data->cpu.off_cpu_ns,
-        task_data->cpu.migration_count);
+        thr->cpu.off_cpu_ns,
+        thr->cpu.migration_count);
     return;
 }
 
-static void output_task_metrics(void *ctx, int cpu, void *data, __u32 size)
+static void output_thread_metrics(void *ctx, int cpu, void *data, __u32 size)
 {
-    struct task_data *task_data = (struct task_data *)data;
-    u32 flags = task_data->flags;
+    struct thread_data *thr = (struct thread_data *)data;
+    u32 flags = thr->flags;
 
-    if (is_task_cmdline_match(task_data->id.tgid, task_data->id.comm) == 0) {
-        // cmdline匹配不成功，不打印
-        return;
-    }
-    report_task_metrics(task_data);
+    report_thread_metrics(thr);
 
     if (flags & TASK_PROBE_THREAD_CPU) {
-        output_task_metrics_cpu(task_data);
+        output_thread_metrics_cpu(thr);
     }
     (void)fflush(stdout);
     return;
 }
 
-static int load_task_create_pb(struct bpf_prog_s* prog, int fd)
+static int load_thread_create_pb(struct bpf_prog_s* prog, int fd)
 {
     struct perf_buffer *pb;
 
     if (prog->pb == NULL) {
-        pb = create_pref_buffer(fd, output_task_metrics);
+        pb = create_pref_buffer(fd, output_thread_metrics);
         if (pb == NULL) {
             fprintf(stderr, "ERROR: crate perf buffer failed\n");
             return -1;
@@ -126,7 +120,7 @@ static int load_task_create_pb(struct bpf_prog_s* prog, int fd)
     return 0;
 }
 
-static int load_task_cpu_prog(struct bpf_prog_s *prog, char is_load)
+static int load_thread_cpu_prog(struct bpf_prog_s *prog, char is_load)
 {
     int ret = 0;
 
@@ -136,7 +130,7 @@ static int load_task_cpu_prog(struct bpf_prog_s *prog, char is_load)
         prog->skels[prog->num].fn = (skel_destroy_fn)cpu_bpf__destroy;
         prog->num++;
 
-        ret = load_task_create_pb(prog, GET_MAP_FD(cpu, g_task_output));
+        ret = load_thread_create_pb(prog, GET_MAP_FD(cpu, g_thread_output));
     }
 
     return ret;
@@ -145,7 +139,24 @@ err:
     return -1;
 }
 
-struct bpf_prog_s* load_task_bpf_prog(struct probe_params *args)
+static int load_thread_prog(struct bpf_prog_s *prog, char is_load)
+{
+    int ret = 0;
+
+    __LOAD_PROBE(thread, err, is_load);
+    if (is_load) {
+        prog->skels[prog->num].skel = thread_skel;
+        prog->skels[prog->num].fn = (skel_destroy_fn)thread_bpf__destroy;
+        prog->num++;
+    }
+
+    return ret;
+err:
+    UNLOAD(thread);
+    return -1;
+}
+
+struct bpf_prog_s* load_thread_bpf_prog(struct probe_params *args)
 {
     struct bpf_prog_s *prog;
     char is_load_cpu;
@@ -158,7 +169,11 @@ struct bpf_prog_s* load_task_bpf_prog(struct probe_params *args)
 
     is_load_cpu = is_load_probe(args, TASK_PROBE_THREAD_CPU);
 
-    if (load_task_cpu_prog(prog, is_load_cpu)) {
+    if (load_thread_cpu_prog(prog, is_load_cpu)) {
+        goto err;
+    }
+
+    if (load_thread_prog(prog, is_load_cpu)) {
         goto err;
     }
 

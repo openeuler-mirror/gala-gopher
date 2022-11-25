@@ -18,8 +18,8 @@
 #define BPF_PROG_KERN
 #include "bpf.h"
 #include "task.h"
-#include "task_map.h"
-#include "output_task.h"
+#include "thread_map.h"
+#include "output_thread.h"
 
 char g_linsence[] SEC("license") = "GPL";
 
@@ -32,9 +32,9 @@ char g_linsence[] SEC("license") = "GPL";
 
 static __always_inline void store_start(struct task_struct* prev, int pid, u32 cpu, u64 start)
 {
-    struct task_data *data;
+    struct thread_data *data;
 
-    data = get_task(pid);
+    data = get_thread(pid);
     if (data == NULL) {
         return;
     }
@@ -54,9 +54,9 @@ static __always_inline void store_start(struct task_struct* prev, int pid, u32 c
 static __always_inline void store_end(void *ctx, int pid, u64 end)
 {
     u64 delta;
-    struct task_data *data;
+    struct thread_data *data;
 
-    data = get_task(pid);
+    data = get_thread(pid);
     if (data == NULL) {
         return;
     }
@@ -66,18 +66,19 @@ static __always_inline void store_end(void *ctx, int pid, u64 end)
     }
 
     delta = (end > data->cpu.off_cpu_start) ? (end - data->cpu.off_cpu_start) : 0;
-    if (delta > data->cpu.off_cpu_ns) {
+    if (delta > get_offline_thr()) {
         data->cpu.off_cpu_ns = delta;
-        report_task(ctx, data, TASK_PROBE_THREAD_CPU);
+        report_thread(ctx, data, TASK_PROBE_THREAD_CPU);
     }
     data->cpu.off_cpu_start = 0;
     return;
 }
 
+#if 0
 static __always_inline void update_migration(void *ctx, int pid, u32 cpu)
 {
-    struct task_data *data;
-    data = get_task(pid);
+    struct thread_data *data;
+    data = get_thread(pid);
     if (data == NULL) {
         return;
     }
@@ -91,10 +92,11 @@ static __always_inline void update_migration(void *ctx, int pid, u32 cpu)
     if (data->cpu.current_cpu_no != cpu) {
         data->cpu.current_cpu_no = cpu;
         __sync_fetch_and_add(&data->cpu.migration_count, 1);
-        report_task(ctx, data, TASK_PROBE_THREAD_CPU);
+        report_thread(ctx, data, TASK_PROBE_THREAD_CPU);
         return;
     }
 }
+#endif
 
 KPROBE(finish_task_switch, pt_regs)
 {
@@ -108,6 +110,6 @@ KPROBE(finish_task_switch, pt_regs)
     store_start(prev, prev_pid, cpu, ts);
     store_end(ctx, pid, ts);
 
-    update_migration(ctx, pid, cpu);
+    // update_migration(ctx, pid, cpu);
 }
 

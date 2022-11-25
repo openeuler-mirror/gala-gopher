@@ -10,21 +10,14 @@
  * See the Mulan PSL v2 for more details.
  * Author: dowzyx
  * Create: 2022-06-10
- * Description: basic task struct
+ * Description: basic thread struct
  ******************************************************************************/
 #ifndef __GOPHER_THREAD_H__
 #define __GOPHER_THREAD_H__
 
 #pragma once
 
-enum task_status_type {
-    TASK_STATUS_ACTIVE = 0,
-    TASK_STATUS_INACTIVE,
-    TASK_STATUS_INVALID,
-    TASK_STATUS_MAX,
-};
-
-struct task_cpu_data {
+struct thread_cpu_data {
     int off_cpu_no;
     __u64 off_cpu_ns;
     __u64 off_cpu_start;
@@ -35,7 +28,7 @@ struct task_cpu_data {
     int current_cpu_no;
 };
 
-struct task_id {
+struct thread_id {
     int tgid;                   // task group id
     int pid;                    // tid: thread id
     int ppid;                   // parent process id
@@ -43,15 +36,16 @@ struct task_id {
     char comm[TASK_COMM_LEN];   // process comm
 };
 
-struct task_ts_s {
+struct thread_ts_s {
     u64 ts_cpu;
 };
 
-struct task_data {
+struct thread_data {
     u32 flags;
-    struct task_ts_s stats_ts;
-    struct task_id id;
-    struct task_cpu_data cpu;
+    struct thread_ts_s stats_ts;
+    struct thread_id id;
+    struct thread_cpu_data cpu;
 };
+
 
 #endif

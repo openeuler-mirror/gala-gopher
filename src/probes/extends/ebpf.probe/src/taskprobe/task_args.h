@@ -9,28 +9,18 @@
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
  * Author: luzhihao
- * Create: 2022-07-13
- * Description: bpf load prog
+ * Create: 2022-11-25
+ * Description: task args
  ******************************************************************************/
-#ifndef __BPF_PROG__H
-#define __BPF_PROG__H
+#ifndef __GOPHER_TASK_ARGS_H__
+#define __GOPHER_TASK_ARGS_H__
 
 #pragma once
 
-#include <bpf/libbpf.h>
-#include <bpf/bpf.h>
+struct task_args_s {
+    u64 report_period;      // unit: nanosecond
+    u64 offline_thr;        // unit: nanosecond
+};
 
-#include "common.h"
-#include "args.h"
-
-#define THREAD_OUTPUT_PATH "/sys/fs/bpf/probe/__taskprobe_thread_output"
-#define PROC_OUTPUT_PATH "/sys/fs/bpf/probe/__taskprobe_proc_output"
-#define ARGS_PATH "/sys/fs/bpf/probe/__taskprobe_args"
-#define THREAD_PATH "/sys/fs/bpf/probe/__taskprobe_thread"
-#define PROC_PATH "/sys/fs/bpf/probe/__taskprobe_proc"
-
-struct bpf_prog_s* load_glibc_bpf_prog(struct probe_params *args);
-struct bpf_prog_s* load_thread_bpf_prog(struct probe_params *args);
-struct bpf_prog_s* load_proc_bpf_prog(void *probe);
 
 #endif
