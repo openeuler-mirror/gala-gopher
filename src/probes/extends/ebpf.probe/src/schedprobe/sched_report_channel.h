@@ -36,7 +36,7 @@ struct bpf_map_def SEC("maps") sched_args_map = {
     .max_entries = 1,
 };
 
-#define __DEFAULT_LAT_THR (__u64)((__u64)30 * 1000000)  // 30 ms
+#define __DEFAULT_LAT_THR (__u64)((__u64)5 * 1000000000)  // 5 s
 static __always_inline __maybe_unused u64 get_lat_thr(void)
 {
     u32 key = 0;
