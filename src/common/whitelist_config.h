@@ -15,15 +15,18 @@
 #ifndef __GOPHER_WHITELIST_CONFIG_H__
 #define __GOPHER_WHITELIST_CONFIG_H__
 
+#include "common.h"
+
 #pragma once
 
 #define PROC_NAME_MAX       64
-#define PROC_CMD_LINE_MAX   128
 #define PROC_MAX_RANGE      64
+#define PROC_CMDLINE_MAX    4096
+#define PROC_LIST_LEN_MAX   256
 
 typedef struct {
     char comm[PROC_NAME_MAX];
-    char cmd_line[PROC_CMD_LINE_MAX];
+    char cmd_line[PROC_CMDLINE_LEN];
 } ApplicationConfig;
 
 typedef struct {
@@ -33,5 +36,10 @@ typedef struct {
 
 int parse_whitelist_config(ApplicationsConfig **conf, const char *path);
 void whitelist_config_destroy(ApplicationsConfig *conf);
-
+int get_proc_comm(const char *pid, char *buf);
+int get_proc_cmdline(const char *pid, char *buf, u32 buf_len);
+int check_proc_probe_flag(ApplicationConfig *appsConfig, u32 appsConfig_len,
+        const char *pid, const char *comm);
+int get_probe_proc_whitelist(ApplicationConfig *appsconfig, u32 appsConfig_len,
+        u32 proc_whitelist[], u32 proc_whitelist_len);
 #endif
