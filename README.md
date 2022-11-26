@@ -59,13 +59,49 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
 
 #### 基于容器镜像安装运行
 
-- 准备工作
 
-  获取gala-gopher的rpm包，获取方式详见第一小节[基于rpm包安装运行](#基于rpm包安装运行)。
+- 获取容器镜像
 
-- 生成容器镜像
+  用户可以选择直接[获取官方容器镜像](#docker1)或自行[构建容器镜像](#docker2)
 
-  用于生成容器镜像的Dockerfile文件归档在[build目录](./build)，生成方法详见[如何生成gala-gopher容器镜像](doc/how_to_build_docker_image.md)。
+  <a id="docker1"></a>
+  - 获取官方容器镜像
+
+      打开docker配置文件
+  
+      ```shell
+      vi /etc/docker/daemon.json
+      ```
+
+      添加hub.oepkgs.net镜像仓库
+
+      ```shell
+      {
+        "insecure-registries" : [ "hub.oepkgs.net" ]
+      }
+      ```
+
+      重启docker服务
+
+      ```shell
+      systemctl daemon-reload
+      systemctl restart docker
+      ```
+
+      拉取指定版本的gala-gopher官方容器镜像
+      
+      目前支持的镜像版本tag有：euleros-v2r9，20.03-lts，20.03-lts-sp1，22.03-lts
+
+      ```shell
+      docker pull hub.oepkgs.net/a-ops/gala-gopher:20.03-lts-sp1
+      ```
+
+  <a id="docker2"></a>
+  - 构建容器镜像
+
+    获取gala-gopher的rpm包，获取方式详见第一小节[基于rpm包安装运行](#基于rpm包安装运行)。
+
+    用于生成容器镜像的Dockerfile文件归档在[build目录](./build)，生成方法详见[如何生成gala-gopher容器镜像](doc/how_to_build_docker_image.md)。
 
 - 创建并运行容器
 
