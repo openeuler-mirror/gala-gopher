@@ -21,10 +21,8 @@
 #include "common.h"
 
 #define PROC_NAME_MAX       64
-#define PROC_CMD_LINE_MAX   128
 #define PROC_MAX_RANGE      64
 #define PROC_IN_PROBE_RANGE 1
-#define PROC_CMDLINE_MAX    4096
 
 #define CONTAINER_ID_BUF_LEN (CONTAINER_ABBR_ID_LEN + 4)
 
@@ -81,7 +79,7 @@ typedef struct {
     char comm[PROC_NAME_MAX];
     int pgid;
     int ppid;
-    char *cmdline;
+    char cmdline[PROC_CMDLINE_LEN];
     char container_id[CONTAINER_ID_BUF_LEN];
     u32 fd_count;              // FROM '/usr/bin/ls -l /proc/[PID]/fd | wc -l'
     u32 max_fd_limit;          // FROM 'cat /proc/[PID]/limits | grep -w "MAX open files"'
@@ -115,11 +113,6 @@ typedef struct {
     proc_info_t info;  
     UT_hash_handle hh;
 } proc_hash_t;
-
-struct proc_match_s {
-    char name[PROC_NAME_MAX];
-    char cmd_line[PROC_CMD_LINE_MAX];
-};
 
 int system_proc_probe(void);
 void system_proc_init(char *task_whitelist);
