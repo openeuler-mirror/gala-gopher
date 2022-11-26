@@ -44,6 +44,7 @@
 #define TM_STR_LEN              48
 
 #define TASK_COMM_LEN           16
+#define PROC_CMDLINE_LEN        128
 #define MAX_PROCESS_NAME_LEN    32
 #define TASK_EXE_FILE_LEN       128
 #define JAVA_COMMAND_LEN        128
@@ -175,5 +176,6 @@ void ip_str(unsigned int family, unsigned char *ip, unsigned char *ip_str, unsig
 int exec_cmd(const char *cmd, char *buf, unsigned int buf_len);
 char is_exist_mod(const char *mod);
 int __snprintf(char **buf, const int bufLen, int *remainLen, const char *format, ...);
+char is_digit_str(const char *s);
 
 #endif

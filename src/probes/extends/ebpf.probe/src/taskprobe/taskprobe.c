@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/resource.h>
+#include <dirent.h>
 
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
@@ -34,6 +35,7 @@
 #include "bpf_prog.h"
 #include "proc.h"
 #include "thread.h"
+#include "task_args.h"
 #include "whitelist_config.h"
 
 #define RM_TASK_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/probe/__taskprobe*"
@@ -41,201 +43,152 @@
 
 #define LOAD_TASK_PROBE(probe_name, end, load) \
     OPEN(probe_name, end, load); \
-    MAP_SET_PIN_PATH(probe_name, period_map, PERIOD_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, g_task_map, TASK_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, args_map, ARGS_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, g_thread_map, THREAD_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, g_proc_map, PROC_PATH, load); \
     LOAD_ATTACH(probe_name, end, load)
 
-static volatile sig_atomic_t stop = 0;
-static struct probe_params tp_params = {.period = DEFAULT_PERIOD,
-                                        .task_whitelist = {0}};
+static struct task_probe_s probe = {0};
 
-static struct task_name_t task_range[] = {
-    // eg: {"go", "",              TASK_TYPE_APP},
-};
+static volatile sig_atomic_t stop = 0;
 
 static void sig_int(int signal)
 {
     stop = 1;
 }
 
-static char *get_task_cmdline(int tgid, int buf_len)
+static void add_proc_item(u32 proc_id, const char *comm, struct task_probe_s* probep)
 {
-    FILE *f = NULL;
-    char path[LINE_BUF_LEN];
-    char *line = NULL;
-    int index = 0;
-
-    line = malloc(sizeof(char) * buf_len);
-    if (line == NULL) {
-        ERROR("[TASKPROBE] get cmdline failed, malloc failed.\n");
-        return NULL;
-    }
-    (void)memset(line, 0, sizeof(char) * buf_len);
-
-    path[0] = 0;
-    (void)snprintf(path, LINE_BUF_LEN, TASK_CMDLINE_PATH, tgid);
-    f = fopen(path, "r");
-    if (f == NULL) {
-        (void)free(line);
-        return NULL;
-    }
-    /* parse line */
-    while (!feof(f)) {
-        if (index >= buf_len - 1) {
-            line[index] = '\0';
-            break;
-        }
-        line[index] = fgetc(f);
-        if (line[index] == '\0') {
-            line[index] = ' ';
-        } else if (line[index] == -1 && line[index - 1] == ' ') {
-            line[index - 1] = '\0';
-        }
-        index++;
-    }
-
-    (void)fclose(f);
-    return line;
-}
-
-static void load_daemon_proc(int task_map_fd, int proc_map_fd)
-{
-    int ret;
-    int ckey = 0, nkey = 0;
-    u32 proc_id;
-    struct task_data task_data = {0};
-    struct proc_data_s proc_data = {0};
-
-    while (bpf_map_get_next_key(task_map_fd, &ckey, &nkey) != -1) {
-        ret = bpf_map_lookup_elem(task_map_fd, &nkey, &task_data);
-        if (ret == 0) {
-            if (task_data.id.tgid == task_data.id.pid) {
-                proc_id = task_data.id.tgid;
-                proc_data.proc_id = proc_id;
-                (void)memcpy(proc_data.comm, task_data.id.comm, TASK_COMM_LEN);
-                (void)bpf_map_update_elem(proc_map_fd, &proc_id, &proc_data, BPF_ANY);
-            }
-        }
-        ckey = nkey;
-    }
-}
-
-static void load_daemon_task(int app_fd, int task_map_fd)
-{
-    struct probe_process ckey = {0};
-    struct probe_process nkey = {0};
-    struct probe_proc_info pinfo;
-    int ret = -1;
-
-    while (bpf_map_get_next_key(app_fd, &ckey, &nkey) != -1) {
-        ret = bpf_map_lookup_elem(app_fd, &nkey, &pinfo);
-        if (ret == 0) {
-            load_daemon_task_by_name(task_map_fd, (const char *)nkey.name, 1);
-            DEBUG("[TASKPROBE]: load daemon process '%s'.\n", nkey.name);
-        }
-        ckey = nkey;
-    }
-
-    uint32_t index, size = sizeof(task_range) / sizeof(task_range[0]);
-    for (index = 0; index < size; index++) {
-        if (task_range[index].type != TASK_TYPE_APP) {
-
-            load_daemon_task_by_name(task_map_fd, (const char *)task_range[index].name, 0);
-            DEBUG("[TASKPROBE]: load daemon process '%s'.\n", task_range[index].name);
-        }
-    }
-
-    return;
-}
-
-static void load_task_range(int fd)
-{
-    struct probe_proc_info pinfo;
-    struct probe_process pname;
-    uint32_t index = 0;
-    uint32_t size = sizeof(task_range) / sizeof(task_range[0]);
-
-    for (index = 0; index < size; index++) {
-        if (task_range[index].type == TASK_TYPE_APP || task_range[index].type == TASK_TYPE_OS) {
-            (void)memset(pname.name, 0, TASK_COMM_LEN);
-            (void)strncpy(pname.name, task_range[index].name, TASK_COMM_LEN - 1);
-
-            pinfo.flag = 1;
-            (void)memset(pinfo.cmd_line, 0, TASK_CMD_LINE_LEN);
-            (void)strncpy(pinfo.cmd_line, task_range[index].cmd_line, TASK_CMD_LINE_LEN - 1);
-            /* update probe_proc_map */
-            (void)bpf_map_update_elem(fd, &pname, &pinfo, BPF_ANY);
-
-            DEBUG("[TASKPROBE]: load probe process name '%s'.\n", pname.name);
-        }
-    }
-}
-
-static void load_task_wl(int fd)
-{
-    struct probe_process pname;
-    struct probe_proc_info pinfo;
-    ApplicationsConfig *conf;
-
-    if (parse_whitelist_config(&conf, tp_params.task_whitelist) < 0) {
-        ERROR("[TASKPROBE] parse whitelist failed.\n");
+    struct proc_id_s *proc = malloc(sizeof(struct proc_id_s));
+    if (proc == NULL) {
         return;
     }
 
-    for (int i = 0; i < conf->apps_num; i++) {
-        ApplicationConfig *_app = conf->apps[i];
-        (void)memset(pname.name, 0, TASK_COMM_LEN);
-        (void)strncpy(pname.name, _app->comm, TASK_COMM_LEN - 1);
-        (void)memset(pinfo.cmd_line, 0, TASK_CMD_LINE_LEN);
-        (void)strncpy(pinfo.cmd_line, _app->cmd_line, TASK_CMD_LINE_LEN - 1);
-        pinfo.flag = 1;
-        /* update probe_proc_map */
-        (void)bpf_map_update_elem(fd, &pname, &pinfo, BPF_ANY);
+    proc->id = proc_id;
+    memcpy(proc->comm, comm, TASK_COMM_LEN);
+    H_ADD_I(probep->procs, id, proc);
+}
 
-        DEBUG("[TASKPROBE]: load probe process name '%s'.\n", pname.name);
+static char is_wl_range(const char *comm, const char* cmdline, ApplicationsConfig *conf)
+{
+    ApplicationConfig *appc;
+    if (conf == NULL) {
+        return 0;
     }
 
-    whitelist_config_destroy(conf);
+    for (int i = 0; i < conf->apps_num; i++) {
+        appc = conf->apps[i];
+        if (appc) {
+            // only match comm
+            if ((appc->comm[0] != 0) && (appc->cmd_line[0] == 0)) {
+                if (((comm[0] != 0) && strstr(comm, appc->comm))) {
+                    return 1;
+                }
+            }
+            // match comm and cmdline
+            if ((appc->comm[0] != 0) && (appc->cmd_line[0] != 0)) {
+                if (((comm[0] != 0) && strstr(comm, appc->comm)) &&
+                    ((cmdline[0] != 0) && strstr(cmdline, appc->cmd_line))) {
+                    return 1;
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+static void get_wl_proc(struct task_probe_s* probep)
+{
+    u32 proc_id;
+    DIR *dir = NULL;
+    struct dirent *entry = NULL;
+    char comm[TASK_COMM_LEN];
+    char cmdline[PROC_CMDLINE_LEN];
+    char command[COMMAND_LEN];
+    const char *get_comm_fmt = "/usr/bin/cat /proc/%u/comm";
+    const char *get_cmdline_fmt = "/usr/bin/cat /proc/%u/cmdline";
+
+    dir = opendir("/proc");
+    if (dir == NULL) {
+        return;
+    }
+
+    do {
+        entry = readdir(dir);
+        if (entry == NULL) {
+            break;
+        }
+        if (!is_digit_str(entry->d_name)) {
+            continue;
+        }
+
+        proc_id = (u32)atoi(entry->d_name);
+
+        comm[0] = 0;
+        command[0] = 0;
+        (void)snprintf(command, COMMAND_LEN, get_comm_fmt, proc_id);
+        if (exec_cmd((const char *)command, comm, TASK_COMM_LEN)) {
+            continue;
+        }
+
+        cmdline[0] = 0;
+        command[0] = 0;
+        (void)snprintf(command, COMMAND_LEN, get_cmdline_fmt, proc_id);
+        if (exec_cmd((const char *)command, cmdline, PROC_CMDLINE_LEN)) {
+            continue;
+        }
+
+        if (!is_wl_range((const char *)comm, (const char *)command, probep->conf)) {
+            continue;
+        }
+
+        add_proc_item(proc_id, (const char *)comm, probep);
+    } while (1);
+
+    closedir(dir);
 
     return;
 }
 
-static void load_period(int period_fd, __u32 value)
+static void load_task_args(int fd, struct probe_params *params)
 {
-    __u32 key = 0;
-    __u64 period = NS(value);
-    (void)bpf_map_update_elem(period_fd, &key, &period, BPF_ANY);
+    u32 key = 0;
+    struct task_args_s args = {0};
+
+    args.report_period = NS(params->period);
+    args.offline_thr = (u64)params->offline_thr * 1000 * 1000;
+    (void)bpf_map_update_elem(fd, &key, &args, BPF_ANY);
 }
 
-static int g_pmap_fd = -1;
-int is_task_cmdline_match(int tgid, const char *comm)
+static void load_wl2bpf(struct task_probe_s* probep)
 {
-    int ret;
-    struct probe_proc_info pinfo = {0};
-    struct probe_process pname = {0};
-
-    strncpy(pname.name, comm, TASK_COMM_LEN - 1);
-    ret = bpf_map_lookup_elem(g_pmap_fd, &pname, &pinfo);
-    if (ret == 0) {
-        if (pinfo.cmd_line == NULL) {
-            // 表示不需要匹配cmdline
-            return 1;
-        }
-        char *cmdline = get_task_cmdline(tgid, TASK_CMDLINE_MAX_LEN);
-        if (cmdline == NULL) {
-            return 0;
-        }
-        if (strstr(cmdline, pinfo.cmd_line) == NULL) {
-            (void)free(cmdline);
-            return 0;
-        } else {
-            (void)free(cmdline);
-            return 1;
+    struct proc_id_s *item, *tmp;
+    if (probep->procs) {
+        H_ITER(probep->procs, item, tmp) {
+            load_proc2bpf(item->id, (const char *)(item->comm), probep->proc_map_fd);
+            load_thread2bpf(item->id, probep->thread_map_fd);
         }
     }
+}
 
-    return 0;
+static void __deinit_probe(struct task_probe_s *probep)
+{
+    struct proc_id_s *item, *tmp;
+
+    if (probep->procs) {
+        H_ITER(probep->procs, item, tmp) {
+            H_DEL(probep->procs, item);
+            (void)free(item);
+        }
+    }
+    probep->procs = NULL;
+
+    if (probep->conf != NULL) {
+        whitelist_config_destroy(probep->conf);
+    }
+    probep->conf = NULL;
+
+    return;
 }
 
 int main(int argc, char **argv)
@@ -251,13 +204,18 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    ret = args_parse(argc, argv, &tp_params);
+    ret = args_parse(argc, argv, &probe.params);
     if (ret != 0) {
         return ret;
     }
 
-    if (strlen(tp_params.task_whitelist) == 0) {
+    if (strlen(probe.params.task_whitelist) == 0) {
         fprintf(stderr, "***task_whitelist_path is null, please check param : -c xx/xxx *** \n");
+        return -1;
+    }
+
+    if (parse_whitelist_config(&(probe.conf), probe.params.task_whitelist) < 0) {
+        return -1;
     }
 
     fp = popen(RM_TASK_MAP_PATH, "r");
@@ -271,40 +229,33 @@ int main(int argc, char **argv)
     // load task probe bpf prog
     LOAD_TASK_PROBE(taskprobe, err, 1);
 
-    g_pmap_fd = GET_MAP_FD(taskprobe, probe_proc_map);
-    int task_map_fd = GET_MAP_FD(taskprobe, g_task_map);
-    int period_fd = GET_MAP_FD(taskprobe, period_map);
-    int proc_map_fd = GET_MAP_FD(taskprobe, g_proc_map);
+    probe.args_fd = GET_MAP_FD(taskprobe, args_map);
+    probe.thread_map_fd = GET_MAP_FD(taskprobe, g_thread_map);
+    probe.proc_map_fd = GET_MAP_FD(taskprobe, g_proc_map);
 
     // Set task probe collection period
-    load_period(period_fd, tp_params.period);
+    load_task_args(probe.args_fd, &(probe.params));
 
-    // Set task probe observation range based on 'task->comm'
-    load_task_range(g_pmap_fd);
+    // load wl proc
+    get_wl_proc(&probe);
 
-    // Set task probe whitelist.
-    load_task_wl(g_pmap_fd);
-
-    // Load task instances based on the whitelist.
-    load_daemon_task(g_pmap_fd, task_map_fd);
-
-    // Load proc instances from thread table.
-    load_daemon_proc(task_map_fd, proc_map_fd);
+    // load daemon thread and proc
+    load_wl2bpf(&probe);
 
     // Load thread bpf prog
-    thread_bpf_progs = load_task_bpf_prog(&tp_params);
+    thread_bpf_progs = load_thread_bpf_prog(&(probe.params));
     if (thread_bpf_progs == NULL) {
         goto err;
     }
 
     // Load proc bpf prog
-    proc_bpf_progs = load_proc_bpf_prog(&tp_params);
+    proc_bpf_progs = load_proc_bpf_prog(&probe);
     if (proc_bpf_progs == NULL) {
         goto err;
     }
 
     // Load glibc bpf prog
-    glibc_bpf_progs = load_glibc_bpf_prog(&tp_params);
+    glibc_bpf_progs = load_glibc_bpf_prog(&(probe.params));
 
     printf("Successfully started!\n");
 
@@ -327,5 +278,8 @@ err:
     unload_bpf_prog(&thread_bpf_progs);
     UNLOAD(taskprobe);
 
+    __deinit_probe(&probe);
+
     return ret;
 }
+

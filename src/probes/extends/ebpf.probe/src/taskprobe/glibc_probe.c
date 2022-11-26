@@ -35,7 +35,7 @@
 
 #define __LOAD_PROBE(probe_name, end, load) \
     OPEN(probe_name, end, load); \
-    MAP_SET_PIN_PATH(probe_name, period_map, PERIOD_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, args_map, ARGS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, g_proc_map, PROC_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, g_proc_output, PROC_OUTPUT_PATH, load); \
     LOAD_ATTACH(probe_name, end, load)

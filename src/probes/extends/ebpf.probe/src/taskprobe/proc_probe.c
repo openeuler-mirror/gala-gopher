@@ -42,6 +42,7 @@
 #include "tmpfs.skel.h"
 #include "page.skel.h"
 #include "proc_io.skel.h"
+#include "proc.skel.h"
 #include "bpf_prog.h"
 #include "taskprobe.h"
 
@@ -50,7 +51,7 @@
 #endif
 #define OO_NAME  "proc"
 
-static struct probe_params *g_args;
+static struct task_probe_s *tp_probe = NULL;
 
 #define PROC_TBL_SYSCALL        "proc_syscall"
 #define PROC_TBL_SYSCALL_IO     "proc_syscall_io"
@@ -72,17 +73,56 @@ static struct probe_params *g_args;
 
 #define __LOAD_PROBE(probe_name, end, load) \
     OPEN(probe_name, end, load); \
-    MAP_SET_PIN_PATH(probe_name, period_map, PERIOD_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, args_map, ARGS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, g_proc_map, PROC_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, g_proc_output, PROC_OUTPUT_PATH, load); \
     LOAD_ATTACH(probe_name, end, load)
 
+static char is_wl_range(const char *comm, ApplicationsConfig *conf)
+{
+    ApplicationConfig *appc;
+    if (conf == NULL) {
+        return 0;
+    }
+
+    for (int i = 0; i < conf->apps_num; i++) {
+        appc = conf->apps[i];
+        if (appc) {
+            if (comm && strstr(comm, appc->comm)) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+static void rcv_proc_exec_evt(void *ctx, int cpu, void *data, __u32 size)
+{
+    struct proc_exec_evt *evt = data;
+    char comm[TASK_COMM_LEN];
+
+    comm[0] = 0;
+    char *p = strrchr(evt->filename, '/');
+    if (p) {
+        strncpy(comm, p + 1, TASK_COMM_LEN - 1);
+    } else {
+        strncpy(comm, evt->filename, TASK_COMM_LEN - 1);
+    }
+
+    if (is_wl_range((const char *)comm, tp_probe->conf)) {
+        DEBUG("[TASKPROBE]: create new proc '[proc_id=%d,comm=%s]'.\n", evt->pid, comm);
+
+        load_proc2bpf(evt->pid, (const char *)comm, tp_probe->proc_map_fd);
+        load_thread2bpf(evt->pid, tp_probe->thread_map_fd);
+    }
+}
+
 static void report_proc_metrics(struct proc_data_s *proc)
 {
     char entityId[INT_LEN];
-    u64 latency_thr_us = US(g_args->latency_thr);
+    u64 latency_thr_us = US(tp_probe->params.latency_thr);
 
-    if (g_args->logs == 0) {
+    if (tp_probe->params.logs == 0) {
         return;
     }
 
@@ -317,11 +357,6 @@ static void output_proc_metrics(void *ctx, int cpu, void *data, __u32 size)
 {
     struct proc_data_s *proc = (struct proc_data_s *)data;
     u32 flags = proc->flags;
-
-    if (is_task_cmdline_match(proc->proc_id, proc->comm) == 0) {
-        // cmdline匹配不成功，不打印
-        return;
-    }
 
     report_proc_metrics(proc);
 
@@ -559,28 +594,53 @@ err:
     return -1;
 }
 
-struct bpf_prog_s* load_proc_bpf_prog(struct probe_params *args)
+static int load_proc_prog(struct bpf_prog_s *prog, char is_load)
+{
+    int ret = 0;
+    struct perf_buffer *pb;
+
+    __LOAD_PROBE(proc, err, is_load);
+    if (is_load) {
+        prog->skels[prog->num].skel = proc_skel;
+        prog->skels[prog->num].fn = (skel_destroy_fn)proc_bpf__destroy;
+        prog->num++;
+
+        pb = create_pref_buffer(GET_MAP_FD(proc, proc_exec_channel_map), rcv_proc_exec_evt);
+        if (pb == NULL) {
+            fprintf(stderr, "ERROR: crate perf buffer failed\n");
+            return -1;
+        }
+        prog->pb = pb;
+    }
+
+    return ret;
+err:
+    UNLOAD(proc);
+    return -1;
+}
+
+struct bpf_prog_s* load_proc_bpf_prog(void *probe)
 {
     struct bpf_prog_s *prog;
     char is_load_syscall, is_load_syscall_io, is_load_syscall_net;
     char is_load_syscall_fork, is_load_syscall_sched, is_load_proc_io;
     char is_load_overlay, is_load_ext4, is_load_tmpfs, is_load_page;
 
-    is_load_overlay = is_load_probe(args, TASK_PROBE_OVERLAY_OP) & is_exist_mod(OVERLAY_MOD);
-    is_load_ext4 = is_load_probe(args, TASK_PROBE_EXT4_OP) & is_exist_mod(EXT4_MOD);
+    tp_probe = probe;
 
-    is_load_syscall = is_load_probe(args, TASK_PROBE_SYSCALL);
-    is_load_syscall_io = is_load_probe(args, TASK_PROBE_IO_SYSCALL);
-    is_load_syscall_net = is_load_probe(args, TASK_PROBE_NET_SYSCALL);
-    is_load_syscall_fork = is_load_probe(args, TASK_PROBE_FORK_SYSCALL);
-    is_load_syscall_sched = is_load_probe(args, TASK_PROBE_SCHED_SYSCALL);
+    is_load_overlay = is_load_probe(&(tp_probe->params), TASK_PROBE_OVERLAY_OP) & is_exist_mod(OVERLAY_MOD);
+    is_load_ext4 = is_load_probe(&(tp_probe->params), TASK_PROBE_EXT4_OP) & is_exist_mod(EXT4_MOD);
 
-    is_load_tmpfs = is_load_probe(args, TASK_PROBE_TMPFS_OP);
-    is_load_page = is_load_probe(args, TASK_PROBE_PAGE_OP);
+    is_load_syscall = is_load_probe(&(tp_probe->params), TASK_PROBE_SYSCALL);
+    is_load_syscall_io = is_load_probe(&(tp_probe->params), TASK_PROBE_IO_SYSCALL);
+    is_load_syscall_net = is_load_probe(&(tp_probe->params), TASK_PROBE_NET_SYSCALL);
+    is_load_syscall_fork = is_load_probe(&(tp_probe->params), TASK_PROBE_FORK_SYSCALL);
+    is_load_syscall_sched = is_load_probe(&(tp_probe->params), TASK_PROBE_SCHED_SYSCALL);
 
-    is_load_proc_io = is_load_probe(args, TASK_PROBE_IO);
+    is_load_tmpfs = is_load_probe(&(tp_probe->params), TASK_PROBE_TMPFS_OP);
+    is_load_page = is_load_probe(&(tp_probe->params), TASK_PROBE_PAGE_OP);
 
-    g_args = args;
+    is_load_proc_io = is_load_probe(&(tp_probe->params), TASK_PROBE_IO);
 
     prog = alloc_bpf_prog();
     if (prog == NULL) {
@@ -627,11 +687,15 @@ struct bpf_prog_s* load_proc_bpf_prog(struct probe_params *args)
         goto err;
     }
 
+    if (load_proc_prog(prog, 1)) {
+        goto err;
+    }
+
     return prog;
 
 err:
     unload_bpf_prog(&prog);
-    g_args = NULL;
+    tp_probe = NULL;
     return NULL;
 }
 

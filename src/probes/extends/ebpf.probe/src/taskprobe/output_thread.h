@@ -10,10 +10,10 @@
  * See the Mulan PSL v2 for more details.
  * Author: luzhihao
  * Create: 2022-07-13
- * Description: output of taskprobe
+ * Description: output of thread
  ******************************************************************************/
-#ifndef __OUTPUT_TASK_H__
-#define __OUTPUT_TASK_H__
+#ifndef __OUTPUT_THREAD_H__
+#define __OUTPUT_THREAD_H__
 
 #pragma once
 
@@ -31,14 +31,14 @@
 #define BPF_F_CURRENT_CPU   BPF_F_INDEX_MASK
 
 #define PERF_OUT_MAX (64)
-struct bpf_map_def SEC("maps") g_task_output = {
+struct bpf_map_def SEC("maps") g_thread_output = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
     .max_entries = PERF_OUT_MAX,
 };
 
-#define IS_TASK_TMOUT(stats_ts, ts, period, type, tmout) \
+#define IS_THREAD_TMOUT(stats_ts, ts, period, type, tmout) \
     do \
     { \
         if (((ts) > (stats_ts)->ts_##type) && (((ts) - (stats_ts)->ts_##type) >= period)) { \
@@ -49,16 +49,16 @@ struct bpf_map_def SEC("maps") g_task_output = {
         } \
     } while (0)
 
-static __always_inline __maybe_unused char is_task_tmout(struct task_data *task, u32 flags)
+static __always_inline __maybe_unused char is_thread_tmout(struct thread_data *task, u32 flags)
 {
     char tmout;
     u64 ts = bpf_ktime_get_ns();
     u64 period = get_period();
 
-    struct task_ts_s *stats_ts = &(task->stats_ts);
+    struct thread_ts_s *stats_ts = &(task->stats_ts);
 
     if (flags & TASK_PROBE_THREAD_CPU) {
-        IS_TASK_TMOUT(stats_ts, ts, period, cpu, tmout);
+        IS_THREAD_TMOUT(stats_ts, ts, period, cpu, tmout);
     } else {
         tmout = 0;
     }
@@ -66,14 +66,14 @@ static __always_inline __maybe_unused char is_task_tmout(struct task_data *task,
     return tmout;
 }
 
-static __always_inline __maybe_unused void report_task(void *ctx, struct task_data *val, u32 flags)
+static __always_inline __maybe_unused void report_thread(void *ctx, struct thread_data *val, u32 flags)
 {
-    if (!is_task_tmout(val, flags)) {
+    if (!is_thread_tmout(val, flags)) {
         return;
     }
 
     val->flags = flags;
-    (void)bpf_perf_event_output(ctx, &g_task_output, BPF_F_CURRENT_CPU, val, sizeof(struct task_data));
+    (void)bpf_perf_event_output(ctx, &g_thread_output, BPF_F_CURRENT_CPU, val, sizeof(struct thread_data));
     val->flags = 0;
 
     if (flags & TASK_PROBE_THREAD_CPU) {
