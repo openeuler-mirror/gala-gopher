@@ -26,12 +26,12 @@
 
 #ifdef BPF_PROG_KERN
 
-#include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
 #endif
 
+#include "bpf.h"
 #include "object.h"
 
 /* !!! NOTICE

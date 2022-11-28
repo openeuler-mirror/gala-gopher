@@ -124,29 +124,44 @@ static inline int __debug_printf(const char *format, ...)
 
 #define NS(sec)  ((__u64)(sec) * 1000000000)
 
-#ifndef u8
-typedef unsigned char u8;
+#ifndef __u8
+typedef unsigned char __u8;
+typedef __u8 u8;
 #endif
 
-#ifndef s8
-typedef signed char s8;
+#ifndef __s8
+typedef signed char __s8;
+typedef __s8 s8;
 #endif
 
-#ifndef s16
-typedef signed short s16;
+#ifndef __s16
+typedef signed short __s16;
+typedef __s16 s16;
 #endif
 
-#ifndef u32
-typedef unsigned int u32;
+#ifndef __u16
+typedef short unsigned int __u16;
+typedef __u16 u16;
+typedef __u16 __be16;
 #endif
 
-#ifndef s64
-typedef long long int s64;
+#ifndef __u32
+typedef unsigned int __u32;
+typedef __u32 u32;
+typedef __u32 __be32;
+typedef __u32 __wsum;
 #endif
 
-#ifndef u64
-typedef long long unsigned int u64;
+#ifndef __s64
+typedef long long int __s64;
+typedef __s64 s64;
 #endif
+
+#ifndef __u64
+typedef long long unsigned int __u64;
+typedef __u64 u64;
+#endif
+
 
 void split_newline_symbol(char *s);
 #define SPLIT_NEWLINE_SYMBOL(s)     split_newline_symbol(s)

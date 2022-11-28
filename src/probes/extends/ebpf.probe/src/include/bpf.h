@@ -25,11 +25,11 @@
 #define LIBBPF_VERSION(a, b) (((a) << 8) + (b))
 #define CURRENT_LIBBPF_VERSION LIBBPF_VERSION(LIBBPF_VER_MAJOR, LIBBPF_VER_MINOR)
 
-#include "__share_map_match.h"
-#include "__obj_map.h"
 #include "__bpf_kern.h"
 #include "__bpf_usr.h"
 #include "__libbpf.h"
+#include "__share_map_match.h"
+#include "__obj_map.h"
 
 
 #endif
