@@ -277,7 +277,11 @@ int get_probe_proc_whitelist(ApplicationConfig *appsConfig, u32 appsConfig_len,
         return -1;
     }
 
-    while (entry = readdir(dir)) {
+    do {
+        entry = readdir(dir);
+        if (entry == NULL) {
+            break;
+        }
         if (is_proc_subdir(entry->d_name) == -1) {
             continue;
         }
@@ -294,7 +298,7 @@ int get_probe_proc_whitelist(ApplicationConfig *appsConfig, u32 appsConfig_len,
             ERROR("[WHITELIST] probe proc list is full.\n");
             break;
         }
-    }
+    } while (1);
 
     closedir(dir);
     return 0;

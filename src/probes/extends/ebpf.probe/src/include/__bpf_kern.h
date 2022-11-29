@@ -17,6 +17,10 @@
 
 #ifdef BPF_PROG_KERN
 
+#if defined(__BTF_ENABLE_OFF)
+#define BPF_NO_PRESERVE_ACCESS_INDEX
+#endif
+
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
@@ -36,12 +40,21 @@
     bpf_section("raw_tracepoint/" #func) \
     void bpf_raw_trace_##func(struct type *ctx)
 
+#if defined(__BTF_ENABLE_ON)
+#define _(P)                                   \
+            ({                                         \
+                typeof(P) val;                         \
+                bpf_core_read((unsigned char *)&val, sizeof(val), (const void *)&P); \
+                val;                                   \
+            })
+#elif defined(__BTF_ENABLE_OFF)
 #define _(P)                                   \
             ({                                         \
                 typeof(P) val;                         \
                 bpf_probe_read((unsigned char *)&val, sizeof(val), (const void *)&P); \
                 val;                                   \
             })
+#endif
 
 #if defined(__TARGET_ARCH_x86)
 
