@@ -10,7 +10,7 @@ function find_jars()
 	then
 		# find jdk
 		clink_path=$(echo $(ls -lrt $javac_link) | awk -F " " '{print $NF}' )
-		link_path=$(echo $(ls -lrt $link_path) | awk -F " " '{print $NF}' )
+		link_path=$(echo $(ls -lrt $clink_path) | awk -F " " '{print $NF}' )
 		jdk_path=$(dirname $(dirname $link_path))
 		dir=$jdk_path
 	else
