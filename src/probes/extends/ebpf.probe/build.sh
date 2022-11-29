@@ -7,6 +7,7 @@ TOOLS_DIR=${PRJ_DIR}/tools
 SRC_DIR=${PRJ_DIR}/src
 VMLINUX_DIR=${SRC_DIR}/include
 LINUX_VER=$(uname -r)
+DEP_LIST=(elfutils-devel libbpf libbpf-devel clang llvm)
 
 function gen_vmlinux_header_file()
 {
@@ -17,51 +18,29 @@ function gen_vmlinux_header_file()
     ./gen_vmlinux_h.sh
 }
 
-function add_bpftool() {
+function add_bpftool()
+{
     cd ${TOOLS_DIR}
     if [ ! -f "bpftool" ];then
         ln -s bpftool_${ARCH} bpftool
     fi
 }
 
-function prepare_dep()
+function check_dep()
 {
-    yum install -y elfutils-devel
-    if [ $? -ne 0 ];then
-        echo "Error: elfutils-devel install failed"
-        return 1
-    fi
+    for dep in "${DEP_LIST[@]}" ; do
+        rpm -q $dep --quiet
+        if [ $? -ne 0 ];then
+            echo "Error: $dep not installed"
+            exit 1
+        fi
+    done
 
-    yum install -y clang
-    if [ $? -ne 0 ];then
-        echo "Error: clang install failed"
-        return 1
-    fi
     V=`clang --version | grep version | awk -F ' ' '{print $3}' | awk -F . '{print $1}'`
     if [ "$V" -lt 10 ];then
         echo "Error: clange version need >= 10.x.x"
-        return 1
+        exit 1
     fi
-
-    yum install -y llvm
-    if [ $? -ne 0 ];then
-        echo "Error: llvm install failed"
-        return 1
-    fi
-
-    yum install -y libbpf
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to install libbpf."
-        return 1
-    fi
-
-    yum install -y libbpf-devel
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to install libbpf-devel."
-        return 1
-    fi
-
-    return 0
 }
 
 function compile_probe_prev()
@@ -123,7 +102,7 @@ fi
 
 if [ "$1" == "--check" ];
 then
-    prepare_dep
+    check_dep
     exit
 fi
 
@@ -137,7 +116,8 @@ fi
 
 if [ "$1" == "-b"  -o  "$1" == "--build" ];
 then
-    prepare_dep
+    check_dep
+
     if [ "$2" == "-d"  -o  "$2" == "--debug" ];
     then
         compile_probe_prev
