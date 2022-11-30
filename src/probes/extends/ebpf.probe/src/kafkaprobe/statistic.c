@@ -4,6 +4,15 @@
 #include <arpa/inet.h> //htons
 #include <time.h>
 
+#ifdef BPF_PROG_KERN
+#undef BPF_PROG_KERN
+#endif
+#ifdef BPF_PROG_USER
+#undef BPF_PROG_USER
+#endif
+#include "bpf.h"
+
+#include "kafkaprobe.bpf.h"
 #include "kafkaprobe.h"
 
 /* 收集数据 */

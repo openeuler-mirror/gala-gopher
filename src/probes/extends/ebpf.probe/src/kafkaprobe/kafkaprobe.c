@@ -18,9 +18,7 @@
 #include <signal.h>
 #include <time.h>
 #include <string.h>
-
 #include "args.h"
-#include "kafkaprobe.h"
 
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
@@ -29,6 +27,11 @@
 #ifdef BPF_PROG_USER
 #undef BPF_PROG_USER
 #endif
+#include "bpf.h"
+
+#include "kafkaprobe.h"
+#include "kafkaprobe.bpf.h"
+
 
 int quit_flag = 0;
 

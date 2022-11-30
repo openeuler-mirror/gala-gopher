@@ -12,18 +12,28 @@
  * Create: 2022-08-27
  * Description: kernel probe bpf prog for kafka
  ******************************************************************************/
+
+
 #ifdef BPF_PROG_USER
 #undef BPF_PROG_USER
 #endif
 #define BPF_PROG_KERN
-
+#include "bpf.h"
 #include <bpf/bpf_endian.h>
-
-#include "kafkaprobe.h"
+#include "kafkaprobe.bpf.h"
 
 #define ETH_P_8021AD    0x88A8          /* 802.1ad Service VLAN        */
 #define ETH_P_8021Q    0x8100          /* 802.1Q VLAN Extended Header  */
 #define ETH_P_IP    0x0800        /* Internet Protocol packet    */
+
+struct xdp_md {
+    __u32 data;
+    __u32 data_end;
+    __u32 data_meta;
+    __u32 ingress_ifindex;
+    __u32 rx_queue_index;
+    __u32 egress_ifindex;
+};
 
 struct bpf_map_def SEC("maps") xdp_data_map = {
     .type        = BPF_MAP_TYPE_ARRAY,
@@ -192,6 +202,29 @@ static __always_inline int get_empty_data(int **ctrl, struct KafkaData **rec)
     return 0;
 }
 
+static __always_inline int copy_data(__u8 *dst, int len, __u8 *src, void *data_end)
+{
+    __u32 i,j;
+    j = 0;
+
+    #pragma unroll
+    for (i = 0; i < SMALL_BUF_SIZE; i++) {        
+        dst[j] = *src;
+        
+        j += 1;
+        if (j >= len) {
+            return 1;
+        }        
+
+        src += 1;
+        if (src + 1 > data_end) {
+            return 0;
+        }        
+    }
+
+    return 0;
+}
+
 static __always_inline int parse_consumer(struct hdr_cursor *nh, void *data_end, __u32 *src_ip, __u16* src_port, __u16* dst_port)
 {
     int *ctrl;
@@ -235,7 +268,8 @@ static __always_inline int parse_consumer(struct hdr_cursor *nh, void *data_end,
         rec->len = SMALL_BUF_SIZE;
     }
     rec->num = hton32(pos_data->param1);
-    bpf_probe_read_kernel(rec->data, rec->len, topic_data->data);
+    copy_data(rec->data, rec->len, topic_data->data, data_end);
+    // bpf_skb_load_bytes
     *ctrl = 2;
 
     return 0;    
@@ -282,7 +316,7 @@ static __always_inline int parse_producer(struct hdr_cursor *nh, void *data_end,
         rec->len = SMALL_BUF_SIZE;
     }
     rec->num = topic_num->param2;
-    bpf_probe_read_kernel(rec->data, rec->len, topic_data->data);
+    copy_data(rec->data, rec->len, topic_data->data, data_end);
 
     *ctrl = 2;
 
@@ -344,4 +378,3 @@ int  xdp_parser_func(struct xdp_md *ctx)
 }
 
 char _license[] SEC("license") = "GPL";
-

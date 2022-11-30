@@ -6,6 +6,16 @@
 #include <linux/if_link.h> //XDP_FLAGS_HW_MODE
 #include <linux/bpf.h>
 #include <arpa/inet.h> // sockaddr_in
+
+#ifdef BPF_PROG_KERN
+#undef BPF_PROG_KERN
+#endif
+#ifdef BPF_PROG_USER
+#undef BPF_PROG_USER
+#endif
+#include "bpf.h"
+
+#include "kafkaprobe.bpf.h"
 #include "kafkaprobe.h"
 
 void set_native_mode(__u32 *flag)
@@ -187,7 +197,7 @@ struct bpf_object *load_link_pin(struct KafkaConfig *cfg){
         }
     }    
     
-    if (ret == -EOPNOTSUPP) {
+    if (ret == -EOPNOTSUPP || ret == -ENOMEM) {
         printf("Info: Change XDP mode to socket mode...\n");
         set_socket_mode(&cfg->xdp_flag);
         ret = link_xdp(cfg, obj);
