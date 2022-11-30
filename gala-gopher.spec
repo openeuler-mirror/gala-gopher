@@ -14,6 +14,7 @@ BuildRequires: clang >= 10.0.1
 BuildRequires: llvm
 BuildRequires: libconfig-devel librdkafka-devel libmicrohttpd-devel
 BuildRequires: uthash-devel libbpf libbpf-devel log4cplus-devel
+BuildRequires: java-1.8.0-openjdk-devel
 Requires: bash glibc elfutils zlib elfutils-devel bpftool iproute
 
 %description
