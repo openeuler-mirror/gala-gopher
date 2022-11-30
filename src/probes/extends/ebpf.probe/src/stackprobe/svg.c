@@ -40,7 +40,7 @@
 
 #define __COMMAND_LEN       (2 * COMMAND_LEN)
 #define FAMEGRAPH_BIN       "/usr/bin/flamegraph.pl"
-#define SVG_COMMAND   "%s --title=\" %s \" %s %s > %s"
+#define SVG_COMMAND   "%s --title=\" %s \" %s %s > %s 2>/dev/null"
 
 struct svg_param_s {
     char *file_name;

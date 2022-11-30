@@ -15,6 +15,10 @@
 #ifndef __CONTAINER_H__
 #define __CONTAINER_H__
 
+#define CONTAINER_OK       0
+#define CONTAINER_ERR      (-1)
+#define CONTAINER_NOTOK     (-2)
+
 enum container_status_e {
     CONTAINER_STATUS_RUNNING = 0,
     CONTAINER_STATUS_RESTARTING,
@@ -33,6 +37,7 @@ typedef struct container_tbl_s {
 
 container_tbl* get_all_container(void);
 int get_container_id_by_pid(unsigned int pid, char *container_id, unsigned int buf_len);
+int get_elf_path(unsigned int pid, char elf_path[], int max_path_len, const char *comm);
 void free_container_tbl(container_tbl **pcstbl);
 int get_container_merged_path(const char *abbr_container_id, char *path, unsigned int len);
 int exec_container_command(const char *abbr_container_id, const char *exec, char *buf, unsigned int len);

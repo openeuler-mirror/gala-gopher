@@ -40,7 +40,7 @@
 #define SLI_TBL_NAME "pg_sli"
 #define MAX_SLI_TBL_NAME "pg_max_sli"
 #define GUASSDB_COMM "gaussdb"
-#define PLDD_LIBSSL_COMMAND "pldd %u | grep libssl"
+
 #define PID_COMM_COMMAND "ps -e -o pid,comm | grep %s | awk '{print $1}'"
 
 #define R_OK    4
@@ -231,42 +231,6 @@ static struct bpf_link_hash_t* find_bpf_link(unsigned int pid)
     return item;
 }
 
-static int get_elf_path(unsigned int pid, char elf_path[], int max_path_len)
-{
-    char cmd[COMMAND_LEN] = {0};
-    char openssl_path[PATH_LEN] = {0};
-    char container_id[CONTAINER_ABBR_ID_LEN] = {0};
-    char container_path[PATH_LEN] = {0};
-
-    // 1. get elf_path
-    (void)snprintf(cmd, COMMAND_LEN, PLDD_LIBSSL_COMMAND, pid);
-    if (exec_cmd((const char *)cmd, openssl_path, PATH_LEN) < 0) {
-        noDependLibssl = 1;
-        INFO("[DAEMON] GaussDB does not depend on libssl\n");
-        return SLI_ERR;
-    }
-
-    // If the container id is not found, it means that gaussdb is a process on the host
-    if ((get_container_id_by_pid(pid, container_id, CONTAINER_ABBR_ID_LEN + 1) >= 0) &&
-        (container_id[0] != 0)) {
-        if (get_container_merged_path(container_id, container_path, PATH_LEN) < 0) {
-            fprintf(stderr, "get container %s merged path failed\n", container_id);
-            return SLI_ERR;
-        }
-        (void)snprintf(elf_path, max_path_len, "%s%s", container_path, openssl_path);
-    } else {
-        (void)snprintf(elf_path, max_path_len, "%s", openssl_path);
-    }
-
-    if (elf_path[0] != '\0') {
-        if (access(elf_path, R_OK) != 0) {
-            fprintf(stderr, "File %s not exist or not readable!\n", elf_path);
-            return SLI_ERR;
-        }
-    }
-
-    return SLI_OK;
-}
 
 static int add_bpf_link(unsigned int pidd)
 {
@@ -276,7 +240,12 @@ static int add_bpf_link(unsigned int pidd)
         return SLI_ERR;
     }
     (void)memset(item, 0, sizeof(struct bpf_link_hash_t));
-    if (get_elf_path(pidd, item->v.elf_path, MAX_PATH_LEN) != SLI_OK) {
+    int ret = get_elf_path(pidd, item->v.elf_path, MAX_PATH_LEN, "libssl");
+    if (ret == CONTAINER_ERR) {
+        free(item);
+        return SLI_ERR;
+    } else if (ret == CONTAINER_NOTOK) {
+        noDependLibssl = 1;
         free(item);
         return SLI_ERR;
     }

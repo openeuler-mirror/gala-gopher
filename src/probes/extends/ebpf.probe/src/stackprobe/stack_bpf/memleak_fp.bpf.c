@@ -9,14 +9,14 @@
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
  * Author: wo_cow
- * Create: 2022-11-26
- * Description: memleak stack tracing
+ * Create: 2022-11-3
+ * Description: fp-based memleak stack tracing
+ *     If user lib does not contain fp pointer, this program cannot track it.
  ******************************************************************************/
-#ifdef BPF_PROG_KERN
-#undef BPF_PROG_KERN
+#ifdef BPF_PROG_USER
+#undef BPF_PROG_USER
 #endif
-
-#define BPF_PROG_USER
+#define BPF_PROG_KERN
 #include "bpf.h"
 #include "../stack.h"
 #include "stackprobe_bpf.h"
@@ -33,6 +33,51 @@ struct mmap_info_t {
     u64 timestamp_ns;
     struct stack_id_s stack_id;
 };
+
+struct brk_info_t {
+    u64 addr;
+    struct stack_id_s stack_id;
+};
+
+struct combined_alloc_info_t {
+    u64 total_size;
+    u64 number_of_allocs;
+};
+
+// cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_brk/format
+struct sys_enter_brk_args {
+    u64 __unused__;
+    int __syscall_nr;
+    unsigned long brk;
+};
+
+// cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_mmap/format
+struct sys_enter_mmap_args {
+    u64 __unused__;
+    int __syscall_nr;
+    unsigned long addr;
+    unsigned long len;
+    unsigned long prot;
+    unsigned long flags;
+    unsigned long fd;
+    unsigned long off;
+};
+
+// cat /sys/kernel/debug/tracing/events/syscalls/sys_exit_mmap/format
+struct sys_exit_mmap_args {
+    u64 __unused__;
+    int __syscall_nr;
+    long ret;
+};
+
+// cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_munmap/format
+struct sys_enter_munmap_args {
+    u64 __unused__;
+    int __syscall_nr;
+    unsigned long addr;
+    u64 len;
+};
+
 
 struct bpf_map_def SEC("maps") stackmap_perf_a = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
@@ -51,24 +96,40 @@ struct bpf_map_def SEC("maps") stackmap_perf_b = {
 // memory to be allocated for the process
 struct bpf_map_def SEC("maps") to_allocate = {
     .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u64), // pid
+    .key_size = sizeof(u32), // tgid
     .value_size = sizeof(u64), // size
     .max_entries = 1000,
 };
 
-struct bpf_map_def SEC("maps") memalign_allocate = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u64), // pid
-    .value_size = sizeof(u64), // size
-    .max_entries = 10000,
-};
-
-struct bpf_map_def SEC("maps") allocs = {
+struct bpf_map_def SEC("maps") mmap_allocs = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(struct pid_addr_t),
     .value_size = sizeof(struct mmap_info_t),
-    .max_entries = 10000,
+    .max_entries = 1000000,
 };
+
+struct bpf_map_def SEC("maps") brk_allocs = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u32), // tgid
+    .value_size = sizeof(struct brk_info_t),
+    .max_entries = 1000000,
+};
+
+static __always_inline u64 get_real_start_time()
+{
+    struct task_struct* task = (struct task_struct*)bpf_get_current_task();
+    if (task) {
+        struct task_struct* group_leader = _(task->group_leader);
+        if (group_leader) {
+#if (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(5, 10, 0))
+        return _(group_leader->start_boottime);
+#else
+        return _(group_leader->real_start_time);
+#endif
+        }
+    }
+    return 0;
+}
 
 static inline char is_stackmap_a() {
     const u32 zero = 0;
@@ -82,10 +143,9 @@ static inline char is_stackmap_a() {
 
     return ret;
 }
-
 static inline int get_stack_id(void *ctx, char stackmap_cur, struct stack_id_s *stack_id) {
     stack_id->pid.proc_id = bpf_get_current_pid_tgid() >> INT_LEN;
-    stack_id->pid.real_start_time = 0;
+    stack_id->pid.real_start_time = get_real_start_time();
     (void)bpf_get_current_comm(&stack_id->pid.comm, sizeof(stack_id->pid.comm));
 
     if (stackmap_cur) {
@@ -97,6 +157,7 @@ static inline int get_stack_id(void *ctx, char stackmap_cur, struct stack_id_s *
     }
 
     if (stack_id->kern_stack_id < 0 && stack_id->user_stack_id < 0) {
+        // error.
         return -1;
     }
 
@@ -117,17 +178,17 @@ static inline void update_statistics(void *ctx, char stackmap_cur, s64 count, st
 }
 
 static inline int alloc_exit(void *ctx, u64 addr) {
-    u64 pid = bpf_get_current_pid_tgid();
+    u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;
     struct pid_addr_t pa = {0};
-    pa.tgid = pid >> INT_LEN;
+    pa.tgid = tgid;
     pa.addr = addr;
-    u64 *alloc_size = (u64 *)bpf_map_lookup_elem(&to_allocate, &pid);
+    u64 *alloc_size = (u64 *)bpf_map_lookup_elem(&to_allocate, &tgid);
     struct mmap_info_t mmap_info = {0};
 
     if (alloc_size == 0)
         return 0;
 
-    bpf_map_delete_elem(&to_allocate, &pid);
+    bpf_map_delete_elem(&to_allocate, &tgid);
 
     if (addr != 0) {
         char stackmap_cur = is_stackmap_a();
@@ -137,7 +198,7 @@ static inline int alloc_exit(void *ctx, u64 addr) {
 
         mmap_info.timestamp_ns = bpf_ktime_get_ns();
         mmap_info.size = (s64)*alloc_size;
-        bpf_map_update_elem(&allocs, &pa, &mmap_info, BPF_ANY);
+        bpf_map_update_elem(&mmap_allocs, &pa, &mmap_info, BPF_ANY);
         update_statistics(ctx, stackmap_cur, mmap_info.size, mmap_info.stack_id);
     }
 
@@ -145,15 +206,8 @@ static inline int alloc_exit(void *ctx, u64 addr) {
 }
 
 static inline int alloc_enter(u64 size) {
-    u64 pid = bpf_get_current_pid_tgid();
-    u32 tgid = pid >> INT_LEN;
-    if (tgid > 1) {
-        struct proc_s obj = {.proc_id = tgid};
-        if (!is_proc_exist(&obj)) {
-            return 0;
-        }
-    }
-    bpf_map_update_elem(&to_allocate, &pid, &size, BPF_ANY);
+    u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;
+    bpf_map_update_elem(&to_allocate, &tgid, &size, BPF_ANY);
 
     return 0;
 }
@@ -163,151 +217,71 @@ static inline int free_enter(void *ctx, u64 addr) {
     struct pid_addr_t pa = {0};
     pa.tgid = tgid;
     pa.addr = addr;
-    struct mmap_info_t *mmap_info = (struct mmap_info_t *)bpf_map_lookup_elem(&allocs, &pa);
+    struct mmap_info_t *mmap_info = (struct mmap_info_t *)bpf_map_lookup_elem(&mmap_allocs, &pa);
     if (mmap_info == 0)
         return 0;
 
-    bpf_map_delete_elem(&allocs, &pa);
+    bpf_map_delete_elem(&mmap_allocs, &pa);
 
     char stackmap_cur = is_stackmap_a();
     update_statistics(ctx, stackmap_cur, -mmap_info->size, mmap_info->stack_id);
     return 0;
 }
 
-UPROBE(malloc, pt_regs)
-{
-    u64 size = (u64)PT_REGS_PARM1(ctx);
-    alloc_enter(size);
-}
+// MEMLEAK_SEC_NUM is the num of bpf_section
 
-URETPROBE(malloc, pt_regs)
+bpf_section("tracepoint/syscalls/sys_enter_brk")
+int function_sys_enter_brk(struct sys_enter_brk_args *ctx)
 {
+    char stackmap_cur;
+    u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;
+    struct brk_info_t *brk_info = (struct brk_info_t *)bpf_map_lookup_elem(&brk_allocs, &tgid);
+    u64 new_brk = (u64)ctx->brk;
+    if (new_brk == 0) {
+        return 0;
+    }
+    if (brk_info == 0) {
+        struct brk_info_t brk_info_new = {0};
+        stackmap_cur = is_stackmap_a();
+        if (get_stack_id(ctx, stackmap_cur, &brk_info_new.stack_id) != 0) {
+            return 0;
+        }
+        brk_info_new.addr = new_brk;
+        bpf_map_update_elem(&brk_allocs, &tgid, &brk_info_new, BPF_ANY);
+        return 0;
+    }
     
-    u64 ret = (u64)PT_REGS_RC(ctx);
-    alloc_exit(ctx, ret);
+    stackmap_cur = is_stackmap_a();
+    s64 count = new_brk - brk_info->addr;
+
+    if (count > 0) {
+        if (get_stack_id(ctx, stackmap_cur, &brk_info->stack_id) != 0) {
+            return 0;
+        }
+    }
+    brk_info->addr = new_brk;
+    update_statistics(ctx, stackmap_cur, count, brk_info->stack_id);
+
+    return 0;
 }
 
-UPROBE(calloc, pt_regs)
+bpf_section("tracepoint/syscalls/sys_enter_mmap")
+int function_sys_enter_mmap(struct sys_enter_mmap_args *ctx)
 {
-    u64 nmemb = (u64)PT_REGS_PARM1(ctx);
-    u64 size = (u64)PT_REGS_PARM2(ctx);
-    alloc_enter(nmemb * size);
+    alloc_enter((u64)ctx->len);
+    return 0;
 }
 
-URETPROBE(calloc, pt_regs)
+bpf_section("tracepoint/syscalls/sys_exit_mmap")
+int function_sys_exit_mmap(struct sys_exit_mmap_args *ctx)
 {
-    u64 ret = (u64)PT_REGS_RC(ctx);
-    alloc_exit(ctx, ret);
+    alloc_exit(ctx, (u64)ctx->ret);
+    return 0;
 }
 
-UPROBE(realloc, pt_regs)
+bpf_section("tracepoint/syscalls/sys_enter_munmap")
+int function_sys_enter_munmap_args(struct sys_enter_munmap_args *ctx)
 {
-    u64 ptr = (u64)PT_REGS_PARM1(ctx);
-    u64 size = (u64)PT_REGS_PARM2(ctx);
-
-    free_enter(ctx, ptr);
-    alloc_enter(size);
+    free_enter(ctx, (u64)ctx->addr);
+    return 0;
 }
-
-URETPROBE(realloc, pt_regs)
-{
-    u64 ret = (u64)PT_REGS_RC(ctx);
-    alloc_exit(ctx, ret);
-}
-
-UPROBE(mmap, pt_regs)
-{
-    u64 size = (u64)PT_REGS_PARM2(ctx);
-    alloc_enter(size);
-}
-
-URETPROBE(mmap, pt_regs)
-{
-    u64 ret = (u64)PT_REGS_RC(ctx);
-    alloc_exit(ctx, ret);
-}
-
-UPROBE(posix_memalign, pt_regs)
-{
-    u64 memptr = (u64)PT_REGS_PARM1(ctx);
-    u64 size = (u64)PT_REGS_PARM2(ctx);
-    u64 pid = bpf_get_current_pid_tgid();
-    bpf_map_update_elem(&memalign_allocate, &pid, &memptr, BPF_ANY);
-    alloc_enter(size);
-}
-
-URETPROBE(posix_memalign, pt_regs)
-{
-    u64 pid = bpf_get_current_pid_tgid();
-    u64 addr;
-    u64 *memptr = (u64 *)bpf_map_lookup_elem(&memalign_allocate, &pid);
-    if (memptr == 0)
-        return;
-    bpf_map_delete_elem(&memalign_allocate, &pid);
-
-    if (bpf_probe_read_user(&addr, sizeof(u64), &memptr))
-        return;
-
-    alloc_exit(ctx, addr);
-}
-
-UPROBE(valloc, pt_regs)
-{
-    u64 size = (u64)PT_REGS_PARM1(ctx);
-    alloc_enter(size);
-}
-
-URETPROBE(valloc, pt_regs)
-{
-    u64 ret = (u64)PT_REGS_RC(ctx);
-    alloc_exit(ctx, ret);
-}
-
-UPROBE(memalign, pt_regs)
-{
-    u64 size = (u64)PT_REGS_PARM1(ctx);
-    alloc_enter(size);
-}
-
-URETPROBE(memalign, pt_regs)
-{
-    u64 ret = (u64)PT_REGS_RC(ctx);
-    alloc_exit(ctx, ret);
-}
-
-UPROBE(pvalloc, pt_regs)
-{
-    u64 size = (u64)PT_REGS_PARM1(ctx);
-    alloc_enter(size);
-}
-
-URETPROBE(pvalloc, pt_regs)
-{
-    u64 ret = (u64)PT_REGS_RC(ctx);
-    alloc_exit(ctx, ret);
-}
-
-UPROBE(aligned_alloc, pt_regs)
-{
-    u64 size = (u64)PT_REGS_PARM2(ctx);
-    alloc_enter(size);
-}
-
-URETPROBE(aligned_alloc, pt_regs)
-{
-    u64 ret = (u64)PT_REGS_RC(ctx);
-    alloc_exit(ctx, ret);
-}
-
-UPROBE(free, pt_regs)
-{
-    u64 size = (u64)PT_REGS_PARM2(ctx);
-    free_enter(ctx, size);
-}
-
-UPROBE(munmap, pt_regs)
-{
-    u64 size = (u64)PT_REGS_PARM1(ctx);
-    free_enter(ctx, size);
-}
-

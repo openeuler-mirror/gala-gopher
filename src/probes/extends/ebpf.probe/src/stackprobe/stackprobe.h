@@ -23,6 +23,7 @@
 #include "stack.h"
 
 #define STACKPROBE_CONF_PATH_DEFAULT "/opt/gala-gopher/extend_probes/stackprobe.conf"
+#define BPF_FUNC_NAME_LEN 32
 
 struct stack_symbs_s {
     struct addr_symb_s user_stack_symbs[PERF_MAX_STACK_DEPTH];
@@ -94,10 +95,11 @@ struct svg_stack_trace_s {
     int stackmap_perf_b_fd;
     struct perf_buffer* pb_a;
     struct perf_buffer* pb_b;
+    struct raw_stack_trace_s *raw_stack_trace_a;
+    struct raw_stack_trace_s *raw_stack_trace_b;
 
     struct stack_svg_mng_s *svg_mng;
     struct stack_trace_histo_s *histo_tbl;
-    struct raw_stack_trace_s *raw_stack_trace;
 };
 
 struct stack_trace_s {
@@ -105,6 +107,7 @@ struct stack_trace_s {
     int cpus_num;
     char is_stackmap_a;
     int convert_map_fd;
+    int proc_obj_map_fd;
     int stackmap_a_fd;
     int stackmap_b_fd;
     u64 convert_stack_count;

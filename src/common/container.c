@@ -44,6 +44,7 @@
 #define DOCKER_MNTNS_COMMAND "/usr/bin/ls -l /proc/%u/ns/mnt | /usr/bin/awk -F '[' '{print $2}' "\
         "| /usr/bin/awk -F ']' '{print $1}'"
 #define DOCKER_MERGED_COMMAND "MergedDir | /usr/bin/awk -F '\"' '{print $4}'"
+#define PLDD_LIB_COMMAND "pldd %u | grep \"%s\""
 
 static char *current_docker_command = NULL;
 
@@ -415,6 +416,42 @@ int get_container_id_by_pid(unsigned int pid, char *container_id, unsigned int b
     (void)memcpy(container_id, line, CONTAINER_ABBR_ID_LEN);
     container_id[CONTAINER_ABBR_ID_LEN] = 0;
     return 0;
+}
+
+int get_elf_path(unsigned int pid, char elf_path[], int max_path_len, const char *comm)
+{
+    char cmd[COMMAND_LEN] = {0};
+    char elf_relative_path[PATH_LEN] = {0};
+    char container_id[CONTAINER_ABBR_ID_LEN] = {0};
+    char container_path[PATH_LEN] = {0};
+
+    // 1. get elf_path
+    (void)snprintf(cmd, COMMAND_LEN, PLDD_LIB_COMMAND, pid, comm);
+    if (exec_cmd((const char *)cmd, elf_relative_path, PATH_LEN) < 0) {
+        INFO("pid %u does not depend on %s\n", pid, comm);
+        return CONTAINER_NOTOK;
+    }
+
+    // If the container id is not found, it means that gaussdb is a process on the host
+    if ((get_container_id_by_pid(pid, container_id, CONTAINER_ABBR_ID_LEN + 1) >= 0) &&
+        (container_id[0] != 0)) {
+        if (get_container_merged_path(container_id, container_path, PATH_LEN) < 0) {
+            fprintf(stderr, "get container %s merged path failed\n", container_id);
+            return CONTAINER_ERR;
+        }
+        (void)snprintf(elf_path, max_path_len, "%s%s", container_path, elf_relative_path);
+    } else {
+        (void)snprintf(elf_path, max_path_len, "%s", elf_relative_path);
+    }
+
+    if (elf_path[0] != '\0') {
+        if (access(elf_path, R_OK) != 0) {
+            fprintf(stderr, "File %s not exist or not readable!\n", elf_path);
+            return CONTAINER_ERR;
+        }
+    }
+
+    return CONTAINER_OK;
 }
 
 #define __PID_GRP_KIND_DIR "/usr/bin/cat /proc/%u/cgroup | /usr/bin/grep -w %s | /usr/bin/awk -F ':' '{print $3}'"

@@ -15,7 +15,7 @@ BuildRequires: llvm
 BuildRequires: libconfig-devel librdkafka-devel libmicrohttpd-devel
 BuildRequires: uthash-devel libbpf libbpf-devel log4cplus-devel
 BuildRequires: java-1.8.0-openjdk-devel
-Requires: bash glibc elfutils zlib elfutils-devel bpftool iproute
+Requires: bash glibc elfutils zlib elfutils-devel bpftool iproute erlang-eflame
 
 %description
 gala-gopher is a low-overhead eBPF-based probes framework
@@ -36,6 +36,7 @@ install -m 0600 service/gala-gopher.service %{buildroot}/usr/lib/systemd/system/
 pushd build
 sh install.sh %{buildroot}%{_bindir} %{buildroot}/opt/gala-gopher
 popd
+install -m 0600 /usr/lib64/erlang/lib/eflame-0/bin/flamegraph.pl %{buildroot}/%{_bindir}
 
 %post
 %systemd_post gala-gopher.service

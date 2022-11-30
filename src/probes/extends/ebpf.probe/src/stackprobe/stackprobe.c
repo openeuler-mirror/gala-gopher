@@ -39,12 +39,14 @@
 
 #include "bpf.h"
 #include "args.h"
+#include "hash.h"
 #include "logs.h"
 #include "syscall.h"
 #include "symbol.h"
 #include "flame_graph.h"
 #include "debug_elf_reader.h"
 #include "elf_symb.h"
+#include "container.h"
 #include "conf/stackprobe_conf.h"
 #include "stackprobe.h"
 
@@ -85,6 +87,12 @@
 typedef int (*AttachFunc)(struct svg_stack_trace_s *svg_st);
 typedef int (*PerfProcessFunc)(void *ctx, int cpu, void *data, u32 size);
 
+enum pid_state_t {
+    PID_NOEXIST,
+    PID_ELF_TOBE_ATTACHED,
+    PID_ELF_ATTACHED
+};
+
 typedef struct {
     u32 sw;
     enum stack_svg_type_e en_type;
@@ -94,9 +102,22 @@ typedef struct {
     perf_buffer_sample_fn cb;
 } FlameProc;
 
+struct bpf_link_hash_value {
+    enum pid_state_t pid_state;
+    char elf_path[MAX_PATH_LEN];
+    struct bpf_link *bpf_links[32];
+};
+
+struct bpf_link_hash_t {
+    H_HANDLE;
+    unsigned int pid; // key
+    struct bpf_link_hash_value v; // value
+};
+
 static struct probe_params params = {.period = DEFAULT_PERIOD};
 static volatile sig_atomic_t g_stop;
 static struct stack_trace_s *g_st = NULL;
+static struct bpf_link_hash_t *bpf_link_head = NULL;
 
 static void sig_int(int signo)
 {
@@ -275,13 +296,16 @@ static int search_user_addr_symb(struct stack_trace_s *st,
 
 #if 1
 
-static void clear_raw_stack_trace(struct raw_stack_trace_s *raw_st)
+static void clear_raw_stack_trace(struct svg_stack_trace_s *svg_st, char is_stackmap_a)
 {
-    if (!raw_st) {
+    if (!svg_st) {
         return;
     }
-
-    raw_st->raw_trace_count = 0;
+    if (is_stackmap_a) {
+        svg_st->raw_stack_trace_a->raw_trace_count = 0;
+    } else {
+        svg_st->raw_stack_trace_b->raw_trace_count = 0;
+    }
 }
 
 static struct raw_stack_trace_s *create_raw_stack_trace(struct stack_trace_s *st)
@@ -571,28 +595,33 @@ static u64 __stack_count_symb(struct stack_trace_s *st)
     return count;
 }
 
-static int stack_id2histogram(struct stack_trace_s *st, enum stack_svg_type_e en_type)
+static int stack_id2histogram(struct stack_trace_s *st, enum stack_svg_type_e en_type, char is_stackmap_a)
 {
     int ret;
     struct stack_id_s *stack_id;
     struct stack_symbs_s stack_symbs;
+    struct raw_stack_trace_s *raw_st;
     if (!st->svg_stack_traces[en_type]) {
         return -1;
     }
-
-    for (int i = 0; i < st->svg_stack_traces[en_type]->raw_stack_trace->raw_trace_count; i++) {
-        stack_id = &(st->svg_stack_traces[en_type]->raw_stack_trace->raw_traces[i].stack_id);
+    if (is_stackmap_a) {
+        raw_st = st->svg_stack_traces[en_type]->raw_stack_trace_a;
+    } else {
+        raw_st = st->svg_stack_traces[en_type]->raw_stack_trace_b;
+    }
+    if (raw_st == NULL) { 
+        return -1;
+    }
+    int rt_count = raw_st->raw_trace_count;
+    for (int i = 0; i < rt_count; i++) {
+        stack_id = &(raw_st->raw_traces[i].stack_id);
         (void)memset(&stack_symbs, 0, sizeof(stack_symbs));
         ret = stack_id2symbs(st, stack_id, &stack_symbs);
-        if (ret > 0) {
+        if (ret != 0) {
             continue;
         }
-        if (ret < 0) {
-            return -1;
-        }
         st->stats.count[STACK_STATS_ID2SYMBS]++;
-        (void)add_stack_histo(st, &stack_symbs, en_type,
-            st->svg_stack_traces[en_type]->raw_stack_trace->raw_traces[i].count);
+        (void)add_stack_histo(st, &stack_symbs, en_type, raw_st->raw_traces[i].count);
     }
 
     st->stats.count[STACK_STATS_P_CACHE] = H_COUNT(st->proc_cache);
@@ -627,11 +656,22 @@ static void process_loss_data(void *ctx, int cpu, u64 cnt)
 
 static void process_oncpu_raw_stack_trace(void *ctx, int cpu, void *data, u32 size)
 {
-    if (!g_st || !g_st->svg_stack_traces[STACK_SVG_ONCPU]->raw_stack_trace || !data) {
+    struct raw_stack_trace_s *raw_st;
+    if (!g_st || !data) {
         return;
     }
 
-    if (add_raw_stack_id(g_st->svg_stack_traces[STACK_SVG_ONCPU]->raw_stack_trace, (struct raw_trace_s *)data)) {
+    if (g_st->is_stackmap_a) {
+        raw_st = g_st->svg_stack_traces[STACK_SVG_ONCPU]->raw_stack_trace_a;
+    } else {
+        raw_st = g_st->svg_stack_traces[STACK_SVG_ONCPU]->raw_stack_trace_b;
+    }
+
+    if (!raw_st) {
+        return;
+    }
+
+    if (add_raw_stack_id(raw_st, (struct raw_trace_s *)data)) {
         g_st->stats.count[STACK_STATS_LOSS]++;
     } else {
         g_st->stats.count[STACK_STATS_RAW]++;
@@ -642,11 +682,22 @@ static void process_oncpu_raw_stack_trace(void *ctx, int cpu, void *data, u32 si
 
 static void process_memleak_raw_stack_trace(void *ctx, int cpu, void *data, u32 size)
 {
-    if (!g_st || !g_st->svg_stack_traces[STACK_SVG_MEMLEAK] || !data) {
+    struct raw_stack_trace_s *raw_st;
+    if (!g_st || !data) {
         return;
     }
 
-    if (add_raw_stack_id(g_st->svg_stack_traces[STACK_SVG_MEMLEAK]->raw_stack_trace, (struct raw_trace_s *)data)) {
+    if (g_st->is_stackmap_a) {
+        raw_st = g_st->svg_stack_traces[STACK_SVG_MEMLEAK]->raw_stack_trace_a;
+    } else {
+        raw_st = g_st->svg_stack_traces[STACK_SVG_MEMLEAK]->raw_stack_trace_b;
+    }
+
+    if (!raw_st) {
+        return;
+    }
+
+    if (add_raw_stack_id(raw_st, (struct raw_trace_s *)data)) {
         g_st->stats.count[STACK_STATS_LOSS]++;
     } else {
         g_st->stats.count[STACK_STATS_RAW]++;
@@ -677,11 +728,14 @@ static void destroy_svg_stack_trace(struct svg_stack_trace_s **ptr_svg_st)
     if (svg_st->svg_mng) {
         destroy_svg_mng(svg_st->svg_mng);
     }
-    if (svg_st->raw_stack_trace) {
-        (void)free(svg_st->raw_stack_trace);
-        svg_st->raw_stack_trace = NULL;
+    if (svg_st->raw_stack_trace_a) {
+        (void)free(svg_st->raw_stack_trace_a);
+        svg_st->raw_stack_trace_a = NULL;
     }
-
+    if (svg_st->raw_stack_trace_b) {
+        (void)free(svg_st->raw_stack_trace_b);
+        svg_st->raw_stack_trace_b = NULL;
+    }
     clear_stack_histo(svg_st);
 
     (void)free(svg_st);
@@ -744,8 +798,12 @@ static struct svg_stack_trace_s *create_svg_stack_trace(StackprobeConfig *conf, 
         goto err;
     }
 
-    svg_st->raw_stack_trace = create_raw_stack_trace(g_st);
-    if (!svg_st->raw_stack_trace) {
+    svg_st->raw_stack_trace_a = create_raw_stack_trace(g_st);
+    if (!svg_st->raw_stack_trace_a) {
+        goto err;
+    }
+    svg_st->raw_stack_trace_b = create_raw_stack_trace(g_st);
+    if (!svg_st->raw_stack_trace_b) {
         goto err;
     }
 
@@ -857,6 +915,7 @@ static int load_bpf_prog(struct svg_stack_trace_s *svg_st, const char *prog_name
     svg_st->bpf_prog_fd = bpf_program__fd(prog);
     if (g_st->convert_map_fd == 0) {
         g_st->convert_map_fd = BPF_GET_MAP_FD(svg_st->obj, "convert_map");
+        g_st->proc_obj_map_fd = BPF_GET_MAP_FD(svg_st->obj, "proc_obj_map");
         g_st->stackmap_a_fd = BPF_GET_MAP_FD(svg_st->obj, "stackmap_a");
         g_st->stackmap_b_fd = BPF_GET_MAP_FD(svg_st->obj, "stackmap_b");
         update_convert_counter();
@@ -931,13 +990,191 @@ err:
     return -1;
 }
 
+static void set_pids_inactive()
+{
+    struct bpf_link_hash_t *item, *tmp;
+    if (bpf_link_head == NULL) {
+        return;
+    }
+    
+    H_ITER(bpf_link_head, item, tmp) {
+        item->v.pid_state = PID_NOEXIST;
+    }
+}
+
+static int add_bpf_link(unsigned int pidd)
+{
+    struct bpf_link_hash_t *item = malloc(sizeof(struct bpf_link_hash_t));
+    if (item == NULL) {
+        fprintf(stderr, "malloc bpf link %u failed\n", pidd);
+        return -1;
+    }
+    (void)memset(item, 0, sizeof(struct bpf_link_hash_t));
+    if (get_elf_path(pidd, item->v.elf_path, MAX_PATH_LEN, "libc\\.so") != CONTAINER_OK) {
+        free(item);
+        return -1;
+    }
+
+    item->pid = pidd;
+    item->v.pid_state = PID_ELF_TOBE_ATTACHED;
+    H_ADD(bpf_link_head, pid, sizeof(unsigned int), item);
+
+    return 0;
+}
+
+static struct bpf_link_hash_t* find_bpf_link(unsigned int pid)
+{
+    struct bpf_link_hash_t *item = NULL;
+
+    if (bpf_link_head == NULL) {
+        return NULL;
+    }
+    H_FIND(bpf_link_head, &pid, sizeof(unsigned int), item);
+    if (item == NULL) {
+        return NULL;
+    }
+
+    if (item->v.bpf_links[0] == NULL) {
+        item->v.pid_state = PID_ELF_TOBE_ATTACHED;
+    } else {
+        item->v.pid_state = PID_ELF_ATTACHED;
+    }
+
+    return item;
+}
+
+/*
+[root@localhost ~]# ps -e -o pid,comm | grep gaussdb | awk '{print $1}'
+*/
+static int add_pids()
+{
+    unsigned int pid = 0;
+    int ret = 0;
+    int proc_obj_map_fd = g_st->proc_obj_map_fd;
+    struct proc_s key = {0};
+    struct proc_s next_key = {0};
+    struct obj_ref_s value = {0};
+
+    while (bpf_map_get_next_key(proc_obj_map_fd, &key, &next_key) == 0) {
+        ret = bpf_map_lookup_elem(proc_obj_map_fd, &next_key, &value);
+        key = next_key;
+        if (ret < 0) {
+            continue;
+        }
+        pid = key.proc_id;
+        // find_bpf_link and add_bpf_link will set bpf_link status
+        if (!find_bpf_link(pid)) {
+            if (add_bpf_link(pid) != 0) {
+                fprintf(stderr, "add pid %u failed\n", pid);
+            } else {
+                printf("add of pid %u success\n", pid);
+            }
+        }
+    }
+
+    return ret;
+}
+
+static void clear_invalid_pids()
+{
+    struct bpf_link_hash_t *pid_bpf_links, *tmp;
+    if (bpf_link_head == NULL) {
+        return;
+    }
+    H_ITER(bpf_link_head, pid_bpf_links, tmp) {
+        if (pid_bpf_links->v.pid_state == PID_NOEXIST) {
+            printf("clear bpf link of pid %u\n", pid_bpf_links->pid);
+            H_DEL(bpf_link_head, pid_bpf_links);
+            (void)free(pid_bpf_links);
+        }
+    }
+    
+}
+
+static bool get_bpf_prog(struct bpf_program *prog, char func_sec[], int func_len)
+{
+    const char *bpfpg_name = bpf_program__name(prog);
+    memset(func_sec, 0, func_len);
+    bool is_uretprobe = strstr(bpfpg_name, "ubpf_ret_") ? true : false;
+    if (is_uretprobe) {
+        (void)strcpy(func_sec, bpfpg_name + 9); // ubpf_ret_
+    } else {
+        (void)strcpy(func_sec, bpfpg_name + 5);  // ubpf_
+    }
+
+    
+    return is_uretprobe;
+}
+
+static void *__uprobe_attach_check(void *arg)
+{
+    int err = 0;
+    int i;
+    struct bpf_link_hash_t *pid_bpf_links, *tmp;
+    struct bpf_program *prog;
+    struct svg_stack_trace_s *svg_st = arg;
+    struct bpf_link *links[MEMLEAK_SEC_NUM] = {0};
+
+    const char *elf_path;
+    char func_sec[BPF_FUNC_NAME_LEN] = {0};
+    bool is_uretprobe;
+    u64 symbol_offset;
+    // Read raw stack-trace data from current data channel.
+    while (!g_stop) {
+        sleep(params.period);
+
+        set_pids_inactive();
+        if (add_pids() != 0) {
+            continue;
+        }
+        i = 0;
+        H_ITER(bpf_link_head, pid_bpf_links, tmp) { // for pids
+            i = 0;
+            if (pid_bpf_links->v.pid_state == PID_ELF_TOBE_ATTACHED) {
+                bpf_object__for_each_program(prog, svg_st->obj) { // for bpf progs
+                    is_uretprobe = get_bpf_prog(prog, func_sec, BPF_FUNC_NAME_LEN);
+                    elf_path = (const char *)pid_bpf_links->v.elf_path;
+                    err = gopher_get_elf_symb(elf_path, func_sec, &symbol_offset);
+                    if (err < 0) {
+                        ERROR("Failed to get func(%s) in(%s) offset.\n", func_sec, elf_path);
+                        break;
+                    }
+
+                    pid_bpf_links->v.bpf_links[i] = bpf_program__attach_uprobe(prog, is_uretprobe, -1,
+                        elf_path, (size_t)symbol_offset);
+
+                    err = libbpf_get_error(pid_bpf_links->v.bpf_links[i]); 
+                    if (err) {
+                        ERROR("[STACKPROBE]: attach memleak bpf to pid %u failed %d\n", pid_bpf_links->pid, err);
+                        pid_bpf_links->v.bpf_links[i] = NULL;
+                        for (i--; i >= 0; i--) {
+                            bpf_link__destroy(links[i]);
+                        }
+                        break;
+                    }
+                    i++;
+                }
+                if (err == 0) {
+                    pid_bpf_links->v.pid_state = PID_ELF_ATTACHED;
+                    INFO("[STACKPROBE]: attach memleak bpf to pid %u success\n", pid_bpf_links->pid);
+                }
+            }
+        }
+        clear_invalid_pids();
+    }
+
+    return NULL;
+
+}
+
 static int attach_memleak_bpf_prog(struct svg_stack_trace_s *svg_st)
 {
     int err;
+#if 0
     int i = 0;
     struct bpf_program *prog;
-    struct bpf_link *links[MEMLEAK_SEC_NUM];
-
+    struct bpf_link *links[MEMLEAK_SEC_NUM] = {0};
+    // this is for memleak_fp.bpf.c
     bpf_object__for_each_program(prog, svg_st->obj) {
         links[i] = bpf_program__attach(prog);
         err = libbpf_get_error(links[i]); 
@@ -949,15 +1186,24 @@ static int attach_memleak_bpf_prog(struct svg_stack_trace_s *svg_st)
         i++;
     }
 
-    INFO("[STACKPROBE]: attach memleak bpf succeed.\n");
-    return 0;
-
 cleanup:
     for (i--; i >= 0; i--) {
         bpf_link__destroy(links[i]);
     }
 
     return -1;
+#else
+    pthread_t uprobe_attach_thd;
+
+    err = pthread_create(&uprobe_attach_thd, NULL, __uprobe_attach_check, (void *)svg_st);
+    if (err != 0) {
+        ERROR("[STACKPROBE]: attach memleak bpf failed %d\n", err);
+        return -1;
+    }
+#endif
+
+    INFO("[STACKPROBE]: attach memleak bpf succeed.\n");
+    return 0;
 }
 
 static void clear_stackmap(int stackmap_fd)
@@ -1061,9 +1307,9 @@ static void switch_stackmap()
         if (st->svg_stack_traces[i] == NULL) {
             continue;
         }
-        (void)stack_id2histogram(st, i);
+        (void)stack_id2histogram(st, i, st->is_stackmap_a);
         wr_flamegraph(st->svg_stack_traces[i]->svg_mng, st->svg_stack_traces[i]->histo_tbl, i);
-        clear_raw_stack_trace(st->svg_stack_traces[i]->raw_stack_trace);
+        clear_raw_stack_trace(st->svg_stack_traces[i], st->is_stackmap_a);
     }
     record_running_ctx(st);
     // Clear the context information of the running environment.
