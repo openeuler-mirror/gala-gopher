@@ -28,12 +28,11 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
 
 - yum源配置
 
-  gala-gopher目前仅在openEuler 21.09和openEuler 22.09发布，可以直接在发布版本的repo源获取rpm包；对于其他发布版本我们提供了OBS链接可以获取rpm包：
+  gala-gopher目前在openEuler 21.09/openEuler 22.09/openEuler 22.03-LTS/openEuler 22.03-LTS-SP1发布，可以直接在发布版本的repo源获取rpm包；对于其他发布版本我们提供了OBS链接可以获取rpm包：
 
   ```basic
   openEuler-20.03-LTS : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:20.03:LTS:SP1/gala-gopher-20.03lts
   openEuler-20.03-LTS-SP1 : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:20.03:LTS:SP1/gala-gopher
-  openEuler-22.03-LTS : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:22.03:LTS:Next/gala-gopher
   EulerOS-V2R9C00 : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:20.03:LTS:SP1/gala-gopher-v2r9
   ```
 
