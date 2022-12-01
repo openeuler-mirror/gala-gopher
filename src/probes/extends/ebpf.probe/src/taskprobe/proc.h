@@ -29,6 +29,7 @@ struct syscall_s {
     u64 ns_umount;
     u64 ns_read;
     u64 ns_write;
+    u64 ns_fsync;
 
     // Network I/O syscall
     u64 ns_sendmsg;

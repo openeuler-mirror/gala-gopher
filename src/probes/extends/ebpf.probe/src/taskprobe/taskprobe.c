@@ -270,6 +270,13 @@ int main(int argc, char **argv)
                 break;
             }
         }
+        for (int i = 0; i < proc_bpf_progs->num; i++) {
+            if (proc_bpf_progs->pbs[i] != NULL) {
+                if ((ret = perf_buffer__poll(proc_bpf_progs->pbs[i], THOUSAND)) < 0) {
+                    break;
+                }
+            }
+        }
     }
 
 err:

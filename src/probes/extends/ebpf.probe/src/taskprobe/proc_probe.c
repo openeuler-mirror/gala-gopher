@@ -202,7 +202,7 @@ static void output_proc_metrics_syscall_io(struct proc_data_s *proc)
 {
     (void)fprintf(stdout,
         "|%s|%u|%s|"
-        "%llu|%llu|%llu|%llu|\n",
+        "%llu|%llu|%llu|%llu|%llu|\n",
         PROC_TBL_SYSCALL_IO,
         proc->proc_id,
         proc->comm,
@@ -210,7 +210,8 @@ static void output_proc_metrics_syscall_io(struct proc_data_s *proc)
         proc->syscall.ns_mount,
         proc->syscall.ns_umount,
         proc->syscall.ns_read,
-        proc->syscall.ns_write);
+	proc->syscall.ns_write,
+        proc->syscall.ns_fsync);
 }
 
 static void output_proc_metrics_syscall_net(struct proc_data_s *proc)
@@ -610,7 +611,8 @@ static int load_proc_prog(struct bpf_prog_s *prog, char is_load)
             fprintf(stderr, "ERROR: crate perf buffer failed\n");
             return -1;
         }
-        prog->pb = pb;
+        prog->pbs[prog->num] = pb;
+        prog->num++;
     }
 
     return ret;
