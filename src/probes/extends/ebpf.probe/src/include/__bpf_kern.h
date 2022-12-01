@@ -56,6 +56,99 @@
             })
 #endif
 
+
+#if defined(__BTF_ENABLE_ON)
+
+#elif defined(__BTF_ENABLE_OFF)
+
+#ifdef ___rd_first
+#undef ___rd_first
+#endif
+/* "recursively" read a sequence of inner pointers using local __t var */
+#define ___rd_first(src, a) ___read(bpf_probe_read, &__t, ___type(src), src, a);
+
+#ifdef ___rd_last
+#undef ___rd_last
+#endif
+
+#define ___rd_last(...)							    \
+	___read(bpf_probe_read, &__t,					    \
+		___type(___nolast(__VA_ARGS__)), __t, ___last(__VA_ARGS__));
+
+#define ___probe_read0(fn, dst, src, a)					    \
+	___read(fn, dst, ___type(src), src, a);
+#define ___probe_readN(fn, dst, src, ...)				    \
+	___read_ptrs(src, ___nolast(__VA_ARGS__))			    \
+	___read(fn, dst, ___type(src, ___nolast(__VA_ARGS__)), __t,	    \
+		___last(__VA_ARGS__));
+#define ___probe_read(fn, dst, src, a, ...)				    \
+	___apply(___probe_read, ___empty(__VA_ARGS__))(fn, dst,		    \
+						      src, a, ##__VA_ARGS__)
+
+#define __BPF_PROBE_READ_INTO(dst, src, a, ...)				    \
+	({								    \
+		___probe_read(bpf_probe_read, dst, (src), a, ##__VA_ARGS__)   \
+	})
+
+#ifdef BPF_CORE_READ
+#undef BPF_CORE_READ
+#endif
+
+#define BPF_CORE_READ(src, a, ...)					    \
+	({								    \
+		___type((src), a, ##__VA_ARGS__) __r;			    \
+		__BPF_PROBE_READ_INTO(&__r, (src), a, ##__VA_ARGS__);	    \
+		__r;							    \
+	})
+
+
+/*
+usage:
+BTF_ENABLE_ON: BPF_CORE_READ_STR_INTO(dst, src, field1, field2, ...)
+BTF_ENABLE_OFF: BPF_CORE_READ_STR_INTO(dst, size, src->field)
+*/
+
+#ifdef BPF_CORE_READ_STR_INTO
+#undef BPF_CORE_READ_STR_INTO
+#endif
+
+#define BPF_CORE_READ_STR_INTO(dst, sz, P)			    \
+    ({                                         \
+        typeof(P) val;                         \
+        bpf_probe_read((unsigned char *)&val, sizeof(val), (const void *)&P); \
+        (void)bpf_probe_read_str(dst, sz, val);\
+    })
+
+/*
+usage:
+BTF_ENABLE_ON: BPF_CORE_READ_INTO(dst, src, field1, field2, ...)
+BTF_ENABLE_OFF: BPF_CORE_READ_INTO(dst, size, src->field)
+*/
+#ifdef BPF_CORE_READ_INTO
+#undef BPF_CORE_READ_INTO
+#endif
+#define BPF_CORE_READ_INTO(dst, sz, P)              \
+    ({                                         \
+        bpf_probe_read(dst, sz, &(P)); \
+    })
+
+/*
+usage:
+BTF_ENABLE_ON: BPF_CORE_READ_BITFIELD(src, field)
+BTF_ENABLE_OFF: BPF_CORE_READ_BITFIELD(dst, sz, offset, bitmap)
+*/
+#ifdef BPF_CORE_READ_BITFIELD
+#undef BPF_CORE_READ_BITFIELD
+#endif
+#define BPF_CORE_READ_BITFIELD(dst, sz, offset, bitmap)			    \
+    ({                                         \
+        bpf_probe_read(&dst, sz, offset); \
+        dst &= bitmap; \
+    })
+
+#endif
+
+
 #if defined(__TARGET_ARCH_x86)
 
 #define PT_REGS_PARM6(x) ((x)->r9)
@@ -140,11 +233,9 @@ static __always_inline __maybe_unused char is_compat_task(struct task_struct *ta
 
 static __always_inline __maybe_unused struct sock *sock_get_by_fd(int fd, struct task_struct *task)
 {
-    struct files_struct *files = _(task->files);
-    struct fdtable *fdt = _(files->fdt);
-    struct file **ff = _(fdt->fd);
     struct file *f;
-    unsigned int max_fds = _(fdt->max_fds);
+    struct file **ff = BPF_CORE_READ(task, files, fdt, fd);
+    unsigned int max_fds = BPF_CORE_READ(task, files, fdt, max_fds);
 
     if (fd >= max_fds) {
         return 0;
