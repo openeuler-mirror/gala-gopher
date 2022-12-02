@@ -95,6 +95,7 @@ static __always_inline __maybe_unused void reset_proc_stats(struct proc_data_s *
         proc->syscall.ns_umount = 0;
         proc->syscall.ns_read = 0;
         proc->syscall.ns_write = 0;
+        proc->syscall.ns_fsync = 0;
     } else if (flags & TASK_PROBE_NET_SYSCALL) {
         proc->syscall.ns_sendmsg = 0;
         proc->syscall.ns_recvmsg = 0;

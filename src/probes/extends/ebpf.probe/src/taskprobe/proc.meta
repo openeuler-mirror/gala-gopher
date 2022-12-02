@@ -57,6 +57,11 @@ measurements:
                 description: "Process write operation duration, in ns.",
                 type: "gauge",
                 name: "ns_write",
+            },
+            {
+                description: "Process fsync operation duration, in ns.",
+                type: "gauge",
+                name: "ns_fsync",
             }
         )
     },
