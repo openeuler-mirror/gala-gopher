@@ -49,6 +49,7 @@ static struct probe_params *g_args;
     OPEN(probe_name, end, load); \
     MAP_SET_PIN_PATH(probe_name, g_thread_output, THREAD_OUTPUT_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, g_thread_map, THREAD_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, g_proc_map, PROC_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, args_map, ARGS_PATH, load); \
     LOAD_ATTACH(probe_name, end, load)
 

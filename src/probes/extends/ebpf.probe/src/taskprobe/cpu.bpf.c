@@ -19,6 +19,7 @@
 #include "bpf.h"
 #include "task.h"
 #include "thread_map.h"
+#include "proc_map.h"
 #include "output_thread.h"
 
 char g_linsence[] SEC("license") = "GPL";
