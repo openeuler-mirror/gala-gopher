@@ -23,11 +23,11 @@ else ifeq ($(ARCH), aarch64)
 	ARCH = arm64
 endif
 
-KER_VER = $(shell uname -r | awk -F'-' '{print $$1}')
+KER_VER = $(shell echo $(LINUX_VER) | awk -F'-' '{print $$1}')
 KER_VER_MAJOR = $(shell echo $(KER_VER) | awk -F'.' '{print $$1}')
 KER_VER_MINOR = $(shell echo $(KER_VER) | awk -F'.' '{print $$2}')
 KER_VER_PATCH = $(shell echo $(KER_VER) | awk -F'.' '{print $$3}')
-RELEASE_INFOS = $(shell uname -r | awk -F'-' '{print $$2}')
+RELEASE_INFOS = $(shell echo $(LINUX_VER) | awk -F'-' '{print $$2}')
 KER_RELEASE = $(shell echo $(RELEASE_INFOS) | awk -F'.' '{print $$1}')
 
 LIBBPF_VER = $(shell rpm -qa | grep libbpf-devel | awk -F'-' '{print $$3}')
