@@ -15,7 +15,6 @@
 #endif
 #include "bpf.h"
 
-#include "kafkaprobe.bpf.h"
 #include "kafkaprobe.h"
 
 void set_native_mode(__u32 *flag)

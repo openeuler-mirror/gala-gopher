@@ -12,7 +12,6 @@
 #endif
 #include "bpf.h"
 
-#include "kafkaprobe.bpf.h"
 #include "kafkaprobe.h"
 
 /* 收集数据 */

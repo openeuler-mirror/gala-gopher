@@ -7,26 +7,13 @@
 #define NANOSEC_PER_SEC 1000000000
 
 #define MAP_MAX_ITEM 5
-#define CLIENT_MAX_ITEM 256
 
 #define PRODUCER_MSG_TYPE 0
 #define CONSUMER_MSG_TYPE 1
 #define UNKNOWN_MSG_TYPE 2
 #define MSG_TYPE_NUM 3
 
-#define MAP_NUM 2
-
 #define VLAN_MAX_DEPTH 10
-
-struct KafkaConfig {
-    char ifname[MIDDLE_BUF_SIZE];
-    __u32 ifindex;
-    char load_file_name[MIDDLE_BUF_SIZE];
-    __u16 kafka_port;
-    __u32 output_period;
-    __u32 xdp_flag;
-    char pin_path[MIDDLE_BUF_SIZE];
-};
 
 struct KafkaData {
     __u16 type;

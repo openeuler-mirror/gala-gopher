@@ -18,6 +18,8 @@
 #include <signal.h>
 #include <time.h>
 #include <string.h>
+#include <unistd.h>
+#include <net/if.h>
 #include "args.h"
 
 #ifdef BPF_PROG_KERN
@@ -30,7 +32,6 @@
 #include "bpf.h"
 
 #include "kafkaprobe.h"
-#include "kafkaprobe.bpf.h"
 
 
 int quit_flag = 0;
@@ -47,7 +48,7 @@ static void start_up(int ctrl_map_fd, int data_map_fd, int port_map_fd, struct K
 
     // 将kafka_port写入xdp_port_map中，设计上支持监控多个端口，目前只实现监控一个端口
     int i = 0;
-    __u16 kafka_port = htons(cfg->kafka_port);
+    __u16 kafka_port = hton16(cfg->kafka_port);
     ret = bpf_map_update_elem(port_map_fd, &i, &kafka_port, BPF_ANY);
     if(ret){
         fprintf(stderr, "Error: write kafka port into xdp_port_map fail, exit\n");
