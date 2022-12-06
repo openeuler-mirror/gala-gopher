@@ -35,6 +35,26 @@ static void __set_default_params(struct probe_params *params)
     params->kafka_port = DEFAULT_KAFKA_PORT;
 }
 
+static void __parse_host_ip_fields(char *ip_str, struct probe_params *params)
+{
+    char *p = NULL;
+    int index = 0;
+
+    if (ip_str == NULL || strlen(ip_str) == 0) {
+        return;
+    }
+
+    p = strtok(ip_str, ",");
+    while (p != NULL) {
+        if (index >= MAX_IP_NUM) {
+            break;
+        }
+        (void)strncpy((char *)params->host_ip_list[index++], p, MAX_IP_LEN - 1);
+        p = strtok(NULL, ",");
+    }
+    return;
+}
+
 static char __is_digit_str(const char *s)
 {
     int len = (int)strlen(s);
@@ -146,6 +166,9 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
                 ERROR("Please check arg(k), kafka port shold be less than 65535.\n");
                 return -1;
             }
+            break;
+        case 'i':
+            __parse_host_ip_fields(arg, params);
             break;
         default:
             return -1;

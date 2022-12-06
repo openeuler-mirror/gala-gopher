@@ -117,7 +117,7 @@ int main(struct probe_params * params)
             ERROR("[SYSTEM_PROBE] system proc probe fail.\n");
             goto err;
         }
-        ret = system_os_probe();
+        ret = system_os_probe(params);
         if (ret < 0) {
             ERROR("[SYSTEM_PROBE] system os probe fail.\n");
             goto err;
