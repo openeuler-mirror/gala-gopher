@@ -26,6 +26,10 @@
 #define ETH_P_8021Q    0x8100          /* 802.1Q VLAN Extended Header  */
 #define ETH_P_IP    0x0800        /* Internet Protocol packet    */
 
+#ifdef KER_VER_MAJOR
+
+#if KER_VER_MAJOR < 5
+
 struct xdp_md {
     __u32 data;
     __u32 data_end;
@@ -34,6 +38,10 @@ struct xdp_md {
     __u32 rx_queue_index;
     __u32 egress_ifindex;
 };
+
+#endif
+
+#endif
 
 struct bpf_map_def SEC("maps") xdp_data_map = {
     .type        = BPF_MAP_TYPE_ARRAY,
