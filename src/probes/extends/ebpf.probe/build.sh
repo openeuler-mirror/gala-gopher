@@ -6,17 +6,7 @@ PRJ_DIR=$(dirname $(readlink -f "$0"))
 TOOLS_DIR=${PRJ_DIR}/tools
 SRC_DIR=${PRJ_DIR}/src
 VMLINUX_DIR=${SRC_DIR}/include
-LINUX_VER=$(uname -r)
 DEP_LIST=(elfutils-devel libbpf libbpf-devel clang llvm)
-
-function gen_vmlinux_header_file()
-{
-    cd ${TOOLS_DIR}
-    if [ ! -f "bpftool" ];then
-        ln -s bpftool_${ARCH} bpftool
-    fi
-    ./gen_vmlinux_h.sh
-}
 
 function add_bpftool()
 {
@@ -24,6 +14,12 @@ function add_bpftool()
     if [ ! -f "bpftool" ];then
         ln -s bpftool_${ARCH} bpftool
     fi
+}
+
+function gen_vmlinux_header_file()
+{
+    add_bpftool
+    ./gen_vmlinux_h.sh
 }
 
 function check_dep()
