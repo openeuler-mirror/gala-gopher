@@ -6,6 +6,7 @@ PRJ_DIR=$(dirname $(readlink -f "$0"))
 TOOLS_DIR=${PRJ_DIR}/tools
 SRC_DIR=${PRJ_DIR}/src
 VMLINUX_DIR=${SRC_DIR}/include
+LINUX_VER="${VMLINUX_VER:-$(uname -r)}"
 DEP_LIST=(elfutils-devel libbpf libbpf-devel clang llvm)
 
 function add_bpftool()
