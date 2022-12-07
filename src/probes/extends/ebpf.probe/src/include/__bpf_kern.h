@@ -61,6 +61,7 @@
 
 #elif defined(__BTF_ENABLE_OFF)
 
+#if (CURRENT_LIBBPF_VERSION  < LIBBPF_VERSION(0, 8))
 #ifdef ___rd_first
 #undef ___rd_first
 #endif
@@ -74,13 +75,21 @@
 #define ___rd_last(...)							    \
 	___read(bpf_probe_read, &__t,					    \
 		___type(___nolast(__VA_ARGS__)), __t, ___last(__VA_ARGS__));
+#endif
 
 #define ___probe_read0(fn, dst, src, a)					    \
 	___read(fn, dst, ___type(src), src, a);
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+#define ___probe_readN(fn, dst, src, ...)				    \
+	___read_ptrs(fn, src, ___nolast(__VA_ARGS__))			    \
+	___read(fn, dst, ___type(src, ___nolast(__VA_ARGS__)), __t,	    \
+		___last(__VA_ARGS__));
+#else
 #define ___probe_readN(fn, dst, src, ...)				    \
 	___read_ptrs(src, ___nolast(__VA_ARGS__))			    \
 	___read(fn, dst, ___type(src, ___nolast(__VA_ARGS__)), __t,	    \
 		___last(__VA_ARGS__));
+#endif
 #define ___probe_read(fn, dst, src, a, ...)				    \
 	___apply(___probe_read, ___empty(__VA_ARGS__))(fn, dst,		    \
 						      src, a, ##__VA_ARGS__)
