@@ -25,7 +25,9 @@
 #define MAX_PROC_NAME_LEN   8
 #define DEV_NAME            32
 #define DEFAULT_KAFKA_PORT    9092
-#define __OPT_S "t:s:T:J:O:D:F:lU:L:c:p:w:d:P:Ck:"
+#define MAX_IP_LEN          20	// xxx.xxx.xxx.xxx/xx
+#define MAX_IP_NUM          8
+#define __OPT_S "t:s:T:J:O:D:F:lU:L:c:p:w:d:P:Ck:i:"
 struct probe_params {
     unsigned int period;          // [-t <>] Report period, unit second, default is 5 seconds
     unsigned int sample_period;   // [-s <>] Sampling period, unit milliseconds, default is 100 milliseconds
@@ -35,6 +37,7 @@ struct probe_params {
     unsigned int drops_count_thr; // [-D <>] Threshold of the number of drop packets, default is 0
     unsigned int filter_pid;      // [-F <>] Filtering PID monitoring ranges by specific pid, default is 0 (no filter)
     unsigned int load_probe;      // [-P <>] Specifies the range of probe programs to be loaded, default is 0xFFFFFFFF (Load all probes)
+    unsigned int kafka_port;      // [-k <>] the port to which kafka server attach.
     char logs;                    // [-l <warn>] Enable the logs function
     char pad[3];                  // Reserved fields;
     char filter_task_probe;       // [-F <>] Filtering PID monitoring ranges by task probe, default is 0 (no filter)
@@ -47,7 +50,7 @@ struct probe_params {
     char task_whitelist[MAX_PATH_LEN]; // [-w <>] Filtering app monitoring ranges, default is null
     char netcard_list[MAX_PATH_LEN]; // [-d <>] Device name, default is null
     char target_comm[MAX_COMM_LEN]; // [-F <>] Process comm name, default is null
-    unsigned int kafka_port; // [-k <>] the port to which kafka server attach.
+    char host_ip_list[MAX_IP_NUM][MAX_IP_LEN]; // [-i <>] Host ip fields list, default is null
 };
 int args_parse(int argc, char **argv, struct probe_params* params);
 int params_parse(char *s, struct probe_params *params);

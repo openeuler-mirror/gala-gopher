@@ -14,6 +14,7 @@
  ******************************************************************************/
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
 #include "nprobe_fprintf.h"
@@ -127,7 +128,41 @@ static int get_os_release_info(struct node_infos *infos)
     return 0;
 }
 
-static int get_ip_addr(struct node_infos *infos)
+static int parse_netmask(char *ip_addr)
+{
+    char *colon = strchr(ip_addr, '/');
+    if (colon == NULL) {
+        return 32;
+    }
+    return (atoi(colon + 1) > 32) ? 0 : atoi(colon + 1);
+}
+
+/* 检查IP是否在某网段内 */
+static int check_ip_in_net_segment(char *ip_str, char *net_str)
+{
+    int ips[4];
+    int nets[4];
+    if (sscanf(ip_str, "%d.%d.%d.%d", &ips[0], &ips[1], &ips[2], &ips[3]) < 4) {
+        ERROR("[SYSTEM_OS] sscanf ip_addr_str:%s faield.\n", ip_str);
+        return false;
+    }
+    if (sscanf(net_str, "%d.%d.%d.%d", &nets[0], &nets[1], &nets[2], &nets[3]) < 4) {
+        ERROR("[SYSTEM_OS] sscanf net_str:%s faield.\n", net_str);
+        return false;
+    }
+
+    int mask = parse_netmask(net_str);
+    for (int i = 0; i < 4; i++) {
+        int temp = (mask - 8 > 0) ? 8 : (mask > 0) ? mask : 0;
+        if ((ips[i] & temp) != (nets[i] & temp)) {
+            return false;
+        }
+        mask -= 8;
+    }
+    return true;
+}
+
+static int get_ip_addr(struct node_infos *infos, struct probe_params * params)
 {
     char line[LINE_BUF_LEN];
 
@@ -140,7 +175,35 @@ static int get_ip_addr(struct node_infos *infos)
         ERROR("[SYSTEM_OS] get all addresses for this host failed.\n");
         return -1;
     }
-    (void)strncpy(infos->ip_addr, line, MAX_IP_ADDRS_LEN - 1);
+
+    if (params == NULL || params->host_ip_list[0][0] == 0) {
+        // 不需要过滤业务IP时，输出全部IP地址
+        (void)strncpy(infos->ip_addr, line, MAX_IP_ADDRS_LEN - 1);
+        return 0;
+    }
+
+    char *ip_addr_str = infos->ip_addr;
+    int ip_addr_len = MAX_IP_ADDRS_LEN;
+    int first_flag = 0;
+    char *p = strtok(line, " ");
+    while (p != NULL) {
+        for (int i = 0; i < MAX_IP_NUM; i++) {
+            if (params->host_ip_list[i][0] == 0) {
+                break;
+            }
+            if (check_ip_in_net_segment(p, params->host_ip_list[i]) == true) {
+                if (first_flag == 0) {
+                    (void)__snprintf(&ip_addr_str, ip_addr_len, &ip_addr_len, "%s", p);
+                    first_flag = 1;
+                } else {
+                    (void)__snprintf(&ip_addr_str, ip_addr_len, &ip_addr_len, " %s", p);
+                }
+                break;
+            }
+        }
+        p = strtok(NULL, " ");
+    }
+
     return 0;
 }
 
@@ -186,7 +249,7 @@ static int get_host_type(struct node_infos *infos)
 }
 
 static char g_first_get = 1;
-int system_os_probe(void)
+int system_os_probe(struct probe_params * params)
 {
     // 部分节点(如系统、版本等)信息不会变更，仅在探针启动时获取一次
     if (g_first_get == 1) {
@@ -196,7 +259,7 @@ int system_os_probe(void)
 
         g_first_get = 0;
     }
-    (void)get_ip_addr(&g_nodeinfos);
+    (void)get_ip_addr(&g_nodeinfos, params);
     (void)get_host_name(&g_nodeinfos);
 
     nprobe_fprintf(stdout, "|%s|%s|%s|%s|%llu|%llu|%s|%s|%d|\n",
