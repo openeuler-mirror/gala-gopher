@@ -23,6 +23,7 @@ else ifeq ($(ARCH), aarch64)
 	ARCH = arm64
 endif
 
+LINUX_VER = $(shell [ -n "$(VMLINUX_VER)" ] && echo $(VMLINUX_VER) || uname -r)
 KER_VER = $(shell echo $(LINUX_VER) | awk -F'-' '{print $$1}')
 KER_VER_MAJOR = $(shell echo $(KER_VER) | awk -F'.' '{print $$1}')
 KER_VER_MINOR = $(shell echo $(KER_VER) | awk -F'.' '{print $$2}')

@@ -17,7 +17,7 @@ DAEMON_FOLDER=${PROJECT_FOLDER}/src/daemon
 TAILOR_PATH=${PROJECT_FOLDER}/tailor.conf
 TAILOR_PATH_TMP=${TAILOR_PATH}.tmp
 
-export LINUX_VER="${2:-$(uname -r)}"
+export VMLINUX_VER="${2:-$(uname -r)}"
 
 function load_tailor()
 {
