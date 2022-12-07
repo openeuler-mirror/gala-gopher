@@ -241,6 +241,27 @@ out:
     return;
 }
 
+static int __is_valid_container_id(char *str)
+{
+    int len = strlen(str);
+    if (len != 64) {
+        return 0;
+    }
+
+    for (int i = 0; i < len; i++) {
+        if (*(str + i) >= '0' && *(str + i) <= '9') {
+            continue;
+        } else if (*(str + i) >= 'A' && *(str + i) <= 'F') {
+            continue;
+        } else if (*(str + i) >= 'a' && *(str + i) <= 'f') {
+            continue;
+        } else {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static int get_proc_container_id(const char* pid, proc_info_t *proc_info)
 {
     char buffer[LINE_BUF_LEN];
@@ -248,6 +269,9 @@ static int get_proc_container_id(const char* pid, proc_info_t *proc_info)
     int ret = do_read_line(pid, PROC_CPUSET_CMD, PROC_CPUSET, buffer, LINE_BUF_LEN);
     if (ret < 0) {
         return -1;
+    }
+    if (!__is_valid_container_id(buffer)) {
+        return 0;
     }
     (void)memcpy(proc_info->container_id, buffer, CONTAINER_ABBR_ID_LEN);
     proc_info->container_id[CONTAINER_ABBR_ID_LEN] = 0;
