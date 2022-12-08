@@ -35,6 +35,7 @@ typedef struct {
 } ApplicationsConfig;
 
 int parse_whitelist_config(ApplicationsConfig **conf, const char *path);
+int is_str_match_pattern(const char *string, char *pattern);
 void whitelist_config_destroy(ApplicationsConfig *conf);
 int get_proc_comm(const char *pid, char *buf);
 int get_proc_cmdline(const char *pid, char *buf, u32 buf_len);

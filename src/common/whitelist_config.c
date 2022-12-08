@@ -19,6 +19,7 @@
 #include <dirent.h>
 #include <sys/types.h>
 #include <libconfig.h>
+#include <regex.h>
 #include "common.h"
 #include "whitelist_config.h"
 
@@ -235,6 +236,25 @@ static inline int is_proc_subdir(const char *pid)
     return -1;
 }
 
+int is_str_match_pattern(const char *string, char *pattern)
+{
+    int status;
+    regex_t re;
+
+    if (string[0] == 0 || pattern[0] == 0) {
+        return 0;
+    }
+
+    if (regcomp(&re, pattern, REG_EXTENDED | REG_NOSUB) != 0) {
+        return 0;
+    }
+
+    status = regexec(&re, string, 0, NULL, 0);
+    regfree(&re);
+
+    return (status == 0) ? 1 : 0;
+}
+
 int check_proc_probe_flag(ApplicationConfig *appsConfig, u32 appsConfig_len,
         const char *pid, const char *comm)
 {
@@ -243,7 +263,7 @@ int check_proc_probe_flag(ApplicationConfig *appsConfig, u32 appsConfig_len,
     char cmdline[PROC_CMDLINE_MAX];
 
     for (index = 0; index < appsConfig_len; index++) {
-        if (strstr(comm, appsConfig[index].comm) == NULL) {
+        if (is_str_match_pattern(comm, appsConfig[index].comm) == 0) {
             continue;
         }
         if (appsConfig[index].cmd_line == NULL) {
