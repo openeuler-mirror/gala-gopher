@@ -81,13 +81,13 @@ static char is_wl_range(const char *comm, const char* cmdline, ApplicationsConfi
         if (appc) {
             // only match comm
             if ((appc->comm[0] != 0) && (appc->cmd_line[0] == 0)) {
-                if (((comm[0] != 0) && strstr(comm, appc->comm))) {
+                if ((comm[0] != 0) && (is_str_match_pattern(comm, appc->comm) == 1)) {
                     return 1;
                 }
             }
             // match comm and cmdline
             if ((appc->comm[0] != 0) && (appc->cmd_line[0] != 0)) {
-                if (((comm[0] != 0) && strstr(comm, appc->comm)) &&
+                if (((comm[0] != 0) && (is_str_match_pattern(comm, appc->comm) == 1)) &&
                     ((cmdline[0] != 0) && strstr(cmdline, appc->cmd_line))) {
                     return 1;
                 }

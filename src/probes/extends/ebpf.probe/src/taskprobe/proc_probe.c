@@ -88,7 +88,7 @@ static char is_wl_range(const char *comm, ApplicationsConfig *conf)
     for (int i = 0; i < conf->apps_num; i++) {
         appc = conf->apps[i];
         if (appc) {
-            if (comm && strstr(comm, appc->comm)) {
+            if (comm && (is_str_match_pattern(comm, appc->comm) == 1)) {
                 return 1;
             }
         }
