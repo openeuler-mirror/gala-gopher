@@ -614,6 +614,9 @@ static int stack_id2histogram(struct stack_trace_s *st, enum stack_svg_type_e en
     }
     int rt_count = raw_st->raw_trace_count;
     for (int i = 0; i < rt_count; i++) {
+        if (g_stop) {
+            break;
+        }
         stack_id = &(raw_st->raw_traces[i].stack_id);
         (void)memset(&stack_symbs, 0, sizeof(stack_symbs));
         ret = stack_id2symbs(st, stack_id, &stack_symbs);
