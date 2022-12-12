@@ -88,7 +88,7 @@ static void report_cpu_status(struct probe_params *params)
     if (util_per > params->res_percent_upper) {
         report_logs(ENTITY_NAME,
                     entityId,
-                    "used_per",
+                    "total_used_per",
                     EVT_SEC_WARN,
                     "Too high cpu utilization(%.2f%%).",
                     util_per);

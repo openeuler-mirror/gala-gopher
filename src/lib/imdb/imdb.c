@@ -1075,7 +1075,7 @@ static void transfer_entityID(char *entityID)
     "occurred count": 6,// optional
   },
   "Resource": {
-    "metrics": "gala_gopher_tcp_link_health_rx_bytes",
+    "metric": "gala_gopher_tcp_link_health_rx_bytes",
   },
   "SeverityText": "WARN",
   "SeverityNumber": 13,
@@ -1177,7 +1177,7 @@ static int IMDB_Evt2Json(const IMDB_DataBaseMgr *mgr,
     p = jsonStr + len;
     len = jsonStrLen - len;
 
-    ret = __snprintf(&p, len, &len, "%s", "\"}, \"Resource\": { \"metrics\": \"");
+    ret = __snprintf(&p, len, &len, "%s", "\"}, \"Resource\": { \"metric\": \"");
     if (ret < 0) {
         goto err;
     }
