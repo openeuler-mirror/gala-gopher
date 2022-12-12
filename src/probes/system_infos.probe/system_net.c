@@ -282,7 +282,7 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
         (void)strncpy(entityid, new_info->dev_name, LINE_BUF_LEN - 1);
         report_logs(ENTITY_NIC_NAME,
                     entityid,
-                    "net_device_tx_drops",
+                    "tx_dropped",
                     EVT_SEC_WARN,
                     "net device tx queue drops(%llu).",
                     tx_drops);
@@ -293,7 +293,7 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
         }
         report_logs(ENTITY_NIC_NAME,
                     entityid,
-                    "net_device_rx_drops",
+                    "rx_dropped",
                     EVT_SEC_WARN,
                     "net device rx queue drops(%llu).",
                     rx_drops);
@@ -304,7 +304,7 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
         }
         report_logs(ENTITY_NIC_NAME,
                     entityid,
-                    "net_device_tx_errors",
+                    "tx_errs",
                     EVT_SEC_WARN,
                     "net device tx queue errors(%llu).",
                     tx_errs);
@@ -315,7 +315,7 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
         }
         report_logs(ENTITY_NIC_NAME,
                     entityid,
-                    "net_device_rx_errs",
+                    "rx_errs",
                     EVT_SEC_WARN,
                     "net device rx queue errors(%llu).",
                     rx_errs);

@@ -58,7 +58,7 @@ static void report_disk_status(df_stats inode_stats, df_stats blk_stats, struct 
         (void)strncpy(entityid, inode_stats.mount_on, LINE_BUF_LEN - 1);
         report_logs(ENTITY_FS_NAME,
                     entityid,
-                    "inode_userd_per",
+                    "IUsePer",
                     EVT_SEC_WARN,
                     "Too many Inodes consumed(%d%%).",
                     inode_stats.inode_or_blk_used_per);
@@ -69,7 +69,7 @@ static void report_disk_status(df_stats inode_stats, df_stats blk_stats, struct 
         }
         report_logs(ENTITY_FS_NAME,
                     entityid,
-                    "block_userd_per",
+                    "UsePer",
                     EVT_SEC_WARN,
                     "Too many Blocks used(%d%%).",
                     blk_stats.inode_or_blk_used_per);
@@ -216,7 +216,7 @@ static void report_disk_iostat(const char *disk_name, disk_io_stats *io_info, st
         (void)strncpy(entityid, disk_name, LINE_BUF_LEN - 1);
         report_logs(ENTITY_DISK_NAME,
                     entityid,
-                    "iostat_util",
+                    "util",
                     EVT_SEC_WARN,
                     "Disk device saturated(%.2f%%).",
                     io_info->util);
