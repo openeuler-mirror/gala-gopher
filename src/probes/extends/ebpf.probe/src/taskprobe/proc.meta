@@ -372,7 +372,7 @@ measurements:
                 name: "greater_4k_io_write",
             },
             {
-                description: "I/O operation delay at the BIO layer (unit: us).",
+                description: "I/O operation delay at the BIO layer (unit: ns).",
                 type: "gauge",
                 name: "bio_latency",
             },

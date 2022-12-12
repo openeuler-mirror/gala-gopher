@@ -270,6 +270,11 @@ static void dealloc_memory(struct cpu_stat **cpus)
     free(cpus);
 }
 
+static u64 jiffies_to_msecs(u64 j)
+{
+    return (USEC_PER_MSEC / HZ) * j;
+}
+
 int system_cpu_init(void)
 {
     cpus_num = (int)sysconf(_SC_NPROCESSORS_CONF);
@@ -334,12 +339,18 @@ int system_cpu_probe(struct probe_params *params)
             cur_cpus[i]->timer - old_cpus[i]->timer,
             cur_cpus[i]->sched - old_cpus[i]->sched,
             cur_cpus[i]->net_rx - old_cpus[i]->net_rx,
-            cur_cpus[i]->cpu_user_total_second - old_cpus[i]->cpu_user_total_second,
-            cur_cpus[i]->cpu_nice_total_second - old_cpus[i]->cpu_nice_total_second,
-            cur_cpus[i]->cpu_system_total_second - old_cpus[i]->cpu_system_total_second,
-            cur_cpus[i]->cpu_iowait_total_second - old_cpus[i]->cpu_iowait_total_second,
-            cur_cpus[i]->cpu_irq_total_second - old_cpus[i]->cpu_irq_total_second,
-            cur_cpus[i]->cpu_softirq_total_second - old_cpus[i]->cpu_softirq_total_second,
+            (cur_cpus[i]->cpu_user_total_second > old_cpus[i]->cpu_user_total_second) ?
+                jiffies_to_msecs(cur_cpus[i]->cpu_user_total_second - old_cpus[i]->cpu_user_total_second) : 0,
+            (cur_cpus[i]->cpu_nice_total_second > old_cpus[i]->cpu_nice_total_second) ?
+                jiffies_to_msecs(cur_cpus[i]->cpu_nice_total_second - old_cpus[i]->cpu_nice_total_second) : 0,
+            (cur_cpus[i]->cpu_system_total_second > old_cpus[i]->cpu_system_total_second) ?
+                jiffies_to_msecs(cur_cpus[i]->cpu_system_total_second - old_cpus[i]->cpu_system_total_second) : 0,
+            (cur_cpus[i]->cpu_iowait_total_second > old_cpus[i]->cpu_iowait_total_second) ?
+                jiffies_to_msecs(cur_cpus[i]->cpu_iowait_total_second - old_cpus[i]->cpu_iowait_total_second) : 0,
+            (cur_cpus[i]->cpu_irq_total_second > old_cpus[i]->cpu_irq_total_second) ?
+                jiffies_to_msecs(cur_cpus[i]->cpu_irq_total_second - old_cpus[i]->cpu_irq_total_second) : 0,
+            (cur_cpus[i]->cpu_softirq_total_second > old_cpus[i]->cpu_softirq_total_second) ?
+                jiffies_to_msecs(cur_cpus[i]->cpu_softirq_total_second - old_cpus[i]->cpu_softirq_total_second) : 0,
             cur_cpus[i]->backlog_drops - old_cpus[i]->backlog_drops,
             cur_cpus[i]->rps_count - old_cpus[i]->rps_count);
         tmp_ptr = old_cpus[i];
