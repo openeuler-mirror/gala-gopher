@@ -189,12 +189,12 @@ measurements:
                 name: "container_id",
             },
             {
-                description: "...",
+                description: "failure type",
                 type: "label",
                 name: "failure_type",
             },
             {
-                description: "...",
+                description: "scope",
                 type: "label",
                 name: "scope",
             },
