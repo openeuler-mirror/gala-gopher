@@ -177,6 +177,7 @@ grant select on pg_stat_replication to <USER>;
 | -d     | 制定目标设备，包括磁盘、网卡等。示例：-d eth0                |
 | -C     | 指定探针(ksliprobe)是否开启周期采样，增加该参数则连续采集数据，不加该参数则周期性(如5s)采样一次 |
 | -w     | 筛选应用程序监控范围，如-w  /opt/gala-gopher/gala-gopher-app.conf，默认配置为NULL表示不筛选，system_infos、taskprobe探针涉及 |
+| -k     | 为kafkaprobe指定消息队列kafka服务端绑定的端口号，默认值9092。          |
 
 > 说明：上表中某些参数用于异常事件，目前异常事件范围参考[系统异常范围](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech_abnormal.md)。
 
