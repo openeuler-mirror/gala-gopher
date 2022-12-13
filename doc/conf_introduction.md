@@ -5,9 +5,19 @@ gala-gopher启动必须的外部参数通过配置文件`gala-gopher.conf`定义
 
 gala-gopher支持用户配置观测的应用范围，即支持用户设置关注的、需要监测的具体应用，此项配置是在`gala-gopher-app.conf`配置文件中配置。
 
+部分extend探针有自己的配置文件，开启该探针前需要设置好探针的配置文件。
+
 ## 配置介绍
 
 配置文件归档在[config目录](../config)。
+
+extend探针配置文件归档在探针同级目录下。目前有配置文件的探针有:
+
+[stackprobe](../src/probes/extends/ebpf.probe/src/stackprobe)
+
+[cadvisor.probe](../src/probes/extends/python.probe/cadvisor.probe)
+
+[pg_stat.probe](../src/probes/extends/python.probe/pg_stat.probe)
 
 ### gala-gopher.conf
 
@@ -82,6 +92,66 @@ gala-gopher支持用户配置观测的应用范围，即支持用户设置关注
 5. 大部分情况下，可以仅通过应用进程名`comm`信息来唯一标识应用，那么不再需要配置`cmdline`部分，置为空表示不根据cmdline匹配；
 
 配置示例参见 [gala-gopher-app.conf示例](#gala-gopher-app.conf示例) 。
+
+
+### stackprobe.conf
+
+`stackprobe.conf`文件的安装路径为 `/opt/gala-gopher/extend_probes/stackprobe.conf`。该文件配置项说明如下：
+
+- general：通用设置
+  - period：火焰图生成周期
+  - log_dir：stackprobe探针日志路径
+  - svg_dir：svg格式火焰图存储路径
+  - flame_dir：堆栈信息存储路径
+  - debug_dir：调试信息文件路径
+- flame_name：各类型火焰图开关
+  - oncpu：oncpu火焰图开关
+  - offcpu：offcpu火焰图开关
+  - io：io火焰图开关
+  - memleak：内存泄漏火焰图开关
+- application：暂未使用
+
+
+### cadvisor_probe.conf
+
+`cadvisor_probe.conf`文件的安装路径为 `/opt/gala-gopher/extend_probes/cadvisor_probe.conf`。该文件配置项说明如下：
+
+- version：配置文件版本号
+- measurements：待集成到gala-gopher的观测指标
+  - table_name: 数据表名称
+  - entity_name: 观测对象名称
+  - fields：数据字段
+    - description：数据字段描述信息
+    - type：数据字段类型，需和cAdvisor上报数据类型一致
+    - name：数据字段名称，需和cAdvisor上报数据名称一致
+
+> 说明：cadvisor_probe.conf和cadvisor_probe.meta的字段需要一致。例外：若conf中type字段为counter，在meta中对应type字段应为gauge
+
+
+### pg_stat_probe.conf
+
+`pg_stat_probe.conf`文件的安装路径为 `/opt/gala-gopher/extend_probes/pg_stat_probe.conf`。该文件配置项说明如下：
+
+- servers：PostgreSQL服务端配置
+  - ip：服务端IP
+  - port：服务端端口
+  - dbname：服务端任意数据库名称
+  - user：用户名
+  - password：用户密码
+
+上述配置用户需能够访问pg_stat_database视图，配置最小权限的命令如下：
+
+PostgreSQL：
+```shell
+grant SELECT ON pg_stat_database to <USER>;
+grant pg_monitor to <USER>;
+```
+
+GaussDB：
+```shell
+grant usage on schema dbe_perf to <USER>;
+grant select on pg_stat_replication to <USER>;
+```
 
 
 
