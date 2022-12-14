@@ -105,7 +105,7 @@ typedef struct {
 struct bpf_link_hash_value {
     enum pid_state_t pid_state;
     char elf_path[MAX_PATH_LEN];
-    struct bpf_link *bpf_links[32];
+    struct bpf_link *bpf_links[32]; // 32 cover num of probes in memleak.bpf.c
 };
 
 struct bpf_link_hash_t {
@@ -314,7 +314,7 @@ static struct raw_stack_trace_s *create_raw_stack_trace(struct stack_trace_s *st
 
     size_t stack_size = st->cpus_num * PERCPU_SAMPLE_COUNT;
     size_t mem_size = sizeof(struct raw_stack_trace_s);
-    mem_size += (stack_size * sizeof(struct stack_id_s));
+    mem_size += (stack_size * sizeof(struct raw_trace_s));
 
     raw_stack_trace = (struct raw_stack_trace_s *)malloc(mem_size);
     if (!raw_stack_trace) {
@@ -747,7 +747,6 @@ static void destroy_svg_stack_trace(struct svg_stack_trace_s **ptr_svg_st)
 
 static void destroy_stack_trace(struct stack_trace_s **ptr_st)
 {
-    // TODO:destroy_svg_stack_trace?
     struct stack_trace_s *st = *ptr_st;
     *ptr_st = NULL;
     if (!st) {
@@ -761,6 +760,13 @@ static void destroy_stack_trace(struct stack_trace_s **ptr_st)
         }
     }
 
+    for (int i = 0; i < STACK_SVG_MAX; i++) {
+        if (st->svg_stack_traces[i] == NULL) {
+            continue;
+        }
+        destroy_svg_stack_trace(&st->svg_stack_traces[i]);
+    }
+    
     if (st->ksymbs) {
         destroy_ksymbs_tbl(st->ksymbs);
         (void)free(st->ksymbs);
