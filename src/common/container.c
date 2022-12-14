@@ -16,7 +16,6 @@
 #include <stdlib.h>
 #include <bpf/libbpf.h>
 #include <unistd.h>
-#include "common.h"
 #include "container.h"
 
 #define ERR_MSG2 "not installe"

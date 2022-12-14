@@ -399,6 +399,58 @@ measurements:
                 name: "tasks_state",
             },
         )
+    },
+    {
+        table_name: "container_basic",
+        entity_name: "container",
+        fields:
+        (
+            {
+                description: "ID of container",
+                type: "key",
+                name: "container_id",
+            },
+            {
+                description: "Name of container",
+                type: "label",
+                name: "name",
+            },
+            {
+                description: "CpuAcct group inode of container",
+                type: "label",
+                name: "cpucg_inode",
+            },
+            {
+                description: "Memory group inode of container",
+                type: "label",
+                name: "memcg_inode",
+            },
+            {
+                description: "PIDS group inode of container",
+                type: "label",
+                name: "pidcg_inode",
+            },
+            {
+                description: "Mount namespace id of container",
+                type: "label",
+                name: "mnt_ns_id",
+            },
+            {
+                description: "Net namespace id of container",
+                type: "label",
+                name: "net_ns_id",
+            },
+            {
+                description: "First process id of container",
+                type: "label",
+                name: "proc_id",
+            },
+            {
+                description: "Fix value",
+                type: "gauge",
+                name: "value",
+            }
+        )
     }
 )
 
