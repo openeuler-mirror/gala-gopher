@@ -15,6 +15,8 @@
 #ifndef __CONTAINER_H__
 #define __CONTAINER_H__
 
+#include "common.h"
+
 #define CONTAINER_OK       0
 #define CONTAINER_ERR      (-1)
 #define CONTAINER_NOTOK     (-2)
