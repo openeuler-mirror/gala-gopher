@@ -753,6 +753,10 @@ static void destroy_stack_trace(struct stack_trace_s **ptr_st)
         return;
     }
 
+    if (st->post_server.post_flag) {
+        clean_post_server();
+    }
+
     for (int cpu = 0; cpu < st->cpus_num; cpu++) {
         if (st->pmu_fd[cpu] > 0) {
             ioctl(st->pmu_fd[cpu], PERF_EVENT_IOC_DISABLE);
@@ -842,6 +846,13 @@ static struct stack_trace_s *create_stack_trace(StackprobeConfig *conf)
         goto err;
     }
 #endif
+
+    if (set_post_server(&st->post_server, conf->generalConfig->pyroscopeServer) != 0) {
+        INFO("[STACKPROBE]: Do not post to Pyroscope Server.\n");
+        st->post_server.post_flag = 0;
+    } else {
+        INFO("[STACKPROBE]: Will post to Pyroscope Server: %s.\n", conf->generalConfig->pyroscopeServer);
+    }
 
     st->elf_reader = create_elf_reader(conf->generalConfig->debugDir);
     if (!st->elf_reader) {
@@ -1317,7 +1328,7 @@ static void switch_stackmap()
             continue;
         }
         (void)stack_id2histogram(st, i, st->is_stackmap_a);
-        wr_flamegraph(st->svg_stack_traces[i]->svg_mng, st->svg_stack_traces[i]->histo_tbl, i);
+        wr_flamegraph(st->svg_stack_traces[i]->svg_mng, st->svg_stack_traces[i]->histo_tbl, i, &st->post_server);
         clear_raw_stack_trace(st->svg_stack_traces[i], st->is_stackmap_a);
     }
     record_running_ctx(st);

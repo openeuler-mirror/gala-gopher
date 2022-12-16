@@ -25,6 +25,7 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <fcntl.h>
+#include <curl/curl.h>
 
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
@@ -36,6 +37,27 @@
 
 #include "bpf.h"
 #include "flame_graph.h"
+
+struct post_info_s {
+    int post_flag;
+    int sk;
+    int remain_size;
+    char *buf_start;
+    char *buf;
+    CURL *curl;
+};
+
+struct MemoryStruct {
+  char *memory;
+  size_t size;
+};
+
+static char *appname[STACK_SVG_MAX] = {
+    "gala-gopher-oncpu",
+    "gala-gopher-offcpu",
+    "gala-gopher-io",
+    "gala-gopher-memleak"
+};
 
 #if 1
 
@@ -170,8 +192,10 @@ static void __reopen_flame_graph_file(struct stack_svg_mng_s *svg_mng)
 
 #define HISTO_TMP_LEN   (2 * STACK_SYMBS_LEN)
 static char __histo_tmp_str[HISTO_TMP_LEN];
+
+#define POST_MAX_LEN 2048
 static int __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng,
-                               struct stack_trace_histo_s *stack_trace_histo, int first)
+                               struct stack_trace_histo_s *stack_trace_histo, int first, struct post_info_s *post_info)
 {
     FILE *fp = __get_flame_graph_fp(svg_mng);
     if (!fp) {
@@ -188,34 +212,166 @@ static int __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng,
         (void)snprintf(__histo_tmp_str, HISTO_TMP_LEN, "\n%s %llu",
                 stack_trace_histo->stack_symbs_str, stack_trace_histo->count);
     }
+    if (post_info->post_flag) {
+        (void)__snprintf(&post_info->buf, post_info->remain_size, &post_info->remain_size, "%s", __histo_tmp_str);
+    }
+
     (void)fputs(__histo_tmp_str, fp);
     return 0;
 }
 
-static void __do_wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct stack_trace_histo_s *head)
+static size_t __write_memory_cb(void *contents, size_t size, size_t nmemb, void *userp)
+{
+    size_t realsize = size * nmemb;
+    struct MemoryStruct *mem = (struct MemoryStruct *)userp;
+    
+    char *ptr = realloc(mem->memory, mem->size + realsize + 1);
+    if(!ptr) {
+        /* out of memory! */
+        printf("not enough memory (realloc returned NULL)\n");
+        return 0;
+    }
+    
+    mem->memory = ptr;
+    memcpy(&(mem->memory[mem->size]), contents, realsize);
+    mem->size += realsize;
+    mem->memory[mem->size] = 0;
+    
+    return realsize;
+}
+ 
+// http://localhost:4040/ingest?name=gala-gopher-oncpu&from=1671189474&until=1671189534
+static int __build_url(char *url, struct post_server_s *post_server, int en_type)
+{
+    time_t now, before;
+    (void)time(&now);
+    if (post_server->last_post_ts == 0) {
+        before = now - 60; // 60s
+    } else {
+        before = post_server->last_post_ts + 1;
+    }
+    post_server->last_post_ts = now;
+
+    (void)snprintf(url, LINE_BUF_LEN, 
+        "http://%s/ingest?name=%s&from=%ld&until=%ld",
+        post_server->host,
+        appname[en_type],
+        (long)before,
+        (long)now);
+    return 0;
+}
+
+
+static void __curl_post(struct post_server_s *post_server, struct post_info_s *post_info, int en_type)
+{
+    CURLcode res;
+    CURL *curl = post_info->curl;
+    if (curl == NULL) {
+        return;
+    }
+    long post_len = (long)strlen(post_info->buf_start);
+    if (post_len == 0) {
+        DEBUG("[FLAMEGRAPH]: buf is null. No need to curl post post to %s\n", appname[en_type]);
+        return;
+    }
+
+    char url[LINE_BUF_LEN] = {0};
+    __build_url(url, post_server, en_type);
+    struct MemoryStruct chunk;
+    chunk.memory = malloc(1);  /* will be grown as needed by realloc above */
+    chunk.size = 0;    /* no data at this point */
+
+    //curl_easy_setopt(curl, CURLOPT_URL, post_server->host);
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, post_server->timeout);
+
+    /* send all data to this function */
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, __write_memory_cb);
+
+    /* we pass our 'chunk' struct to the callback function */
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+
+    /* some servers do not like requests that are made without a user-agent
+    field, so we provide one */
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "libcurl-agent/1.0");
+
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_info->buf_start);
+
+    /* if we do not provide POSTFIELDSIZE, libcurl will strlen() by
+    itself */
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, post_len);
+
+    /* Perform the request, res will get the return code */
+    res = curl_easy_perform(curl);
+    /* Check for errors */
+    if(res != CURLE_OK) {
+        ERROR("[FLAMEGRAPH]: curl post failed: %s\n", curl_easy_strerror(res));
+    } else {
+        INFO("[FLAMEGRAPH]: curl post post to %s success\n", appname[en_type]);
+    }
+
+    /* always cleanup */
+    curl_easy_cleanup(curl);
+    if (chunk.memory) {
+        free(chunk.memory);
+        chunk.memory = NULL;
+    }
+    free(post_info->buf_start);
+    post_info->buf_start = NULL;
+
+    return;
+}
+
+static void __init_curl_handle(struct post_server_s *post_server, struct post_info_s *post_info)
+{
+    if (post_server == NULL || post_server->post_flag == 0) {
+        return;
+    }
+
+    post_info->curl = curl_easy_init();
+    if(post_info->curl) {
+        post_info->buf = (char *)malloc(POST_MAX_LEN);
+        post_info->buf_start = post_info->buf;
+        if (post_info->buf != NULL) {
+            post_info->buf[0] = 0;
+            post_info->post_flag = 1;
+        }
+    }
+}
+
+static void __do_wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct stack_trace_histo_s *head,
+    struct post_server_s *post_server, int en_type)
 {
     int first_flag = 0;
+    struct post_info_s post_info = {.remain_size = POST_MAX_LEN, .post_flag = 0};
 
     if (__test_flame_graph_flags(svg_mng, FLAME_GRAPH_NEW)) {
         first_flag = 1;
     }
 
-    struct stack_trace_histo_s *item, *tmp;
+    __init_curl_handle(post_server, &post_info);
 
+    struct stack_trace_histo_s *item, *tmp;
     H_ITER(head, item, tmp) {
-        (void)__do_wr_stack_histo(svg_mng, item, first_flag);
+        (void)__do_wr_stack_histo(svg_mng, item, first_flag, &post_info);
         first_flag = 0;
     }
-
+    if (post_info.post_flag) {
+        __curl_post(post_server, &post_info, en_type);
+    }
+    
     __flush_flame_graph_file(svg_mng);
     __reset_flame_graph_flags(svg_mng, ~FLAME_GRAPH_NEW);
 }
 
 #endif
 
-void wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct stack_trace_histo_s *head, int en_type)
+void wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct stack_trace_histo_s *head, int en_type,
+    struct post_server_s *post_server)
 {
-    __do_wr_flamegraph(svg_mng, head);
+    __do_wr_flamegraph(svg_mng, head, post_server, en_type);
+
     if (is_svg_tmout(svg_mng)) {
         (void)create_svg_file(svg_mng,
                               __get_flame_graph_file(svg_mng), en_type);
@@ -251,3 +407,26 @@ int set_flame_graph_path(struct stack_svg_mng_s *svg_mng, const char* path, cons
     return 0;
 }
 
+int set_post_server(struct post_server_s *post_server, const char *server_str)
+{
+    if (server_str == NULL) {
+        return -1;
+    }
+
+    char *p = strrchr(server_str, ':');
+    if (p == NULL) {
+        return -1;
+    }
+
+    curl_global_init(CURL_GLOBAL_ALL);
+    post_server->post_flag = 1;
+    post_server->timeout = 3;
+    (void)strcpy(post_server->host, server_str);
+
+    return 0;
+}
+
+void clean_post_server()
+{
+    curl_global_cleanup();
+}

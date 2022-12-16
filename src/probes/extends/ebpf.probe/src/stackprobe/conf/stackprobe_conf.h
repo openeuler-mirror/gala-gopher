@@ -35,6 +35,7 @@ typedef struct {
     char svgDir[PATH_LEN];
     char flameDir[PATH_LEN];
     char debugDir[PATH_LEN];
+    char pyroscopeServer[PATH_LEN];
 } GeneralConfig;
 
 typedef struct {

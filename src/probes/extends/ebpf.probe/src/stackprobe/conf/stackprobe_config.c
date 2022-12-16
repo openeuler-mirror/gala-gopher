@@ -205,6 +205,12 @@ static int configLoadGeneral(void *config, config_setting_t *settings)
     }
     (void)strncpy(generalConfig->debugDir, strVal, PATH_LEN - 1);
 
+    ret = config_setting_lookup_string(settings, "pyroscope_server", &strVal);
+    if (ret == 0) {
+        strVal = ""; // will not post to pyroscope
+    }
+    (void)strncpy(generalConfig->pyroscopeServer, strVal, PATH_LEN - 1);
+
     return 0;
 }
 

@@ -102,6 +102,13 @@ struct svg_stack_trace_s {
     struct stack_trace_histo_s *histo_tbl;
 };
 
+struct post_server_s {
+    char post_flag;
+    long timeout; // sec
+    char host[PATH_LEN];
+    time_t last_post_ts;
+};
+
 struct stack_trace_s {
     char pad[3];
     int cpus_num;
@@ -112,6 +119,7 @@ struct stack_trace_s {
     int stackmap_b_fd;
     u64 convert_stack_count;
     time_t running_times;
+    struct post_server_s post_server;
 
     struct svg_stack_trace_s *svg_stack_traces[STACK_SVG_MAX];
     struct ksymb_tbl_s *ksymbs;
