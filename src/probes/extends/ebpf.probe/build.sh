@@ -12,7 +12,18 @@ DEP_LIST=(elfutils-devel libbpf libbpf-devel clang llvm)
 function add_bpftool()
 {
     cd ${TOOLS_DIR}
-    if [ ! -f "bpftool" ];then
+    if [ -f "bpftool" ];then
+        echo "bpftool has existed."
+        return $?
+    fi
+
+    LIBBPF_MAJOR=`rpm -qa | grep libbpf-devel | awk -F'-' '{print $3}' | awk -F'.' '{print $1}'`
+    LIBBPF_MINOR=`rpm -qa | grep libbpf-devel | awk -F'-' '{print $3}' | awk -F'.' '{print $2}'`
+    if [ "$LIBBPF_MAJOR" -gt 0 ];then
+        ln -s bpftool_v6.8.0/bpftool_${ARCH} bpftool
+    elif [ "$LIBBPF_MINOR" -ge 8 ];then
+        ln -s bpftool_v6.8.0/bpftool_${ARCH} bpftool
+    else
         ln -s bpftool_${ARCH} bpftool
     fi
 }
