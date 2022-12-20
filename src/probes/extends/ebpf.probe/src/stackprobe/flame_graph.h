@@ -20,7 +20,9 @@
 #include "svg.h"
 #include "stackprobe.h"
 
-void wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct stack_trace_histo_s *head, int en_type);
+void wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct stack_trace_histo_s *head, int en_type,
+    struct post_server_s *post_server);
 int set_flame_graph_path(struct stack_svg_mng_s *svg_mng, const char* path, const char *flame_name);
-
+int set_post_server(struct post_server_s *post_server, const char *pyroscopeServer);
+void clean_post_server();
 #endif
