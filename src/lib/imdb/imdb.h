@@ -92,7 +92,7 @@ typedef struct {
     IMDB_Table **tables;
     IMDB_NodeInfo nodeInfo;
     pthread_rwlock_t rwlock;
-    uint32_t webServerOn;
+    uint32_t writeLogsOn;
 
     pthread_t metrics_tid;
 } IMDB_DataBaseMgr;
