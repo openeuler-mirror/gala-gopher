@@ -153,7 +153,7 @@ static void report_proc_metrics(struct proc_data_s *proc)
                     proc->dns_op.gethostname_failed);
     }
 
-    if (proc->proc_io.iowait_us > latency_thr_us) {
+    if (latency_thr_us > 0 && proc->proc_io.iowait_us > latency_thr_us) {
         report_logs(OO_NAME,
                     entityId,
                     "iowait_us",

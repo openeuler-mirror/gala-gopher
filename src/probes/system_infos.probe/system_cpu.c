@@ -85,7 +85,7 @@ static void report_cpu_status(struct probe_params *params)
     entityId[0] = 0;
     (void)strcpy(entityId, "cpu");
 
-    if (util_per > params->res_percent_upper) {
+    if (params->res_percent_upper > 0 && util_per > params->res_percent_upper) {
         report_logs(ENTITY_NAME,
                     entityId,
                     "total_used_per",

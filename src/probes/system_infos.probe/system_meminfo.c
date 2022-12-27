@@ -85,7 +85,7 @@ static void report_meminfo_status(struct probe_params *params, double mem_util, 
     (void)strcpy(entityId, "/proc/meminfo");
     (void)strcpy(entityName, "mem");
     // mem util
-    if (mem_util > params->res_percent_upper) {
+    if (params->res_percent_upper > 0 && mem_util > params->res_percent_upper) {
         report_logs(entityName,
                     entityId,
                     "util",
@@ -94,7 +94,7 @@ static void report_meminfo_status(struct probe_params *params, double mem_util, 
                     mem_util);
     }
     // swap util
-    if (swap_util > params->res_percent_upper) {
+    if (params->res_percent_upper > 0 && swap_util > params->res_percent_upper) {
         report_logs(entityName,
                     entityId,
                     "swap_util",
