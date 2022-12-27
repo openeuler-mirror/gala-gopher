@@ -54,7 +54,7 @@ static void report_disk_status(df_stats inode_stats, df_stats blk_stats, struct 
 
     entityid[0] = 0;
 
-    if (inode_stats.inode_or_blk_used_per > params->res_percent_upper) {
+    if (params->res_percent_upper > 0 && inode_stats.inode_or_blk_used_per > params->res_percent_upper) {
         (void)strncpy(entityid, inode_stats.mount_on, LINE_BUF_LEN - 1);
         report_logs(ENTITY_FS_NAME,
                     entityid,
@@ -63,7 +63,7 @@ static void report_disk_status(df_stats inode_stats, df_stats blk_stats, struct 
                     "Too many Inodes consumed(%d%%).",
                     inode_stats.inode_or_blk_used_per);
     }
-    if (blk_stats.inode_or_blk_used_per > params->res_percent_upper) {
+    if (params->res_percent_upper > 0 && blk_stats.inode_or_blk_used_per > params->res_percent_upper) {
         if (entityid[0] == 0) {
             (void)strncpy(entityid, blk_stats.mount_on, LINE_BUF_LEN - 1);
         }
@@ -212,7 +212,7 @@ static void report_disk_iostat(const char *disk_name, disk_io_stats *io_info, st
 
     entityid[0] = 0;
 
-    if (io_info->util > params->res_percent_upper) {
+    if (params->res_percent_upper > 0 && io_info->util > params->res_percent_upper) {
         (void)strncpy(entityid, disk_name, LINE_BUF_LEN - 1);
         report_logs(ENTITY_DISK_NAME,
                     entityid,

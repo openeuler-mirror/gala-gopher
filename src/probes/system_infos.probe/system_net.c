@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
  * Copyright (c) Huawei Technologies Co., Ltd. 2022. All rights reserved.
  * gala-gopher licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -101,16 +101,19 @@ int system_tcp_probe(void)
         METRICS_TCP_NAME,
         "/proc/dev/snmp",
         g_snmp_stats.tcp_curr_estab,
-        g_snmp_stats.tcp_in_segs - temp.tcp_in_segs,
-        g_snmp_stats.tcp_out_segs - temp.tcp_out_segs,
-        g_snmp_stats.tcp_retrans_segs - temp.tcp_retrans_segs,
-        g_snmp_stats.tcp_in_errs - temp.tcp_in_errs);
+        (g_snmp_stats.tcp_in_segs > temp.tcp_in_segs) ? (g_snmp_stats.tcp_in_segs - temp.tcp_in_segs) : 0,
+        (g_snmp_stats.tcp_out_segs > temp.tcp_out_segs) ? (g_snmp_stats.tcp_out_segs - temp.tcp_out_segs) : 0,
+        (g_snmp_stats.tcp_retrans_segs > temp.tcp_retrans_segs) ?
+            (g_snmp_stats.tcp_retrans_segs - temp.tcp_retrans_segs) : 0,
+        (g_snmp_stats.tcp_in_errs > temp.tcp_in_errs) ? (g_snmp_stats.tcp_in_errs - temp.tcp_in_errs) : 0);
 
     (void)nprobe_fprintf(stdout, "|%s|%s|%llu|%llu|\n",
         METRICS_UDP_NAME,
         "/proc/dev/snmp",
-        g_snmp_stats.udp_in_datagrams - temp.udp_in_datagrams,
-        g_snmp_stats.udp_out_datagrams - temp.udp_out_datagrams);
+        (g_snmp_stats.udp_in_datagrams > temp.udp_in_datagrams) ?
+            (g_snmp_stats.udp_in_datagrams - temp.udp_in_datagrams) : 0,
+        (g_snmp_stats.udp_out_datagrams > temp.udp_out_datagrams) ?
+            (g_snmp_stats.udp_out_datagrams - temp.udp_out_datagrams) : 0);
 
     (void)fclose(f);
     return 0;
@@ -278,7 +281,7 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
     tx_errs = new_info->tx_errs - old_info->tx_errs;
     rx_errs = new_info->rx_errs - old_info->rx_errs;
 
-    if (tx_drops > params->drops_count_thr) {
+    if (params->drops_count_thr > 0 && tx_drops > params->drops_count_thr) {
         (void)strncpy(entityid, new_info->dev_name, LINE_BUF_LEN - 1);
         report_logs(ENTITY_NIC_NAME,
                     entityid,
@@ -287,7 +290,7 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
                     "net device tx queue drops(%llu).",
                     tx_drops);
     }
-    if (rx_drops > params->drops_count_thr) {
+    if (params->drops_count_thr > 0 && rx_drops > params->drops_count_thr) {
         if (entityid[0] == 0) {
             (void)strncpy(entityid, new_info->dev_name, LINE_BUF_LEN - 1);
         }
@@ -298,7 +301,7 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
                     "net device rx queue drops(%llu).",
                     rx_drops);
     }
-    if (tx_errs > params->drops_count_thr) {
+    if (params->drops_count_thr > 0 && tx_errs > params->drops_count_thr) {
         if (entityid[0] == 0) {
             (void)strncpy(entityid, new_info->dev_name, LINE_BUF_LEN - 1);
         }
@@ -309,7 +312,7 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
                     "net device tx queue errors(%llu).",
                     tx_errs);
     }
-    if (rx_errs > params->drops_count_thr) {
+    if (params->drops_count_thr > 0 && rx_errs > params->drops_count_thr) {
         if (entityid[0] == 0) {
             (void)strncpy(entityid, new_info->dev_name, LINE_BUF_LEN - 1);
         }
@@ -375,18 +378,22 @@ int system_net_probe(struct probe_params *params)
             METRICS_NIC_NAME,
             g_dev_stats[index].dev_name,
             g_dev_stats[index].net_status == 1 ? "UP" : "DOWN",
-            g_dev_stats[index].rx_bytes - temp.rx_bytes,
-            g_dev_stats[index].rx_packets - temp.rx_packets,
-            g_dev_stats[index].rx_errs - temp.rx_errs,
-            g_dev_stats[index].rx_dropped - temp.rx_dropped,
-            g_dev_stats[index].tx_bytes - temp.tx_bytes,
-            g_dev_stats[index].tx_packets - temp.tx_packets,
-            g_dev_stats[index].tx_errs - temp.tx_errs,
-            g_dev_stats[index].tx_dropped - temp.tx_dropped,
-            SPEED_VALUE(temp.rx_bytes, g_dev_stats[index].rx_bytes, params->period),
-            SPEED_VALUE(temp.tx_bytes, g_dev_stats[index].tx_bytes, params->period),
-            g_dev_stats[index].tc_sent_drop_count - temp.tc_sent_drop_count,
-            g_dev_stats[index].tc_sent_overlimits_count - temp.tc_sent_overlimits_count,
+            (g_dev_stats[index].rx_bytes > temp.rx_bytes) ? (g_dev_stats[index].rx_bytes - temp.rx_bytes) : 0,
+            (g_dev_stats[index].rx_packets > temp.rx_packets) ? (g_dev_stats[index].rx_packets - temp.rx_packets) : 0,
+            (g_dev_stats[index].rx_errs > temp.rx_errs) ? (g_dev_stats[index].rx_errs - temp.rx_errs) : 0,
+            (g_dev_stats[index].rx_dropped > temp.rx_dropped) ? (g_dev_stats[index].rx_dropped - temp.rx_dropped) : 0,
+            (g_dev_stats[index].tx_bytes > temp.tx_bytes) ? (g_dev_stats[index].tx_bytes - temp.tx_bytes) : 0,
+            (g_dev_stats[index].tx_packets > temp.tx_packets) ? (g_dev_stats[index].tx_packets - temp.tx_packets) : 0,
+            (g_dev_stats[index].tx_errs > temp.tx_errs) ? (g_dev_stats[index].tx_errs - temp.tx_errs) : 0,
+            (g_dev_stats[index].tx_dropped > temp.tx_dropped) ? (g_dev_stats[index].tx_dropped - temp.tx_dropped) : 0,
+            (g_dev_stats[index].rx_bytes > temp.rx_bytes) ?
+                SPEED_VALUE(temp.rx_bytes, g_dev_stats[index].rx_bytes, params->period) : 0,
+            (g_dev_stats[index].tx_bytes > temp.tx_bytes) ?
+                SPEED_VALUE(temp.tx_bytes, g_dev_stats[index].tx_bytes, params->period) : 0,
+            (g_dev_stats[index].tc_sent_drop_count > temp.tc_sent_drop_count) ?
+                (g_dev_stats[index].tc_sent_drop_count - temp.tc_sent_drop_count) : 0,
+            (g_dev_stats[index].tc_sent_overlimits_count > temp.tc_sent_overlimits_count) ?
+                (g_dev_stats[index].tc_sent_overlimits_count - temp.tc_sent_overlimits_count) : 0,
             g_dev_stats[index].tc_backlog_count,
             g_dev_stats[index].tc_ecn_mark);
         /* output event */
