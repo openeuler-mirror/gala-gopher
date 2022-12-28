@@ -105,8 +105,8 @@ static void get_wl_proc(struct task_probe_s* probep)
     char comm[TASK_COMM_LEN];
     char cmdline[PROC_CMDLINE_LEN];
     char command[COMMAND_LEN];
-    const char *get_comm_fmt = "/usr/bin/cat /proc/%u/comm";
-    const char *get_cmdline_fmt = "/usr/bin/cat /proc/%u/cmdline";
+    const char *get_comm_fmt = "/usr/bin/cat /proc/%u/comm 2>/dev/null";
+    const char *get_cmdline_fmt = "/usr/bin/cat /proc/%u/cmdline 2>/dev/null";
 
     dir = opendir("/proc");
     if (dir == NULL) {
