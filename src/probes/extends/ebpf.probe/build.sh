@@ -81,7 +81,7 @@ function compile_probe()
         echo "please create vmlinux.h manually."
         echo "methods:"
         echo "  1. generate linux_xxx.h by compile the kernel, refer to gen_vmlinux_h.sh;"
-        echo "  2. ln -s vmlinux.h linux_xxx.h, (there are some include files in directory src/include)"
+        echo "  2. ln -s linux_xxx.h vmlinux.h, (there are some include files in directory src/include)"
         echo "     if your kernel version is similar to the include files provided, you can use method 2"
         echo "=========================================================================================="
         exit

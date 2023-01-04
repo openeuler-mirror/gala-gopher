@@ -360,7 +360,10 @@ def print_metrics():
                             value = ""
                     else:
                         if field_type == COUNTER:
-                            value = str(record[field_name][1] - record[field_name][0])
+                            if record[field_name][1] > record[field_name][0]:
+                                value = str(record[field_name][1] - record[field_name][0])
+                            else:
+                                value = "0"
                             record[field_name][0] = record[field_name][1]
                         else:
                             value = record[field_name]
