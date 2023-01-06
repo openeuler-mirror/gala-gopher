@@ -103,7 +103,7 @@ struct svg_stack_trace_s {
 };
 
 struct post_server_s {
-    char post_flag;
+    char post_enable;
     long timeout; // sec
     char host[PATH_LEN];
     time_t last_post_ts;
