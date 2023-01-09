@@ -192,6 +192,6 @@ int exec_cmd(const char *cmd, char *buf, unsigned int buf_len);
 char is_exist_mod(const char *mod);
 int __snprintf(char **buf, const int bufLen, int *remainLen, const char *format, ...);
 char is_digit_str(const char *s);
-int get_system_uuid(char *buffer, size_t size);
+int get_system_uuid(char *buffer, unsigned int size);
 
 #endif

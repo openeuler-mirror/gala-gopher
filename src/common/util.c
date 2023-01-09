@@ -196,7 +196,7 @@ char is_digit_str(const char *s)
     return 1;
 }
 
-int get_system_uuid(char *buffer, size_t size)
+int get_system_uuid(char *buffer, unsigned int size)
 {
     FILE *fp = NULL;
 
