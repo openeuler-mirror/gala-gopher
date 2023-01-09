@@ -196,3 +196,23 @@ char is_digit_str(const char *s)
     return 1;
 }
 
+int get_system_uuid(char *buffer, size_t size)
+{
+    FILE *fp = NULL;
+
+    fp = popen("dmidecode -s system-uuid | tr 'A-Z' 'a-z'", "r");
+    if (fp == NULL) {
+        return -1;
+    }
+
+    if (fgets(buffer, (int)size, fp) == NULL) {
+        pclose(fp);
+        return -1;
+    }
+    if (strlen(buffer) > 0 && buffer[strlen(buffer) - 1] == '\n') {
+        buffer[strlen(buffer) - 1] = '\0';
+    }
+
+    pclose(fp);
+    return 0;
+}
