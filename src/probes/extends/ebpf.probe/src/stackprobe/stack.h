@@ -19,10 +19,10 @@
 
 #include "common.h"
 
-#define AGGRE_PERIOD    (1 * 60 * 1000) // 1min
+#define AGGRE_PERIOD    (1 * 30 * 1000) // 30s
 #define SAMPLE_PERIOD   (10)            // 10ms
 #define TMOUT_PERIOD    (AGGRE_PERIOD / 1000) // Second as unit
-#define PROC_CACHE_MAX_COUNT    10    // Cache 10 proc symbols
+#define PROC_CACHE_MAX_COUNT    100    // Cache 100 proc symbols
 #define DIV_ROUND_UP(NUM, DEN) ((NUM + DEN - 1) / DEN)
 
 #define PERCPU_SAMPLE_COUNT     (2 * DIV_ROUND_UP(AGGRE_PERIOD, SAMPLE_PERIOD))

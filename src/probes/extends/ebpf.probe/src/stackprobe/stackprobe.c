@@ -753,7 +753,7 @@ static void destroy_stack_trace(struct stack_trace_s **ptr_st)
         return;
     }
 
-    if (st->post_server.post_flag) {
+    if (st->post_server.post_enable) {
         clean_post_server();
     }
 
@@ -849,7 +849,7 @@ static struct stack_trace_s *create_stack_trace(StackprobeConfig *conf)
 
     if (set_post_server(&st->post_server, conf->generalConfig->pyroscopeServer) != 0) {
         INFO("[STACKPROBE]: Do not post to Pyroscope Server.\n");
-        st->post_server.post_flag = 0;
+        st->post_server.post_enable = 0;
     } else {
         INFO("[STACKPROBE]: Will post to Pyroscope Server: %s.\n", conf->generalConfig->pyroscopeServer);
     }
@@ -1085,9 +1085,9 @@ static int add_pids()
         // find_bpf_link and add_bpf_link will set bpf_link status
         if (!find_bpf_link(pid)) {
             if (add_bpf_link(pid) != 0) {
-                fprintf(stderr, "add pid %u failed\n", pid);
+                ERROR("[STACKPROBE]: add pid %u failed\n", pid);
             } else {
-                printf("add of pid %u success\n", pid);
+                INFO("[STACKPROBE]: add of pid %u success\n", pid);
             }
         }
     }
@@ -1103,7 +1103,7 @@ static void clear_invalid_pids()
     }
     H_ITER(bpf_link_head, pid_bpf_links, tmp) {
         if (pid_bpf_links->v.pid_state == PID_NOEXIST) {
-            printf("clear bpf link of pid %u\n", pid_bpf_links->pid);
+            INFO("[STACKPROBE]: clear bpf link of pid %u\n", pid_bpf_links->pid);
             H_DEL(bpf_link_head, pid_bpf_links);
             (void)free(pid_bpf_links);
         }
@@ -1344,11 +1344,11 @@ static void init_wr_flame_pthreads(struct svg_stack_trace_s *svg_st, const char 
 
     err = pthread_create(&wr_flame_thd, NULL, __running, (void *)svg_st);
     if (err != 0) {
-        fprintf(stderr, "Failed to create %s wr_flame_pthread.\n", flame_name);
+        ERROR("[STACKPROBE]: Failed to create %s wr_flame_pthread.\n", flame_name);
         g_stop = 1;
         return;
     }
-    printf("%s wr_flame_pthread successfully started!\n", flame_name);
+    INFO("[STACKPROBE]: %s wr_flame_pthread successfully started!\n", flame_name);
 
     return;
 }
@@ -1410,7 +1410,7 @@ int main(int argc, char **argv)
     StackprobeConfig *conf;
 
     if (signal(SIGINT, sig_int) == SIG_ERR) {
-        fprintf(stderr, "can't set signal handler: %d\n", errno);
+        ERROR("[STACKPROBE]: can't set signal handler: %d\n", errno);
         return errno;
     }
 

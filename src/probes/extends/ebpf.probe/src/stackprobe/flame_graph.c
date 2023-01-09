@@ -38,6 +38,8 @@
 #include "bpf.h"
 #include "flame_graph.h"
 
+#define POST_MAX_LEN 131072
+
 struct post_info_s {
     int post_flag;
     int sk;
@@ -193,7 +195,6 @@ static void __reopen_flame_graph_file(struct stack_svg_mng_s *svg_mng)
 #define HISTO_TMP_LEN   (2 * STACK_SYMBS_LEN)
 static char __histo_tmp_str[HISTO_TMP_LEN];
 
-#define POST_MAX_LEN 2048
 static int __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng,
                                struct stack_trace_histo_s *stack_trace_histo, int first, struct post_info_s *post_info)
 {
@@ -246,7 +247,7 @@ static int __build_url(char *url, struct post_server_s *post_server, int en_type
     time_t now, before;
     (void)time(&now);
     if (post_server->last_post_ts == 0) {
-        before = now - 60; // 60s
+        before = now - 30; // 60s
     } else {
         before = post_server->last_post_ts + 1;
     }
@@ -267,12 +268,13 @@ static void __curl_post(struct post_server_s *post_server, struct post_info_s *p
     CURLcode res;
     CURL *curl = post_info->curl;
     if (curl == NULL) {
-        return;
+        goto end2;
     }
+
     long post_len = (long)strlen(post_info->buf_start);
     if (post_len == 0) {
         DEBUG("[FLAMEGRAPH]: buf is null. No need to curl post post to %s\n", appname[en_type]);
-        return;
+        goto end1;
     }
 
     char url[LINE_BUF_LEN] = {0};
@@ -306,26 +308,28 @@ static void __curl_post(struct post_server_s *post_server, struct post_info_s *p
     res = curl_easy_perform(curl);
     /* Check for errors */
     if(res != CURLE_OK) {
-        ERROR("[FLAMEGRAPH]: curl post failed: %s\n", curl_easy_strerror(res));
+        ERROR("[FLAMEGRAPH]: curl post to %s failed: %s\n", url, curl_easy_strerror(res));
     } else {
-        INFO("[FLAMEGRAPH]: curl post post to %s success\n", appname[en_type]);
+        INFO("[FLAMEGRAPH]: curl post post to %s success\n", url, post_info->remain_size);
     }
 
-    /* always cleanup */
-    curl_easy_cleanup(curl);
     if (chunk.memory) {
         free(chunk.memory);
-        chunk.memory = NULL;
     }
-    free(post_info->buf_start);
-    post_info->buf_start = NULL;
-
+end1:
+    /* always cleanup */
+    curl_easy_cleanup(curl);
+end2:
+    if (post_info->buf_start != NULL) {
+        free(post_info->buf_start);
+        post_info->buf_start = NULL;
+    }
     return;
 }
 
 static void __init_curl_handle(struct post_server_s *post_server, struct post_info_s *post_info)
 {
-    if (post_server == NULL || post_server->post_flag == 0) {
+    if (post_server == NULL || post_server->post_enable == 0) {
         return;
     }
 
@@ -419,7 +423,7 @@ int set_post_server(struct post_server_s *post_server, const char *server_str)
     }
 
     curl_global_init(CURL_GLOBAL_ALL);
-    post_server->post_flag = 1;
+    post_server->post_enable = 1;
     post_server->timeout = 3;
     (void)strcpy(post_server->host, server_str);
 
