@@ -24,16 +24,48 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
 
 ### 快速开始
 
+#### 使用部署工具安装运行
+
+- 获取部署工具
+  1. 下载部署工具压缩包：wget https://gitee.com/Vchanger/a-ops-tools/repository/archive/master.zip --no-check-certificate (内网用户需要配置代理)
+  2. 使用unzip解压压缩包后进入对应目录即可使用
+
+- 执行工具脚本进行部署
+
+  - rpm方式（仅支持openEuler 22.03 LTS/openEuler 22.03 LTS SP1)
+
+    ```
+    # sh deploy.sh gopher -K <kafka服务器地址>
+    ```
+
+  - 容器镜像方式：
+
+    ```
+    # sh deploy.sh gopher -K <kafka服务器地址> --docker --tag <容器镜像tag>
+    ```
+
+    注:目前支持的镜像版本tag有：euleros-v2r9，20.03-lts，20.03-lts-sp1，22.03-lts，22.03-lts-sp1
+
+  完成上述两步后gala-gopher即可进入运行状态。部署工具的使用约束说明与所有选项详细说明可参照[A-Ops-Tools部署工具手册](https://gitee.com/Vchanger/a-ops-tools#部署gala-gopher)
+
 #### 基于rpm包安装运行
 
-- yum源配置
+- 获取rpm包
 
-  gala-gopher目前在openEuler 21.09/openEuler 22.09/openEuler 22.03-LTS/openEuler 22.03-LTS-SP1发布，可以直接在发布版本的repo源获取rpm包；对于其他发布版本我们提供了OBS链接可以获取rpm包：
+  gala-gopher目前在openEuler 21.09/openEuler 22.09/openEuler 22.03-LTS-SP1发布，可以通过配置以上发布版本的正式repo源来获取rpm包；对于其他发布版本我们提供了以下方式来获取rpm包：
+
+  - OBS 链接：网页手动下载对应架构的rpm包
 
   ```basic
   openEuler-20.03-LTS : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:20.03:LTS:SP1/gala-gopher-20.03lts
   openEuler-20.03-LTS-SP1 : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:20.03:LTS:SP1/gala-gopher
-  EulerOS-V2R9C00 : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:20.03:LTS:SP1/gala-gopher-v2r9
+  EulerOS-V2R9 : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:20.03:LTS:SP1/gala-gopher-v2r9
+  ```
+
+  - 每日构建repo源：配置为yum源后安装
+
+  ```basic
+  openEuler 22.03-LTS: http://121.36.84.172/dailybuild/openEuler-22.03-LTS/openEuler-22.03-LTS/EPOL/main/
   ```
 
 - rpm安装
@@ -44,7 +76,7 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
 
 - 运行
 
-  直接运行命令，
+  按照[配置文件介绍](./doc/conf_introduction.md)自定义修改配置文件后，直接运行命令，
 
   ```bash
   # gala-gopher
@@ -89,7 +121,7 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
 
       拉取指定版本的gala-gopher官方容器镜像
       
-      目前支持的镜像版本tag有：euleros-v2r9，20.03-lts，20.03-lts-sp1，22.03-lts
+      目前支持的镜像版本tag有：euleros-v2r9，20.03-lts，20.03-lts-sp1，22.03-lts，22.03-lts-sp1
 
       ```shell
       docker pull hub.oepkgs.net/a-ops/gala-gopher:20.03-lts-sp1
