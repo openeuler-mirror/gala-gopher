@@ -851,6 +851,9 @@ static struct stack_trace_s *create_stack_trace(StackprobeConfig *conf)
         INFO("[STACKPROBE]: Do not post to Pyroscope Server.\n");
         st->post_server.post_enable = 0;
     } else {
+        if (get_system_uuid(st->post_server.app_suffix, APP_SUFFIX_LEN) != 0) {
+            st->post_server.app_suffix[0] = 0;
+        }
         INFO("[STACKPROBE]: Will post to Pyroscope Server: %s.\n", conf->generalConfig->pyroscopeServer);
     }
 

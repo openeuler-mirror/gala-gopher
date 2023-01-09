@@ -247,16 +247,17 @@ static int __build_url(char *url, struct post_server_s *post_server, int en_type
     time_t now, before;
     (void)time(&now);
     if (post_server->last_post_ts == 0) {
-        before = now - 30; // 60s
+        before = now - TMOUT_PERIOD;
     } else {
         before = post_server->last_post_ts + 1;
     }
     post_server->last_post_ts = now;
 
     (void)snprintf(url, LINE_BUF_LEN, 
-        "http://%s/ingest?name=%s&from=%ld&until=%ld",
+        "http://%s/ingest?name=%s-%s&from=%ld&until=%ld",
         post_server->host,
         appname[en_type],
+        post_server->app_suffix,
         (long)before,
         (long)now);
     return 0;
@@ -310,7 +311,7 @@ static void __curl_post(struct post_server_s *post_server, struct post_info_s *p
     if(res != CURLE_OK) {
         ERROR("[FLAMEGRAPH]: curl post to %s failed: %s\n", url, curl_easy_strerror(res));
     } else {
-        INFO("[FLAMEGRAPH]: curl post post to %s success\n", url, post_info->remain_size);
+        INFO("[FLAMEGRAPH]: curl post post to %s success\n", url);
     }
 
     if (chunk.memory) {

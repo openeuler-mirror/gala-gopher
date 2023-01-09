@@ -24,6 +24,7 @@
 
 #define STACKPROBE_CONF_PATH_DEFAULT "/opt/gala-gopher/extend_probes/stackprobe.conf"
 #define BPF_FUNC_NAME_LEN 32
+#define APP_SUFFIX_LEN 64
 
 struct stack_symbs_s {
     struct addr_symb_s user_stack_symbs[PERF_MAX_STACK_DEPTH];
@@ -106,6 +107,7 @@ struct post_server_s {
     char post_enable;
     long timeout; // sec
     char host[PATH_LEN];
+    char app_suffix[APP_SUFFIX_LEN];
     time_t last_post_ts;
 };
 

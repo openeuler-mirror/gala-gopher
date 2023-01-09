@@ -18,7 +18,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-
+#include "common.h"
 #include "imdb.h"
 
 static uint32_t g_recordTimeout = 60;       // default timeout: 60 seconds
@@ -250,26 +250,6 @@ void IMDB_TableDestroy(IMDB_Table *table)
     return;
 }
 
-static int IMDB_GetSystemUuid(char *buffer, size_t size)
-{
-    FILE *fp = NULL;
-
-    fp = popen("dmidecode -s system-uuid | tr 'A-Z' 'a-z'", "r");
-    if (fp == NULL) {
-        return -1;
-    }
-
-    if (fgets(buffer, (int)size, fp) == NULL) {
-        pclose(fp);
-        return -1;
-    }
-    if (strlen(buffer) > 0 && buffer[strlen(buffer) - 1] == '\n') {
-        buffer[strlen(buffer) - 1] = '\0';
-    }
-
-    pclose(fp);
-    return 0;
-}
 
 IMDB_DataBaseMgr *IMDB_DataBaseMgrCreate(uint32_t capacity)
 {
@@ -282,7 +262,7 @@ IMDB_DataBaseMgr *IMDB_DataBaseMgrCreate(uint32_t capacity)
 
     memset(mgr, 0, sizeof(IMDB_DataBaseMgr));
 
-    ret = IMDB_GetSystemUuid(mgr->nodeInfo.systemUuid, sizeof(mgr->nodeInfo.systemUuid));
+    ret = get_system_uuid(mgr->nodeInfo.systemUuid, sizeof(mgr->nodeInfo.systemUuid));
     if (ret != 0) {
         ERROR("[IMDB] Can not get system uuid.\n");
         free(mgr);
