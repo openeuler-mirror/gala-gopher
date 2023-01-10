@@ -36,7 +36,7 @@
 
 struct ksli_args_s {
     __u64 period;        // Sampling period, unit ns
-    char cycle_sampling_flag;   // Enables the sampling of max sli within a period (which cause some performance degradation)
+    char continuous_sampling_flag;   // Enables the sampling of max sli within a period (which cause some performance degradation)
 };
 
 enum msg_event_rw_t {
@@ -89,7 +89,7 @@ struct conn_data_t {
     struct rtt_cmd_t current;
     __u64 last_report_ts_nsec;              // 上一次上报完成的时间点
     __u64 report_period;                    // 上报周期
-    char cycle_sampling_flag;
+    char continuous_sampling_flag;
     char procotol_check_times;
 };
 

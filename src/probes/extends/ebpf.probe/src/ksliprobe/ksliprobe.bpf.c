@@ -116,17 +116,17 @@ static __always_inline void get_args(struct conn_data_t *conn_data)
 {
     u32 key = 0;
     u64 period = __PERIOD;
-    char cycle_sampling_flag = 0;
+    char continuous_sampling_flag = 0;
 
     struct ksli_args_s *args;
     args = (struct ksli_args_s *)bpf_map_lookup_elem(&args_map, &key);
     if (args) {
         period = args->period;
-        cycle_sampling_flag = args->cycle_sampling_flag;
+        continuous_sampling_flag = args->continuous_sampling_flag;
     }
 
     conn_data->report_period = period;
-    conn_data->cycle_sampling_flag = cycle_sampling_flag;
+    conn_data->continuous_sampling_flag = continuous_sampling_flag;
 
     return;
 }
@@ -262,7 +262,13 @@ static __always_inline int periodic_report(u64 ts_nsec, struct conn_data_t *conn
 {
     long err;
     int ret = 0;
-    u64 period = conn_data->report_period;
+
+    // period cannot be 0, so it is considered that the user mode has not written to args_map by now.
+    // therefore we try to get the value agagin.
+    if (conn_data->report_period == 0)
+        get_args(conn_data);
+
+    u64 period = (conn_data->report_period != 0) ? conn_data->report_period : __PERIOD;
 
     // 表示没有任何采样数据，不上报
     if (conn_data->latency.rtt_nsec == 0) {
@@ -299,7 +305,7 @@ static __always_inline void sample_finished(struct conn_data_t *conn_data, struc
         conn_data->latency.rtt_nsec = csd->rtt_ts_nsec;
         __builtin_memcpy(&conn_data->latency.command, &csd->command, MAX_COMMAND_REQ_SIZE);
     }
-    if (conn_data->cycle_sampling_flag) {
+    if (conn_data->continuous_sampling_flag) {
         if (conn_data->max.rtt_nsec < csd->rtt_ts_nsec) {
             conn_data->max.rtt_nsec = csd->rtt_ts_nsec;
             __builtin_memcpy(&conn_data->max.command, &csd->command, MAX_COMMAND_REQ_SIZE);
@@ -350,7 +356,7 @@ static __always_inline void process_rd_msg(u32 tgid, int fd, const char *buf, co
     }
 
     // 非循环采样每次上报后就返回，等待下次上报周期再采样。这种方式无法获取周期内max sli
-    if (!conn_data->cycle_sampling_flag && reported)
+    if (!conn_data->continuous_sampling_flag && reported)
         return;
 
     // 连接的协议类型未知时，连续3次read报文时解析不出是redis协议，就确认此条连接非redis请求连接，不做采样
@@ -403,7 +409,7 @@ KPROBE(ksys_read, pt_regs)
     if (conn_data->id.protocol == PROTOCOL_NO_REDIS)
         return;
 
-    if (!conn_data->cycle_sampling_flag) {
+    if (!conn_data->continuous_sampling_flag) {
         if (bpf_ktime_get_ns() - conn_data->last_report_ts_nsec < conn_data->report_period)
             return;
     }

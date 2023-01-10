@@ -44,7 +44,7 @@ struct probe_params {
     char res_percent_upper;       // [-U <>] Upper limit of resource percentage, default is 0%
     char res_percent_lower;       // [-L <>] Lower limit of resource percentage, default is 0%
     unsigned char cport_flag;     // [-c <>] Indicates whether the probes(such as tcp) identifies the client port, default is 0 (no identify)
-    char cycle_sampling_flag;     // [-C <>] Enables the cycle sampling, default is 0
+    char continuous_sampling_flag;     // [-C <>] Enables the continuous sampling, default is 0
     char target_dev[DEV_NAME];    // [-d <>] Device name, default is null 
     char elf_path[MAX_PATH_LEN];  // [-p <>] Set ELF file path of the monitored software, default is null 
     char task_whitelist[MAX_PATH_LEN]; // [-w <>] Filtering app monitoring ranges, default is null

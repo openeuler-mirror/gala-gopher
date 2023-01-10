@@ -40,7 +40,7 @@
 #define MAX_SLI_TBL_NAME "redis_max_sli"
 
 static volatile sig_atomic_t stop;
-static struct probe_params params = {.period = DEFAULT_PERIOD, .cycle_sampling_flag = 0};
+static struct probe_params params = {.period = DEFAULT_PERIOD, .continuous_sampling_flag = 0};
 
 static void sig_int(int signo)
 {
@@ -113,7 +113,7 @@ static void msg_event_handler(void *ctx, int cpu, void *data, unsigned int size)
             cli_ip_str,
             ntohs(msg_evt_data->client_ip_info.port),
             msg_evt_data->latency.rtt_nsec);
-    if (params.cycle_sampling_flag) {
+    if (params.continuous_sampling_flag) {
         fprintf(stdout,
             "|%s|%d|%d|%s|%s|%s|%u|%s|%u|%llu|\n",
             MAX_SLI_TBL_NAME,
@@ -173,7 +173,7 @@ static void load_args(int args_fd, struct probe_params* params)
     struct ksli_args_s args = {0};
 
     args.period = NS(params->period);
-    args.cycle_sampling_flag = params->cycle_sampling_flag;
+    args.continuous_sampling_flag = params->continuous_sampling_flag;
 
     (void)bpf_map_update_elem(args_fd, &key, &args, BPF_ANY);
 }
@@ -187,7 +187,7 @@ int main(int argc, char **argv)
         return -1;
     }
     printf("arg parse interval time:%us\n", params.period);
-    printf("arg parse if cycle sampling:%s\n", params.cycle_sampling_flag ? "true": "false");
+    printf("arg parse if cycle sampling:%s\n", params.continuous_sampling_flag ? "true": "false");
 
 #ifdef KERNEL_SUPPORT_TSTAMP
     load_tc_bpf(params.netcard_list, TC_PROG, TC_TYPE_INGRESS);
