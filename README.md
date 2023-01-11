@@ -20,7 +20,7 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
 
 - 部署配置文件
 
-  gala-gopher启动配置文件，可自定义具体使能的探针、指定数据上报的对接服务信息（kafka/promecheus等）
+  gala-gopher启动配置文件，可自定义具体使能的探针、指定数据上报的对接服务信息（kafka/prometheus等）
 
 ### 快速开始
 
@@ -35,16 +35,16 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
   - rpm方式（仅支持openEuler 22.03 LTS/openEuler 22.03 LTS SP1)
 
     ```
-    # sh deploy.sh gopher -K <kafka服务器地址>
+    sh deploy.sh gopher -K <kafka服务器地址>
     ```
 
   - 容器镜像方式：
 
     ```
-    # sh deploy.sh gopher -K <kafka服务器地址> --docker --tag <容器镜像tag>
+    sh deploy.sh gopher -K <kafka服务器地址> --docker --tag <容器镜像tag>
     ```
 
-    注:目前支持的镜像版本tag有：euleros-v2r9，20.03-lts，20.03-lts-sp1，22.03-lts，22.03-lts-sp1
+    注:目前支持的镜像版本tag有：euleros-v2r9（仅支持x86），20.03-lts，20.03-lts-sp1，22.03-lts，22.03-lts-sp1
 
   完成上述两步后gala-gopher即可进入运行状态。部署工具的使用约束说明与所有选项详细说明可参照[A-Ops-Tools部署工具手册](https://gitee.com/Vchanger/a-ops-tools#部署gala-gopher)
 
@@ -52,7 +52,7 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
 
 - 获取rpm包
 
-  gala-gopher目前在openEuler 21.09/openEuler 22.09/openEuler 22.03-LTS-SP1发布，可以通过配置以上发布版本的正式repo源来获取rpm包；对于其他发布版本我们提供了以下方式来获取rpm包：
+  gala-gopher目前已在openEuler 21.09（已停止维护）/openEuler 22.09（已停止维护）/openEuler 22.03-LTS-SP1发布，可以通过配置以上发布版本的正式repo源来获取rpm包；对于其他发布版本我们提供了以下方式来获取rpm包：
 
   - OBS 链接：网页手动下载对应架构的rpm包
 
@@ -71,21 +71,21 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
 - rpm安装
 
   ```bash
-  # yum install gala-gopher
+  yum install gala-gopher
   ```
 
 - 运行
 
-  按照[配置文件介绍](./doc/conf_introduction.md)自定义修改配置文件后，直接运行命令，
+  按照[配置文件介绍](./doc/conf_introduction.md)自定义修改配置文件后，执行如下命令在前台运行：
 
   ```bash
-  # gala-gopher
+  gala-gopher
   ```
 
-  或者通过 systemd 启动，
+  或者通过 systemd 启动后台服务（推荐）：
 
   ```bash
-  # systemctl start gala-gopher.service
+  systemctl start gala-gopher.service
   ```
 
 #### 基于容器镜像安装运行
@@ -96,38 +96,40 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
   用户可以选择直接[获取官方容器镜像](#docker1)或自行[构建容器镜像](#docker2)
 
   <a id="docker1"></a>
+
   - 获取官方容器镜像
 
-      打开docker配置文件
-  
-      ```shell
-      vi /etc/docker/daemon.json
+      在docker配置文件/etc/docker/daemon.json（文件不存在则需要新建）中追加如下内容来添加hub.oepkgs.net镜像仓库
+
       ```
-
-      添加hub.oepkgs.net镜像仓库
-
-      ```shell
       {
         "insecure-registries" : [ "hub.oepkgs.net" ]
       }
       ```
 
-      重启docker服务
-
-      ```shell
+      完成后通过如下命令重启docker服务使配置生效：
+      
+      ```
       systemctl daemon-reload
       systemctl restart docker
       ```
-
-      拉取指定版本的gala-gopher官方容器镜像
       
-      目前支持的镜像版本tag有：euleros-v2r9，20.03-lts，20.03-lts-sp1，22.03-lts，22.03-lts-sp1
-
-      ```shell
-      docker pull hub.oepkgs.net/a-ops/gala-gopher:20.03-lts-sp1
+      
+      根据系统架构从对应仓库拉取指定版本的gala-gopher官方容器镜像（以openEuler 20.03 LTS SP1为例）：
+      
       ```
+      # x86
+      docker pull hub.oepkgs.net/a-ops/gala-gopher-x86_64:20.03-lts-sp1
+      
+      # aarch64
+      docker pull hub.oepkgs.net/a-ops/gala-gopher-aarch64:20.03-lts-sp1
+      ```
+      
+      目前支持的镜像版本tag有：euleros-v2r9（仅支持x86），20.03-lts，20.03-lts-sp1，22.03-lts，22.03-lts-sp1
 
   <a id="docker2"></a>
+
+
   - 构建容器镜像
 
     获取gala-gopher的rpm包，获取方式详见第一小节[基于rpm包安装运行](#基于rpm包安装运行)。
@@ -153,7 +155,7 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
   最后按照如下示例命令启动容器：
 
   ```shell
-  docker run -d --name xxx -p 8888:8888 --privileged -v /etc/machine-id:/etc/machine-id -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro -v /boot:/boot:ro -v /sys/kernel/debug:/sys/kernel/debug -v /sys/fs/bpf:/sys/fs/bpf -v /root/gopher_user_conf:/gala-gopher/user_conf/ -v /etc/localtime:/etc/localtime:ro -v /var/run/docker.sock:/var/run/docker.sock -v /var/lib/docker/overlay2:/var/lib/docker/overlay2 --pid=host gala-gopher:0.0.1
+  docker run -d --name xxx -p 8888:8888 --privileged -v /etc/machine-id:/etc/machine-id -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro -v /boot:/boot:ro -v /sys/kernel/debug:/sys/kernel/debug -v /sys/fs/bpf:/sys/fs/bpf -v /root/gopher_user_conf:/gala-gopher/user_conf/ -v /etc/localtime:/etc/localtime:ro -v /var/run/docker.sock:/var/run/docker.sock -v /var/lib/docker/overlay2:/var/lib/docker/overlay2 --pid=host gala-gopher:1.0.1
   ```
 
   成功启动容器后，通过docker ps可以看到正在运行的容器：
@@ -161,7 +163,7 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
   ```shell
   [root@localhost build]# docker ps
   CONTAINER ID   IMAGE               COMMAND                  CREATED              STATUS              PORTS                    NAMES
-  eaxxxxxxxx02   gala-gopher:0.0.1   "/bin/sh -c 'cp -f /…"   About a minute ago   Up About a minute   0.0.0.0:8888->8888/tcp   xxx
+  eaxxxxxxxx02   gala-gopher:1.0.1   "/bin/sh -c 'cp -f /…"   About a minute ago   Up About a minute   0.0.0.0:8888->8888/tcp   xxx
   ```
 
 - 获取数据
