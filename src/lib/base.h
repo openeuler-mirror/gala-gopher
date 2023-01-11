@@ -52,6 +52,7 @@
 
 // common
 #define MAX_THREAD_NAME_LEN   128
+#define MAX_LANGUAGE_TYPE_LEN  32
 
 // ======== CONFIG ========
 // global config

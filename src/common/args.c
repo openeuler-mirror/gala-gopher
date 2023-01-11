@@ -157,7 +157,7 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
             }
             break;
         case 'C':
-            params->cycle_sampling_flag = 1;
+            params->continuous_sampling_flag = 1;
             break;
         case 'k':
             params->kafka_port = (unsigned int)atoi(arg);

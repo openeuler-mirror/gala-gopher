@@ -61,6 +61,7 @@ SET(SOURCES main.c daemon.c
     ${COMMON_DIR}/logs.cpp
     ${COMMON_DIR}/gopher_elf.c
     ${COMMON_DIR}/whitelist_config.c
+    ${COMMON_DIR}/event_config.c
     ${COMMON_DIR}/kern_symb.c
 )
 

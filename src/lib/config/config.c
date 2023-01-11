@@ -543,6 +543,11 @@ static int ConfigMgrLoadOutConfig(void *config, config_setting_t *settings)
         outConfig->timeout = (uint32_t)timeout;
     }
 
+    ret = config_setting_lookup_string(settings, "desc_language", &strVal);
+    if (ret > 0) {
+        (void)strncpy(outConfig->lang_type, strVal, MAX_LANGUAGE_TYPE_LEN - 1);
+    }
+
     return 0;
 }
 
