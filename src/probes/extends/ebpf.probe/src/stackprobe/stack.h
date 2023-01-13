@@ -30,10 +30,10 @@
 struct stack_pid_s {
     u64 real_start_time;
     int proc_id;
-    char comm[TASK_COMM_LEN];
 };
 
 struct stack_id_s {
+    char comm[TASK_COMM_LEN]; // thread comm
     int user_stack_id;
     int kern_stack_id;
     struct stack_pid_s pid;

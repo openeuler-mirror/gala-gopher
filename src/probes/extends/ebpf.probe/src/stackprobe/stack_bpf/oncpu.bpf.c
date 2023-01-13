@@ -73,7 +73,9 @@ int function_stack_trace(struct bpf_perf_event_data *ctx)
         }
     }
     raw_trace.stack_id.pid.real_start_time = get_real_start_time();
-    (void)bpf_get_current_comm(&raw_trace.stack_id.pid.comm, sizeof(raw_trace.stack_id.pid.comm));
+
+    // test found that the comm is thread command
+    (void)bpf_get_current_comm(&raw_trace.stack_id.comm, sizeof(raw_trace.stack_id.comm));
 
     if (is_stackmap_a) {
         raw_trace.stack_id.kern_stack_id = bpf_get_stackid(ctx, &stackmap_a, KERN_STACKID_FLAGS);

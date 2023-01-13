@@ -49,6 +49,7 @@
 #include "container.h"
 #include "conf/stackprobe_conf.h"
 #include "stackprobe.h"
+#include "java_support.h"
 
 #define ON_CPU_PROG    "/opt/gala-gopher/extend_probes/stack_bpf/oncpu.bpf.o"
 #define OFF_CPU_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/offcpu.bpf.o"
@@ -253,7 +254,7 @@ static struct proc_cache_s* __create_proc_cache(struct stack_trace_s *st, struct
     struct proc_cache_s *new_item;
     struct proc_symbs_s* proc_symbs;
 
-    proc_symbs = proc_load_all_symbs(st->elf_reader, stack_pid->proc_id, stack_pid->comm);
+    proc_symbs = proc_load_all_symbs(st->elf_reader, stack_pid->proc_id);
     if (!proc_symbs) {
         return NULL;
     }
@@ -275,21 +276,38 @@ static struct proc_cache_s* __create_proc_cache(struct stack_trace_s *st, struct
     return new_item;
 }
 
+static void __update_proc_cache(struct proc_symbs_s *proc_symbs)
+{
+    struct mod_s *mod;
+
+    for (int i = 0; i < proc_symbs->mods_count; i++) {
+        mod = proc_symbs->mods[i];
+        if (mod && mod->mod_type == MODULE_JVM) {
+            mod->mod_symbs = update_symb_from_jvm_sym_file((const char *)mod->__mod_info.name);
+            if (mod->mod_symbs != NULL) {
+                proc_symbs->need_update = 0; // TODO: need_update set to 1 periodically to update JVM syms
+            }
+        }
+    }
+}
+
 static int search_user_addr_symb(struct stack_trace_s *st,
-        struct stack_pid_s *stack_pid, u64 addr, struct addr_symb_s *addr_symb)
+        struct stack_pid_s *stack_pid, u64 addr, struct addr_symb_s *addr_symb, char *comm)
 {
     struct proc_cache_s* proc_cache;
 
     proc_cache = __search_proc_cache(st, stack_pid);
     if (!proc_cache) {
         proc_cache = __create_proc_cache(st, stack_pid);
+    } else if (proc_cache->proc_symbs->need_update) {
+        __update_proc_cache(proc_cache->proc_symbs);
     }
 
     if (!proc_cache || !proc_cache->proc_symbs) {
         return -1;
     }
 
-    return proc_search_addr_symb(proc_cache->proc_symbs, addr, addr_symb);
+    return proc_search_addr_symb(proc_cache->proc_symbs, addr, addr_symb, comm);
 }
 
 #endif
@@ -416,8 +434,8 @@ static int add_stack_histo(struct stack_trace_s *st, struct stack_symbs_s *stack
 
     if (str[0] == 0) {
 #ifdef GOPHER_DEBUG
-        ERROR("[STACKPROBE]: symbs2str is null(proc = %d, comm = %s).\n",
-                stack_symbs->pid.proc_id, stack_symbs->pid.comm);
+        ERROR("[STACKPROBE]: symbs2str is null(proc = %d).\n",
+                stack_symbs->pid.proc_id);
 #endif
         return -1;
     }
@@ -481,13 +499,13 @@ static int stack_id2symbs_user(struct stack_trace_s *st, struct stack_id_s *stac
 
     for (int i = PERF_MAX_STACK_DEPTH - 1; (i >= 0 && index < size); i--) {
         if (ip[i] != 0 && IS_IEG_ADDR(ip[i])) {
-            if (search_user_addr_symb(st, &(stack_id->pid), ip[i], &(usr_stack_symbs[index]))) {
+            if (search_user_addr_symb(st, &(stack_id->pid), ip[i], &(usr_stack_symbs[index]), stack_id->comm)) {
 #ifdef GOPHER_DEBUG
                 ERROR("[STACKPROBE]: Failed to id2symbs user stack(%s[0x%llx]).\n",
-                    stack_id->pid.comm, ip[i]);
+                    stack_id->comm, ip[i]);
 #endif
                 st->stats.count[STACK_STATS_USR_ADDR_ERR]++;
-                usr_stack_symbs[index].mod = stack_id->pid.comm;
+                usr_stack_symbs[index].mod = stack_id->comm;
             } else {
                 st->stats.count[STACK_STATS_USR_ADDR]++;
             }
@@ -1403,6 +1421,21 @@ err:
     return -1;
 }
 
+static void init_java_support_proc(int proc_obj_map_fd)
+{
+    int err;
+    pthread_t attach_thd;
+
+    err = pthread_create(&attach_thd, NULL, java_support, (void *)&proc_obj_map_fd);
+    if (err != 0) {
+        ERROR("[STACKPROBE]: Failed to create java_support_pthread.\n");
+        return;
+    }
+    INFO("[STACKPROBE]: java_support_pthread successfully started!\n");
+
+    return;
+}
+
 #ifdef EBPF_RLIM_LIMITED
 #undef EBPF_RLIM_LIMITED
 #endif
@@ -1444,7 +1477,9 @@ int main(int argc, char **argv)
     if (err != 0) {
         destroy_stack_trace(&g_st);
         return -1;
-    } 
+    }
+
+    init_java_support_proc(g_st->proc_obj_map_fd);
 
     INFO("[STACKPROBE]: Started successfully.\n");
 
