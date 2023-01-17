@@ -31,6 +31,7 @@
 #include "debug_elf_reader.h"
 #include "elf_symb.h"
 #include "symbol.h"
+#include "java_support.h"
 
 #ifdef symbs
 #undef symbs
@@ -511,7 +512,7 @@ static int load_debug_symbs(struct proc_symbs_s* proc_symbs, struct mod_s* mod)
                              PATH_LEN);
 
     if (debug_file[0] != 0) {
-        mod->debug_symbs = get_elf_symb((const char *)debug_file);
+        mod->debug_symbs = get_symb_from_file((const char *)debug_file, ELF_SYM);
     }
 
 #if 0
@@ -532,8 +533,14 @@ static int load_symbs(struct mod_s* mod)
         return LOAD_SYMBS;
     }
 
+    if (mod->mod_type == MODULE_JVM) {
+        mod->mod_symbs = get_symb_from_file((const char *)mod->__mod_info.name, JAVA_SYM);
+        // It's okay if mod->mod_symbs is NULL. We'll get JVM symbols from file periodically.
+        return 0;
+    }
+
     if (mod->mod_type == MODULE_SO || mod->mod_type == MODULE_EXEC) {
-        mod->mod_symbs = get_elf_symb((const char *)(mod->mod_path));
+        mod->mod_symbs = get_symb_from_file((const char *)(mod->mod_path), ELF_SYM);
         if (mod->mod_symbs == NULL) {
             ERROR("[SYMBOL]: Failed to load elf %s.\n", mod->mod_path);
             return LOAD_SYMBS;
@@ -606,9 +613,11 @@ static int add_mod(void *elf_reader, struct proc_symbs_s* proc_symbs, struct mod
         goto err;
     }
 
-    if (new_mod->symbs_count == 0) {
+    if (new_mod->mod_symbs != NULL && new_mod->symbs_count == 0) {
         ret = 0;
         goto err;
+    } else if (new_mod->mod_type == MODULE_JVM) {
+        proc_symbs->need_update = 1;
     }
 
 #if 0
@@ -672,6 +681,10 @@ static int get_mod_type(struct mod_info_s* mod_info)
         return GET_MOD_TYPE;
     }
 
+    if (mod_info->type == MODULE_JVM) {
+        return 0;
+    }
+
     elf_type = gopher_get_elf_type((const char *)mod_info->path);
     if (elf_type == ET_DYN) {
         mod_info->type = MODULE_SO;
@@ -724,7 +737,10 @@ static int get_mod_path(struct mod_info_s* mod_info, int proc_id)
     if (!mod_info->name) {
         return -1;
     }
-
+    if (mod_info->type == MODULE_JVM) {
+        mod_info->path = strdup(mod_info->name);
+        return 0;
+    }
     if (!IS_BACKEND_MOD(mod_info->name)) {
         __do_get_mod_path_byname(mod_info, proc_id);
         return 0;
@@ -767,7 +783,7 @@ err:
                                         || IS_STARTED_STR(name, "//anon") || IS_STARTED_STR(name, "/dev/zero") \
                                         || IS_STARTED_STR(name, "[stack") || IS_STARTED_STR(name, "[heap]") \
                                         || IS_STARTED_STR(name, "/anon_hugepage") || IS_STARTED_STR(name, "[uprobes]")
-static int get_mod_name(struct mod_info_s* mod_info, char *maps_line)
+static int get_mod_name(struct mod_info_s* mod_info, char *maps_line, struct proc_symbs_s* proc_symbs)
 {
     char *end, *name, *target;
 
@@ -791,7 +807,26 @@ static int get_mod_name(struct mod_info_s* mod_info, char *maps_line)
         return GET_MOD_NAME;
     }
 
-    SPLIT_NEWLINE_SYMBOL(mod_info->name);
+    // SO mod in /proc/<pid>/maps is like as follows:
+    // 111222330000-111222334000 r-xp 00004000 fd:00 123456 /usr/lib64/libpthread-2.28.so
+    if (mod_info->name[0] != '\n') {
+        SPLIT_NEWLINE_SYMBOL(mod_info->name);
+        return 0;
+    }
+
+    // JVM mod dont' display no mod name in /proc/<pid>/maps which is like as follows:
+    // 111222330000-111222334000 rwxp 00000000 00:00 0
+    if (proc_symbs->is_java) {
+        free(mod_info->name);
+        mod_info->name = malloc(PATH_LEN);
+        if (!mod_info->name) {
+            return GET_MOD_NAME;
+        }
+        mod_info->type = MODULE_JVM; // TODO: Is it necessary to check maps_perm or else?
+        (void)memset(mod_info->name, 0, PATH_LEN);
+         // It's okay if we can't get java_sym_file now. We'll check it periodically.
+        (void)get_host_java_sym_file(proc_symbs->proc_id, mod_info->name, PATH_LEN);
+    }
 
     return 0;
 }
@@ -804,7 +839,7 @@ static struct mod_s* proc_get_mod_by_name(struct proc_symbs_s* proc_symbs, const
 
     for (int i = 0; i < proc_symbs->mods_count; i++) {
         mod = proc_symbs->mods[i];
-        if (mod  != NULL && mod->mod_name != NULL && !strcmp(mod->mod_name, name)) {
+        if (mod != NULL && mod->mod_name != NULL && !strcmp(mod->mod_name, name)) {
             return mod;
         }
     }
@@ -839,7 +874,7 @@ static int proc_iter_maps(void *elf_reader, struct proc_symbs_s* proc_symbs, FIL
         if (!MAPS_IS_EXEC_PERM(maps_perm)) {
             goto next;
         }
-        ret = get_mod_name(&mod_info, line);
+        ret = get_mod_name(&mod_info, line, proc_symbs);
         if (ret != 0) {
             goto next;
         }
@@ -877,7 +912,7 @@ next:
     return is_over ? ret : 0;
 }
 
-struct proc_symbs_s* proc_load_all_symbs(void *elf_reader, int proc_id, char *comm)
+struct proc_symbs_s* proc_load_all_symbs(void *elf_reader, int proc_id)
 {
     int ret;
     FILE* fp = NULL;
@@ -890,7 +925,6 @@ struct proc_symbs_s* proc_load_all_symbs(void *elf_reader, int proc_id, char *co
     }
     (void)memset(proc_symbs, 0, sizeof(struct proc_symbs_s));
     proc_symbs->proc_id = proc_id;
-    (void)strncpy(proc_symbs->comm, comm, TASK_COMM_LEN - 1);
 
     maps_file[0] = 0;
     (void)snprintf(maps_file, PATH_LEN, "/proc/%d/maps", proc_id);
@@ -899,9 +933,14 @@ struct proc_symbs_s* proc_load_all_symbs(void *elf_reader, int proc_id, char *co
     }
     fp = fopen(maps_file, "r");
     if (!fp){
-        ERROR("[SYMBOL]: Open proc maps-file failed.[%s].\n", maps_file);
+        ERROR("[SYMBOL]: Open proc maps-file failed.[%s] %s.\n", maps_file, strerror(errno));
         goto err;
     }
+
+    if (detect_proc_is_java(proc_symbs->proc_id, proc_symbs->comm, TASK_COMM_LEN)) {
+        proc_symbs->is_java = 1;
+    }
+
     ret = proc_iter_maps(elf_reader, proc_symbs, fp);
     if (ret != 0) {
         ERROR("[SYMBOL]: Iter proc maps failed[proc = %d, ret = %d].\n", proc_id, ret);
@@ -934,7 +973,7 @@ void proc_delete_all_symbs(struct proc_symbs_s *proc_symbs)
 }
 
 int proc_search_addr_symb(struct proc_symbs_s *proc_symbs,
-        u64 addr, struct addr_symb_s *addr_symb)
+        u64 addr, struct addr_symb_s *addr_symb, char *comm)
 {
     int ret = -1, is_contain_range = 0;
     u64 target_addr;
@@ -944,22 +983,35 @@ int proc_search_addr_symb(struct proc_symbs_s *proc_symbs,
         target_addr = 0;
         
         if (proc_symbs->mods[i]) {
+            // search jvm mods
+            if (proc_symbs->mods[i]->mod_type == MODULE_JVM) {
+                ret = search_elf_symb(proc_symbs->mods[i]->mod_symbs,
+                        addr, addr, proc_symbs->comm, addr_symb);
+                if (ret == 0) {
+                    break;
+                }
+                continue;
+            }
+
+            // search debug symbs
             ret = search_elf_symb(proc_symbs->mods[i]->debug_symbs,
-                    addr, addr, proc_symbs->comm, addr_symb);
+                    addr, addr, comm, addr_symb);
             if (ret == 0) {
                 break;
             }
 
+             // search other mods
             if (is_mod_contain_addr(proc_symbs->mods[i], addr, &target_addr)) {
                 is_contain_range = 1;
                 ret = search_elf_symb(proc_symbs->mods[i]->mod_symbs,
-                        addr, target_addr, proc_symbs->comm, addr_symb);
+                        addr, target_addr, comm, addr_symb);
                 if (ret != 0) {
 #ifdef GOPHER_DEBUG
                     __print_mod_symbs(proc_symbs->mods[i]);
 #endif
+                } else {
+                    break;
                 }
-                break;
             }
         }
     }

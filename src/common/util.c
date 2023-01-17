@@ -216,3 +216,29 @@ int get_system_uuid(char *buffer, unsigned int size)
     pclose(fp);
     return 0;
 }
+
+int copy_file(const char *dst_file, const char *src_file) {
+    FILE *fp1 = fopen(dst_file, "w");
+    if (fp1 == NULL) {
+        return -1;
+    }
+    FILE *fp2 = fopen(src_file, "r");
+    if(fp2 == NULL) {
+        fclose(fp1);
+        return -1;
+    }
+
+    void *buffer = (void *)malloc(2);
+    while (1) {
+        int op = fread(buffer, 1, 1, fp2);
+        if(!op) {
+            break;
+        }
+        fwrite(buffer, 1, 1, fp1);
+    }
+
+    free(buffer);
+    fclose(fp1);
+    fclose(fp2);
+    return 0;
+}

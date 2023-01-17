@@ -86,7 +86,7 @@ static inline char is_stackmap_a() {
 static inline int get_stack_id(void *ctx, char stackmap_cur, struct stack_id_s *stack_id) {
     stack_id->pid.proc_id = bpf_get_current_pid_tgid() >> INT_LEN;
     stack_id->pid.real_start_time = 0;
-    (void)bpf_get_current_comm(&stack_id->pid.comm, sizeof(stack_id->pid.comm));
+    (void)bpf_get_current_comm(&stack_id->comm, sizeof(stack_id->comm));
 
     if (stackmap_cur) {
         stack_id->kern_stack_id = bpf_get_stackid(ctx, &stackmap_a, KERN_STACKID_FLAGS);

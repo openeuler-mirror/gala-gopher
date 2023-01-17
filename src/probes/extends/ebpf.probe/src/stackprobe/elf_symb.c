@@ -82,7 +82,7 @@ static void __symb_destroy(struct symb_s *symb)
     return;
 }
 
-static void __destroy_elf_symbol(struct elf_symbo_s* elf_symbo)
+static void __destroy_symbol(struct elf_symbo_s* elf_symbo)
 {
     if (!elf_symbo) {
         return;
@@ -115,7 +115,7 @@ static int __symb_cmp(const void *a, const void *b)
     return (*symb1)->start - (*symb2)->start;
 }
 
-static int __sort_elf_symbol(struct elf_symbo_s* elf_symbo)
+static int __sort_symbol(struct elf_symbo_s* elf_symbo)
 {
     if (elf_symbo->symbs_count == 0) {
         return 0;
@@ -124,7 +124,7 @@ static int __sort_elf_symbol(struct elf_symbo_s* elf_symbo)
     return 0;
 }
 
-static struct elf_symbo_s* __lkup_elf_symb(u32 inode)
+static struct elf_symbo_s* __lkup_symb(u32 inode)
 {
     struct elf_symbo_s *item = NULL;
 
@@ -132,7 +132,7 @@ static struct elf_symbo_s* __lkup_elf_symb(u32 inode)
     return item;
 }
 
-static struct elf_symbo_s* __create_elf_symbol(const char* elf, u32 inode)
+static struct elf_symbo_s* __create_symbol(const char* elf, u32 inode)
 {
     struct elf_symbo_s* elf_symbo = malloc(sizeof(struct elf_symbo_s));
     if (!elf_symbo) {
@@ -204,8 +204,98 @@ static ELF_CB_RET __add_symbs(const char *symb, u64 addr_start, u64 size, void *
     return ELF_SYMB_CB_OK;
 }
 
-static int __load_elf_symbol(struct elf_symbo_s* elf_symbo)
+static void __destroy_java_symbs(struct symb_s* new_symb)
 {
+    if (new_symb) {
+        if (new_symb->symb_name) {
+            (void)free(new_symb->symb_name);
+            new_symb->symb_name = NULL;
+        }
+        (void)free(new_symb);
+    }
+}
+
+static struct symb_s* resolve_java_symbs(char *s)
+{
+    char symb[JAVASYMB_NAME_LEN] = {0};
+    char *code_size, *method_name;
+    size_t name_len = 0;
+    struct symb_s* new_symb = NULL;
+
+    // 1. malloc new_symb
+    new_symb = (struct symb_s*)malloc(sizeof(struct symb_s));
+    if (!new_symb) {
+        goto err;
+    }
+    (void)memset(new_symb, 0, sizeof(struct symb_s));
+
+    // 2. set new_symb start_addr
+    new_symb->start = strtoull(s, &code_size, 16);
+
+    // 3. set new_symb code_size
+    code_size++;
+    new_symb->size = strtoull(code_size, &method_name, 16);
+
+    // 4. set new_symb method_name
+    method_name++;
+    while (*method_name != ' ' && *method_name != '\n' && name_len < JAVASYMB_NAME_LEN) {
+        symb[name_len++] = *method_name;
+        method_name++;
+    }
+    symb[name_len] = 0;
+    if (name_len == 0) {
+        goto err;
+    }
+    new_symb->symb_name = (char *)malloc(name_len + 1);
+    if (!new_symb->symb_name) {
+        goto err;
+    }
+    (void)memcpy(new_symb->symb_name, symb, name_len + 1);
+    return new_symb;
+
+err:
+    __destroy_java_symbs(new_symb);
+    return NULL;
+}
+
+int __get_java_symb_from_file(const char *file, struct elf_symbo_s* elf_symbo)
+{
+    int ret = 0;
+    FILE *fd = NULL;
+    char line[LINE_BUF_LEN] = {0};
+    struct symb_s* new_symb = NULL;
+
+    fd = fopen(file, "r");
+    if (!fd) {
+        return -1;
+    }
+
+    while (fgets(line, sizeof(line), fd)) {
+        if (elf_symbo->symbs_count >= elf_symbo->symbs_capability) {
+            if (__inc_symbs_capability(elf_symbo)) {
+                ERROR("[ELF_SYMBOL]: Too many symbos(%s).\n", elf_symbo->elf);
+                ret = -1;
+                goto err;
+            }
+        }
+        new_symb = resolve_java_symbs(line);
+        if (new_symb == NULL) {
+            continue;
+        }
+        elf_symbo->symbs[elf_symbo->symbs_count++] = new_symb;
+    }
+
+err:
+    if (fd > 0) {
+        fclose(fd);
+    }
+    DEBUG("[ELF_SYMBOL]: get java symb from file %s ret %d\n",file, ret);
+    return ret;
+}
+
+static int __load_symbol_from_file(struct elf_symbo_s* elf_symbo, enum sym_file_t sym_file_type)
+{
+    int ret;
     if (!elf_symbo->elf) {
         return -1;
     }
@@ -216,7 +306,15 @@ static int __load_elf_symbol(struct elf_symbo_s* elf_symbo)
     }
 #endif
 
-    return gopher_iter_elf_file_symb((const char *)(elf_symbo->elf), __add_symbs, elf_symbo);
+    if (sym_file_type == ELF_SYM) {
+        ret = gopher_iter_elf_file_symb((const char *)(elf_symbo->elf), __add_symbs, elf_symbo);
+    } else if (sym_file_type == JAVA_SYM){
+        ret = __get_java_symb_from_file((const char *)(elf_symbo->elf), elf_symbo);
+    } else {
+        ret = -1;
+    }
+
+    return ret;
 }
 
 
@@ -283,7 +381,50 @@ static int __do_search_addr(struct elf_symbo_s* elf_symb,
 
 #endif
 
-struct elf_symbo_s* get_elf_symb(const char* elf)
+struct elf_symbo_s* update_symb_from_jvm_sym_file(const char* elf)
+{
+    int ret;
+    u32 inode;
+    enum sym_file_t sym_file_type = JAVA_SYM;
+    struct elf_symbo_s* item = NULL, *new_item = NULL;
+    ret = __get_inode(elf, &inode);
+    if (ret != 0) {
+        return NULL;
+    }
+
+    item = __lkup_symb(inode);
+    if (item) {
+        // TODO: update jvm syms
+        return item;
+    }
+
+    new_item = __create_symbol(elf, inode);
+    if (!new_item) {
+        goto err;
+    }
+    ret = __load_symbol_from_file(new_item, sym_file_type);
+    if (ret != 0) {
+        ERROR("[ELF_SYMBOL]: Failed to load symbol(%s).\n", new_item->elf);
+        goto err;
+    }
+
+    (void)__sort_symbol(new_item);
+
+    H_ADD_I(__head, i_inode, new_item);
+    if (sym_file_type == JAVA_SYM) {
+        INFO("[ELF_SYMBOL]: Succeed to update JVM symbs %s(symbs_count = %u).\n", new_item->elf, new_item->symbs_count);
+    }
+
+    return new_item;
+err:
+    if (new_item) {
+        __destroy_symbol(new_item);
+        (void)free(new_item);
+    }
+    return NULL;
+}
+
+struct elf_symbo_s* get_symb_from_file(const char* elf, enum sym_file_t sym_file_type)
 {
     int ret;
     u32 inode;
@@ -293,33 +434,33 @@ struct elf_symbo_s* get_elf_symb(const char* elf)
         return NULL;
     }
 
-    item = __lkup_elf_symb(inode);
+    item = __lkup_symb(inode);
     if (item) {
         item->refcnt++;
         return item;
     }
 
-    new_item = __create_elf_symbol(elf, inode);
+    new_item = __create_symbol(elf, inode);
     if (!new_item) {
         goto err;
     }
-    ret = __load_elf_symbol(new_item);
+    ret = __load_symbol_from_file(new_item, sym_file_type);
     if (ret != 0) {
         ERROR("[ELF_SYMBOL]: Failed to load symbol(%s).\n", new_item->elf);
         goto err;
     }
 
-    (void)__sort_elf_symbol(new_item);
+    (void)__sort_symbol(new_item);
 
     H_ADD_I(__head, i_inode, new_item);
-
-    //INFO("[ELF_SYMBOL]: Succeed to load elf symbs %s(symbs_count = %u).\n", new_item->elf, new_item->symbs_count);
+    if (sym_file_type == JAVA_SYM) {
+        INFO("[ELF_SYMBOL]: Succeed to init JVM symbs %s(symbs_count = %u).\n", new_item->elf, new_item->symbs_count);
+    }
 
     return new_item;
 err:
     if (new_item) {
-        __destroy_elf_symbol(new_item);
-
+        __destroy_symbol(new_item);
         (void)free(new_item);
     }
     return NULL;
@@ -333,7 +474,7 @@ void rm_elf_symb(struct elf_symbo_s* elf_symb)
         return;
     }
 
-    item = __lkup_elf_symb(elf_symb->i_inode);
+    item = __lkup_symb(elf_symb->i_inode);
     if (!item) {
         return;
     }
@@ -348,7 +489,7 @@ void rm_elf_symb(struct elf_symbo_s* elf_symb)
 
     //INFO("[ELF_SYMBOL]: Succeed to delete elf %s.\n", item->elf);
 
-    __destroy_elf_symbol(item);
+    __destroy_symbol(item);
     H_DEL(__head, item);
     (void)free(item);
     return;
@@ -373,7 +514,7 @@ void deinit_elf_symbs(void)
     }
 
     H_ITER(__head, item, tmp) {
-        __destroy_elf_symbol(item);
+        __destroy_symbol(item);
         H_DEL(__head, item);
         (void)free(item);
     }

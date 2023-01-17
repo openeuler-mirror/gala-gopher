@@ -26,6 +26,7 @@ enum module_type {
     MODULE_UNKNOW = 0,
     MODULE_SO = 1,
     MODULE_EXEC = 2,
+    MODULE_JVM,
     MODULE_MAP,
     MODULE_VDSO         /* The virtual dynamically linked shared object. */
 };
@@ -91,14 +92,15 @@ struct mod_s {
 struct proc_symbs_s {
     int proc_id;
     char comm[TASK_COMM_LEN];
-
+    int is_java;
+    int need_update; // update jvm symbols
     u32 mods_count;
     struct mod_s* mods[MOD_MAX_COUNT];
 };
 
-struct proc_symbs_s* proc_load_all_symbs(void *elf_reader, int proc_id, char *comm);
+struct proc_symbs_s* proc_load_all_symbs(void *elf_reader, int proc_id);
 void proc_delete_all_symbs(struct proc_symbs_s *proc_symbs);
 int proc_search_addr_symb(struct proc_symbs_s *proc_symbs,
-        u64 addr, struct addr_symb_s *addr_symb);
+        u64 addr, struct addr_symb_s *addr_symb, char *comm);
 
 #endif
