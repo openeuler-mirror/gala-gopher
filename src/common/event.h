@@ -43,6 +43,6 @@ void report_logs(const char* entityName,
                  enum evt_sec_e sec,
                  const char * fmt, ...);
 
-void init_event_mgr(unsigned int time_out);
+void init_event_mgr(unsigned int time_out, char *lang_type);
 
 #endif

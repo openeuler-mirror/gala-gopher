@@ -74,6 +74,29 @@ function install_conf()
 
 }
 
+function install_res()
+{
+    GOPHER_EVENT_RC_FILE=${PROJECT_FOLDER}/res/event_multy_language.rc
+    GOPHER_RES_TARGET_DIR=/opt/gala-gopher/res
+
+    if [ $# -eq 1]; then
+        GOPHER_RES_TARGET_DIR=$1/res
+    fi
+
+    cd ${PROJECT_FOLDER}
+    if [ ! -f ${GOPHER_EVENT_RC_FILE} ]; then
+        echo "${GOPHER_EVENT_RC_FILE} not exist. please check ./res dir."
+        exit 1
+    fi
+
+    if [ ! -d ${GOPHER_RES_TARGET_DIR} ]; then
+        mkdir -p ${GOPHER_RES_TARGET_DIR}
+    fi
+    cp -f ${GOPHER_EVENT_RC_FILE} ${GOPHER_RES_TARGET_DIR}
+    echo "install ${GOPHER_EVENT_RC_FILE} success."
+
+}
+
 function install_meta()
 {
     GOPHER_META_DIR=/opt/gala-gopher/meta
@@ -167,6 +190,7 @@ function install_client_bin()
 load_tailor
 install_daemon_bin $1
 install_conf $2
+install_res $2
 install_meta $2
 install_shared_lib $2
 install_extend_probes $2

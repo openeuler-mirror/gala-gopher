@@ -611,7 +611,7 @@ static void LogsMgrDeinit(ResourceMgr *resourceMgr)
 static int EventMgrInit(ResourceMgr *resourceMgr)
 {
     ConfigMgr *configMgr = resourceMgr->configMgr;
-    init_event_mgr(configMgr->eventOutConfig->timeout);
+    init_event_mgr(configMgr->eventOutConfig->timeout, configMgr->eventOutConfig->lang_type);
     return 0;
 }
 

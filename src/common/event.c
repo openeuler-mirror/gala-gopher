@@ -20,6 +20,7 @@
 #include <time.h>
 #include <stdarg.h>
 #include "common.h"
+#include "event_config.h"
 #include "event.h"
 #ifdef NATIVE_PROBE_FPRINTF
 #include "nprobe_fprintf.h"
@@ -27,6 +28,8 @@
 
 static struct evt_ts_hash_t *g_evt_head = NULL;
 static unsigned int g_evt_period = 0;
+static EventsConfig *g_evt_conf;
+static char g_lang_type[MAX_EVT_GRP_NAME_LEN];
 
 static void hash_clear_older_evt(time_t cur_time);
 static unsigned int hash_count_evt(void);
@@ -43,6 +46,29 @@ static void __get_local_time(char *buf, int buf_len, time_t *cur_time)
     SPLIT_NEWLINE_SYMBOL(time_str);
     (void)snprintf(buf, (const int)buf_len, "%s", time_str);
     *cur_time = rawtime;
+}
+
+static void __replace_desc_fmt(const char* entityName, const char* metrics, const char *fmt, char *new_fmt)
+{
+    if (new_fmt == NULL) {
+        return;
+    }
+    (void)strncpy(new_fmt, fmt, MAX_EVT_BODY_LEN - 1);
+
+    if (g_lang_type[0] == 0) {
+        return;
+    }
+    if (g_evt_conf == NULL) {
+        if (events_config_init(&g_evt_conf, g_lang_type) < 0) {
+            ERROR("event report failed, bacause language type(%s) but config_init failed.\n", g_lang_type);
+            return;
+        }
+    }
+    if (get_event_field(g_evt_conf, entityName, metrics, new_fmt) == 0) {
+        ERROR("get evt entity[%s] metric[%s] field failed.\n", entityName, metrics);
+        return;
+    }
+    return;
 }
 
 #define __SEC_TXT_LEN  32
@@ -85,8 +111,10 @@ void report_logs(const char* entityName,
     p = body + strlen(body);
     len = __EVT_BODY_LEN - strlen(body);
 
+    char fmt2[MAX_EVT_BODY_LEN];
     va_start(args, fmt);
-    (void)vsnprintf(p, len, fmt, args);
+    __replace_desc_fmt(entityName, metrics, fmt, fmt2);
+    (void)vsnprintf(p, len, fmt2, args);
     va_end(args);
 
 #ifdef NATIVE_PROBE_FPRINTF
@@ -192,7 +220,11 @@ static int is_evt_need_report(const char *entityId, time_t cur_time)
     return 0;
 }
 
-void init_event_mgr(unsigned int time_out)
+void init_event_mgr(unsigned int time_out, char *lang_type)
 {
     g_evt_period = time_out;
+    g_lang_type[0] = 0;
+    if (lang_type != NULL && strlen(lang_type) > 0) {
+        (void)strncpy(g_lang_type, lang_type, MAX_EVT_GRP_NAME_LEN - 1);
+    }
 }
