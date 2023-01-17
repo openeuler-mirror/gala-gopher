@@ -616,8 +616,11 @@ static int add_mod(void *elf_reader, struct proc_symbs_s* proc_symbs, struct mod
     if (new_mod->mod_symbs != NULL && new_mod->symbs_count == 0) {
         ret = 0;
         goto err;
-    } else if (new_mod->mod_type == MODULE_JVM) {
-        proc_symbs->need_update = 1;
+    }
+    
+    if (new_mod->mod_type == MODULE_JVM) {
+        if (new_mod->mod_symbs != NULL && new_mod->symbs_count != 0)
+            proc_symbs->need_update = 0;
     }
 
 #if 0
@@ -939,6 +942,7 @@ struct proc_symbs_s* proc_load_all_symbs(void *elf_reader, int proc_id)
 
     if (detect_proc_is_java(proc_symbs->proc_id, proc_symbs->comm, TASK_COMM_LEN)) {
         proc_symbs->is_java = 1;
+        proc_symbs->need_update = 1;  // to init JVM symbs
     }
 
     ret = proc_iter_maps(elf_reader, proc_symbs, fp);

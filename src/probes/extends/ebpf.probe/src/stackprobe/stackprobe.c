@@ -284,25 +284,16 @@ static void __update_proc_cache(struct proc_symbs_s *proc_symbs)
         mod = proc_symbs->mods[i];
         if (mod && mod->mod_type == MODULE_JVM) {
             mod->mod_symbs = update_symb_from_jvm_sym_file((const char *)mod->__mod_info.name);
-            if (mod->mod_symbs != NULL) {
-                proc_symbs->need_update = 0; // TODO: need_update set to 1 periodically to update JVM syms
+            if (mod->mod_symbs != NULL && mod->mod_symbs->symbs_count != 0) {
+                proc_symbs->need_update = 0;
             }
+            break;
         }
     }
 }
 
-static int search_user_addr_symb(struct stack_trace_s *st,
-        struct stack_pid_s *stack_pid, u64 addr, struct addr_symb_s *addr_symb, char *comm)
+static int search_user_addr_symb(u64 addr, struct addr_symb_s *addr_symb, struct proc_cache_s* proc_cache, char *comm)
 {
-    struct proc_cache_s* proc_cache;
-
-    proc_cache = __search_proc_cache(st, stack_pid);
-    if (!proc_cache) {
-        proc_cache = __create_proc_cache(st, stack_pid);
-    } else if (proc_cache->proc_symbs->need_update) {
-        __update_proc_cache(proc_cache->proc_symbs);
-    }
-
     if (!proc_cache || !proc_cache->proc_symbs) {
         return -1;
     }
@@ -362,7 +353,7 @@ static int add_raw_stack_id(struct raw_stack_trace_s *raw_st, struct raw_trace_s
 #endif
 
 #if 1
-static int __stack_addrsymbs2string(struct addr_symb_s *addr_symb, int first, char *p, int size)
+static int __stack_addrsymbs2string(int pid, struct addr_symb_s *addr_symb, int first, char *p, int size)
 {
     int ret;
     char *symb;
@@ -373,7 +364,7 @@ static int __stack_addrsymbs2string(struct addr_symb_s *addr_symb, int first, ch
 #if 1
     symb = addr_symb->sym ?: addr_symb->mod;
     if (first) {
-        ret = snprintf(p, (size_t)size, "%s", symb);
+        ret = snprintf(p, (size_t)size, "[%d]%s", pid, symb);
     } else {
         ret = snprintf(p, (size_t)size, "; %s", symb);
     }
@@ -393,7 +384,7 @@ static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, char symbos_s
     for (int i = 0; i < PERF_MAX_STACK_DEPTH; i++) {
         addr_symb = &(stack_symbs->user_stack_symbs[i]);
         if (addr_symb->orign_addr != 0) {
-            len = __stack_addrsymbs2string(addr_symb, first_flag, pos, remain_len);
+            len = __stack_addrsymbs2string(stack_symbs->pid.proc_id, addr_symb, first_flag, pos, remain_len);
             if (len < 0) {
                 return -1;
             }
@@ -407,7 +398,7 @@ static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, char symbos_s
     for (int i = 0; i < PERF_MAX_STACK_DEPTH; i++) {
         addr_symb = &(stack_symbs->kern_stack_symbs[i]);
         if (addr_symb->orign_addr != 0) {
-            len = __stack_addrsymbs2string(addr_symb, first_flag, pos, remain_len);
+            len = __stack_addrsymbs2string(stack_symbs->pid.proc_id, addr_symb, first_flag, pos, remain_len);
             if (len < 0) {
                 return -1;
             }
@@ -483,7 +474,7 @@ static void clear_stack_histo(struct svg_stack_trace_s *svg_st)
 
 #if 1
 static int stack_id2symbs_user(struct stack_trace_s *st, struct stack_id_s *stack_id,
-                                struct addr_symb_s usr_stack_symbs[], size_t size)
+                               struct addr_symb_s usr_stack_symbs[], struct proc_cache_s* proc_cache, size_t size)
 {
     int index = 0;
     u64 ip[PERF_MAX_STACK_DEPTH] = {0};
@@ -499,7 +490,7 @@ static int stack_id2symbs_user(struct stack_trace_s *st, struct stack_id_s *stac
 
     for (int i = PERF_MAX_STACK_DEPTH - 1; (i >= 0 && index < size); i--) {
         if (ip[i] != 0 && IS_IEG_ADDR(ip[i])) {
-            if (search_user_addr_symb(st, &(stack_id->pid), ip[i], &(usr_stack_symbs[index]), stack_id->comm)) {
+            if (search_user_addr_symb(ip[i], &(usr_stack_symbs[index]), proc_cache, stack_id->comm)) {
 #ifdef GOPHER_DEBUG
                 ERROR("[STACKPROBE]: Failed to id2symbs user stack(%s[0x%llx]).\n",
                     stack_id->comm, ip[i]);
@@ -560,7 +551,8 @@ static int stack_id2symbs_kern(struct stack_trace_s *st, u32 kern_stack_id,
     return 0;
 }
 
-static int stack_id2symbs(struct stack_trace_s *st, struct stack_id_s *stack_id, struct stack_symbs_s *stack_symbs)
+static int stack_id2symbs(struct stack_trace_s *st, struct stack_id_s *stack_id, struct proc_cache_s* proc_cache,
+                          struct stack_symbs_s *stack_symbs)
 {
     int ret;
     (void)memcpy(&(stack_symbs->pid), &(stack_id->pid), sizeof(struct stack_pid_s));
@@ -575,7 +567,7 @@ static int stack_id2symbs(struct stack_trace_s *st, struct stack_id_s *stack_id,
 
     if (stack_id->user_stack_id >= 0) {
         if (stack_id2symbs_user(st, stack_id,
-                stack_symbs->user_stack_symbs, PERF_MAX_STACK_DEPTH)) {
+                stack_symbs->user_stack_symbs, proc_cache, PERF_MAX_STACK_DEPTH)) {
             return -1;
         }
     }
@@ -608,9 +600,24 @@ static u64 __stack_count_symb(struct stack_trace_s *st)
             if (mod && mod->debug_symbs) {
                 count += (u64)mod->debug_symbs->symbs_count;
             }
+            item->proc_symbs->need_update = 1; // periodic update JVM symbs
         }
     }
     return count;
+}
+
+static struct proc_cache_s* __get_proc_cache(struct stack_trace_s *st, struct stack_pid_s *stack_pid)
+{
+    struct proc_cache_s* proc_cache;
+
+    proc_cache = __search_proc_cache(st, stack_pid);
+    if (!proc_cache) {
+        proc_cache = __create_proc_cache(st, stack_pid);
+    } else if (proc_cache->proc_symbs->need_update) {
+        __update_proc_cache(proc_cache->proc_symbs);
+    }
+
+    return proc_cache;
 }
 
 static int stack_id2histogram(struct stack_trace_s *st, enum stack_svg_type_e en_type, char is_stackmap_a)
@@ -619,6 +626,7 @@ static int stack_id2histogram(struct stack_trace_s *st, enum stack_svg_type_e en
     struct stack_id_s *stack_id;
     struct stack_symbs_s stack_symbs;
     struct raw_stack_trace_s *raw_st;
+    struct proc_cache_s* proc_cache;
     if (!st->svg_stack_traces[en_type]) {
         return -1;
     }
@@ -636,8 +644,9 @@ static int stack_id2histogram(struct stack_trace_s *st, enum stack_svg_type_e en
             break;
         }
         stack_id = &(raw_st->raw_traces[i].stack_id);
+        proc_cache = __get_proc_cache(st, &(stack_id->pid));
         (void)memset(&stack_symbs, 0, sizeof(stack_symbs));
-        ret = stack_id2symbs(st, stack_id, &stack_symbs);
+        ret = stack_id2symbs(st, stack_id, proc_cache, &stack_symbs);
         if (ret != 0) {
             continue;
         }
