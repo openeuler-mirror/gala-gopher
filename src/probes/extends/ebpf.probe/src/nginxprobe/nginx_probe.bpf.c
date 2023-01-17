@@ -59,7 +59,7 @@ static void bpf_copy_ip_addr(const struct sockaddr *addr, struct ip_addr *ip)
     return;
 }
 
-static UPROBE(ngx_http_upstream_handler, pt_regs)
+UPROBE(ngx_http_upstream_handler, pt_regs)
 {
     //__u64 tid = bpf_get_current_pid_tgid();
     struct ngx_event_s *evt = (struct ngx_event_s *)PT_REGS_PARM1(ctx);
