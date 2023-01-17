@@ -61,7 +61,8 @@ install:
 	mkdir -p $(INSTALL_DIR)/stack_bpf
 	cp $(APP) $(INSTALL_DIR)
 	cp $(BPF_PROG) $(INSTALL_DIR)/stack_bpf
-	cp $(CONF_FILE) $(INSTALL_DIR)
+	mkdir -p $(CONF_INSTALL_DIR)
+	cp $(CONF_FILE) $(CONF_INSTALL_DIR)
 	cp $(AGENT) $(INSTALL_DIR)
 	cp $(ATTACH) $(INSTALL_DIR)
 

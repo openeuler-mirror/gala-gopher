@@ -101,7 +101,7 @@ typedef enum {
 } OutChannelType;
 
 #define GALA_META_DIR_PATH "/opt/gala-gopher/meta"
-#define GALA_CONF_PATH_DEFAULT "/opt/gala-gopher/gala-gopher.conf"
+#define GALA_CONF_PATH_DEFAULT "/etc/gala-gopher/gala-gopher.conf"
 
 #endif
 

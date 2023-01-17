@@ -1,11 +1,20 @@
 #!/bin/bash
 PROGRAM=$0
 PRJ_DIR=$(dirname $(readlink -f "$0"))
-INSTALL_FILES=${PRJ_DIR}/jvm.probe
-cd ${INSTALL_FILES}
+INSTALL_FILES="jvm.probe/JvmProbe.jar"
 
-	if [ $# -eq 1 ]; then    
-	  	  \cp JvmProbe.jar $1
-	fi
-	 
+while getopts ":b:c:" opt
+do
+    case $opt in
+        b) INSTALL_PATH=$OPTARG;;
+        c) CONF_PATH=$OPTARG;;
+        ?) echo "unknow param"; exit 1;;
+    esac
+done
+
+cd ${PRJ_DIR}
+    if [ ${INSTALL_PATH} ]; then
+        mkdir -p ${INSTALL_PATH}
+        \cp ${INSTALL_FILES} ${INSTALL_PATH}
+    fi
 

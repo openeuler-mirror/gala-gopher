@@ -39,14 +39,12 @@ ifeq ($(wildcard $(VMLINUX)), )
     ln -s linux_${LINUX_VER}.h vmlinux.h;)
 endif
 
-LIBBPF_VER = $(shell rpm -qa | grep libbpf-devel | awk -F'-' '{print $$3}')
+LIBBPF_VER = $(shell rpm -q libbpf | awk -F'-' '{print $$2}')
 LIBBPF_VER_MAJOR = $(shell echo $(LIBBPF_VER) | awk -F'.' '{print $$1}')
 LIBBPF_VER_MINOR = $(shell echo $(LIBBPF_VER) | awk -F'.' '{print $$2}')
 
-ifneq ($(wildcard $(BPFTOOL)), )
-    $(info "bpftool exist.")
-else
-$(shell cd $(TOOL_DIR); \
+ifeq ($(wildcard $(BPFTOOL)), )
+    $(shell cd $(TOOL_DIR); \
     if [ $(LIBBPF_VER_MAJOR) -gt 0 ]; then ln -s bpftool_v6.8.0/bpftool_${ARCH} bpftool; \
     elif [ $(LIBBPF_VER_MINOR) -ge 8 ]; then ln -s bpftool_v6.8.0/bpftool_${ARCH} bpftool; \
     else ln -s bpftool_${ARCH} bpftool; fi; )

@@ -120,7 +120,7 @@ def convert_meta():
     }
     '''
     global g_meta
-    meta_path = os.path.join(PROJECT_PATH, "extend_probes/cadvisor_probe.conf")
+    meta_path = os.path.join("/etc/gala-gopher/extend_probes/cadvisor_probe.conf")
     with io.open(meta_path, encoding='utf-8') as f:
         meta = libconf.load(f)
         g_meta = dict()
