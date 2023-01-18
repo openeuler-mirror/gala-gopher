@@ -62,6 +62,7 @@ struct elf_symbo_s {
     u32 i_inode;
     u32 refcnt;
     char *elf;
+    long elf_offset; // for jvm symbols 
     u32 symbs_count;
     u32 symbs_capability;
     struct symb_s** __symbs;

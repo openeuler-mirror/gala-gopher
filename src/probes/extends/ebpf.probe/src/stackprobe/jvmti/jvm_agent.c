@@ -115,17 +115,16 @@ void get_class_name_from_csig(char *dest, size_t dest_size, const char *sig) {
 static char __sym_tmp_str[COMMAND_LEN];
 void write_sym(const void *code_addr, unsigned int code_size, char *csig, const char *method_name) {
     if (method_name == NULL) {
-        // TODO: err
         return;
     }
 
     if (g_sym_fp != NULL) {
         __sym_tmp_str[0] = 0;
         if (csig != NULL) {
-            char class_name[COMMAND_LEN];
+            char class_name[COMMAND_LEN] = {0};
             get_class_name_from_csig(class_name, sizeof(class_name), csig);
             (void)snprintf(__sym_tmp_str, COMMAND_LEN, "%llx %x %s::%s\n",
-                (u64)code_addr, code_size, class_name, method_name); // TODO: to add other label?
+                (u64)code_addr, code_size, class_name, method_name);
         } else {
             (void)snprintf(__sym_tmp_str, COMMAND_LEN, "%llx %x %s\n",
                 (u64)code_addr, code_size, method_name);

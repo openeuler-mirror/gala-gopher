@@ -258,6 +258,32 @@ err:
     return NULL;
 }
 
+static void __reset_java_symbol(struct elf_symbo_s* elf_symbo)
+{
+    if (!elf_symbo) {
+        return;
+    }
+
+    for (int i = 0; i < elf_symbo->symbs_count; i++) {
+        __symb_destroy(elf_symbo->symbs[i]);
+        if (elf_symbo->symbs[i]) {
+            (void)free(elf_symbo->symbs[i]);
+            elf_symbo->symbs[i] = NULL;
+        }
+    }
+
+    if (elf_symbo->symbs) {
+        (void)free(elf_symbo->symbs);
+        elf_symbo->symbs = NULL;
+    }
+
+    elf_symbo->elf_offset = 0;
+    elf_symbo->symbs_count = 0;
+    elf_symbo->symbs_capability = 0;
+
+    return;
+}
+
 int __get_java_symb_from_file(const char *file, struct elf_symbo_s* elf_symbo)
 {
     int ret = 0;
@@ -268,6 +294,13 @@ int __get_java_symb_from_file(const char *file, struct elf_symbo_s* elf_symbo)
     fd = fopen(file, "r");
     if (!fd) {
         return -1;
+    }
+
+    if (fseek(fd, elf_symbo->elf_offset, SEEK_SET)) {
+        ERROR("[ELF_SYMBOL]: seek err(%s) at %ld.\n", elf_symbo->elf, elf_symbo->elf_offset);
+        __reset_java_symbol(elf_symbo); // TODO: need to clear file?
+        ret = -1;
+        goto err;
     }
 
     while (fgets(line, sizeof(line), fd)) {
@@ -284,12 +317,13 @@ int __get_java_symb_from_file(const char *file, struct elf_symbo_s* elf_symbo)
         }
         elf_symbo->symbs[elf_symbo->symbs_count++] = new_symb;
     }
+    elf_symbo->elf_offset = ftell(fd);
 
 err:
     if (fd > 0) {
         fclose(fd);
     }
-    DEBUG("[ELF_SYMBOL]: get java symb from file %s ret %d\n",file, ret);
+    DEBUG("[ELF_SYMBOL]: get java symb from file %s ret %d\n", file, ret);
     return ret;
 }
 
@@ -386,40 +420,36 @@ struct elf_symbo_s* update_symb_from_jvm_sym_file(const char* elf)
     int ret;
     u32 inode;
     enum sym_file_t sym_file_type = JAVA_SYM;
-    struct elf_symbo_s* item = NULL, *new_item = NULL;
+    struct elf_symbo_s* item = NULL;
     ret = __get_inode(elf, &inode);
     if (ret != 0) {
         return NULL;
     }
 
     item = __lkup_symb(inode);
-    if (item) {
-        // TODO: update jvm syms
-        return item;
+    if (!item) {
+        item = __create_symbol(elf, inode);
+        if (!item) {
+            goto err;
+        }
+        H_ADD_I(__head, i_inode, item);
     }
 
-    new_item = __create_symbol(elf, inode);
-    if (!new_item) {
-        goto err;
-    }
-    ret = __load_symbol_from_file(new_item, sym_file_type);
+    ret = __load_symbol_from_file(item, sym_file_type);
     if (ret != 0) {
-        ERROR("[ELF_SYMBOL]: Failed to load symbol(%s).\n", new_item->elf);
+        ERROR("[ELF_SYMBOL]: Failed to load symbol(%s).\n", item->elf);
         goto err;
     }
 
-    (void)__sort_symbol(new_item);
+    (void)__sort_symbol(item);
 
-    H_ADD_I(__head, i_inode, new_item);
-    if (sym_file_type == JAVA_SYM) {
-        INFO("[ELF_SYMBOL]: Succeed to update JVM symbs %s(symbs_count = %u).\n", new_item->elf, new_item->symbs_count);
-    }
+    INFO("[ELF_SYMBOL]: Succeed to update JVM symbs %s(symbs_count = %u).\n", item->elf, item->symbs_count);
+    return item;
 
-    return new_item;
 err:
-    if (new_item) {
-        __destroy_symbol(new_item);
-        (void)free(new_item);
+    if (item) {
+        __destroy_symbol(item);
+        (void)free(item);
     }
     return NULL;
 }
