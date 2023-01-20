@@ -48,7 +48,7 @@ function install_conf()
 {
     GOPHER_CONF_FILE=${PROJECT_FOLDER}/config/gala-gopher.conf
     TASKPROBE_WHITELIST_FILE=${PROJECT_FOLDER}/config/gala-gopher-app.conf
-    GOPHER_CONF_TARGET_DIR=/opt/gala-gopher
+    GOPHER_CONF_TARGET_DIR=/etc/gala-gopher
 
     if [ $# -eq 1 ]; then
         GOPHER_CONF_TARGET_DIR=$1
@@ -77,9 +77,9 @@ function install_conf()
 function install_res()
 {
     GOPHER_EVENT_RC_FILE=${PROJECT_FOLDER}/res/event_multy_language.rc
-    GOPHER_RES_TARGET_DIR=/opt/gala-gopher/res
+    GOPHER_RES_TARGET_DIR=/etc/gala-gopher/res
 
-    if [ $# -eq 1]; then
+    if [ $# -eq 1 ]; then
         GOPHER_RES_TARGET_DIR=$1/res
     fi
 
@@ -143,14 +143,15 @@ function install_shared_lib()
 
 function install_extend_probes()
 {
-    GOPHER_EXTEND_PROBE_DIR=/opt/gala-gopher/extend_probes
-
-    if [ $# -eq 1 ]; then
-        GOPHER_EXTEND_PROBE_DIR=$1/extend_probes
-    fi
+    GOPHER_EXTEND_PROBE_DIR=${1:-/opt/gala-gopher}/extend_probes
+    GOPHER_EXTEND_PROBE_CONF_DIR=${2:-/etc/gala-gopher}/extend_probes
 
     if [ ! -d ${GOPHER_EXTEND_PROBE_DIR} ]; then
         mkdir -p ${GOPHER_EXTEND_PROBE_DIR}
+    fi
+
+    if [ ! -d ${GOPHER_EXTEND_PROBE_CONF_DIR} ]; then
+        mkdir -p ${GOPHER_EXTEND_PROBE_CONF_DIR}
     fi
 
     cd ${PROJECT_FOLDER}
@@ -160,7 +161,7 @@ function install_extend_probes()
     for INSTALL_PATH in ${EXT_PROBE_INSTALL_LIST}
     do
         echo "install path:" ${INSTALL_PATH}
-        ${INSTALL_PATH} ${GOPHER_EXTEND_PROBE_DIR}
+        ${INSTALL_PATH} -b ${GOPHER_EXTEND_PROBE_DIR} -c ${GOPHER_EXTEND_PROBE_CONF_DIR}
     done
 }
 
@@ -189,9 +190,9 @@ function install_client_bin()
 # main process
 load_tailor
 install_daemon_bin $1
-install_conf $2
-install_res $2
+install_conf $3
+install_res $3
 install_meta $2
 install_shared_lib $2
-install_extend_probes $2
+install_extend_probes $2 $3
 install_client_bin $1

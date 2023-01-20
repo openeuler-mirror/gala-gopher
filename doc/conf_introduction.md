@@ -21,7 +21,7 @@ extend探针配置文件归档在探针同级目录下。目前有配置文件�
 
 ### gala-gopher.conf
 
-`gala-gopher.conf`文件的安装路径为 `/opt/gala-gopher/gala-gopher.conf`。该文件配置项说明如下：
+`gala-gopher.conf`文件的安装路径为 `/etc/gala-gopher/gala-gopher.conf`。该文件配置项说明如下：
 
 - global：gala-gopher全局配置信息
   - log_directory：gala-gopher日志文件名
@@ -35,6 +35,8 @@ extend探针配置文件归档在探针同级目录下。目前有配置文件�
 - event：异常事件event输出方式配置
   - out_channel：event输出通道，支持配置logs|kafka，配置为空则输出通道关闭
   - kafka_topic：若输出通道为kafka，此为topic配置信息
+  - timeout：同一异常事件上报间隔设置
+  - desc_language：异常事件描述信息语言选择，当前支持配置zh_CN|en_US
 
 - meta：元数据metadata输出方式配置
   - out_channel：metadata输出通道，支持logs|kafka，配置为空则输出通道关闭
@@ -77,7 +79,7 @@ extend探针配置文件归档在探针同级目录下。目前有配置文件�
 
 ### gala-gopher-app.conf
 
-`gala-gophe-appr.conf`文件的安装路径为 `/opt/gala-gopher/gala-gopher-app.conf`。该文件配置项说明如下：
+`gala-gophe-app.conf`文件的安装路径为 `/etc/gala-gopher/gala-gopher-app.conf`。该文件配置项说明如下：
 
 - application：gala-gopher的应用观测范围配置
   - comm：应用进程的进程名
@@ -87,7 +89,7 @@ extend探针配置文件归档在探针同级目录下。目前有配置文件�
 
 1. 请将需要观测的进程信息新增到 `application` 下；默认配置提供了部分运行时、业界知名应用的配置，如果不需要观测这些应用，请删除这些配置项；
 2. 对于每一个应用， `comm` 项为必须配置的项；
-3. 应用进程名`comm`需要提供完整的进程名信息，如：想监控的进程名为`redis-cli`，配置 `comm = "redis"` 则会导致匹配失败；
+3. 应用进程名`comm`支持正则匹配，请提供满足正则表达式规则的进程名信息，如：配置 `comm = "redis*"`会监控所有进程名以redis开头的进程，配置`^nginx$` 则仅监控进程名为nginx的进程；
 4. 应用进程命令行`cmdline`配置的最大长度不可超过128，支持模糊匹配，即支持cmdline配置部分的、连续的字符串进行匹配；如：想要监控某python进程，对应的cmdline为 `python3 test_server.py` ，则配置 `cmdline = "server"` 即可成功匹配；
 5. 大部分情况下，可以仅通过应用进程名`comm`信息来唯一标识应用，那么不再需要配置`cmdline`部分，置为空表示不根据cmdline匹配；
 
@@ -96,7 +98,7 @@ extend探针配置文件归档在探针同级目录下。目前有配置文件�
 
 ### stackprobe.conf
 
-`stackprobe.conf`文件的安装路径为 `/opt/gala-gopher/extend_probes/stackprobe.conf`。该文件配置项说明如下：
+`stackprobe.conf`文件的安装路径为 `/etc/gala-gopher/extend_probes/stackprobe.conf`。该文件配置项说明如下：
 
 - general：通用设置
   - period：火焰图生成周期
@@ -114,7 +116,7 @@ extend探针配置文件归档在探针同级目录下。目前有配置文件�
 
 ### cadvisor_probe.conf
 
-`cadvisor_probe.conf`文件的安装路径为 `/opt/gala-gopher/extend_probes/cadvisor_probe.conf`。该文件配置项说明如下：
+`cadvisor_probe.conf`文件的安装路径为 `/etc/gala-gopher/extend_probes/cadvisor_probe.conf`。该文件配置项说明如下：
 
 - version：配置文件版本号
 - measurements：待集成到gala-gopher的观测指标
@@ -130,7 +132,7 @@ extend探针配置文件归档在探针同级目录下。目前有配置文件�
 
 ### pg_stat_probe.conf
 
-`pg_stat_probe.conf`文件的安装路径为 `/opt/gala-gopher/extend_probes/pg_stat_probe.conf`。该文件配置项说明如下：
+`pg_stat_probe.conf`文件的安装路径为 `/etc/gala-gopher/extend_probes/pg_stat_probe.conf`。该文件配置项说明如下：
 
 - servers：PostgreSQL服务端配置
   - ip：服务端IP
@@ -177,7 +179,8 @@ grant select on pg_stat_replication to <USER>;
 | -d     | 制定目标设备，包括磁盘、网卡等。示例：-d eth0                |
 | -C     | 指定探针(ksliprobe)是否开启周期采样，增加该参数则连续采集数据，不加该参数则周期性(如5s)采样一次 |
 | -w     | 筛选应用程序监控范围，如-w  /opt/gala-gopher/gala-gopher-app.conf，默认配置为NULL表示不筛选，system_infos、taskprobe探针涉及 |
-| -k     | 为kafkaprobe指定消息队列kafka服务端绑定的端口号，默认值9092。          |
+| -k     | 为kafkaprobe指定消息队列kafka服务端绑定的端口号，默认值9092  |
+| -i     | 为host探针指定需要展示的IP地址信息，不配置的情况下默认输出全部host ip信息 |
 
 > 说明：上表中某些参数用于异常事件，目前异常事件范围参考[系统异常范围](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech_abnormal.md)。
 
@@ -205,6 +208,8 @@ event =
 {
     out_channel = "kafka";          # 设置event采用kafka上报方式
     kafka_topic = "gala_gopher_event";  # kafka方式下，对应的topic信息
+    timeout = 600;  # 10min
+    desc_language = "zh_CN";        # eg: zh_CN | en_US
 };
 
 meta =
@@ -259,7 +264,7 @@ probes =                             # 仅列出switch为on的探针
 (
     {
         name = "system_infos";
-        param = "-t 5 -w /opt/gala-gopher/gala-gopher-app.conf -l warn -U 80";
+        param = "-t 5 -w /etc/gala-gopher/gala-gopher-app.conf -l warn -U 80";
         switch = "on";
     }
 );
@@ -283,7 +288,7 @@ extend_probes =
     {
         name = "task";
         command = "/opt/gala-gopher/extend_probes/taskprobe";
-        param = "-w /opt/gala-gopher/gala-gopher-app.conf -P 3174";
+        param = "-w /etc/gala-gopher/gala-gopher-app.conf -P 3174";
         switch = "on";
     }
 );
@@ -298,7 +303,7 @@ application =
         cmdline = "server";			# 通过cmdline关键字信息可以精确到具体应用
     },
     {
-        comm = "taskprobe",			# 进程名必须配置
+        comm = "^taskprobe$",		    # 进程名必须配置
         cmdline = "";			    # 配置为空表示无需通过cmdline做进一步匹配
     }
 );

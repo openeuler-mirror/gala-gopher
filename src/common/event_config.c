@@ -20,7 +20,7 @@
 #include <libconfig.h>
 #include "event_config.h"
 
-#define EVT_MULTY_LANG_RES_FILE_PATH    "/opt/gala-gopher/res/event_multy_language.rc"
+#define EVT_MULTY_LANG_RES_FILE_PATH    "/etc/gala-gopher/res/event_multy_language.rc"
 
 static void event_config_destroy(eventConfig *evt);
 

@@ -36,7 +36,7 @@ def get_tgid(port):
 
 def init_conns():
     global g_servers
-    meta_path = os.path.join(PROJECT_PATH, "extend_probes/pg_stat_probe.conf")
+    meta_path = os.path.join("/etc/gala-gopher/extend_probes/pg_stat_probe.conf")
     with open(meta_path, 'r') as f:
         conf = yaml.safe_load(f.read())
         for server in conf['servers']:
