@@ -17,6 +17,10 @@ SRC_C += $(wildcard conf/*.c)
 SRC_C += $(CFILES)
 
 ALL := pre deps app agent attach
+
+ifndef JAVA_HOME
+	JAVA_HOME := $(abspath $(shell which javac)/../..)
+endif
 JNI_INC := -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux
 
 .PHONY: all clean install
@@ -40,9 +44,6 @@ app: $(APP)
 
 agent: $(AGENT)
 $(AGENT): jvmti/jvm_agent.c
-ifndef JAVA_HOME
-	@echo "WARN: environment variable JAVA_HOME not found"
-endif
 	$(CC) $(CFLAGS) -shared $(INCLUDES) $(JNI_INC) $^ $(LDFLAGS) -o $@
 	@echo $@ "compiling completed."
 

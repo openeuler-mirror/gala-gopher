@@ -154,32 +154,6 @@ static int get_debug_link_path(const char* pid_root, const char* dbg_dir,
     return -1;
 }
 
-
-#define __GET_CONTAINER_ID_CMD  "/usr/bin/cat /proc/%d/cpuset | awk -F '/' '{print $NF}'"
-static int __get_container_id_by_pid(int pid, char container_id[], size_t len)
-{
-    char cmd[COMMAND_LEN];
-    char buf[CONTAINER_ID_LEN];
-
-    if (len <= CONTAINER_ABBR_ID_LEN) {
-        return -1;
-    }
-
-    buf[0] = 0;
-    cmd[0] = 0;
-    (void)snprintf(cmd, COMMAND_LEN, __GET_CONTAINER_ID_CMD, pid);
-
-    if (exec_cmd((const char *)cmd, buf, CONTAINER_ID_LEN)) {
-        return -1;
-    }
-
-    if (strstr(buf, "No such file")) {
-        return -1;
-    }
-    (void)strncpy(container_id, buf, CONTAINER_ABBR_ID_LEN);
-    return 0;
-}
-
 #define __GET_ROOT_PATH_CMD  "/usr/bin/readlink /proc/%d/root"
 static int __get_pid_root_path(int pid, char root_path[], size_t len)
 {
@@ -195,12 +169,14 @@ static int __get_pid_root_path(int pid, char root_path[], size_t len)
     return 0;
 }
 
-static int get_pid_root_path(int pid, char root_path[], size_t len)
+static int get_pid_root_path(struct proc_symbs_s* proc_symbs, char root_path[], size_t len)
 {
     int ret, path_len;
     char pid_root[PATH_LEN];
     char container_root[PATH_LEN];
-    char container_id[CONTAINER_ABBR_ID_LEN + 1] = {0};
+
+    int pid = proc_symbs->proc_id;
+    char *container_id = proc_symbs->container_id;
 
     pid_root[0] = 0;
     ret = __get_pid_root_path(pid, pid_root, PATH_LEN);
@@ -208,7 +184,6 @@ static int get_pid_root_path(int pid, char root_path[], size_t len)
         return ret;
     }
 
-    (void)__get_container_id_by_pid(pid, container_id, CONTAINER_ABBR_ID_LEN + 1);
     if (container_id[0] == 0) {
         if (IS_SYSTEM_ROOT(pid_root)) {
             (void)strncpy(root_path, pid_root, len - 1);
@@ -452,7 +427,7 @@ static int sort_elf_symbol(struct elf_symbo_s* elf_symbo)
 
 #endif
 
-int get_elf_debug_file(struct elf_reader_s* reader, int pid,
+int get_elf_debug_file(struct elf_reader_s* reader, struct proc_symbs_s* proc_symbs,
         const char* elf, const char* elf_link, char debug_file[], size_t len)
 {
     int ret;
@@ -464,7 +439,7 @@ int get_elf_debug_file(struct elf_reader_s* reader, int pid,
 
     // step1: get pid root path.
     pid_root_path[0] = 0;
-    ret = get_pid_root_path(pid, pid_root_path, PATH_LEN);
+    ret = get_pid_root_path(proc_symbs, pid_root_path, PATH_LEN);
     if (ret != 0) {
         return ret;
     }

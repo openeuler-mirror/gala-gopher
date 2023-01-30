@@ -319,7 +319,7 @@ static int __set_attach_argv(struct jvm_agent_hash_t *pid_bpf_link)
     char host_agent_so_path[LINE_BUF_LEN];
     (void)snprintf(host_agent_so_path, LINE_BUF_LEN, "%s%s", pid_bpf_link->v.host_proc_dir, ns_agent_so_path);
 
-    if (access(host_agent_so_path, 0) != 0) { // TODO:
+    if (access(host_agent_so_path, 0) != 0) {
         char src_agent_so[PATH_LEN] = {0};
         (void)snprintf(src_agent_so, PATH_LEN, "%s/%s", HOST_SO_DIR, AGENT_SO_FILE);
         ret = copy_file(host_agent_so_path, src_agent_so); // overwrite is ok.

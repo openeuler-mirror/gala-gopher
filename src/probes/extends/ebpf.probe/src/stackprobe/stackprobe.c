@@ -353,7 +353,8 @@ static int add_raw_stack_id(struct raw_stack_trace_s *raw_st, struct raw_trace_s
 #endif
 
 #if 1
-static int __stack_addrsymbs2string(int pid, struct addr_symb_s *addr_symb, int first, char *p, int size)
+static int __stack_addrsymbs2string(struct proc_symbs_s *proc_symbs, struct addr_symb_s *addr_symb,
+                                    int first, char *p, int size)
 {
     int ret;
     char *symb;
@@ -361,19 +362,32 @@ static int __stack_addrsymbs2string(int pid, struct addr_symb_s *addr_symb, int 
         return -1;
     }
 
+    char *cur_p = p;
+    int len = size;
+
 #if 1
     symb = addr_symb->sym ?: addr_symb->mod;
     if (first) {
-        ret = snprintf(p, (size_t)size, "[%d]%s", pid, symb);
+        if (proc_symbs->pod[0] != 0) {
+            ret = __snprintf(&cur_p, len, &len, "[Pod]%s; ", proc_symbs->pod);
+        }
+        if (proc_symbs->container_name[0] != 0) {
+            ret = __snprintf(&cur_p, len, &len, "[Con]%s; ", proc_symbs->container_name);
+        }
+        ret = __snprintf(&cur_p, len, &len, "[%d]%s; %s", proc_symbs->proc_id, proc_symbs->comm, symb);
     } else {
-        ret = snprintf(p, (size_t)size, "; %s", symb);
+        ret = __snprintf(&cur_p, len, &len, "; %s", symb);
     }
 
 #endif
-    return (ret > 0 && ret < size) ? (ret) : -1;
+    if (ret < 0) {
+        return -1;
+    }
+    return size > len ? (size - len) : -1;
 }
 
-static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, char symbos_str[], size_t size)
+static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, struct proc_symbs_s *proc_symbs,
+                                char symbos_str[], size_t size)
 {
     int len;
     int first_flag = 1;
@@ -384,11 +398,10 @@ static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, char symbos_s
     for (int i = 0; i < PERF_MAX_STACK_DEPTH; i++) {
         addr_symb = &(stack_symbs->user_stack_symbs[i]);
         if (addr_symb->orign_addr != 0) {
-            len = __stack_addrsymbs2string(stack_symbs->pid.proc_id, addr_symb, first_flag, pos, remain_len);
+            len = __stack_addrsymbs2string(proc_symbs, addr_symb, first_flag, pos, remain_len);
             if (len < 0) {
                 return -1;
             }
-
             remain_len -= len;
             pos += len;
             first_flag = 0;
@@ -398,27 +411,26 @@ static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, char symbos_s
     for (int i = 0; i < PERF_MAX_STACK_DEPTH; i++) {
         addr_symb = &(stack_symbs->kern_stack_symbs[i]);
         if (addr_symb->orign_addr != 0) {
-            len = __stack_addrsymbs2string(stack_symbs->pid.proc_id, addr_symb, first_flag, pos, remain_len);
+            len = __stack_addrsymbs2string(proc_symbs, addr_symb, first_flag, pos, remain_len);
             if (len < 0) {
                 return -1;
             }
-
             remain_len -= len;
             pos += len;
             first_flag = 0;
         }
     }
-
     return 0;
 }
 
-static int add_stack_histo(struct stack_trace_s *st, struct stack_symbs_s *stack_symbs, enum stack_svg_type_e en_type, s64 count)
+static int add_stack_histo(struct stack_trace_s *st, struct stack_symbs_s *stack_symbs,
+    struct proc_symbs_s *proc_symbs, enum stack_svg_type_e en_type, s64 count)
 {
     char str[STACK_SYMBS_LEN];
     struct stack_trace_histo_s *item = NULL, *new_item;
 
     str[0] = 0;
-    if (__stack_symbs2string(stack_symbs, str, STACK_SYMBS_LEN)) {
+    if (__stack_symbs2string(stack_symbs, proc_symbs, str, STACK_SYMBS_LEN)) {
         // Statistic error, but program continues
         st->stats.count[STACK_STATS_HISTO_ERR]++;
     }
@@ -645,13 +657,16 @@ static int stack_id2histogram(struct stack_trace_s *st, enum stack_svg_type_e en
         }
         stack_id = &(raw_st->raw_traces[i].stack_id);
         proc_cache = __get_proc_cache(st, &(stack_id->pid));
+        if (!proc_cache) {
+            continue;
+        }
         (void)memset(&stack_symbs, 0, sizeof(stack_symbs));
         ret = stack_id2symbs(st, stack_id, proc_cache, &stack_symbs);
         if (ret != 0) {
             continue;
         }
         st->stats.count[STACK_STATS_ID2SYMBS]++;
-        (void)add_stack_histo(st, &stack_symbs, en_type, raw_st->raw_traces[i].count);
+        (void)add_stack_histo(st, &stack_symbs, proc_cache->proc_symbs, en_type, raw_st->raw_traces[i].count);
     }
 
     st->stats.count[STACK_STATS_P_CACHE] = H_COUNT(st->proc_cache);
