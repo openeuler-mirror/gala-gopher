@@ -30,6 +30,7 @@
 #include "gopher_elf.h"
 #include "debug_elf_reader.h"
 #include "elf_symb.h"
+#include "container.h"
 #include "symbol.h"
 #include "java_support.h"
 
@@ -505,7 +506,7 @@ static int load_debug_symbs(struct proc_symbs_s* proc_symbs, struct mod_s* mod)
 
     debug_file[0] = 0;
     (void)get_elf_debug_file(mod->elf_reader,
-                             proc_symbs->proc_id,
+                             proc_symbs,
                              (const char *)mod->mod_name,
                              (const char *)mod->mod_path,
                              debug_file,
@@ -915,6 +916,63 @@ next:
     return is_over ? ret : 0;
 }
 
+#define __GET_CONTAINER_ID_CMD  "/usr/bin/cat /proc/%d/cpuset 2>/dev/null | awk -F '/' '{print $NF}'"
+static int __get_container_id_by_pid(int pid, char container_id[], size_t len)
+{
+    char cmd[COMMAND_LEN];
+    char buf[CONTAINER_ID_LEN];
+
+    if (len <= CONTAINER_ABBR_ID_LEN) {
+        return -1;
+    }
+
+    buf[0] = 0;
+    cmd[0] = 0;
+    (void)snprintf(cmd, COMMAND_LEN, __GET_CONTAINER_ID_CMD, pid);
+
+    if (exec_cmd((const char *)cmd, buf, CONTAINER_ID_LEN) < 0) {
+        return -1;
+    }
+
+    if (strstr(buf, "No such file")) {
+        return -1;
+    }
+
+    if (buf[0] == 0) {
+        return -1;
+    }
+
+    (void)strncpy(container_id, buf, CONTAINER_ABBR_ID_LEN);
+    return 0;
+}
+
+void __get_proc_info(struct proc_symbs_s* proc_symbs, int proc_id)
+{
+    int ret = 0;
+    proc_symbs->proc_id = proc_id;
+
+    if (proc_id == 0) {
+        return;
+    }
+
+    if (__get_container_id_by_pid(proc_id, proc_symbs->container_id, CONTAINER_ABBR_ID_LEN + 1) >= 0 &&
+        proc_symbs->container_id[0] != 0 &&
+        get_container_name(proc_symbs->container_id, proc_symbs->container_name, CONTAINER_NAME_LEN) >= 0) {
+        ret = get_container_pod(proc_symbs->container_id, proc_symbs->pod, POD_NAME_LEN);
+        if (ret < 0) {
+            proc_symbs->pod[0] = 0;
+        }
+    } else {
+        proc_symbs->container_id[0] = 0;
+        proc_symbs->container_name[0] = 0;
+    }
+
+    if (detect_proc_is_java(proc_symbs->proc_id, proc_symbs->comm, TASK_COMM_LEN)) {
+        proc_symbs->is_java = 1;
+        proc_symbs->need_update = 1;  // to init JVM symbs
+    }
+}
+
 struct proc_symbs_s* proc_load_all_symbs(void *elf_reader, int proc_id)
 {
     int ret;
@@ -927,7 +985,7 @@ struct proc_symbs_s* proc_load_all_symbs(void *elf_reader, int proc_id)
         return NULL;
     }
     (void)memset(proc_symbs, 0, sizeof(struct proc_symbs_s));
-    proc_symbs->proc_id = proc_id;
+    __get_proc_info(proc_symbs, proc_id);
 
     maps_file[0] = 0;
     (void)snprintf(maps_file, PATH_LEN, "/proc/%d/maps", proc_id);
@@ -938,11 +996,6 @@ struct proc_symbs_s* proc_load_all_symbs(void *elf_reader, int proc_id)
     if (!fp){
         ERROR("[SYMBOL]: Open proc maps-file failed.[%s] %s.\n", maps_file, strerror(errno));
         goto err;
-    }
-
-    if (detect_proc_is_java(proc_symbs->proc_id, proc_symbs->comm, TASK_COMM_LEN)) {
-        proc_symbs->is_java = 1;
-        proc_symbs->need_update = 1;  // to init JVM symbs
     }
 
     ret = proc_iter_maps(elf_reader, proc_symbs, fp);

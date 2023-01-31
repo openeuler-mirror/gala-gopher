@@ -279,7 +279,17 @@ static int __get_container_pod(const char *abbr_container_id, char pod[], unsign
     (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
             get_current_command(), abbr_container_id, DOCKER_POD_COMMAND);
 
-    return exec_cmd((const char *)command, pod, len);
+    if (exec_cmd((const char *)command, pod, len) < 0) {
+        return -1;
+    }
+
+    if (strstr(pod, abbr_container_id) != NULL) {
+        // There is no pod
+        pod[0] = 0;
+        return -1;
+    }
+
+    return 0;
 }
 
 static unsigned int __get_pid_namespace(unsigned int pid, const char *namespace)

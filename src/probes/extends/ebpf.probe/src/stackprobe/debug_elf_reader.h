@@ -27,7 +27,7 @@ struct elf_reader_s {
 struct elf_reader_s* create_elf_reader(const char *global_dbg_dir);
 void destroy_elf_reader(struct elf_reader_s* reader);
 
-int get_elf_debug_file(struct elf_reader_s* reader, int pid,
+int get_elf_debug_file(struct elf_reader_s* reader, struct proc_symbs_s* proc_symbs,
         const char* elf, const char* elf_link, char debug_file[], size_t len);
 
 

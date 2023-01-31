@@ -93,6 +93,9 @@ struct mod_s {
 struct proc_symbs_s {
     int proc_id;
     char comm[TASK_COMM_LEN];
+    char container_id[CONTAINER_ABBR_ID_LEN + 1];
+    char container_name[CONTAINER_NAME_LEN];
+    char pod[POD_NAME_LEN];
     int is_java;
     int need_update; // update jvm symbols
     u32 mods_count;
