@@ -19,7 +19,7 @@ SRC_C += $(CFILES)
 ALL := pre deps app agent attach
 
 ifndef JAVA_HOME
-	JAVA_HOME := $(abspath $(shell which javac)/../..)
+	JAVA_HOME := $(abspath $(dir $(realpath $(shell which javac)))/..)
 endif
 JNI_INC := -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux
 
