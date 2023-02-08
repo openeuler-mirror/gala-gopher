@@ -106,12 +106,10 @@ static int is_win_stats_changed(struct tcp_windows* stats, struct tcp_windows* l
     return 0;
 }
 
-
-KRAWTRACE(tcp_rcv_space_adjust, bpf_raw_tracepoint_args)
+static void tcp_wnd_probe_func(void *ctx, struct sock *sk)
 {
     struct tcp_metrics_s *metrics;
     struct tcp_windows last_win_stats = {0};
-    struct sock *sk = (struct sock*)ctx->args[0];
     u32 pid __maybe_unused = bpf_get_current_pid_tgid();
 
     // Avoid high performance costs
@@ -128,4 +126,17 @@ KRAWTRACE(tcp_rcv_space_adjust, bpf_raw_tracepoint_args)
         }
     }
 }
-
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
+KRAWTRACE(tcp_rcv_space_adjust, bpf_raw_tracepoint_args)
+{
+    struct sock *sk = (struct sock*)ctx->args[0];
+    return tcp_wnd_probe_func(ctx, sk);
+}
+#else
+SEC("tracepoint/tcp/tcp_rcv_space_adjust")
+void bpf_trace_tcp_rcv_space_adjust_func(struct trace_event_raw_tcp_event_sk_skb *ctx)
+{
+    struct sock *sk = (struct sock*)ctx->skaddr;
+    return tcp_wnd_probe_func(ctx, sk);
+}
+#endif

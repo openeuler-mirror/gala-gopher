@@ -131,10 +131,9 @@ static void get_tcp_rate(struct sock *sk, struct tcp_rate* stats)
     }
 }
 
-KRAWTRACE(tcp_rcv_space_adjust, bpf_raw_tracepoint_args)
+static void tcp_rate_probe_func(void *ctx, struct sock *sk)
 {
     struct tcp_metrics_s *metrics;
-    struct sock *sk = (struct sock*)ctx->args[0];
     u32 pid __maybe_unused = bpf_get_current_pid_tgid();
 
     // Avoid high performance costs
@@ -148,4 +147,18 @@ KRAWTRACE(tcp_rcv_space_adjust, bpf_raw_tracepoint_args)
         report_rate(ctx, metrics);
     }
 }
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
+KRAWTRACE(tcp_rcv_space_adjust, bpf_raw_tracepoint_args)
+{
+    struct sock *sk = (struct sock*)ctx->args[0];
+    return tcp_rate_probe_func(ctx, sk);
+}
+#else
+SEC("tracepoint/tcp/tcp_rcv_space_adjust")
+void bpf_trace_tcp_rcv_space_adjust_func(struct trace_event_raw_tcp_event_sk_skb *ctx)
+{
+    struct sock *sk = (struct sock*)ctx->skaddr;
+    return tcp_rate_probe_func(ctx, sk);
+}
+#endif
 

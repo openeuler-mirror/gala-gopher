@@ -108,9 +108,8 @@ static int is_sockbuf_stats_changed(struct tcp_sockbuf* stats, struct tcp_sockbu
     return 0;
 }
 
-KRAWTRACE(tcp_probe, bpf_raw_tracepoint_args)
+static void tcp_sockbuf_probe_func(void *ctx, struct sock *sk)
 {
-    struct sock *sk = (struct sock*)ctx->args[0];
     struct tcp_metrics_s *metrics;
     struct tcp_sockbuf last_sockbuf_stats = {0};
     u32 pid __maybe_unused = bpf_get_current_pid_tgid();
@@ -129,4 +128,16 @@ KRAWTRACE(tcp_probe, bpf_raw_tracepoint_args)
         }
     }
 }
-
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
+KRAWTRACE(tcp_probe, bpf_raw_tracepoint_args)
+{
+    struct sock *sk = (struct sock*)ctx->args[0];
+    return tcp_sockbuf_probe_func(ctx, sk);
+}
+#else
+KPROBE(tcp_rcv_established, pt_regs)
+{
+    struct sock *sk = (struct sock*)PT_REGS_PARM1(ctx);
+    return tcp_sockbuf_probe_func(ctx, sk);
+}
+#endif
