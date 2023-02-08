@@ -78,10 +78,9 @@ static int get_tcp_abn_stats(struct sock *sk, struct tcp_abn* stats)
     return 0;
 }
 
-KRAWTRACE(tcp_probe, bpf_raw_tracepoint_args)
+static void tcp_abn_stats_probe_func(void *ctx, struct sock *sk)
 {
     struct tcp_metrics_s *metrics;
-    struct sock *sk = (struct sock*)ctx->args[0];
     u32 pid __maybe_unused = bpf_get_current_pid_tgid();
 
     // Avoid high performance costs
@@ -94,6 +93,19 @@ KRAWTRACE(tcp_probe, bpf_raw_tracepoint_args)
         report_abn(ctx, metrics, sk, 1);
     }
 }
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
+KRAWTRACE(tcp_probe, bpf_raw_tracepoint_args)
+{
+    struct sock *sk = (struct sock*)ctx->args[0];
+    return tcp_abn_stats_probe_func(ctx, sk);
+}
+#else
+KPROBE(tcp_rcv_established, pt_regs)
+{
+    struct sock *sk = (struct sock*)PT_REGS_PARM1(ctx);
+    return tcp_abn_stats_probe_func(ctx, sk);
+}
+#endif
 
 KPROBE_RET(tcp_add_backlog, pt_regs, CTX_KERNEL)
 {
@@ -165,9 +177,8 @@ KRAWTRACE(sock_exceed_buf_limit, bpf_raw_tracepoint_args)
     }
 }
 
-KRAWTRACE(tcp_send_reset, bpf_raw_tracepoint_args)
+static void tcp_abn_snd_rsts_probe_func(void *ctx, struct sock *sk)
 {
-    struct sock *sk = (struct sock *)ctx->args[0];
     struct tcp_metrics_s *metrics;
     u32 pid __maybe_unused = bpf_get_current_pid_tgid();
 
@@ -178,9 +189,8 @@ KRAWTRACE(tcp_send_reset, bpf_raw_tracepoint_args)
     }
 }
 
-KRAWTRACE(tcp_receive_reset, bpf_raw_tracepoint_args)
+static void tcp_abn_rcv_rsts_probe_func(void *ctx, struct sock *sk)
 {
-    struct sock *sk = (struct sock *)ctx->args[0];
     struct tcp_metrics_s *metrics;
     u32 pid __maybe_unused = bpf_get_current_pid_tgid();
 
@@ -190,6 +200,33 @@ KRAWTRACE(tcp_receive_reset, bpf_raw_tracepoint_args)
         report_abn(ctx, metrics, sk, 1);
     }
 }
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
+KRAWTRACE(tcp_send_reset, bpf_raw_tracepoint_args)
+{
+    struct sock *sk = (struct sock *)ctx->args[0];
+    return tcp_abn_snd_rsts_probe_func(ctx, sk);
+}
+
+KRAWTRACE(tcp_receive_reset, bpf_raw_tracepoint_args)
+{
+    struct sock *sk = (struct sock *)ctx->args[0];
+    return tcp_abn_rcv_rsts_probe_func(ctx, sk);
+}
+#else
+SEC("tracepoint/tcp/tcp_send_reset")
+void bpf_trace_tcp_send_reset_func(struct trace_event_raw_tcp_event_sk_skb *ctx)
+{
+    struct sock *sk = (struct sock *)ctx->skaddr;
+    return tcp_abn_snd_rsts_probe_func(ctx, sk);
+}
+
+SEC("tracepoint/tcp/tcp_receive_reset")
+void bpf_trace_tcp_receive_reset_func(struct trace_event_raw_tcp_event_sk_skb *ctx)
+{
+    struct sock *sk = (struct sock *)ctx->skaddr;
+    return tcp_abn_rcv_rsts_probe_func(ctx, sk);
+}
+#endif
 
 KPROBE(tcp_retransmit_skb, pt_regs)
 {
