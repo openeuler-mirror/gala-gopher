@@ -49,7 +49,7 @@
     MAP_SET_PIN_PATH(probe_name, conn_samp_map, HTTP_CONN_SAMP_PATH, load); \
     LOAD_ATTACH(probe_name, end, load)
 
-#define RM_HTTP_PATH        "/usr/bin/rm -rf /sys/fs/bpf/probe/__http*"
+#define RM_HTTP_PATH        "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__http*"
 
 #define ATTACH_LIBSSL_FOR(libsslpath, err, success) URETBPF_ATTACH(sslprobe, SSL_read, libsslpath, SSL_read, success); \
     if ((success) <= 0) { \

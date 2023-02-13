@@ -47,10 +47,10 @@ struct sched_probe_s {
 static struct sched_probe_s probe;
 
 /* Path to pin map */
-#define SCHED_ARGS_PATH            "/sys/fs/bpf/probe/__sched_args"
-#define SCHED_REPORT_CHANNEL_PATH  "/sys/fs/bpf/probe/__sched_report_channel"
+#define SCHED_ARGS_PATH            "/sys/fs/bpf/gala-gopher/__sched_args"
+#define SCHED_REPORT_CHANNEL_PATH  "/sys/fs/bpf/gala-gopher/__sched_report_channel"
 
-#define RM_SCHED_PATH              "/usr/bin/rm -rf /sys/fs/bpf/probe/__sched*"
+#define RM_SCHED_PATH              "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__sched*"
 
 #define OO_NAME         "proc"
 

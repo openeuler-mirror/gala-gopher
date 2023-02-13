@@ -38,7 +38,7 @@
 #include "task_args.h"
 #include "whitelist_config.h"
 
-#define RM_TASK_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/probe/__taskprobe*"
+#define RM_TASK_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__taskprobe*"
 #define TASK_CMDLINE_PATH "/proc/%d/cmdline"
 
 #define LOAD_TASK_PROBE(probe_name, end, load) \

@@ -45,10 +45,10 @@
 #define BIND_TBL_NAME       "bind"
 #define UDP_TBL_NAME        "udp"
 
-#define ENDPOINT_PATH "/sys/fs/bpf/probe/__endpoint_sock"
-#define OUTPUT_PATH "/sys/fs/bpf/probe/__endpoint_output"
-#define ARGS_PATH "/sys/fs/bpf/probe/__endpoint_args"
-#define RM_BPF_PATH "/usr/bin/rm -rf /sys/fs/bpf/probe/__endpoint*"
+#define ENDPOINT_PATH "/sys/fs/bpf/gala-gopher/__endpoint_sock"
+#define OUTPUT_PATH "/sys/fs/bpf/gala-gopher/__endpoint_output"
+#define ARGS_PATH "/sys/fs/bpf/gala-gopher/__endpoint_args"
+#define RM_BPF_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__endpoint*"
 
 #define __LOAD_ENDPOINT_PROBE(probe_name, end, load) \
     OPEN(probe_name, end, load); \

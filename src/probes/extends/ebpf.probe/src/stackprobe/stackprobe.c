@@ -56,10 +56,10 @@
 #define IO_PROG        "/opt/gala-gopher/extend_probes/stack_bpf/io.bpf.o"
 #define MEMLEAK_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/memleak.bpf.o"
 
-#define RM_STACK_PATH "/usr/bin/rm -rf /sys/fs/bpf/probe/__stack*"
-#define STACK_CONVERT_PATH      "/sys/fs/bpf/probe/__stack_convert"
-#define STACK_STACKMAPA_PATH    "/sys/fs/bpf/probe/__stack_stackmap_a"
-#define STACK_STACKMAPB_PATH    "/sys/fs/bpf/probe/__stack_stackmap_b"
+#define RM_STACK_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__stack*"
+#define STACK_CONVERT_PATH      "/sys/fs/bpf/gala-gopher/__stack_convert"
+#define STACK_STACKMAPA_PATH    "/sys/fs/bpf/gala-gopher/__stack_stackmap_a"
+#define STACK_STACKMAPB_PATH    "/sys/fs/bpf/gala-gopher/__stack_stackmap_b"
 
 #define IS_IEG_ADDR(addr)     ((addr) != 0xcccccccccccccccc && (addr) != 0xffffffffffffffff)
 

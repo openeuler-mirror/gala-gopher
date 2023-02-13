@@ -15,9 +15,9 @@
 #ifndef __GOPHER_OBJ_H__
 #define __GOPHER_OBJ_H__
 
-#define CGRP_MAP_PATH               "/sys/fs/bpf/probe/cgroup_map"
-#define NM_MAP_PATH                 "/sys/fs/bpf/probe/nm_map"
-#define PROC_MAP_PATH               "/sys/fs/bpf/probe/proc_map"
+#define CGRP_MAP_PATH               "/sys/fs/bpf/gala-gopher/cgroup_map"
+#define NM_MAP_PATH                 "/sys/fs/bpf/gala-gopher/nm_map"
+#define PROC_MAP_PATH               "/sys/fs/bpf/gala-gopher/proc_map"
 
 #define CGRP_MAP_MAX_ENTRIES        100
 #define NM_MAP_MAX_ENTRIES          100

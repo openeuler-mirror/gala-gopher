@@ -44,7 +44,7 @@ static struct probe_params params = {.period = DEFAULT_PERIOD,
                                      .cport_flag = 0};
 static volatile sig_atomic_t g_stop;
 
-#define RM_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/probe/__tcplink_*"
+#define RM_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__tcplink_*"
 
 static void sig_int(int signo)
 {

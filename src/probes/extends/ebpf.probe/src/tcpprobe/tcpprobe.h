@@ -22,10 +22,10 @@
 #define LINK_ROLE_CLIENT 1
 #define LINK_ROLE_MAX 2
 
-#define TCP_LINK_OUTPUT_PATH    "/sys/fs/bpf/probe/__tcplink_output"
-#define TCP_LINK_ARGS_PATH      "/sys/fs/bpf/probe/__tcplink_args"
-#define TCP_LINK_SOCKS_PATH     "/sys/fs/bpf/probe/__tcplink_socks"
-#define TCP_LINK_TCP_PATH       "/sys/fs/bpf/probe/__tcplink_tcp"
+#define TCP_LINK_OUTPUT_PATH    "/sys/fs/bpf/gala-gopher/__tcplink_output"
+#define TCP_LINK_ARGS_PATH      "/sys/fs/bpf/gala-gopher/__tcplink_args"
+#define TCP_LINK_SOCKS_PATH     "/sys/fs/bpf/gala-gopher/__tcplink_socks"
+#define TCP_LINK_TCP_PATH       "/sys/fs/bpf/gala-gopher/__tcplink_tcp"
 
 #define TCP_PROBE_ABN       (u32)(1)
 #define TCP_PROBE_WINDOWS   (u32)(1 << 1)
