@@ -36,6 +36,7 @@ typedef struct {
     char flameDir[PATH_LEN];
     char debugDir[PATH_LEN];
     char pyroscopeServer[PATH_LEN];
+    u32 whitelistEnable; // 0:disable 1:enable
 } GeneralConfig;
 
 typedef struct {

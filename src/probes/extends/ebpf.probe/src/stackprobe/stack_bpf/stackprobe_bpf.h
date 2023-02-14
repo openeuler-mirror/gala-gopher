@@ -45,7 +45,7 @@
 struct bpf_map_def SEC("maps") convert_map = {
     .type = BPF_MAP_TYPE_ARRAY,
     .key_size = sizeof(u32),    // const value 0
-    .value_size = sizeof(u64),  // convert counter
+    .value_size = sizeof(struct convert_data_t),
     .max_entries = 1,
 };
 

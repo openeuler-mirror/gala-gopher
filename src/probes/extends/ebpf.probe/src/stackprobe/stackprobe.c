@@ -918,6 +918,8 @@ static struct stack_trace_s *create_stack_trace(StackprobeConfig *conf)
 
     st->running_times = (time_t)time(NULL);
     st->is_stackmap_a = ((st->convert_stack_count % 2) == 0);
+    st->whitelist_enable = conf->generalConfig->whitelistEnable;
+    INFO("[STACKPROBE]: whitelist %s\n", st->whitelist_enable ? "enable" : "disable");
     INFO("[STACKPROBE]: create stack trace succeed(cpus_num = %d, kern_symbols = %u).\n",
         st->cpus_num, st->ksymbs->ksym_size);
     return st;
@@ -930,10 +932,26 @@ err:
 static void update_convert_counter()
 {
     u32 key = 0;
-    (void)bpf_map_update_elem(g_st->convert_map_fd, &key, &(g_st->convert_stack_count), BPF_ANY);
+    int ret;
+    struct convert_data_t val = {0};
+
+    ret = bpf_map_lookup_elem(g_st->convert_map_fd, &key, &val);
+    if (ret == 0) {
+        val.convert_counter = g_st->convert_stack_count;
+        (void)bpf_map_update_elem(g_st->convert_map_fd, &key, &val, BPF_ANY);
+    }
 }
 
-static int load_bpf_prog(struct svg_stack_trace_s *svg_st, const char *prog_name)
+static void init_convert_counter(StackprobeConfig *conf)
+{
+    u32 key = 0;
+    struct convert_data_t convert_data = {
+        .whitelist_enable = conf->generalConfig->whitelistEnable,
+        .convert_counter = g_st->convert_stack_count};
+    (void)bpf_map_update_elem(g_st->convert_map_fd, &key, &convert_data, BPF_ANY);
+}
+
+static int load_bpf_prog(StackprobeConfig *conf, struct svg_stack_trace_s *svg_st, const char *prog_name)
 {
     int ret;
     struct bpf_program *prog;
@@ -983,7 +1001,7 @@ static int load_bpf_prog(struct svg_stack_trace_s *svg_st, const char *prog_name
         g_st->proc_obj_map_fd = BPF_GET_MAP_FD(svg_st->obj, "proc_obj_map");
         g_st->stackmap_a_fd = BPF_GET_MAP_FD(svg_st->obj, "stackmap_a");
         g_st->stackmap_b_fd = BPF_GET_MAP_FD(svg_st->obj, "stackmap_b");
-        update_convert_counter();
+        init_convert_counter(conf);
     }
     svg_st->stackmap_perf_a_fd = BPF_GET_MAP_FD(svg_st->obj, "stackmap_perf_a");
     svg_st->stackmap_perf_b_fd = BPF_GET_MAP_FD(svg_st->obj, "stackmap_perf_b");
@@ -1360,7 +1378,7 @@ static void switch_stackmap()
     struct stack_trace_s *st = g_st;
     st->is_stackmap_a = ((st->convert_stack_count % 2) == 0);
 
-    if (!is_tmout(st)) {
+    if (!is_tmout(st)) { // 30s
         return;
     }
 
@@ -1421,7 +1439,7 @@ static int init_enabled_svg_stack_traces(StackprobeConfig *conf)
         }
         g_st->svg_stack_traces[i] = svg_st;
 
-        if (load_bpf_prog(svg_st, flameProcs[i].prog_name)) {
+        if (load_bpf_prog(conf, svg_st, flameProcs[i].prog_name)) {
             goto err;
         }
 
@@ -1445,12 +1463,12 @@ err:
     return -1;
 }
 
-static void init_java_support_proc(int proc_obj_map_fd)
+static void init_java_support_proc(StackprobeConfig *conf)
 {
     int err;
     pthread_t attach_thd;
 
-    err = pthread_create(&attach_thd, NULL, java_support, (void *)&proc_obj_map_fd);
+    err = pthread_create(&attach_thd, NULL, java_support, (void *)&conf->generalConfig->whitelistEnable);
     if (err != 0) {
         ERROR("[STACKPROBE]: Failed to create java_support_pthread.\n");
         return;
@@ -1503,7 +1521,7 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    init_java_support_proc(g_st->proc_obj_map_fd);
+    init_java_support_proc(conf);
 
     INFO("[STACKPROBE]: Started successfully.\n");
 

@@ -27,6 +27,11 @@
 
 #define PERCPU_SAMPLE_COUNT     (2 * DIV_ROUND_UP(AGGRE_PERIOD, SAMPLE_PERIOD))
 
+struct convert_data_t {
+    u32 whitelist_enable;
+    u64 convert_counter;
+};
+
 struct stack_pid_s {
     u64 real_start_time;
     int proc_id;

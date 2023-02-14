@@ -38,11 +38,11 @@
 #include "bpf.h"
 #include "flame_graph.h"
 
-#define POST_MAX_LEN 131072
+#define POST_MAX_STEP_SIZE 1048576 // 1M
+static int g_post_max = POST_MAX_STEP_SIZE;
 
 struct post_info_s {
     int post_flag;
-    int sk;
     int remain_size;
     char *buf_start;
     char *buf;
@@ -213,8 +213,25 @@ static int __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng,
         (void)snprintf(__histo_tmp_str, HISTO_TMP_LEN, "\n%s %llu",
                 stack_trace_histo->stack_symbs_str, stack_trace_histo->count);
     }
+
     if (post_info->post_flag) {
-        (void)__snprintf(&post_info->buf, post_info->remain_size, &post_info->remain_size, "%s", __histo_tmp_str);
+        int written = post_info->buf - post_info->buf_start;
+        int ret = __snprintf(&post_info->buf, post_info->remain_size, &post_info->remain_size, "%s", __histo_tmp_str);
+        if (ret < 0) {
+            int new_post_max = g_post_max + POST_MAX_STEP_SIZE;
+            char *temp = (char *)realloc(post_info->buf_start, new_post_max);
+            if(temp == NULL) {
+                ERROR("[FLAMEGRAPH]: Not enough post memory (realloc failed), current capacity is %d.\n",
+                    g_post_max);
+            } else {
+                post_info->buf_start = temp;
+                post_info->buf = post_info->buf_start + written;
+                post_info->remain_size += POST_MAX_STEP_SIZE;
+                g_post_max = new_post_max;
+                INFO("[FLAMEGRAPH]: post memory realloc to %d\n", g_post_max);
+                (void)__snprintf(&post_info->buf, post_info->remain_size, &post_info->remain_size, "%s", __histo_tmp_str);
+            }
+        }
     }
 
     (void)fputs(__histo_tmp_str, fp);
@@ -336,7 +353,7 @@ static void __init_curl_handle(struct post_server_s *post_server, struct post_in
 
     post_info->curl = curl_easy_init();
     if(post_info->curl) {
-        post_info->buf = (char *)malloc(POST_MAX_LEN);
+        post_info->buf = (char *)malloc(g_post_max);
         post_info->buf_start = post_info->buf;
         if (post_info->buf != NULL) {
             post_info->buf[0] = 0;
@@ -349,7 +366,7 @@ static void __do_wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct stack_tra
     struct post_server_s *post_server, int en_type)
 {
     int first_flag = 0;
-    struct post_info_s post_info = {.remain_size = POST_MAX_LEN, .post_flag = 0};
+    struct post_info_s post_info = {.remain_size = g_post_max, .post_flag = 0};
 
     if (__test_flame_graph_flags(svg_mng, FLAME_GRAPH_NEW)) {
         first_flag = 1;
