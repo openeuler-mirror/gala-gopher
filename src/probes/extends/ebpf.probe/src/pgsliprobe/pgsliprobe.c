@@ -45,12 +45,12 @@
 
 #define R_OK    4
 
-#define PGSLI_ARGS_PATH          "/sys/fs/bpf/probe/__pgsli_args"
-#define PGSLI_CONN_PATH          "/sys/fs/bpf/probe/__pgsli_conn"
-#define PGSLI_CONN_SAMP_PATH     "/sys/fs/bpf/probe/__pgsli_conn_samp"
-#define PGSLI_OUTPUT_PATH        "/sys/fs/bpf/probe/__pgsli_output"
+#define PGSLI_ARGS_PATH          "/sys/fs/bpf/gala-gopher/__pgsli_args"
+#define PGSLI_CONN_PATH          "/sys/fs/bpf/gala-gopher/__pgsli_conn"
+#define PGSLI_CONN_SAMP_PATH     "/sys/fs/bpf/gala-gopher/__pgsli_conn_samp"
+#define PGSLI_OUTPUT_PATH        "/sys/fs/bpf/gala-gopher/__pgsli_output"
 
-#define RM_PGSLI_PATH "/usr/bin/rm -rf /sys/fs/bpf/probe/__pgsli*"
+#define RM_PGSLI_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__pgsli*"
 
 #define __LOAD_OG_PROBE(probe_name, end, load) \
     OPEN(probe_name, end, load); \

@@ -24,7 +24,9 @@
 
 #include "server.h"
 #include "daemon.h"
+#include "object.h"
 
+#define RM_MAP_CMD "/usr/bin/find %s/* | /usr/bin/grep -v '%s\\|%s\\|%s' | /usr/bin/xargs rm -f"
 static const ResourceMgr *resouce_msg;
 
 #if GALA_GOPHER_INFO("inner func declaration")
@@ -133,7 +135,7 @@ static void CleanData(const ResourceMgr *mgr)
         return;
     }
     
-    (void)snprintf(cmd, MAX_COMMAND_LEN, "/usr/bin/rm -rf %s/*", pinPath);
+    (void)snprintf(cmd, MAX_COMMAND_LEN, RM_MAP_CMD, pinPath, CGRP_MAP_PATH, NM_MAP_PATH, PROC_MAP_PATH);
     fp = popen(cmd, "r");
     if (fp != NULL) {
         (void)pclose(fp);

@@ -43,9 +43,9 @@
 
 #define TC_BPS_PROG "bps.tcbpf.o"
 
-#define OUTPUT_PATH "/sys/fs/bpf/probe/__nsprobe_output"
-#define ARGS_PATH "/sys/fs/bpf/probe/__nsprobe_args"
-#define RM_BPF_PATH "/usr/bin/rm -rf /sys/fs/bpf/probe/__nsprobe*"
+#define OUTPUT_PATH "/sys/fs/bpf/gala-gopher/__nsprobe_output"
+#define ARGS_PATH "/sys/fs/bpf/gala-gopher/__nsprobe_args"
+#define RM_BPF_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__nsprobe*"
 #define RM_TC_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/tc/globals/tc_bps_*"
 #define TC_OUTPUT_MAP_PATH "/sys/fs/bpf/tc/globals/tc_bps_output"
 #define TC_ARGS_MAP_PATH "/sys/fs/bpf/tc/globals/tc_bps_args"

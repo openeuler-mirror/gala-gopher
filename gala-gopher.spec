@@ -45,6 +45,9 @@ install -m 0600 /usr/lib64/erlang/lib/eflame-0/bin/flamegraph.pl %{buildroot}/%{
 %systemd_preun gala-gopher.service
 
 %postun
+if [ $1 -eq 0 ]; then
+    rm -rf /sys/fs/bpf/gala-gopher >/dev/null
+fi
 %systemd_postun_with_restart gala-gopher.service
 
 #%clean

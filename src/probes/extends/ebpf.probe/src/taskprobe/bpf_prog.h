@@ -23,11 +23,11 @@
 #include "common.h"
 #include "args.h"
 
-#define THREAD_OUTPUT_PATH "/sys/fs/bpf/probe/__taskprobe_thread_output"
-#define PROC_OUTPUT_PATH "/sys/fs/bpf/probe/__taskprobe_proc_output"
-#define ARGS_PATH "/sys/fs/bpf/probe/__taskprobe_args"
-#define THREAD_PATH "/sys/fs/bpf/probe/__taskprobe_thread"
-#define PROC_PATH "/sys/fs/bpf/probe/__taskprobe_proc"
+#define THREAD_OUTPUT_PATH "/sys/fs/bpf/gala-gopher/__taskprobe_thread_output"
+#define PROC_OUTPUT_PATH "/sys/fs/bpf/gala-gopher/__taskprobe_proc_output"
+#define ARGS_PATH "/sys/fs/bpf/gala-gopher/__taskprobe_args"
+#define THREAD_PATH "/sys/fs/bpf/gala-gopher/__taskprobe_thread"
+#define PROC_PATH "/sys/fs/bpf/gala-gopher/__taskprobe_proc"
 
 struct bpf_prog_s* load_glibc_bpf_prog(struct probe_params *args);
 struct bpf_prog_s* load_thread_bpf_prog(struct probe_params *args);

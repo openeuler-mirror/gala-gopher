@@ -34,9 +34,9 @@
 
 #define CGPROBE "cgprobe"
 
-#define OUTPUT_PATH "/sys/fs/bpf/probe/__cgprobe_output"
-#define ARGS_PATH "/sys/fs/bpf/probe/__cgprobe_args"
-#define RM_BPF_PATH "/usr/bin/rm -rf /sys/fs/bpf/probe/__cgprobe*"
+#define OUTPUT_PATH "/sys/fs/bpf/gala-gopher/__cgprobe_output"
+#define ARGS_PATH "/sys/fs/bpf/gala-gopher/__cgprobe_args"
+#define RM_BPF_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__cgprobe*"
 
 #define __LOAD_CG_PROBE(probe_name, end, load) \
     OPEN(probe_name, end, load); \

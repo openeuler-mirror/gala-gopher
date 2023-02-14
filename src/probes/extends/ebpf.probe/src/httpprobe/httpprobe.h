@@ -48,8 +48,8 @@
     #define INET_ADDRSTRLEN     0x4
 #endif
 
-#define HTTP_CONN_PATH          "/sys/fs/bpf/probe/__http_conn"
-#define HTTP_CONN_SAMP_PATH     "/sys/fs/bpf/probe/__http_conn_samp"
+#define HTTP_CONN_PATH          "/sys/fs/bpf/gala-gopher/__http_conn"
+#define HTTP_CONN_SAMP_PATH     "/sys/fs/bpf/gala-gopher/__http_conn_samp"
 
 #define TCP_SKB_CB(__skb) ((struct tcp_skb_cb *)&((__skb)->cb[0]))
 

@@ -45,13 +45,13 @@
 #define IO_TBL_COUNT      "io_count"
 
 /* Path to pin map */
-#define IO_ARGS_PATH            "/sys/fs/bpf/probe/__io_args"
-#define IO_SAMPLE_PATH          "/sys/fs/bpf/probe/__io_sample"
-#define IO_LATENCY_CHANNEL_PATH "/sys/fs/bpf/probe/__io_latency_channel"
-#define IO_TRACE_PATH           "/sys/fs/bpf/probe/__io_trace"
-#define IO_LATENCY_PATH         "/sys/fs/bpf/probe/__io_latency"
+#define IO_ARGS_PATH            "/sys/fs/bpf/gala-gopher/__io_args"
+#define IO_SAMPLE_PATH          "/sys/fs/bpf/gala-gopher/__io_sample"
+#define IO_LATENCY_CHANNEL_PATH "/sys/fs/bpf/gala-gopher/__io_latency_channel"
+#define IO_TRACE_PATH           "/sys/fs/bpf/gala-gopher/__io_trace"
+#define IO_LATENCY_PATH         "/sys/fs/bpf/gala-gopher/__io_latency"
 
-#define RM_IO_PATH              "/usr/bin/rm -rf /sys/fs/bpf/probe/__io*"
+#define RM_IO_PATH              "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__io*"
 
 #define __LOAD_IO_LATENCY(probe_name, end, load) \
     OPEN(probe_name, end, load); \
