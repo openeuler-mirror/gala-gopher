@@ -25,9 +25,9 @@
 #define OS_RELEASE_PATH1        "/etc/os-release"
 #define OS_RELEASE_PATH2        "/usr/lib/os-release"
 #define OS_RELEASE_ID           "/usr/bin/cat %s | grep -w ID | awk -F'\"' \'{print $2}\'"
-#define OS_RELEASE_PRETTYT_NAME "/usr/bin/cat %s | grep -w PRETTY_NAME | awk -F'\"' \'{print $2}\'"
+#define OS_RELEASE_PRETTY_NAME  "/usr/bin/cat %s | grep -w PRETTY_NAME | awk -F'\"' \'{print $2}\'"
 #define OS_LATEST_VERSION       "/usr/bin/cat %s | grep -e %s.*version | awk -F'=' \'{print $2}\'"
-#define OS_LATEST_KVERSION      "/usr/bin/cat %s | grep kernelversion | awk -F'=' \'{print $2}\'"
+#define OS_KVERSION             "/usr/bin/uname -r"
 #define IS_CMD_HOSTNAME_EXIST   "which hostname 2>/dev/null"
 #define OS_GET_ALL_ADDRS        "hostname -I"
 #define OS_DETECT_VIRT_ENV      "systemd-detect-virt -v"
@@ -95,18 +95,27 @@ static int get_os_release_info(struct node_infos *infos)
     strncpy(infos->os_id, line, MAX_FIELD_LEN - 1);
 
     cmd[0] = 0;
-    (void)snprintf(cmd, COMMAND_LEN, OS_RELEASE_PRETTYT_NAME, os_release_path);
+    (void)snprintf(cmd, COMMAND_LEN, OS_RELEASE_PRETTY_NAME, os_release_path);
     if (do_read_line(cmd, line) < 0) {
         ERROR("[SYSTEM_OS] get os pretty_name failed.\n");
         return -1;
     }
     strncpy(infos->os_pretty_name, line, MAX_FIELD_LEN - 1);
+    
+    if (do_read_line(OS_KVERSION, line) < 0) {
+        ERROR("[SYSTEM_OS] get os kernelversion failed.\n");
+        return -1;
+    }
+    (void)strncpy(infos->kernel_version, line, MAX_FIELD_LEN - 1);
 
     os_latest_path[0] = 0;
     if (!strcasecmp(infos->os_id, "openEuler")) {
         (void)strncpy(os_latest_path, "/etc/openEuler-latest", COMMAND_LEN - 1);
     } else if (!strcasecmp(infos->os_id, "euleros")) {
         (void)strncpy(os_latest_path, "/etc/euleros-latest", COMMAND_LEN - 1);
+    } else {
+        (void)strncpy(infos->os_version, infos->os_pretty_name, MAX_FIELD_LEN - 1);
+        return 0;
     }
 
     cmd[0] = 0;
@@ -116,14 +125,6 @@ static int get_os_release_info(struct node_infos *infos)
         return -1;
     }
     (void)strncpy(infos->os_version, line, MAX_FIELD_LEN - 1);
-    
-    cmd[0] = 0;
-    (void)snprintf(cmd, COMMAND_LEN, OS_LATEST_KVERSION, os_latest_path);
-    if (do_read_line(cmd, line) < 0) {
-        ERROR("[SYSTEM_OS] get os kernelversion failed.\n");
-        return -1;
-    }
-    (void)strncpy(infos->kernel_version, line, MAX_FIELD_LEN - 1);
 
     return 0;
 }
