@@ -72,13 +72,13 @@ struct bpf_map_def SEC("maps") allocs = {
 
 static inline char is_stackmap_a() {
     const u32 zero = 0;
-    u64 *convert_count = bpf_map_lookup_elem(&convert_map, &zero);
-    if (!convert_count) {
+    struct convert_data_t *convert_data = (struct convert_data_t *)bpf_map_lookup_elem(&convert_map, &zero);
+    if (!convert_data) {
         return -1;
     }
 
     // Obtains the data channel used to collect stack-trace data.
-    char ret = ((*convert_count % 2) == 0);
+    char ret = ((convert_data->convert_counter % 2) == 0);
 
     return ret;
 }
@@ -148,9 +148,16 @@ static inline int alloc_enter(u64 size) {
     u64 pid = bpf_get_current_pid_tgid();
     u32 tgid = pid >> INT_LEN;
     if (tgid > 1) {
-        struct proc_s obj = {.proc_id = tgid};
-        if (!is_proc_exist(&obj)) {
-            return 0;
+        const u32 zero = 0;
+        struct convert_data_t *convert_data = (struct convert_data_t *)bpf_map_lookup_elem(&convert_map, &zero);
+        if (!convert_data) {
+            return -1;
+        }
+        if (convert_data->whitelist_enable) {
+            struct proc_s obj = {.proc_id = tgid};
+            if (!is_proc_exist(&obj)) {
+                return 0;
+            }
         }
     }
     bpf_map_update_elem(&to_allocate, &pid, &size, BPF_ANY);

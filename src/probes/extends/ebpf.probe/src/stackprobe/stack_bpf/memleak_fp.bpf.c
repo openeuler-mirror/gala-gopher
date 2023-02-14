@@ -133,13 +133,13 @@ static __always_inline u64 get_real_start_time()
 
 static inline char is_stackmap_a() {
     const u32 zero = 0;
-    u64 *convert_count = bpf_map_lookup_elem(&convert_map, &zero);
-    if (!convert_count) {
+    struct convert_data_t *convert_data = (struct convert_data_t *)bpf_map_lookup_elem(&convert_map, &zero);
+    if (!convert_data) {
         return -1;
     }
 
     // Obtains the data channel used to collect stack-trace data.
-    char ret = ((*convert_count % 2) == 0);
+    char ret = ((convert_data->convert_counter % 2) == 0);
 
     return ret;
 }

@@ -115,6 +115,7 @@ struct stack_trace_s {
     char pad[3];
     int cpus_num;
     char is_stackmap_a;
+    u32 whitelist_enable;
     int convert_map_fd;
     int proc_obj_map_fd;
     int stackmap_a_fd;

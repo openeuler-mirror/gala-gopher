@@ -166,6 +166,13 @@ static int configLoadGeneral(void *config, config_setting_t *settings)
     const char *strVal = NULL;
     int intVal = 0;
 
+    ret = config_setting_lookup_bool(settings, "whitelist_enable", &intVal);
+    if (ret == 0) {
+        ERROR("[STACKPROBE]: load config for general whitelist_enable failed.\n");
+        return -1;
+    }
+    generalConfig->whitelistEnable = intVal;
+
     ret = config_setting_lookup_int(settings, "period", &intVal);
     if (ret == 0) {
         ERROR("[STACKPROBE]: load config for general period failed.\n");

@@ -67,7 +67,6 @@ static int __ns_enter(int pid, int nspid, const char* type, int *cur_pid)
             }
 
             int result = setns(fd, 0);
-            printf("__ns_enter %d %d %s\n", pid, result, strerror(errno));
             close(fd);
             if (result < 0) {
                 return result;

@@ -38,16 +38,9 @@ enum java_pid_state_t {
     PID_ELF_NO_NEED_ATTACH // non-java proc or have been attached
 };
 
-enum java_proc_type_t {
-    PROC_UNKNOWN,
-    PROC_ELSE,
-    PROC_JAVA
-};
-
 #define NS_PATH_LEN 128
 struct jvm_agent_hash_value {
     enum java_pid_state_t pid_state;
-    enum java_proc_type_t proc_type;
     uid_t eUid;
     gid_t eGid;
     int nspid;
@@ -67,6 +60,7 @@ struct jvm_agent_hash_t {
 
 static struct jvm_agent_hash_t *jvm_agent_head = NULL;
 
+#define FIND_JAVA_PROC_COMM "ps -e -o pid,comm | grep java | awk '{print $1}'"
 #define PROC_COMM "/usr/bin/cat /proc/%u/comm 2> /dev/null"
 #define ATTACH_BIN_PATH "/opt/gala-gopher/extend_probes/jvm_attach"
 #define ATTACH_CMD "%s %u %u load %s true %s" // jvm_attach <pid> <nspid> load /tmp/jvm_agent.so true /tmp/java-symbolization-123
@@ -200,23 +194,29 @@ static int __add_jvm_agent_hash(int pidd)
     return 0;
 }
 
-static int __check_proc_to_attach(int proc_obj_map_fd)
+static int __check_proc_to_attach(u32 whitelistEnable)
 {
+    FILE *f;
     int pid = 0;
     struct jvm_agent_hash_t *item;
     int ret = 0;
-    struct proc_s key = {0};
-    struct proc_s next_key = {0};
-    struct obj_ref_s value = {0};
-    char comm[TASK_COMM_LEN];
+    char line[LINE_BUF_LEN] = {0};
 
-    while (bpf_map_get_next_key(proc_obj_map_fd, &key, &next_key) == 0) {
-        ret = bpf_map_lookup_elem(proc_obj_map_fd, &next_key, &value);
-        key = next_key;
-        if (ret < 0) {
-            continue;
+    f = popen(FIND_JAVA_PROC_COMM, "r");
+    if (f == NULL) {
+        return -1;
+    }
+
+    while (fgets(line, sizeof(line), f)) {
+        if (sscanf(line, "%d", &pid) != 1) {
+            return -1;
         }
-        pid = key.proc_id;
+        if (whitelistEnable) { // whitelist_enable
+            struct proc_s obj = {.proc_id = pid};
+            if (!is_proc_exist(&obj)) {
+                continue;
+            }
+        }
 
         // 1. check if new proc
         if (__find_jvm_agent_hash(pid) != 0) {
@@ -232,20 +232,12 @@ static int __check_proc_to_attach(int proc_obj_map_fd)
         }
 
         item->v.pid_state = PID_ELF_NO_NEED_ATTACH;
-        if (!item->v.attached && item->v.proc_type != PROC_ELSE) {
-            if (item->v.proc_type == PROC_UNKNOWN) {
-                item->v.proc_type = detect_proc_is_java(item->pid, comm, TASK_COMM_LEN) ? PROC_JAVA : PROC_ELSE;
-            }
-            if (item->v.proc_type == PROC_JAVA) {
-                item->v.pid_state = PID_ELF_TO_ATTACH;
-                INFO("[JAVA_SUPPORT]: add java pid %u success\n", pid);
-            } else {
-                INFO("[JAVA_SUPPORT]: add non-java pid %u success\n", pid);
-            }
+        if (!item->v.attached) {
+            item->v.pid_state = PID_ELF_TO_ATTACH;
+            INFO("[JAVA_SUPPORT]: add java pid %u success\n", pid);
         }
         
-}
-
+    }
     return ret;
 }
 
@@ -400,12 +392,12 @@ void *java_support(void *arg)
 {
     int err = 0;
     struct jvm_agent_hash_t *pid_bpf_link, *tmp;
-    int proc_obj_map_fd = *(int *)arg;
+    u32 whitelistEnable = *(u32 *)arg;
 
     while (1) {
         sleep(DEFAULT_PERIOD);
         __set_pids_inactive();
-        if (__check_proc_to_attach(proc_obj_map_fd) != 0) {
+        if (__check_proc_to_attach(whitelistEnable) != 0) {
             continue;
         }
 

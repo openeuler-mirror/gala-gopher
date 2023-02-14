@@ -93,17 +93,19 @@ static void __destroy_symbol(struct elf_symbo_s* elf_symbo)
         elf_symbo->elf = NULL;
     }
 
-    for (int i = 0; i < elf_symbo->symbs_count; i++) {
-        __symb_destroy(elf_symbo->symbs[i]);
-        if (elf_symbo->symbs[i]) {
-            (void)free(elf_symbo->symbs[i]);
-            elf_symbo->symbs[i] = NULL;
-        }
-    }
     if (elf_symbo->symbs) {
+        for (int i = 0; i < elf_symbo->symbs_count; i++) {
+            __symb_destroy(elf_symbo->symbs[i]);
+            if (elf_symbo->symbs[i]) {
+                (void)free(elf_symbo->symbs[i]);
+                elf_symbo->symbs[i] = NULL;
+            }
+        }
+
         (void)free(elf_symbo->symbs);
         elf_symbo->symbs = NULL;
     }
+
     return;
 }
 
@@ -443,7 +445,7 @@ struct elf_symbo_s* update_symb_from_jvm_sym_file(const char* elf)
 
     (void)__sort_symbol(item);
 
-    INFO("[ELF_SYMBOL]: Succeed to update JVM symbs %s(symbs_count = %u).\n", item->elf, item->symbs_count);
+    DEBUG("[ELF_SYMBOL]: Succeed to update JVM symbs %s(symbs_count = %u).\n", item->elf, item->symbs_count);
     return item;
 
 err:

@@ -57,16 +57,16 @@ int function_stack_trace(struct bpf_perf_event_data *ctx)
 {
     struct raw_trace_s raw_trace = {.count = 1};
     const u32 zero = 0;
-    u64 *convert_count = bpf_map_lookup_elem(&convert_map, &zero);
-    if (!convert_count) {
+    struct convert_data_t *convert_data = (struct convert_data_t *)bpf_map_lookup_elem(&convert_map, &zero);
+    if (!convert_data) {
         return -1;
     }
 
     // Obtains the data channel used to collect stack-trace data.
-    char is_stackmap_a = ((*convert_count % 2) == 0);
+    char is_stackmap_a = ((convert_data->convert_counter % 2) == 0);
 
     raw_trace.stack_id.pid.proc_id = bpf_get_current_pid_tgid() >> INT_LEN;
-    if (raw_trace.stack_id.pid.proc_id > 1) {
+    if (convert_data->whitelist_enable && raw_trace.stack_id.pid.proc_id > 1) {
         struct proc_s obj = {.proc_id = raw_trace.stack_id.pid.proc_id};
         if (!is_proc_exist(&obj)) {
             return 0;
