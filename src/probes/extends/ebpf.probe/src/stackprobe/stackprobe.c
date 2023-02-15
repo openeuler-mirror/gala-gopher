@@ -106,6 +106,7 @@ typedef struct {
 struct bpf_link_hash_value {
     enum pid_state_t pid_state;
     char elf_path[MAX_PATH_LEN];
+    int bpf_link_num;
     struct bpf_link *bpf_links[32]; // 32 cover num of probes in memleak.bpf.c
 };
 
@@ -1189,6 +1190,25 @@ static bool get_bpf_prog(struct bpf_program *prog, char func_sec[], int func_len
     return is_uretprobe;
 }
 
+static void unload_bpf_progs(struct svg_stack_trace_s *svg_st)
+{
+    struct bpf_link_hash_t *pid_bpf_links, *tmp;
+    if (bpf_link_head == NULL) {
+        return;
+    }
+
+    H_ITER(bpf_link_head, pid_bpf_links, tmp) {
+        if (pid_bpf_links->v.pid_state == PID_ELF_ATTACHED) {
+            for (int i = 0; i < pid_bpf_links->v.bpf_link_num; i++) {
+                bpf_link__destroy(pid_bpf_links->v.bpf_links[i]);
+            }
+            H_DEL(bpf_link_head, pid_bpf_links);
+            (void)free(pid_bpf_links);
+            INFO("[STACKPROBE]: detach memleak bpf to pid %u success\n", pid_bpf_links->pid);
+        }
+    }
+}
+
 static void *__uprobe_attach_check(void *arg)
 {
     int err = 0;
@@ -1196,8 +1216,6 @@ static void *__uprobe_attach_check(void *arg)
     struct bpf_link_hash_t *pid_bpf_links, *tmp;
     struct bpf_program *prog;
     struct svg_stack_trace_s *svg_st = arg;
-    struct bpf_link *links[MEMLEAK_SEC_NUM] = {0};
-
     const char *elf_path;
     char func_sec[BPF_FUNC_NAME_LEN] = {0};
     bool is_uretprobe;
@@ -1210,7 +1228,6 @@ static void *__uprobe_attach_check(void *arg)
         if (add_pids() != 0) {
             continue;
         }
-        i = 0;
         H_ITER(bpf_link_head, pid_bpf_links, tmp) { // for pids
             i = 0;
             if (pid_bpf_links->v.pid_state == PID_ELF_TOBE_ATTACHED) {
@@ -1231,7 +1248,7 @@ static void *__uprobe_attach_check(void *arg)
                         ERROR("[STACKPROBE]: attach memleak bpf to pid %u failed %d\n", pid_bpf_links->pid, err);
                         pid_bpf_links->v.bpf_links[i] = NULL;
                         for (i--; i >= 0; i--) {
-                            bpf_link__destroy(links[i]);
+                            bpf_link__destroy(pid_bpf_links->v.bpf_links[i]);
                         }
                         break;
                     }
@@ -1239,12 +1256,15 @@ static void *__uprobe_attach_check(void *arg)
                 }
                 if (err == 0) {
                     pid_bpf_links->v.pid_state = PID_ELF_ATTACHED;
+                    pid_bpf_links->v.bpf_link_num = i;
                     INFO("[STACKPROBE]: attach memleak bpf to pid %u success\n", pid_bpf_links->pid);
                 }
             }
         }
         clear_invalid_pids();
     }
+
+    unload_bpf_progs(svg_st);
 
     return NULL;
 
@@ -1467,8 +1487,9 @@ static void init_java_support_proc(StackprobeConfig *conf)
 {
     int err;
     pthread_t attach_thd;
+    int proc_obj_map_fd = conf->generalConfig->whitelistEnable ? g_st->proc_obj_map_fd : 0;
 
-    err = pthread_create(&attach_thd, NULL, java_support, (void *)&conf->generalConfig->whitelistEnable);
+    err = pthread_create(&attach_thd, NULL, java_support, (void *)&proc_obj_map_fd);
     if (err != 0) {
         ERROR("[STACKPROBE]: Failed to create java_support_pthread.\n");
         return;
