@@ -194,13 +194,14 @@ static int __add_jvm_agent_hash(int pidd)
     return 0;
 }
 
-static int __check_proc_to_attach(u32 whitelistEnable)
+static int __check_proc_to_attach(int proc_obj_map_fd)
 {
     FILE *f;
     int pid = 0;
     struct jvm_agent_hash_t *item;
     int ret = 0;
     char line[LINE_BUF_LEN] = {0};
+    struct obj_ref_s value = {0};
 
     f = popen(FIND_JAVA_PROC_COMM, "r");
     if (f == NULL) {
@@ -211,9 +212,10 @@ static int __check_proc_to_attach(u32 whitelistEnable)
         if (sscanf(line, "%d", &pid) != 1) {
             return -1;
         }
-        if (whitelistEnable) { // whitelist_enable
+        if (proc_obj_map_fd != 0) { // whitelist_enable
             struct proc_s obj = {.proc_id = pid};
-            if (!is_proc_exist(&obj)) {
+            ret = bpf_map_lookup_elem(proc_obj_map_fd, &obj, &value);
+            if (ret != 0) {
                 continue;
             }
         }
@@ -392,12 +394,12 @@ void *java_support(void *arg)
 {
     int err = 0;
     struct jvm_agent_hash_t *pid_bpf_link, *tmp;
-    u32 whitelistEnable = *(u32 *)arg;
+    int proc_obj_map_fd = *(int *)arg;
 
     while (1) {
         sleep(DEFAULT_PERIOD);
         __set_pids_inactive();
-        if (__check_proc_to_attach(whitelistEnable) != 0) {
+        if (__check_proc_to_attach(proc_obj_map_fd) != 0) {
             continue;
         }
 

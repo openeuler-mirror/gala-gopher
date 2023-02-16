@@ -101,6 +101,7 @@ extend探针配置文件归档在探针同级目录下。目前有配置文件�
 `stackprobe.conf`文件的安装路径为 `/etc/gala-gopher/extend_probes/stackprobe.conf`。该文件配置项说明如下：
 
 - general：通用设置
+  - whitelist_enable：使能进程白名单
   - period：火焰图生成周期
   - log_dir：stackprobe探针日志路径
   - svg_dir：svg格式火焰图存储路径
