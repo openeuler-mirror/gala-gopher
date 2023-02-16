@@ -48,19 +48,19 @@ struct conn_samp_data_t {
     u64 lastreport;
 };
 
-struct bpf_map_def SEC("maps") conn_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct conn_key_t),
-    .value_size = sizeof(struct conn_data_t),
-    .max_entries = MAX_CONN_LEN,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct conn_key_t));
+    __uint(value_size, sizeof(struct conn_data_t));
+    __uint(max_entries, MAX_CONN_LEN);
+} conn_map SEC(".maps");
 
-struct bpf_map_def SEC("maps") conn_samp_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct conn_samp_key_t),
-    .value_size = sizeof(struct conn_samp_data_t),
-    .max_entries = MAX_CONN_LEN,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct conn_samp_key_t));
+    __uint(value_size, sizeof(struct conn_samp_data_t));
+    __uint(max_entries, MAX_CONN_LEN);
+} conn_samp_map SEC(".maps");
 
 static __always_inline int parse_req_method(const char *str)
 {

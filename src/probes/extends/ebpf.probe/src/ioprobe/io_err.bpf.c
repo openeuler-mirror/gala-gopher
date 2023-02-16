@@ -26,19 +26,19 @@
 char g_linsence[] SEC("license") = "GPL";
 
 #define __IO_ERR_MAX (100)
-struct bpf_map_def SEC("maps") io_err_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct io_entity_s),
-    .value_size = sizeof(struct io_err_s),
-    .max_entries = __IO_ERR_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct io_entity_s));
+    __uint(value_size, sizeof(struct io_err_s));
+    __uint(max_entries, __IO_ERR_MAX);
+} io_err_map SEC(".maps");
 
-struct bpf_map_def SEC("maps") io_err_channel_map = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = __PERF_OUT_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, __PERF_OUT_MAX);
+} io_err_channel_map SEC(".maps");
 
 struct block_rq_complete_args {
     struct trace_entry ent;

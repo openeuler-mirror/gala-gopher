@@ -78,42 +78,41 @@ struct sys_enter_munmap_args {
     u64 len;
 };
 
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, MAX_CPU);
+} stackmap_perf_a SEC(".maps");
 
-struct bpf_map_def SEC("maps") stackmap_perf_a = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = MAX_CPU,
-};
-
-struct bpf_map_def SEC("maps") stackmap_perf_b = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = MAX_CPU,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, MAX_CPU);
+} stackmap_perf_b SEC(".maps");
 
 // memory to be allocated for the process
-struct bpf_map_def SEC("maps") to_allocate = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u32), // tgid
-    .value_size = sizeof(u64), // size
-    .max_entries = 1000,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(u32));  // tgid
+    __uint(value_size, sizeof(u64));  // size
+    __uint(max_entries, 1000);
+} to_allocate SEC(".maps");
 
-struct bpf_map_def SEC("maps") mmap_allocs = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct pid_addr_t),
-    .value_size = sizeof(struct mmap_info_t),
-    .max_entries = 1000000,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct pid_addr_t));
+    __uint(value_size, sizeof(struct mmap_info_t));
+    __uint(max_entries, 1000000);
+} mmap_allocs SEC(".maps");
 
-struct bpf_map_def SEC("maps") brk_allocs = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(u32), // tgid
-    .value_size = sizeof(struct brk_info_t),
-    .max_entries = 1000000,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_LRU_HASH);
+    __uint(key_size, sizeof(u32)); // tgid
+    __uint(value_size, sizeof(struct brk_info_t));
+    __uint(max_entries, 1000000);
+} brk_allocs SEC(".maps");
 
 static __always_inline u64 get_real_start_time()
 {

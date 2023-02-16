@@ -33,25 +33,25 @@ enum {
 
 char g_license[] SEC("license") = "GPL";
 
-struct bpf_map_def SEC("maps") conn_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct conn_key_t),
-    .value_size = sizeof(struct conn_data_t),
-    .max_entries = MAX_CONN_LEN,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct conn_key_t));
+    __uint(value_size, sizeof(struct conn_data_t));
+    __uint(max_entries, MAX_CONN_LEN);
+} conn_map SEC(".maps");
 
-struct bpf_map_def SEC("maps") conn_cmd_evt_map = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+} conn_cmd_evt_map SEC(".maps");
 
-struct bpf_map_def SEC("maps") period_map = {
-    .type = BPF_MAP_TYPE_ARRAY,
-    .key_size = sizeof(u32),    // const value 0
-    .value_size = sizeof(u64),  // period time as second
-    .max_entries = 1,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(key_size, sizeof(u32));  // const value 0
+    __uint(value_size, sizeof(u64));  // period time as second
+    __uint(max_entries, 1);
+} period_map SEC(".maps");
 
 static __always_inline int get_client_fd(client *c)
 {

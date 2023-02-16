@@ -30,26 +30,26 @@
 
 char g_license[] SEC("license") = "GPL";
 
-struct bpf_map_def SEC("maps") conn_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct conn_key_t),
-    .value_size = sizeof(struct conn_data_t),
-    .max_entries = MAX_CONN_LEN,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct conn_key_t));
+    __uint(value_size, sizeof(struct conn_data_t));
+    __uint(max_entries, MAX_CONN_LEN);
+} conn_map SEC(".maps");
 
-struct bpf_map_def SEC("maps") msg_event_map = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+} msg_event_map SEC(".maps");
 
 // Data collection args
-struct bpf_map_def SEC("maps") args_map = {
-    .type = BPF_MAP_TYPE_ARRAY,
-    .key_size = sizeof(u32),    // const value 0
-    .value_size = sizeof(struct ksli_args_s),  // args
-    .max_entries = 1,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(key_size, sizeof(u32)); // const value 0
+    __uint(value_size, sizeof(struct ksli_args_s)); // args
+    __uint(max_entries, 1);
+} args_map SEC(".maps");
 
 enum samp_status_t {
     SAMP_INIT = 0,
@@ -66,13 +66,12 @@ struct conn_samp_data_t {
     char command[MAX_COMMAND_REQ_SIZE]; // command
 };
 
-struct bpf_map_def SEC("maps") conn_samp_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct sock *),
-    .value_size = sizeof(struct conn_samp_data_t),
-    .max_entries = MAX_CONN_LEN,
-};
-
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct sock *));
+    __uint(value_size, sizeof(struct conn_samp_data_t));
+    __uint(max_entries, MAX_CONN_LEN);
+} conn_samp_map SEC(".maps");
 
 static __always_inline void init_conn_key(struct conn_key_t *conn_key, int fd, int tgid)
 {

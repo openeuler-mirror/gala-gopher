@@ -23,13 +23,12 @@
 
 #include "task_args.h"
 
-struct bpf_map_def SEC("maps") args_map = {
-    .type = BPF_MAP_TYPE_ARRAY,
-    .key_size = sizeof(u32),    // const value 0
-    .value_size = sizeof(struct task_args_s),
-    .max_entries = 1,
-};
-
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(key_size, sizeof(u32)); // const value 0
+    __uint(value_size, sizeof(struct task_args_s));
+    __uint(max_entries, 1);
+} args_map SEC(".maps");
 
 #define PERIOD NS(30)  // 30s
 static __always_inline __maybe_unused u64 get_period()

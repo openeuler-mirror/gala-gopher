@@ -26,19 +26,20 @@
 char g_linsence[] SEC("license") = "GPL";
 
 #define __IO_COUNT_MAX      100
-struct bpf_map_def SEC("maps") io_count_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct io_entity_s),
-    .value_size = sizeof(struct io_count_s),
-    .max_entries = __IO_COUNT_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct io_entity_s));
+    __uint(value_size, sizeof(struct io_count_s));
+    __uint(max_entries, __IO_COUNT_MAX);
+} io_count_map SEC(".maps");
 
-struct bpf_map_def SEC("maps") io_count_channel_map = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = __PERF_OUT_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, __PERF_OUT_MAX);
+} io_count_channel_map SEC(".maps");
+
 
 struct block_bio_queue_args {
     struct trace_entry ent;

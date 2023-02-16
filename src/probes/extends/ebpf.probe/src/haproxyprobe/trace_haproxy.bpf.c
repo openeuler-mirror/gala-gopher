@@ -21,12 +21,12 @@
 
 char g_license[] SEC("license") = "Dual BSD/GPL";
 
-struct bpf_map_def SEC("maps") haproxy_link_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct link_key),
-    .value_size = sizeof(struct link_value),
-    .max_entries = LINK_MAX_ENTRIES,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct link_key));
+    __uint(value_size, sizeof(struct link_value));
+    __uint(max_entries, LINK_MAX_ENTRIES);
+} haproxy_link_map SEC(".maps");
 
 static int sock_to_ip_str(struct ssockaddr_s *sock_addr, struct ip *ip_addr, unsigned short *port)
 {

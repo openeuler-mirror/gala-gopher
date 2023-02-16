@@ -30,19 +30,19 @@ char LICENSE[] SEC("license") = "GPL";
 
 #define HASH_ITEM_CNTS 10240
 
-struct bpf_map_def SEC("maps") para_hs = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(void **),
-    .max_entries = HASH_ITEM_CNTS,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(__u64));
+    __uint(value_size, sizeof(void **));
+    __uint(max_entries, HASH_ITEM_CNTS);
+} para_hs SEC(".maps");
 
-struct bpf_map_def SEC("maps") hs = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct ip_addr),
-    .value_size = sizeof(struct ngx_metric),
-    .max_entries = HASH_ITEM_CNTS,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct ip_addr));
+    __uint(value_size, sizeof(struct ngx_metric));
+    __uint(max_entries, HASH_ITEM_CNTS);
+} hs SEC(".maps");
 
 static void bpf_copy_ip_addr(const struct sockaddr *addr, struct ip_addr *ip)
 {

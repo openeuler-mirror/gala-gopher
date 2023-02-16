@@ -19,20 +19,22 @@
 #ifndef __PERF_OUT_MAX
 #define __PERF_OUT_MAX (64)
 #endif
-struct bpf_map_def SEC("maps") io_latency_channel_map = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = __PERF_OUT_MAX,
-};
+
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, __PERF_OUT_MAX);
+} io_latency_channel_map SEC(".maps");
 
 // Data collection args
-struct bpf_map_def SEC("maps") io_args_map = {
-    .type = BPF_MAP_TYPE_ARRAY,
-    .key_size = sizeof(u32),    // const value 0
-    .value_size = sizeof(struct io_trace_args_s),  // args
-    .max_entries = 1,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(key_size, sizeof(u32)); // const value 0
+    __uint(value_size, sizeof(struct io_trace_args_s));
+    __uint(max_entries, 1);
+} io_args_map SEC(".maps");
+
 
 #define __DEFAULT_REPORT_PERIOD (__u64)((__u64)30 * 1000000000)
 static __always_inline u64 get_report_period()

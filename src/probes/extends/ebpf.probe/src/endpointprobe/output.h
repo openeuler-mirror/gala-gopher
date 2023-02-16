@@ -31,28 +31,31 @@
 
 #define __ENDPOINT_MAX (10 * 1024)
 // Used to identifies the TCP listen/connect and UDP sock object.
-struct bpf_map_def SEC("maps") g_endpoint_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct sock *),
-    .value_size = sizeof(struct endpoint_v),
-    .max_entries = __ENDPOINT_MAX,
-};
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct sock *));
+    __uint(value_size, sizeof(struct endpoint_v));
+    __uint(max_entries, __ENDPOINT_MAX);
+} g_endpoint_map SEC(".maps");
 
 #define __PERF_OUT_MAX (64)
-struct bpf_map_def SEC("maps") g_ep_output = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = __PERF_OUT_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, __PERF_OUT_MAX);
+} g_ep_output SEC(".maps");
+
 
 // Data collection args
-struct bpf_map_def SEC("maps") args_map = {
-    .type = BPF_MAP_TYPE_ARRAY,
-    .key_size = sizeof(u32),    // const value 0
-    .value_size = sizeof(struct endpoint_args_s),  // endpoint args
-    .max_entries = 1,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(key_size, sizeof(u32)); // const value 0
+    __uint(value_size, sizeof(struct endpoint_args_s)); // endpoint args
+    __uint(max_entries, 1);
+} args_map SEC(".maps");
+
 
 #define __PERIOD ((u64)30 * 1000000000)
 static __always_inline u64 get_period()

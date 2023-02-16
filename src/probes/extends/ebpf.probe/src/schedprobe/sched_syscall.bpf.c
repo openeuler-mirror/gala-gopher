@@ -42,19 +42,19 @@ struct sys_enter_s {
     u64 wait, sleep;        // unit: nanosecond
 };
 
-struct bpf_map_def SEC("maps") syscall_enter_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(pid_t),
-    .value_size = sizeof(struct sys_enter_s),
-    .max_entries = 10 * 1024,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(pid_t));
+    __uint(value_size, sizeof(struct sys_enter_s));
+    __uint(max_entries, 10 * 1024);
+} syscall_enter_map SEC(".maps");
 
-struct bpf_map_def SEC("maps") syscall_latency_stackmap = {
-    .type = BPF_MAP_TYPE_STACK_TRACE,
-    .key_size = sizeof(u32),
-    .value_size = PERF_MAX_STACK_DEPTH * sizeof(u64),
-    .max_entries = 1000,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_STACK_TRACE);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, PERF_MAX_STACK_DEPTH * sizeof(u64));
+    __uint(max_entries, 1000);
+} syscall_latency_stackmap SEC(".maps");
 
 struct sched_switch_args {
     struct trace_entry ent;

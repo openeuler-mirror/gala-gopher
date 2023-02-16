@@ -47,19 +47,20 @@ struct sched_latency_s {
     char comm[TASK_COMM_LEN];
 };
 
-struct bpf_map_def SEC("maps") resched_pid_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(pid_t),    // pid.
-    .value_size = sizeof(struct sched_latency_s),
-    .max_entries = 1000,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(pid_t));
+    __uint(value_size, sizeof(struct sched_latency_s));
+    __uint(max_entries, 1000);
+} resched_pid_map SEC(".maps");
 
-struct bpf_map_def SEC("maps") systime_latency_stackmap = {
-    .type = BPF_MAP_TYPE_STACK_TRACE,
-    .key_size = sizeof(u32),
-    .value_size = PERF_MAX_STACK_DEPTH * sizeof(u64),
-    .max_entries = 1000,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_STACK_TRACE);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, PERF_MAX_STACK_DEPTH * sizeof(u64));
+    __uint(max_entries, 1000);
+} systime_latency_stackmap SEC(".maps");
+
 
 #if defined(__TARGET_ARCH_x86)
 #define TIF_NEED_RESCHED    3

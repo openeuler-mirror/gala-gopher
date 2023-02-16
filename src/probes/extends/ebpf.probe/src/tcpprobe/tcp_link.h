@@ -28,37 +28,38 @@
 #define __TCP_LINK_MAX (10 * 1024)
 // Used to identifies the TCP link(including multiple establish tcp connection)
 // and save TCP statistics.
-struct bpf_map_def SEC("maps") tcp_link_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct sock *),
-    .value_size = sizeof(struct sock_stats_s),
-    .max_entries = __TCP_LINK_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct sock *));
+    __uint(value_size, sizeof(struct sock_stats_s));
+    __uint(max_entries, __TCP_LINK_MAX);
+} tcp_link_map SEC(".maps");
+
 
 #define __TCP_TUPLE_MAX (10 * 1024)
 // Used to identifies the TCP sock object, and role of the SOCK object.
 // Equivalent to TCP 5-tuple objects.
-struct bpf_map_def SEC("maps") sock_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct sock *),
-    .value_size = sizeof(struct sock_info_s),
-    .max_entries = __TCP_TUPLE_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct sock *));
+    __uint(value_size, sizeof(struct sock_info_s));
+    __uint(max_entries, __TCP_TUPLE_MAX);
+} sock_map SEC(".maps");
 
 // args
-struct bpf_map_def SEC("maps") args_map = {
-    .type = BPF_MAP_TYPE_ARRAY,
-    .key_size = sizeof(u32),    // const value 0
-    .value_size = sizeof(struct tcp_args_s),  // tcp probe args
-    .max_entries = 1,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(key_size, sizeof(u32));  // const value 0
+    __uint(value_size, sizeof(struct tcp_args_s)); // tcp probe args
+    __uint(max_entries, 1);
+} args_map SEC(".maps");
 
-struct bpf_map_def SEC("maps") tcp_output = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = 64,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, 64);
+} tcp_output SEC(".maps");
 
 #define __PERIOD    NS(30)
 static __always_inline __maybe_unused u64 get_period()

@@ -42,28 +42,29 @@
   Two data channel periodically alternate roles.
 */
 
-struct bpf_map_def SEC("maps") convert_map = {
-    .type = BPF_MAP_TYPE_ARRAY,
-    .key_size = sizeof(u32),    // const value 0
-    .value_size = sizeof(struct convert_data_t),
-    .max_entries = 1,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(key_size, sizeof(u32)); // const value 0
+    __uint(value_size, sizeof(struct convert_data_t));
+    __uint(max_entries, 1);
+} convert_map SEC(".maps");
 
 /* Data channel A */
-struct bpf_map_def SEC("maps") stackmap_a = {
-    .type = BPF_MAP_TYPE_STACK_TRACE,
-    .key_size = sizeof(u32),
-    .value_size = PERF_MAX_STACK_DEPTH * sizeof(u64),
-    .max_entries = PERCPU_SAMPLE_COUNT,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_STACK_TRACE);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, PERF_MAX_STACK_DEPTH * sizeof(u64));
+    __uint(max_entries, PERCPU_SAMPLE_COUNT);
+} stackmap_a SEC(".maps");
+
 
 /* Data channel B */
-struct bpf_map_def SEC("maps") stackmap_b = {
-    .type = BPF_MAP_TYPE_STACK_TRACE,
-    .key_size = sizeof(u32),
-    .value_size = PERF_MAX_STACK_DEPTH * sizeof(u64),
-    .max_entries = PERCPU_SAMPLE_COUNT,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_STACK_TRACE);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, PERF_MAX_STACK_DEPTH * sizeof(u64));
+    __uint(max_entries, PERCPU_SAMPLE_COUNT);
+} stackmap_b SEC(".maps");
 
 
 #endif

@@ -21,12 +21,12 @@
 
 char g_license[] SEC("license") = "GPL";
 
-struct bpf_map_def SEC("maps") dns_query_link_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct link_key),
-    .value_size = sizeof(struct link_value),
-    .max_entries = LINK_MAX_ENTRIES,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct link_key));
+    __uint(value_size, sizeof(struct link_value));
+    __uint(max_entries, LINK_MAX_ENTRIES);
+} dns_query_link_map SEC(".maps");
 
 UPROBE(send_from, pt_regs)
 {

@@ -23,12 +23,13 @@
 #include "thread.h"
 
 #define __THREAD_MAX      1000
-struct bpf_map_def SEC("maps") g_thread_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(int),
-    .value_size = sizeof(struct thread_data),
-    .max_entries = __THREAD_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(int));
+    __uint(value_size, sizeof(struct thread_data));
+    __uint(max_entries, __THREAD_MAX);
+} g_thread_map SEC(".maps");
+
 
 static __always_inline __maybe_unused struct thread_data* get_thread(int pid)
 {

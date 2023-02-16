@@ -333,13 +333,17 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
 static __always_inline __maybe_unused struct perf_buffer* __do_create_pref_buffer(int map_fd,
                 perf_buffer_sample_fn cb, perf_buffer_lost_fn lost_cb)
 {
-    struct perf_buffer_opts pb_opts = {};
     struct perf_buffer *pb;
     int ret;
 
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+    pb = perf_buffer__new(map_fd, 8, cb, lost_cb, NULL, NULL);
+#else
+    struct perf_buffer_opts pb_opts = {};
     pb_opts.sample_cb = cb;
     pb_opts.lost_cb = lost_cb;
     pb = perf_buffer__new(map_fd, 8, &pb_opts);
+#endif
     if (pb == NULL){
         fprintf(stderr, "ERROR: perf buffer new failed\n");
         return NULL;
