@@ -39,26 +39,27 @@
  * and read and write operations in user mode.
  * MUST NOT BE perform write operations in kernel mode.
 */
-struct bpf_map_def SEC("maps") cgrp_obj_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct cgroup_s),
-    .value_size = sizeof(struct obj_ref_s),
-    .max_entries = CGRP_MAP_MAX_ENTRIES,
-};
 
-struct bpf_map_def SEC("maps") nm_obj_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct nm_s),
-    .value_size = sizeof(struct obj_ref_s),
-    .max_entries = NM_MAP_MAX_ENTRIES,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct cgroup_s));
+    __uint(value_size, sizeof(struct obj_ref_s));
+    __uint(max_entries, CGRP_MAP_MAX_ENTRIES);
+} cgrp_obj_map SEC(".maps");
 
-struct bpf_map_def SEC("maps") proc_obj_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct proc_s),
-    .value_size = sizeof(struct obj_ref_s),
-    .max_entries = PROC_MAP_MAX_ENTRIES,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct nm_s));
+    __uint(value_size, sizeof(struct obj_ref_s));
+    __uint(max_entries, NM_MAP_MAX_ENTRIES);
+} nm_obj_map SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct proc_s));
+    __uint(value_size, sizeof(struct obj_ref_s));
+    __uint(max_entries, PROC_MAP_MAX_ENTRIES);
+} proc_obj_map SEC(".maps");
 
 static __always_inline __maybe_unused char is_cgrp_exist(struct cgroup_s *obj)
 {

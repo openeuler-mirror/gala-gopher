@@ -85,7 +85,6 @@ static int event_config_add(EventsConfig *conf, eventConfig *evt)
 static int field_load(jsonfieldsConfig *field, config_setting_t *field_config)
 {
     int ret = 0;
-    int int_val = 0;
     const char *str_val;
 
     (void)memset(field, 0, sizeof(jsonfieldsConfig));

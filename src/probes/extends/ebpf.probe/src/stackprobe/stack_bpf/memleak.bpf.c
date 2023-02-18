@@ -34,41 +34,41 @@ struct mmap_info_t {
     struct stack_id_s stack_id;
 };
 
-struct bpf_map_def SEC("maps") stackmap_perf_a = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = MAX_CPU,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, MAX_CPU);
+} stackmap_perf_a SEC(".maps");
 
-struct bpf_map_def SEC("maps") stackmap_perf_b = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = MAX_CPU,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, MAX_CPU);
+} stackmap_perf_b SEC(".maps");
 
 // memory to be allocated for the process
-struct bpf_map_def SEC("maps") to_allocate = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u64), // pid
-    .value_size = sizeof(u64), // size
-    .max_entries = 1000,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(u64));  // pid
+    __uint(value_size, sizeof(u64));  // size
+    __uint(max_entries, 1000);
+} to_allocate SEC(".maps");
 
-struct bpf_map_def SEC("maps") memalign_allocate = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u64), // pid
-    .value_size = sizeof(u64), // size
-    .max_entries = 10000,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(u64)); // pid
+    __uint(value_size, sizeof(u64)); // size
+    __uint(max_entries, 10000);
+} memalign_allocate SEC(".maps");
 
-struct bpf_map_def SEC("maps") allocs = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct pid_addr_t),
-    .value_size = sizeof(struct mmap_info_t),
-    .max_entries = 10000,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct pid_addr_t));
+    __uint(value_size, sizeof(struct mmap_info_t));
+    __uint(max_entries, 10000);
+} allocs SEC(".maps");
 
 static inline char is_stackmap_a() {
     const u32 zero = 0;

@@ -30,12 +30,13 @@ char g_linsence[] SEC("license") = "GPL";
 #ifndef __PERF_OUT_MAX
 #define __PERF_OUT_MAX (64)
 #endif
-struct bpf_map_def SEC("maps") proc_exec_channel_map = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = __PERF_OUT_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, __PERF_OUT_MAX);
+} proc_exec_channel_map SEC(".maps");
+
 
 KRAWTRACE(sched_process_exec, bpf_raw_tracepoint_args)
 {

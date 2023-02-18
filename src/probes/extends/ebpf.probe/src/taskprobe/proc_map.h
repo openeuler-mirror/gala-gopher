@@ -23,12 +23,13 @@
 #include "proc.h"
 
 #define __PROC_MAX      1000
-struct bpf_map_def SEC("maps") g_proc_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u32),    // proc id
-    .value_size = sizeof(struct proc_data_s),
-    .max_entries = __PROC_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(u32));  // proc id
+    __uint(value_size, sizeof(struct proc_data_s));
+    __uint(max_entries, __PROC_MAX);
+} g_proc_map SEC(".maps");
+
 
 static __always_inline __maybe_unused struct proc_data_s* get_proc_entry(u32 proc_id)
 {

@@ -31,12 +31,12 @@
 #define BPF_F_CURRENT_CPU   BPF_F_INDEX_MASK
 
 #define PERF_OUT_MAX (64)
-struct bpf_map_def SEC("maps") g_thread_output = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = PERF_OUT_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, PERF_OUT_MAX);
+} g_thread_output SEC(".maps");
 
 #define IS_THREAD_TMOUT(stats_ts, ts, period, type, tmout) \
     do \

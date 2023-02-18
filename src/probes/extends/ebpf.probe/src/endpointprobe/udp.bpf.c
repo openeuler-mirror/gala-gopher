@@ -25,20 +25,20 @@ char g_license[] SEC("license") = "GPL";
 #define __ENDPOINT_STAT_MAX (1024)
 
 // Used to identifies the UDP object.
-struct bpf_map_def SEC("maps") udp_sock_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct udp_client_key_t),
-    .value_size = sizeof(struct endpoint_val_t),
-    .max_entries = __ENDPOINT_STAT_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct udp_client_key_t));
+    __uint(value_size, sizeof(struct endpoint_val_t));
+    __uint(max_entries, __ENDPOINT_STAT_MAX);
+} udp_sock_map SEC(".maps");
 
 // Used to identifies the UDP bind object.
-struct bpf_map_def SEC("maps") udp_bind_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct udp_server_key_t),
-    .value_size = sizeof(struct endpoint_val_t),
-    .max_entries = __ENDPOINT_STAT_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct udp_server_key_t));
+    __uint(value_size, sizeof(struct endpoint_val_t));
+    __uint(max_entries, __ENDPOINT_STAT_MAX);
+} udp_bind_map SEC(".maps");
 
 static __always_inline int create_udp_obj(struct endpoint_key_t *key)
 {

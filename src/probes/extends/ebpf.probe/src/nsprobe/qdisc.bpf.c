@@ -27,12 +27,12 @@ char g_linsence[] SEC("license") = "GPL";
 #ifndef __QDISC_MAX
 #define __QDISC_MAX (1024)
 #endif
-struct bpf_map_def SEC("maps") qdisc_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct Qdisc*),    // key
-    .value_size = sizeof(struct qdisc),
-    .max_entries = __QDISC_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct Qdisc*));
+    __uint(value_size, sizeof(struct qdisc));
+    __uint(max_entries, __QDISC_MAX);
+} qdisc_map SEC(".maps");
 
 static __always_inline struct qdisc* get_qdisc(struct Qdisc* q)
 {

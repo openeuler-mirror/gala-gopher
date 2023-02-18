@@ -22,19 +22,19 @@
 
 char g_linsence[] SEC("license") = "GPL";
 
-struct bpf_map_def SEC("maps") stackmap_perf_a = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = MAX_CPU,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, MAX_CPU);
+} stackmap_perf_a SEC(".maps");
 
-struct bpf_map_def SEC("maps") stackmap_perf_b = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = MAX_CPU,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, MAX_CPU);
+} stackmap_perf_b SEC(".maps");
 
 static __always_inline u64 get_real_start_time()
 {

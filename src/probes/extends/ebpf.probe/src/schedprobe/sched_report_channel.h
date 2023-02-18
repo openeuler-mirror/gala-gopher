@@ -21,20 +21,20 @@
 #ifndef __PERF_OUT_MAX
 #define __PERF_OUT_MAX (64)
 #endif
-struct bpf_map_def SEC("maps") sched_report_channel_map = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = __PERF_OUT_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, __PERF_OUT_MAX);
+} sched_report_channel_map SEC(".maps");
 
 // Data collection args
-struct bpf_map_def SEC("maps") sched_args_map = {
-    .type = BPF_MAP_TYPE_ARRAY,
-    .key_size = sizeof(u32),    // const value 0
-    .value_size = sizeof(struct sched_args_s),  // args
-    .max_entries = 1,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(key_size, sizeof(u32)); // const value 0
+    __uint(value_size, sizeof(struct sched_args_s)); // args
+    __uint(max_entries, 1);
+} sched_args_map SEC(".maps");
 
 #define __DEFAULT_LAT_THR (__u64)((__u64)5 * 1000000000)  // 5 s
 static __always_inline __maybe_unused u64 get_lat_thr(void)

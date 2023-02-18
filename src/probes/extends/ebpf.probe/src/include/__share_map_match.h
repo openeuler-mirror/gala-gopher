@@ -57,12 +57,12 @@ enum ctx_caller_t {
 };
 
 #define __PROBE_MATCH_MAP_MAX_ENTRIES 1000
-struct bpf_map_def SEC("maps") __probe_match_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct __probe_key),
-    .value_size = sizeof(struct __probe_val),
-    .max_entries = __PROBE_MATCH_MAP_MAX_ENTRIES,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct __probe_key));
+    __uint(value_size, sizeof(struct __probe_val));
+    __uint(max_entries, __PROBE_MATCH_MAP_MAX_ENTRIES);
+} __probe_match_map SEC(".maps");
 
 static __always_inline __maybe_unused void __get_probe_key(struct __probe_key *key, const long bp,
                                                            enum ctx_caller_t caller_type) {

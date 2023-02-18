@@ -26,12 +26,12 @@ char g_linsence[] SEC("license") = "GPL";
 
 // Used to identifies the TCP pid and fd.
 // Temporary MAP. Data exists only in the startup phase.
-struct bpf_map_def SEC("maps") tcp_fd_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u32),    // tgid
-    .value_size = sizeof(struct tcp_fd_info),
-    .max_entries = __TCP_FD_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(u32)); // tgid
+    __uint(value_size, sizeof(struct tcp_fd_info));
+    __uint(max_entries, __TCP_FD_MAX);
+} tcp_fd_map SEC(".maps");
 
 static void do_load_tcp_fd(u32 tgid, int fd, struct sock_info_s *info)
 {

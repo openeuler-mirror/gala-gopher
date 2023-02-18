@@ -28,20 +28,20 @@ char g_linsence[] SEC("license") = "GPL";
 #ifndef __PERF_OUT_MAX
 #define __PERF_OUT_MAX (64)
 #endif
-struct bpf_map_def SEC("maps") page_cache_channel_map = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = __PERF_OUT_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, __PERF_OUT_MAX);
+} page_cache_channel_map SEC(".maps");
 
 #define __PAGECACHE_ENTRIES_MAX (100)
-struct bpf_map_def SEC("maps") page_cache_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct pagecache_entity_s),
-    .value_size = sizeof(struct pagecache_stats_s),
-    .max_entries = __PAGECACHE_ENTRIES_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct pagecache_entity_s));
+    __uint(value_size, sizeof(struct pagecache_stats_s));
+    __uint(max_entries, __PAGECACHE_ENTRIES_MAX);
+} page_cache_map SEC(".maps");
 
 static __always_inline int buffer_head_to_blk(struct buffer_head *bh, int *major, int *minor)
 {

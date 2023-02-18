@@ -34,12 +34,13 @@ struct proc_bio_stats_s {
 };
 
 #define __BIO_MAX      1000
-struct bpf_map_def SEC("maps") bio_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct bio*),
-    .value_size = sizeof(struct proc_bio_stats_s),
-    .max_entries = __BIO_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct bio*));
+    __uint(value_size, sizeof(struct proc_bio_stats_s));
+    __uint(max_entries, __BIO_MAX);
+} bio_map SEC(".maps");
+
 
 static __always_inline char is_read_bio(struct bio *bio)
 {

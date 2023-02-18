@@ -29,6 +29,11 @@
 #include "common.h"
 #include "object.h"
 
+#undef LIBBPF_VERSION
+#undef CURRENT_LIBBPF_VERSION
+#define LIBBPF_VERSION(a, b) (((a) << 8) + (b))
+#define CURRENT_LIBBPF_VERSION LIBBPF_VERSION(LIBBPF_VER_MAJOR, LIBBPF_VER_MINOR)
+
 #define MAP_OBJS_DUMP "bpftool map list  | /usr/bin/grep -w %s"
 struct __obj_s {
     int init;
@@ -318,8 +323,13 @@ int obj_module_create_map(char *name)
 
     pin_path[0] = 0;
     if (!strcmp(name, "proc_obj_map")) {
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+        map_fd = bpf_map_create(BPF_MAP_TYPE_HASH, "proc_obj_map",
+                                     sizeof(struct proc_s), sizeof(struct obj_ref_s), PROC_MAP_MAX_ENTRIES, NULL);
+#else
         map_fd = bpf_create_map_name(BPF_MAP_TYPE_HASH, "proc_obj_map",
                                      sizeof(struct proc_s), sizeof(struct obj_ref_s), PROC_MAP_MAX_ENTRIES, 0);
+#endif
         if (map_fd < 0) {
             ERROR("object module create %s failed.\n", name);
             return -1;

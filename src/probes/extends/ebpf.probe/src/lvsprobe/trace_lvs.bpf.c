@@ -23,19 +23,19 @@
 
 char g_linsence[] SEC("license") = "GPL";
 
-struct bpf_map_def SEC("maps") lvs_link_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct link_key),
-    .value_size = sizeof(struct link_value),
-    .max_entries = IPVS_MAX_ENTRIES,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct link_key));
+    __uint(value_size, sizeof(struct link_value));
+    __uint(max_entries, IPVS_MAX_ENTRIES);
+} lvs_link_map SEC(".maps");
 
-struct bpf_map_def SEC("maps") lvs_flag_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u16),
-    .value_size = sizeof(u8),
-    .max_entries = IPVS_MIN_ENTRIES,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(u16));
+    __uint(value_size, sizeof(u8));
+    __uint(max_entries, IPVS_MIN_ENTRIES);
+} lvs_flag_map SEC(".maps");
 
 static void ipvs_state_get_key(const struct ip_vs_conn *p, struct link_key *key, struct ip *addr, u16 *port)
 {

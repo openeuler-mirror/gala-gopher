@@ -43,26 +43,26 @@ struct xdp_md {
 
 #endif
 
-struct bpf_map_def SEC("maps") xdp_data_map = {
-    .type        = BPF_MAP_TYPE_ARRAY,
-    .key_size    = sizeof(__u32),
-    .value_size  = sizeof(struct KafkaData),
-    .max_entries = MAP_MAX_ITEM,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(key_size, sizeof(__u32));
+    __uint(value_size, sizeof(struct KafkaData));
+    __uint(max_entries, MAP_MAX_ITEM);
+} xdp_data_map SEC(".maps");
 
-struct bpf_map_def SEC("maps") xdp_ctrl_map = {
-    .type         = BPF_MAP_TYPE_ARRAY,
-    .key_size     = sizeof(__u32),
-    .value_size  = sizeof(__u32),
-    .max_entries = MAP_MAX_ITEM,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(key_size, sizeof(__u32));
+    __uint(value_size, sizeof(__u32));
+    __uint(max_entries, MAP_MAX_ITEM);
+} xdp_ctrl_map SEC(".maps");
 
-struct bpf_map_def SEC("maps") xdp_port_map = {
-    .type           = BPF_MAP_TYPE_ARRAY,
-    .key_size       = sizeof(__u32),
-    .value_size     = sizeof(__u16),
-    .max_entries    = MAP_MAX_ITEM,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(key_size, sizeof(__u32));
+    __uint(value_size, sizeof(__u16));
+    __uint(max_entries, MAP_MAX_ITEM);
+} xdp_port_map SEC(".maps");
 
 static __always_inline int proto_is_vlan(__u16 h_proto)
 {

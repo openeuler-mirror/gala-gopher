@@ -28,30 +28,30 @@ char g_linsence[] SEC("license") = "GPL";
 #ifndef __CGROUP_MAX
 #define __CGROUP_MAX (1024)
 #endif
-struct bpf_map_def SEC("maps") cg_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64), // cgroup_id
-    .value_size = sizeof(struct mem_cgroup_gauge),
-    .max_entries = __CGROUP_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(__u64)); // cgroup_id
+    __uint(value_size, sizeof(struct mem_cgroup_gauge));
+    __uint(max_entries, __CGROUP_MAX);
+} cg_map SEC(".maps");
 
 #ifndef __PERF_OUT_MAX
 #define __PERF_OUT_MAX (64)
 #endif
-struct bpf_map_def SEC("maps") output = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = __PERF_OUT_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, __PERF_OUT_MAX);
+} output SEC(".maps");
 
 // Data collection args
-struct bpf_map_def SEC("maps") args_map = {
-    .type = BPF_MAP_TYPE_ARRAY,
-    .key_size = sizeof(u32),    // const value 0
-    .value_size = sizeof(struct ns_args_s),  // nsprobe args
-    .max_entries = 1,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(key_size, sizeof(u32));  // const value 0
+    __uint(value_size, sizeof(struct ns_args_s)); // nsprobe args
+    __uint(max_entries, 1);
+} args_map SEC(".maps");
 
 #ifndef __PERIOD
 #define __PERIOD NS(30)

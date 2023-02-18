@@ -64,34 +64,34 @@ struct conn_samp_data_t {
     char req_cmd;
 };
 
-struct bpf_map_def SEC("maps") conn_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct conn_key_t),
-    .value_size = sizeof(struct conn_data_t),
-    .max_entries = MAX_CONN_LEN,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct conn_key_t));
+    __uint(value_size, sizeof(struct conn_data_t));
+    __uint(max_entries, MAX_CONN_LEN);
+} conn_map SEC(".maps");
 
 // Data collection args
-struct bpf_map_def SEC("maps") args_map = {
-    .type = BPF_MAP_TYPE_ARRAY,
-    .key_size = sizeof(u32), // const value 0
-    .value_size = sizeof(struct ogsli_args_s), // args
-    .max_entries = 1,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(key_size, sizeof(u32)); // const value 0
+    __uint(value_size, sizeof(struct ogsli_args_s)); // args
+    __uint(max_entries, 1);
+} args_map SEC(".maps");
 
-struct bpf_map_def SEC("maps") conn_samp_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u32), // struct sock *
-    .value_size = sizeof(struct conn_samp_data_t),
-    .max_entries = MAX_CONN_LEN,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(u32)); // struct sock *
+    __uint(value_size, sizeof(struct conn_samp_data_t)); // args
+    __uint(max_entries, MAX_CONN_LEN);
+} conn_samp_map SEC(".maps");
 
-struct bpf_map_def SEC("maps") output = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = __PERF_OUT_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, __PERF_OUT_MAX);
+} output SEC(".maps");
 
 static __always_inline void sample_finished(struct conn_data_t *conn_data, struct conn_samp_data_t *csd)
 {

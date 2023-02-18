@@ -27,28 +27,30 @@ char g_license[] SEC("license") = "GPL";
 
 #define __ENDPOINT_STAT_MAX (1024)
 // Used to identifies the TCP listen object.
-struct bpf_map_def SEC("maps") listen_sock_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct tcp_listen_key_t),
-    .value_size = sizeof(struct endpoint_val_t),
-    .max_entries = __ENDPOINT_STAT_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct tcp_listen_key_t));
+    __uint(value_size, sizeof(struct endpoint_val_t));
+    __uint(max_entries, __ENDPOINT_STAT_MAX);
+} listen_sock_map SEC(".maps");
+
 
 // Used to identifies the TCP connect object.
-struct bpf_map_def SEC("maps") conn_sock_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct tcp_connect_key_t),
-    .value_size = sizeof(struct endpoint_val_t),
-    .max_entries = __ENDPOINT_STAT_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct tcp_connect_key_t));
+    __uint(value_size, sizeof(struct endpoint_val_t));
+    __uint(max_entries, __ENDPOINT_STAT_MAX);
+} conn_sock_map SEC(".maps");
+
 
 #define __LISTEN_FD_MAX (1024)
-struct bpf_map_def SEC("maps") listen_sockfd_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct listen_sockfd_key_t),
-    .value_size = sizeof(int),
-    .max_entries = __LISTEN_FD_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct listen_sockfd_key_t));
+    __uint(value_size, sizeof(int));
+    __uint(max_entries, __LISTEN_FD_MAX);
+} listen_sockfd_map SEC(".maps");
 
 static __always_inline int create_tcp_obj(struct endpoint_key_t *key)
 {

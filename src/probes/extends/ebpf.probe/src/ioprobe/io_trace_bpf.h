@@ -34,28 +34,30 @@
 #define REQ_META        (1ULL << __REQ_META)
 #define REQ_PREFLUSH    (1ULL << __REQ_PREFLUSH)
 
-struct bpf_map_def SEC("maps") io_sample_map = {
-    .type = BPF_MAP_TYPE_ARRAY,
-    .key_size = sizeof(int),
-    .value_size = sizeof(u64),  // sample ts, unit: ns
-    .max_entries = 1,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(key_size, sizeof(int));
+    __uint(value_size, sizeof(u64)); // sample ts, unit: ns
+    __uint(max_entries, 1);
+} io_sample_map SEC(".maps");
 
 #define __IO_ENTRIES_MAX (5 * 1024)
-struct bpf_map_def SEC("maps") io_trace_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct io_req_s),
-    .value_size = sizeof(struct io_trace_s),
-    .max_entries = __IO_ENTRIES_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct io_req_s));
+    __uint(value_size, sizeof(struct io_trace_s));
+    __uint(max_entries, __IO_ENTRIES_MAX);
+} io_trace_map SEC(".maps");
+
 
 #define __IO_LATENCY_ENTRIES_MAX (100)
-struct bpf_map_def SEC("maps") io_latency_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct io_entity_s),
-    .value_size = sizeof(struct io_latency_s),
-    .max_entries = __IO_LATENCY_ENTRIES_MAX,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct io_entity_s));
+    __uint(value_size, sizeof(struct io_latency_s));
+    __uint(max_entries, __IO_LATENCY_ENTRIES_MAX);
+} io_latency_map SEC(".maps");
+
 
 static __always_inline __maybe_unused char is_sample_tmout(u64 current_ts)
 {
