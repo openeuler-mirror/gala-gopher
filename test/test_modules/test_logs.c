@@ -25,6 +25,7 @@
 #define TEST_META_PATH      "/home/logs/meta"
 
 #define LOGS_FILE_SIZE      (1024)
+#define TEST_WR_LOGS_NUM    10
 
 #define WR_LOGS(count, id, func, txt) \
     do \
@@ -116,85 +117,26 @@ static void TestLogsWrEventLogs(void)
 {
     int count = (LOGS_FILE_SIZE / strlen(EVENT_LOGS_TEXT) + 1);
 
-    WR_LOGS(count, 0, wr_event_logs, EVENT_LOGS_TEXT);
-    CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", 0) == 1);
-    WR_LOGS(count, 1, wr_event_logs, EVENT_LOGS_TEXT);
-    CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", 1) == 1);
-    WR_LOGS(count, 2, wr_event_logs, EVENT_LOGS_TEXT);
-    CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", 2) == 1);
-    WR_LOGS(count, 3, wr_event_logs, EVENT_LOGS_TEXT);
-    CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", 3) == 1);
-
-    RE_LOGS(read_event_logs);
-    CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", 0) == 0);
-    RE_LOGS(read_event_logs);
-    CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", 1) == 0);
-
-    WR_LOGS(count, 4, wr_event_logs, EVENT_LOGS_TEXT);
-    CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", 4) == 1);
-    WR_LOGS(count, 5, wr_event_logs, EVENT_LOGS_TEXT);
-    CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", 5) == 1);
-    WR_LOGS(count, 6, wr_event_logs, EVENT_LOGS_TEXT);
-    CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", 6) == 1);
-
-    RE_LOGS(read_event_logs);
-    CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", 2) == 0);
-    RE_LOGS(read_event_logs);
-    CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", 3) == 0);
-    RE_LOGS(read_event_logs);
-    CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", 4) == 0);
-    RE_LOGS(read_event_logs);
-    CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", 5) == 0);
-    RE_LOGS(read_event_logs);
-    CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", 6) == 0);
-
-    WR_LOGS(count, 7, wr_event_logs, EVENT_LOGS_TEXT);
-    CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", 7) == 1);
-
+    for (int i = 0; i <= TEST_WR_LOGS_NUM; i++) {
+        WR_LOGS(count, i, wr_event_logs, EVENT_LOGS_TEXT);
+        CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", i) == 1);
+        RE_LOGS(read_event_logs);
+        CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", i) == 0);
+    }
     return;
 }
 
 #define METRICS_LOGS_TEXT   "I'am metrics, len 20"
 static void TestLogsWrMetricLogs(void)
 {
-    int ret = 0;
     int count = (LOGS_FILE_SIZE / strlen(METRICS_LOGS_TEXT) + 1);
 
-    WR_LOGS(count, 0, wr_metrics_logs, METRICS_LOGS_TEXT);
-    CU_ASSERT(is_logs_file_exist(TEST_METRICS_PATH, "metrics", 0) == 1);
-    WR_LOGS(count, 1, wr_metrics_logs, METRICS_LOGS_TEXT);
-    CU_ASSERT(is_logs_file_exist(TEST_METRICS_PATH, "metrics", 1) == 1);
-    WR_LOGS(count, 2, wr_metrics_logs, METRICS_LOGS_TEXT);
-    CU_ASSERT(is_logs_file_exist(TEST_METRICS_PATH, "metrics", 2) == 1);
-    WR_LOGS(count, 3, wr_metrics_logs, METRICS_LOGS_TEXT);
-    CU_ASSERT(is_logs_file_exist(TEST_METRICS_PATH, "metrics", 3) == 1);
-
-    RE_LOGS(read_metrics_logs);
-    CU_ASSERT(is_logs_file_exist(TEST_METRICS_PATH, "metrics", 0) == 0);
-    RE_LOGS(read_metrics_logs);
-    CU_ASSERT(is_logs_file_exist(TEST_METRICS_PATH, "metrics", 1) == 0);
-
-    WR_LOGS(count, 4, wr_metrics_logs, METRICS_LOGS_TEXT);
-    CU_ASSERT(is_logs_file_exist(TEST_METRICS_PATH, "metrics", 4) == 1);
-    WR_LOGS(count, 5, wr_metrics_logs, METRICS_LOGS_TEXT);
-    CU_ASSERT(is_logs_file_exist(TEST_METRICS_PATH, "metrics", 5) == 1);
-    WR_LOGS(count, 6, wr_metrics_logs, METRICS_LOGS_TEXT);
-    CU_ASSERT(is_logs_file_exist(TEST_METRICS_PATH, "metrics", 6) == 1);
-
-    RE_LOGS(read_metrics_logs);
-    CU_ASSERT(is_logs_file_exist(TEST_METRICS_PATH, "metrics", 2) == 0);
-    RE_LOGS(read_metrics_logs);
-    CU_ASSERT(is_logs_file_exist(TEST_METRICS_PATH, "metrics", 3) == 0);
-    RE_LOGS(read_metrics_logs);
-    CU_ASSERT(is_logs_file_exist(TEST_METRICS_PATH, "metrics", 4) == 0);
-    RE_LOGS(read_metrics_logs);
-    CU_ASSERT(is_logs_file_exist(TEST_METRICS_PATH, "metrics", 5) == 0);
-    RE_LOGS(read_metrics_logs);
-    CU_ASSERT(is_logs_file_exist(TEST_METRICS_PATH, "metrics", 6) == 0);
-
-    WR_LOGS(count, 7, wr_metrics_logs, METRICS_LOGS_TEXT);
-    CU_ASSERT(is_logs_file_exist(TEST_METRICS_PATH, "metrics", 7) == 1);
-
+    for (int i = 0; i <= TEST_WR_LOGS_NUM; i++) {
+        WR_LOGS(count, i, wr_metrics_logs, METRICS_LOGS_TEXT);
+        CU_ASSERT(is_logs_file_exist(TEST_METRICS_PATH, "metrics", i) == 1);
+        RE_LOGS(read_metrics_logs);
+        CU_ASSERT(is_logs_file_exist(TEST_METRICS_PATH, "metrics", i) == 0);
+    }
     return;
 }
 
