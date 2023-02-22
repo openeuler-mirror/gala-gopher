@@ -112,5 +112,6 @@ KPROBE(finish_task_switch, pt_regs)
     store_end(ctx, pid, ts);
 
     // update_migration(ctx, pid, cpu);
+    return 0;
 }
 

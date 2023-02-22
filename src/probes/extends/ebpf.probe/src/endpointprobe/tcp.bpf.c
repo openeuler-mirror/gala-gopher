@@ -171,6 +171,7 @@ KPROBE(__sock_release, pt_regs)
     struct socket* socket = (struct socket *)PT_REGS_PARM1(ctx);
     struct sock *sk = _(socket->sk);
     (void)delete_sock_map(sk);
+    return 0;
 }
 
 KPROBE(inet_listen, pt_regs)
@@ -179,6 +180,7 @@ KPROBE(inet_listen, pt_regs)
     struct sock *sk = _(socket->sk);
     (void)create_sock_map(sk, SK_TYPE_LISTEN_TCP, (bpf_get_current_pid_tgid() >> INT_LEN));
     report_tcp(ctx, sk);
+    return 0;
 }
 
 KPROBE(__sys_accept4, pt_regs)
@@ -194,16 +196,16 @@ KPROBE(__sys_accept4, pt_regs)
     listen_sockfd_key.tgid = tgid;
     listen_sockfd_key.fd = fd;
     if (bpf_map_lookup_elem(&listen_sockfd_map, &listen_sockfd_key) == (void *)0) {
-        return;
+        return 0;
     }
 
     if (task == (void *)0) {
-        return;
+        return 0;
     }
 
     sk = sock_get_by_fd(fd, task);
     if (sk == (void *)0) {
-        return;
+        return 0;
     }
 
     (void)bpf_map_delete_elem(&listen_sockfd_map, &listen_sockfd_key);
@@ -214,7 +216,7 @@ KPROBE(__sys_accept4, pt_regs)
         ATOMIC_INC_EP_STATS(value, EP_STATS_PASSIVE_OPENS, 1);
         report(ctx, value, new_entry);
     }
-    return;
+    return 0;
 }
 
 KPROBE_RET(tcp_connect, pt_regs, CTX_KERNEL)
@@ -226,11 +228,11 @@ KPROBE_RET(tcp_connect, pt_regs, CTX_KERNEL)
     struct probe_val val;
 
     if (PROBE_GET_PARMS(tcp_connect, ctx, val, CTX_KERNEL) < 0)
-        return;
+        return 0;
 
     sk = (struct sock *)PROBE_PARM1(val);
     if (sk == (void *)0) {
-        return;
+        return 0;
     }
     (void)create_sock_map(sk, SK_TYPE_CLIENT_TCP, (bpf_get_current_pid_tgid() >> INT_LEN));
     value = get_tcp_val(sk, &new_entry);
@@ -242,6 +244,7 @@ KPROBE_RET(tcp_connect, pt_regs, CTX_KERNEL)
         }
         report(ctx, value, new_entry);
     }
+    return 0;
 }
 
 KPROBE(tcp_conn_request, pt_regs)
@@ -266,7 +269,7 @@ KPROBE(tcp_conn_request, pt_regs)
         }
     }
 
-    return;
+    return 0;
 }
 
 KPROBE(tcp_req_err, pt_regs)
@@ -278,7 +281,7 @@ KPROBE(tcp_req_err, pt_regs)
     struct sock *lsk = listen_sock(sk);
 
     if (!abort)
-        return;
+        return 0;
 
      value = get_tcp_val(lsk, &new_entry);
 
@@ -287,7 +290,7 @@ KPROBE(tcp_req_err, pt_regs)
          report(ctx, value, new_entry);
      }
 
-    return;
+    return 0;
 }
 
 KPROBE_RET(tcp_create_openreq_child, pt_regs, CTX_KERNEL)
@@ -299,22 +302,22 @@ KPROBE_RET(tcp_create_openreq_child, pt_regs, CTX_KERNEL)
     struct endpoint_val_t* value;
 
     if (PROBE_GET_PARMS(tcp_create_openreq_child, ctx, val, CTX_KERNEL) < 0)
-        return;
+        return 0;
 
     sk = (struct sock *)PROBE_PARM1(val);
     if (sk == (void *)0) {
-        return;
+        return 0 ;
     }
     value = get_tcp_val(sk, &new_entry);
     if (value == 0)
-        return;
+        return 0;
 
     if (new_sk) {
         ATOMIC_INC_EP_STATS(value, EP_STATS_PASSIVE_OPENS, 1);
     } else {
         ATOMIC_INC_EP_STATS(value, EP_STATS_LISTEN_DROPS, 1);
     }
-    return;
+    return 0;
 }
 
 
@@ -327,20 +330,20 @@ KPROBE_RET(tcp_check_req, pt_regs, CTX_KERNEL)
     struct endpoint_val_t* value;
 
     if (PROBE_GET_PARMS(tcp_check_req, ctx, val, CTX_KERNEL) < 0)
-        return;
+        return 0;
 
     sk = (struct sock *)PROBE_PARM1(val);
     if (sk == (void *)0) {
-        return;
+        return 0;
     }
     value = get_tcp_val(sk, &new_entry);
     if (value == 0)
-        return;
+        return 0;
 
     if (!new_sk) {
         ATOMIC_INC_EP_STATS(value, EP_STATS_PASSIVE_FAILS, 1);
     }
-    return;
+    return 0;
 }
 
 KRAWTRACE(tcp_retransmit_synack, bpf_raw_tracepoint_args)
@@ -355,7 +358,7 @@ KRAWTRACE(tcp_retransmit_synack, bpf_raw_tracepoint_args)
         report(ctx, value, new_entry);
     }
 
-    return;
+    return 0;
 }
 
 KPROBE(inet_csk_reqsk_queue_drop_and_put, pt_regs)
@@ -394,7 +397,7 @@ KPROBE(tcp_retransmit_timer, pt_regs)
     struct tcp_sock *tp = (struct tcp_sock *)sk;
     struct request_sock *req = _(tp->fastopen_rsk);
     if (req == NULL) {
-        return;
+        return 0;
     }
 
     int sysctl_tcp_synack_retries = _(net->ipv4.sysctl_tcp_synack_retries);
@@ -411,5 +414,6 @@ KPROBE(tcp_retransmit_timer, pt_regs)
             report(ctx, value, new_entry);
         }
     }
+    return 0;
 }
 

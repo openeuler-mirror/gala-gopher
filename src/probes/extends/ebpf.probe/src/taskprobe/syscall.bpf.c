@@ -80,27 +80,28 @@ KRAWTRACE(sys_exit, sys_exit_args)
 
     proc = get_proc_entry(proc_id);
     if (proc == NULL) {
-        return;
+        return 0;
     }
 
     if (is_ia32_task()) {
-        return;
+        return 0;
     }
 
     long id = get_syscall_id(ctx);
     if (id < SYSCALL_ID_MIN || id > SYSCALL_ID_MAX) {
-        return;
+        return 0;
     }
 
     long ret = get_syscall_ret(ctx);
     if (ret >= 0) {
-        return;
+        return 0;
     }
 
     __sync_fetch_and_add(&(proc->syscall.failed), 1);
     proc->syscall.last_ret_code = ret;
     proc->syscall.last_syscall_id = id;
     report_proc(ctx, proc, TASK_PROBE_SYSCALL);
+    return 0;
 }
 #endif
 

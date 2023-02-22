@@ -30,15 +30,15 @@
 
 #define KPROBE(func, type) \
     bpf_section("kprobe/" #func) \
-    void bpf_##func(struct type *ctx)
+    int bpf_##func(struct type *ctx)
 
 #define KRETPROBE(func, type) \
     bpf_section("kretprobe/" #func) \
-    void bpf_ret_##func(struct type *ctx)
+    int bpf_ret_##func(struct type *ctx)
 
 #define KRAWTRACE(func, type) \
     bpf_section("raw_tracepoint/" #func) \
-    void bpf_raw_trace_##func(struct type *ctx)
+    int bpf_raw_trace_##func(struct type *ctx)
 
 #if defined(__BTF_ENABLE_ON)
 #define _(P)                                   \
@@ -291,7 +291,7 @@ static __always_inline __maybe_unused struct sock *sock_get_by_fd(int fd, struct
     } \
     \
     bpf_section("kretprobe/" #func) \
-    void __kprobe_ret_bpf_##func(struct type *ctx)
+    int __kprobe_ret_bpf_##func(struct type *ctx)
 
 #endif
 

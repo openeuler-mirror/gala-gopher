@@ -79,30 +79,28 @@ static __always_inline void update_conn_map_n_conn_samp_map(struct conn_key_t *c
 
 KPROBE(__sys_recvfrom, pt_regs)
 {
-    u32 tgid __maybe_unused = bpf_get_current_pid_tgid() >> INT_LEN;
     int fd = (int)PT_REGS_PARM1(ctx);
     if (fd < 0) {
-        return;
+        return 0;
     }
 
     KPROBE_PARMS_STASH(__sys_recvfrom, ctx, CTX_USER);
-
+    u32 tgid  = bpf_get_current_pid_tgid() >> INT_LEN;
     struct conn_key_t conn_key = {.fd = fd, .tgid = tgid};
     struct conn_data_t *conn_data = (struct conn_data_t *)bpf_map_lookup_elem(&conn_map, &conn_key);
     if (conn_data != NULL && conn_data->sk != NULL) {
-        return;
+        return 0;
     }
     
     (void)update_conn_map_n_conn_samp_map(&conn_key);
-    return;
+    return 0;
 }
 
 KRETPROBE(__sys_recvfrom, pt_regs)
 {
-    u32 tgid __maybe_unused = bpf_get_current_pid_tgid() >> INT_LEN;
     struct probe_val val;
     if (PROBE_GET_PARMS(__sys_recvfrom, ctx, val, CTX_USER) < 0) {
-        return;
+        return 0;
     }
     
     int fd = (int)PROBE_PARM1(val);
@@ -111,38 +109,37 @@ KRETPROBE(__sys_recvfrom, pt_regs)
 
     process_rdwr_msg(fd, buf, count, MSG_READ, ctx);
 
-    return;
+    return 0;
 }
 
 KPROBE(__sys_sendto, pt_regs)
 {
-    u32 tgid __maybe_unused = bpf_get_current_pid_tgid() >> INT_LEN;
     int fd = (int)PT_REGS_PARM1(ctx);
     char *buf = (char *)PT_REGS_PARM2(ctx);
     int count = (int)PT_REGS_PARM3(ctx);
     process_rdwr_msg(fd, buf, count, MSG_WRITE, ctx);
 
-    return;
+    return 0;
 }
 
 KPROBE(__close_fd, pt_regs)
 {
     int fd = (int)PT_REGS_PARM2(ctx);
-    u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;
-
     if (fd < 0) {
-        return;
+        return 0;
     }
+
+    u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;
     struct conn_key_t conn_key = {.fd = fd, .tgid = tgid};
     struct conn_data_t *conn_data = (struct conn_data_t *)bpf_map_lookup_elem(&conn_map, &conn_key);
     if (conn_data == NULL) {
-        return;
+        return 0;
     }
 
     bpf_map_delete_elem(&conn_samp_map, &conn_data->sk);
     bpf_map_delete_elem(&conn_map, &conn_key);
 
-    return;
+    return 0;
 }
 
 // static void tcp_event_new_data_sent(struct sock *sk, struct sk_buff *skb)
@@ -162,6 +159,7 @@ KPROBE(tcp_event_new_data_sent, pt_regs)
             csd->status = SAMP_SKB_READY;
         }
     }
+    return 0;
 }
 
 KPROBE(tcp_clean_rtx_queue, pt_regs)
@@ -181,12 +179,13 @@ KPROBE(tcp_clean_rtx_queue, pt_regs)
             u64 end_ts_nsec = bpf_ktime_get_ns();
             if (end_ts_nsec < csd->start_ts_nsec) {
                 csd->status = SAMP_INIT;
-                return;
+                return 0;
             }
             csd->rtt_ts_nsec = end_ts_nsec - csd->start_ts_nsec;
             csd->status = SAMP_FINISHED;
         }
     }
+    return 0;
 }
 
 #ifdef KERNEL_SUPPORT_TSTAMP
@@ -207,5 +206,6 @@ KPROBE(tcp_recvmsg, pt_regs)
             }
         }
     }
+    return 0;
 }
 #endif

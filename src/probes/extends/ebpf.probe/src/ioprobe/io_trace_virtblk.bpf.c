@@ -29,7 +29,6 @@ The'block_spilt' tracepoint nothing to do.
 KRAWTRACE(block_split, bpf_raw_tracepoint_args)
 {
     // NOTHING TO DO.
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
-    return;
+    return 0;
 }
 

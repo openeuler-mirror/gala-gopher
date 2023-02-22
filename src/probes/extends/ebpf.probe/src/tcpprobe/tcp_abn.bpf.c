@@ -81,7 +81,6 @@ static int get_tcp_abn_stats(struct sock *sk, struct tcp_abn* stats)
 static void tcp_abn_stats_probe_func(void *ctx, struct sock *sk)
 {
     struct tcp_metrics_s *metrics;
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
 
     // Avoid high performance costs
     if (!is_tmout_abn(sk)) {
@@ -97,13 +96,15 @@ static void tcp_abn_stats_probe_func(void *ctx, struct sock *sk)
 KRAWTRACE(tcp_probe, bpf_raw_tracepoint_args)
 {
     struct sock *sk = (struct sock*)ctx->args[0];
-    return tcp_abn_stats_probe_func(ctx, sk);
+    tcp_abn_stats_probe_func(ctx, sk);
+    return 0;
 }
 #else
 KPROBE(tcp_rcv_established, pt_regs)
 {
     struct sock *sk = (struct sock*)PT_REGS_PARM1(ctx);
-    return tcp_abn_stats_probe_func(ctx, sk);
+    tcp_abn_stats_probe_func(ctx, sk);
+    return 0;
 }
 #endif
 
@@ -115,7 +116,7 @@ KPROBE_RET(tcp_add_backlog, pt_regs, CTX_KERNEL)
     struct tcp_metrics_s *metrics;
 
     if (PROBE_GET_PARMS(tcp_add_backlog, ctx, val, CTX_KERNEL) < 0) {
-        return;
+        return 0;
     }
 
     if (discard) {
@@ -127,6 +128,7 @@ KPROBE_RET(tcp_add_backlog, pt_regs, CTX_KERNEL)
             report_abn(ctx, metrics, sk, 0);
         }
     }
+    return 0;
 }
 
 KPROBE_RET(tcp_filter, pt_regs, CTX_KERNEL)
@@ -137,11 +139,10 @@ KPROBE_RET(tcp_filter, pt_regs, CTX_KERNEL)
     struct tcp_metrics_s *metrics;
 
     if (PROBE_GET_PARMS(tcp_filter, ctx, val, CTX_KERNEL) < 0) {
-        return;
+        return 0;
     }
 
     if (discard) {
-
         sk = (struct sock *)PROBE_PARM1(val);
         metrics = get_tcp_metrics(sk);
         if (metrics) {
@@ -149,56 +150,57 @@ KPROBE_RET(tcp_filter, pt_regs, CTX_KERNEL)
             report_abn(ctx, metrics, sk, 0);
         }
     }
+    return 0;
 }
 #ifndef TCP_WRITE_ERR_PROBE_OFF
 KPROBE(tcp_write_err, pt_regs)
 {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     struct tcp_metrics_s *metrics;
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
 
     metrics = get_tcp_metrics(sk);
     if (metrics) {
         TCP_TMOUT_INC(metrics->abn_stats);
         report_abn(ctx, metrics, sk, 1);
     }
+    return 0;
 }
 #endif
 KRAWTRACE(sock_exceed_buf_limit, bpf_raw_tracepoint_args)
 {
     struct sock *sk = (struct sock*)ctx->args[0];
     struct tcp_metrics_s *metrics;
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
 
     metrics = get_tcp_metrics(sk);
     if (metrics) {
         TCP_SNDBUF_LIMIT_INC(metrics->abn_stats);
         report_abn(ctx, metrics, sk, 0);
     }
+    return 0;
 }
 
-static void tcp_abn_snd_rsts_probe_func(void *ctx, struct sock *sk)
+static int tcp_abn_snd_rsts_probe_func(void *ctx, struct sock *sk)
 {
     struct tcp_metrics_s *metrics;
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
 
     metrics = get_tcp_metrics(sk);
     if (metrics) {
         TCP_SEND_RSTS_INC(metrics->abn_stats);
         report_abn(ctx, metrics, sk, 1);
     }
+    return 0;
 }
 
-static void tcp_abn_rcv_rsts_probe_func(void *ctx, struct sock *sk)
+static int tcp_abn_rcv_rsts_probe_func(void *ctx, struct sock *sk)
 {
     struct tcp_metrics_s *metrics;
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
 
     metrics = get_tcp_metrics(sk);
     if (metrics) {
         TCP_RECEIVE_RSTS_INC(metrics->abn_stats);
         report_abn(ctx, metrics, sk, 1);
     }
+    return 0;
 }
 #if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(tcp_send_reset, bpf_raw_tracepoint_args)
@@ -214,14 +216,14 @@ KRAWTRACE(tcp_receive_reset, bpf_raw_tracepoint_args)
 }
 #else
 SEC("tracepoint/tcp/tcp_send_reset")
-void bpf_trace_tcp_send_reset_func(struct trace_event_raw_tcp_event_sk_skb *ctx)
+int bpf_trace_tcp_send_reset_func(struct trace_event_raw_tcp_event_sk_skb *ctx)
 {
     struct sock *sk = (struct sock *)ctx->skaddr;
     return tcp_abn_snd_rsts_probe_func(ctx, sk);
 }
 
 SEC("tracepoint/tcp/tcp_receive_reset")
-void bpf_trace_tcp_receive_reset_func(struct trace_event_raw_tcp_event_sk_skb *ctx)
+int bpf_trace_tcp_receive_reset_func(struct trace_event_raw_tcp_event_sk_skb *ctx)
 {
     struct sock *sk = (struct sock *)ctx->skaddr;
     return tcp_abn_rcv_rsts_probe_func(ctx, sk);
@@ -233,13 +235,13 @@ KPROBE(tcp_retransmit_skb, pt_regs)
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     int segs = (int)PT_REGS_PARM3(ctx);
     struct tcp_metrics_s *metrics;
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
 
     metrics = get_tcp_metrics(sk);
     if (metrics) {
         TCP_RETRANS_INC(metrics->abn_stats, segs);
         report_abn(ctx, metrics, sk, 0);
     }
+    return 0;
 }
 
 KPROBE_RET(tcp_try_rmem_schedule, pt_regs, CTX_KERNEL)
@@ -250,16 +252,16 @@ KPROBE_RET(tcp_try_rmem_schedule, pt_regs, CTX_KERNEL)
     struct tcp_metrics_s *metrics;
 
     if (PROBE_GET_PARMS(tcp_try_rmem_schedule, ctx, val, CTX_KERNEL) < 0) {
-        return;
+        return 0;
     }
 
     if (ret == 0) {
-        return;
+        return 0;
     }
 
     sk = (struct sock *)PROBE_PARM1(val);
     if (sk == (void *)0) {
-        return;
+        return 0;
     }
 
     metrics = get_tcp_metrics(sk);
@@ -268,7 +270,7 @@ KPROBE_RET(tcp_try_rmem_schedule, pt_regs, CTX_KERNEL)
         report_abn(ctx, metrics, sk, 0);
     }
 
-    return;
+    return 0;
 }
 
 KPROBE_RET(tcp_check_oom, pt_regs, CTX_KERNEL)
@@ -280,16 +282,16 @@ KPROBE_RET(tcp_check_oom, pt_regs, CTX_KERNEL)
     struct tcp_metrics_s *metrics;
 
     if (PROBE_GET_PARMS(tcp_check_oom, ctx, val, CTX_KERNEL) < 0) {
-        return;
+        return 0;
     }
 
     if (!ret) {
-        return;
+        return 0;
     }
 
     sk = (struct sock *)PROBE_PARM1(val);
     if (sk == (void *)0) {
-        return;
+        return 0;
     }
 
     metrics = get_tcp_metrics(sk);
@@ -298,5 +300,5 @@ KPROBE_RET(tcp_check_oom, pt_regs, CTX_KERNEL)
         report_abn(ctx, metrics, sk, 0);
     }
 
-    return;
+    return 0;
 }

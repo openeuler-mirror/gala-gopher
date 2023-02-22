@@ -134,16 +134,16 @@ KPROBE_RET(inet_bind, pt_regs, CTX_KERNEL)
     struct probe_val val;
 
     if (PROBE_GET_PARMS(inet_bind, ctx, val, CTX_KERNEL) < 0)
-        return;
+        return 0;
 
     if (ret != 0) {
-        return;
+        return 0;
     }
 
     sock = (struct socket *)PROBE_PARM1(val);
     sk = _(sock->sk);
     if (sk == (void *)0) {
-        return;
+        return 0;
     }
 
     if (_(sock->type) == SOCK_DGRAM) {
@@ -151,7 +151,7 @@ KPROBE_RET(inet_bind, pt_regs, CTX_KERNEL)
         report_udp(ctx, sk);
     }
 
-    return;
+    return 0;
 }
 
 KPROBE(udp_sendmsg, pt_regs)
@@ -166,7 +166,7 @@ KPROBE(udp_sendmsg, pt_regs)
         ATOMIC_INC_EP_STATS(val, EP_STATS_UDP_SENDS, len);
         report(ctx, val, new_entry);
     }
-    return;
+    return 0;
 }
 
 KPROBE(udp_recvmsg, pt_regs)
@@ -181,7 +181,7 @@ KPROBE(udp_recvmsg, pt_regs)
         ATOMIC_INC_EP_STATS(val, EP_STATS_UDP_RCVS, len);
         report(ctx, val, new_entry);
     }
-    return;
+    return 0;
 }
 
 KRAWTRACE(udp_fail_queue_rcv_skb, bpf_raw_tracepoint_args)
@@ -196,7 +196,7 @@ KRAWTRACE(udp_fail_queue_rcv_skb, bpf_raw_tracepoint_args)
         ATOMIC_INC_EP_STATS(val, EP_STATS_QUE_RCV_FAILED, 1);
         val->udp_err_code = rc;
     }
-    return;
+    return 0;
 }
 
 KPROBE(udp_init_sock, pt_regs)
@@ -204,4 +204,5 @@ KPROBE(udp_init_sock, pt_regs)
     struct sock* sk = (struct sock *)PT_REGS_PARM1(ctx);
     (void)create_sock_map(sk, SK_TYPE_CLIENT_UDP, (bpf_get_current_pid_tgid() >> INT_LEN));
     report_udp(ctx, sk);
+    return 0;
 }

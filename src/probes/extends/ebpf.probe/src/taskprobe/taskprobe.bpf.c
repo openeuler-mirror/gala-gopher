@@ -34,5 +34,6 @@ KRAWTRACE(sched_process_exit, bpf_raw_tracepoint_args)
     }
 
     (void)thread_put(pid);
+    return 0;
 }
 

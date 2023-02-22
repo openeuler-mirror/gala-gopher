@@ -71,13 +71,13 @@ KPROBE(tcp_sendmsg, pt_regs)
     struct tcp_metrics_s *metrics;
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     size_t size = (size_t)PT_REGS_PARM3(ctx);
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
 
     metrics = get_tcp_metrics(sk);
     if (metrics) {
         TCP_TX_XADD(metrics->tx_rx_stats, size);
         report_tx_rx(ctx, metrics, sk);
     }
+    return 0;
 }
 
 KPROBE(tcp_cleanup_rbuf, pt_regs)
@@ -85,10 +85,9 @@ KPROBE(tcp_cleanup_rbuf, pt_regs)
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     int copied = (int)PT_REGS_PARM2(ctx);
     struct tcp_metrics_s *metrics;
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
 
     if (copied <= 0) {
-        return;
+        return 0;
     }
 
     metrics = get_tcp_metrics(sk);
@@ -97,5 +96,6 @@ KPROBE(tcp_cleanup_rbuf, pt_regs)
         TCP_RX_XADD(metrics->tx_rx_stats, copied);
         report_tx_rx(ctx, metrics, sk);
     }
+    return 0;
 }
 

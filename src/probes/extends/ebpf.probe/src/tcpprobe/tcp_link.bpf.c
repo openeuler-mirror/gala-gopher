@@ -122,7 +122,7 @@ KPROBE(tcp_set_state, pt_regs)
 
         (void)delete_tcp_link(sk);
     }
-    return;
+    return 0;
 }
 
 #if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
@@ -130,6 +130,7 @@ KRAWTRACE(tcp_destroy_sock, bpf_raw_tracepoint_args)
 {
     struct sock *sk = (struct sock *)ctx->args[0];
     delete_sock_obj(sk);
+    return 0;
 }
 #else
 SEC("tracepoint/tcp/tcp_destroy_sock")
@@ -149,7 +150,7 @@ KPROBE(tcp_sendmsg, pt_regs)
 
     info = is_exist_tcp_link(sk, &tcp_link_exist);
     if (tcp_link_exist || !info) {
-        return;
+        return 0;
     }
 
     /* create tcp sock from tcp fd */
@@ -160,6 +161,7 @@ KPROBE(tcp_sendmsg, pt_regs)
     if (metrics) {
         report_srtt(ctx, metrics);
     }
+    return 0;
 }
 
 KPROBE(tcp_recvmsg, pt_regs)
@@ -171,7 +173,7 @@ KPROBE(tcp_recvmsg, pt_regs)
 
     info = is_exist_tcp_link(sk, &tcp_link_exist);
     if (tcp_link_exist || !info) {
-        return;
+        return 0;
     }
 
     /* create tcp sock from tcp fd */
@@ -182,5 +184,6 @@ KPROBE(tcp_recvmsg, pt_regs)
     if (metrics) {
         report_srtt(ctx, metrics);
     }
+    return 0;
 }
 

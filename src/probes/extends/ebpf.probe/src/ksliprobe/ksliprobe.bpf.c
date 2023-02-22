@@ -167,12 +167,12 @@ KPROBE(__close_fd, pt_regs)
     init_conn_key(&conn_key, fd, tgid);
     conn_data = (struct conn_data_t *)bpf_map_lookup_elem(&conn_map, &conn_key);
     if (conn_data == (void *)0) {
-        return;
+        return 0;
     }
     bpf_map_delete_elem(&conn_samp_map, &conn_data->sk);
     bpf_map_delete_elem(&conn_map, &conn_key);
 
-    return;
+    return 0;
 }
 
 static __always_inline void parse_msg_to_redis_cmd(char msg_char, int *j, char *command, unsigned short *find_state)
@@ -399,48 +399,46 @@ KPROBE(ksys_read, pt_regs)
     struct conn_data_t * conn_data = (struct conn_data_t *)bpf_map_lookup_elem(&conn_map, &conn_key);
     if (conn_data == (void *)0) {
         if (update_conn_map_n_conn_samp_map(fd, tgid, &conn_key) != SLI_OK)
-            return;
+            return 0;
     }
     
     if (conn_data == (void *)0)
-        return;
+        return 0;
 
     if (conn_data->id.protocol == PROTOCOL_NO_REDIS)
-        return;
+        return 0;
 
     if (!conn_data->continuous_sampling_flag) {
         if (bpf_ktime_get_ns() - conn_data->last_report_ts_nsec < conn_data->report_period)
-            return;
+            return 0;
     }
 
     KPROBE_PARMS_STASH(ksys_read, ctx, CTX_USER);
+    return 0;
 }
 
 // 跟踪连接 read 读消息
 KRETPROBE(ksys_read, pt_regs)
 {
-    int fd;
-    u32 tgid __maybe_unused = bpf_get_current_pid_tgid() >> INT_LEN;
-    int count = PT_REGS_RC(ctx);
-    char *buf;
     struct probe_val val;
     int err;
 
     err = PROBE_GET_PARMS(ksys_read, ctx, val, CTX_USER);
     if (err < 0) {
-        return;
+        return 0;
     }
 
+    int count = PT_REGS_RC(ctx);
     if (count <= 0) {
-        return;
+        return 0;
     }
 
-    fd = (int)PROBE_PARM1(val);
-    buf = (char *)PROBE_PARM2(val);
-
+    int fd = (int)PROBE_PARM1(val);
+    char *buf = (char *)PROBE_PARM2(val);
+    u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;
     process_rd_msg(tgid, fd, buf, count, ctx);
 
-    return;
+    return 0;
 }
 
 // static void tcp_event_new_data_sent(struct sock *sk, struct sk_buff *skb)
@@ -460,6 +458,7 @@ KPROBE(tcp_event_new_data_sent, pt_regs)
             csd->status = SAMP_SKB_READY;
         }
     }
+    return 0;
 }
 
 KPROBE(tcp_clean_rtx_queue, pt_regs)
@@ -479,12 +478,13 @@ KPROBE(tcp_clean_rtx_queue, pt_regs)
             u64 end_ts_nsec = bpf_ktime_get_ns();
             if (end_ts_nsec < csd->start_ts_nsec) {
                 csd->status = SAMP_INIT;
-                return;
+                return 0;
             }
             csd->rtt_ts_nsec = end_ts_nsec - csd->start_ts_nsec;
             csd->status = SAMP_FINISHED;
         }
     }
+    return 0;
 }
 
 #ifdef KERNEL_SUPPORT_TSTAMP
@@ -505,5 +505,6 @@ KPROBE(tcp_recvmsg, pt_regs)
             }
         }
     }
+    return 0;
 }
 #endif

@@ -190,11 +190,11 @@ KRETPROBE(account_process_tick, pt_regs)
 
     pid = _(tsk->pid);
     if (pid == 0) {
-        return;
+        return 0;
     }
 
     if(!test_tsk_need_resched(tsk)) {
-        return;
+        return 0;
     }
 
     char comm[TASK_COMM_LEN] = {0};
@@ -202,18 +202,18 @@ KRETPROBE(account_process_tick, pt_regs)
 
     tgid = _(tsk->tgid);
     if (!is_targe_comm(comm, tgid)) {
-        return;
+        return 0;
     }
 
     sched_latp = add_resched_pid(pid, tgid, &create);
     if (sched_latp == NULL) {
-        return;
+        return 0;
     }
 
     if (create) {
         // First-triggered re-schedule.
         bpf_probe_read_str(&(sched_latp->comm), TASK_COMM_LEN * sizeof(char), (char *)tsk->comm);
-        return;
+        return 0;
     }
 
     // Next-triggered re-schedule.
@@ -223,7 +223,7 @@ KRETPROBE(account_process_tick, pt_regs)
     if (delay == 0) {
         // The scheduling delay does not exceed the threshold.
         // Nothing to do.
-        return;
+        return 0;
     }
 
     delay = now - sched_latp->last_resched_ts;  // report overall delay
@@ -237,6 +237,7 @@ KRETPROBE(account_process_tick, pt_regs)
     bpf_perf_event_output(ctx, &sched_report_channel_map, BPF_F_ALL_CPU,
                           &evt, sizeof(evt));
     sched_latp->last_report_ts = now;
+    return 0;
 }
 
 bpf_section("tp/sched/sched_switch")

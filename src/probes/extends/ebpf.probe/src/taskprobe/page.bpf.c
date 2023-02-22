@@ -65,11 +65,13 @@ static __always_inline void update_reclaim_ns(void *ctx)
 KRAWTRACE(mm_vmscan_direct_reclaim_begin, bpf_raw_tracepoint_args)
 {
     store_reclaim_start_ts();
+    return 0;
 }
 
 KRAWTRACE(mm_vmscan_direct_reclaim_end, bpf_raw_tracepoint_args)
 {
     update_reclaim_ns(ctx);
+    return 0;
 }
 
 #define KPROBE_PAGE_CACHE(func, field) \
@@ -79,12 +81,13 @@ KRAWTRACE(mm_vmscan_direct_reclaim_end, bpf_raw_tracepoint_args)
         \
         struct proc_data_s* proc = get_proc_entry(proc_id); \
         if (proc == NULL) { \
-            return; \
+            return 0; \
         } \
         \
         __sync_fetch_and_add(&(proc->page_op.count_##field), 1); \
         \
         report_proc(ctx, proc, TASK_PROBE_PAGE_OP); \
+        return 0; \
     }
 
 KPROBE_PAGE_CACHE(mark_page_accessed, access_pagecache)

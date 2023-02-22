@@ -65,7 +65,6 @@ static void get_tcp_rtt(struct sock *sk, struct tcp_rtt* stats)
 static void tcp_rtt_probe_func(void *ctx, struct sock *sk)
 {
     struct tcp_metrics_s *metrics;
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
 
     // Avoid high performance costs
     if (!is_tmout_rtt(sk)) {
@@ -82,13 +81,15 @@ static void tcp_rtt_probe_func(void *ctx, struct sock *sk)
 KRAWTRACE(tcp_probe, bpf_raw_tracepoint_args)
 {
     struct sock *sk = (struct sock*)ctx->args[0];
-    return tcp_rtt_probe_func(ctx, sk);
+    tcp_rtt_probe_func(ctx, sk);
+    return 0;
 }
 #else
 KPROBE(tcp_rcv_established, pt_regs)
 {
     struct sock *sk = (struct sock*)PT_REGS_PARM1(ctx);
-    return tcp_rtt_probe_func(ctx, sk);
+    tcp_rtt_probe_func(ctx, sk);
+    return 0;
 }
 #endif
 
