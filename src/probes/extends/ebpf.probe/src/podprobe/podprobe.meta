@@ -1,0 +1,41 @@
+version = "1.0.0"
+measurements:
+(
+    {
+        table_name: "pod_state",
+        entity_name: "pod",
+        fields:
+        (
+            {
+                description: "ID of pod",
+                type: "key",
+                name: "pod_id",
+            },
+            {
+                description: "Name of pod",
+                type: "label",
+                name: "pod_name",
+            },
+            {
+                description: "ID of container",
+                type: "key",
+                name: "container_id",
+            },
+            {
+                description: "Name of container",
+                type: "label",
+                name: "container_name",
+            },
+            {
+                description: "Pod event",
+                type: "label",
+                name: "pod_event",
+            },
+            {
+                description: "a fixed num as metric",
+                type: "gauge",
+                name: "value",
+            }
+        )
+    }
+)
