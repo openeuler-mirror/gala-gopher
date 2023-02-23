@@ -78,6 +78,7 @@ static __always_inline __maybe_unused struct proc_data_s* get_syscall_op_us(u64 
         KPROBE(arch##func, pt_regs) \
         { \
             store_syscall_op_start_ts(); \
+            return 0; \
         }
 
 #endif

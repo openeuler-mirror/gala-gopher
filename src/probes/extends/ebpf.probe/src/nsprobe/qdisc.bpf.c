@@ -174,19 +174,19 @@ static __always_inline struct qdisc* lkup_qdisc(struct Qdisc *q)
 KPROBE(__qdisc_run, pt_regs)
 {
     struct Qdisc *q = (struct Qdisc *)PT_REGS_PARM1(ctx);
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
     struct qdisc* qdisc = lkup_qdisc(q);
     if (qdisc == NULL) {
-        return;
+        return 0;
     }
 
     calc_egress_stats(q, qdisc);
     report_qdisc(ctx, qdisc);
+    return 0;
 }
 
 KPROBE(qdisc_hash_del, pt_regs)
 {
     struct Qdisc *q = (struct Qdisc *)PT_REGS_PARM1(ctx);
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
     (void)del_qdisc(q);
+    return 0;
 }

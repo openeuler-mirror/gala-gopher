@@ -41,7 +41,6 @@ struct {
 KRAWTRACE(sched_process_exec, bpf_raw_tracepoint_args)
 {
     struct proc_exec_evt event = {0};
-    u32 pid_unused __maybe_unused = bpf_get_current_pid_tgid();
     struct task_struct* task = (struct task_struct *)ctx->args[0];
     struct linux_binprm *bprm = (struct linux_binprm *)ctx->args[2];
     pid_t pid = _(task->pid);
@@ -52,6 +51,7 @@ KRAWTRACE(sched_process_exec, bpf_raw_tracepoint_args)
 
     bpf_perf_event_output(ctx, &proc_exec_channel_map, BPF_F_ALL_CPU,
                           &event, sizeof(event));
+    return 0;
 }
 
 

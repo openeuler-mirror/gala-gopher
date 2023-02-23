@@ -112,12 +112,11 @@ static __always_inline void update_io_err(struct block_rq_complete_args* ctx, st
 }
 
 bpf_section("tracepoint/block/block_rq_complete")
-void tracepoint_block_rq_complete(struct block_rq_complete_args *ctx)
+int tracepoint_block_rq_complete(struct block_rq_complete_args *ctx)
 {
     int major, minor;
     struct io_err_s *io_err = NULL;
     struct io_entity_s io_entity = {0};
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
 
     major = MAJOR(ctx->dev);
     minor = MINOR(ctx->dev);
@@ -133,6 +132,7 @@ void tracepoint_block_rq_complete(struct block_rq_complete_args *ctx)
             bpf_map_delete_elem(&io_err_map, &io_entity);
         }
     }
+    return 0;
 }
 
 KRAWTRACE(scsi_dispatch_cmd_timeout, bpf_raw_tracepoint_args)
@@ -140,23 +140,23 @@ KRAWTRACE(scsi_dispatch_cmd_timeout, bpf_raw_tracepoint_args)
     int major, minor;
     struct io_err_s *io_err = NULL;
     struct scsi_cmnd *sc = (struct scsi_cmnd *)ctx->args[0];
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
     if (sc == NULL) {
-        return;
+        return 0;
     }
 
     struct request* req = _(sc->request);
 
     if (get_io_devt(req, &major, &minor)) {
-        return;
+        return 0;
     }
 
     io_err = get_io_err(major, minor);
     if (io_err == NULL) {
-        return;
+        return 0;
     }
 
     io_err->scsi_tmout = 1;
+    return 0;
 }
 
 KRAWTRACE(scsi_dispatch_cmd_error, bpf_raw_tracepoint_args)
@@ -164,23 +164,23 @@ KRAWTRACE(scsi_dispatch_cmd_error, bpf_raw_tracepoint_args)
     int major, minor;
     struct io_err_s *io_err = NULL;
     struct scsi_cmnd *sc = (struct scsi_cmnd *)ctx->args[0];
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
     int scsi_err = (int)ctx->args[1];
     if (sc == NULL) {
-        return;
+        return 0;
     }
 
     struct request* req = _(sc->request);
 
     if (get_io_devt(req, &major, &minor)) {
-        return;
+        return 0;
     }
 
     io_err = get_io_err(major, minor);
     if (io_err == NULL) {
-        return;
+        return 0;
     }
 
     io_err->scsi_err = scsi_err;
+    return 0;
 }
 

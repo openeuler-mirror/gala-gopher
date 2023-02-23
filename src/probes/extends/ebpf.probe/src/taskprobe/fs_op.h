@@ -70,11 +70,13 @@ static __always_inline __maybe_unused void store_start_ts(void)
             proc->op_##fs.ns_##field = res; \
             report_proc(ctx, proc, flags); \
         } \
+        return 0; \
     } \
     \
     KPROBE(func, pt_regs) \
     { \
         store_start_ts(); \
+        return 0; \
     }
 
 #endif

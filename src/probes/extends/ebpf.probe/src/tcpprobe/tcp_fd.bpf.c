@@ -72,6 +72,7 @@ KPROBE(tcp_sendmsg, pt_regs)
     /* create tcp sock from tcp fd */
     u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;
     load_tcp_fd(tgid);
+    return 0;
 }
 
 KPROBE(tcp_recvmsg, pt_regs)
@@ -79,5 +80,6 @@ KPROBE(tcp_recvmsg, pt_regs)
     /* create tcp sock from tcp fd */
     u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;
     load_tcp_fd(tgid);
+    return 0;
 }
 

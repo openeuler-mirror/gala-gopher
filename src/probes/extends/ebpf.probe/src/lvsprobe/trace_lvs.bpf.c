@@ -120,7 +120,7 @@ KPROBE(ip_vs_conn_new, pt_regs)
     /* update hash map */
     bpf_map_update_elem(&lvs_flag_map, &f_key, &flags, BPF_ANY);
 
-    return;
+    return 0;
 }
 
 KRETPROBE(ip_vs_conn_new, pt_regs)
@@ -149,7 +149,7 @@ KRETPROBE(ip_vs_conn_new, pt_regs)
     /* update hash map */
     bpf_map_update_elem(&lvs_link_map, &key, &value, BPF_ANY);
 
-    return;
+    return 0;
 }
 
 KPROBE(ip_vs_conn_expire, pt_regs)
@@ -196,6 +196,6 @@ KPROBE(ip_vs_conn_expire, pt_regs)
 
     bpf_map_update_elem(&lvs_link_map, &key, value_p, BPF_ANY);
 
-    return;
+    return 0;
 }
 #endif

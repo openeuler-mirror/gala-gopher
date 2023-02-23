@@ -154,31 +154,30 @@ KPROBE(try_charge, pt_regs)
 {
     struct mem_cgroup *memcg = (struct mem_cgroup *)PT_REGS_PARM1(ctx);
     unsigned int nr_pages = (unsigned int)PT_REGS_PARM3(ctx);
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
     struct mem_cgroup_gauge* cg = lkup_memcg(memcg);
     if (cg == NULL) {
-        return;
+        return 0;
     }
     cg->nr_pages = max(nr_pages, cg->nr_pages);
     periodic_report(ctx, cg);
+    return 0;
 }
 
 KPROBE(mem_cgroup_out_of_memory, pt_regs)
 {
     struct mem_cgroup *memcg = (struct mem_cgroup *)PT_REGS_PARM1(ctx);
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
     struct mem_cgroup_gauge* cg = lkup_memcg(memcg);
     if (cg == NULL) {
-        return;
+        return 0;
     }
     cg->oom_order++;
     periodic_report(ctx, cg);
+    return 0;
 }
 
 KPROBE(__mem_cgroup_free, pt_regs)
 {
     struct mem_cgroup *memcg = (struct mem_cgroup *)PT_REGS_PARM1(ctx);
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
-
     del_cgroup_gauge(memcg);
+    return 0;
 }

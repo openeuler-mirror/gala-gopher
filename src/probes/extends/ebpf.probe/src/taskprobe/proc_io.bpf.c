@@ -107,7 +107,7 @@ KRAWTRACE(block_bio_queue, bpf_raw_tracepoint_args)
 
     proc = get_proc_entry(proc_id);
     if (proc == NULL) {
-        return;
+        return 0;
     }
 
     if (is_read_bio(bio)) {
@@ -120,7 +120,7 @@ KRAWTRACE(block_bio_queue, bpf_raw_tracepoint_args)
         report_proc(ctx, proc, TASK_PROBE_IO);
 
         store_bio(bio, proc_id);
-        return;
+        return 0;
     }
 
     if (is_write_bio(bio)) {
@@ -133,8 +133,9 @@ KRAWTRACE(block_bio_queue, bpf_raw_tracepoint_args)
         report_proc(ctx, proc, TASK_PROBE_IO);
 
         store_bio(bio, proc_id);
-        return;
+        return 0;
     }
+    return 0;
 }
 
 // block_bio_complete, block_rq_complete exclusion, so use kprobe
@@ -142,6 +143,7 @@ KPROBE(bio_endio, pt_regs)
 {
     struct bio *bio = (struct bio*)PT_REGS_PARM1(ctx);
     end_bio(ctx, bio);
+    return 0;
 }
 
 KRAWTRACE(sched_process_hang, bpf_raw_tracepoint_args)
@@ -151,10 +153,11 @@ KRAWTRACE(sched_process_hang, bpf_raw_tracepoint_args)
     u32 proc_id = (u32)_(task->tgid);
     proc = get_proc_entry(proc_id);
     if (proc == NULL) {
-        return;
+        return 0;
     }
     __sync_fetch_and_add(&(proc->proc_io.hang_count), 1);
     report_proc(ctx, proc, TASK_PROBE_IO);
+    return 0;
 }
 
 KRAWTRACE(sched_stat_iowait, bpf_raw_tracepoint_args)
@@ -166,10 +169,11 @@ KRAWTRACE(sched_stat_iowait, bpf_raw_tracepoint_args)
 
     proc = get_proc_entry(proc_id);
     if (proc == NULL) {
-        return;
+        return 0;
     }
 
     __sync_fetch_and_add(&(proc->proc_io.iowait_us), delta);
     report_proc(ctx, proc, TASK_PROBE_IO);
+    return 0;
 }
 

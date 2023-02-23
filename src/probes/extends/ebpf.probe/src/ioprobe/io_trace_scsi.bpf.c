@@ -25,16 +25,15 @@ KRAWTRACE(scsi_dispatch_cmd_start, bpf_raw_tracepoint_args)
 {
     struct io_trace_s *io_trace = NULL;
     struct scsi_cmnd *sc = (struct scsi_cmnd *)ctx->args[0];
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
     if (sc == NULL) {
-        return;
+        return 0;
     }
 
     struct request* req = _(sc->request);
 
     io_trace = lkup_io_trace(req);
     if (io_trace == NULL) {
-        return;
+        return 0;
     }
 
     // Refreshes the time when the SCSI device issue an I/O operation.
@@ -44,19 +43,19 @@ KRAWTRACE(scsi_dispatch_cmd_start, bpf_raw_tracepoint_args)
 KRAWTRACE(scsi_dispatch_cmd_done, bpf_raw_tracepoint_args)
 {
     struct io_trace_s *io_trace = NULL;
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
     struct scsi_cmnd *sc = (struct scsi_cmnd *)ctx->args[0];
     if (sc == NULL) {
-        return;
+        return 0;
     }
 
     struct request* req = _(sc->request);
 
     io_trace = lkup_io_trace(req);
     if (io_trace == NULL) {
-        return;
+        return 0;
     }
 
     io_trace->ts[IO_ISSUE_DEVICE_END] = bpf_ktime_get_ns();
+    return 0;
 }
 

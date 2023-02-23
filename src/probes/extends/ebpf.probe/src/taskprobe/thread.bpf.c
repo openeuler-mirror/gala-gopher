@@ -59,7 +59,7 @@ KRAWTRACE(sched_wakeup_new, bpf_raw_tracepoint_args)
     tgid = _(task->tgid);
     pid = _(task->pid);
     if (pid == tgid) {
-        return;
+        return 0;
     }
     if (get_proc_entry(tgid) && !get_thread(pid)) {
         struct thread_data thr = {0};
@@ -72,4 +72,5 @@ KRAWTRACE(sched_wakeup_new, bpf_raw_tracepoint_args)
         thr.id.pgid = get_task_pgid(task);
         (void)thread_add(thr.id.pid, &thr);
     }
+    return 0;
 }

@@ -97,11 +97,11 @@ static __always_inline void handle_req(struct pt_regs *ctx)
     struct conn_key_t key = {0};
     struct conn_data_t *data = NULL;
     struct probe_val val = {0};
-    u32 tgid __maybe_unused = bpf_get_current_pid_tgid() >> TGID_LSHIFT_LEN;
-    
     if (PROBE_GET_PARMS(__sys_recvfrom, ctx, val, CTX_USER) < 0 || (int)PT_REGS_RC(ctx) < REQ_BUF_SIZE) {
         return;
     }
+
+    u32 tgid = bpf_get_current_pid_tgid() >> TGID_LSHIFT_LEN;
     key.tgid = tgid;
     key.skfd = (int)PROBE_PARM1(val);
     data = bpf_map_lookup_elem(&conn_map, &key);
@@ -121,16 +121,16 @@ static __always_inline void handle_req(struct pt_regs *ctx)
 KRETPROBE(__sys_accept4, pt_regs)
 {
     int skfd = (int)PT_REGS_RC(ctx);
+    if (skfd < 0) {
+        return 0;
+    }
+
     struct conn_key_t ckey = {0};
     struct conn_data_t cdata = {0};
     struct conn_samp_key_t cskey = {0};
     struct conn_samp_data_t csdata = {0};
     struct task_struct *task_p = (struct task_struct *)bpf_get_current_task();
-    u32 tgid __maybe_unused = bpf_get_current_pid_tgid() >> TGID_LSHIFT_LEN;
-
-    if (skfd < 0) {
-        return;
-    }
+    u32 tgid = bpf_get_current_pid_tgid() >> TGID_LSHIFT_LEN;
     ckey.tgid = tgid;
     ckey.skfd = skfd;
     cdata.status = READY_FOR_RECVIVE;
@@ -142,21 +142,23 @@ KRETPROBE(__sys_accept4, pt_regs)
     csdata.skfd = ckey.skfd;
     csdata.status = READY_FOR_WRITE;
     bpf_map_update_elem(&conn_samp_map, &cskey, &csdata, BPF_ANY);
+    return 0;
 }
 
 KPROBE_RET(__sys_recvfrom, pt_regs, CTX_USER)
 {
     handle_req(ctx);
+    return 0;
 }
 
 KPROBE_RET(ksys_read, pt_regs, CTX_USER)
 {
     handle_req(ctx);
+    return 0;
 }
 
 KPROBE_RET(do_writev, pt_regs, CTX_USER)
 {
-    u32 tgid __maybe_unused = bpf_get_current_pid_tgid() >> TGID_LSHIFT_LEN;
     struct conn_key_t ckey = {0};
     struct conn_data_t *cdata = NULL;
     struct conn_samp_key_t cskey = {0};
@@ -164,21 +166,23 @@ KPROBE_RET(do_writev, pt_regs, CTX_USER)
     struct probe_val val = {0};
 
     if (PROBE_GET_PARMS(do_writev, ctx, val, CTX_USER) < 0 || (int)PT_REGS_RC(ctx) <= REQ_BUF_SIZE - 1) {
-        return;
+        return 0;
     }
+
+    u32 tgid = bpf_get_current_pid_tgid() >> TGID_LSHIFT_LEN;
     ckey.tgid = tgid;
     ckey.skfd = (int)PROBE_PARM1(val);
     cdata = (struct conn_data_t *)bpf_map_lookup_elem(&conn_map, &ckey);
     if (cdata == NULL || cdata->status == READY_FOR_RECVIVE) {
-        return;
+        return 0;
     }
     cskey.sk = (struct sock *)cdata->sock;
     if (cskey.sk == 0) {
-        return;
+        return 0;
     }
     csdata = (struct conn_samp_data_t *)bpf_map_lookup_elem(&conn_samp_map, &cskey);
     if (csdata == NULL || csdata->status != READY_FOR_WRITE) {
-        return;
+        return 0;
     }
     csdata->method = cdata->method;
     csdata->status = READY_FOR_SKBSENT;
@@ -188,6 +192,7 @@ KPROBE_RET(do_writev, pt_regs, CTX_USER)
     cdata->status = READY_FOR_RECVIVE;
     cdata->recvtime = 0;
     cdata->method = HTTP_UNKNOWN;
+    return 0;
 }
 
 KPROBE(tcp_event_new_data_sent, pt_regs)
@@ -203,6 +208,7 @@ KPROBE(tcp_event_new_data_sent, pt_regs)
         data->status = READY_FOR_SKBACKED;
         data->endseq = _(TCP_SKB_CB(skb_p)->end_seq);
     }
+    return 0;
 }
 
 KPROBE(tcp_rate_skb_delivered, pt_regs)
@@ -221,6 +227,7 @@ KPROBE(tcp_rate_skb_delivered, pt_regs)
         data->ackedtime = bpf_ktime_get_ns();
         periodic_report(data, ctx, key.sk);
     }
+    return 0;
 }
 
 KPROBE(__close_fd, pt_regs)
@@ -241,4 +248,5 @@ KPROBE(__close_fd, pt_regs)
         }
         bpf_map_delete_elem(&conn_map, &ckey);
     }
+    return 0;
 }

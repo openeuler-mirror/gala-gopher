@@ -316,11 +316,10 @@ KRAWTRACE(block_rq_issue, bpf_raw_tracepoint_args)
 {
     struct io_trace_s *io_trace = NULL;
     struct request* req = (struct request *)ctx->args[1];
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
 
     io_trace = get_io_trace(req);
     if (io_trace == NULL) {
-        return;
+        return 0;
     }
     // Use 'request->start_time_ns' to replace the 'block_getrq' tracepoint.
     io_trace->ts[IO_ISSUE_START] = _(req->start_time_ns);
@@ -330,23 +329,24 @@ KRAWTRACE(block_rq_issue, bpf_raw_tracepoint_args)
         io_trace->ts[IO_ISSUE_DRIVER] = ts; // virtblk/SCSI
     }
     io_trace->ts[IO_ISSUE_DEVICE] = ts; // virtblk/NVME
+    return 0;
 }
 
 KPROBE(blk_mq_complete_request, pt_regs)
 {
     struct io_trace_s *io_trace = NULL;
     struct request *req = (struct request *)PT_REGS_PARM1(ctx);
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
 
     io_trace = lkup_io_trace(req);
     if (io_trace == NULL) {
-        return;
+        return 0;
     }
 
     // virtblk/NVME
     if (io_trace->ts[IO_ISSUE_DEVICE_END] == 0) {
         io_trace->ts[IO_ISSUE_DEVICE_END] = bpf_ktime_get_ns();
     }
+    return 0;
 }
 
 KRAWTRACE(block_rq_complete, bpf_raw_tracepoint_args)
@@ -356,15 +356,14 @@ KRAWTRACE(block_rq_complete, bpf_raw_tracepoint_args)
     struct request* req = (struct request *)ctx->args[0];
     int error = (int)ctx->args[1];
     struct io_latency_s* io_latency;
-    u32 pid __maybe_unused = bpf_get_current_pid_tgid();
 
     io_trace = lkup_io_trace(req);
     if (io_trace == NULL) {
-        return;
+        return 0;
     }
     io_latency = get_io_latency(io_trace);
     if (io_latency == NULL) {
-        return;
+        return 0;
     }
 
     if (!error) {
@@ -376,6 +375,7 @@ KRAWTRACE(block_rq_complete, bpf_raw_tracepoint_args)
     }
     get_io_req(&io_req, req);
     bpf_map_delete_elem(&io_trace_map, &io_req);
+    return 0;
 }
 
 
