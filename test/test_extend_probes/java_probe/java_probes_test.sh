@@ -6,7 +6,7 @@ function find_jars()
 	then
 		# find jdk
 		clink_path=$(echo $(ls -lrt $javac_link) | awk -F " " '{print $NF}' )
-		link_path=$(echo $(ls -lrt $link_path) | awk -F " " '{print $NF}' )
+		link_path=$(echo $(ls -lrt $clink_path) | awk -F " " '{print $NF}' )
 		jdk_path=$(dirname $(dirname $link_path))
 		dir=$jdk_path
 	else
@@ -31,19 +31,6 @@ function find_jars()
         echo "Error: management-agent.jar not found"
         return 1
     fi 
-	
-	#find rpm
-	junit_rpm=$( rpm -qa junit )
-	if [ -z $junit_rpm ];
-	then
-        #install junit4
-		yum install junit
-	    junit_rpm=$( rpm -qa junit )
-        if [ -z $junit_rpm ];
-	    then
-		    exit 1
-        fi
-	fi
 	
 	#junit.jar
 	junit_jar=$( rpm -ql junit | grep junit.jar)
