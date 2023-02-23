@@ -117,7 +117,11 @@ static int event_config_load(EventsConfig *conf, eventConfig *evt, config_settin
     }
     (void)strncpy(evt->entity_name, entity, MAX_ENTITY_NAME_LEN - 1);
 
+#if LIBCONFIG_VER_MAJOR == 1 && LIBCONFIG_VER_MINOR < 5
+    config_setting_t *fields = config_lookup_from(event_config, "fields");
+#else
     config_setting_t *fields = config_setting_lookup(event_config, "fields");
+#endif
     int fields_count = config_setting_length(fields);
     if (fields_count > MAX_EVENT_NUM) {
         ERROR("[EVENT] Too many event fields.\n");

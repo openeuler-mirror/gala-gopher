@@ -53,12 +53,12 @@ measurements:
                 name: "process_run_time_seconds",
             },
             {
-		description: "The number of threads in the current process",
-		type: "gauge",
-		name: "threads_current",
+                description: "The number of threads in the current process",
+                type: "gauge",
+                name: "threads_current",
             },
             {
-	        description: "The peak number of threads of the java process",
+                description: "The peak number of threads of the java process",
                 type: "gauge",
                 name: "threads_peak",
             },
@@ -96,7 +96,7 @@ measurements:
                  description: "the memory that the JVM uses for buffer pools",
                  type: "gauge",
                  name: "buffer_pool_used_bytes",
-            },		
+            }
         )
     }
 )

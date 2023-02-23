@@ -17,6 +17,10 @@
 #include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
+#include <ifaddrs.h>
+#include <net/if.h>
+#include <netdb.h>
+
 #include "nprobe_fprintf.h"
 #include "system_os.h"
 
@@ -28,8 +32,6 @@
 #define OS_RELEASE_PRETTY_NAME  "/usr/bin/cat %s | grep -w PRETTY_NAME | awk -F'\"' \'{print $2}\'"
 #define OS_LATEST_VERSION       "/usr/bin/cat %s | grep -e %s.*version | awk -F'=' \'{print $2}\'"
 #define OS_KVERSION             "/usr/bin/uname -r"
-#define IS_CMD_HOSTNAME_EXIST   "which hostname 2>/dev/null"
-#define OS_GET_ALL_ADDRS        "hostname -I"
 #define OS_DETECT_VIRT_ENV      "systemd-detect-virt -v"
 #define LEN_1MB                 (1024 * 1024)     // 1 MB
 
@@ -163,48 +165,96 @@ static int check_ip_in_net_segment(char *ip_str, char *net_str)
     return true;
 }
 
-static int get_ip_addr(struct node_infos *infos, struct probe_params * params)
+static int check_skip_ifa(struct ifaddrs *ifa)
 {
-    char line[LINE_BUF_LEN];
+    int family;
+    struct sockaddr_in6 *sin6;
 
-    if (do_read_line(IS_CMD_HOSTNAME_EXIST, line) < 0) {
-        ERROR("[SYSTEM_OS] no hostname in this host.\n");
-        return -1;
+    if (ifa->ifa_addr == NULL) {
+        return 1;
+    }
+    /* Skip the loopback interface and interfaces that are not UP */
+    if (ifa->ifa_flags & IFF_LOOPBACK || !(ifa->ifa_flags & IFF_UP)) {
+        return 1;
+    }
+    family = ifa->ifa_addr->sa_family;
+    if (family != AF_INET && family != AF_INET6) {
+        return 1;
     }
 
-    if (do_read_line(OS_GET_ALL_ADDRS, line) < 0) {
+    /* Skip IPv6 link-local addresses */
+    if (family == AF_INET6) {
+        sin6 = (struct sockaddr_in6 *)ifa->ifa_addr;
+        if (IN6_IS_ADDR_LINKLOCAL(&sin6->sin6_addr) ||
+            IN6_IS_ADDR_MC_LINKLOCAL(&sin6->sin6_addr)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int get_ip_addr(struct node_infos *infos, struct probe_params * params)
+{
+    char buf[NI_MAXHOST];
+    struct ifaddrs *ifaddr, *ifa;
+    char *ip_addr_str = infos->ip_addr;
+    int ip_addr_len = MAX_IP_ADDRS_LEN;
+    int first_flag = 0;
+    int filter_flag = 1;
+    int ret;
+
+    if (getifaddrs(&ifaddr) != 0) {
         ERROR("[SYSTEM_OS] get all addresses for this host failed.\n");
         return -1;
     }
 
     if (params == NULL || params->host_ip_list[0][0] == 0) {
-        // 不需要过滤业务IP时，输出全部IP地址
-        (void)strncpy(infos->ip_addr, line, MAX_IP_ADDRS_LEN - 1);
-        return 0;
+        // 不需要过滤业务IP
+        filter_flag = 0;
     }
 
-    char *ip_addr_str = infos->ip_addr;
-    int ip_addr_len = MAX_IP_ADDRS_LEN;
-    int first_flag = 0;
-    char *p = strtok(line, " ");
-    while (p != NULL) {
+    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+        if (check_skip_ifa(ifa)) {
+            continue;
+        }
+
+        ret = getnameinfo(ifa->ifa_addr,
+                (ifa->ifa_addr->sa_family == AF_INET) ? sizeof(struct sockaddr_in) :
+                sizeof(struct sockaddr_in6), buf, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+        if (ret != 0) {
+            ERROR("[SYSTEM_OS] getnameinfo failed.\n");
+            freeifaddrs(ifaddr);
+            return -1;
+        }
+
+        if (filter_flag == 0) {
+            if (first_flag == 0) {
+                (void)__snprintf(&ip_addr_str, ip_addr_len, &ip_addr_len, "%s", buf);
+                first_flag = 1;
+            } else {
+                (void)__snprintf(&ip_addr_str, ip_addr_len, &ip_addr_len, " %s", buf);
+            }
+            continue;
+        }
+
         for (int i = 0; i < MAX_IP_NUM; i++) {
             if (params->host_ip_list[i][0] == 0) {
                 break;
             }
-            if (check_ip_in_net_segment(p, params->host_ip_list[i]) == true) {
+            if (check_ip_in_net_segment(buf, params->host_ip_list[i]) == true) {
                 if (first_flag == 0) {
-                    (void)__snprintf(&ip_addr_str, ip_addr_len, &ip_addr_len, "%s", p);
+                    (void)__snprintf(&ip_addr_str, ip_addr_len, &ip_addr_len, "%s", buf);
                     first_flag = 1;
                 } else {
-                    (void)__snprintf(&ip_addr_str, ip_addr_len, &ip_addr_len, " %s", p);
+                    (void)__snprintf(&ip_addr_str, ip_addr_len, &ip_addr_len, " %s", buf);
                 }
                 break;
             }
         }
-        p = strtok(NULL, " ");
+
     }
 
+    freeifaddrs(ifaddr);
     return 0;
 }
 

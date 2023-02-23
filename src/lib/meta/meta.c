@@ -160,7 +160,11 @@ static int MeasurementLoad(MeasurementMgr *mgr, Measurement *mm, config_setting_
     }
     (void)strncpy(mm->entity, entity, MAX_MEASUREMENT_NAME_LEN - 1);
 
+#if LIBCONFIG_VER_MAJOR == 1 && LIBCONFIG_VER_MINOR < 5
+    config_setting_t *fields = config_lookup_from(mmConfig, "fields");
+#else
     config_setting_t *fields = config_setting_lookup(mmConfig, "fields");
+#endif
     int fieldsCount = config_setting_length(fields);
     if (fieldsCount > mgr->fields_num_max) {
         ERROR("Too many fields.\n");

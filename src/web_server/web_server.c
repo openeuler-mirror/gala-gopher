@@ -129,7 +129,11 @@ void WebServerDestroy(WebServer *webServer)
 
 int WebServerStartDaemon(WebServer *webServer)
 {
+#if MHD_VERSION < 0x00095300
+    webServer->daemon = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY,
+#else
     webServer->daemon = MHD_start_daemon(MHD_USE_INTERNAL_POLLING_THREAD,
+#endif
                                          webServer->port,
                                          NULL,
                                          NULL,

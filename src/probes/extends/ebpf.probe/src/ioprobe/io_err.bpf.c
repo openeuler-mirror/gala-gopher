@@ -135,6 +135,76 @@ int tracepoint_block_rq_complete(struct block_rq_complete_args *ctx)
     return 0;
 }
 
+#if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(4, 13, 0))
+/*
+ * Raw tracepoint defined in modules is not supported in this version, so use kprobe as hook instead.
+ *    scsi_dispatch_cmd_timeout --> scsi_times_out()
+ *    scsi_dispatch_cmd_error --> the error path of scsi_dispatch_cmd()
+ */
+KPROBE(scsi_times_out, pt_regs)
+{
+    int major, minor;
+    struct io_err_s *io_err = NULL;
+    struct request* req = (struct request *)PT_REGS_PARM1(ctx);
+
+    if (get_io_devt(req, &major, &minor)) {
+        return 0;
+    }
+
+    io_err = get_io_err(major, minor);
+    if (io_err == NULL) {
+        return 0;
+    }
+
+    io_err->scsi_tmout = 1;
+    return 0;
+}
+
+KPROBE_RET(scsi_dispatch_cmd, pt_regs, CTX_KERNEL)
+{
+    int major, minor;
+    struct io_err_s *io_err = NULL;
+    int ret = (int)PT_REGS_RC(ctx);
+    struct scsi_cmnd *sc;
+    struct scsi_device *device;
+    enum scsi_device_state sd_state;
+    struct probe_val val;
+
+    /* scsi cmd not dispatched or dispatched successfully */
+    if (ret == 0 || PROBE_GET_PARMS(scsi_dispatch_cmd, ctx, val, CTX_KERNEL) < 0) {
+        return 0;
+    }
+
+    sc = (struct scsi_cmnd *)PROBE_PARM1(val);
+    if (sc == NULL) {
+        return 0;
+    }
+
+    /* scsi lld made the device blocked and the cmd was put back on the queue */
+    device = _(sc->device);
+    if (device == NULL) {
+        return 0;
+    }
+
+    sd_state = _(device->sdev_state);
+    if (sd_state == SDEV_BLOCK || sd_state == SDEV_CREATED_BLOCK) {
+        return 0;
+    }
+
+    struct request* req = _(sc->request);
+    if (get_io_devt(req, &major, &minor)) {
+        return 0;
+    }
+
+    io_err = get_io_err(major, minor);
+    if (io_err == NULL) {
+        return 0;
+    }
+
+    io_err->scsi_err = ret;
+    return 0;
+}
+#else
 KRAWTRACE(scsi_dispatch_cmd_timeout, bpf_raw_tracepoint_args)
 {
     int major, minor;
@@ -183,4 +253,4 @@ KRAWTRACE(scsi_dispatch_cmd_error, bpf_raw_tracepoint_args)
     io_err->scsi_err = scsi_err;
     return 0;
 }
-
+#endif

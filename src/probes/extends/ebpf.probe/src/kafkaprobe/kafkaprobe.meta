@@ -40,7 +40,7 @@ measurements:
                 description: "the port of server",
                 type: "key",
                 name: "server_port",
-            },
+            }
         )
     }
 )

@@ -104,7 +104,7 @@ out:
 
 static bool __is_dockerd()
 {
-    if (__is_install_rpm("/usr/bin/rpm -ql docker-engine")) {
+    if (__is_install_rpm("/bin/rpm -ql docker-engine")) {
         if (__is_service_running("/usr/bin/systemctl status docker")) {
             current_docker_command = DOCKER;
             return true;
@@ -116,7 +116,7 @@ static bool __is_dockerd()
 
 static bool __is_isulad()
 {
-    if (__is_install_rpm("/usr/bin/rpm -ql iSulad")) {
+    if (__is_install_rpm("/bin/rpm -ql iSulad")) {
         return __is_service_running("/usr/bin/systemctl service iSulad"); {
             current_docker_command = ISULAD;
             return true;

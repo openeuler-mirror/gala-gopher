@@ -9,6 +9,7 @@ TOOL_DIR ?= $(ROOT_DIR)/../../tools
 VMLINUX ?= $(ROOT_DIR)/../include/vmlinux.h
 INCLUDE_DIR ?= $(ROOT_DIR)/../include
 LIBBPF_DIR = $(ROOT_DIR)/../.output
+LIBELF_DIR = /usr/include/libelf
 GOPHER_COMMON_DIR = $(ROOT_DIR)/../../../../../common
 
 LIB_DIR ?= $(ROOT_DIR)../lib
@@ -53,7 +54,7 @@ endif
 BTF_ENABLE = $(shell if [ -f /sys/kernel/btf/vmlinux ]; then echo "ON" ; else echo "OFF"; fi)
 
 LINK_TARGET ?= -lpthread -lbpf -lelf -llog4cplus -lz -lconfig
-EXTRA_CFLAGS ?= -g -O2 -Wall -fPIC
+EXTRA_CFLAGS ?= -g -O2 -Wall -fPIC -std=gnu11
 EXTRA_CDEFINE ?= -D__TARGET_ARCH_$(TYPE)
 EXTRA_CDEFINE += -D__BTF_ENABLE_$(BTF_ENABLE)
 CFLAGS := $(EXTRA_CFLAGS) $(EXTRA_CDEFINE)
@@ -69,4 +70,5 @@ CC = gcc
 BASE_INC := -I/usr/include \
             -I$(ROOT_DIR)../include \
             -I$(GOPHER_COMMON_DIR) \
-             -I$(LIBBPF_DIR)
+            -I$(LIBBPF_DIR) \
+            -I$(LIBELF_DIR)
