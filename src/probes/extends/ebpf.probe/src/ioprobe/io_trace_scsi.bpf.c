@@ -38,6 +38,7 @@ KRAWTRACE(scsi_dispatch_cmd_start, bpf_raw_tracepoint_args)
 
     // Refreshes the time when the SCSI device issue an I/O operation.
     io_trace->ts[IO_ISSUE_DEVICE] = bpf_ktime_get_ns();
+    return 0;
 }
 
 KRAWTRACE(scsi_dispatch_cmd_done, bpf_raw_tracepoint_args)
