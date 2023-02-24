@@ -384,6 +384,7 @@ KPROBE(inet_csk_reqsk_queue_drop_and_put, pt_regs)
             report(ctx, value, new_entry);
         }
     }
+    return 0;
 }
 
 KPROBE(tcp_retransmit_timer, pt_regs)

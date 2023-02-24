@@ -73,6 +73,7 @@ static __always_inline __maybe_unused struct proc_data_s* get_syscall_op_us(u64 
                 proc->syscall.ns_##field = res; \
                 report_proc(ctx, proc, flags); \
             } \
+            return 0; \
         } \
         \
         KPROBE(arch##func, pt_regs) \
