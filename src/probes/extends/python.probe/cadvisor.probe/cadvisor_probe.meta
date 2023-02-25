@@ -35,7 +35,7 @@ measurements:
                 description: "device_usage_total",
                 type: "gauge",
                 name: "blkio_device_usage_total",
-            },
+            }
         )
     },
     {
@@ -72,7 +72,7 @@ measurements:
                 description: "Cumulative user cpu time consumed in seconds",
                 type: "gauge",
                 name: "cpu_user_seconds_total",
-            },
+            }
         )
     },
     {
@@ -304,7 +304,7 @@ measurements:
                 description: "Cumulative count of packets transmitted",
                 type: "gauge",
                 name: "network_transmit_packets_total",
-            },
+            }
         )
     },
     {
@@ -321,7 +321,7 @@ measurements:
                 description: "Count of out of memory events observed for the container",
                 type: "gauge",
                 name: "oom_events_total",
-            },
+            }
         )
     },
     {
@@ -358,7 +358,7 @@ measurements:
                 description: "Memory swap limit for the container",
                 type: "gauge",
                 name: "spec_memory_swap_limit_bytes",
-            },
+            }
         )
     },
     {
@@ -375,7 +375,7 @@ measurements:
                 description: "Start time of the container since unix epoch in seconds",
                 type: "gauge",
                 name: "start_time_seconds",
-            },
+            }
         )
     },
     {
@@ -397,7 +397,7 @@ measurements:
                 description: "Number of tasks in given state",
                 type: "gauge",
                 name: "tasks_state",
-            },
+            }
         )
     },
     {

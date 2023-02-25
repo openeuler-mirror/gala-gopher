@@ -29,7 +29,11 @@ static __always_inline int get_task_pgid(const struct task_struct *cur_task)
     int pgid = 0;
 
     /* ns info from thread_pid */
+#if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(4, 13, 0))
+    struct pid *thread_pid = _(cur_task->pids[PIDTYPE_PID].pid);
+#else
     struct pid *thread_pid = _(cur_task->thread_pid);
+#endif
     struct pid_namespace *ns_info = (struct pid_namespace *)0;
     if (thread_pid != 0) {
         int l = _(thread_pid->level);
@@ -38,9 +42,13 @@ static __always_inline int get_task_pgid(const struct task_struct *cur_task)
     }
 
     /* upid info from signal */
-    struct signal_struct* signal = _(cur_task->signal);
     struct pid *pid_p = (struct pid *)0;
+#if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(4, 13, 0))
+    bpf_probe_read(&pid_p, sizeof(struct pid *), &cur_task->group_leader->pids[PIDTYPE_PGID].pid);
+#else
+    struct signal_struct* signal = _(cur_task->signal);
     bpf_probe_read(&pid_p, sizeof(struct pid *), &signal->pids[PIDTYPE_PGID]);
+#endif
     int level = _(pid_p->level);
     struct upid upid = _(pid_p->numbers[level]);
     if (upid.ns == ns_info) {

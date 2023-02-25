@@ -20,7 +20,7 @@ measurements:
                 description: "the times oom occurs in a sampling period",
                 type: "gauge",
                 name: "ooms",
-            },
+            }
         )
     }
 )

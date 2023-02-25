@@ -244,7 +244,9 @@ static int get_netdev_qdisc(net_dev_stat *stats)
 
     ret = do_read_qdisc_line(stats->dev_name, "ecn_mark", "{print $NF}", line);
     if (ret < 0 || line == NULL) {
-        return -1;
+        /* Some old qdisc do not support ecn_mark, in this case we report 0 stat instead of exiting */
+        line[0] = '0';
+        line[1] = 0;
     }
     stats->tc_ecn_mark = (u64)atoi(line);
 

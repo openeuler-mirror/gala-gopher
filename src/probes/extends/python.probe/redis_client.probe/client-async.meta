@@ -60,7 +60,7 @@ measurements:
                 description: "send queue backlog",
                 type: "gauge",
                 name: "send_queue_nums",
-            },
+            }
         )
     }
 )

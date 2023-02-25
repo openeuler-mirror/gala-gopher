@@ -202,6 +202,7 @@ static int tcp_abn_rcv_rsts_probe_func(void *ctx, struct sock *sk)
     }
     return 0;
 }
+
 #if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(tcp_send_reset, bpf_raw_tracepoint_args)
 {
@@ -213,6 +214,82 @@ KRAWTRACE(tcp_receive_reset, bpf_raw_tracepoint_args)
 {
     struct sock *sk = (struct sock *)ctx->args[0];
     return tcp_abn_rcv_rsts_probe_func(ctx, sk);
+}
+#elif (CURRENT_KERNEL_VERSION < KERNEL_VERSION(4, 13, 0))
+static __always_inline unsigned char *__skb_transport_header(struct sk_buff *skb)
+{
+    return _(skb->head) + _(skb->transport_header);
+}
+
+static __always_inline struct tcphdr *__tcp_hdr(struct sk_buff *skb)
+{
+    return (struct tcphdr *)__skb_transport_header(skb);
+}
+
+static __always_inline int tcp_abn_snd_rsts_probe_precheck(struct sock *sk, struct sk_buff *skb)
+{
+    struct tcphdr *th;
+    __u16 rst_flag = 0;
+
+    if (sk == NULL || skb == NULL) {
+        return 0;
+    }
+
+    th = __tcp_hdr(skb);
+    /* rst is the llth bit of the byte after tcphdr:ack_seq */
+    bpf_probe_read(&rst_flag, sizeof(rst_flag), (char *)&(th->ack_seq) + sizeof(th->ack_seq));
+    rst_flag = (rst_flag >> 10) & 0x1;
+
+    /* Will not send a reset in response to a reset. */
+    if (rst_flag) {
+        return 0;
+    }
+
+    /* only probe full socket(not a timewait or request socket) */
+    if ((1 << _(sk->sk_state)) & ~(TCPF_TIME_WAIT | TCPF_NEW_SYN_RECV)) {
+        return 1;
+    }
+
+    return 0;
+}
+
+/*
+ * Tcp tracepoint does not exist in this version, so use kprobe as hook instead.
+ *    tcp_send_reset --> tcp_v4_send_reset()/tcp_v6_send_reset()/tcp_send_active_reset()
+ *    tcp_receive_reset --> tcp_reset()
+ */
+KPROBE(tcp_v4_send_reset, pt_regs)
+{
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    struct sk_buff *skb = (struct sk_buff *)PT_REGS_PARM2(ctx);
+    if (tcp_abn_snd_rsts_probe_precheck(sk, skb)) {
+        tcp_abn_snd_rsts_probe_func(ctx, sk);
+    }
+    return 0;
+}
+
+KPROBE(tcp_v6_send_reset, pt_regs)
+{
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    struct sk_buff *skb = (struct sk_buff *)PT_REGS_PARM2(ctx);
+    if (tcp_abn_snd_rsts_probe_precheck(sk, skb)) {
+        tcp_abn_snd_rsts_probe_func(ctx, sk);
+    }
+    return 0;
+}
+
+KPROBE(tcp_send_active_reset, pt_regs)
+{
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    tcp_abn_snd_rsts_probe_func(ctx, sk);
+    return 0;
+}
+
+KPROBE(tcp_reset, pt_regs)
+{
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    tcp_abn_rcv_rsts_probe_func(ctx, sk);
+    return 0;
 }
 #else
 SEC("tracepoint/tcp/tcp_send_reset")

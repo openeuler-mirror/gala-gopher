@@ -46,7 +46,7 @@ measurements:
                 description: "test inactive",
                 type: "counter",
                 name: "TestInactive",
-            },
+            }
         )
     }
 )

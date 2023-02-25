@@ -166,7 +166,9 @@ typedef __u64 u64;
 void split_newline_symbol(char *s);
 #define SPLIT_NEWLINE_SYMBOL(s)     split_newline_symbol(s)
 
+#ifndef ntohs
 unsigned short ntohs(unsigned short netshort);
+#endif
 
 #define NIP6(addr) \
     ntohs((addr)[0]), ntohs(addr[1]), ntohs(addr[2]), ntohs(addr[3]), ntohs(addr[4]), ntohs(addr[5]), \

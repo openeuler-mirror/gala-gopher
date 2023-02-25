@@ -9,7 +9,7 @@ C++ = g++
 CC = gcc
 
 LINK_TARGET := -lpthread -lbpf -lelf -lz -llog4cplus
-EXTRA_CFLAGS := -g -O2 -Wall -fPIC -shared -Wl,-z,relro,-z,now
+EXTRA_CFLAGS := -g -O2 -Wall -fPIC -shared -Wl,-z,relro,-z,now -std=gnu11
 EXTRA_CDEFINE := -D__TARGET_ARCH_$(ARCH)
 CFLAGS := $(EXTRA_CFLAGS) $(EXTRA_CDEFINE)
 CXXFLAGS += -std=c++11 -g -O2 -Wall -fPIC

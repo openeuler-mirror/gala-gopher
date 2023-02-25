@@ -56,7 +56,12 @@ static void get_tcp_sock_buf(struct sock *sk, struct tcp_sockbuf* stats)
     stats->tcpi_sk_backlog_size = (u32)_(sk->sk_backlog.len);
     stats->tcpi_sk_omem_size    = (u32)_(sk->sk_omem_alloc.counter);
     stats->tcpi_sk_forward_size = (u32)_(sk->sk_forward_alloc);
+#if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(4, 14, 0))
+    /* 4.13-rc1 convert sock.sk_wmem_alloc from atomic_t to refcount_t*/
+    stats->tcpi_sk_wmem_size    = (u32)_(sk->sk_wmem_alloc.counter);
+#else
     stats->tcpi_sk_wmem_size    = (u32)_(sk->sk_wmem_alloc.refs.counter);
+#endif
 
     stats->sk_rcvbuf    = (int)_(sk->sk_rcvbuf);
     stats->sk_sndbuf    = (int)_(sk->sk_sndbuf);

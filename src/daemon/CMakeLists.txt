@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.12.1)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.5.2)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 SET(CMAKE_CXX_COMPILER "/usr/bin/g++")
 
@@ -28,12 +28,13 @@ SET(CMD_DIR         ${SRC_DIR}/cmd)
 SET(COMMON_DIR      ${SRC_DIR}/common)
 
 SET(LIBRDKAFKA_DIR /usr/include/librdkafka)
+SET(LIBELF_DIR /usr/include/libelf)
 
-SET(CMAKE_C_FLAGS "-rdynamic -g -Wl,-z,relro,-z,now -DNATIVE_PROBE_FPRINTF \
+SET(CMAKE_C_FLAGS "-rdynamic -std=gnu11 -g -Wl,-z,relro,-z,now -DNATIVE_PROBE_FPRINTF \
     -DPROBES_LIST=\"${PROBES_LIST}\" \
     -DPROBES_META_LIST=\"${PROBES_META_LIST}\" "
 )
-SET(CMAKE_CXX_FLAGS "-rdynamic -g -Wl,-z,relro,-z,now -DNATIVE_PROBE_FPRINTF")
+SET(CMAKE_CXX_FLAGS "-rdynamic -std=c++11 -g -Wl,-z,relro,-z,now -DNATIVE_PROBE_FPRINTF")
 
 SET(SOURCES main.c daemon.c
     ${RESOURCE_DIR}/resource.c
@@ -94,6 +95,7 @@ TARGET_INCLUDE_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE
     ${PROBE_DIR}
     ${IMDB_DIR}
     ${LIBRDKAFKA_DIR}
+    ${LIBELF_DIR}
 
     ${CMD_DIR}
     ${COMMON_DIR}

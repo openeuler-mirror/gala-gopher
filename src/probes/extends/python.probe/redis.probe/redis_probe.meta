@@ -26,7 +26,7 @@ measurements:
                 description: "io_threads_active",
                 type: "Unknown",
                 name: "io_threads_active",
-            },
+            }
         )
     },
     {
@@ -43,7 +43,7 @@ measurements:
                 description: "cluster_connections",
                 type: "gauge",
                 name: "cluster_connections",
-            },
+            }
         )
     },
     {
@@ -55,7 +55,7 @@ measurements:
                 description: "used_memory",
                 type: "gauge",
                 name: "used_memory",
-            },
+            }
         )
     },
     {
@@ -87,7 +87,7 @@ measurements:
                 description: "total_net_output_bytes",
                 type: "gauge",
                 name: "total_net_output_bytes",
-            },
+            }
         )
     },
 
