@@ -7,29 +7,29 @@ measurements:
         fields:
         (
             {
-                description: "ID of pod",
+                description: "Name of the pod",
                 type: "key",
-                name: "pod_id",
-            },
-            {
-                description: "Name of pod",
-                type: "label",
                 name: "pod_name",
-            },
-            {
-                description: "ID of container",
-                type: "key",
-                name: "container_id",
-            },
-            {
-                description: "Name of container",
-                type: "label",
-                name: "container_name",
             },
             {
                 description: "Pod event",
                 type: "label",
                 name: "pod_event",
+            },
+            {
+                description: "IP of the pod",
+                type: "label",
+                name: "pod_ip",
+            },
+            {
+                description: "ID of the container",
+                type: "label",
+                name: "container_id",
+            },
+            {
+                description: "Name of the container",
+                type: "label",
+                name: "container_name",
             },
             {
                 description: "a fixed num as metric",

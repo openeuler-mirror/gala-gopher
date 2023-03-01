@@ -463,6 +463,43 @@ int get_elf_path(unsigned int pid, char elf_path[], int max_path_len, const char
     return CONTAINER_OK;
 }
 
+int get_elf_path_by_con_id(char *container_id, char elf_path[], int max_path_len, const char *comm)
+{
+    char cmd[COMMAND_LEN] = {0};
+    char elf_relative_path[PATH_LEN] = {0};
+    char container_path[PATH_LEN] = {0};
+    unsigned int pid;
+    int ret;
+
+    if (container_id == NULL || container_id[0] == 0) {
+        return CONTAINER_ERR;
+    }
+
+    ret = get_container_pid(container_id, &pid);
+    if (ret) {
+        return CONTAINER_ERR;
+    }
+
+    (void)snprintf(cmd, COMMAND_LEN, PLDD_LIB_COMMAND, pid, comm);
+    if (exec_cmd((const char *)cmd, elf_relative_path, PATH_LEN) < 0) {
+        return CONTAINER_NOTOK;
+    }
+
+    if (get_container_merged_path(container_id, container_path, PATH_LEN) < 0) {
+        return CONTAINER_ERR;
+    }
+
+    (void)snprintf(elf_path, max_path_len, "%s%s", container_path, elf_relative_path);
+
+    if (elf_path[0] != '\0') {
+        if (access(elf_path, R_OK) != 0) {
+            return CONTAINER_ERR;
+        }
+    }
+
+    return CONTAINER_OK;
+}
+
 #define __PID_GRP_KIND_DIR "/usr/bin/cat /proc/%u/cgroup | /usr/bin/grep -w %s | /usr/bin/awk -F ':' '{print $3}'"
 #define __PID_GRP_DIR "/proc/%u/cgroup"
 static int __get_cgp_dir_by_pid(unsigned int pid, const char *kind, char dir[], unsigned int dir_len)
