@@ -35,7 +35,15 @@ int main(int argc, char *argv[])
         return CU_get_error();
     }
 
-    CU_ADD_TEST(suite, testProbesMain);
+    CU_ADD_TEST(suite, TestSystemMeminfoProbe);
+    CU_ADD_TEST(suite, TestSystemCpuProbe);
+    CU_ADD_TEST(suite, TestSystemDiskIOStatProbe);
+    CU_ADD_TEST(suite, TestSystemDiskProbe);
+    CU_ADD_TEST(suite, TestSystemNetProbe);
+    CU_ADD_TEST(suite, TestSystemdNetTcpProbe);
+    CU_ADD_TEST(suite, TestSystemProcProbe);
+    CU_ADD_TEST(suite, TestVirtInfoProbe);
+    CU_ADD_TEST(suite, TestEventProbe);
 
     CU_basic_set_mode(CU_BRM_VERBOSE);
     CU_basic_run_tests();

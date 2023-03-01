@@ -15,7 +15,15 @@
 #ifndef __TEST_PROBES_H__
 #define __TEST_PROBES_H__
 
-void testProbesMain(void);
+void TestSystemMeminfoProbe(void);
+void TestSystemCpuProbe(void);
+void TestSystemDiskIOStatProbe(void);
+void TestSystemDiskProbe(void);
+void TestSystemNetProbe(void);
+void TestSystemdNetTcpProbe(void);
+void TestSystemProcProbe(void);
+void TestVirtInfoProbe(void);
+void TestEventProbe(void);
 
 #endif
 
