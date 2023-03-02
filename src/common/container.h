@@ -40,6 +40,7 @@ typedef struct container_tbl_s {
 container_tbl* get_all_container(void);
 int get_container_id_by_pid(unsigned int pid, char *container_id, unsigned int buf_len);
 int get_elf_path(unsigned int pid, char elf_path[], int max_path_len, const char *comm);
+int get_elf_path_by_con_id(char *container_id, char elf_path[], int max_path_len, const char *comm);
 void free_container_tbl(container_tbl **pcstbl);
 int get_container_merged_path(const char *abbr_container_id, char *path, unsigned int len);
 int exec_container_command(const char *abbr_container_id, const char *exec, char *buf, unsigned int len);
