@@ -10,15 +10,14 @@
  * See the Mulan PSL v2 for more details.
  * Author: wo_cow
  * Create: 2023-02-20
- * Description: podprobe bpf prog
+ * Description: pod lifecycle
  ******************************************************************************/
 #ifdef BPF_PROG_USER
 #undef BPF_PROG_USER
 #endif
 #define BPF_PROG_KERN
 #include "bpf.h"
-#include "bpf.h"
-#include "podprobe.h"
+#include "include/pod.h"
 
 char g_linsence[] SEC("license") = "GPL";
 

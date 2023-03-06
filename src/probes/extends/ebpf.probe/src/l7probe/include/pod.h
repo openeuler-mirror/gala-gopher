@@ -10,10 +10,10 @@
  * See the Mulan PSL v2 for more details.
  * Author: wo_cow
  * Create: 2023-02-20
- * Description: podprobe header file
+ * Description: pod definitions
  ******************************************************************************/
-#ifndef __PODPROBE_H__
-#define __PODPROBE_H__
+#ifndef __POD_H__
+#define __POD_H__
 
 #define MAX_CGRP_PATH 512
 

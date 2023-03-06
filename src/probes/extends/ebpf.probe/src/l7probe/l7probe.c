@@ -10,8 +10,7 @@
  * See the Mulan PSL v2 for more details.
  * Author: wo_cow
  * Create: 2023-02-20
- * Description: podprobe probe user prog
- *     This probe will ignore containers that are not in a pod.
+ * Description: l7probe probe main program
  ******************************************************************************/
 #include <stdio.h>
 #include <unistd.h>
@@ -32,8 +31,9 @@
 #include "hash.h"
 #include "event.h"
 #include "container.h"
-#include "podprobe.skel.h"
-#include "podprobe.h"
+#include "include/pod.h"
+#include "bpf/cgroup.skel.h"
+
 
 #define POD_TBL_NAME "pod_state"
 #define KUBEPODS_PREFIX "/kubepods/"
@@ -194,24 +194,24 @@ static struct containers_hash_t *add_one_con(struct pod_info_s *pod_info, char *
     int ret;
 
     if (con_id == NULL || con_id[0] == 0) {
-        ERROR("[PODPROBE]: Failed to add one container. container id is null\n");
+        ERROR("[L7PROBE]: Failed to add one container. container id is null\n");
         return NULL;
     }
 
     if (add_con_hash(&pod_info->con_head, con_id) != 0) {
-        ERROR("[PODPROBE]: Failed to malloc container %s hash.\n", con_id);
+        ERROR("[L7PROBE]: Failed to malloc container %s hash.\n", con_id);
         return NULL;
     }
 
     H_FIND_S(pod_info->con_head, con_id, con);
     if (con == NULL) {
-        ERROR("[PODPROBE]: Failed to add container %s hash.\n", con_id);
+        ERROR("[L7PROBE]: Failed to add container %s hash.\n", con_id);
         return NULL;
     }
 
     ret = get_container_name(con_id, con->con_info.container_name, CONTAINER_NAME_LEN);
     if (ret) {
-        ERROR("[PODPROBE]: Failed to get container name of container %s.\n", con_id);
+        ERROR("[L7PROBE]: Failed to get container name of container %s.\n", con_id);
     }
 
     get_elf_path_by_con_id(con_id, con->con_info.libc_path, PATH_LEN, "libc.so");
@@ -274,20 +274,20 @@ static struct pods_hash_t *add_one_pod(char *pod_id, char *con_id)
     struct pods_hash_t *pod = NULL;
 
     if (pod_id == NULL || pod_id[0] == 0) {
-        ERROR("[PODPROBE]: Failed to add one pod. pod id is null\n");
+        ERROR("[L7PROBE]: Failed to add one pod. pod id is null\n");
         return NULL;
     }
 
     H_FIND_S(pod_head, pod_id, pod);
     if (pod == NULL) {
         if (add_pod_hash(pod_id) != 0) {
-            ERROR("[PODPROBE]: Failed to malloc pod %s hash.\n", pod_id);
+            ERROR("[L7PROBE]: Failed to malloc pod %s hash.\n", pod_id);
             return NULL;
         }
 
         H_FIND_S(pod_head, pod_id, pod);
         if (pod == NULL) {
-            ERROR("[PODPROBE]: Failed to add pod %s hash.\n", pod_id);
+            ERROR("[L7PROBE]: Failed to add pod %s hash.\n", pod_id);
             return NULL;
         }
     }
@@ -409,23 +409,23 @@ int main(int argc, char **argv)
     if (err != 0) {
         return -1;
     }
-    INFO("[PODPROBE]: arg parse interval time:%us\n", params.period);
+    INFO("[L7PROBE]: arg parse interval time:%us\n", params.period);
 
-    INIT_BPF_APP(podprobe, EBPF_RLIM_LIMITED);
-    LOAD(podprobe, out);
+    INIT_BPF_APP(cgroup, EBPF_RLIM_LIMITED);
+    LOAD(cgroup, out);
 
     if (signal(SIGINT, sig_int) == SIG_ERR) {
-        ERROR("[PODPROBE]: Can't set signal handler: %d\n", errno);
+        ERROR("[L7PROBE]: Can't set signal handler: %d\n", errno);
         goto out;
     }
 
-    struct perf_buffer *pb = create_pref_buffer(GET_MAP_FD(podprobe, msg_map), msg_handler);
+    struct perf_buffer *pb = create_pref_buffer(GET_MAP_FD(cgroup, msg_map), msg_handler);
     if (pb == NULL) {
-        ERROR("[PODPROBE]: Failed to create perf buffer.\n");
+        ERROR("[L7PROBE]: Failed to create perf buffer.\n");
         goto out;
     }
     
-    INFO("[PODPROBE]: pod probe successfully started!\n");
+    INFO("[L7PROBE]: l7probe successfully started!\n");
 
     while (!stop) {
         err = perf_buffer__poll(pb, params.period * 1000);
@@ -438,6 +438,6 @@ int main(int argc, char **argv)
     del_pods();
 
 out:
-    UNLOAD(podprobe);
+    UNLOAD(cgroup);
     return -err;
 }
