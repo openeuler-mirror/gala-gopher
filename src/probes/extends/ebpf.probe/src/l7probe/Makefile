@@ -1,11 +1,12 @@
 include ../mk/var.mk
 INCLUDES = $(BASE_INC)
+INCLUDES += -I$(ROOT_DIR)/../l7probe
 
-APP := podprobe
+APP := l7probe
 SRC_CPLUS := $(wildcard *.cpp)
 SRC_CPLUS += $(CPLUSFILES)
 
-BPF_C := $(wildcard *.bpf.c)
+BPF_C := $(wildcard bpf/*.bpf.c)
 DEPS := $(patsubst %.bpf.c, %.bpf.o, $(BPF_C))
 DEPS += $(patsubst %.bpf.c, %.skel.h, $(BPF_C))
 DEPS += $(patsubst %.cpp, %.o, $(SRC_CPLUS))
@@ -35,6 +36,7 @@ app: $(APP)
 %: %.c $(SRC_C)
 	$(CC) $(CFLAGS) $(patsubst %.cpp, %.o, $(SRC_CPLUS))  $(INCLUDES) $^ $(LDFLAGS) $(LINK_TARGET) -o $@
 	@echo $@ "compiling completed."
+
 clean:
 	rm -rf $(DEPS)
 	rm -rf $(APP)
