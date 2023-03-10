@@ -12,22 +12,9 @@
  * Create: 2023-02-20
  * Description: pod definitions
  ******************************************************************************/
-#ifndef __POD_H__
-#define __POD_H__
+#ifndef __BPF_MNG_H__
+#define __BPF_MNG_H__
 
-#define MAX_CGRP_PATH 512
-
-enum cgrp_event_t {
-    CGRP_MK,
-    CGRP_RM,
-};
-
-struct cgroup_msg_data_t {
-    enum cgrp_event_t cgrp_event;
-    char cgrp_path[MAX_CGRP_PATH];
-};
-
-void del_pods();
-void l7_cgroup_msg_handler(void *ctx, int cpu, void *data, unsigned int size);
+struct bpf_prog_s *init_bpf_progs(struct probe_params *args);
 
 #endif
