@@ -135,7 +135,24 @@ L7Probe
 | vm            |            | Gauge        | bytes | K8S Pod 虚拟内存字节数 |
 | rss           |            | Gauge        | bytes | K8S Pod 物理内存字节数 |
 
+## 动态控制
 
+### 控制观测Pod范围
+
+1. REST->gala-gopher
+1. gala-gopher->L7Probe
+1. L7Probe 基于Pod获取相关Container
+2. L7Probe 基于Container获取其 CGroup id（cpuacct_cgrp_id），并写入object模块（API: cgrp_add）
+2. Socket系统事件上下文中，获取进程所属CGroup（cpuacct_cgrp_id），参考Linux代码（task_cgroup）
+2. 观测过程中，通过object模块过滤（API: is_cgrp_exist）
+
+
+
+### 控制观测能力
+
+1. REST->gala-gopher
+2. gala-gopher->L7Probe
+3. L7Probe根据输入参数动态的开启、关闭BPF观测能力（包括吞吐量、时延、Trace、协议类型）
 
 
 
