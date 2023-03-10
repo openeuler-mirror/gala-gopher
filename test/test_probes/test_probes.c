@@ -15,12 +15,36 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <dirent.h>
+#include <sys/types.h>
 #include <CUnit/Basic.h>
 #include "probe.h"
 #include "../../probes/system_infos.probe/system_cpu.h"
 
 
 #define EVENT_ERR_CODE "code=[13]"
+
+static int is_contain_physical_device(void)
+{
+    DIR *dir = NULL;
+    struct dirent *entry;
+    char fpath[COMMAND_LEN];
+
+    dir = opendir("/sys/class/net");
+    if (dir == NULL) {
+        return -1;
+    }
+    while (entry = readdir(dir)) {
+        fpath[0] = 0;
+        (void)snprintf(fpath, COMMAND_LEN, "/sys/devices/virtual/net/%s", entry->d_name);
+        if (access((const char *)fpath, 0) < 0) {
+            closedir(dir);
+            return 0;
+        }
+    }
+    closedir(dir);
+    return -1;
+}
 
 void TestSystemMeminfoProbe(void)
 {
@@ -207,6 +231,13 @@ void TestSystemNetProbe(void)
     uint32_t *elemP = NULL;
     char *substr = NULL;
     struct probe_params params = {.period = DEFAULT_PERIOD};
+
+    if (is_contain_physical_device() != 0) {
+        ret = system_net_init();
+        CU_ASSERT(ret != 0);
+        return;
+    }
+
     ret = system_net_init();
     CU_ASSERT(ret == 0);
 
@@ -256,6 +287,13 @@ void TestSystemdNetTcpProbe(void)
     uint32_t ret = 0;
     uint32_t *elemP = NULL;
     char *substr = NULL;
+
+    if (is_contain_physical_device() != 0) {
+        ret = system_net_init();
+        CU_ASSERT(ret != 0);
+        return;
+    }
+
     ret = system_net_init();
     CU_ASSERT(ret == 0);
 
@@ -283,11 +321,13 @@ void TestSystemProcProbe(void)
     FILE *f = NULL;
     char cmd[COMMAND_LEN];
     struct probe_params params = {.period = DEFAULT_PERIOD, .task_whitelist="/tmp/gala-gopher-app.conf"};
-    
+
     /* prepare create proc_map */
-    snprintf(cmd, COMMAND_LEN - 1, "mkdir -p /sys/fs/bpf/gala-gopher");
-    f = popen(cmd, "r");
-    CU_ASSERT(f != NULL);
+    ret = mkdir("/sys/fs/bpf/gala-gopher", 0775);
+    /* bpf may not be enabled in ci environment */
+    if (ret != 0) {
+        return;
+    }
 
     snprintf(cmd, COMMAND_LEN - 1, "touch /tmp/gala-gopher-app.conf");
     f = popen(cmd, "r");
