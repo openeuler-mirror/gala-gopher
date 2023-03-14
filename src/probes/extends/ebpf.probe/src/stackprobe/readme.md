@@ -69,6 +69,7 @@
   当JVM加载一个Java方法或者动态编译一个本地方法时JVM会调用回调函数，回调函数会将java类名和方法名以及对应的内存地址写入到被观测java进程空间下（/proc/\<pid\>/root/tmp/java-sym-\<pid\>/java-symbols.bin）
 
 - jvm_attach：用于实时加载jvm_agent.so到被观测进程的JVM上
+  （参考jdk源码中sun.tools.attach.LinuxVirtualMachine和jattach工具）
 
   1. 设置自身的namespace（JVM加载agent时要求加载进程和被观测进程的namespace一致）
 
@@ -79,6 +80,10 @@
   4. 连接UNIX socket
 
   5. 读取响应为0表示attach成功
+
+  attach agent流程图示：
+
+  ![attach流程](../../../../../../doc/pic/attach流程.png)
 
 - java_support线程：监控java进程
 
