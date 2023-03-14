@@ -6,7 +6,8 @@ APP := l7probe
 SRC_CPLUS := $(wildcard *.cpp)
 SRC_CPLUS += $(CPLUSFILES)
 
-BPF_C := $(wildcard bpf/*.bpf.c)
+#BPF_C := $(wildcard bpf/*.bpf.c)
+BPF_C := bpf/cgroup.bpf.c
 DEPS := $(patsubst %.bpf.c, %.bpf.o, $(BPF_C))
 DEPS += $(patsubst %.bpf.c, %.skel.h, $(BPF_C))
 DEPS += $(patsubst %.cpp, %.o, $(SRC_CPLUS))

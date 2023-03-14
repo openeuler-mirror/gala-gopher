@@ -29,12 +29,12 @@ struct {
     __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
     __uint(key_size, sizeof(u32));
     __uint(value_size, sizeof(u32));
-} msg_map SEC(".maps");
+} cgroup_msg_map SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
     __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(struct msg_data_t));
+    __uint(value_size, sizeof(struct cgroup_msg_data_t));
     __uint(max_entries, 1);
 } tmp_map SEC(".maps");
 
@@ -54,7 +54,7 @@ static __always_inline int check_root_id(struct cgroup *cgrp)
 static __always_inline void report_cgrp_change(void *ctx, enum cgrp_event_t cgrp_event, const char *path)
 {
     u32 key = 0;
-    struct msg_data_t *msg_data = bpf_map_lookup_elem(&tmp_map, &key);
+    struct cgroup_msg_data_t *msg_data = bpf_map_lookup_elem(&tmp_map, &key);
 
     if (!msg_data)
         return;
@@ -62,7 +62,7 @@ static __always_inline void report_cgrp_change(void *ctx, enum cgrp_event_t cgrp
     msg_data->cgrp_event = cgrp_event;
     bpf_probe_read_str(msg_data->cgrp_path, MAX_CGRP_PATH, path);
 
-    (void)bpf_perf_event_output(ctx, &msg_map, BPF_F_CURRENT_CPU, msg_data, MAX_CGRP_PATH);
+    (void)bpf_perf_event_output(ctx, &cgroup_msg_map, BPF_F_CURRENT_CPU, msg_data, MAX_CGRP_PATH);
 }
 
 KRAWTRACE(cgroup_mkdir, bpf_raw_tracepoint_args)

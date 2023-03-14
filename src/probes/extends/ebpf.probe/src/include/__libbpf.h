@@ -390,6 +390,7 @@ struct __bpf_skel_s {
 struct bpf_prog_s {
     struct perf_buffer* pb;
     struct perf_buffer* pbs[SKEL_MAX_NUM];  // 支持每个探针拥有各自的perf_buffer，目前tcpprobe使用
+    pthread_t msg_evt_thd[SKEL_MAX_NUM];
     struct __bpf_skel_s skels[SKEL_MAX_NUM];
     size_t num;
 };

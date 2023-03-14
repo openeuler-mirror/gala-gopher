@@ -16,7 +16,7 @@ L7Probe
 
 ​         | --- connect.h   // L7 connect对象定义
 
-​         | --- pod.h   // pod对象定义
+​         | --- pod.h   // pod/container对象定义
 
 ​         | --- conn_tracker.h   // L7协议跟踪对象定义
 
@@ -28,7 +28,7 @@ L7Probe
 
 ​          | --- pgsql // pgsql L7 message结构定义及解析
 
-  | --- bpf  // 内核bpf代码
+   | --- bpf  // 内核bpf代码
 
 ​         | --- L7.h   // BPF程序解析L7层协议类型
 
@@ -40,17 +40,15 @@ L7Probe
 
 ​         | --- cgroup.bpf.c   // pod 生命周期观测
 
-   | --- pod_mng.c   // pod实例管理（感知pod生命周期）
-
-   | --- container_mng.c   // container实例管理（感知Container生命周期）
+   | --- pod_mng.c   // pod/container实例管理（感知pod/container生命周期）
 
    | --- conn_mng.c   // L7 Connect实例管理（处理BPF观测事件，比如Open/Close事件、Stats统计）
 
    | --- conn_tracker.c   // L7 流量跟踪（跟踪BPF观测数据，比如send/write、read/recv等系统事件产生的数据）
 
-​    | --- bpf_mng.c   // BPF程序生命周期管理（按需、实时open、load、attach、unload BPF程序，包括uprobe BPF程序）
+​   | --- bpf_mng.c   // BPF程序生命周期管理（按需、实时open、load、attach、unload BPF程序，包括uprobe BPF程序）
 
-​    | --- L7Probe.c   // 探针主程序
+​   | --- L7Probe.c   // 探针主程序
 
 
 
