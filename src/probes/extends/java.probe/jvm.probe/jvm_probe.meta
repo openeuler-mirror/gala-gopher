@@ -3,100 +3,259 @@ version = "1.0.0"
 measurements:
 (
     {
-        table_name: "jvm",
+        table_name: "jvm_info",
         entity_name: "jvm",
         fields:
         (
             {
-                description: "ID of current java process ",
+                description: "ID of current java process.",
                 type: "key",
                 name: "tgid",
             },
             {
-                description: "pkg_name-java_main_class",
+                description: "JVM runtime Environment.",
                 type: "label",
-                name: "pkg_name_main_class",
+                name: "runtime",
             },
             {
-                description: "JVM specification version ",
+                description: "....",
                 type: "label",
-                name: "jvm_version",
+                name: "vendor",
             },
             {
-                description: "JVM implementation name ",
+                description: "....",
                 type: "label",
-                name: "jvm_type",
+                name: "version",
             },
             {
-                description: "Garbage collectors` average usage",
+                description: "a fixed num 1 as metric",
                 type: "gauge",
-                name: "gc_activity_util",
+                name: "info",
+            }
+        )
+    },
+    {
+        table_name: "jvm_process",
+        entity_name: "jvm",
+        fields:
+        (
+            {
+                description: "ID of current java process.",
+                type: "key",
+                name: "tgid",
             },
             {
-                description: "Garbage collector collection counts",
-                type: "gauge",
-                name: "gc_total_count",
-            },
-            {
-                description: "Total garbage collector collection time",
-                type: "gauge",
-                name: "gc_total_seconds",
-            },
-            {
-                description: "Process start time in seconds",
+                description: "Start time of the process since unix epoch in seconds.",
                 type: "gauge",
                 name: "process_start_time_seconds",
             },
             {
-                description: "Process run time in seconds",
+                description: "Total user and system CPU time spent in seconds.",
                 type: "gauge",
-                name: "process_run_time_seconds",
+                name: "process_cpu_seconds_total",
+            },
+        )
+    },
+    {
+        table_name: "jvm_class",
+        entity_name: "jvm",
+        fields:
+        (
+            {
+                description: "ID of current java process.",
+                type: "key",
+                name: "tgid",
             },
             {
-                description: "The number of threads in the current process",
+                description: "Start time of the process since unix epoch in seconds.",
+                type: "gauge",
+                name: "classes_currently_loaded",
+            },
+            {
+                description: "Total user and system CPU time spent in seconds.",
+                type: "gauge",
+                name: "classes_loaded_total",
+            },
+        )
+    },
+    {
+        table_name: "jvm_thread",
+        entity_name: "jvm",
+        fields:
+        (
+            {
+                description: "ID of current java process.",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "Current thread count of a JVM.",
                 type: "gauge",
                 name: "threads_current",
             },
             {
-                description: "The peak number of threads of the java process",
+                description: "Daemon thread count of a JVM.",
+                type: "gauge",
+                name: "threads_daemon",
+            },
+            {
+                description: "Peak thread count of a JVM.",
                 type: "gauge",
                 name: "threads_peak",
             },
             {
-                description: "Deadlocked JVM thread number",
+                description: "Started thread count of a JVM.",
+                type: "gauge",
+                name: "threads_started_total",
+            },
+            {
+                description: "Cycles of JVM-threads that are in deadlock waiting to acquire object monitors or ownable synchronizers.",
                 type: "gauge",
                 name: "threads_deadlocked",
             },
+        )
+    },
+    {
+        table_name: "jvm_mem",
+        entity_name: "jvm",
+        fields:
+        (
             {
-                description: "Used bytes of JVM _Heap memory area",
+                description: "ID of current java process.",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "type of JVM memory type: heap or noheap.",
+                type: "key",
+                name: "area",
+            },
+            {
+                description: "Used bytes of a given JVM memory area.",
                 type: "gauge",
-                name: "heap_memory_bytes_used",
+                name: "memory_bytes_used",
             },
             {
-                description: "JVM _Heap occupation",
+                description: "Committed (bytes) of a given JVM memory area.",
                 type: "gauge",
-                name: "heap_occuped_percent",
+                name: "memory_bytes_committed",
             },
             {
-                description: "Used bytes of JVM _NonHeap memory area",
+                description: "Max (bytes) of a given JVM memory area.",
                 type: "gauge",
-                name: "nonheap_memory_bytes_used",
+                name: "memory_bytes_max",
             },
             {
-                description: "JVM _NonHeap occupation",
+                description: "Initial bytes of a given JVM memory area.",
                 type: "gauge",
-                name: "nonheap_occuped_percent",
+                name: "memory_bytes_init",
+            },
+        )
+    },
+    {
+        table_name: "jvm_mem_pool",
+        entity_name: "jvm",
+        fields:
+        (
+            {
+                description: "ID of current java process.",
+                type: "key",
+                name: "tgid",
             },
             {
-                 description: "The total capacity of the JVM buffer pools",
-                 type: "gauge",
-                 name: "buffer_pool_total_size",
+                description: "....",
+                type: "key",
+                name: "pool",
             },
             {
-                 description: "the memory that the JVM uses for buffer pools",
-                 type: "gauge",
-                 name: "buffer_pool_used_bytes",
-            }
+                description: "Used bytes of a given JVM memory pool.",
+                type: "gauge",
+                name: "memory_pool_bytes_used",
+            },
+            {
+                description: "Committed bytes of a given JVM memory pool.",
+                type: "gauge",
+                name: "memory_pool_bytes_committed",
+            },
+            {
+                description: "Max bytes of a given JVM memory pool.",
+                type: "gauge",
+                name: "memory_pool_bytes_max",
+            },
+            {
+                description: "Used bytes after last collection of a given JVM memory pool.",
+                type: "gauge",
+                name: "memory_pool_collection_used_bytes",
+            },
+            {
+                description: "Committed after last collection bytes of a given JVM memory pool.",
+                type: "gauge",
+                name: "memory_pool_collection_committed_bytes",
+            },
+            {
+                description: "Max bytes after last collection of a given JVM memory pool.",
+                type: "gauge",
+                name: "memory_pool_collection_max_bytes",
+            },
+        )
+    },
+    {
+        table_name: "jvm_buf_pool",
+        entity_name: "jvm",
+        fields:
+        (
+            {
+                description: "ID of current java process.",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "....",
+                type: "label",
+                name: "pool",
+            },
+            {
+                description: "Used bytes of a given JVM buffer pool.",
+                type: "gauge",
+                name: "buffer_pool_used_bytes",
+            },
+            {
+                description: "Used buffers of a given JVM buffer pool.",
+                type: "gauge",
+                name: "buffer_pool_used_buffers",
+            },
+            {
+                description: "Bytes capacity of a given JVM buffer pool.",
+                type: "gauge",
+                name: "buffer_pool_capacity_bytes",
+            },
+        )
+    },
+    {
+        table_name: "jvm_gc",
+        entity_name: "jvm",
+        fields:
+        (
+            {
+                description: "ID of current java process.",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "....",
+                type: "label",
+                name: "gc",
+            },
+            {
+                description: "Collection count of a given JVM garbage collector.",
+                type: "gauge",
+                name: "gc_collection_seconds_count",
+            },
+            {
+                description: "Time spent in a given JVM garbage collector in seconds.",
+                type: "gauge",
+                name: "gc_collection_seconds_sum",
+            },
         )
     }
 )

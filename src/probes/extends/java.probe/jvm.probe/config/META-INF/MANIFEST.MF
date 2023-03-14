@@ -1,5 +1,4 @@
 Manifest-Version: 1.0
-Class-Path: management-agent.jar 
 Created-By: 1.8.0_333 (Oracle Corporation)
 Main-Class: JvmProbe
 

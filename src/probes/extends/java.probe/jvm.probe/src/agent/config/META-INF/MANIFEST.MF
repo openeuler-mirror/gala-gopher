@@ -1,0 +1,6 @@
+Manifest-Version: 1.0
+Created-By: 1.8.0_272 (Oracle Corporation)
+Agent-Class: agent.JvmProbeAgent
+Can-Retransform-Classes: true
+Can-Redefine-Classes: true
+
