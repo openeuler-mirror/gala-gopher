@@ -18,12 +18,12 @@ measurements:
                 name: "runtime",
             },
             {
-                description: "....",
+                description: "JVM implementation vender.",
                 type: "label",
                 name: "vendor",
             },
             {
-                description: "....",
+                description: "the JVM implementation version.",
                 type: "label",
                 name: "version",
             },
@@ -163,7 +163,7 @@ measurements:
                 name: "tgid",
             },
             {
-                description: "....",
+                description: "name representing a memory pool.",
                 type: "key",
                 name: "pool",
             },
@@ -210,8 +210,8 @@ measurements:
                 name: "tgid",
             },
             {
-                description: "....",
-                type: "label",
+                description: "name representing a buffer pool.",
+                type: "key",
                 name: "pool",
             },
             {
@@ -242,8 +242,8 @@ measurements:
                 name: "tgid",
             },
             {
-                description: "....",
-                type: "label",
+                description: "name representing a GC.",
+                type: "key",
                 name: "gc",
             },
             {
