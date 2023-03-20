@@ -18,6 +18,9 @@
 #include <linux/in6.h>
 #include <linux/socket.h>
 
+#include "l7.h"
+
+#define L7_CONN_BPF_PATH          "/sys/fs/bpf/gala-gopher/__l7_connect"
 
 union sockaddr_t {
   struct sockaddr sa;
@@ -34,6 +37,7 @@ enum role_type_t {
     ROLE_UNKNOW = 0,
     ROLE_CLIENT,
     ROLE_SERVER,
+    ROLE_UDP,
 };
 
 struct conn_id_s {
@@ -44,9 +48,9 @@ struct conn_id_s {
 struct conn_info_s {
     struct conn_id_s id;
     char is_ssl;
-    enum role_type_t role;      // client or server
+    enum role_type_t role;      // TCP client or server; UDP
     enum proto_type_t protocol; // L7 protocol type
-    union sockaddr_t remote_addr;
+    union sockaddr_t remote_addr; // TCP remote address; UDP datagram address
 };
 
 typedef u64 conn_ctx_t;         // pid & tgid
@@ -75,25 +79,31 @@ struct conn_close_s {
     u64 rd_bytes;
 };
 
+// Exchange data between user mode/kernel using
+// 'conn_control_events' perf channel.
 struct conn_ctl_s {
-    u64 timestamp_ns;
-    enum conn_evt_e type;
     struct conn_id_s conn_id;
+    u64 timestamp_ns;
 
+    enum conn_evt_e type;
     struct conn_open_s open;
     struct conn_close_s close;
 };
 
+// Exchange data between user mode/kernel using
+// 'conn_stats_events' perf channel.
 struct conn_stats_s {
     struct conn_id_s conn_id;
-
     u64 timestamp_ns;
+
     // The number of bytes written on this connection.
     u64 wr_bytes;
     // The number of bytes read on this connection.
     u64 rd_bytes;
 };
 
+// Exchange data between user mode/kernel using
+// 'conn_data_events' perf channel.
 #define LOOP_LIMIT 4
 #define CONN_DATA_MAX_SIZE  (10 * 1024)
 struct conn_data_s {
@@ -103,7 +113,7 @@ struct conn_data_s {
 
     enum proto_type_t proto;
     enum role_type_t role;
-    enum l7_direction_t direction;
+    enum l7_direction_t direction;  // Only for tcp connection
 
     u64 offset_pos;     // The position is for the first data of this message.
     u64 data_size;      // The actually data size, maybe less than msg_size.

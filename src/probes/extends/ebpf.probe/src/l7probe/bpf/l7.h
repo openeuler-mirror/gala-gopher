@@ -12,6 +12,8 @@
  * Create: 2023-02-22
  * Description: l7 protocol header parse
  ******************************************************************************/
+#ifndef __L7_PRO_H__
+#define __L7_PRO_H__
 
 #pragma once
 
@@ -576,4 +578,4 @@ static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, st
 
     return -1;
 }
-                                                         
+#endif
