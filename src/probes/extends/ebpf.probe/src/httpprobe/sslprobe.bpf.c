@@ -72,20 +72,20 @@ UPROBE_RET(SSL_read, pt_regs, CTX_USER)
 
     if (PROBE_GET_PARMS(SSL_read, ctx, val, CTX_USER) < 0 || (int)PT_REGS_RC(ctx) < REQ_BUF_SIZE) {
         bpf_printk("SSL_read fail...");
-        return;
+        return 0;
     }
     key.tgid = bpf_get_current_pid_tgid() >> TGID_LSHIFT_LEN;
     ssl_st_p = (struct ssl_st*)PROBE_PARM1(val);
     key.skfd = get_fd_from_ssl(ssl_st_p, MSG_READ);
     data = bpf_map_lookup_elem(&conn_map, &key);
     if (data == NULL || data->status == READY_FOR_SEND) {
-        return;
+        return 0;
     }
     bpf_probe_read(buf, REQ_BUF_SIZE, (const char *)PROBE_PARM2(val));
     data->method = parse_req_method(buf);
     if (data->method == HTTP_UNKNOWN) {
         data->status = READY_FOR_RECVIVE;
-        return;
+        return 0;
     }
     data->status = READY_FOR_SEND;
     data->recvtime = bpf_ktime_get_ns();
@@ -102,23 +102,23 @@ UPROBE_RET(SSL_write, pt_regs, CTX_USER)
 
     if (PROBE_GET_PARMS(SSL_write, ctx, val, CTX_USER) < 0 || (int)PT_REGS_RC(ctx) <= REQ_BUF_SIZE - 1) {
         bpf_printk("SSL_write fail...");
-        return;
+        return 0;
     }
     ckey.tgid = bpf_get_current_pid_tgid() >> TGID_LSHIFT_LEN ;
     ssl_st_p = (struct ssl_st*)PROBE_PARM1(val);
     ckey.skfd = get_fd_from_ssl(ssl_st_p, MSG_WRITE);
     cdata = bpf_map_lookup_elem(&conn_map, &ckey);
     if (cdata == NULL || cdata->status == READY_FOR_RECVIVE) {
-        return;
+        return 0;
     }
  
     cskey.sk = (struct sock *)cdata->sock;
     if (cskey.sk == 0) {
-        return;
+        return 0;
     }
     csdata = (struct conn_samp_data_t *)bpf_map_lookup_elem(&conn_samp_map, &cskey);
     if (csdata == NULL) {
-        return;
+        return 0;
     }
     csdata->method = cdata->method;
     csdata->status = READY_FOR_SKBSENT;
@@ -128,5 +128,5 @@ UPROBE_RET(SSL_write, pt_regs, CTX_USER)
     cdata->status = READY_FOR_RECVIVE;
     cdata->recvtime = 0;
     cdata->method = HTTP_UNKNOWN;
-    return;
+    return 0;
 }

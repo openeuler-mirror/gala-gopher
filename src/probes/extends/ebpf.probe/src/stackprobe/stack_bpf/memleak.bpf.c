@@ -185,6 +185,7 @@ UPROBE(malloc, pt_regs)
 {
     u64 size = (u64)PT_REGS_PARM1(ctx);
     alloc_enter(size);
+    return 0;
 }
 
 URETPROBE(malloc, pt_regs)
@@ -192,6 +193,7 @@ URETPROBE(malloc, pt_regs)
     
     u64 ret = (u64)PT_REGS_RC(ctx);
     alloc_exit(ctx, ret);
+    return 0;
 }
 
 UPROBE(calloc, pt_regs)
@@ -199,12 +201,14 @@ UPROBE(calloc, pt_regs)
     u64 nmemb = (u64)PT_REGS_PARM1(ctx);
     u64 size = (u64)PT_REGS_PARM2(ctx);
     alloc_enter(nmemb * size);
+    return 0;
 }
 
 URETPROBE(calloc, pt_regs)
 {
     u64 ret = (u64)PT_REGS_RC(ctx);
     alloc_exit(ctx, ret);
+    return 0;
 }
 
 UPROBE(realloc, pt_regs)
@@ -214,24 +218,28 @@ UPROBE(realloc, pt_regs)
 
     free_enter(ctx, ptr);
     alloc_enter(size);
+    return 0;
 }
 
 URETPROBE(realloc, pt_regs)
 {
     u64 ret = (u64)PT_REGS_RC(ctx);
     alloc_exit(ctx, ret);
+    return 0;
 }
 
 UPROBE(mmap, pt_regs)
 {
     u64 size = (u64)PT_REGS_PARM2(ctx);
     alloc_enter(size);
+    return 0;
 }
 
 URETPROBE(mmap, pt_regs)
 {
     u64 ret = (u64)PT_REGS_RC(ctx);
     alloc_exit(ctx, ret);
+    return 0;
 }
 
 UPROBE(posix_memalign, pt_regs)
@@ -241,6 +249,7 @@ UPROBE(posix_memalign, pt_regs)
     u64 pid = bpf_get_current_pid_tgid();
     bpf_map_update_elem(&memalign_allocate, &pid, &memptr, BPF_ANY);
     alloc_enter(size);
+    return 0;
 }
 
 URETPROBE(posix_memalign, pt_regs)
@@ -249,72 +258,83 @@ URETPROBE(posix_memalign, pt_regs)
     u64 addr;
     u64 *memptr = (u64 *)bpf_map_lookup_elem(&memalign_allocate, &pid);
     if (memptr == 0)
-        return;
+        return 0;
     bpf_map_delete_elem(&memalign_allocate, &pid);
 
     if (bpf_probe_read_user(&addr, sizeof(u64), &memptr))
-        return;
+        return 0;
 
     alloc_exit(ctx, addr);
+    return 0;
 }
 
 UPROBE(valloc, pt_regs)
 {
     u64 size = (u64)PT_REGS_PARM1(ctx);
     alloc_enter(size);
+    return 0;
 }
 
 URETPROBE(valloc, pt_regs)
 {
     u64 ret = (u64)PT_REGS_RC(ctx);
     alloc_exit(ctx, ret);
+    return 0;
 }
 
 UPROBE(memalign, pt_regs)
 {
     u64 size = (u64)PT_REGS_PARM1(ctx);
     alloc_enter(size);
+    return 0;
 }
 
 URETPROBE(memalign, pt_regs)
 {
     u64 ret = (u64)PT_REGS_RC(ctx);
     alloc_exit(ctx, ret);
+    return 0;
 }
 
 UPROBE(pvalloc, pt_regs)
 {
     u64 size = (u64)PT_REGS_PARM1(ctx);
     alloc_enter(size);
+    return 0;
 }
 
 URETPROBE(pvalloc, pt_regs)
 {
     u64 ret = (u64)PT_REGS_RC(ctx);
     alloc_exit(ctx, ret);
+    return 0;
 }
 
 UPROBE(aligned_alloc, pt_regs)
 {
     u64 size = (u64)PT_REGS_PARM2(ctx);
     alloc_enter(size);
+    return 0;
 }
 
 URETPROBE(aligned_alloc, pt_regs)
 {
     u64 ret = (u64)PT_REGS_RC(ctx);
     alloc_exit(ctx, ret);
+    return 0;
 }
 
 UPROBE(free, pt_regs)
 {
     u64 size = (u64)PT_REGS_PARM2(ctx);
     free_enter(ctx, size);
+    return 0;
 }
 
 UPROBE(munmap, pt_regs)
 {
     u64 size = (u64)PT_REGS_PARM1(ctx);
     free_enter(ctx, size);
+    return 0;
 }
 

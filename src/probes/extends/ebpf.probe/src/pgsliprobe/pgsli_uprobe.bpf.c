@@ -77,29 +77,29 @@ UPROBE(SSL_read, pt_regs)
 
 URETPROBE(SSL_read, pt_regs)
 {
-    u32 tgid __maybe_unused = bpf_get_current_pid_tgid() >> INT_LEN;
     struct probe_val val;
     if (PROBE_GET_PARMS(SSL_read, ctx, val, PROG_SSL_READ) < 0) {
-        return;
+        return 0;
     }
 
     struct ssl_st* ssl_st_p = (struct ssl_st*)PROBE_PARM1(val);
     int fd = get_fd_from_ssl(ssl_st_p, MSG_READ);
     if (fd < 0) {
-        return;
+        return 0;
     }
 
     process_rdwr_msg(fd, (const char *)PROBE_PARM2(val), (int)PT_REGS_RC(ctx), MSG_READ, ctx);
+    return 0;
 }
 
 UPROBE(SSL_write, pt_regs)
 {
-    u32 tgid __maybe_unused = bpf_get_current_pid_tgid() >> INT_LEN;
     struct ssl_st* ssl_st_p = (struct ssl_st*)PT_REGS_PARM1(ctx);
     int fd = get_fd_from_ssl(ssl_st_p, MSG_WRITE);
     if (fd < 0) {
-        return;
+        return 0;
     }
 
     process_rdwr_msg(fd, (char *)PT_REGS_PARM2(ctx), (int)PT_REGS_PARM3(ctx), MSG_WRITE, ctx);
+    return 0;
 }

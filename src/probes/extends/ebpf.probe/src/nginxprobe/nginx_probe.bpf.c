@@ -66,19 +66,19 @@ UPROBE(ngx_http_upstream_handler, pt_regs)
 
     struct ngx_connection_s *c = (struct ngx_connection_s *)_(evt->data);
     if (c == (void *)0)
-        return;
+        return 0;
 
     struct ngx_http_request_s *r = (struct ngx_http_request_s *)_(c->data);
     if (r == (void *)0)
-        return;
+        return 0;
 
     struct ngx_http_upstream_s *u = (struct ngx_http_upstream_s *)_(r->upstream);
     if (u == (void *)0)
-        return;
+        return 0;
 
     c = (struct ngx_connection_s *)_(r->connection);
     if (c == (void *)0)
-        return;
+        return 0;
 
     struct ngx_metric metric = {0};
 
@@ -92,17 +92,17 @@ UPROBE(ngx_http_upstream_handler, pt_regs)
     ngx_str_t *p_name;
     bpf_probe_read_user(&p_name, sizeof(void **), &(u->peer.name));
     if (p_name == (void *)0)
-        return;
+        return 0;
 
     unsigned char *dt;
     bpf_probe_read_user(&dt, sizeof(void **), &(p_name->data));
     if (dt == (void *)0)
-        return;
+        return 0;
 
     bpf_probe_read_user_str(metric.dst_ip_str, INET6_ADDRSTRLEN, dt);
 
     bpf_map_update_elem(&hs, &(metric.src_ip), &metric, BPF_ANY);
-    return;
+    return 0;
 }
 
 UPROBE(ngx_stream_proxy_init_upstream, pt_regs)
@@ -112,6 +112,7 @@ UPROBE(ngx_stream_proxy_init_upstream, pt_regs)
     struct ngx_stream_session_s *s = (struct ngx_stream_session_s *)PT_REGS_PARM1(ctx);
 
     bpf_map_update_elem(&para_hs, &tid, &s, BPF_ANY);
+    return 0;
 }
 
 URETPROBE(ngx_stream_proxy_init_upstream, pt_regs)
@@ -132,7 +133,7 @@ URETPROBE(ngx_stream_proxy_init_upstream, pt_regs)
     t = (struct ngx_stream_session_s **)bpf_map_lookup_elem(&para_hs, &tid);
     if (t == (void *)0) {
         bpf_printk("bpf_map_lookup_elem para_hs tid:%lu failed\n", tid);
-        return;
+        return 0;
     }
 
     s = *t;
@@ -147,24 +148,24 @@ URETPROBE(ngx_stream_proxy_init_upstream, pt_regs)
     bpf_probe_read_user(&stream, sizeof(void **), &(s->upstream));
     if (stream == (void *)0) {
         bpf_printk("stream null:%p\n", stream);
-        return;
+        return 0;
     }
 
     p_name = _(stream->peer.name);
     if (p_name == (void *)0) {
         bpf_printk("peer.name null\n");
-        return;
+        return 0;
     }
 
     unsigned char *dt = _(p_name->data);
     if (dt == (void *)0) {
         bpf_printk("name->data null\n");
-        return;
+        return 0;
     }
     bpf_probe_read_user_str(metric.dst_ip_str, INET6_ADDRSTRLEN, dt);
     bpf_map_update_elem(&hs, &(metric.src_ip), &metric, BPF_ANY);
 
-    return;
+    return 0;
 }
 
 UPROBE(ngx_close_connection, pt_regs)
@@ -179,9 +180,9 @@ UPROBE(ngx_close_connection, pt_regs)
     bpf_copy_ip_addr(client_addr, &src_ip);
     metric = (struct ngx_metric *)bpf_map_lookup_elem(&hs, &src_ip);
     if (metric == (void *)0)
-        return;
+        return 0;
 
     metric->is_finish = 1;
     bpf_map_update_elem(&hs, &src_ip, metric, BPF_ANY);
-    return;
+    return 0;
 }
