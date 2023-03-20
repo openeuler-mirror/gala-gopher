@@ -89,6 +89,7 @@ UPROBE_RET(SSL_read, pt_regs, CTX_USER)
     }
     data->status = READY_FOR_SEND;
     data->recvtime = bpf_ktime_get_ns();
+    return 0;
 }
 
 UPROBE_RET(SSL_write, pt_regs, CTX_USER)
