@@ -72,11 +72,13 @@ static __always_inline void update_gethostname_res(struct pt_regs* ctx)
     UPROBE(func, pt_regs) \
     { \
         start_fn(); \
+        return 0; \
     } \
     \
     URETPROBE(func, pt_regs) \
     { \
         stop_fn(ctx); \
+        return 0; \
     }
 
 UPROBE_GLIBC(getaddrinfo, store_dns_op_start_ts, update_gethostname_res)

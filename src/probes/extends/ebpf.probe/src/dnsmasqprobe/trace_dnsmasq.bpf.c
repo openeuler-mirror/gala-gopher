@@ -63,5 +63,5 @@ UPROBE(send_from, pt_regs)
     /* update hash map */
     bpf_map_update_elem(&dns_query_link_map, &key, &value, BPF_ANY);
 
-    return;
+    return 0;
 }
