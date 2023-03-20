@@ -156,4 +156,80 @@ L7Probe
 
 
 
+## 观测点
+
+### 内核Socket系统调用
+
+TCP相关系统调用
+
+// int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+
+// int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+
+// int accept4(int sockfd, struct sockaddr *addr, socklen_t *addrlen, int flags);
+
+// ssize_t write(int fd, const void *buf, size_t count);
+
+// ssize_t send(int sockfd, const void *buf, size_t len, int flags);
+
+// ssize_t read(int fd, void *buf, size_t count);
+
+// ssize_t recv(int sockfd, void *buf, size_t len, int flags);
+
+// ssize_t writev(int fd, const struct iovec *iov, int iovcnt);
+
+// ssize_t readv(int fd, const struct iovec *iov, int iovcnt);
+
+
+
+TCP&UDP相关系统调用
+
+// ssize_t sendto(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
+
+// ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
+
+// ssize_t sendmsg(int sockfd, const struct msghdr *msg, int flags);
+
+// ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags);
+
+// int close(int fd);
+
+
+
+注意点：
+
+1. read/write、readv/writev 与普通的文件I/O操作会混淆，通过观测内核security_socket_sendmsg函数区分FD是否属于socket操作。
+2. sendto/recvfrom、sendmsg/recvmsg  TCP/UDP均会使用，参考下面手册的介绍。
+3. sendmmsg/recvmmsg、sendfile 暂不支持。
+
+[sendto manual](https://man7.org/linux/man-pages/man2/send.2.html)  ：If sendto() is used on a connection-mode (SOCK_STREAM, SOCK_SEQPACKET) socket, the arguments dest_addr and addrlen are ignored (and the error EISCONN may be returned when they are not       NULL and 0), and the error ENOTCONN is returned when the socket was not actually connected.  otherwise, the address of the target is given by dest_addr with addrlen specifying its size.
+
+sendto 判断dest_addr参数为NULL则为TCP，否则为UDP。
+
+
+
+[recvfrom manual](https://linux.die.net/man/2/recvfrom)：The recvfrom() and recvmsg() calls are used to receive messages from a socket, and may be used to receive data on a socket whether or not it is connection-oriented.
+
+recvfrom判断src_addr参数为NULL则为TCP，否则为UDP。
+
+
+
+[sendmsg manual](https://man7.org/linux/man-pages/man3/sendmsg.3p.html)：The sendmsg() function shall send a message through a connection-mode or connectionless-mode socket. If the socket is a connectionless-mode socket, the message shall be sent to the address specified by msghdr if no pre-specified peer address has been set. If a peer address has been pre-specified, either themessage shall be sent to the address specified in msghdr (overriding the pre-specified peer address), or the function shall return -1 and set errno to [EISCONN].  If the socket is       connection-mode, the destination address in msghdr shall be ignored.
+
+sendmsg判断msghdr->msg_name参数为NULL则为TCP，否则为UDP。
+
+
+
+[recvmsg manual](https://man7.org/linux/man-pages/man3/recvmsg.3p.html): The recvmsg() function shall receive a message from a connection-mode or connectionless-mode socket. It is normally used with connectionless-mode sockets because it permits the application to retrieve the source address of received data.
+
+recvmsg判断msghdr->msg_name参数为NULL则为TCP，否则为UDP。
+
+### libSSL API
+
+SSL_write
+
+SSL_read
+
+### Go SSL API
+
  
