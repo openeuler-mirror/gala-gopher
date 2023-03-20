@@ -127,7 +127,7 @@ UPROBE(back_establish, pt_regs)
     /* update hash map */
     bpf_map_update_elem(&haproxy_link_map, &key, &value, BPF_ANY);
 
-    return;
+    return 0;
 }
 
 UPROBE(stream_free, pt_regs)
@@ -142,7 +142,7 @@ UPROBE(stream_free, pt_regs)
     value_p = bpf_map_lookup_elem(&haproxy_link_map, &key);
     if (value_p == (void *)0) {
         bpf_printk("===haproxy free stream not in hash map.\n");
-        return;
+        return 0;
     }
     /* update link state */
     value_p->state = SI_ST_CLO;
@@ -150,5 +150,5 @@ UPROBE(stream_free, pt_regs)
     /* update hash map */
     bpf_map_update_elem(&haproxy_link_map, &key, value_p, BPF_ANY);
 
-    return;
+    return 0;
 }

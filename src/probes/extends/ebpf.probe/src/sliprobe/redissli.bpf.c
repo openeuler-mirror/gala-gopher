@@ -126,17 +126,18 @@ UPROBE(readQueryFromClient, pt_regs)
         conn_data = create_conn_from_client(c);
     }
     if (conn_data == (void *)0) {
-        return;
+        return 0;
     }
 
     // 当前周期已有采样数据时，不更新客户端连接
     if (conn_data->cmd_nums > 0) {
-        return;
+        return 0;
     }
 
     conn_data->last_read_ts_nsec = ts_nsec;
     conn_data->rd_bufsize = 0;
     conn_data->rd_listsize = 0;
+    return 0;
 }
 
 // 监控 redis 命令处理函数，获取命令的元数据信息
@@ -152,12 +153,12 @@ UPROBE(processCommand, pt_regs)
 
     conn_data = get_conn_from_client(c);
     if (conn_data == (void *)0) {
-        return;
+        return 0;
     }
 
     // 当前周期已有采样数据时，后续数据不再处理
     if (conn_data->cmd_nums > 0) {
-        return;
+        return 0;
     }
 
     // 添加一个新请求
@@ -189,13 +190,13 @@ URETPROBE(processCommand, pt_regs)
     u64 cur_listpos;
 
     if (PROBE_GET_PARMS(processCommand, ctx, val, PROG_PROCESSCOMMAND) < 0) {
-        return;
+        return 0;
     }
     c = (client *)PROBE_PARM1(val);
 
     conn_data = get_conn_from_client(c);
     if (conn_data == (void *)0) {
-        return;
+        return 0;
     }
 
     cmd = &(conn_data->cmds[0]);
@@ -215,6 +216,7 @@ URETPROBE(processCommand, pt_regs)
         cmd->end_ts_nsec = ts_nsec;
         cmd->finished = 1;
     }
+    return 0;
 }
 
 // 监控 writeToClient 事件，获取应答消息离开应用层的时间点
@@ -227,7 +229,7 @@ UPROBE(writeToClient, pt_regs)
 
     conn_data = get_conn_from_client(c);
     if (conn_data == (void *)0) {
-        return;
+        return 0;
     }
     conn_data->cur_bufpos = _(c->bufpos);
     conn_data->cur_listpos = _(c->reply_bytes);
@@ -258,13 +260,13 @@ URETPROBE(writeToClient, pt_regs)
     u64 period;
 
     if (PROBE_GET_PARMS(writeToClient, ctx, val, PROG_WRITETOCLIENT) < 0) {
-        return;
+        return 0;
     }
     c = (client *)PROBE_PARM1(val);
 
     conn_data = get_conn_from_client(c);
     if (conn_data == (void *)0) {
-        return;
+        return 0;
     }
 
     // 更新客户端连接已处理的响应字节数
@@ -278,7 +280,7 @@ URETPROBE(writeToClient, pt_regs)
     }
 
     if (conn_data->cmd_nums == 0) {
-        return;
+        return 0;
     }
 
     // 当已处理的响应字节数大于 redis 请求的写入位置时，则该请求在应用层处理完毕，记录该请求的结束时间点
@@ -302,6 +304,7 @@ URETPROBE(writeToClient, pt_regs)
         conn_data->last_smp_ts_nsec = ts_nsec;
         conn_data->cmd_nums = 0;
     }
+    return 0;
 }
 
 // 端口 redis 客户端连接
@@ -317,7 +320,7 @@ UPROBE(freeClient, pt_regs)
     init_conn_key(&conn_key, fd, tgid);
     conn_data = (struct conn_data_t *)bpf_map_lookup_elem(&conn_map, &conn_key);
     if (conn_data == (void *)0) {
-        return;
+        return 0;
     }
 
     if (conn_data->cmd_nums > 0 && conn_data->cmds[0].finished) {
@@ -325,4 +328,5 @@ UPROBE(freeClient, pt_regs)
     }
 
     bpf_map_delete_elem(&conn_map, &conn_key);
+    return 0;
 }
