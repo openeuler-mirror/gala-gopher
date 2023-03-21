@@ -19,6 +19,7 @@
 #define BPF_PROG_KERN
 
 #include "kern_sock.h"
+#include "filter_bpf.h"
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
@@ -40,6 +41,30 @@ struct {
     __uint(value_size, sizeof(struct sock_data_args_s));
     __uint(max_entries, __MAX_CONCURRENCY);
 } sock_data_args SEC(".maps");
+
+static __always_inline char is_tracing(int tgid)
+{
+    if (is_filter_by_cgrp()) {
+        u64 cgrp_id = get_cur_cpuacct_cgrp_id();
+        if (is_filter_id(FILTER_CGRPID, cgrp_id)) {
+            return 1;
+        } else {
+            return 0;
+        }
+    } else {
+        if (is_filter_id(FILTER_TGID, tgid)) {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+}
+
+static __always_inline char is_tracing_udp(void)
+{
+    u32 proto = get_filter_proto();
+    return proto & L7PROBE_TRACING_DNS;
+}
 
 // int security_socket_sendmsg(struct socket *sock, struct msghdr *msg, int size)
 KPROBE(security_socket_sendmsg, pt_regs)
@@ -73,7 +98,7 @@ KRETPROBE(sock_alloc, pt_regs)
     if (args == NULL) {
         return 0;
     }
-    
+
     if (args->newsock == NULL) {
         args->newsock = (struct socket *)PT_REGS_RC(ctx);
     }
@@ -85,6 +110,10 @@ KPROBE_SYSCALL(connect)
 {
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
+
+    if (!is_tracing(proc_id)) {
+        return 0;
+    }
 
     int fd = (int)PT_REGS_PARM1(ctx);
     const struct sockaddr *addr = (const struct sockaddr *)PT_REGS_PARM2(ctx);
@@ -113,7 +142,7 @@ KRETPROBE_SYSCALL(connect)
         }
 
         submit_conn_open(ctx, (int)(id >> INT_LEN), args->fd,
-                ROLE_CLIENT, args->addr, /*socket*/ NULL);
+                L4_CLIENT, args->addr, /*socket*/ NULL);
     }
 end:
     bpf_map_delete_elem(&sys_connect_args, &id);
@@ -125,6 +154,10 @@ KPROBE_SYSCALL(send)
 {
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
+
+    if (!is_tracing(proc_id)) {
+        return 0;
+    }
 
     int fd = (int)PT_REGS_PARM1(ctx);
 
@@ -160,7 +193,9 @@ KPROBE_SYSCALL(accept)
 {
     conn_ctx_t id = bpf_get_current_pid_tgid();
 
-    // TODO: filter by custom rule
+    if (!is_tracing((int)(id >> INT_LEN))) {
+        return 0;
+    }
 
     const struct sockaddr *addr = (const struct sockaddr *)PT_REGS_PARM2(ctx);
 
@@ -186,7 +221,7 @@ KRETPROBE_SYSCALL(accept)
         }
 
         submit_conn_open(ctx, (int)(id >> INT_LEN), new_fd,
-                ROLE_SERVER, args->addr, /*socket*/ NULL);
+                L4_SERVER, args->addr, /*socket*/ NULL);
     }
 end:
     bpf_map_delete_elem(&sys_accept_args, &id);
@@ -198,7 +233,9 @@ KPROBE_SYSCALL(accept4)
 {
     conn_ctx_t id = bpf_get_current_pid_tgid();
 
-    // TODO: filter by custom rule
+    if (!is_tracing((int)(id >> INT_LEN))) {
+        return 0;
+    }
 
     const struct sockaddr *addr = (const struct sockaddr *)PT_REGS_PARM2(ctx);
 
@@ -224,7 +261,7 @@ KRETPROBE_SYSCALL(accept4)
         }
 
         submit_conn_open(ctx, (int)(id >> INT_LEN), new_fd,
-                ROLE_SERVER, args->addr, args->newsock);
+                L4_SERVER, args->addr, args->newsock);
     }
 end:
     bpf_map_delete_elem(&sys_accept_args, &id);
@@ -237,6 +274,10 @@ KPROBE_SYSCALL(write)
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
     int fd = (int)PT_REGS_PARM1(ctx);
+
+    if (!is_tracing(proc_id)) {
+        return 0;
+    }
 
     struct sock_data_args_s args = {0};
     args.conn_id.fd = fd;
@@ -272,6 +313,10 @@ KPROBE_SYSCALL(read)
     int proc_id = (int)(id >> INT_LEN);
     int fd = (int)PT_REGS_PARM1(ctx);
 
+    if (!is_tracing(proc_id)) {
+        return 0;
+    }
+
     struct sock_data_args_s args = {0};
     args.conn_id.fd = fd;
     args.conn_id.tgid = proc_id;
@@ -306,6 +351,10 @@ KPROBE_SYSCALL(recv)
     int proc_id = (int)(id >> INT_LEN);
     int fd = (int)PT_REGS_PARM1(ctx);
 
+    if (!is_tracing(proc_id)) {
+        return 0;
+    }
+
     struct sock_data_args_s args = {0};
     args.conn_id.fd = fd;
     args.conn_id.tgid = proc_id;
@@ -333,7 +382,6 @@ end:
     return 0;
 }
 
-
 // ssize_t sendto(int sockfd, const void *buf, size_t len,
 //      int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
 KPROBE_SYSCALL(sendto)
@@ -341,19 +389,25 @@ KPROBE_SYSCALL(sendto)
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
 
+    if (!is_tracing(proc_id)) {
+        return 0;
+    }
+
     int sockfd = (int)PT_REGS_PARM1(ctx);
     char *buf = (char *)PT_REGS_PARM2(ctx);
     if (buf == NULL || sockfd < 0) {
         return -1;
     }
 
-    // TODO: filter by UDP tracing-on/off
-    struct sockaddr * dest_addr = (struct sockaddr *)PT_REGS_PARM5(ctx);
-    if (dest_addr && sockfd > 0) {
-        struct sys_connect_args_s args = {0};
-        args.fd = fd;
-        args.addr = dest_addr;
-        bpf_map_update_elem(&sys_connect_args, &id, &args, BPF_ANY);
+    // Filter by UDP tracing-on/off
+    if (is_tracing_udp()) {
+        struct sockaddr * dest_addr = (struct sockaddr *)PT_REGS_PARM5(ctx);
+        if (dest_addr && sockfd > 0) {
+            struct sys_connect_args_s args = {0};
+            args.fd = fd;
+            args.addr = dest_addr;
+            bpf_map_update_elem(&sys_connect_args, &id, &args, BPF_ANY);
+        }
     }
 
     struct sock_data_args_s data_args = {0};
@@ -369,13 +423,15 @@ KRETPROBE_SYSCALL(sendto)
     conn_ctx_t id = bpf_get_current_pid_tgid();
     ssize_t bytes_count = PT_REGS_RC(ctx);
 
-    // TODO: filter by UDP tracing-on/off
-    struct sys_connect_args_s* args = bpf_map_lookup_elem(&sys_connect_args, &id);
-    if ((args != NULL) && (bytes_count > 0)) {
-        submit_conn_open(ctx, (int)(id >> INT_LEN), args->fd, ROLE_UDP, args->addr, /*socket*/ NULL);
-    }
+    // Filter by UDP tracing-on/off
+    if (is_tracing_udp()) {
+        struct sys_connect_args_s* args = bpf_map_lookup_elem(&sys_connect_args, &id);
+        if ((args != NULL) && (bytes_count > 0)) {
+            submit_conn_open(ctx, (int)(id >> INT_LEN), args->fd, L4_UNKNOW, args->addr, /*socket*/ NULL);
+        }
 
-    bpf_map_delete_elem(&sys_connect_args, &id);
+        bpf_map_delete_elem(&sys_connect_args, &id);
+    }
 
     // Unstash arguments, and process syscall.
     struct sock_data_args_s* data_args = bpf_map_lookup_elem(&sock_data_args, &id);
@@ -395,19 +451,25 @@ KPROBE_SYSCALL(recvfrom)
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
 
+    if (!is_tracing(proc_id)) {
+        return 0;
+    }
+
     int sockfd = (int)PT_REGS_PARM1(ctx);
     char *buf = (char *)PT_REGS_PARM2(ctx);
     if (buf == NULL || sockfd < 0) {
         return -1;
     }
 
-    // TODO: filter by UDP tracing-on/off
-    struct sockaddr * src_addr = (struct sockaddr *)PT_REGS_PARM5(ctx);
-    if (src_addr) {
-        struct sys_connect_args_s args = {0};
-        args.fd = fd;
-        args.addr = src_addr;
-        bpf_map_update_elem(&sys_connect_args, &id, &args, BPF_ANY);
+    // Filter by UDP tracing-on/off
+    if (is_tracing_udp()) {
+        struct sockaddr * src_addr = (struct sockaddr *)PT_REGS_PARM5(ctx);
+        if (src_addr) {
+            struct sys_connect_args_s args = {0};
+            args.fd = fd;
+            args.addr = src_addr;
+            bpf_map_update_elem(&sys_connect_args, &id, &args, BPF_ANY);
+        }
     }
 
     struct sock_data_args_s data_args = {0};
@@ -423,9 +485,12 @@ KRETPROBE_SYSCALL(recvfrom)
     conn_ctx_t id = bpf_get_current_pid_tgid();
     ssize_t bytes_count = PT_REGS_RC(ctx);
 
-    struct sys_connect_args_s* args = bpf_map_lookup_elem(&sys_connect_args, &id);
-    if (args && bytes_count > 0) {
-        submit_conn_open(ctx, (int)(id >> INT_LEN), args->fd, ROLE_UDP, args->addr, /*socket*/ NULL);
+    // Filter by UDP tracing-on/off
+    if (is_tracing_udp()) {
+        struct sys_connect_args_s* args = bpf_map_lookup_elem(&sys_connect_args, &id);
+        if (args && bytes_count > 0) {
+            submit_conn_open(ctx, (int)(id >> INT_LEN), args->fd, L4_UNKNOW, args->addr, /*socket*/ NULL);
+        }
     }
 
     bpf_map_delete_elem(&sys_connect_args, &id);
@@ -445,6 +510,11 @@ KPROBE_SYSCALL(sendmsg)
 {
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
+
+    if (!is_tracing(proc_id)) {
+        return 0;
+    }
+
     int fd = (int)PT_REGS_PARM1(ctx);
     struct user_msghdr *msg = (struct user_msghdr *)PT_REGS_PARM2(ctx);
 #if (CURRENT_LIBBPF_VERSION  < LIBBPF_VERSION(0, 8))
@@ -457,12 +527,14 @@ KPROBE_SYSCALL(sendmsg)
     size_t iovlen = BPF_CORE_READ_USER(msg, msg_iovlen);
 #endif
 
-    // TODO: filter by UDP tracing-on/off
-    if (msg_name) {
-        struct sys_connect_args_s args = {0};
-        args.fd = fd;
-        args.addr = msg_name;
-        bpf_map_update_elem(&sys_connect_args, &id, &args, BPF_ANY);
+    // Filter by UDP tracing-on/off
+    if (is_tracing_udp()) {
+        if (msg_name) {
+            struct sys_connect_args_s args = {0};
+            args.fd = fd;
+            args.addr = msg_name;
+            bpf_map_update_elem(&sys_connect_args, &id, &args, BPF_ANY);
+        }
     }
 
     struct sock_data_args_s data_args = {0};
@@ -480,12 +552,15 @@ KRETPROBE_SYSCALL(sendmsg)
     conn_ctx_t id = bpf_get_current_pid_tgid();
     ssize_t bytes_count = PT_REGS_RC(ctx);
 
-    struct sys_connect_args_s* args = bpf_map_lookup_elem(&sys_connect_args, &id);
-    if (args && bytes_count > 0) {
-        submit_conn_open(ctx, (int)(id >> INT_LEN), args->fd, ROLE_UDP, args->addr, /*socket*/ NULL);
-    }
+    // Filter by UDP tracing-on/off
+    if (is_tracing_udp()) {
+        struct sys_connect_args_s* args = bpf_map_lookup_elem(&sys_connect_args, &id);
+        if (args && bytes_count > 0) {
+            submit_conn_open(ctx, (int)(id >> INT_LEN), args->fd, L4_UNKNOW, args->addr, /*socket*/ NULL);
+        }
 
-    bpf_map_delete_elem(&sys_connect_args, &id);
+        bpf_map_delete_elem(&sys_connect_args, &id);
+    }
 
     struct sock_data_args_s* data_args = bpf_map_lookup_elem(&sock_data_args, &id);
     if ((data_args != NULL) && (bytes_count > 0)) {
@@ -501,6 +576,10 @@ KPROBE_SYSCALL(recvmsg)
 {
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
+    if (!is_tracing(proc_id)) {
+        return 0;
+    }
+
     int fd = (int)PT_REGS_PARM1(ctx);
     struct user_msghdr *msg = (struct user_msghdr *)PT_REGS_PARM2(ctx);
 #if (CURRENT_LIBBPF_VERSION  < LIBBPF_VERSION(0, 8))
@@ -513,12 +592,14 @@ KPROBE_SYSCALL(recvmsg)
     size_t iovlen = BPF_CORE_READ_USER(msg, msg_iovlen);
 #endif
 
-    // TODO: filter by UDP tracing-on/off
-    if (msg_name) {
-        struct sys_connect_args_s args = {0};
-        args.fd = fd;
-        args.addr = msg_name;
-        bpf_map_update_elem(&sys_connect_args, &id, &args, BPF_ANY);
+    // Filter by UDP tracing-on/off
+    if (is_tracing_udp()) {
+        if (msg_name) {
+            struct sys_connect_args_s args = {0};
+            args.fd = fd;
+            args.addr = msg_name;
+            bpf_map_update_elem(&sys_connect_args, &id, &args, BPF_ANY);
+        }
     }
 
     struct sock_data_args_s data_args = {0};
@@ -536,12 +617,15 @@ KRETPROBE_SYSCALL(recvmsg)
     conn_ctx_t id = bpf_get_current_pid_tgid();
     ssize_t bytes_count = PT_REGS_RC(ctx);
 
-    struct sys_connect_args_s* args = bpf_map_lookup_elem(&sys_connect_args, &id);
-    if (args && bytes_count > 0) {
-        submit_conn_open(ctx, (int)(id >> INT_LEN), args->fd, ROLE_UDP, args->addr, /*socket*/ NULL);
-    }
+    // Filter by UDP tracing-on/off
+    if (is_tracing_udp()) {
+        struct sys_connect_args_s* args = bpf_map_lookup_elem(&sys_connect_args, &id);
+        if (args && bytes_count > 0) {
+            submit_conn_open(ctx, (int)(id >> INT_LEN), args->fd, L4_UNKNOW, args->addr, /*socket*/ NULL);
+        }
 
-    bpf_map_delete_elem(&sys_connect_args, &id);
+        bpf_map_delete_elem(&sys_connect_args, &id);
+    }
 
     struct sock_data_args_s* data_args = bpf_map_lookup_elem(&sock_data_args, &id);
     if ((data_args != NULL) && (bytes_count > 0)) {
@@ -556,46 +640,10 @@ KRETPROBE_SYSCALL(recvmsg)
 KPROBE_SYSCALL(close)
 {
     conn_ctx_t id = bpf_get_current_pid_tgid();
-    int proc_id = (int)(id >> INT_LEN);
-
-    int fd = (int)PT_REGS_PARM1(ctx);
-    const struct sockaddr *addr = (const struct sockaddr *)PT_REGS_PARM2(ctx);
-
-    struct sys_connect_args_s args = {0};
-    args.fd = fd;
-    args.addr = addr;
-    bpf_map_update_elem(&sys_connect_args, &id, &args, BPF_ANY);
-    return 0;
-}
-
-KRETPROBE_SYSCALL(close)
-{
-    conn_ctx_t id = bpf_get_current_pid_tgid();
-
-    struct sys_connect_args_s* args = bpf_map_lookup_elem(&sys_connect_args, &id);
-    if (args != NULL) {
-        if (args->fd < 0) {
-          goto end;
-        }
-
-        int ret = (int)PT_REGS_RC(ctx);
-        if (ret < 0 && ret != -EINPROGRESS) {
-            // EINPROGRESS means NON_BLOCK socket is undergoing handshake.
-            goto end;
-        }
-
-        submit_conn_open(ctx, (int)(id >> INT_LEN), args->fd,
-                ROLE_CLIENT, args->addr, /*socket*/ NULL);
+    if (!is_tracing((int)(id >> INT_LEN))) {
+        return 0;
     }
-end:
-    bpf_map_delete_elem(&sys_connect_args, &id);
-    return 0;
-}
 
-// int close(int fd);
-KPROBE_SYSCALL(close)
-{
-    conn_ctx_t id = bpf_get_current_pid_tgid();
     int fd = (int)PT_REGS_PARM1(ctx);
     if (fd < 0) {
         return 0;

@@ -28,6 +28,10 @@
 #include "l7.h"
 #include "kern_sock_conn.h"
 
+
+#if (CURRENT_KERNEL_VERSION  >= KERNEL_VERSION(5, 10, 0))
+#define __USE_RING_BUF
+#endif
 /*
     Used to tracing syscall 'accept/accept4' event to generate 'sock_conn_s' obj.
     Syscall function prototype:
@@ -43,6 +47,12 @@ struct sys_accept_args_s {
     Used to tracing syscall 'connect' event to generate 'sock_conn_s' obj.
     Syscall function prototype:
     int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+    ssize_t sendto(int sockfd, const void *buf, size_t len,
+        int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
+    ssize_t recvfrom(int sockfd, void *buf, size_t len,
+        int flags, struct sockaddr *src_addr, socklen_t *addrlen);
+    ssize_t sendmsg(int sockfd, const struct msghdr *msg, int flags);
+    ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags);
 */
 struct sys_connect_args_s {
     int fd;
@@ -61,6 +71,11 @@ struct sys_connect_args_s {
     ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags);
     ssize_t writev(int fd, const struct iovec *iov, int iovcnt);
     ssize_t readv(int fd, const struct iovec *iov, int iovcnt);
+
+    ssize_t sendto(int sockfd, const void *buf, size_t len,
+        int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
+    ssize_t recvfrom(int sockfd, void *buf, size_t len,
+        int flags, struct sockaddr *src_addr, socklen_t *addrlen);
 */
 struct sock_data_args_s {
     struct conn_id_s conn_id;
@@ -93,10 +108,11 @@ struct sock_data_args_s {
         __KRETPROBE_SYSCALL(__arm64_sys_, func) \
     #endif
 
-#if (CURRENT_KERNEL_VERSION  < KERNEL_VERSION(5, 10, 0))
-#define GOPHER_BPF_MAP_TYPE_PERF   BPF_MAP_TYPE_PERF_EVENT_ARRAY
-#else
+
+#ifdef __USE_RING_BUF
 #define GOPHER_BPF_MAP_TYPE_PERF   BPF_MAP_TYPE_RINGBUF
+#else
+#define GOPHER_BPF_MAP_TYPE_PERF   BPF_MAP_TYPE_PERF_EVENT_ARRAY
 #endif
 
 struct {
@@ -120,6 +136,7 @@ struct {
     __uint(max_entries, 64);
 } conn_stats_events SEC(".maps");
 
+#ifndef __USE_RING_BUF
 // Use the BPF map to cache socket data to avoid the restriction
 // that the BPF program stack does not exceed 512 bytes.
 struct {
@@ -128,6 +145,40 @@ struct {
     __uint(value_size, sizeof(struct conn_data_s));
     __uint(max_entries, 1);
 } sock_data_buffer SEC(".maps");
+#endif
+
+static __always_inline __maybe_unused u64 get_cur_cpuacct_cgrp_id(void)
+{
+    u64 cgroup_id;
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+    struct css_set *cgroups = _(task->cgroups);
+    struct cgroup_subsys_state *css = _(cgroups->subsys[cpuacct_cgrp_id]);
+    struct kernfs_node *kn = BPF_CORE_READ(css, cgroup, kn);
+
+#if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(5, 5, 0))
+    cgroup_id = _(kn->id.id);
+#else
+    cgroup_id = _(kn->id);
+#endif
+    return cgroup_id;
+}
+
+static __always_inline void submit_perf_buf(void* ctx, char *buf, size_t bytes_count, struct conn_data_s* conn_data)
+{
+    if (buf == NULL || bytes_count == 0) {
+        return;
+    }
+
+    bpf_probe_read(&conn_data->data, CONN_DATA_MAX_SIZE, buf);
+    conn_data->data_size = bytes_count;
+
+#ifdef __USE_RING_BUF
+    bpf_ringbuf_submit(conn_data, 0);
+#else
+    (void)bpf_perf_event_output(ctx, &sock_data_buffer, BPF_F_CURRENT_CPU, conn_data, sizeof(struct conn_data_s));
+#endif
+    return;
+}
 
 static __always_inline __maybe_unused void submit_conn_data(void* ctx, struct sock_data_args_s* args,
                                     struct conn_data_s* conn_data, size_t bytes_count)
@@ -143,10 +194,11 @@ static __always_inline __maybe_unused void submit_conn_data(void* ctx, struct so
             if (bytes_truncated <= 0) {
                 return;
             }
-            // TODO: summit perf buf
+            // summit perf buf
+            submit_perf_buf(ctx, args->buf + bytes_sent, (size_t)bytes_truncated, conn_data);
             bytes_sent += bytes_truncated;
 
-            conn_data->offset_pos += bytes_truncated;
+            conn_data->offset_pos += (u64)bytes_truncated;
         }
     } else if (args->iov) {
         #pragma unroll
@@ -157,12 +209,13 @@ static __always_inline __maybe_unused void submit_conn_data(void* ctx, struct so
             if (bytes_truncated <= 0) {
                 return;
             }
-            const size_t iov_len = min(iov_cpy.iov_len, bytes_remaining);
+            size_t iov_len = min(iov_cpy.iov_len, (size_t)bytes_remaining);
 
-            // TODO: summit perf buf
+            // summit perf buf
+            submit_perf_buf(ctx, (char *)iov_cpy.iov_base, iov_len, conn_data);
             bytes_sent += iov_len;
 
-            conn_data->offset_pos += iov_len;
+            conn_data->offset_pos += (u64)iov_len;
         }
     }
 }
@@ -211,14 +264,14 @@ static __always_inline __maybe_unused int submit_conn_close(void *ctx, conn_ctx_
         return 0;
     }
 
-#if (CURRENT_KERNEL_VERSION  < KERNEL_VERSION(5, 10, 0))
-    struct conn_ctl_s evt = {};
-    struct conn_ctl_s *e = &evt;
-#else
+#ifdef __USE_RING_BUF
     struct conn_ctl_s *e = bpf_ringbuf_reserve(&conn_control_events, sizeof(struct conn_ctl_s), 0);
     if (!e) {
-        return -1;
+        goto end;
     }
+#else
+    struct conn_ctl_s evt = {0};
+    struct conn_ctl_s *e = &evt;
 #endif
 
     e->type = CONN_EVT_CLOSE;
@@ -228,18 +281,22 @@ static __always_inline __maybe_unused int submit_conn_close(void *ctx, conn_ctx_
     e->close.wr_bytes = sock_conn->wr_bytes;
 
     // submit conn open event.
-#if (CURRENT_KERNEL_VERSION  < KERNEL_VERSION(5, 10, 0))
-    (void)bpf_perf_event_output(ctx, &conn_control_events, BPF_F_CURRENT_CPU, evt, sizeof(evt));
-#else
+#ifdef __USE_RING_BUF
     bpf_ringbuf_submit(e, 0);
+#else
+    (void)bpf_perf_event_output(ctx, &conn_control_events, BPF_F_CURRENT_CPU, e, sizeof(struct conn_ctl_s));
 #endif
 
+#ifdef __USE_RING_BUF
+end:
+#endif
     bpf_map_delete_elem(&conn_tbl, &id);
 
     return 0;
 }
 
-static __always_inline __maybe_unused int submit_conn_open(void *ctx, int tgid, int fd, enum role_type_t role,
+
+static __always_inline __maybe_unused struct sock_conn_s* new_sock_conn(void *ctx, int tgid, int fd, enum l4_role_t l4_role,
                                      const struct sockaddr* addr, const struct socket* socket)
 {
     struct conn_id_s id = {0};
@@ -252,7 +309,7 @@ static __always_inline __maybe_unused int submit_conn_open(void *ctx, int tgid, 
     sock_conn.info.id.tgid = tgid;
     sock_conn.info.is_ssl = 0;
     sock_conn.info.protocol = PROTO_UNKNOW;
-    sock_conn.info.role = role;
+    sock_conn.info.l4_role = l4_role;
     if (addr != NULL) {
         sock_conn.info.remote_addr = *((union sockaddr_t*)addr);
     } else if (socket != NULL) {
@@ -261,36 +318,62 @@ static __always_inline __maybe_unused int submit_conn_open(void *ctx, int tgid, 
 
     // new conn obj
     (void)bpf_map_update_elem(&conn_tbl, &id, &sock_conn, BPF_ANY);
+    return get_sock_conn(tgid, fd);
+}
 
-#if (CURRENT_KERNEL_VERSION  < KERNEL_VERSION(5, 10, 0))
-    struct conn_ctl_s evt = {};
-    struct conn_ctl_s *e = &evt;
-#else
+static __always_inline __maybe_unused int submit_conn_open(void *ctx, int tgid, int fd, enum l4_role_t l4_role,
+                                     const struct sockaddr* addr, const struct socket* socket)
+{
+    struct sock_conn_s* sock_conn = get_sock_conn(tgid, fd);
+    if (sock_conn != NULL && sock_conn->info.is_reported != 0) {
+        return 0;   // avoid report redundant events
+    }
+
+    // new sock connection
+    if (!sock_conn) {
+        sock_conn = new_sock_conn(tgid);
+    }
+
+    if (sock_conn == NULL) {
+        return -1;
+    }
+
+#ifdef __USE_RING_BUF
     struct conn_ctl_s *e = bpf_ringbuf_reserve(&conn_control_events, sizeof(struct conn_ctl_s), 0);
     if (!e) {
         return -1;
     }
+#else
+    struct conn_ctl_s evt = {0};
+    struct conn_ctl_s *e = &evt;
 #endif
 
     e->type = CONN_EVT_OPEN;
     e->timestamp_ns = bpf_ktime_get_ns();
-    e->conn_id = id;
+    e->conn_id = sock_conn->info.id;
     e->open.addr = sock_conn.info.remote_addr;
-    e->open.role = sock_conn.info.role;
+    e->open.l4_role = sock_conn.info.l4_role;
+    e->open.is_ssl = sock_conn.info.is_ssl;
 
     // submit conn open event.
-#if (CURRENT_KERNEL_VERSION  < KERNEL_VERSION(5, 10, 0))
-    (void)bpf_perf_event_output(ctx, &conn_control_events, BPF_F_CURRENT_CPU, evt, sizeof(evt));
-#else
+#ifdef __USE_RING_BUF
     bpf_ringbuf_submit(e, 0);
+#else
+    (void)bpf_perf_event_output(ctx, &conn_control_events, BPF_F_CURRENT_CPU, e, sizeof(struct conn_ctl_s));
 #endif
+    sock_conn->info.is_reported = 1;
     return 0;
 }
 
 static __always_inline __maybe_unused struct conn_data_s* store_conn_data_buf(enum l7_direction_t direction, struct sock_conn_s* sock_conn)
 {
     int key = 0;
+#ifdef __USE_RING_BUF
+    struct conn_data_s *conn_data = bpf_ringbuf_reserve(&conn_data_events, sizeof(struct conn_data_s), 0);
+#else
     struct conn_data_s* conn_data = bpf_map_lookup_elem(&sock_data_buffer, &key);
+#endif
+
     if (conn_data == NULL) {
         return NULL;
     }
@@ -299,7 +382,7 @@ static __always_inline __maybe_unused struct conn_data_s* store_conn_data_buf(en
     conn_data->direction = direction;
     conn_data->conn_id = sock_conn->info->id;
     conn_data->proto = sock_conn->info->protocol;
-    conn_data->role = sock_conn->info->role;
+    conn_data->l7_role = sock_conn->info->l7_role;
     conn_data->offset_pos = (direction == L7_EGRESS) ? sock_conn->wr_bytes : sock_conn->rd_bytes;
     return conn_data;
 }
@@ -324,9 +407,8 @@ static __always_inline __maybe_unused int update_sock_conn_proto(struct sock_con
     // ROLE_CLIENT: message(MESSAGE_RESPONSE) -> direct(L7_INGRESS)
     // ROLE_SERVER: message(MESSAGE_REQUEST) -> direct(L7_INGRESS)
     // ROLE_SERVER: message(MESSAGE_RESPONSE) -> direct(L7_EGRESS)
-    sock_conn->info.role  = ((direction == L7_EGRESS) ^ (l7pro.type == MESSAGE_RESPONSE)) ? ROLE_CLIENT : ROLE_SERVER;
+    sock_conn->info.l7_role  = ((direction == L7_EGRESS) ^ (l7pro.type == MESSAGE_RESPONSE)) ? L7_CLIENT : L7_SERVER;
 }
-
 
 static __always_inline __maybe_unused void submit_sock_conn_stats(void *ctx, struct sock_conn_s* sock_conn,
                                                                 enum l7_direction_t direction, size_t bytes_count)
@@ -339,14 +421,14 @@ static __always_inline __maybe_unused void submit_sock_conn_stats(void *ctx, str
         return;
     }
 
-#if (CURRENT_KERNEL_VERSION  < KERNEL_VERSION(5, 10, 0))
-    struct conn_stats_s evt = {};
-    struct conn_stats_s *e = &evt;
-#else
+#ifdef __USE_RING_BUF
     struct conn_stats_s *e = bpf_ringbuf_reserve(&conn_stats_events, sizeof(struct conn_stats_s), 0);
     if (!e) {
         return;
     }
+#else
+    struct conn_stats_s evt = {0};
+    struct conn_stats_s *e = &evt;
 #endif
 
     e->timestamp_ns = bpf_ktime_get_ns();
@@ -355,10 +437,10 @@ static __always_inline __maybe_unused void submit_sock_conn_stats(void *ctx, str
     e->rd_bytes = sock_conn->rd_bytes;
 
     // submit conn stats event.
-#if (CURRENT_KERNEL_VERSION  < KERNEL_VERSION(5, 10, 0))
-    (void)bpf_perf_event_output(ctx, &conn_stats_events, BPF_F_CURRENT_CPU, evt, sizeof(evt));
-#else
+#ifdef __USE_RING_BUF
     bpf_ringbuf_submit(e, 0);
+#else
+    (void)bpf_perf_event_output(ctx, &conn_stats_events, BPF_F_CURRENT_CPU, e, sizeof(struct conn_stats_s));
 #endif
     return;
 }
@@ -371,28 +453,27 @@ static __always_inline __maybe_unused void submit_sock_data(void *ctx, conn_ctx_
         return;
     }
 
-    if (sock_conn->info.is_ssl) {
-        return;
+    if (!sock_conn->info.is_ssl) {
+        if (args->buf) {
+            update_sock_conn_proto(sock_conn, direction, args->buf, bytes_count);
+        } else if (args->iov) {
+            struct iovec iov_cpy;
+            bpf_probe_read(&iov_cpy, sizeof(iov_cpy), &args->iov[0]);
+            size_t iov_len = (size_t)min(iov_cpy.iov_len, bytes_count);
+            update_sock_conn_proto(sock_conn, direction, iov_cpy->iov_base, iov_len);
+        } else {
+            return;
+        }
+
+        struct conn_data_s* conn_data;
+        conn_data = store_conn_data_buf(direction, sock_conn);
+        if (conn_data == NULL) {
+            return;
+        }
+
+        submit_conn_data(ctx, args, conn_data, bytes_count);
     }
 
-    if (args->buf) {
-        update_sock_conn_proto(sock_conn, direction, args->buf, bytes_count);
-    } else if (args->iov) {
-        struct iovec iov_cpy;
-        bpf_probe_read(&iov_cpy, sizeof(iov_cpy), &args->iov[0]);
-        size_t iov_len = (size_t)min(iov_cpy.iov_len, bytes_count);
-        update_sock_conn_proto(sock_conn, direction, iov_cpy->iov_base, iov_len);
-    } else {
-        return;
-    }
-
-    struct conn_data_s* conn_data;
-    conn_data = store_conn_data_buf(direction, sock_conn);
-    if (conn_data == NULL) {
-        return;
-    }
-
-    submit_conn_data(ctx, args, conn_data, bytes_count);
     submit_sock_conn_stats(ctx, sock_conn, direction, bytes_count);
     return;
 }

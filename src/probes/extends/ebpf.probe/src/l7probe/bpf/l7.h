@@ -22,10 +22,10 @@
 #define REDIS_ENABLE    0x0004
 #define MYSQL_ENABLE    0x0008
 #define PGSQL_ENABLE    0x0010
-#define KAFKA_ENABLE    0x0011
-#define MONGO_ENABLE    0x0012
-#define CQL_ENABLE      0x0014
-#define NATS_ENABLE     0x0018
+#define KAFKA_ENABLE    0x0012
+#define MONGO_ENABLE    0x0014
+#define CQL_ENABLE      0x0018
+#define NATS_ENABLE     0x0020
 
 #define PROTO_ALL_ENABLE     0XFFFF
 
