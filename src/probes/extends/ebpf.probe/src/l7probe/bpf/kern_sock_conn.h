@@ -50,6 +50,7 @@ static __always_inline __maybe_unused int set_sock_conn_ssl(int tgid, int fd)
         return -1;
     }
     sock_conn->info.is_ssl = 1;
+    sock_conn->info.is_reported = 0;
     return 0;
 }
 
