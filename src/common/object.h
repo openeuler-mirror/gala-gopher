@@ -78,6 +78,9 @@ char obj_module_init_ok(void);
 void obj_module_set_maps_fd(void);
 void obj_module_init(void);
 void obj_module_exit(void);
+int obj_get_cgrp_obj_map_fd();
+int obj_get_nm_obj_map_fd();
+int obj_get_proc_obj_map_fd();
 int obj_module_create_map(char *name);
 #endif
 

@@ -43,7 +43,7 @@
 #define DOCKER_MNTNS_COMMAND "/usr/bin/ls -l /proc/%u/ns/mnt | /usr/bin/awk -F '[' '{print $2}' "\
         "| /usr/bin/awk -F ']' '{print $1}'"
 #define DOCKER_MERGED_COMMAND "MergedDir | /usr/bin/awk -F '\"' '{print $4}'"
-#define PLDD_LIB_COMMAND "pldd %u | grep \"%s\""
+#define PLDD_LIB_COMMAND "pldd %u 2>/dev/null | grep \"%s\""
 
 static char *current_docker_command = NULL;
 
@@ -437,7 +437,6 @@ int get_elf_path(unsigned int pid, char elf_path[], int max_path_len, const char
     // 1. get elf_path
     (void)snprintf(cmd, COMMAND_LEN, PLDD_LIB_COMMAND, pid, comm);
     if (exec_cmd((const char *)cmd, elf_relative_path, PATH_LEN) < 0) {
-        INFO("pid %u does not depend on %s\n", pid, comm);
         return CONTAINER_NOTOK;
     }
 

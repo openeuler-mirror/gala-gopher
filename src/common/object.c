@@ -306,6 +306,21 @@ static int get_map_fd_by_name(const char* map_name)
     return bpf_map_get_fd_by_id(id);
 }
 
+int obj_get_cgrp_obj_map_fd()
+{
+    return get_map_fd_by_name("cgrp_obj_map");
+}
+
+int obj_get_nm_obj_map_fd()
+{
+    return get_map_fd_by_name("nm_obj_map");
+}
+
+int obj_get_proc_obj_map_fd()
+{
+    return get_map_fd_by_name("proc_obj_map");
+}
+
 int obj_module_create_map(char *name)
 {
     int map_fd = -1;
