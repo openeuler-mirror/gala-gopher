@@ -132,4 +132,10 @@ struct conn_data_s {
     size_t data_size;   // The actually data size, maybe less than msg_size.
     char data[CONN_DATA_MAX_SIZE];
 };
+
+struct conns_hash_t {
+    H_HANDLE;
+    struct conn_id_s conn_id; // key
+    struct conn_data_s conn_data; // TODO
+};
 #endif
