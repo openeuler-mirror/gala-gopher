@@ -22,7 +22,7 @@ import java.lang.reflect.InvocationTargetException;
 public class JvmProbeAgent {
 
     private static final int MSEC_PER_SEC = 1000;
-    private static final int NSEC_PER_SEC = 1000000;
+    private static final int NSEC_PER_SEC = 1000000000;
     private static final String METRIC_FILE_NAME = "jvm-metrics.txt";
     private static String pid;
     private static String nspid;
@@ -79,10 +79,11 @@ public class JvmProbeAgent {
     }
 
     private static void processCollector(RuntimeMXBean runtimeBean, OperatingSystemMXBean osBean) {
-        long processStartTime = runtimeBean.getStartTime();         // ms
+        long processStartTime = runtimeBean.getStartTime(); // ms
         try {
-            Long processCpuTime = callLongGetter(osBean.getClass().getMethod("getProcessCpuTime"), osBean);           // ns
-            writeMetricRecords(String.format("|jvm_process|%s|%d|%d|\n", pid, processStartTime, processCpuTime));
+            Long processCpuTime = callLongGetter(osBean.getClass().getMethod("getProcessCpuTime"), osBean); // ns
+            writeMetricRecords(String.format("|jvm_process|%s|%f|%f|\n",
+                pid, ((double)processStartTime / MSEC_PER_SEC), ((double)processCpuTime / NSEC_PER_SEC)));
         } catch (Exception e) {
             //System.out.println("error");
         }
@@ -169,8 +170,8 @@ public class JvmProbeAgent {
     // gc
     private static void gcCollector(List<GarbageCollectorMXBean> garbageCollectors) {
         for (GarbageCollectorMXBean gc : garbageCollectors) {
-            writeMetricRecords(String.format("|jvm_gc|%s|%s|%d|%d|\n",
-                pid, gc.getName(), gc.getCollectionCount(), gc.getCollectionTime()));    // ms
+            writeMetricRecords(String.format("|jvm_gc|%s|%s|%d|%f|\n",
+                pid, gc.getName(), gc.getCollectionCount(), ((double)gc.getCollectionTime() / MSEC_PER_SEC)));
         }
     }
 
