@@ -65,26 +65,6 @@
 
 #define MEMLEAK_SEC_NUM 4
 
-#define BPF_GET_MAP_FD(obj, map_name)   \
-            ({ \
-                int __fd = -1; \
-                struct bpf_map *__map = bpf_object__find_map_by_name((obj), (map_name)); \
-                if (__map) { \
-                    __fd = bpf_map__fd(__map); \
-                } \
-                __fd; \
-            })
-
-#define BPF_PIN_MAP_PATH(obj, map_name, path)   \
-            ({ \
-                int __ret = -1; \
-                struct bpf_map *__map = bpf_object__find_map_by_name((obj), (map_name)); \
-                if (__map) { \
-                    __ret = bpf_map__set_pin_path(__map, path); \
-                } \
-                __ret; \
-            })
-
 typedef int (*AttachFunc)(struct svg_stack_trace_s *svg_st);
 typedef int (*PerfProcessFunc)(void *ctx, int cpu, void *data, u32 size);
 
@@ -964,22 +944,22 @@ static int load_bpf_prog(StackprobeConfig *conf, struct svg_stack_trace_s *svg_s
         goto err;
     }
 
-    ret = BPF_PIN_MAP_PATH(svg_st->obj, "proc_obj_map", PROC_MAP_PATH);
+    ret = BPF_OBJ_PIN_MAP_PATH(svg_st->obj, "proc_obj_map", PROC_MAP_PATH);
     if (ret) {
         ERROR("[STACKPROBE]: Failed to pin proc_obj_map map(err = %d).\n", ret);
         goto err;
     }
-    ret = BPF_PIN_MAP_PATH(svg_st->obj, "convert_map", STACK_CONVERT_PATH);
+    ret = BPF_OBJ_PIN_MAP_PATH(svg_st->obj, "convert_map", STACK_CONVERT_PATH);
     if (ret) {
         ERROR("[STACKPROBE]: Failed to pin convert_map map(err = %d).\n", ret);
         goto err;
     }
-    ret = BPF_PIN_MAP_PATH(svg_st->obj, "stackmap_a", STACK_STACKMAPA_PATH);
+    ret = BPF_OBJ_PIN_MAP_PATH(svg_st->obj, "stackmap_a", STACK_STACKMAPA_PATH);
     if (ret) {
         ERROR("[STACKPROBE]: Failed to pin stackmap_a map(err = %d).\n", ret);
         goto err;
     }
-    ret = BPF_PIN_MAP_PATH(svg_st->obj, "stackmap_b", STACK_STACKMAPB_PATH);
+    ret = BPF_OBJ_PIN_MAP_PATH(svg_st->obj, "stackmap_b", STACK_STACKMAPB_PATH);
     if (ret) {
         ERROR("[STACKPROBE]: Failed to pin stackmap_b map(err = %d).\n", ret);
         goto err;
@@ -998,14 +978,14 @@ static int load_bpf_prog(StackprobeConfig *conf, struct svg_stack_trace_s *svg_s
     }
     svg_st->bpf_prog_fd = bpf_program__fd(prog);
     if (g_st->convert_map_fd == 0) {
-        g_st->convert_map_fd = BPF_GET_MAP_FD(svg_st->obj, "convert_map");
-        g_st->proc_obj_map_fd = BPF_GET_MAP_FD(svg_st->obj, "proc_obj_map");
-        g_st->stackmap_a_fd = BPF_GET_MAP_FD(svg_st->obj, "stackmap_a");
-        g_st->stackmap_b_fd = BPF_GET_MAP_FD(svg_st->obj, "stackmap_b");
+        g_st->convert_map_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "convert_map");
+        g_st->proc_obj_map_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "proc_obj_map");
+        g_st->stackmap_a_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "stackmap_a");
+        g_st->stackmap_b_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "stackmap_b");
         init_convert_counter(conf);
     }
-    svg_st->stackmap_perf_a_fd = BPF_GET_MAP_FD(svg_st->obj, "stackmap_perf_a");
-    svg_st->stackmap_perf_b_fd = BPF_GET_MAP_FD(svg_st->obj, "stackmap_perf_b");
+    svg_st->stackmap_perf_a_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "stackmap_perf_a");
+    svg_st->stackmap_perf_b_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "stackmap_perf_b");
 
     INFO("[STACKPROBE]: load bpf prog succeed(%s).\n", prog_name);
     return 0;
@@ -1186,7 +1166,6 @@ static bool get_bpf_prog(struct bpf_program *prog, char func_sec[], int func_len
         (void)strcpy(func_sec, bpfpg_name + 5);  // ubpf_
     }
 
-    
     return is_uretprobe;
 }
 
@@ -1209,6 +1188,7 @@ static void unload_bpf_progs(struct svg_stack_trace_s *svg_st)
     }
 }
 
+#define BPF_FUNC_NAME_LEN 32
 static void *__uprobe_attach_check(void *arg)
 {
     int err = 0;
@@ -1236,20 +1216,15 @@ static void *__uprobe_attach_check(void *arg)
                     elf_path = (const char *)pid_bpf_links->v.elf_path;
                     err = gopher_get_elf_symb(elf_path, func_sec, &symbol_offset);
                     if (err < 0) {
-                        ERROR("Failed to get func(%s) in(%s) offset.\n", func_sec, elf_path);
+                        ERROR("[STACKPROBE]: Failed to get func(%s) in(%s) offset.\n", func_sec, elf_path);
                         break;
                     }
-
                     pid_bpf_links->v.bpf_links[i] = bpf_program__attach_uprobe(prog, is_uretprobe, -1,
                         elf_path, (size_t)symbol_offset);
 
                     err = libbpf_get_error(pid_bpf_links->v.bpf_links[i]); 
                     if (err) {
                         ERROR("[STACKPROBE]: attach memleak bpf to pid %u failed %d\n", pid_bpf_links->pid, err);
-                        pid_bpf_links->v.bpf_links[i] = NULL;
-                        for (i--; i >= 0; i--) {
-                            bpf_link__destroy(pid_bpf_links->v.bpf_links[i]);
-                        }
                         break;
                     }
                     i++;
@@ -1258,6 +1233,11 @@ static void *__uprobe_attach_check(void *arg)
                     pid_bpf_links->v.pid_state = PID_ELF_ATTACHED;
                     pid_bpf_links->v.bpf_link_num = i;
                     INFO("[STACKPROBE]: attach memleak bpf to pid %u success\n", pid_bpf_links->pid);
+                } else {
+                    pid_bpf_links->v.bpf_links[i] = NULL;
+                    for (i--; i >= 0; i--) {
+                        bpf_link__destroy(pid_bpf_links->v.bpf_links[i]);
+                    }
                 }
             }
         }

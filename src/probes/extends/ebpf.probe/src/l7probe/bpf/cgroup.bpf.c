@@ -62,7 +62,7 @@ static __always_inline void report_cgrp_change(void *ctx, enum cgrp_event_t cgrp
     msg_data->cgrp_event = cgrp_event;
     bpf_probe_read_str(msg_data->cgrp_path, MAX_CGRP_PATH, path);
 
-    (void)bpf_perf_event_output(ctx, &cgroup_msg_map, BPF_F_CURRENT_CPU, msg_data, MAX_CGRP_PATH);
+    (void)bpf_perf_event_output(ctx, &cgroup_msg_map, BPF_F_CURRENT_CPU, msg_data, sizeof(struct cgroup_msg_data_t));
 }
 
 KRAWTRACE(cgroup_mkdir, bpf_raw_tracepoint_args)
