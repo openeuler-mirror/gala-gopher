@@ -10,11 +10,92 @@
  * See the Mulan PSL v2 for more details.
  * Author: wo_cow
  * Create: 2023-03-17
- * Description: connection tracker header
+ * Description: connect tracker define
  ******************************************************************************/
 #ifndef __CONN_TRACKER_H__
 #define __CONN_TRACKER_H__
 
+#pragma once
+
+#include "connect.h"
+#include "data_stream.h"
+
+enum tracker_stats_t {
+    BYTES_SENT,
+    BYTES_RECV,
+
+    DATA_EVT_SENT,
+    DATA_EVT_RECV,
+
+    INVALID_RECORDS,
+    VALID_RECORDS,
+
+    LAST_REPORTED_BYTES_SENT,
+    LAST_REPORTED_BYTES_RECV,
+
+    __MAX_TRACKER_STATS
+};
+
+enum tracker_state_t {
+    TRACK_METRICS,
+    TRACK_TRACING,
+    TRACK_SILENT
+};
+
+struct tracker_id_s {
+    int tgid;
+    int fd;
+    u64 timestamp_ns;
+};
+
+struct tracker_open_s {
+    u64 timestamp_ns;
+    union sockaddr_t remote_addr;
+};
+
+struct tracker_close_s {
+    u64 timestamp_ns;
+
+    u64 bytes_sent;
+    u64 bytes_recv;
+};
+
+struct conn_tracker_s {
+    struct tracker_id_s id;
+    char is_ssl;
+    char pad[3];
+    enum l4_role_t l4_role;     // TCP client or server; udp unknow
+    enum l7_role_t l7_role;     // RPC client or server
+    enum proto_type_t protocol; // L7 protocol type
+    // Keep the state of tracker
+    // TRACK_METRICS: Only report metrics(eg.. tx/rx) and metadata(metrics label);
+    // TRACK_TRACING: Report metrics, RPC tracing and metadata(metrics label);
+    // TRACK_SILENT: Only report connection(eg.. open/close event) and metadata(metrics label);
+    enum tracker_state_t tacker_state;
+    struct tracker_open_s open_info;
+    struct tracker_close_s close_info;
+    u64 tracker_stats[__MAX_TRACKER_STATS];
+
+    struct data_stream_s send_stream;
+    struct data_stream_s recv_stream;
+};
+
+enum parse_rslt_e {
+    PARSE_RSLT_UNKNOW,
+    PARSE_RSLT_INVALID,
+    PARSE_RSLT_INCOMPLETE,
+    PARSE_RSLT_IGNORED,
+    PARSE_RSLT_EOS,
+    PARSE_RSLT_SUCCESS
+};
+
+struct parse_rslt_s {
+    enum parse_rslt_e rslt;
+};
+
+void tracker_rcv_raw_evt(struct conn_tracker_s *tracker, struct conn_data_s *evt);
+void tracker_rcv_stats_evt(struct conn_tracker_s *tracker, struct conn_stats_s *evt);
+void tracker_rcv_ctrl_evt(struct conn_tracker_s *tracker, struct conn_ctl_s *evt);
 #define MAX_MSG_LEN_SSL 1024
 
 enum msg_event_rw_t {

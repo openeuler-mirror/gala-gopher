@@ -21,7 +21,7 @@
 #include <linux/in6.h>
 #include <linux/socket.h>
 
-#include "l7.h"
+#include "../bpf/l7.h"
 
 #define L7_CONN_BPF_PATH          "/sys/fs/bpf/gala-gopher/__l7_connect"
 
