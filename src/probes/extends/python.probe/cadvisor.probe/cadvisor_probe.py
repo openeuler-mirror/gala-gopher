@@ -200,6 +200,10 @@ class BasicLabelProbe(Probe):
         self.container_lib.get_all_container.restype = POINTER(ContainerTbl)
         tbl_p = self.container_lib.get_all_container()
 
+        if not tbl_p:
+            print("[cadvisor_probe] no active containers in system")
+            return 0
+
         for i in range(tbl_p.contents.num):
             if tbl_p.contents.cs[i].status != CONTAINER_STATUS_RUNNING:
                 continue

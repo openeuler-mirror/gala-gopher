@@ -187,7 +187,7 @@ KPROBE(ip_vs_conn_expire, pt_regs)
     value_p = bpf_map_lookup_elem(&lvs_link_map, &key);
     if (value_p == (void *)0) {
         bpf_printk("===LVS ubind dest not in hash map.\n");
-        return;
+        return 0;
     }
     value_p->state = IP_VS_TCP_S_CLOSE;
     value_p->close_ts = bpf_ktime_get_ns();

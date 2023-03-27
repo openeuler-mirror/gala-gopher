@@ -99,7 +99,7 @@ int system_tcp_probe(void)
     /* output */
     (void)nprobe_fprintf(stdout, "|%s|%s|%llu|%llu|%llu|%llu|%llu|\n",
         METRICS_TCP_NAME,
-        "/proc/dev/snmp",
+        "/proc/net/snmp",
         g_snmp_stats.tcp_curr_estab,
         (g_snmp_stats.tcp_in_segs > temp.tcp_in_segs) ? (g_snmp_stats.tcp_in_segs - temp.tcp_in_segs) : 0,
         (g_snmp_stats.tcp_out_segs > temp.tcp_out_segs) ? (g_snmp_stats.tcp_out_segs - temp.tcp_out_segs) : 0,
@@ -109,7 +109,7 @@ int system_tcp_probe(void)
 
     (void)nprobe_fprintf(stdout, "|%s|%s|%llu|%llu|\n",
         METRICS_UDP_NAME,
-        "/proc/dev/snmp",
+        "/proc/net/snmp",
         (g_snmp_stats.udp_in_datagrams > temp.udp_in_datagrams) ?
             (g_snmp_stats.udp_in_datagrams - temp.udp_in_datagrams) : 0,
         (g_snmp_stats.udp_out_datagrams > temp.udp_out_datagrams) ?
