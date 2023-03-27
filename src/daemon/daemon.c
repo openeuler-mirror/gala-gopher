@@ -26,7 +26,7 @@
 #include "daemon.h"
 #include "object.h"
 
-#define RM_MAP_CMD "/usr/bin/find %s/* | /usr/bin/grep -v '%s\\|%s\\|%s' | /usr/bin/xargs rm -f"
+#define RM_MAP_CMD "/usr/bin/find %s/* 2> /dev/null | /usr/bin/grep -v '%s\\|%s\\|%s' | /usr/bin/xargs rm -f"
 static const ResourceMgr *resouce_msg;
 
 #if GALA_GOPHER_INFO("inner func declaration")

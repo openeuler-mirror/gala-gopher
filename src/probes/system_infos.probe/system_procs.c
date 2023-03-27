@@ -27,7 +27,7 @@
 #define PROC_STAT           "/proc/%s/stat"
 #define PROC_START_TIME_CMD "/usr/bin/cat /proc/%s/stat | awk '{print $22}'"
 #define PROC_FD             "/proc/%s/fd"
-#define PROC_FD_CNT_CMD     "/usr/bin/ls -l /proc/%s/fd 2>/dev/null | wc -l 2>/dev/null"
+#define PROC_FD_CNT_CMD     "/usr/bin/ls /proc/%s/fd 2>/dev/null | wc -l 2>/dev/null"
 #define PROC_IO             "/proc/%s/io"
 #define PROC_IO_CMD         "/usr/bin/cat /proc/%s/io"
 #define PROC_SMAPS          "/proc/%s/smaps_rollup"
@@ -459,6 +459,10 @@ static int get_proc_mss(const char *pid, proc_info_t *proc_info)
     u32 value = 0;
     char fname_or_cmd[LINE_BUF_LEN];
     char line[LINE_BUF_LEN];
+    char key[LINE_BUF_LEN];
+    char smap_key_list[PROC_MSS_MAX][LINE_BUF_LEN] = {"Shared_Clean:", "Shared_Dirty:", "Private_Clean:",
+        "Private_Dirty:", "Referenced:", "LazyFree:", "Swap:", "SwapPss:"};
+    int smap_index = 0;
 
     fname_or_cmd[0] = 0;
     (void)snprintf(fname_or_cmd, LINE_BUF_LEN, PROC_SMAPS, pid);
@@ -471,8 +475,9 @@ static int get_proc_mss(const char *pid, proc_info_t *proc_info)
     if (f == NULL) {
         goto out;
     }
-    while (!feof(f) && (index < PROC_MSS_MAX)) {
+    while (!feof(f)) {
         line[0] = 0;
+        key[0] = 0;
         if (fgets(line, LINE_BUF_LEN, f) == NULL) {
             goto out;
         }
@@ -481,12 +486,15 @@ static int get_proc_mss(const char *pid, proc_info_t *proc_info)
             continue;
         }
         value = 0;
-        int ret = sscanf(line, "%*s %lu %*s", &value);
+        int ret = sscanf(line, "%s %lu %*s", key, &value);
         if (ret < 1) {
             goto out;
         }
-        do_set_proc_mss(proc_info, value, index);
-        index++;
+        if (strcmp(smap_key_list[smap_index], key) != 0) {
+            continue;
+        }
+        do_set_proc_mss(proc_info, value, smap_index);
+        smap_index++;
     }
 out:
     if (f != NULL) {
