@@ -30,4 +30,13 @@ struct cgroup_msg_data_t {
 void del_pods();
 void l7_cgroup_msg_handler(void *ctx, int cpu, void *data, unsigned int size);
 
+
+enum filter_op_t {
+    FILTER_OP_ADD,
+    FILTER_OP_RM,
+};
+
+int filter_pod_op(const char *pod_id, enum filter_op_t op);
+int filter_container_op(const char *container_id, enum filter_op_t op);
+
 #endif

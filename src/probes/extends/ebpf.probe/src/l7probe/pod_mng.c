@@ -41,6 +41,9 @@
 #define POD_IP_BY_NAME_CMD "docker exec -it %s /usr/bin/cat /etc/hosts | /usr/bin/grep \"%s\" | /usr/bin/awk 'NR==1{print $1}' 2>/dev/null"
 #define POD_IP_BY_END_CMD "docker exec -it %s /usr/bin/cat /etc/hosts | /usr/bin/awk 'END{print $1}' 2>/dev/null"
 
+#define FILTER_FLAGS_IGNORE 0x0000  // default value
+#define FILTER_FLAGS_NORMAL 0x0001
+
 enum id_ret_t {
     ID_FAILED = -1,
     ID_CON_POD = 0, // pod with containers
@@ -49,6 +52,7 @@ enum id_ret_t {
 };
 
 struct con_info_s {
+    u32 flags;
     char container_name[CONTAINER_NAME_LEN];
     char libc_path[PATH_LEN];
     char libssl_path[PATH_LEN];
@@ -399,3 +403,172 @@ void l7_cgroup_msg_handler(void *ctx, int cpu, void *data, unsigned int size)
 
     return;
 }
+
+typedef enum cb_rslt_t {
+    CB_CONTINUE,
+    CB_STOP,
+    CB_ERR
+} cb_rslt;
+
+typedef struct cb_params_s {
+    int flags;
+    int result;
+} cb_params;
+
+static int is_update_container_filter(struct containers_hash_t *con, enum filter_op_t op)
+{
+    if ((con->con_info.flags & FILTER_FLAGS_IGNORE) && (op == FILTER_OP_ADD)) {
+        return 1;
+    }
+
+    if ((con->con_info.flags & FILTER_FLAGS_NORMAL) && (op == FILTER_OP_RM)) {
+        return 1;
+    }
+    return 0;
+}
+
+static void update_container_filter(struct containers_hash_t *con, enum filter_op_t op)
+{
+    switch (op) {
+        case FILTER_OP_ADD:
+            con->con_info.flags = FILTER_FLAGS_NORMAL;
+            break;
+        case FILTER_OP_RM:
+            con->con_info.flags = FILTER_FLAGS_IGNORE;
+            break;
+    }
+}
+
+typedef cb_rslt (*callback_container_func)(struct containers_hash_t *, cb_params *);
+static cb_rslt container_filter_op(struct containers_hash_t *con, cb_params *params)
+{
+    int ret;
+    unsigned int cpuacct_inode;
+    enum filter_op_t op = (enum filter_op_t)(params->flags);
+
+    if (!is_update_container_filter(con, op)) {
+        params->result = 0;
+        ret = 0;
+        goto end;
+    }
+
+    ret = get_container_cpucg_inode((const char *)(con->con_id), &cpuacct_inode);
+    if (ret != 0) {
+        goto end;
+    }
+
+    struct cgroup_s cpuacct_obj = {.knid = cpuacct_inode, .type = CGP_TYPE_CPUACCT};
+    switch (op) {
+        case FILTER_OP_ADD:
+            ret = cgrp_add(&cpuacct_obj);
+            break;
+        case FILTER_OP_RM:
+            ret = cgrp_put(&cpuacct_obj);
+            break;
+    }
+
+    if (ret < 0) {
+        ERROR("[L7PROBE]: Failed to op container filter[op_code = %d, id = %s] .\n", params->flags, con->con_id);
+    }
+    params->result = ret;
+    update_container_filter(con, op);
+
+end:
+    return (ret < 0) ? CB_ERR : CB_CONTINUE;
+}
+
+static cb_rslt single_container_filter_op(struct containers_hash_t *con, cb_params *params)
+{
+    int ret;
+    unsigned int cpuacct_inode;
+    enum filter_op_t op = (enum filter_op_t)(params->flags);
+
+    if (!is_update_container_filter(con, op)) {
+        params->result = 0;
+        ret = 0;
+        goto end;
+    }
+
+    ret = get_container_cpucg_inode((const char *)(con->con_id), &cpuacct_inode);
+    if (ret != 0) {
+        goto end;
+    }
+
+    struct cgroup_s cpuacct_obj = {.knid = cpuacct_inode, .type = CGP_TYPE_CPUACCT};
+    switch (op) {
+        case FILTER_OP_ADD:
+            ret = cgrp_add(&cpuacct_obj);
+            break;
+        case FILTER_OP_RM:
+            ret = cgrp_put(&cpuacct_obj);
+            break;
+    }
+
+    if (ret < 0) {
+        ERROR("[L7PROBE]: Failed to op container filter[op_code = %d, id = %s] .\n", params->flags, con->con_id);
+    }
+    params->result = ret;
+    update_container_filter(con, op);
+
+end:
+    return (ret < 0) ? CB_ERR : CB_STOP;
+}
+
+static cb_rslt walk_container_tbl(const char *container_id, struct containers_hash_t *con_head,
+                                            callback_container_func cb, cb_params *params)
+{
+    cb_rslt rslt = CB_CONTINUE;
+    struct containers_hash_t *con, *tmp;
+    if (con_head == NULL) {
+        goto end;
+    }
+    
+    H_ITER(con_head, con, tmp) {
+        if ((container_id != NULL) && (strcmp((const char*)con->con_id, container_id) == 0)) {
+            rslt = cb(con, params);
+            goto end; // Should stop walker for indicates the container ID.
+        } else if (container_id == NULL) {
+            rslt = cb(con, params);
+        }
+        if (rslt != CB_CONTINUE) {
+            break;
+        }
+    }
+end:
+    return rslt;
+}
+
+static cb_rslt walk_pod_tbl(const char *pod_id, const char *container_id, callback_container_func cb, cb_params *params)
+{
+    cb_rslt rslt = CB_CONTINUE;
+    struct pods_hash_t *pod, *tmp;
+
+    H_ITER(pod_head, pod, tmp) {
+        if ((pod_id != NULL) && (strcmp((const char*)pod->pod_id, pod_id) == 0)) {
+            rslt = walk_container_tbl(container_id, pod->pod_info.con_head, cb, params);
+            goto end; // Should stop walker for indicates the pod ID.
+        } else if (pod_id == NULL) {
+            rslt = walk_container_tbl(container_id, pod->pod_info.con_head, cb, params);
+        }
+        if (rslt != CB_CONTINUE) {
+            break;
+        }
+    }
+end:
+    return rslt;
+}
+
+int filter_pod_op(const char *pod_id, enum filter_op_t op)
+{
+    cb_params params = {.flags = (int)op, .result = -1};
+    cb_rslt rslt = walk_pod_tbl(pod_id, NULL, container_filter_op, &params);
+    return params.result;
+}
+
+int filter_container_op(const char *container_id, enum filter_op_t op)
+{
+    cb_params params = {.flags = (int)op, .result = -1};
+    cb_rslt rslt = walk_pod_tbl(NULL, container_id, single_container_filter_op, &params);
+    return params.result;
+}
+

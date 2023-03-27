@@ -33,6 +33,8 @@ static void __set_default_params(struct probe_params *params)
     params->sample_period = DEFAULT_SAMPLE_PERIOD;
     params->load_probe = DEFAULT_LOAD_PROBE;
     params->kafka_port = DEFAULT_KAFKA_PORT;
+    params->metrics_flags = SUPPORT_METRICS_RAW | SUPPORT_METRICS_TELEM;
+    params->env_flags = SUPPORT_NODE_ENV;    // Support for node environment(include guest/host os)
 }
 
 static void __parse_host_ip_fields(char *ip_str, struct probe_params *params)
@@ -133,6 +135,16 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
             break;
         case 'U':
             params->res_percent_upper = (char)atoi(arg);
+        case 'e':
+            params->env_flags = (char)atoi(arg);
+            if (params->env_flags == 0) {
+                params->env_flags = SUPPORT_NODE_ENV;
+            }
+        case 'm':
+            params->metrics_flags = (char)atoi(arg);
+            if (params->metrics_flags == 0) {
+                params->metrics_flags = SUPPORT_METRICS_RAW | SUPPORT_METRICS_TELEM;
+            }
             break;
         case 'L':
             params->res_percent_lower = (char)atoi(arg);
@@ -150,18 +162,20 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
             }
             break;
         case 'P':
-            params->load_probe = (unsigned int)atoi(arg);
+            unsigned int param_val = (unsigned int)atoi(arg);
+            params->load_probe = param_val;
             if (params->load_probe == 0) {
                 // if -P 0 then set load_probe to default
                 params->load_probe = DEFAULT_LOAD_PROBE;
             }
+
+            params->l7_probe_proto_flags = param_val;
             break;
         case 'C':
             params->continuous_sampling_flag = 1;
             break;
         case 'k':
             params->kafka_port = (unsigned int)atoi(arg);
-            
             if (params->kafka_port > MAX_PORT_NUM) {
                 ERROR("Please check arg(k), kafka port shold be less than 65535.\n");
                 return -1;
@@ -169,6 +183,9 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
             break;
         case 'i':
             __parse_host_ip_fields(arg, params);
+            break;
+        case 'T':
+            params->latency_thr = (unsigned int)atoi(arg);
             break;
         default:
             return -1;
