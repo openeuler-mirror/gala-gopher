@@ -117,7 +117,7 @@ static bool __is_dockerd()
 static bool __is_isulad()
 {
     if (__is_install_rpm("/bin/rpm -ql iSulad")) {
-        return __is_service_running("/usr/bin/systemctl service iSulad"); {
+        return __is_service_running("/usr/bin/systemctl status isulad"); {
             current_docker_command = ISULAD;
             return true;
         }
