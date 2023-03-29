@@ -72,7 +72,7 @@ static int is_virsh_installed(void)
     char line[LINE_BUF_LEN];
     int is_installed = 0;
 
-    if (do_read_line("which virsh", line) < 0) {
+    if (do_read_line("which virsh 2>&1", line) < 0) {
         ERROR("[VIRT_PROC] find virsh failed.\n");
         return -1;
     }
