@@ -63,7 +63,7 @@ static struct jvm_agent_hash_t *jvm_agent_head = NULL;
 #define FIND_JAVA_PROC_COMM "ps -e -o pid,comm | grep java | awk '{print $1}'"
 #define PROC_COMM "/usr/bin/cat /proc/%u/comm 2> /dev/null"
 #define ATTACH_BIN_PATH "/opt/gala-gopher/extend_probes/jvm_attach"
-#define ATTACH_CMD "%s %u %u load %s true %s" // jvm_attach <pid> <nspid> load /tmp/jvm_agent.so true /tmp/java-symbolization-123
+#define ATTACH_CMD "%s %u %u load %s true %s" // jvm_attach <pid> <nspid> load /tmp/jvm_agent.so true /tmp/java-sym-123
 #define HOST_SO_DIR "/opt/gala-gopher/extend_probes"
 #define AGENT_SO_FILE "jvm_agent.so"
 #define HOST_JAVA_SYM_PATH "/proc/%u/root/tmp/java-sym-%u/%s" // /proc/<pid>/root/tmp/java-sym-<pid>/java-symbols.bin

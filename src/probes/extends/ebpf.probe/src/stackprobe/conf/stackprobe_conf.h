@@ -23,6 +23,8 @@
 #define PROC_MAX_RANGE      64
 #define PERIOD_MAX          600
 #define PERIOD_MIN          30
+#define SAMPLE_PERIOD_MAX   1000
+#define SAMPLE_PERIOD_MIN   10
 
 typedef enum {
     SWITCH_ON = 0,
@@ -31,6 +33,7 @@ typedef enum {
 
 typedef struct {
     int period;
+    int samplePeriod;
     char logDir[PATH_LEN];
     char svgDir[PATH_LEN];
     char flameDir[PATH_LEN];

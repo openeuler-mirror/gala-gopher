@@ -25,7 +25,6 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <fcntl.h>
-#include <curl/curl.h>
 
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
@@ -38,16 +37,7 @@
 #include "bpf.h"
 #include "flame_graph.h"
 
-#define POST_MAX_STEP_SIZE 1048576 // 1M
-static int g_post_max = POST_MAX_STEP_SIZE;
-
-struct post_info_s {
-    int post_flag;
-    int remain_size;
-    char *buf_start;
-    char *buf;
-    CURL *curl;
-};
+extern int g_post_max;
 
 struct MemoryStruct {
   char *memory;
@@ -108,13 +98,6 @@ static FILE *__open_flame_graph_fp(struct stack_svg_mng_s *svg_mng)
     return sfg->fp;
 }
 
-static FILE *__get_flame_graph_fp(struct stack_svg_mng_s *svg_mng)
-{
-    struct stack_flamegraph_s *sfg;
-
-    sfg = &(svg_mng->flame_graph);
-    return sfg->fp;
-}
 
 static void __mkdir_flame_graph_path(struct stack_svg_mng_s *svg_mng)
 {
@@ -192,51 +175,7 @@ static void __reopen_flame_graph_file(struct stack_svg_mng_s *svg_mng)
     __set_flame_graph_flags(svg_mng, FLAME_GRAPH_NEW);
 }
 
-#define HISTO_TMP_LEN   (2 * STACK_SYMBS_LEN)
-static char __histo_tmp_str[HISTO_TMP_LEN];
 
-static int __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng,
-                               struct stack_trace_histo_s *stack_trace_histo, int first, struct post_info_s *post_info)
-{
-    FILE *fp = __get_flame_graph_fp(svg_mng);
-    if (!fp) {
-        ERROR("[FLAMEGRAPH]: Invalid fp.\n");
-        return -1;
-    }
-
-    __histo_tmp_str[0] = 0;
-
-    if (first) {
-        (void)snprintf(__histo_tmp_str, HISTO_TMP_LEN, "%s %llu",
-                stack_trace_histo->stack_symbs_str, stack_trace_histo->count);
-    } else {
-        (void)snprintf(__histo_tmp_str, HISTO_TMP_LEN, "\n%s %llu",
-                stack_trace_histo->stack_symbs_str, stack_trace_histo->count);
-    }
-
-    if (post_info->post_flag) {
-        int written = post_info->buf - post_info->buf_start;
-        int ret = __snprintf(&post_info->buf, post_info->remain_size, &post_info->remain_size, "%s", __histo_tmp_str);
-        if (ret < 0) {
-            int new_post_max = g_post_max + POST_MAX_STEP_SIZE;
-            char *temp = (char *)realloc(post_info->buf_start, new_post_max);
-            if(temp == NULL) {
-                ERROR("[FLAMEGRAPH]: Not enough post memory (realloc failed), current capacity is %d.\n",
-                    g_post_max);
-            } else {
-                post_info->buf_start = temp;
-                post_info->buf = post_info->buf_start + written;
-                post_info->remain_size += POST_MAX_STEP_SIZE;
-                g_post_max = new_post_max;
-                INFO("[FLAMEGRAPH]: post memory realloc to %d\n", g_post_max);
-                (void)__snprintf(&post_info->buf, post_info->remain_size, &post_info->remain_size, "%s", __histo_tmp_str);
-            }
-        }
-    }
-
-    (void)fputs(__histo_tmp_str, fp);
-    return 0;
-}
 
 static size_t __write_memory_cb(void *contents, size_t size, size_t nmemb, void *userp)
 {
@@ -362,8 +301,7 @@ static void __init_curl_handle(struct post_server_s *post_server, struct post_in
     }
 }
 
-static void __do_wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct stack_trace_histo_s *head,
-    struct post_server_s *post_server, int en_type)
+static void __do_wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct post_server_s *post_server, int en_type)
 {
     int first_flag = 0;
     struct post_info_s post_info = {.remain_size = g_post_max, .post_flag = 0};
@@ -374,11 +312,8 @@ static void __do_wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct stack_tra
 
     __init_curl_handle(post_server, &post_info);
 
-    struct stack_trace_histo_s *item, *tmp;
-    H_ITER(head, item, tmp) {
-        (void)__do_wr_stack_histo(svg_mng, item, first_flag, &post_info);
-        first_flag = 0;
-    }
+    iter_histo_tbl(svg_mng, en_type, &first_flag, &post_info);
+
     if (post_info.post_flag) {
         __curl_post(post_server, &post_info, en_type);
     }
@@ -389,10 +324,10 @@ static void __do_wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct stack_tra
 
 #endif
 
-void wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct stack_trace_histo_s *head, int en_type,
+void wr_flamegraph(struct stack_svg_mng_s *svg_mng, int en_type,
     struct post_server_s *post_server)
 {
-    __do_wr_flamegraph(svg_mng, head, post_server, en_type);
+    __do_wr_flamegraph(svg_mng, post_server, en_type);
 
     if (is_svg_tmout(svg_mng)) {
         (void)create_svg_file(svg_mng,
