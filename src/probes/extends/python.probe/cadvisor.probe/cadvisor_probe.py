@@ -16,7 +16,7 @@ CONTAINER_NAME_LEN = 64
 CONTAINER_STATUS_RUNNING = 0
 FILTER_BY_TASKPROBE = "task"
 PROJECT_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # /opt/gala-gopher/
-PATTERN = re.compile(r'/[a-z0-9]+')
+PATTERN = re.compile(r'[/-][a-z0-9]+')
 COUNTER = "counter"
 LABEL = "label"
 g_meta = None
@@ -248,6 +248,10 @@ class CadvisorProbe(Probe):
         return False
 
     def start_cadvisor(self):
+        p = subprocess.Popen("which cadvisor", stdout=subprocess.PIPE, shell=True)
+        p.communicate(timeout=5)
+        if p.returncode != 0:
+            raise Exception('[cadvisor_probe] cAdvisor not installed')
         p = subprocess.Popen("/usr/bin/ps -ef | /usr/bin/grep /usr/bin/cadvisor | /usr/bin/grep -v grep | \
                             /usr/bin/awk '{print $2}'", stdout=subprocess.PIPE, shell=True)
         (rawout, serr) = p.communicate(timeout=5)
@@ -310,7 +314,13 @@ class CadvisorProbe(Probe):
                     g_metric[table_name] = dict()
 
                 metric_str = libconf.loads(line[(line.index("{") + 1):line.index("} ")])
-                if metric_str.id.startswith("/system.slice"):
+                '''
+                docker use systemd as cgroupfs in k8s, cadvisor metric id like:
+                {id="/system.slice/docker-1044qbdeeedqdff...scope"}
+                normal metric_id like:
+                {id="/docker/1044qbdeeedqdff..."}
+                '''
+                if metric_str.id.startswith("/system.slice") and 'docker-' not in metric_str.id:
                     continue
                 if metric_str.id.startswith("/user.slice"):
                     continue
@@ -388,7 +398,8 @@ if __name__ == "__main__":
     cadvisor_probe = CadvisorProbe(object_lib, container_lib, params.port)
     try:
         cadvisor_probe.start_cadvisor()
-    except ParamException as e:
+    except Exception as e:
+        print(e)
         cadvisor_running_flag = False
     basic_probe = BasicLabelProbe(object_lib, container_lib)
 
@@ -401,7 +412,7 @@ if __name__ == "__main__":
         basic_probe.get_basic_infos()
         if cadvisor_running_flag:
             try:
-                cadvisor_probe.get_metrics(s, params.port)
+                cadvisor_probe.get_metrics(s, cadvisor_probe.port)
             except Exception as e:
                 print("[cadvisor_probe]get metrics failed. Err: %s" % repr(e))
                 s = requests.Session()
