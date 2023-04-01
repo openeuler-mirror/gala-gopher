@@ -103,7 +103,7 @@ void get_class_name_from_csig(char *dest, size_t dest_size, const char *sig) {
         for(i = 0; i < (dest_size - 1) && src[i]; i++) {
             char c = src[i];
             if (c == '/') c = '.';
-            if (c == ';') break;
+            if (c == ';' || c == '$') break;
             dest[i] = c;
         }
         dest[i] = 0;

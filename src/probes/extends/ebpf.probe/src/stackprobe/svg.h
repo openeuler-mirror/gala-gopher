@@ -19,6 +19,15 @@
 
 #include <time.h>
 #include "stack.h"
+#include <curl/curl.h>
+
+struct post_info_s {
+    int post_flag;
+    int remain_size;
+    char *buf_start;
+    char *buf;
+    CURL *curl;
+};
 
 #define DAYS_TIME           (24 * 60 *60)   // 1 DAY
 #define WEEKS_TIME          (DAYS_TIME * 7)   // 1 WEEK

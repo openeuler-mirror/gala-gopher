@@ -54,7 +54,7 @@ struct {
     __uint(type, BPF_MAP_TYPE_STACK_TRACE);
     __uint(key_size, sizeof(u32));
     __uint(value_size, PERF_MAX_STACK_DEPTH * sizeof(u64));
-    __uint(max_entries, PERCPU_SAMPLE_COUNT);
+    __uint(max_entries, MAX_PERCPU_SAMPLE_COUNT);
 } stackmap_a SEC(".maps");
 
 
@@ -63,7 +63,7 @@ struct {
     __uint(type, BPF_MAP_TYPE_STACK_TRACE);
     __uint(key_size, sizeof(u32));
     __uint(value_size, PERF_MAX_STACK_DEPTH * sizeof(u64));
-    __uint(max_entries, PERCPU_SAMPLE_COUNT);
+    __uint(max_entries, MAX_PERCPU_SAMPLE_COUNT);
 } stackmap_b SEC(".maps");
 
 

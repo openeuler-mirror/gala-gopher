@@ -184,6 +184,17 @@ static int configLoadGeneral(void *config, config_setting_t *settings)
     }
     generalConfig->period = intVal;
 
+    ret = config_setting_lookup_int(settings, "sample_period", &intVal);
+    if (ret == 0) {
+        ERROR("[STACKPROBE]: load config for general sample_period failed.\n");
+        return -1;
+    }
+    if (intVal < SAMPLE_PERIOD_MIN || intVal > SAMPLE_PERIOD_MAX) {
+        ERROR("[STACKPROBE]: Please check config for general sample_period, val shold inside 10~1000.\n");
+        return -1;
+    }
+    generalConfig->samplePeriod = intVal;
+
     ret = config_setting_lookup_string(settings, "log_dir", &strVal);
     if (ret == 0) {
         ERROR("[STACKPROBE]: load config for general log_dir failed.\n");

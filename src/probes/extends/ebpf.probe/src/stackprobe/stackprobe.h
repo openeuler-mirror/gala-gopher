@@ -141,4 +141,6 @@ struct stack_trace_s {
     int pmu_fd[];   // It must be put to the last.
 };
 
+void iter_histo_tbl(struct stack_svg_mng_s *svg_mng, int en_type, int *first_flag, struct post_info_s *post_info);
+
 #endif

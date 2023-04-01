@@ -1049,7 +1049,6 @@ int proc_search_addr_symb(struct proc_symbs_s *proc_symbs,
                 }
                 continue;
             }
-
             // search debug symbs
             ret = search_elf_symb(proc_symbs->mods[i]->debug_symbs,
                     addr, addr, comm, addr_symb);

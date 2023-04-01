@@ -64,8 +64,10 @@
 #define IS_IEG_ADDR(addr)     ((addr) != 0xcccccccccccccccc && (addr) != 0xffffffffffffffff)
 
 #define MEMLEAK_SEC_NUM 4
+#define HISTO_TMP_LEN   (2 * STACK_SYMBS_LEN)
+#define POST_MAX_STEP_SIZE 1048576 // 1M
 
-typedef int (*AttachFunc)(struct svg_stack_trace_s *svg_st);
+typedef int (*AttachFunc)(struct svg_stack_trace_s *svg_st, StackprobeConfig *conf);
 typedef int (*PerfProcessFunc)(void *ctx, int cpu, void *data, u32 size);
 
 enum pid_state_t {
@@ -96,6 +98,9 @@ struct bpf_link_hash_t {
     struct bpf_link_hash_value v; // value
 };
 
+
+static char __histo_tmp_str[HISTO_TMP_LEN];
+int g_post_max = POST_MAX_STEP_SIZE;
 static struct probe_params params = {.period = DEFAULT_PERIOD};
 static volatile sig_atomic_t g_stop;
 static struct stack_trace_s *g_st = NULL;
@@ -178,12 +183,10 @@ static void destroy_proc_cache_tbl(struct stack_trace_s *st)
         return;
     }
 
-    struct proc_cache_s *proc_hash_tbl = st->proc_cache;
     struct proc_cache_s *item, *tmp;
-
-    H_ITER(proc_hash_tbl, item, tmp) {
+    H_ITER(st->proc_cache, item, tmp) {
         __destroy_proc_cache(item);
-        H_DEL(proc_hash_tbl, item);
+        H_DEL(st->proc_cache, item);
         (void)free(item);
     }
     st->proc_cache = NULL;
@@ -302,7 +305,7 @@ static struct raw_stack_trace_s *create_raw_stack_trace(struct stack_trace_s *st
 {
     struct raw_stack_trace_s *raw_stack_trace;
 
-    size_t stack_size = st->cpus_num * PERCPU_SAMPLE_COUNT;
+    size_t stack_size = st->cpus_num * MAX_PERCPU_SAMPLE_COUNT;
     size_t mem_size = sizeof(struct raw_stack_trace_s);
     mem_size += (stack_size * sizeof(struct raw_trace_s));
 
@@ -333,9 +336,19 @@ static int add_raw_stack_id(struct raw_stack_trace_s *raw_st, struct raw_trace_s
 
 #endif
 
+#define STACK_LAYER_ELSE 0
+#define STACK_LAYER_1ST 1
+#define STACK_LAYER_2ND 2 // only for Java
+#define STACK_LAYER_3RD 3 // only for Java
+
+// For deep call stacks (especially prone to Java programs), it is easy to sample incomplete call stacks.
+// If the function name at the first layer of the call stack contains ".",
+// it means that this is must be an incomplete call stack.
+// We query whether the first two layers of this call stack are contained in other call stacks (eg. A),
+// and then count this call on the A call stack.
 #if 1
 static int __stack_addrsymbs2string(struct proc_symbs_s *proc_symbs, struct addr_symb_s *addr_symb,
-                                    int first, char *p, int size)
+                                    int *layer, char *p, int size)
 {
     int ret;
     char *symb;
@@ -346,21 +359,33 @@ static int __stack_addrsymbs2string(struct proc_symbs_s *proc_symbs, struct addr
     char *cur_p = p;
     int len = size;
 
-#if 1
-    symb = addr_symb->sym ?: addr_symb->mod;
-    if (first) {
-        if (proc_symbs->pod[0] != 0) {
-            ret = __snprintf(&cur_p, len, &len, "[Pod]%s; ", proc_symbs->pod);
+    if (addr_symb->sym == NULL) {
+        return 0;
+    }
+    symb = addr_symb->sym;
+
+    if (*layer == STACK_LAYER_1ST) {
+        if (strstr(symb, ".") != NULL) {
+            ret = __snprintf(&cur_p, len, &len, "; %s", symb); 
+            *layer = STACK_LAYER_2ND;
+        } else {
+            if (proc_symbs->pod[0] != 0) {
+                ret = __snprintf(&cur_p, len, &len, "[Pod]%s; ", proc_symbs->pod);
+            }
+            if (proc_symbs->container_name[0] != 0) {
+                ret = __snprintf(&cur_p, len, &len, "[Con]%s; ", proc_symbs->container_name);
+            }
+            ret = __snprintf(&cur_p, len, &len, "[%d]%s; %s", proc_symbs->proc_id, proc_symbs->comm, symb);
+            *layer = STACK_LAYER_ELSE;
         }
-        if (proc_symbs->container_name[0] != 0) {
-            ret = __snprintf(&cur_p, len, &len, "[Con]%s; ", proc_symbs->container_name);
-        }
-        ret = __snprintf(&cur_p, len, &len, "[%d]%s; %s", proc_symbs->proc_id, proc_symbs->comm, symb);
+    } else if (*layer == STACK_LAYER_2ND) {
+        ret = __snprintf(&cur_p, len, &len, "; %s", symb); 
+        *layer = STACK_LAYER_3RD;
     } else {
         ret = __snprintf(&cur_p, len, &len, "; %s", symb);
+        *layer = STACK_LAYER_ELSE;
     }
 
-#endif
     if (ret < 0) {
         return -1;
     }
@@ -371,7 +396,7 @@ static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, struct proc_s
                                 char symbos_str[], size_t size)
 {
     int len;
-    int first_flag = 1;
+    int layer = STACK_LAYER_1ST;
     int remain_len = size;
     char *pos = symbos_str;
     struct addr_symb_s *addr_symb;
@@ -379,28 +404,19 @@ static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, struct proc_s
     for (int i = 0; i < PERF_MAX_STACK_DEPTH; i++) {
         addr_symb = &(stack_symbs->user_stack_symbs[i]);
         if (addr_symb->orign_addr != 0) {
-            len = __stack_addrsymbs2string(proc_symbs, addr_symb, first_flag, pos, remain_len);
+            len = __stack_addrsymbs2string(proc_symbs, addr_symb, &layer, pos, remain_len);
+            if (layer == STACK_LAYER_3RD) {
+                return -1;
+            }
             if (len < 0) {
                 return -1;
             }
             remain_len -= len;
             pos += len;
-            first_flag = 0;
         }
     }
 
-    for (int i = 0; i < PERF_MAX_STACK_DEPTH; i++) {
-        addr_symb = &(stack_symbs->kern_stack_symbs[i]);
-        if (addr_symb->orign_addr != 0) {
-            len = __stack_addrsymbs2string(proc_symbs, addr_symb, first_flag, pos, remain_len);
-            if (len < 0) {
-                return -1;
-            }
-            remain_len -= len;
-            pos += len;
-            first_flag = 0;
-        }
-    }
+    symbos_str[size - 1] = 0;
     return 0;
 }
 
@@ -408,7 +424,8 @@ static int add_stack_histo(struct stack_trace_s *st, struct stack_symbs_s *stack
     struct proc_symbs_s *proc_symbs, enum stack_svg_type_e en_type, s64 count)
 {
     char str[STACK_SYMBS_LEN];
-    struct stack_trace_histo_s *item = NULL, *new_item;
+    struct stack_trace_histo_s *item = NULL, *new_item = NULL;
+    struct stack_trace_histo_s *tmp;
 
     str[0] = 0;
     if (__stack_symbs2string(stack_symbs, proc_symbs, str, STACK_SYMBS_LEN)) {
@@ -428,6 +445,20 @@ static int add_stack_histo(struct stack_trace_s *st, struct stack_symbs_s *stack
         return 0;
     }
 
+    // Java incomplete call stack merge
+    if (str[0] == ';') {
+        char tmp_str[__FUNC_NAME_LEN] = {0};
+        (void)snprintf(tmp_str, __FUNC_NAME_LEN, "[%d]", proc_symbs->proc_id);
+        H_ITER(st->svg_stack_traces[en_type]->histo_tbl, item, tmp) {
+            if (strstr(item->stack_symbs_str, tmp_str) && strstr(item->stack_symbs_str, str)) {
+                st->stats.count[STACK_STATS_HISTO_FOLDED]++;
+                item->count = item->count + count;
+                return 0;
+            }
+        }
+        return -1;
+    }
+
     H_FIND_S(st->svg_stack_traces[en_type]->histo_tbl, str, item);
     if (item) {
         st->stats.count[STACK_STATS_HISTO_FOLDED]++;
@@ -441,6 +472,7 @@ static int add_stack_histo(struct stack_trace_s *st, struct stack_symbs_s *stack
     }
     new_item->stack_symbs_str[0] = 0;
     (void)strncpy(new_item->stack_symbs_str, str, STACK_SYMBS_LEN - 1);
+    new_item->stack_symbs_str[STACK_SYMBS_LEN - 1] = 0;
     new_item->count = count < 0 ? 0 : count;
     H_ADD_S(st->svg_stack_traces[en_type]->histo_tbl, stack_symbs_str, new_item);
 
@@ -453,11 +485,9 @@ static void clear_stack_histo(struct svg_stack_trace_s *svg_st)
         return;
     }
 
-    struct stack_trace_histo_s *stack_trace_histo_tbl = svg_st->histo_tbl;
     struct stack_trace_histo_s *item, *tmp;
-
-    H_ITER(stack_trace_histo_tbl, item, tmp) {
-        H_DEL(stack_trace_histo_tbl, item);
+    H_ITER(svg_st->histo_tbl, item, tmp) {
+        H_DEL(svg_st->histo_tbl, item);
         (void)free(item);
     }
     svg_st->histo_tbl = NULL;
@@ -1015,12 +1045,13 @@ err:
     return -1;
 }
 
-static int attach_oncpu_bpf_prog(struct svg_stack_trace_s *svg_st)
+static int attach_oncpu_bpf_prog(struct svg_stack_trace_s *svg_st, StackprobeConfig *conf)
 {
     int ret;
+    int samplePeriod = conf->generalConfig->samplePeriod;
 
     struct perf_event_attr attr_type_sw = {
-        .sample_freq = SAMPLE_PERIOD,
+        .sample_freq = samplePeriod, // default 10ms
         .freq = 1,
         .type = PERF_TYPE_SOFTWARE,
         .config = PERF_COUNT_SW_CPU_CLOCK,
@@ -1250,7 +1281,7 @@ static void *__uprobe_attach_check(void *arg)
 
 }
 
-static int attach_memleak_bpf_prog(struct svg_stack_trace_s *svg_st)
+static int attach_memleak_bpf_prog(struct svg_stack_trace_s *svg_st, StackprobeConfig *conf)
 {
     int err;
 #if 0
@@ -1373,6 +1404,66 @@ static void *__running(void *arg)
     return NULL;
 }
 
+static FILE *__get_flame_graph_fp(struct stack_svg_mng_s *svg_mng)
+{
+    struct stack_flamegraph_s *sfg;
+
+    sfg = &(svg_mng->flame_graph);
+    return sfg->fp;
+}
+
+int __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng,
+                      struct stack_trace_histo_s *stack_trace_histo, int first, struct post_info_s *post_info)
+{
+    FILE *fp = __get_flame_graph_fp(svg_mng);
+    if (!fp) {
+        ERROR("[STACKPROBE]: Invalid fp.\n");
+        return -1;
+    }
+
+    __histo_tmp_str[0] = 0;
+
+    if (first) {
+        (void)snprintf(__histo_tmp_str, HISTO_TMP_LEN, "%s %llu",
+                stack_trace_histo->stack_symbs_str, stack_trace_histo->count);
+    } else {
+        (void)snprintf(__histo_tmp_str, HISTO_TMP_LEN, "\n%s %llu",
+                stack_trace_histo->stack_symbs_str, stack_trace_histo->count);
+    }
+    if (post_info->post_flag) {
+        int written = post_info->buf - post_info->buf_start;
+        int ret = __snprintf(&post_info->buf, post_info->remain_size, &post_info->remain_size, "%s", __histo_tmp_str);
+        if (ret < 0) {
+            int new_post_max = g_post_max + POST_MAX_STEP_SIZE;
+            char *temp = (char *)realloc(post_info->buf_start, new_post_max);
+            if(temp == NULL) {
+                ERROR("[STACKPROBE]: Not enough post memory (realloc failed), current capacity is %d.\n",
+                    g_post_max);
+            } else {
+                post_info->buf_start = temp;
+                post_info->buf = post_info->buf_start + written;
+                post_info->remain_size += POST_MAX_STEP_SIZE;
+                g_post_max = new_post_max;
+                INFO("[STACKPROBE]: post memory realloc to %d\n", g_post_max);
+                (void)__snprintf(&post_info->buf, post_info->remain_size, &post_info->remain_size, "%s", __histo_tmp_str);
+            }
+        }
+    }
+
+    (void)fputs(__histo_tmp_str, fp);
+    return 0;
+}
+
+void iter_histo_tbl(struct stack_svg_mng_s *svg_mng, int en_type, int *first_flag, struct post_info_s *post_info)
+{
+    struct stack_trace_histo_s *item, *tmp;
+    H_ITER(g_st->svg_stack_traces[en_type]->histo_tbl, item, tmp) {
+        (void)__do_wr_stack_histo(svg_mng, item, *first_flag, post_info);
+        *first_flag = 0;
+    }
+    return;
+}
+
 static void switch_stackmap()
 {
     struct stack_trace_s *st = g_st;
@@ -1390,8 +1481,10 @@ static void switch_stackmap()
         if (st->svg_stack_traces[i] == NULL) {
             continue;
         }
-        (void)stack_id2histogram(st, i, st->is_stackmap_a);
-        wr_flamegraph(st->svg_stack_traces[i]->svg_mng, st->svg_stack_traces[i]->histo_tbl, i, &st->post_server);
+        if (stack_id2histogram(st, i, st->is_stackmap_a) != 0) {
+            continue;
+        }
+        wr_flamegraph(st->svg_stack_traces[i]->svg_mng , i, &st->post_server);
         clear_raw_stack_trace(st->svg_stack_traces[i], st->is_stackmap_a);
     }
     record_running_ctx(st);
@@ -1448,7 +1541,7 @@ static int init_enabled_svg_stack_traces(StackprobeConfig *conf)
         }
 
         if (flameProcs[i].func) {
-            if (flameProcs[i].func(svg_st)) {
+            if (flameProcs[i].func(svg_st, conf)) {
                 goto err;
             }
         }
