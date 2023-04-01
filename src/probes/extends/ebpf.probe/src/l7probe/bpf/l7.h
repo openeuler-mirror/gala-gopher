@@ -559,7 +559,7 @@ static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, st
     }
 
     if ((flags & CQL_ENABLE) && ) {
-        type = __get_nats_type(buf, count);
+        type = __get_cql_type(buf, count);
         if (type != MESSAGE_UNKNOW) {
             l7pro->proto = PROTO_CQL;
             l7pro->type = type;

@@ -27,7 +27,15 @@
 #define DEFAULT_KAFKA_PORT    9092
 #define MAX_IP_LEN          20	// xxx.xxx.xxx.xxx/xx
 #define MAX_IP_NUM          8
-#define __OPT_S "t:s:T:J:O:D:F:lU:L:c:p:w:d:P:Ck:i:"
+
+#define SUPPORT_NODE_ENV        0x01
+#define SUPPORT_CONTAINER_ENV   0x02
+#define SUPPORT_K8S_ENV         0x04
+
+#define SUPPORT_METRICS_RAW     0x01
+#define SUPPORT_METRICS_TELEM   0x02
+
+#define __OPT_S "t:s:T:J:O:D:F:lU:L:c:p:w:d:P:Ck:i:m:e:"
 struct probe_params {
     unsigned int period;          // [-t <>] Report period, unit second, default is 5 seconds
     unsigned int sample_period;   // [-s <>] Sampling period, unit milliseconds, default is 100 milliseconds
@@ -39,7 +47,9 @@ struct probe_params {
     unsigned int load_probe;      // [-P <>] Specifies the range of probe programs to be loaded, default is 0xFFFFFFFF (Load all probes)
     unsigned int kafka_port;      // [-k <>] the port to which kafka server attach.
     char logs;                    // [-l <warn>] Enable the logs function
-    char pad[3];                  // Reserved fields;
+    char metrics_flags;           // [-m <>] Support for report metrics flags(0x01(raw metrics), 0x02(openTelemetry metrics, eg.. P50/P90/P99) );
+    char env_flags;               // [-e <>] Support for env flags(default 0x01(node), 0x02(container), 0x04(K8S));
+    char pad;                     // Reserved fields;
     char filter_task_probe;       // [-F <>] Filtering PID monitoring ranges by task probe, default is 0 (no filter)
     char res_percent_upper;       // [-U <>] Upper limit of resource percentage, default is 0%
     char res_percent_lower;       // [-L <>] Lower limit of resource percentage, default is 0%
@@ -51,6 +61,20 @@ struct probe_params {
     char netcard_list[MAX_PATH_LEN]; // [-d <>] Device name, default is null
     char target_comm[MAX_COMM_LEN]; // [-F <>] Process comm name, default is null
     char host_ip_list[MAX_IP_NUM][MAX_IP_LEN]; // [-i <>] Host ip fields list, default is null
+    /*
+        [-P <>]
+        L7 probe monitoring protocol flags, Refer to the below definitions(default is 0):
+        0x0001  HTTP
+        0x0002  DNS
+        0x0004  REDIS
+        0x0008  MYSQL
+        0x0010  PGSQL
+        0x0012  KAFKA
+        0x0014  MONGODB
+        0x0018  Cassandra
+        0x0020  NATS
+    */
+    unsigned int l7_probe_proto_flags;
 };
 int args_parse(int argc, char **argv, struct probe_params* params);
 int params_parse(char *s, struct probe_params *params);

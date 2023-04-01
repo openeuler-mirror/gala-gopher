@@ -23,11 +23,6 @@ enum filter_type_t {
     FILTER_CGRPID,
 };
 
-struct filter_id_s {
-    enum filter_type_t filter_type;
-    int filter_id;
-};
-
 // Used to define 'proto_flags'
 #define L7PROBE_TRACING_HTTP    0x0001
 #define L7PROBE_TRACING_DNS     0x0002
