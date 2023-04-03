@@ -89,6 +89,7 @@ static void __filter_arg_parse(char *arg, struct probe_params *params)
 static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
 {
     unsigned int interval, cport_flag;
+    unsigned int param_val;
 
     switch (opt) {
         case 't':
@@ -162,7 +163,7 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
             }
             break;
         case 'P':
-            unsigned int param_val = (unsigned int)atoi(arg);
+            param_val = (unsigned int)atoi(arg);
             params->load_probe = param_val;
             if (params->load_probe == 0) {
                 // if -P 0 then set load_probe to default
@@ -184,8 +185,10 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
         case 'i':
             __parse_host_ip_fields(arg, params);
             break;
-        case 'T':
-            params->latency_thr = (unsigned int)atoi(arg);
+        case 'f':
+            if (arg != NULL) {
+                (void)snprintf(params->tgids, sizeof(params->tgids), "%s", arg);
+            }
             break;
         default:
             return -1;

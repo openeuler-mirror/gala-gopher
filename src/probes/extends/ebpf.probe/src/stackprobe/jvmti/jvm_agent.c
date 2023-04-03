@@ -17,7 +17,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <jvmti.h>
-#include "../java_support.h"
+#include "java_support.h"
 
 #define COMMAND_LEN             256
 #define LINE_BUF_LEN            512

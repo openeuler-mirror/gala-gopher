@@ -20,7 +20,29 @@
 #include <sys/eventfd.h>
 #include <unistd.h>
 #include "logs.h"
+#include "strbuf.h"
 #include "ingress.h"
+
+enum {
+    LOG_FIELD_TIMESTAMP = 0,
+    LOG_FIELD_SEVERITYTEXT,
+    LOG_FIELD_SEVERITYNUMBER,
+    LOG_FIELD_RESOURCE,
+    LOG_FIELD_ATTRIBUTES,
+    LOG_FIELD_BODY,
+    LOG_FIELD_MAX
+};
+
+#define MAX_LEN_OF_LOG_FIELD_NAME 16
+
+static char g_log_field[LOG_FIELD_MAX][MAX_LEN_OF_LOG_FIELD_NAME] = {
+    {"Timestamp"},
+    {"SeverityText"},
+    {"SeverityNumber"},
+    {"Resource"},
+    {"Attributes"},
+    {"Body"}
+};
 
 IngressMgr *IngressMgrCreate(void)
 {
@@ -83,6 +105,214 @@ static int IngressInit(IngressMgr *mgr)
         }
 
         INFO("[INGRESS] Add EPOLLIN event success, extend probe %s.\n", extendProbe->name);
+    }
+
+    return 0;
+}
+
+static inline void error_log2json_buffer_no_enough_space()
+{
+    ERROR("[INGRESS] the log2json buffer has not enough space.\n");
+}
+
+// fill format: "<field_name>":<field_val>
+static int fill_log_field_simple(strbuf_t *dest, strbuf_t *field, const char *fieldName)
+{
+    int fieldNameSize = strlen(fieldName);
+    int requiredSize = fieldNameSize + field->len + 3;
+
+    if (requiredSize >= dest->size) {
+        error_log2json_buffer_no_enough_space();
+        return -1;
+    }
+
+    strbuf_append_chr(dest, '\"');
+    strbuf_append_str(dest, fieldName, fieldNameSize);
+    strbuf_append_chr(dest, '\"');
+    strbuf_append_chr(dest, ':');
+    strbuf_append_str(dest, field->buf, field->len);
+
+    return 0;
+}
+
+// fill format: ,"host.id":"<host.id>","host.name":"<host.name>"
+static int enrich_resource_with_host_info(IngressMgr *mgr, strbuf_t *dest)
+{
+    int copySize;
+    IMDB_NodeInfo nodeInfo = mgr->imdbMgr->nodeInfo;
+
+    copySize = snprintf(dest->buf, dest->size, ",\"host.id\":\"%s\",\"host.name\":\"%s\"",
+                        nodeInfo.systemUuid, nodeInfo.hostName);
+    if (copySize < 0) {
+        return -1;
+    }
+    if (copySize >= dest->size) {
+        error_log2json_buffer_no_enough_space();
+        return -1;
+    }
+    strbuf_update_offset(dest, copySize);
+
+    return 0;
+}
+
+static int fill_log_field_resource(IngressMgr *mgr, strbuf_t *dest, strbuf_t *field)
+{
+    int ret;
+
+    // simply validate resource json format
+    if (field->len < 2 || field->buf[0] != '{' || field->buf[field->len-1] != '}') {
+        ERROR("[INGRESS] the resource json format of log validate failed.\n");
+        return -1;
+    }
+
+    ret = fill_log_field_simple(dest, field, g_log_field[LOG_FIELD_RESOURCE]);
+    if (ret) {
+        return -1;
+    }
+
+    // rollback '}' character
+    strbuf_update_offset(dest, -1);
+
+    ret = enrich_resource_with_host_info(mgr, dest);
+    if (ret) {
+        return -1;
+    }
+
+    // restore '}' character
+    if (dest->size < 2) {
+        error_log2json_buffer_no_enough_space();
+        return -1;
+    }
+    strbuf_append_chr(dest, '}');
+
+    return 0;
+}
+
+static int fill_log_field(IngressMgr *mgr, strbuf_t *dest, strbuf_t *field, int fieldNumber)
+{
+    switch (fieldNumber) {
+        case LOG_FIELD_TIMESTAMP:
+        case LOG_FIELD_SEVERITYTEXT:
+        case LOG_FIELD_SEVERITYNUMBER:
+        case LOG_FIELD_ATTRIBUTES:
+        case LOG_FIELD_BODY:
+            return fill_log_field_simple(dest, field, g_log_field[fieldNumber]);
+        case LOG_FIELD_RESOURCE:
+            return fill_log_field_resource(mgr, dest, field);
+        default:
+            return -1;
+    }
+
+    return 0;
+}
+
+/*
+ * source format like: |<Timestamp>|<SeverityText>|<SeverityNumber>|<Resource>|<Attributes>|<Body>|
+ * target format like:
+ * {
+ *     "Timestamp": <Timestamp>,
+ *     "SeverityText": <SeverityText>,
+ *     "SeverityNumber": <SeverityNumber>,
+ *     "Body": <Body>,
+ *     "Resource": {
+ *         "host.id": <host.id>,
+ *         "host.name": <host.name>,
+ *         "thread.pid": <thread.pid>,
+ *         "thread.tgid": <thread.tgid>
+ *     },
+ *     "Attributes": {
+ *         "event.name": <event.name>,
+ *         "event.category": <event.category>,
+ *         "event.loc": <event.loc>
+ *     }
+ * }
+ */
+static int LogData2Json(IngressMgr *mgr, const char *logData, char *jsonFmt, int jsonSize)
+{
+    const char bar = '|';
+    char *barNow = logData;
+    char *barNext = NULL;
+    strbuf_t jsonFmtRemain = {
+        .buf = jsonFmt,
+        .size = jsonSize
+    };
+    strbuf_t field;
+    int ret;
+
+    if (*barNow != bar) {
+        ERROR("[INGRESS] log data format error: first charactor is not |\n");
+        return -1;
+    }
+
+    if (jsonFmtRemain.size < 2) {
+        error_log2json_buffer_no_enough_space();
+        return -1;
+    }
+    strbuf_append_chr(&jsonFmtRemain, '{');
+
+    for (int fieldNo = 0; fieldNo < LOG_FIELD_MAX; fieldNo++) {
+        barNext = strchr(barNow + 1, bar);
+        if (barNext == NULL) {
+            return -1;
+        }
+
+        field.buf = barNow + 1;
+        field.len = barNext - barNow - 1;
+        ret = fill_log_field(mgr, &jsonFmtRemain, &field, fieldNo);
+        if (ret) {
+            return -1;
+        }
+
+        barNow = barNext;
+
+        if (fieldNo != LOG_FIELD_MAX - 1) {
+            if (jsonFmtRemain.size < 2) {
+                error_log2json_buffer_no_enough_space();
+                return -1;
+            }
+            strbuf_append_chr(&jsonFmtRemain, ',');
+        }
+    }
+
+    if (jsonFmtRemain.size < 2) {
+        error_log2json_buffer_no_enough_space();
+        return -1;
+    }
+    strbuf_append_chr(&jsonFmtRemain, '}');
+    strbuf_append_chr(&jsonFmtRemain, '\0');
+
+    return 0;
+}
+
+static int LogData2Egress(IngressMgr *mgr, const char *logData)
+{
+    int ret = 0;
+    char *jsonFmt = NULL;
+    uint64_t msg = 1;
+
+    jsonFmt = malloc(MAX_DATA_STR_LEN);
+    if (jsonFmt == NULL) {
+        ERROR("[INGRESS] alloc jsonFmt failed.\n");
+        return NULL;
+    }
+
+    if (LogData2Json(mgr, logData, jsonFmt, MAX_DATA_STR_LEN)) {
+        ERROR("[INGRESS] transfer log data to json format failed.\n");
+        free(jsonFmt);
+        return -1;
+    }
+
+    ret = FifoPut(mgr->egressMgr->event_fifo, (void *)jsonFmt);
+    if (ret != 0) {
+        ERROR("[INGRESS] egress event fifo full.\n");
+        free(jsonFmt);
+        return -1;
+    }
+    ret = write(mgr->egressMgr->event_fifo->triggerFd, &msg, sizeof(uint64_t));
+    if (ret != sizeof(uint64_t)) {
+        ERROR("[INGRESS] send trigger msg to egress event_fifo fd failed.\n");
+        free(jsonFmt);
+        return -1;
     }
 
     return 0;
@@ -237,6 +467,18 @@ static int IngressDataProcesssInput(Fifo *fifo, IngressMgr *mgr)
         ret = GetTableNameAndContent((const char*)dataStr, tblName, MAX_IMDB_TABLE_NAME_LEN, &content);
         if (ret < 0 || (content == NULL)) {
             ERROR("[INGRESS] Get dirty data str: %s\n", dataStr);
+            goto next;
+        }
+
+        // process log (one telemetry category in otel) message
+        if (strcmp(tblName, "log") == 0 && mgr->egressMgr->event_kafkaMgr) {
+            // send log data to egress
+            ret = LogData2Egress(mgr, content);
+            if (ret) {
+                ERROR("[INGRESS] send log data to egress failed.\n");
+            } else {
+                DEBUG("[INGRESS] send log data to egress succeed.(tbl=%s,content=%s)\n", tblName, content);
+            }
             goto next;
         }
 

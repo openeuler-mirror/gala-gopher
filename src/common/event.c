@@ -139,6 +139,19 @@ void report_logs(const char* entityName,
     return;
 }
 
+void emit_otel_log(struct otel_log *ol)
+{
+    // output format: |log|<Timestamp>|<SeverityText>|<SeverityNumber>|<Resource>|<Attributes>|<Body>|
+    fprintf(stdout, "|%s|%llu|\"%s\"|%d|%s|%s|\"%s\"|\n",
+        "log",
+        ol->timestamp,
+        secs[ol->sec].sec_text,
+        secs[ol->sec].sec_number,
+        ol->resource,
+        ol->attrs,
+        ol->body);
+}
+
 static void hash_add_evt(const char *entityId, time_t cur_time)
 {
     struct evt_ts_hash_t *item = NULL;
