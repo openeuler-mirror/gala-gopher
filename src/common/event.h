@@ -37,11 +37,20 @@ struct evt_ts_hash_t {
     time_t evt_ts;
 };
 
+struct otel_log {
+    unsigned long long timestamp;
+    enum evt_sec_e sec;
+    char *resource;
+    char *attrs;
+    char *body;
+};
+
 void report_logs(const char* entityName,
                  const char* entityId,
                  const char* metrics,
                  enum evt_sec_e sec,
                  const char * fmt, ...);
+void emit_otel_log(struct otel_log *ol);
 
 void init_event_mgr(unsigned int time_out, char *lang_type);
 

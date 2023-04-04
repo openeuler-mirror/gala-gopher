@@ -1,0 +1,48 @@
+/******************************************************************************
+ * Copyright (c) Huawei Technologies Co., Ltd. 2021. All rights reserved.
+ * gala-gopher licensed under the Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *     http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+ * PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * Author: algorithmofdish
+ * Create: 2023-04-03
+ * Description: header file for enriching process information of thread profiling event
+ ******************************************************************************/
+#ifndef __PROC_INFO_H__
+#define __PROC_INFO_H__
+
+#include <uthash.h>
+#include "fd_info.h"
+#include "symbol.h"
+
+#define PROC_COMM_LEN 16
+#define MAX_PATH_SIZE 128
+
+#define CMD_CAT_PROC_COMM "cat /proc/%d/comm"
+#define MAX_CMD_SIZE 64
+
+typedef struct {
+    int tgid;
+    char comm[PROC_COMM_LEN];
+    fd_info_t **fd_table;
+    struct proc_symbs_s *symbs;
+    UT_hash_handle hh;
+} proc_info_t;
+
+void HASH_add_proc_info(proc_info_t **proc_table, proc_info_t *proc_info);
+void HASH_del_proc_info(proc_info_t **proc_table, proc_info_t *proc_info);
+proc_info_t *HASH_find_proc_info(proc_info_t **proc_table, int tgid);
+unsigned int HASH_count_proc_table(proc_info_t **proc_table);
+
+proc_info_t *add_proc_info(proc_info_t **proc_table, int tgid);
+proc_info_t *get_proc_info(proc_info_t **proc_table, int tgid);
+fd_info_t *add_fd_info(proc_info_t *proc_info, int fd);
+fd_info_t *get_fd_info(proc_info_t *proc_info, int fd);
+struct proc_symbs_s *add_symb_info(proc_info_t *proc_info);
+struct proc_symbs_s *get_symb_info(proc_info_t *proc_info);
+
+#endif
