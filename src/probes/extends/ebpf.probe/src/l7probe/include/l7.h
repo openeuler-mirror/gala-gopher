@@ -17,6 +17,13 @@
 
 #pragma once
 
+#ifndef BPF_PROG_KERN
+#include <stddef.h>
+#include <linux/uio.h>
+#endif
+
+#define L7_DATA_BUFFER_MAXSIZE 1024 // TODO: enough?
+
 #define HTTP_ENABLE     0x0001
 #define DNS_ENABLE      0x0002
 #define REDIS_ENABLE    0x0004
@@ -180,7 +187,7 @@ static __inline enum message_type_t __get_dns_type(const char* buf, size_t count
 #define __NATS_MINSIZE        3
 
 #define __NATS_CONNECT(buf, count) \
-    { \
+    ({ \
         enum message_type_t __type = MESSAGE_UNKNOW; \
         if (count >= 7) { \
             if (buf[0] == 'C' && buf[1] == 'O' && buf[2] == 'N' \
@@ -192,10 +199,10 @@ static __inline enum message_type_t __get_dns_type(const char* buf, size_t count
             } \
         } \
         __type; \
-    }
+    })
 
 #define __NATS_INFO(buf, count) \
-    { \
+    ({ \
         enum message_type_t __type = MESSAGE_UNKNOW; \
         if (count >= 4) { \
             if (buf[0] == 'I' && buf[1] == 'N' && buf[2] == 'F' && buf[3] == 'O') { \
@@ -205,10 +212,10 @@ static __inline enum message_type_t __get_dns_type(const char* buf, size_t count
             } \
         } \
         __type; \
-    }
+    })
 
 #define __NATS_SUB(buf, count) \
-    { \
+    ({ \
         enum message_type_t __type = MESSAGE_UNKNOW; \
         if (count >= 3) { \
             if (buf[0] == 'S' && buf[1] == 'U' && buf[2] == 'B') { \
@@ -218,10 +225,10 @@ static __inline enum message_type_t __get_dns_type(const char* buf, size_t count
             } \
         } \
         __type; \
-    }
+    })
 
 #define __NATS_UNSUB(buf, count) \
-    { \
+    ({ \
         enum message_type_t __type = MESSAGE_UNKNOW; \
         if (count >= 5) { \
             if (buf[0] == 'U' && buf[1] == 'N' && buf[2] == 'S' && buf[3] == 'U' && buf[4] == 'B') { \
@@ -231,10 +238,10 @@ static __inline enum message_type_t __get_dns_type(const char* buf, size_t count
             } \
         } \
         __type; \
-    }
+    })
 
 #define __NATS_PUB(buf, count) \
-    { \
+    ({ \
         enum message_type_t __type = MESSAGE_UNKNOW; \
         if (count >= 3) { \
             if (buf[0] == 'P' && buf[1] == 'U' && buf[2] == 'B') { \
@@ -244,10 +251,10 @@ static __inline enum message_type_t __get_dns_type(const char* buf, size_t count
             } \
         } \
         __type; \
-    }
+    })
 
 #define __NATS_HPUB(buf, count) \
-    { \
+    ({ \
         enum message_type_t __type = MESSAGE_UNKNOW; \
         if (count >= 4) { \
             if (buf[0] == 'H' && buf[1] == 'P' && buf[2] == 'U' && buf[3] == 'B') { \
@@ -257,10 +264,10 @@ static __inline enum message_type_t __get_dns_type(const char* buf, size_t count
             } \
         } \
         __type; \
-    }
+    })
 
 #define __NATS_MSG(buf, count) \
-    { \
+    ({ \
         enum message_type_t __type = MESSAGE_UNKNOW; \
         if (count >= 3) { \
             if (buf[0] == 'M' && buf[1] == 'S' && buf[2] == 'G') { \
@@ -270,10 +277,10 @@ static __inline enum message_type_t __get_dns_type(const char* buf, size_t count
             } \
         } \
         __type; \
-    }
+    })
 
 #define __NATS_HMSG(buf, count) \
-    { \
+    ({ \
         enum message_type_t __type = MESSAGE_UNKNOW; \
         if (count >= 4) { \
             if (buf[0] == 'H' && buf[1] == 'M' && buf[2] == 'S' && buf[2] == 'G') { \
@@ -283,7 +290,7 @@ static __inline enum message_type_t __get_dns_type(const char* buf, size_t count
             } \
         } \
         __type; \
-    }
+    })
 
 static __inline enum message_type_t __get_nats_type(const char* buf, size_t count)
 {
@@ -396,7 +403,7 @@ static __inline enum message_type_t __get_cql_type(const char* buf, size_t count
         return MESSAGE_UNKNOW;
     }
 
-    bool request = (buf[0] & 0x80) == 0x00;
+    unsigned int request = (buf[0] & 0x80) == 0x00;
     switch (opcode) {
         case __CQL_OP_REGISTER:
         case __CQL_OP_BATCH:
@@ -440,10 +447,10 @@ static __inline enum message_type_t __get_mongo_type(const char* buf, size_t cou
         return MESSAGE_UNKNOW;
     }
 
-    s32* p = (s32 *)buf;
-    s32 request_id = p[1];
-    s32 response_to = p[2];
-    s32 opcode = p[3];
+    int* p = (int *)buf;
+    int request_id = p[1];
+    int response_to = p[2];
+    int opcode = p[3];
 
     if (request_id < 0) {
         return MESSAGE_UNKNOW;
@@ -459,7 +466,7 @@ static __inline enum message_type_t __get_mongo_type(const char* buf, size_t cou
         case __MONGO_OP_KILL_CURSORS:
         case __MONGO_OP_COMPRESSED:
         case __MONGO_OP_MSG:
-            return (response_to == 0) : MESSAGE_REQUEST ? MESSAGE_RESPONSE;
+            return (response_to == 0) ? MESSAGE_REQUEST : MESSAGE_RESPONSE;
     }
 
     return MESSAGE_UNKNOW;
@@ -520,9 +527,15 @@ static __inline enum message_type_t get_mysql_type(const char* buf, size_t count
 
 static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, struct l7_proto_s* l7pro)
 {
+/* TODO: to resolve
     enum message_type_t type;
 
-    if ((flags & HTTP_ENABLE) && ) {
+    if (l7pro == NULL || count >= L7_DATA_BUFFER_MAXSIZE || buf == NULL) {
+        return -1;
+    }
+
+
+    if (flags & HTTP_ENABLE) { // TODO: add && condition
         type = __get_http_type(buf, count);
         if (type != MESSAGE_UNKNOW) {
             l7pro->proto = PROTO_HTTP;
@@ -531,7 +544,7 @@ static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, st
         }
     }
 
-    if ((flags & DNS_ENABLE) && ) {
+    if (flags & DNS_ENABLE) {
         type = __get_dns_type(buf, count);
         if (type != MESSAGE_UNKNOW) {
             l7pro->proto = PROTO_DNS;
@@ -540,7 +553,7 @@ static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, st
         }
     }
 
-    if ((flags & REDIS_ENABLE) && ) {
+    if (flags & REDIS_ENABLE) {
         type = __get_redis_type(buf, count);
         if (type != MESSAGE_UNKNOW) {
             l7pro->proto = PROTO_REDIS;
@@ -549,7 +562,7 @@ static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, st
         }
     }
 
-    if ((flags & NATS_ENABLE) && ) {
+    if (flags & NATS_ENABLE) {
         type = __get_nats_type(buf, count);
         if (type != MESSAGE_UNKNOW) {
             l7pro->proto = PROTO_NATS;
@@ -558,7 +571,7 @@ static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, st
         }
     }
 
-    if ((flags & CQL_ENABLE) && ) {
+    if (flags & CQL_ENABLE) {
         type = __get_cql_type(buf, count);
         if (type != MESSAGE_UNKNOW) {
             l7pro->proto = PROTO_CQL;
@@ -567,7 +580,7 @@ static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, st
         }
     }
 
-    if ((flags & MONGO_ENABLE) && ) {
+    if (flags & MONGO_ENABLE) {
         type = __get_mongo_type(buf, count);
         if (type != MESSAGE_UNKNOW) {
             l7pro->proto = PROTO_MONGO;
@@ -575,7 +588,7 @@ static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, st
             return 0;
         }
     }
-
+*/
     return -1;
 }
 #endif

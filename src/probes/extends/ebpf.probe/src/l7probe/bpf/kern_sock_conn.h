@@ -17,14 +17,8 @@
 
 #pragma once
 
-#ifdef BPF_PROG_KERN
-
-#include <bpf/bpf_helpers.h>
-#include <bpf/bpf_tracing.h>
-#include <bpf/bpf_core_read.h>
-
 #include "bpf.h"
-#include "connect.h"
+#include "include/connect.h"
 
 #define __MAX_CONCURRENCY   1000
 #define __MAX_CONN_COUNT    1000
@@ -38,7 +32,7 @@ struct {
 
 static __always_inline __maybe_unused struct sock_conn_s* get_sock_conn(int tgid, int fd)
 {
-    conn_id_s id = {.tgid = tgid, fd = fd};
+    struct conn_id_s id = {.tgid = tgid, .fd = fd};
 
     return (struct sock_conn_s *)bpf_map_lookup_elem(&conn_tbl, &id);
 }
@@ -53,7 +47,4 @@ static __always_inline __maybe_unused int set_sock_conn_ssl(int tgid, int fd)
     sock_conn->info.is_reported = 0;
     return 0;
 }
-
-#endif
-
 #endif

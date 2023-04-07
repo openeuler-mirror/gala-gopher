@@ -16,8 +16,8 @@
 #undef BPF_PROG_USER
 #endif
 #define BPF_PROG_KERN
-#include "bpf.h"
 #include "include/pod.h"
+#include "kern_sock.h"
 
 char g_linsence[] SEC("license") = "GPL";
 
@@ -26,17 +26,20 @@ char g_linsence[] SEC("license") = "GPL";
 #define MAX_CGRP_NUM 8192
 
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(type, GOPHER_BPF_MAP_TYPE_PERF);
     __uint(key_size, sizeof(u32));
     __uint(value_size, sizeof(u32));
+    __uint(max_entries, 64);
 } cgroup_msg_map SEC(".maps");
 
+#ifndef __USE_RING_BUF
 struct {
     __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
     __uint(key_size, sizeof(u32));
     __uint(value_size, sizeof(struct cgroup_msg_data_t));
     __uint(max_entries, 1);
 } tmp_map SEC(".maps");
+#endif
 
 static __always_inline int check_root_id(struct cgroup *cgrp)
 {
@@ -54,7 +57,11 @@ static __always_inline int check_root_id(struct cgroup *cgrp)
 static __always_inline void report_cgrp_change(void *ctx, enum cgrp_event_t cgrp_event, const char *path)
 {
     u32 key = 0;
+#ifdef __USE_RING_BUF
+    struct cgroup_msg_data_t *msg_data = bpf_ringbuf_reserve(&cgroup_msg_map, sizeof(struct cgroup_msg_data_t), 0);
+#else
     struct cgroup_msg_data_t *msg_data = bpf_map_lookup_elem(&tmp_map, &key);
+#endif
 
     if (!msg_data)
         return;

@@ -72,7 +72,7 @@ int main(int argc, char **argv)
 
     for (int i = 0; i < prog->num; i++) {
         if (prog->pbs[i] != NULL) {
-            pthread_join(prog->msg_evt_thd[i], NULL);
+            pthread_join(prog->resident_thd[i], NULL);
         }
     }
 
