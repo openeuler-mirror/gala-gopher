@@ -17,13 +17,42 @@
 
 #pragma once
 
-#include <linux/in.h>
-#include <linux/in6.h>
-#include <linux/socket.h>
+#include "include/l7.h"
 
-#include "../bpf/l7.h"
+#if (CURRENT_KERNEL_VERSION  >= KERNEL_VERSION(5, 10, 0))
+#define __USE_RING_BUF
+#endif
+
+#ifdef __USE_RING_BUF
+#define GOPHER_BPF_MAP_TYPE_PERF   BPF_MAP_TYPE_RINGBUF
+#else
+#define GOPHER_BPF_MAP_TYPE_PERF   BPF_MAP_TYPE_PERF_EVENT_ARRAY
+#endif
 
 #define L7_CONN_BPF_PATH          "/sys/fs/bpf/gala-gopher/__l7_connect"
+
+
+#ifndef BPF_PROG_KERN
+struct sockaddr {
+    unsigned short  sa_family;
+    char            sa_data[14];
+};
+
+struct sockaddr_in {
+    unsigned short  sin_family;
+    unsigned short  sin_port;
+    unsigned int    sin4_addr;
+    unsigned char   pad[8];
+};
+
+struct sockaddr_in6 {
+    unsigned short  sin_family;
+    unsigned short  sin_port;
+    unsigned int    sin_flowinfo;
+    unsigned char   sin6_addr[IP6_LEN];
+    unsigned int    sin6_scope_id;
+};
+#endif
 
 union sockaddr_t {
     struct sockaddr sa;
@@ -133,9 +162,9 @@ struct conn_data_s {
     char data[CONN_DATA_MAX_SIZE];
 };
 
-struct conns_hash_t {
-    H_HANDLE;
-    struct conn_id_s conn_id; // key
-    struct conn_data_s conn_data; // TODO
-};
+// struct conns_hash_t {
+//     H_HANDLE;
+//     struct conn_id_s conn_id; // key
+//     struct conn_data_s conn_data; // TODO
+// };
 #endif

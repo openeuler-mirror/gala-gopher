@@ -26,6 +26,7 @@
 
 #include "args.h"
 #include "hash.h"
+#include "object.h"
 #include "container.h"
 #include "include/pod.h"
 #include "bpf/cgroup.skel.h"
@@ -562,13 +563,13 @@ int filter_pod_op(const char *pod_id, enum filter_op_t op)
 {
     cb_params params = {.flags = (int)op, .result = -1};
     cb_rslt rslt = walk_pod_tbl(pod_id, NULL, container_filter_op, &params);
-    return params.result;
+    return rslt;
 }
 
 int filter_container_op(const char *container_id, enum filter_op_t op)
 {
     cb_params params = {.flags = (int)op, .result = -1};
     cb_rslt rslt = walk_pod_tbl(NULL, container_id, single_container_filter_op, &params);
-    return params.result;
+    return rslt;
 }
 

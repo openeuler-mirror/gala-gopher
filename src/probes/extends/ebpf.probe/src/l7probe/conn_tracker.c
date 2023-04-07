@@ -30,27 +30,59 @@
 #include "args.h"
 #include "include/conn_tracker.h"
 
-
-static void __print_libssl_metrics(struct ssl_msg_t *msg_data)
+// TODO: complete print
+void l7_sock_data_msg_handler(void *ctx, int cpu, void *data, unsigned int size)
 {
+    struct conn_data_s *msg_data = (struct conn_data_s *)data;
+
     fprintf(stdout,
-            "|%s|%d|%d|%d|%d|%llu|%s|\n",
-            "libssl_msg",
-            msg_data->msg_type,
-            msg_data->tgid,
-            msg_data->fd,
-            msg_data->count,
-            msg_data->ts_nsec,
-            msg_data->msg);
+            "|%s|%d|%d|%llu|%d|%d|%d|%llu|%lu|%s|\n",
+            "l7probe",
+            msg_data->conn_id.tgid,
+            msg_data->conn_id.tgid,
+            msg_data->timestamp_ns,
+            msg_data->proto,
+            msg_data->l7_role,
+            msg_data->direction,
+            msg_data->offset_pos,
+            msg_data->data_size,
+            msg_data->data);
 
     (void)fflush(stdout);
-}
-
-void l7_libssl_msg_handler(void *ctx, int cpu, void *data, unsigned int size)
-{
-    struct ssl_msg_t *msg_data = (struct ssl_msg_t *)data;
-
-    __print_libssl_metrics(msg_data);
 
     return;
 }
+
+void l7_conn_control_msg_handler(void *ctx, int cpu, void *data, unsigned int size)
+{
+    struct conn_ctl_s *msg_data = (struct conn_ctl_s *)data;
+
+    fprintf(stdout,
+            "|%s|%d|%d|%llu|%d|\n",
+            "l7probe",
+            msg_data->conn_id.tgid,
+            msg_data->conn_id.tgid,
+            msg_data->timestamp_ns,
+            msg_data->type);
+
+    (void)fflush(stdout);
+
+    return;
+}
+
+void l7_conn_stats_msg_handler(void *ctx, int cpu, void *data, unsigned int size)
+{
+    struct conn_stats_s *msg_data = (struct conn_stats_s *)data;
+
+    fprintf(stdout,
+            "|%s|%d|%d|%llu|\n",
+            "l7probe",
+            msg_data->conn_id.tgid,
+            msg_data->conn_id.tgid,
+            msg_data->timestamp_ns);
+
+    (void)fflush(stdout);
+
+    return;
+}
+

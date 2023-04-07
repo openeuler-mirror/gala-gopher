@@ -1,7 +1,7 @@
 include ../mk/var.mk
 INCLUDES = $(BASE_INC)
 INCLUDES += -I$(ROOT_DIR)/../l7probe
-
+INSTALL_DIR=/opt/gala-gopher/extend_probes
 APP := l7probe
 SRC_CPLUS := $(wildcard *.cpp)
 SRC_CPLUS += $(CPLUSFILES)

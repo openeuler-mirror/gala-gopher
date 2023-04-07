@@ -33,21 +33,28 @@
 #include "include/pod.h"
 #include "include/conn_tracker.h"
 #include "bpf/cgroup.skel.h"
+#include "bpf/kern_sock.skel.h"
 
 enum bpf_index_t {
-    BPF_KERN_SOCK,
+    BPF_KERN_SOCK = 0,
     BPF_CGROUP,
     BPF_LIBSSl,
-    BPF_GOSSL,
     BPF_INDEX_MAX
 };
 
-#define L7_SSL_MSG_PATH "/sys/fs/bpf/gala-gopher/__l7_ssl_msg"
-#define L7_SSL_MSG_MAP "ssl_msg_map"
-#define L7_SSL_PROG  "/opt/gala-gopher/extend_probes/l7_bpf/libssl.bpf.o"
+#define L7_CONN_DATA_MAP        "conn_data_events"
+#define L7_CONN_CONTROL_MAP     "conn_control_events"
+#define L7_CONN_STATS_MAP       "conn_stats_events"
+#define L7_CONN_DATA_PATH        "/sys/fs/bpf/gala-gopher/__l7_conn_data"
+#define L7_CONN_CONTROL_PATH     "/sys/fs/bpf/gala-gopher/__l7_conn_control"
+#define L7_CONN_STATS_PATH       "/sys/fs/bpf/gala-gopher/__l7_conn_stats"
+#define L7_SSL_PROG              "/opt/gala-gopher/extend_probes/l7_bpf/libssl.bpf.o"
 
 #define __LOAD_PROBE(probe_name, end, load) \
     OPEN(probe_name, end, load); \
+    MAP_SET_PIN_PATH(probe_name, conn_data_events, L7_CONN_DATA_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, conn_control_events, L7_CONN_CONTROL_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, conn_stats_events, L7_CONN_STATS_PATH, load); \
     LOAD_ATTACH(probe_name, end, load)
 
 typedef int (*LoadFunc)(struct bpf_prog_s *prog);
@@ -86,7 +93,7 @@ static int __create_msg_hdl_thd(int msg_fd, perf_buffer_sample_fn cb, struct bpf
     }
     prog->pbs[prog->num] = pb;
 
-    ret = pthread_create(&prog->msg_evt_thd[prog->num], NULL, __poll_pb, (void *)pb);
+    ret = pthread_create(&prog->resident_thd[prog->num], NULL, __poll_pb, (void *)pb);
     if (ret != 0) {
         ERROR("[L7PROBE]: Failed to create message event handler thread.\n");
         return -1;
@@ -109,9 +116,21 @@ static struct bpf_object *__init_libssl_bpf()
     }
 
     // 2. pin public bpf map
-    ret = BPF_OBJ_PIN_MAP_PATH(obj, L7_SSL_MSG_MAP, L7_SSL_MSG_PATH);
+    ret = BPF_OBJ_PIN_MAP_PATH(obj, L7_CONN_DATA_MAP, L7_CONN_DATA_PATH);
     if (ret) {
-        ERROR("L7PROBE] Failed to pin %s(err = %d).\n", L7_SSL_MSG_MAP, ret);
+        ERROR("L7PROBE] Failed to pin %s(err = %d).\n", L7_CONN_DATA_MAP, ret);
+        bpf_object__close(obj);
+        return NULL;
+    }
+    ret = BPF_OBJ_PIN_MAP_PATH(obj, L7_CONN_CONTROL_MAP, L7_CONN_CONTROL_PATH);
+    if (ret) {
+        ERROR("L7PROBE] Failed to pin %s(err = %d).\n", L7_CONN_CONTROL_MAP, ret);
+        bpf_object__close(obj);
+        return NULL;
+    }
+    ret = BPF_OBJ_PIN_MAP_PATH(obj, L7_CONN_STATS_MAP, L7_CONN_STATS_PATH);
+    if (ret) {
+        ERROR("L7PROBE] Failed to pin %s(err = %d).\n", L7_CONN_STATS_MAP, ret);
         bpf_object__close(obj);
         return NULL;
     }
@@ -129,7 +148,6 @@ int l7_load_probe_libssl(struct bpf_prog_s *prog)
 {
     int ret = 0;
     int init = 0;
-    int msg_fd;
 
     // 1. pin public bpf map
     struct bpf_object *obj = __init_libssl_bpf();
@@ -140,29 +158,18 @@ int l7_load_probe_libssl(struct bpf_prog_s *prog)
     // 2. create thread of uprobe loading
     struct proc_load_args_s proc_load_args = {
         .proc_obj_map_fd = obj_get_proc_obj_map_fd(),
-        .init = &init,
+        .init = &init, // TODO: to delete
         .libname = "libssl",
         .bpf_obj = obj,
     };
-    ret = pthread_create(&prog->msg_evt_thd[prog->num], NULL, load_n_unload_uprobe, (void *)&proc_load_args);
+
+    // The message event handling thread is started by l7_load_probe_kern_sock.
+    ret = pthread_create(&prog->resident_thd[prog->num], NULL, load_n_unload_uprobe, (void *)&proc_load_args);
     if (ret != 0) {
         ERROR("[L7PROBE]: Failed to create libssl bpf load thread.\n");
         return 0;
     }
     prog->num++;
-    sleep(5);
-    // 3. create thread of msg handler
-    if (init == 1) {
-        msg_fd = BPF_OBJ_GET_MAP_FD(obj, L7_SSL_MSG_MAP);
-    } else {
-        INFO("[L7PROBE]: Failed to get libssl msg map.\n");
-        return 0;
-    }
-    ret = __create_msg_hdl_thd(msg_fd, l7_libssl_msg_handler, prog);
-    if (ret != 0) {
-        ERROR("L7PROBE]: Failed to create libssl msg handler thread.\n");
-        return 0;
-    }
 
     INFO("[L7PROBE]: init libssl bpf prog succeed.\n");
     return 0;
@@ -190,6 +197,33 @@ err:
     return -1;
 }
 
+int l7_load_probe_kern_sock(struct bpf_prog_s *prog)
+{
+    int fd, ret;
+
+    __LOAD_PROBE(kern_sock, err, 1);
+    prog->skels[prog->num].skel = kern_sock_skel;
+    prog->skels[prog->num].fn = (skel_destroy_fn)kern_sock_bpf__destroy;
+
+    fd = GET_MAP_FD(kern_sock, conn_control_events);
+    ret = __create_msg_hdl_thd(fd, l7_conn_control_msg_handler, prog);
+    if (ret != 0) {
+        return ret;
+    }
+
+    fd = GET_MAP_FD(kern_sock, conn_stats_events);
+    ret = __create_msg_hdl_thd(fd, l7_conn_stats_msg_handler, prog);
+    if (ret != 0) {
+        return ret;
+    }
+
+    INFO("[L7PROBE]: init kern_sock bpf prog  succeed.\n");
+    return 0;
+err:
+    UNLOAD(kern_sock);
+    return -1;
+}
+
 static char is_load_probe(struct probe_params *args, enum bpf_index_t bpf_index)
 {
     u32 bpf_switch = (u32)(1 << bpf_index);
@@ -204,10 +238,9 @@ struct bpf_prog_s *init_bpf_progs(struct probe_params *args)
     }
 
     static BpfProc bpf_procs[] = {
-        { BPF_KERN_SOCK, NULL },
+        { BPF_KERN_SOCK, l7_load_probe_kern_sock },
         { BPF_CGROUP, l7_load_probe_cgroup },
-        { BPF_LIBSSl, l7_load_probe_libssl },
-        { BPF_GOSSL, NULL },
+        { BPF_LIBSSl, l7_load_probe_libssl }
     };
 
     for (int i = 0; i < BPF_INDEX_MAX; i++) {

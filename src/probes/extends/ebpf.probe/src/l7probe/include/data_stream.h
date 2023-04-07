@@ -17,14 +17,15 @@
 
 #pragma once
 
-#include "../bpf/l7.h"
+#include "include/l7.h"
 
 struct frame_data_s {
     enum message_type_t msg_type;
     void *frame;
     u64 timestamp_ns;
 };
-
+
+
 /*
   Used to cache L7 message frame from protocol parser
 */

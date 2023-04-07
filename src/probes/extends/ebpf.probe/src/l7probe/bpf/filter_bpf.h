@@ -24,7 +24,7 @@
 #include <bpf/bpf_core_read.h>
 
 #include "bpf.h"
-#include "filter.h"
+#include "include/filter.h"
 
 struct {
     __uint(type, BPF_MAP_TYPE_ARRAY);
@@ -43,7 +43,7 @@ static __always_inline __maybe_unused char is_filter_id(enum filter_type_t type,
         }
         case FILTER_CGRPID:
         {
-            struct cgroup_s obj = {.knid = (unsigned int)filter_id, type = CGP_TYPE_CPUACCT};
+            struct cgroup_s obj = {.knid = (unsigned int)filter_id, .type = CGP_TYPE_CPUACCT};
             return is_cgrp_exist(&obj);
         }
         default:

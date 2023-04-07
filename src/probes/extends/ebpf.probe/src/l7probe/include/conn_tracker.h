@@ -17,8 +17,10 @@
 
 #pragma once
 
-#include "connect.h"
-#include "data_stream.h"
+#include "include/connect.h"
+#include "include/data_stream.h"
+
+#define MAX_MSG_LEN_SSL 1024
 
 enum tracker_stats_t {
     BYTES_SENT,
@@ -40,6 +42,11 @@ enum tracker_state_t {
     TRACK_METRICS,
     TRACK_TRACING,
     TRACK_SILENT
+};
+
+enum msg_event_rw_t {
+    MSG_READ,
+    MSG_WRITE,
 };
 
 struct tracker_id_s {
@@ -92,17 +99,6 @@ enum parse_rslt_e {
 struct parse_rslt_s {
     enum parse_rslt_e rslt;
 };
-
-void tracker_rcv_raw_evt(struct conn_tracker_s *tracker, struct conn_data_s *evt);
-void tracker_rcv_stats_evt(struct conn_tracker_s *tracker, struct conn_stats_s *evt);
-void tracker_rcv_ctrl_evt(struct conn_tracker_s *tracker, struct conn_ctl_s *evt);
-#define MAX_MSG_LEN_SSL 1024
-
-enum msg_event_rw_t {
-    MSG_READ,
-    MSG_WRITE,
-};
-
 struct ssl_msg_t {
     enum msg_event_rw_t msg_type;
     int fd;
@@ -112,6 +108,12 @@ struct ssl_msg_t {
     char msg[MAX_MSG_LEN_SSL];
 };
 
-void l7_libssl_msg_handler(void *ctx, int cpu, void *data, unsigned int size);
+void tracker_rcv_raw_evt(struct conn_tracker_s *tracker, struct conn_data_s *evt);
+void tracker_rcv_stats_evt(struct conn_tracker_s *tracker, struct conn_stats_s *evt);
+void tracker_rcv_ctrl_evt(struct conn_tracker_s *tracker, struct conn_ctl_s *evt);
+
+void l7_sock_data_msg_handler(void *ctx, int cpu, void *data, unsigned int size);
+void l7_conn_control_msg_handler(void *ctx, int cpu, void *data, unsigned int size);
+void l7_conn_stats_msg_handler(void *ctx, int cpu, void *data, unsigned int size);
 #endif
 

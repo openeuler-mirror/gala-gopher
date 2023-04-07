@@ -17,9 +17,7 @@
 #endif
 
 #define BPF_PROG_USER
-#include "bpf.h"
-#include <bpf/bpf_endian.h>
-#include "include/conn_tracker.h"
+#include "kern_sock.h"
 
 char g_license[] SEC("license") = "GPL";
 
@@ -28,9 +26,7 @@ enum {
     PROG_SSL_WRITE,
 };
 
-
 #define __MAX_SSL_ENTRIES 1024
-
 
 // ssl struct in openssl 1.1.1
 typedef long (*bio_callback_fn)();
@@ -59,28 +55,14 @@ struct ssl_st {
 #define __PERF_OUT_MAX (64)
 #endif
 
-struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, __PERF_OUT_MAX);
-} ssl_msg_map SEC(".maps");
-
-struct {
-    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(struct ssl_msg_t));
-    __uint(max_entries, 1);
-} tmp_map SEC(".maps");
-
-static __always_inline int get_fd_from_ssl(struct ssl_st* ssl_st_p, enum msg_event_rw_t rw_type)
+static __always_inline int get_fd_from_ssl(struct ssl_st* ssl_st_p, enum l7_direction_t rw_type)
 {
     int fd;
     
     if (ssl_st_p == NULL) {
         return -1;
     }
-    struct bio_st *bio_p = (rw_type == MSG_READ) ? _(ssl_st_p->rbio) : _(ssl_st_p->wbio);
+    struct bio_st *bio_p = (rw_type == L7_INGRESS) ? _(ssl_st_p->rbio) : _(ssl_st_p->wbio);
 
     if (bio_p == NULL) {
         return -1;
@@ -90,56 +72,78 @@ static __always_inline int get_fd_from_ssl(struct ssl_st* ssl_st_p, enum msg_eve
     return fd;
 }
 
-static __always_inline void process_rdwr_msg(struct ssl_st* ssl_st_p, const char *ori_buf, int count,
-                                             enum msg_event_rw_t rw_type, struct pt_regs *ctx)
-{
-    const char *buf;
-
-    if (ori_buf == NULL || count <= 0) {
-        return;
-    }
-    int fd = get_fd_from_ssl(ssl_st_p, rw_type);
-    if (fd < 0) {
-        return;
-    }
-
-    u64 tgid = bpf_get_current_pid_tgid();
-    u32 key = 0;
-    struct ssl_msg_t *ssl_msg = bpf_map_lookup_elem(&tmp_map, &key);
-    if (!ssl_msg)
-        return;
-    ssl_msg->msg_type = rw_type;
-    ssl_msg->tgid = tgid;
-    ssl_msg->fd = fd;
-    ssl_msg->count = count;
-    ssl_msg->ts_nsec = bpf_ktime_get_ns();
-
-    bpf_probe_read(&buf, sizeof(const char*), &ori_buf);
-    int len = count < MAX_MSG_LEN_SSL ? (count & (MAX_MSG_LEN_SSL - 1)) : MAX_MSG_LEN_SSL;
-    bpf_probe_read_user(ssl_msg->msg, len, buf);
-    bpf_perf_event_output(ctx, &ssl_msg_map, BPF_F_CURRENT_CPU, ssl_msg, sizeof(struct ssl_msg_t));
-    return;
-}
-
 UPROBE(SSL_read, pt_regs)
 {
-    UPROBE_PARMS_STASH(SSL_read, ctx, PROG_SSL_READ);
+    conn_ctx_t id = bpf_get_current_pid_tgid();
+    int proc_id = (int)(id >> INT_LEN);
+
+    int fd = get_fd_from_ssl((struct ssl_st*)PT_REGS_PARM1(ctx), L7_INGRESS);
+    if (fd < 0) {
+        return 0;
+    }
+
+    struct sock_data_args_s args = {0};
+    args.conn_id.fd = fd;
+    args.conn_id.tgid = proc_id;
+    args.direct = L7_INGRESS;
+    args.buf = (char *)PT_REGS_PARM2(ctx);
+    bpf_map_update_elem(&sock_data_args, &id, &args, BPF_ANY);
+    return 0;
 }
 
 URETPROBE(SSL_read, pt_regs)
 {
-    struct probe_val val;
-    if (PROBE_GET_PARMS(SSL_read, ctx, val, PROG_SSL_READ) < 0) {
-        return 0;
+    conn_ctx_t id = bpf_get_current_pid_tgid();
+
+    struct sock_data_args_s* args = bpf_map_lookup_elem(&sock_data_args, &id);
+    if (args != NULL && args->is_socket_op) {
+        size_t bytes_count = (size_t)PT_REGS_RC(ctx);
+        if (bytes_count <= 0) {
+            goto end;
+        }
+        submit_sock_data(ctx, id, L7_INGRESS, args, (size_t)bytes_count);
     }
-    
-    process_rdwr_msg((struct ssl_st*)PROBE_PARM1(val), (const char *)PROBE_PARM2(val), (int)PT_REGS_RC(ctx), MSG_READ, ctx);
+
+end:
+    bpf_map_delete_elem(&sock_data_args, &id);
     return 0;
 }
 
 UPROBE(SSL_write, pt_regs)
 {
-    process_rdwr_msg((struct ssl_st*)PT_REGS_PARM1(ctx), (char *)PT_REGS_PARM2(ctx), (int)PT_REGS_PARM3(ctx), MSG_WRITE, ctx);
+    conn_ctx_t id = bpf_get_current_pid_tgid();
+    int proc_id = (int)(id >> INT_LEN);
+
+    int fd = get_fd_from_ssl((struct ssl_st*)PT_REGS_PARM1(ctx), L7_EGRESS);
+    if (fd < 0) {
+        return 0;
+    }
+
+    struct sock_data_args_s args = {0};
+    args.conn_id.fd = fd;
+    args.conn_id.tgid = proc_id;
+    args.direct = L7_EGRESS;
+    args.buf = (char *)PT_REGS_PARM2(ctx);
+    bpf_map_update_elem(&sock_data_args, &id, &args, BPF_ANY);
     return 0;
 }
+
+URETPROBE(SSL_write, pt_regs)
+{
+    conn_ctx_t id = bpf_get_current_pid_tgid();
+
+    struct sock_data_args_s* args = bpf_map_lookup_elem(&sock_data_args, &id);
+    if (args != NULL && args->is_socket_op) {
+        size_t bytes_count = (size_t)PT_REGS_RC(ctx);
+        if (bytes_count <= 0) {
+            goto end;
+        }
+        submit_sock_data(ctx, id, L7_EGRESS, args, (size_t)bytes_count);
+    }
+
+end:
+    bpf_map_delete_elem(&sock_data_args, &id);
+    return 0;
+}
+
 
