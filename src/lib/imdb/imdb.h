@@ -27,7 +27,7 @@
 #define MAX_IMDB_METRIC_DESC_LEN        1024
 #define MAX_IMDB_METRIC_TYPE_LEN        32
 #define MAX_IMDB_METRIC_NAME_LEN        32
-#define MAX_IMDB_METRIC_VAL_LEN         512
+#define MAX_IMDB_METRIC_VAL_LEN         128
 
 // table specification
 #define MAX_IMDB_TABLE_NAME_LEN         32
@@ -126,14 +126,14 @@ void IMDB_DataBaseMgrSetRecordTimeout(uint32_t timeout);
 void IMDB_DataBaseMgrDestroy(IMDB_DataBaseMgr *mgr);
 
 int IMDB_DataBaseMgrAddTable(IMDB_DataBaseMgr *mgr, IMDB_Table* table);
-IMDB_Table *IMDB_DataBaseMgrFindTable(IMDB_DataBaseMgr *mgr, char *tableName);
+IMDB_Table *IMDB_DataBaseMgrFindTable(IMDB_DataBaseMgr *mgr, const char *tableName);
 
 int IMDB_DataBaseMgrAddRecord(IMDB_DataBaseMgr *mgr, char *recordStr);
-IMDB_Record* IMDB_DataBaseMgrCreateRec(IMDB_DataBaseMgr *mgr, IMDB_Table *table, char *content);
+IMDB_Record* IMDB_DataBaseMgrCreateRec(IMDB_DataBaseMgr *mgr, IMDB_Table *table, const char *content);
 int IMDB_DataBase2Prometheus(IMDB_DataBaseMgr *mgr, char *buffer, uint32_t maxLen, uint32_t *buf_len);
 int IMDB_DataStr2Json(IMDB_DataBaseMgr *mgr, const char *recordStr, char *jsonStr, uint32_t jsonStrLen);
-int IMDB_Rec2Json(IMDB_DataBaseMgr *mgr, IMDB_Table *table,
-                        IMDB_Record* rec, const char *dataStr, char *jsonStr, uint32_t jsonStrLen);
+int IMDB_Record2Json(const IMDB_DataBaseMgr *mgr, const IMDB_Table *table, const IMDB_Record *record,
+                     char *jsonStr, uint32_t jsonStrLen);
 
 void WriteMetricsLogsMain(IMDB_DataBaseMgr *mgr);
 int ReadMetricsLogs(char logs_file_name[]);
