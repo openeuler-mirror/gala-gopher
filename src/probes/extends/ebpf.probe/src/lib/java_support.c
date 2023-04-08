@@ -46,10 +46,10 @@ struct jvm_agent_hash_value {
     int nspid;
     int attached;
     int ns_changed;
-    char ns_java_sym_path[NS_PATH_LEN]; // /tmp/java-sym-<pid>
-    char ns_agent_so_path[NS_PATH_LEN]; // /tmp/jvm_agent.so
-    char host_proc_dir[PATH_LEN]; // /proc/<pid>/root
-    char host_java_sym_file[PATH_LEN]; // /proc/<pid>/root/tmp/java-sym-<pid>/java-symbols.bin
+    char ns_java_data_path[NS_PATH_LEN];    // /tmp/java-data-<pid>
+    char ns_agent_path[NS_PATH_LEN];        // /tmp/jvm_agent.so | /tmp/jvmProbeAgent.jar
+    char host_proc_dir[PATH_LEN];       // /proc/<pid>/root
+    char host_java_tmp_file[PATH_LEN];  // /proc/<pid>/root/tmp/java-data-<pid>/java-symbols.bin | proc/<pid>/root/tmp/java-data-<pid>/jvm-metrics.txt
 };
 
 struct jvm_agent_hash_t {
@@ -59,14 +59,14 @@ struct jvm_agent_hash_t {
 };
 
 static struct jvm_agent_hash_t *jvm_agent_head = NULL;
+static char jvm_agent_file[FILENAME_LEN];
+static char jvm_tmp_file[FILENAME_LEN];
 
 #define FIND_JAVA_PROC_COMM "ps -e -o pid,comm | grep java | awk '{print $1}'"
 #define PROC_COMM "/usr/bin/cat /proc/%u/comm 2> /dev/null"
 #define ATTACH_BIN_PATH "/opt/gala-gopher/extend_probes/jvm_attach"
-#define ATTACH_CMD "%s %u %u load %s true %s" // jvm_attach <pid> <nspid> load /tmp/jvm_agent.so true /tmp/java-sym-123
 #define HOST_SO_DIR "/opt/gala-gopher/extend_probes"
-#define AGENT_SO_FILE "jvm_agent.so"
-#define HOST_JAVA_SYM_PATH "/proc/%u/root/tmp/java-sym-%u/%s" // /proc/<pid>/root/tmp/java-sym-<pid>/java-symbols.bin
+#define HOST_JAVA_TMP_PATH "/proc/%u/root/tmp/java-data-%u/%s"  // eg: /proc/<pid>/root/tmp/java-data-<pid>/java-symbols.bin
 #define NS_TMP_DIR "/tmp"
 
 /*
@@ -272,14 +272,14 @@ static int __mkdir(char dst_dir[])
     return ret;
 }
 
-int get_host_java_sym_file(int pid, char *file_path, int path_len)
+int get_host_java_tmp_file(int pid, const char *file_name, char *file_path, int path_len)
 {
     if (file_path == NULL || path_len <= 0) {
         return -1;
     }
 
     // TODO: add start_time_ticks?
-    (void)snprintf(file_path, path_len, HOST_JAVA_SYM_PATH, pid, pid, JAVA_SYM_FILE);
+    (void)snprintf(file_path, path_len, HOST_JAVA_TMP_PATH, pid, pid, file_name);
     if (access(file_path, F_OK) != 0) {
         return -1;
     }
@@ -308,43 +308,43 @@ static int __set_attach_argv(struct jvm_agent_hash_t *pid_bpf_link)
         return ret;
     }
 
-    char *ns_agent_so_path = pid_bpf_link->v.ns_agent_so_path;
-    (void)snprintf(ns_agent_so_path, NS_PATH_LEN, "%s/%s", NS_TMP_DIR, AGENT_SO_FILE);
-    char host_agent_so_path[LINE_BUF_LEN];
-    (void)snprintf(host_agent_so_path, LINE_BUF_LEN, "%s%s", pid_bpf_link->v.host_proc_dir, ns_agent_so_path);
+    char *ns_agent_path = pid_bpf_link->v.ns_agent_path;
+    (void)snprintf(ns_agent_path, NS_PATH_LEN, "%s/%s", NS_TMP_DIR, jvm_agent_file);
+    char host_agent_file_path[LINE_BUF_LEN];
+    (void)snprintf(host_agent_file_path, LINE_BUF_LEN, "%s%s", pid_bpf_link->v.host_proc_dir, ns_agent_path);
 
-    if (access(host_agent_so_path, 0) != 0) {
-        char src_agent_so[PATH_LEN] = {0};
-        (void)snprintf(src_agent_so, PATH_LEN, "%s/%s", HOST_SO_DIR, AGENT_SO_FILE);
-        ret = copy_file(host_agent_so_path, src_agent_so); // overwrite is ok.
+    if (access(host_agent_file_path, 0) != 0) {
+        char src_agent_file[PATH_LEN] = {0};
+        (void)snprintf(src_agent_file, PATH_LEN, "%s/%s", HOST_SO_DIR, jvm_agent_file);
+        ret = copy_file(host_agent_file_path, src_agent_file); // overwrite is ok.
         if (ret != 0) {
-            ERROR("[JAVA_SUPPORT]: proc %u copy %s from %s file fail \n", pid, host_agent_so_path, src_agent_so);
+            ERROR("[JAVA_SUPPORT]: proc %u copy %s from %s file fail \n", pid, host_agent_file_path, src_agent_file);
             return ret;
         }
     }
 
-    ret = chown(host_agent_so_path, pid_bpf_link->v.eUid, pid_bpf_link->v.eGid);
+    ret = chown(host_agent_file_path, pid_bpf_link->v.eUid, pid_bpf_link->v.eGid);
     if (ret != 0) {
-        ERROR("[JAVA_SUPPORT]: chown %s to %u %u fail when set ns_agent_so_path\n", host_agent_so_path, pid_bpf_link->v.eUid, pid_bpf_link->v.eGid);
+        ERROR("[JAVA_SUPPORT]: chown %s to %u %u fail when set ns_agent_path\n", host_agent_file_path, pid_bpf_link->v.eUid, pid_bpf_link->v.eGid);
         return ret;
     }
 
-    (void)snprintf(pid_bpf_link->v.ns_java_sym_path, NS_PATH_LEN, "/tmp/java-sym-%u", pid_bpf_link->pid); // TODO: add start_time_ticks?
+    (void)snprintf(pid_bpf_link->v.ns_java_data_path, NS_PATH_LEN, "/tmp/java-data-%u", pid_bpf_link->pid); // TODO: add start_time_ticks?
 
-    char host_java_sym_dir[LINE_BUF_LEN] = {0};
-    (void)snprintf(host_java_sym_dir, LINE_BUF_LEN, "%s%s", pid_bpf_link->v.host_proc_dir, pid_bpf_link->v.ns_java_sym_path);
-    ret = __mkdir(host_java_sym_dir);
+    char host_java_data_dir[LINE_BUF_LEN] = {0};
+    (void)snprintf(host_java_data_dir, LINE_BUF_LEN, "%s%s", pid_bpf_link->v.host_proc_dir, pid_bpf_link->v.ns_java_data_path);
+    ret = __mkdir(host_java_data_dir);
     if (ret != 0) {
-        ERROR("[JAVA_SUPPORT]: proc %u mkdir fail when set host_java_sym_dir\n", pid_bpf_link->pid);
+        ERROR("[JAVA_SUPPORT]: proc %u mkdir fail when set host_java_data_dir\n", pid_bpf_link->pid);
         return ret;
     }
-    ret = chown(host_java_sym_dir, pid_bpf_link->v.eUid, pid_bpf_link->v.eGid);
+    ret = chown(host_java_data_dir, pid_bpf_link->v.eUid, pid_bpf_link->v.eGid);
     if (ret != 0) {
-        ERROR("[JAVA_SUPPORT]: proc %u chown fail when set ns_java_sym_path\n", pid_bpf_link->pid);
+        ERROR("[JAVA_SUPPORT]: proc %u chown fail when set ns_java_data_path\n", pid_bpf_link->pid);
         return ret;
     }
+    get_host_java_tmp_file(pid, jvm_agent_file, pid_bpf_link->v.host_java_tmp_file, PATH_LEN);
 
-    get_host_java_sym_file(pid, pid_bpf_link->v.host_java_sym_file, PATH_LEN);
     return ret;
 }
 
@@ -370,13 +370,28 @@ static void __clear_invalid_pids()
 static void __do_attach(struct jvm_agent_hash_t *pid_bpf_link) {
     char cmd[LINE_BUF_LEN] = {0};
     char result_buf[LINE_BUF_LEN];
-    (void)snprintf(cmd, LINE_BUF_LEN,
-        ATTACH_CMD,
-        ATTACH_BIN_PATH,
-        pid_bpf_link->pid,
-        pid_bpf_link->v.nspid,
-        pid_bpf_link->v.ns_agent_so_path,
-        pid_bpf_link->v.ns_java_sym_path);
+
+    if (strstr(jvm_agent_file, ".so")) {
+        // jvm_attach <pid> <nspid> load /tmp/xxxx.so true /tmp/java-data-<pid>
+        (void)snprintf(cmd, LINE_BUF_LEN, "%s %d %d load %s true %s",
+            ATTACH_BIN_PATH,
+            pid_bpf_link->pid,
+            pid_bpf_link->v.nspid,
+            pid_bpf_link->v.ns_agent_path,
+            pid_bpf_link->v.ns_java_data_path);
+    } else if (strstr(jvm_agent_file, ".jar")) {
+        // jvm_attach <pid> <nspid> load instrument false "/tmp/xxxxx.jar=<pid>,/tmp/java-data-<pid>"
+        (void)snprintf(cmd, LINE_BUF_LEN, "%s %d %d load instrument false \"%s=%d,%s\"",
+            ATTACH_BIN_PATH,
+            pid_bpf_link->pid,
+            pid_bpf_link->v.nspid,
+            pid_bpf_link->v.ns_agent_path,
+            pid_bpf_link->pid,
+            pid_bpf_link->v.ns_java_data_path);
+    } else {
+        ERROR("[JAVA_SUPPORT]: invalid jvm_agent_file input, return.\n");
+        return;
+    }
 
     FILE *f = popen(cmd, "r");
     if (f == NULL) {
@@ -394,7 +409,13 @@ void *java_support(void *arg)
 {
     int err = 0;
     struct jvm_agent_hash_t *pid_bpf_link, *tmp;
-    int proc_obj_map_fd = *(int *)arg;
+    struct java_attach_args *args = (struct java_attach_args *)arg;
+
+    int proc_obj_map_fd = args->proc_obj_map_fd;
+    jvm_agent_file[0] = 0;
+    (void)strncpy(jvm_agent_file, args->agent_file_name, FILENAME_LEN - 1);
+    jvm_tmp_file[0] = 0;
+    (void)strncpy(jvm_tmp_file, args->tmp_file_name, FILENAME_LEN - 1);
 
     while (1) {
         sleep(DEFAULT_PERIOD);

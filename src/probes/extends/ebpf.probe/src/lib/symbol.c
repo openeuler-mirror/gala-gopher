@@ -829,7 +829,7 @@ static int get_mod_name(struct mod_info_s* mod_info, char *maps_line, struct pro
         mod_info->type = MODULE_JVM; // TODO: Is it necessary to check maps_perm or else?
         (void)memset(mod_info->name, 0, PATH_LEN);
          // It's okay if we can't get java_sym_file now. We'll check it periodically.
-        (void)get_host_java_sym_file(proc_symbs->proc_id, mod_info->name, PATH_LEN);
+		(void)get_host_java_tmp_file(proc_symbs->proc_id, "java-symbols.bin", mod_info->name, PATH_LEN);
     }
 
     return 0;

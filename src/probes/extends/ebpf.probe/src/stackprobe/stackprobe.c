@@ -51,6 +51,9 @@
 #include "stackprobe.h"
 #include "java_support.h"
 
+#define JAVA_SYM_AGENT_FILE "jvm_agent.so"
+#define JAVA_SYM_FILE  		"java-symbols.bin"
+
 #define ON_CPU_PROG    "/opt/gala-gopher/extend_probes/stack_bpf/oncpu.bpf.o"
 #define OFF_CPU_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/offcpu.bpf.o"
 #define IO_PROG        "/opt/gala-gopher/extend_probes/stack_bpf/io.bpf.o"
@@ -1560,9 +1563,13 @@ static void init_java_support_proc(StackprobeConfig *conf)
 {
     int err;
     pthread_t attach_thd;
-    int proc_obj_map_fd = conf->generalConfig->whitelistEnable ? g_st->proc_obj_map_fd : 0;
+	struct java_attach_args args = {0};
+    
+	args.proc_obj_map_fd = conf->generalConfig->whitelistEnable ? g_st->proc_obj_map_fd : 0;
+	(void)snprintf(args.agent_file_name, FILENAME_LEN, JAVA_SYM_AGENT_FILE);
+    (void)snprintf(args.tmp_file_name, FILENAME_LEN, JAVA_SYM_FILE);
 
-    err = pthread_create(&attach_thd, NULL, java_support, (void *)&proc_obj_map_fd);
+    err = pthread_create(&attach_thd, NULL, java_support, (void *)&args);
     if (err != 0) {
         ERROR("[STACKPROBE]: Failed to create java_support_pthread.\n");
         return;

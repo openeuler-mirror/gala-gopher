@@ -30,6 +30,7 @@
 #include "args.h"
 
 #include "include/bpf_mng.h"
+#include "include/java_mng.h"
 #include "include/pod.h"
 
 volatile sig_atomic_t stop;
@@ -64,7 +65,13 @@ int main(int argc, char **argv)
     if (prog == NULL) {
         goto out;
     }
-    INFO("[L7PROBE]: l7probe successfully started!\n");
+    INFO("[L7PROBE]: l7probe successfully started bpf progs!\n");
+
+    err = init_java_progs(&params);
+    if (err != 0) {
+        return -1;
+    }
+    INFO("[L7PROBE]: l7probe successfully started java progs!\n");
 
     while (!stop) {
         sleep(params.period);
