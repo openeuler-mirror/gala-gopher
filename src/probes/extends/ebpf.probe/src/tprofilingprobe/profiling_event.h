@@ -17,8 +17,12 @@
 
 #include "tprofiling.h"
 
-#define PROFILE_EVT_TYPE_FILE "file"
-#define PROFILE_EVT_TYPE_NET  "net"
+#define MAX_LEN_OF_PROFILE_EVT_TYPE 8
+
+#define PROFILE_EVT_TYPE_FILE  "file"
+#define PROFILE_EVT_TYPE_NET   "net"
+#define PROFILE_EVT_TYPE_PROC  "proc"
+#define PROFILE_EVT_TYPE_IPC   "ipc"
 #define PROFILE_EVT_TYPE_FUTEX "futex"
 #define PROFILE_EVT_TYPE_ONCPU "oncpu"
 #define PROFILE_EVT_TYPE_OTHER "other"

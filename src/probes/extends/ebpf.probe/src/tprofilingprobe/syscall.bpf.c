@@ -25,6 +25,14 @@
 #define BPF_F_INDEX_MASK  0xffffffffULL
 #define BPF_F_CURRENT_CPU BPF_F_INDEX_MASK
 
+#ifndef BPF_F_FAST_STACK_CMP
+#define BPF_F_FAST_STACK_CMP    (1ULL << 9)
+#endif
+
+#ifndef BPF_F_USER_STACK
+#define BPF_F_USER_STACK    (1ULL << 8)
+#endif
+
 #define USER_STACKID_FLAGS (0 | BPF_F_FAST_STACK_CMP | BPF_F_USER_STACK)
 
 struct {

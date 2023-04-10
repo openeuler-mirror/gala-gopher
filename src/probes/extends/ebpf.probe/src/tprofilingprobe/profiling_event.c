@@ -129,35 +129,22 @@ static void set_syscall_name(unsigned long nr, char *name)
     strcpy(name, scm->name);
 }
 
-static char *get_proc_comm(int tgid)
-{
-    proc_info_t *pi;
-
-    pi = HASH_find_proc_info(&g_proc_table, tgid);
-    if (pi == NULL) {
-        pi = add_proc_info(&g_proc_table, tgid);
-        if (pi == NULL) {
-            return NULL;
-        }
-    }
-
-    return pi->comm;
-}
-
 static int set_evt_resource(trace_event_data_t *evt_data, char *evt_resource, int resource_size)
 {
     int expect_size = 0;
-    char *proc_comm;
+    proc_info_t *pi;
+    container_info_t *ci;
 
-    proc_comm = get_proc_comm(evt_data->tgid);
-    if (proc_comm == NULL) {
+    pi = get_proc_info(&g_proc_table, evt_data->tgid);
+    if (pi == NULL) {
         return -1;
     }
+    ci = &pi->container_info;
 
     expect_size = snprintf(evt_resource, resource_size,
                            "{\"thread.pid\":\"%d\",\"thread.tgid\":\"%d\",\"thread.comm\":\"%s\""
-                           ",\"process.comm\":\"%s\"}",
-                           evt_data->pid, evt_data->tgid, evt_data->comm, proc_comm);
+                           ",\"process.comm\":\"%s\",\"container.id\":\"%s\",\"container.name\":\"%s\"}",
+                           evt_data->pid, evt_data->tgid, evt_data->comm, pi->comm, ci->id, ci->name);
     if (expect_size >= resource_size) {
         fprintf(stderr, "ERROR: resource size not large enough\n");
         return -1;
@@ -383,11 +370,13 @@ static int append_futex_attrs(strbuf_t *attrs_buf, trace_event_data_t *evt_data)
     return 0;
 }
 
-static int append_untyped_attrs(strbuf_t *attrs_buf, trace_event_data_t *evt_data)
+static int append_untyped_attrs(strbuf_t *attrs_buf, syscall_meta_t *scm, trace_event_data_t *evt_data)
 {
+    char *evt_type;
     int ret;
 
-    ret = snprintf(attrs_buf->buf, attrs_buf->size, ",\"event.type\":\"%s\"", PROFILE_EVT_TYPE_OTHER);
+    evt_type = scm->default_type[0] != '\0' ? scm->default_type : PROFILE_EVT_TYPE_OTHER;
+    ret = snprintf(attrs_buf->buf, attrs_buf->size, ",\"event.type\":\"%s\"", evt_type);
     if (ret < 0 || ret >= attrs_buf->size) {
         fprintf(stderr, "ERROR: Failed to set untyped attributes.\n");
         return -1;
@@ -431,7 +420,7 @@ static int append_syscall_attrs_by_nr(strbuf_t *attrs_buf, trace_event_data_t *e
     }
 
     if (!typed) {
-        return append_untyped_attrs(attrs_buf, evt_data);
+        return append_untyped_attrs(attrs_buf, scm, evt_data);
     }
 
     return 0;

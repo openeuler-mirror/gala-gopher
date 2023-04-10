@@ -16,9 +16,11 @@
 #define __PROC_INFO_H__
 
 #include <uthash.h>
+#include "common.h"
 #include "fd_info.h"
 #include "symbol.h"
 
+#define MAX_CACHE_PROC_NUM 1024
 #define PROC_COMM_LEN 16
 #define MAX_PATH_SIZE 128
 
@@ -26,8 +28,14 @@
 #define MAX_CMD_SIZE 64
 
 typedef struct {
+    char id[CONTAINER_ABBR_ID_LEN + 1];
+    char name[CONTAINER_NAME_LEN];
+} container_info_t;
+
+typedef struct {
     int tgid;
     char comm[PROC_COMM_LEN];
+    container_info_t container_info;
     fd_info_t **fd_table;
     struct proc_symbs_s *symbs;
     UT_hash_handle hh;
@@ -38,11 +46,16 @@ void HASH_del_proc_info(proc_info_t **proc_table, proc_info_t *proc_info);
 proc_info_t *HASH_find_proc_info(proc_info_t **proc_table, int tgid);
 unsigned int HASH_count_proc_table(proc_info_t **proc_table);
 
+void HASH_add_proc_info_with_LRU(proc_info_t **proc_table, proc_info_t *proc_info);
+proc_info_t *HASH_find_proc_info_with_LRU(proc_info_t **proc_table, int tgid);
+
 proc_info_t *add_proc_info(proc_info_t **proc_table, int tgid);
 proc_info_t *get_proc_info(proc_info_t **proc_table, int tgid);
 fd_info_t *add_fd_info(proc_info_t *proc_info, int fd);
 fd_info_t *get_fd_info(proc_info_t *proc_info, int fd);
 struct proc_symbs_s *add_symb_info(proc_info_t *proc_info);
 struct proc_symbs_s *get_symb_info(proc_info_t *proc_info);
+
+void free_proc_info(proc_info_t *proc_info);
 
 #endif
