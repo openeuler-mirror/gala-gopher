@@ -20,29 +20,8 @@
 #include <sys/eventfd.h>
 #include <unistd.h>
 #include "logs.h"
-#include "strbuf.h"
 #include "ingress.h"
-
-enum {
-    LOG_FIELD_TIMESTAMP = 0,
-    LOG_FIELD_SEVERITYTEXT,
-    LOG_FIELD_SEVERITYNUMBER,
-    LOG_FIELD_RESOURCE,
-    LOG_FIELD_ATTRIBUTES,
-    LOG_FIELD_BODY,
-    LOG_FIELD_MAX
-};
-
-#define MAX_LEN_OF_LOG_FIELD_NAME 16
-
-static char g_log_field[LOG_FIELD_MAX][MAX_LEN_OF_LOG_FIELD_NAME] = {
-    {"Timestamp"},
-    {"SeverityText"},
-    {"SeverityNumber"},
-    {"Resource"},
-    {"Attributes"},
-    {"Body"}
-};
+#include "event2json.h"
 
 IngressMgr *IngressMgrCreate(void)
 {
@@ -110,180 +89,6 @@ static int IngressInit(IngressMgr *mgr)
     return 0;
 }
 
-static inline void error_log2json_buffer_no_enough_space()
-{
-    ERROR("[INGRESS] the log2json buffer has not enough space.\n");
-}
-
-// fill format: "<field_name>":<field_val>
-static int fill_log_field_simple(strbuf_t *dest, strbuf_t *field, const char *fieldName)
-{
-    int fieldNameSize = strlen(fieldName);
-    int requiredSize = fieldNameSize + field->len + 3;
-
-    if (requiredSize >= dest->size) {
-        error_log2json_buffer_no_enough_space();
-        return -1;
-    }
-
-    strbuf_append_chr(dest, '\"');
-    strbuf_append_str(dest, fieldName, fieldNameSize);
-    strbuf_append_chr(dest, '\"');
-    strbuf_append_chr(dest, ':');
-    strbuf_append_str(dest, field->buf, field->len);
-
-    return 0;
-}
-
-// fill format: ,"host.id":"<host.id>","host.name":"<host.name>"
-static int enrich_resource_with_host_info(IngressMgr *mgr, strbuf_t *dest)
-{
-    int copySize;
-    IMDB_NodeInfo nodeInfo = mgr->imdbMgr->nodeInfo;
-
-    copySize = snprintf(dest->buf, dest->size, ",\"host.id\":\"%s\",\"host.name\":\"%s\"",
-                        nodeInfo.systemUuid, nodeInfo.hostName);
-    if (copySize < 0) {
-        return -1;
-    }
-    if (copySize >= dest->size) {
-        error_log2json_buffer_no_enough_space();
-        return -1;
-    }
-    strbuf_update_offset(dest, copySize);
-
-    return 0;
-}
-
-static int fill_log_field_resource(IngressMgr *mgr, strbuf_t *dest, strbuf_t *field)
-{
-    int ret;
-
-    // simply validate resource json format
-    if (field->len < 2 || field->buf[0] != '{' || field->buf[field->len-1] != '}') {
-        ERROR("[INGRESS] the resource json format of log validate failed.\n");
-        return -1;
-    }
-
-    ret = fill_log_field_simple(dest, field, g_log_field[LOG_FIELD_RESOURCE]);
-    if (ret) {
-        return -1;
-    }
-
-    // rollback '}' character
-    strbuf_update_offset(dest, -1);
-
-    ret = enrich_resource_with_host_info(mgr, dest);
-    if (ret) {
-        return -1;
-    }
-
-    // restore '}' character
-    if (dest->size < 2) {
-        error_log2json_buffer_no_enough_space();
-        return -1;
-    }
-    strbuf_append_chr(dest, '}');
-
-    return 0;
-}
-
-static int fill_log_field(IngressMgr *mgr, strbuf_t *dest, strbuf_t *field, int fieldNumber)
-{
-    switch (fieldNumber) {
-        case LOG_FIELD_TIMESTAMP:
-        case LOG_FIELD_SEVERITYTEXT:
-        case LOG_FIELD_SEVERITYNUMBER:
-        case LOG_FIELD_ATTRIBUTES:
-        case LOG_FIELD_BODY:
-            return fill_log_field_simple(dest, field, g_log_field[fieldNumber]);
-        case LOG_FIELD_RESOURCE:
-            return fill_log_field_resource(mgr, dest, field);
-        default:
-            return -1;
-    }
-
-    return 0;
-}
-
-/*
- * source format like: |<Timestamp>|<SeverityText>|<SeverityNumber>|<Resource>|<Attributes>|<Body>|
- * target format like:
- * {
- *     "Timestamp": <Timestamp>,
- *     "SeverityText": <SeverityText>,
- *     "SeverityNumber": <SeverityNumber>,
- *     "Body": <Body>,
- *     "Resource": {
- *         "host.id": <host.id>,
- *         "host.name": <host.name>,
- *         "thread.pid": <thread.pid>,
- *         "thread.tgid": <thread.tgid>
- *     },
- *     "Attributes": {
- *         "event.name": <event.name>,
- *         "event.category": <event.category>,
- *         "event.loc": <event.loc>
- *     }
- * }
- */
-static int LogData2Json(IngressMgr *mgr, const char *logData, char *jsonFmt, int jsonSize)
-{
-    const char bar = '|';
-    char *barNow = logData;
-    char *barNext = NULL;
-    strbuf_t jsonFmtRemain = {
-        .buf = jsonFmt,
-        .size = jsonSize
-    };
-    strbuf_t field;
-    int ret;
-
-    if (*barNow != bar) {
-        ERROR("[INGRESS] log data format error: first charactor is not |\n");
-        return -1;
-    }
-
-    if (jsonFmtRemain.size < 2) {
-        error_log2json_buffer_no_enough_space();
-        return -1;
-    }
-    strbuf_append_chr(&jsonFmtRemain, '{');
-
-    for (int fieldNo = 0; fieldNo < LOG_FIELD_MAX; fieldNo++) {
-        barNext = strchr(barNow + 1, bar);
-        if (barNext == NULL) {
-            return -1;
-        }
-
-        field.buf = barNow + 1;
-        field.len = barNext - barNow - 1;
-        ret = fill_log_field(mgr, &jsonFmtRemain, &field, fieldNo);
-        if (ret) {
-            return -1;
-        }
-
-        barNow = barNext;
-
-        if (fieldNo != LOG_FIELD_MAX - 1) {
-            if (jsonFmtRemain.size < 2) {
-                error_log2json_buffer_no_enough_space();
-                return -1;
-            }
-            strbuf_append_chr(&jsonFmtRemain, ',');
-        }
-    }
-
-    if (jsonFmtRemain.size < 2) {
-        error_log2json_buffer_no_enough_space();
-        return -1;
-    }
-    strbuf_append_chr(&jsonFmtRemain, '}');
-    strbuf_append_chr(&jsonFmtRemain, '\0');
-
-    return 0;
-}
-
 static int LogData2Egress(IngressMgr *mgr, const char *logData)
 {
     int ret = 0;
@@ -293,7 +98,7 @@ static int LogData2Egress(IngressMgr *mgr, const char *logData)
     jsonFmt = malloc(MAX_DATA_STR_LEN);
     if (jsonFmt == NULL) {
         ERROR("[INGRESS] alloc jsonFmt failed.\n");
-        return NULL;
+        return -1;
     }
 
     if (LogData2Json(mgr, logData, jsonFmt, MAX_DATA_STR_LEN)) {
@@ -318,7 +123,7 @@ static int LogData2Egress(IngressMgr *mgr, const char *logData)
     return 0;
 }
 
-static int IngressData2Egress(IngressMgr *mgr, IMDB_Table *table, IMDB_Record* rec, const char *dataStr)
+static int EventData2Egress(IngressMgr *mgr, const char *content)
 {
     int ret = 0;
 
@@ -328,35 +133,23 @@ static int IngressData2Egress(IngressMgr *mgr, IMDB_Table *table, IMDB_Record* r
         ERROR("[INGRESS] alloc jsonStr failed.\n");
         return -1;
     }
-    ret = IMDB_Rec2Json(mgr->imdbMgr, table, rec, dataStr, jsonStr, MAX_DATA_STR_LEN);
-    if (ret != 0) {
-        ERROR("[INGRESS] reformat dataStr to json failed.\n");
+
+    ret = EventData2Json(mgr, content, jsonStr, MAX_DATA_STR_LEN);
+    if (ret) {
+        ERROR("[INGRESS] transfer event data to json failed.\n");
         goto err;
     }
 
     uint64_t msg = 1;
-    if (strcmp(table->entity_name, "event") == 0) {
-        ret = FifoPut(mgr->egressMgr->event_fifo, (void *)jsonStr);
-        if (ret != 0) {
-            ERROR("[INGRESS] egress event fifo full.\n");
-            goto err;
-        }
-        ret = write(mgr->egressMgr->event_fifo->triggerFd, &msg, sizeof(uint64_t));
-        if (ret != sizeof(uint64_t)) {
-            ERROR("[INGRESS] send trigger msg to egress event_fifo fd failed.\n");
-            return -1;
-        }
-    } else {
-        ret = FifoPut(mgr->egressMgr->metric_fifo, (void *)jsonStr);
-        if (ret != 0) {
-            ERROR("[INGRESS] egress metric fifo full.\n");
-            goto err;
-        }
-        ret = write(mgr->egressMgr->metric_fifo->triggerFd, &msg, sizeof(uint64_t));
-        if (ret != sizeof(uint64_t)) {
-            ERROR("[INGRESS] send trigger msg to egress metric_fifo fd failed.\n");
-            return -1;
-        }
+    ret = FifoPut(mgr->egressMgr->event_fifo, (void *)jsonStr);
+    if (ret != 0) {
+        ERROR("[INGRESS] egress event fifo full.\n");
+        goto err;
+    }
+    ret = write(mgr->egressMgr->event_fifo->triggerFd, &msg, sizeof(uint64_t));
+    if (ret != sizeof(uint64_t)) {
+        ERROR("[INGRESS] send trigger msg to egress event_fifo fd failed.\n");
+        return -1;
     }
     return 0;
 
@@ -365,10 +158,43 @@ err:
     return -1;
 }
 
-static int IngressEventWrite2Logs(IMDB_DataBaseMgr *mgr, IMDB_Table *table, IMDB_Record* rec, const char *dataStr)
+static int MetricData2Egress(IngressMgr *mgr, IMDB_Table *table, IMDB_Record* rec)
 {
     int ret = 0;
-    int str_len = 0;
+
+    // format data to json
+    char *jsonStr = malloc(MAX_DATA_STR_LEN);
+    if (jsonStr == NULL) {
+        ERROR("[INGRESS] alloc jsonStr failed.\n");
+        return -1;
+    }
+    ret = IMDB_Record2Json(mgr->imdbMgr, table, rec, jsonStr, MAX_DATA_STR_LEN);
+    if (ret != 0) {
+        ERROR("[INGRESS] reformat imdb record to json failed.\n");
+        goto err;
+    }
+
+    uint64_t msg = 1;
+    ret = FifoPut(mgr->egressMgr->metric_fifo, (void *)jsonStr);
+    if (ret != 0) {
+        ERROR("[INGRESS] egress metric fifo full.\n");
+        goto err;
+    }
+    ret = write(mgr->egressMgr->metric_fifo->triggerFd, &msg, sizeof(uint64_t));
+    if (ret != sizeof(uint64_t)) {
+        ERROR("[INGRESS] send trigger msg to egress metric_fifo fd failed.\n");
+        return -1;
+    }
+    return 0;
+
+err:
+    (void)free(jsonStr);
+    return -1;
+}
+
+static int IngressEventWrite2Logs(IngressMgr *mgr, const char *content)
+{
+    int ret = 0;
 
     // format data to json
     char *jsonStr = malloc(MAX_DATA_STR_LEN);
@@ -376,14 +202,14 @@ static int IngressEventWrite2Logs(IMDB_DataBaseMgr *mgr, IMDB_Table *table, IMDB
         ERROR("[EVENTLOG] alloc jsonStr failed.\n");
         return -1;
     }
-    ret = IMDB_Rec2Json(mgr, table, rec, dataStr, jsonStr, MAX_DATA_STR_LEN);
-    if (ret != 0) {
+
+    ret = EventData2Json(mgr, content, jsonStr, MAX_DATA_STR_LEN);
+    if (ret) {
         ERROR("[EVENTLOG] reformat dataStr to json failed.\n");
         goto err;
     }
 
-    str_len = strlen(jsonStr);
-    ret = wr_event_logs(jsonStr, str_len);
+    ret = wr_event_logs(jsonStr, strlen(jsonStr));
     if (ret < 0) {
         ERROR("[EVENTLOG] write event logs fail.\n");
         goto err;
@@ -421,25 +247,84 @@ static int GetTableNameAndContent(const char* buf, char *tblName, size_t size, c
     return 0;
 }
 
-static int isRecordCanSend2Egress(IngressMgr *mgr, IMDB_Table *table)
+// process log (one telemetry category in otel) message
+static int ProcessOtelLogData(IngressMgr *mgr, const char *content)
 {
-    if (mgr->egressMgr == NULL) {
-        return 0;
+    int ret = 0;
+
+    if (mgr->egressMgr && mgr->egressMgr->event_kafkaMgr) {
+        // send log data to egress
+        ret = LogData2Egress(mgr, content);
+        if (ret) {
+            ERROR("[INGRESS] send log data to egress failed.\n");
+            return -1;
+        } else {
+            DEBUG("[INGRESS] send log data to egress succeed.(content=%s)\n", content);
+        }
     }
-    if (strcmp(table->name, "event") == 0 && mgr->egressMgr->event_kafkaMgr == NULL) {
-        return 0;
-    }
-    if (strcmp(table->name, "event") != 0 && mgr->egressMgr->metric_kafkaMgr == NULL) {
-        return 0;
-    }
-    return 1;
+
+    return 0;
 }
 
-static int isEventWriteLogs(IngressMgr *mgr, IMDB_Table *table)
+static int ProcessEventData(IngressMgr *mgr, const char *content)
 {
-    if (strcmp(table->name, "event") == 0 && mgr->event_out_channel == OUT_CHNL_LOGS) {
-        return 1;
+    int ret = 0;
+
+    if (mgr->event_out_channel == OUT_CHNL_LOGS) {
+        // write event data to logs
+        ret = IngressEventWrite2Logs(mgr, content);
+        if (ret != 0) {
+            ERROR("[INGRESS] write event to logs failed.\n");
+            return -1;
+        } else {
+            DEBUG("[INGRESS] write event to logs succeed.(content=%s)\n", content);
+        }
     }
+
+    if (mgr->egressMgr && mgr->egressMgr->event_kafkaMgr) {
+        // send data to egress
+        ret = EventData2Egress(mgr, content);
+        if (ret != 0) {
+            ERROR("[INGRESS] send event data to egress failed.\n");
+            return -1;
+        } else {
+            DEBUG("[INGRESS] send event data to egress succeed.(content=%s)\n", content);
+        }
+    }
+
+    return 0;
+}
+
+static int ProcessMetricData(IngressMgr *mgr, const char *content, const char *tblName)
+{
+    IMDB_Table* table;
+    IMDB_Record* rec = NULL;
+    int ret = 0;
+
+    table = IMDB_DataBaseMgrFindTable(mgr->imdbMgr, tblName);
+    if (table == NULL || table->recordKeySize == 0)
+        return -1;
+
+    if (mgr->imdbMgr->writeLogsOn) {
+        // save metric to imdb
+        rec = IMDB_DataBaseMgrCreateRec(mgr->imdbMgr, table, content);
+        if (rec == NULL) {
+            ERROR("[INGRESS] insert metric data into imdb failed.\n");
+            return -1;
+        }
+    }
+
+    if (mgr->egressMgr && mgr->egressMgr->metric_kafkaMgr) {
+        // send metric to egress
+        ret = MetricData2Egress(mgr, table, rec);
+        if (ret) {
+            ERROR("[INGRESS] send metric data to egress failed.\n");
+            return -1;
+        } else {
+            DEBUG("[INGRESS] send metric data to egress succeed.(tbl=%s,content=%s)\n", table->name, content);
+        }
+    }
+
     return 0;
 }
 
@@ -463,60 +348,21 @@ static int IngressDataProcesssInput(Fifo *fifo, IngressMgr *mgr)
         if (dataStr == NULL)
             continue;
 
-        // skip string not start with '|'
         ret = GetTableNameAndContent((const char*)dataStr, tblName, MAX_IMDB_TABLE_NAME_LEN, &content);
         if (ret < 0 || (content == NULL)) {
             ERROR("[INGRESS] Get dirty data str: %s\n", dataStr);
-            goto next;
+            free(dataStr);
+            continue;
         }
 
-        // process log (one telemetry category in otel) message
-        if (strcmp(tblName, "log") == 0 && mgr->egressMgr->event_kafkaMgr) {
-            // send log data to egress
-            ret = LogData2Egress(mgr, content);
-            if (ret) {
-                ERROR("[INGRESS] send log data to egress failed.\n");
-            } else {
-                DEBUG("[INGRESS] send log data to egress succeed.(tbl=%s,content=%s)\n", tblName, content);
-            }
-            goto next;
+        if (strcmp(tblName, "log") == 0) {
+            (void)ProcessOtelLogData(mgr, content);
+        } else if (strcmp(tblName, "event") == 0) {
+            (void)ProcessEventData(mgr, content);
+        } else {
+            (void)ProcessMetricData(mgr, content, tblName);
         }
 
-        table = IMDB_DataBaseMgrFindTable(mgr->imdbMgr, tblName);
-        if (table == NULL)
-            goto next;
-
-        rec = NULL;
-
-        if (table->recordKeySize > 0 && mgr->imdbMgr->writeLogsOn) {
-            // save data to imdb
-            rec = IMDB_DataBaseMgrCreateRec(mgr->imdbMgr, table, content);
-            if (rec == NULL) {
-                ERROR("[INGRESS] insert data into imdb failed.\n");
-                goto next;
-            }
-        }
-
-        if (isEventWriteLogs(mgr, table) == 1) {
-            // write event data to logs
-            ret = IngressEventWrite2Logs(mgr->imdbMgr, table, rec, content);
-            if (ret != 0) {
-                ERROR("[INGRESS] write event to logs failed.\n");
-            } else {
-                DEBUG("[INGRESS] write event to logs succeed.(tbl=%s,content=%s)\n", table->name, content);
-            }
-        }
-
-        if (isRecordCanSend2Egress(mgr, table) == 1) {
-            // send data to egress
-            ret = IngressData2Egress(mgr, table, rec, content);
-            if (ret != 0) {
-                ERROR("[INGRESS] send data to egress failed.\n");
-            } else {
-                DEBUG("[INGRESS] send data to egress succeed.(tbl=%s,content=%s)\n", table->name, content);
-            }
-        }
-next:
         free(dataStr);
     }
 

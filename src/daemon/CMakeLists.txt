@@ -41,6 +41,7 @@ SET(SOURCES main.c daemon.c
     ${CONFIG_DIR}/config.c
     ${EGRESS_DIR}/egress.c
     ${INGRESS_DIR}/ingress.c
+    ${INGRESS_DIR}/event2json.c
     ${WEB_SERVER_DIR}/web_server.c
 
     ${FIFO_DIR}/fifo.c
