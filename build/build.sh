@@ -6,6 +6,9 @@ PROJECT_FOLDER=$(dirname "$PWD")
 PROBES_FOLDER=${PROJECT_FOLDER}/src/probes
 PROBES_PATH_LIST=`find ${PROJECT_FOLDER}/src/probes -maxdepth 1 | grep ".probe\>"`
 EXT_PROBE_FOLDER=${PROJECT_FOLDER}/src/probes/extends
+PROBE_MNG_FOLDER=${PROJECT_FOLDER}/src/lib/probe
+BPFTOOL_FOLDER=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/tools
+VMLINUX_DIR=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/src/include
 EXT_PROBE_BUILD_LIST=`find ${EXT_PROBE_FOLDER} -maxdepth 2 | grep "\<build.sh\>"`
 PROBES_LIST=""
 PROBES_C_LIST=""
@@ -47,8 +50,62 @@ function __get_probes_source_files()
     done
 }
 
+function __add_bpftool()
+{
+    cd ${BPFTOOL_FOLDER}
+    if [ -f "bpftool" ];then
+        echo "bpftool has existed."
+        return $?
+    fi
+	ARCH=$(uname -m)
+    LIBBPF_MAJOR=`rpm -qa | grep libbpf-devel | awk -F'-' '{print $3}' | awk -F'.' '{print $1}'`
+    LIBBPF_MINOR=`rpm -qa | grep libbpf-devel | awk -F'-' '{print $3}' | awk -F'.' '{print $2}'`
+    if [ "$LIBBPF_MAJOR" -gt 0 ];then
+        ln -s bpftool_v6.8.0/bpftool_${ARCH} bpftool
+    elif [ "$LIBBPF_MINOR" -ge 8 ];then
+        ln -s bpftool_v6.8.0/bpftool_${ARCH} bpftool
+    else
+        ln -s bpftool_${ARCH} bpftool
+    fi
+}
+
+function __build_bpf()
+{
+	LINUX_VER="${VMLINUX_VER:-$(uname -r)}"
+	MATCH_VMLINUX=linux_${LINUX_VER}.h
+    cd ${VMLINUX_DIR}
+    if [ -f ${MATCH_VMLINUX} ];then
+        rm -f vmlinux.h
+        ln -s ${MATCH_VMLINUX} vmlinux.h
+        echo "debug: match vmlinux :" ${MATCH_VMLINUX}
+    elif [ -f "vmlinux.h" ];then
+        echo "debug: vmlinux.h is already here, continue compile."
+    else
+        echo "======================================ERROR==============================================="
+        echo "there no match vmlinux :" ${MATCH_VMLINUX}
+        echo "please create vmlinux.h manually."
+        echo "methods:"
+        echo "  1. generate linux_xxx.h by compile the kernel, refer to gen_vmlinux_h.sh;"
+        echo "  2. ln -s linux_xxx.h vmlinux.h, (there are some include files in directory src/include)"
+        echo "     if your kernel version is similar to the include files provided, you can use method 2"
+        echo "=========================================================================================="
+        exit
+    fi
+
+	__add_bpftool
+    cd ${PROBE_MNG_FOLDER}
+    make
+}
+
+function __rm_bpf()
+{
+    cd ${PROBE_MNG_FOLDER}
+    make clean
+}
+
 function prepare_probes()
 {
+	__build_bpf
     if [ ${PROBES} ]; then
         # check tailor env
         PROBES_PATH_LIST=$(echo "$PROBES_PATH_LIST" | grep -Ev "$PROBES")
@@ -149,6 +206,7 @@ function clean_env()
 
 function compile_extend_probes_clean()
 {
+	__rm_bpf
     # Search for build.sh in probe directory
     echo "==== Begin to clean extend probes ===="
     cd ${EXT_PROBE_FOLDER}
