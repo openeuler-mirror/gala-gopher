@@ -3,6 +3,7 @@ PROGRAM=$0
 PRJ_DIR=$(dirname $(readlink -f "$0"))
 INSTALL_FILES="jvm.probe/JvmProbe.jar"
 INSTALL_FILES+=" jvm.probe/JvmProbeAgent.jar"
+INSTALL_FILES+=" jsse.probe/JSSEProbeAgent.jar"
 
 while getopts ":b:c:" opt
 do

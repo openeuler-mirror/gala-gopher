@@ -1,8 +1,6 @@
 #!/bin/bash
 PROGRAM=$0
 PRJ_DIR=$(dirname $(readlink -f "$0"))
-BUILD_FILES=${PRJ_DIR}/jvm.probe
-cd ${BUILD_FILES}
 
 function find_cmd_jar()
 {
@@ -15,7 +13,7 @@ function find_cmd_jar()
     fi
 }
 
-function make_probe_agent_jar()
+function make_jvmprobe_agent_jar()
 {
     mkdir -p tmp
     cd tmp
@@ -27,7 +25,7 @@ function make_probe_agent_jar()
     return 0
 }
 
-function make_probe_jar()
+function make_jvmprobe_jar()
 {
     mkdir -p tmp
     cd tmp/
@@ -39,6 +37,42 @@ function make_probe_jar()
     return 0
 }
 
+function compile_jvmprobe()
+{
+    cd ${PRJ_DIR}/jvm.probe
+    echo "Compile jvmProbeAgent...."
+    make_jvmprobe_agent_jar
+    
+    echo "Compile jvmProbe...."
+    make_jvmprobe_jar
+
+    cd ${PRJ_DIR}
+    return 0
+}
+
+function make_jsseprobe_agent_jar()
+{
+    mkdir -p tmp
+    cd tmp
+    javac -XDignore.symbol.file=true ../src/*.java -d .
+    cd ..
+    jar cfm JSSEProbeAgent.jar config/META-INF/MANIFEST.MF -C tmp/ .
+
+    rm -rf tmp 2>/dev/null
+    return 0
+}
+
+function compile_jsseprobe()
+{
+    # ½ö°üº¬agent
+    cd ${PRJ_DIR}/jsse.probe
+    echo "Compile jsseProbeAgent...."
+    make_jsseprobe_agent_jar
+
+    cd ${PRJ_DIR}
+    return 0
+}
+
 function compile_clean()
 {
     rm -rf tmp 2>/dev/null
@@ -47,7 +81,7 @@ function compile_clean()
 if [ "$1" == "-c"  -o  "$1" == "--clean" ];
 then
     compile_clean
-    rm -f *.jar 2>/dev/null
+    find ${PRJ_DIR} -name "*.jar" -type f -delete 2>/dev/null
     exit
 fi
 
@@ -64,19 +98,8 @@ else
     then
         exit 1
     fi
-
-    make_probe_agent_jar
-    if [ $? -eq 1 ];
-    then
-        exit 1
-    fi
-
-    make_probe_jar
-    if [ $? -eq 1 ];
-    then
-        exit 1
-    fi
-
+    compile_jvmprobe
+    compile_jsseprobe
     compile_clean
     exit
 fi
