@@ -95,14 +95,6 @@ IMDB_Record *IMDB_RecordCreate(uint32_t capacity)
     }
     memset(record->metrics, 0, sizeof(IMDB_Metric *) * capacity);
 
-    record->podInfo = (PodInfo *)malloc(sizeof(PodInfo));
-    if (record->podInfo == NULL) {
-        free(record->metrics);
-        free(record);
-        return NULL;
-    }
-    memset(record->podInfo, 0, sizeof(PodInfo));
-
     record->metricsCapacity = capacity;
     return record;
 }
@@ -431,47 +423,6 @@ ERR:
     return -1;
 }
 
-static int MetricLabelIsTgid(IMDB_Metric *metric)
-{
-    const char *tgid = "tgid";
-    if (strcmp(metric->name, tgid) == 0) {
-        return 1;
-    }
-
-    return 0;
-}
-
-static int IMDB_RecordSetPodInfo(IMDB_Table *table, IMDB_Record *record)
-{
-    if (table->podInfoSwitch == POD_INFO_OFF) {
-        return 0;
-    }
-
-    unsigned int tgid = 0;
-    for (int i = 0; i < record->metricsNum; i++) {
-        if (MetricLabelIsTgid(record->metrics[i]) == 0) {
-            continue;
-        }
-            
-        if (sscanf(record->metrics[i]->val, "%d", &tgid) != 1) {
-            ERROR("[IMDB] (%s) convert to int failed\n", record->metrics[i]->val);
-            break;
-        }
-    }
-
-    if (tgid == 0) {
-        return -1;
-    }
-
-    struct proc_info *info = look_up_proc_info_by_tgid(&tgid_infos, tgid);
-    if (info != NULL) {
-        memcpy(record->podInfo->container_name, info->container_name, CONTAINER_NAME_LEN);
-        memcpy(record->podInfo->pod_name, info->pod_name, POD_NAME_LEN);
-    }
-    
-    return 0;
-}
-
 IMDB_Record* IMDB_DataBaseMgrCreateRec(IMDB_DataBaseMgr *mgr, IMDB_Table *table, char *content)
 {
     pthread_rwlock_wrlock(&mgr->rwlock);
@@ -489,13 +440,6 @@ IMDB_Record* IMDB_DataBaseMgrCreateRec(IMDB_DataBaseMgr *mgr, IMDB_Table *table,
         ERROR("[IMDB]Raw ingress data to rec failed(CREATEREC).\n");
         goto ERR;
     }
-
-    ret = IMDB_RecordSetPodInfo(table, record);
-    if (ret != 0) {
-        ERROR("[IMDB]record set pod info failed.\n");
-        goto ERR;
-    }
-
     ret = IMDB_TableAddRecord(table, record);
     if (ret != 0) {
         goto ERR;
@@ -667,6 +611,16 @@ static int MetricTypeIsLabel(IMDB_Metric *metric)
     return 0;
 }
 
+static int MetricNameIsTgid(IMDB_Metric *metric)
+{
+    const char *tgid = "tgid";
+    if (strcmp(metric->name, tgid) == 0) {
+        return 1;
+    }
+
+    return 0;
+}
+
 #if 1
 
 static int IMDB_BuildEntiyID(const IMDB_DataBaseMgr *mgr,
@@ -775,6 +729,8 @@ static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
     int ret;
     int size = maxLen;
     char first_flag = 1;
+    int idx = -1;
+    unsigned int tgid = 0;
 
     ret = __snprintf(&p, size, &size, "%s", "{");
     if (ret < 0) {
@@ -782,6 +738,10 @@ static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
     }
 
     for (int i = 0; i < record->metricsNum; i++) {
+        if (MetricNameIsTgid(record->metrics[i]) == 0) {
+            idx = i;
+        }
+
         if (MetricTypeIsLabel(record->metrics[i]) == 0) {
             continue;
         }
@@ -804,17 +764,25 @@ static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
         first_flag = 0;
     }
 
-    if (strlen(record->podInfo->container_name) > 0) {
-        ret = __snprintf(&p, size, &size, ",container_name=\"%s\"", record->podInfo->container_name);
-        if (ret < 0) {
+    if (table->podInfoSwitch == POD_INFO_ON && tgid_idx >= 0) {
+        if (sscanf(record->metrics[idx]->val, "%d", &tgid) != 1) {
+            ERROR("[IMDB] (%s) convert to int failed\n", record->metrics[i]->val);
             goto err;
         }
-    }
 
-    if (strlen(record->podInfo->pod_name) > 0) {
-        ret = __snprintf(&p, size, &size, ",pod_name=\"%s\"", record->podInfo->pod_name);
-        if (ret < 0) {
-            goto err;
+        struct proc_info *info = look_up_proc_info_by_tgid(&tgid_infos, tgid);
+        if (strlen(info->container_name) > 0) {
+            ret = __snprintf(&p, size, &size, ",container_name=\"%s\"", info->container_name);
+            if (ret < 0) {
+                goto err;
+            }
+        }
+
+        if (strlen(info->pod_name) > 0) {
+            ret = __snprintf(&p, size, &size, ",pod_name=\"%s\"", info->pod_name);
+            if (ret < 0) {
+                goto err;
+            }
         }
     }
 

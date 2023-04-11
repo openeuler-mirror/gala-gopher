@@ -54,10 +54,6 @@
 // MAX NUMS OF CACHE SIZE
 #define MAX_CACHE_SIZE  10000
 
-typedef struct {
-    char container_name[CONTAINER_NAME_LEN];
-    char pod_name[POD_NAME_LEN];
-} PodInfo;
 
 typedef struct {
     char systemUuid[MAX_IMDB_SYSTEM_UUID_LEN];
@@ -79,7 +75,6 @@ typedef struct {
     uint32_t metricsCapacity;       // Capability for metrics count in one record
     uint32_t metricsNum;
     IMDB_Metric **metrics;
-    PodInfo *podInfo;
     UT_hash_handle hh;
 } IMDB_Record;
 

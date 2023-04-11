@@ -21,7 +21,12 @@
 #define CONTAINER_POD_INFO_CMD "docker ps -q | xargs docker inspect --format "\
         " '{{.State.Pid}}%s{{.Id}}%s{{.Name}}%s{{.Config.Hostname}}' | /usr/bin/grep -w %u"
 
-#define DELIM ","
+#define DELIM        ","
+
+#define TOEKN0       0
+#define TOEKN1       1
+#define TOEKN2       2
+#define TOEKN3       3
 
 
 static int add_to_cache_with_LRU(struct tgid_info_hash_t **tgid_infos, unsigned int tgid, struct proc_info *info)
@@ -35,16 +40,15 @@ static int add_to_cache_with_LRU(struct tgid_info_hash_t **tgid_infos, unsigned 
     entry->tgid = tgid;
     (void)memcpy(&entry->info, info, sizeof(struct proc_info));
 
-    H_ADD_I(*tgid_infos, tgid, entry);
-    // prune the cache to MAX_CACHE_SIZE
-    if (HASH_COUNT(*tgid_infos) >= MAX_CACHE_SIZE) {
+    // delete all caches when exceeds the quota
+    if (HASH_COUNT(*tgid_infos) > MAX_CACHE_SIZE) {
         H_ITER(*tgid_infos, entry, tmp_entry) {
-            // prune the first entry (loop is based on 'insertion order' so this deletes the oldest item)
             H_DEL(*tgid_infos, entry);
             free(entry);
-            break;
         }
     }
+
+    H_ADD_I(*tgid_infos, tgid, entry);
 
     return 0;
 }
@@ -55,8 +59,6 @@ static int find_in_cache_with_LRU(struct tgid_info_hash_t **tgid_infos, unsigned
 
     H_FIND_I(*tgid_infos, &tgid, entry);
     if (entry) {
-        H_DEL(*tgid_infos, entry);
-        H_ADD_I(*tgid_infos, tgid, entry);
         memcpy(info, &entry->info, sizeof(struct proc_info));
         return 0;
     }
@@ -81,18 +83,18 @@ static int get_proc_info_by_tgid(unsigned int tgid, struct proc_info *info)
     token = strtok(line, DELIM);
     for (; i < 4 && token != NULL; i++) {
         switch (i) {
-            case 0:
+            case TOEKN0:
                 break;
-            case 1:
+            case TOEKN1:
                 (void)memcpy(info->container_id, token, CONTAINER_ID_LEN - 1);
                 break;
-            case 2:
+            case TOEKN2:
                 (void)memcpy(info->container_name, token, CONTAINER_NAME_LEN - 1);
                 break;
-            case 3:
+            case TOEKN3:
                 (void)memcpy(info->pod_name, token, POD_NAME_LEN - 1);
                 break;
-            
+
             default:
                 return -1;
         }
