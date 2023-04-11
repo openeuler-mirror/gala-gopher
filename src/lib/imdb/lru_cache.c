@@ -8,14 +8,14 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Author: 
- * Create: 
+ * Author: li-zhenxing
+ * Create: 2023-04-11
  * Description: 
  ******************************************************************************/
 
 #include <stdio.h>
 #include "common.h"
-#include "proc.h"
+#include "imdb.h"
 #include "hash.h"
 
 #define CONTAINER_POD_INFO_CMD "docker ps -q | xargs docker inspect --format "\
@@ -24,7 +24,7 @@
 #define DELIM ","
 
 
-int add_to_cache_with_LRU(struct tgid_info_hash_t **tgid_infos, unsigned int tgid, struct proc_info *info)
+static int add_to_cache_with_LRU(struct tgid_info_hash_t **tgid_infos, unsigned int tgid, struct proc_info *info)
 {
     struct tgid_info_hash_t *entry, *tmp_entry;
     entry = malloc(sizeof(struct tgid_info_hash_t));
@@ -49,13 +49,12 @@ int add_to_cache_with_LRU(struct tgid_info_hash_t **tgid_infos, unsigned int tgi
     return 0;
 }
 
-int find_in_cache_with_LRU(struct tgid_info_hash_t **tgid_infos, unsigned int tgid, struct proc_info *info)
+static int find_in_cache_with_LRU(struct tgid_info_hash_t **tgid_infos, unsigned int tgid, struct proc_info *info)
 {
     struct tgid_info_hash_t *entry;
 
     H_FIND_I(*tgid_infos, &tgid, entry);
-    if (entry)
-    {
+    if (entry) {
         H_DEL(*tgid_infos, entry);
         H_ADD_I(*tgid_infos, tgid, entry);
         memcpy(info, &entry->info, sizeof(struct proc_info));
@@ -65,7 +64,7 @@ int find_in_cache_with_LRU(struct tgid_info_hash_t **tgid_infos, unsigned int tg
     return -1;
 }
 
-int get_proc_info_by_tgid(unsigned int tgid, struct proc_info *info)
+static int get_proc_info_by_tgid(unsigned int tgid, struct proc_info *info)
 {
     char command[COMMAND_LEN] = {0};
     char line[LINE_BUF_LEN] = {0};
@@ -74,17 +73,14 @@ int get_proc_info_by_tgid(unsigned int tgid, struct proc_info *info)
     (void)snprintf(command, COMMAND_LEN, CONTAINER_POD_INFO_CMD, DELIM, DELIM, DELIM, tgid);
 
     int ret = exec_cmd((const char *)command, line, LINE_BUF_LEN);
-    if (ret < 0 || strlen(line) <= 0)
-    {
+    if (ret < 0 || strlen(line) <= 0) {
         return 0;
     }
 
     int i = 0;
     token = strtok(line, DELIM);
-    for (; i < 4 && token != NULL; i++)
-    {
-        switch (i)
-        {
+    for (; i < 4 && token != NULL; i++) {
+        switch (i) {
             case 0:
                 break;
             case 1:
@@ -103,8 +99,7 @@ int get_proc_info_by_tgid(unsigned int tgid, struct proc_info *info)
         token = strtok(NULL, DELIM);
     }
 
-    if (i != 4)
-    {
+    if (i != 4) {
         return -1;
     }
 
@@ -120,16 +115,11 @@ struct proc_info * look_up_proc_info_by_tgid(struct tgid_info_hash_t **tgid_info
 
     memset(info, 0, sizeof(struct proc_info));
     
-    if (find_in_cache_with_LRU(tgid_infos, tgid, info) >= 0)
-    {
+    if (find_in_cache_with_LRU(tgid_infos, tgid, info) >= 0) {
         return info;
-    }
-    else
-    {
-        if (get_proc_info_by_tgid(tgid, info) >= 0)
-        {
-            if (add_to_cache_with_LRU(tgid_infos, tgid, info) >= 0)
-            {
+    } else {
+        if (get_proc_info_by_tgid(tgid, info) >= 0) {
+            if (add_to_cache_with_LRU(tgid_infos, tgid, info) >= 0) {
                 return info;
             }
         }

@@ -51,7 +51,8 @@ SET(SOURCES main.c daemon.c
     ${PROBE_DIR}/extend_probe.c
     ${IMDB_DIR}/imdb.c
     ${IMDB_DIR}/metrics.c
-    
+    ${IMDB_DIR}/lru_cache.c
+
     ${CMD_DIR}/server.c
     ${COMMON_DIR}/kern_config.c
     ${COMMON_DIR}/args.c
@@ -64,7 +65,6 @@ SET(SOURCES main.c daemon.c
     ${COMMON_DIR}/whitelist_config.c
     ${COMMON_DIR}/event_config.c
     ${COMMON_DIR}/kern_symb.c
-    ${COMMON_DIR}/proc.c
 )
 
 SET(SOURCE_CMD ${CMD_DIR}/client.c)

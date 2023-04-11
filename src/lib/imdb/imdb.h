@@ -51,6 +51,9 @@
 // NUMS OF RECORD TO STRING EVERY PERIOD
 #define DEFAULT_PERIOD_RECORD_NUM       100
 
+// MAX NUMS OF CACHE SIZE
+#define MAX_CACHE_SIZE  10000
+
 typedef struct {
     char container_name[CONTAINER_NAME_LEN];
     char pod_name[POD_NAME_LEN];
@@ -104,6 +107,19 @@ typedef struct {
     pthread_t metrics_tid;
 } IMDB_DataBaseMgr;
 
+struct proc_info {
+    char container_id[CONTAINER_ID_LEN];
+    char container_name[CONTAINER_NAME_LEN];
+    char pod_name[POD_NAME_LEN];
+};
+
+struct tgid_info_hash_t
+{
+    unsigned int tgid;          // key
+    struct proc_info info;      // val
+    UT_hash_handle hh;
+};
+
 IMDB_Metric *IMDB_MetricCreate(char *name, char *description, char *type);
 int IMDB_MetricSetValue(IMDB_Metric *metric, char *val);
 void IMDB_MetricDestroy(IMDB_Metric *metric);
@@ -145,6 +161,8 @@ int IMDB_Rec2Json(IMDB_DataBaseMgr *mgr, IMDB_Table *table,
 void WriteMetricsLogsMain(IMDB_DataBaseMgr *mgr);
 int ReadMetricsLogs(char logs_file_name[]);
 void RemoveMetricsLogs(char logs_file_name[]);
+
+struct proc_info * look_up_proc_info_by_tgid(struct tgid_info_hash_t **tgid_infos, unsigned int tgid);
 
 #endif
 
