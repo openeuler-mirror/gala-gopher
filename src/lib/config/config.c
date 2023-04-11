@@ -551,9 +551,9 @@ static int ConfigMgrLoadOutConfig(void *config, config_setting_t *settings)
     ret = config_setting_lookup_string(settings, "pod_info_switch", &strVal);
     if (ret > 0) {
         if (strcmp(strVal, "on") == 0) {
-            outConfig->podInfo = POD_INFO_ON;
+            outConfig->podInfoSwitch = POD_INFO_ON;
         } else {
-            outConfig->podInfo = POD_INFO_OFF;
+            outConfig->podInfoSwitch = POD_INFO_OFF;
         }
     }
 

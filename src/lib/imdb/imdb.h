@@ -87,7 +87,6 @@ typedef struct {
     uint32_t recordsCapability;     // Capability for records count in one table
     uint32_t recordKeySize;
     IMDB_Record **records;
-    PodInfoSwitch podInfoSwitch;    // A switcher that controls whether pod infos is attached
 } IMDB_Table;
 
 typedef struct {
@@ -98,6 +97,7 @@ typedef struct {
     IMDB_NodeInfo nodeInfo;
     pthread_rwlock_t rwlock;
     uint32_t writeLogsOn;
+    PodInfoSwitch podInfoSwitch;    // A switcher that controls whether pod infos is attached
 
     pthread_t metrics_tid;
 } IMDB_DataBaseMgr;

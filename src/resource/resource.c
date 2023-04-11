@@ -383,7 +383,7 @@ static void KafkaMgrDeinit(ResourceMgr *resourceMgr)
     return;
 }
 
-static int IMDBMgrTableLoad(IMDB_Table *table, Measurement *mm, PodInfoSwitch podSwitch)
+static int IMDBMgrTableLoad(IMDB_Table *table, Measurement *mm)
 {
     int ret = 0;
     IMDB_Record *meta = IMDB_RecordCreate(mm->fieldsNum);
@@ -393,7 +393,6 @@ static int IMDBMgrTableLoad(IMDB_Table *table, Measurement *mm, PodInfoSwitch po
 
     IMDB_Metric *metric = NULL;
     uint32_t keyNum = 0;
-    int has_tgid = 0;
     for (int i = 0; i < mm->fieldsNum; i++) {
         metric = IMDB_MetricCreate(mm->fields[i].name, mm->fields[i].description, mm->fields[i].type);
         if (metric == NULL) {
@@ -403,10 +402,6 @@ static int IMDBMgrTableLoad(IMDB_Table *table, Measurement *mm, PodInfoSwitch po
         ret = IMDB_RecordAddMetric(meta, metric);
         if (ret != 0) {
             goto ERR;
-        }
-
-        if (has_tgid == 0 && strcmp(metric->name, "tgid") == 0) {
-            has_tgid = 1;
         }
 
         metric = NULL;
@@ -427,11 +422,6 @@ static int IMDBMgrTableLoad(IMDB_Table *table, Measurement *mm, PodInfoSwitch po
 
     IMDB_TableSetEntityName(table, mm->entity);
 
-    table->podInfoSwitch = POD_INFO_OFF;
-    if (podSwitch == POD_INFO_ON && has_tgid == 1) {
-        table->podInfoSwitch = podSwitch;
-    }
-
     return 0;
 ERR:
     IMDB_RecordDestroy(meta);
@@ -439,8 +429,7 @@ ERR:
     return -1;
 }
 
-static int IMDBMgrDatabaseLoad(IMDB_DataBaseMgr *imdbMgr, MeasurementMgr *mmMgr,
-                               uint32_t recordsCapability, PodInfoSwitch podSwitch)
+static int IMDBMgrDatabaseLoad(IMDB_DataBaseMgr *imdbMgr, MeasurementMgr *mmMgr, uint32_t recordsCapability)
 {
     int ret = 0;
 
@@ -450,7 +439,7 @@ static int IMDBMgrDatabaseLoad(IMDB_DataBaseMgr *imdbMgr, MeasurementMgr *mmMgr,
         if (table == NULL)
             return -1;
 
-        ret = IMDBMgrTableLoad(table, mmMgr->measurements[i], podSwitch);
+        ret = IMDBMgrTableLoad(table, mmMgr->measurements[i]);
         if (ret != 0)
             return -1;
 
@@ -475,12 +464,13 @@ static int IMDBMgrInit(ResourceMgr *resourceMgr)
 
     IMDB_DataBaseMgrSetRecordTimeout(configMgr->imdbConfig->recordTimeout);
 
-    ret = IMDBMgrDatabaseLoad(imdbMgr, resourceMgr->mmMgr, configMgr->imdbConfig->maxRecordsNum, configMgr->metricOutConfig->podInfo);
+    ret = IMDBMgrDatabaseLoad(imdbMgr, resourceMgr->mmMgr, configMgr->imdbConfig->maxRecordsNum);
     if (ret != 0) {
         IMDB_DataBaseMgrDestroy(imdbMgr);
         return -1;
     }
 
+    imdbMgr->podInfoSwitch = configMgr->metricOutConfig->podInfoSwitch;
     resourceMgr->imdbMgr = imdbMgr;
     return 0;
 }

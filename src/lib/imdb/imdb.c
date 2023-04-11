@@ -738,7 +738,7 @@ static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
     }
 
     for (int i = 0; i < record->metricsNum; i++) {
-        if (MetricNameIsTgid(record->metrics[i]) == 0) {
+        if (MetricNameIsTgid(record->metrics[i]) == 1) {
             idx = i;
         }
 
@@ -764,9 +764,9 @@ static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
         first_flag = 0;
     }
 
-    if (table->podInfoSwitch == POD_INFO_ON && tgid_idx >= 0) {
+    if (mgr->podInfoSwitch == POD_INFO_ON && idx >= 0) {
         if (sscanf(record->metrics[idx]->val, "%d", &tgid) != 1) {
-            ERROR("[IMDB] (%s) convert to int failed\n", record->metrics[i]->val);
+            ERROR("[IMDB] (%s) convert to int failed\n", record->metrics[idx]->val);
             goto err;
         }
 
