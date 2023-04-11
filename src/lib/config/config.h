@@ -101,6 +101,7 @@ typedef struct {
     char kafka_topic[MAX_KAFKA_TOPIC_LEN];
     uint32_t timeout;
     char lang_type[MAX_LANGUAGE_TYPE_LEN];
+    PodInfoSwitch podInfo; 
 } OutConfig;
 
 typedef struct {

@@ -52,6 +52,11 @@
 #define DEFAULT_PERIOD_RECORD_NUM       100
 
 typedef struct {
+    char container_name[CONTAINER_NAME_LEN];
+    char pod_name[POD_NAME_LEN];
+} PodInfo;
+
+typedef struct {
     char systemUuid[MAX_IMDB_SYSTEM_UUID_LEN];
     char hostName[MAX_IMDB_HOSTNAME_LEN];
 } IMDB_NodeInfo;
@@ -71,6 +76,7 @@ typedef struct {
     uint32_t metricsCapacity;       // Capability for metrics count in one record
     uint32_t metricsNum;
     IMDB_Metric **metrics;
+    PodInfo *podInfo;
     UT_hash_handle hh;
 } IMDB_Record;
 
@@ -83,6 +89,7 @@ typedef struct {
     uint32_t recordsCapability;     // Capability for records count in one table
     uint32_t recordKeySize;
     IMDB_Record **records;
+    PodInfoSwitch podInfoSwitch;    // A switcher that controls whether pod infos is attached
 } IMDB_Table;
 
 typedef struct {

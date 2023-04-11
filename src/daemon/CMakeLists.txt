@@ -64,6 +64,7 @@ SET(SOURCES main.c daemon.c
     ${COMMON_DIR}/whitelist_config.c
     ${COMMON_DIR}/event_config.c
     ${COMMON_DIR}/kern_symb.c
+    ${COMMON_DIR}/proc.c
 )
 
 SET(SOURCE_CMD ${CMD_DIR}/client.c)
