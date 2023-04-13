@@ -240,7 +240,7 @@ static int __check_proc_to_attach(int proc_obj_map_fd)
         }
         
     }
-    return ret;
+    return 0;
 }
 
 static void __set_pids_inactive()
