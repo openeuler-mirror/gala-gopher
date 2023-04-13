@@ -22,7 +22,7 @@
 #include "imdb.h"
 
 static uint32_t g_recordTimeout = 60;       // default timeout: 60 seconds
-struct tgid_info_hash_t *tgid_infos = NULL;  // LRU cache of process tgid hash table
+TgidProcInfo_Table *tgid_infos = NULL;  // LRU cache of process tgid hash table
 
 IMDB_Metric *IMDB_MetricCreate(char *name, char *description, char *type)
 {
@@ -729,8 +729,7 @@ static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
     int ret;
     int size = maxLen;
     char first_flag = 1;
-    int idx = -1;
-    unsigned int tgid = 0;
+    int tgid_idx = -1;
 
     ret = __snprintf(&p, size, &size, "%s", "{");
     if (ret < 0) {
@@ -739,7 +738,7 @@ static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
 
     for (int i = 0; i < record->metricsNum; i++) {
         if (MetricNameIsTgid(record->metrics[i]) == 1) {
-            idx = i;
+            tgid_idx = i;
         }
 
         if (MetricTypeIsLabel(record->metrics[i]) == 0) {
@@ -764,13 +763,8 @@ static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
         first_flag = 0;
     }
 
-    if (mgr->podInfoSwitch == POD_INFO_ON && idx >= 0) {
-        if (sscanf(record->metrics[idx]->val, "%d", &tgid) != 1) {
-            ERROR("[IMDB] (%s) convert to int failed\n", record->metrics[idx]->val);
-            goto err;
-        }
-
-        struct proc_info *info = look_up_proc_info_by_tgid(&tgid_infos, tgid);
+    if (mgr->podInfoSwitch == POD_INFO_ON && tgid_idx >= 0) {
+        ProcInfo *info = look_up_proc_info_by_tgid(&tgid_infos, record->metrics[tgid_idx]->val);
         if (strlen(info->container_name) > 0) {
             ret = __snprintf(&p, size, &size, ",container_name=\"%s\"", info->container_name);
             if (ret < 0) {

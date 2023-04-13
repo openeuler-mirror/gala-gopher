@@ -19,7 +19,7 @@
 #include "hash.h"
 
 #define CONTAINER_POD_INFO_CMD "docker ps -q | xargs docker inspect --format "\
-        " '{{.State.Pid}}%s{{.Id}}%s{{.Name}}%s{{.Config.Hostname}}' | /usr/bin/grep -w %u"
+        " '{{.State.Pid}}%s{{.Id}}%s{{.Name}}%s{{.Config.Hostname}}' | /usr/bin/grep -w %s"
 
 #define DELIM        ","
 
@@ -29,44 +29,46 @@
 #define TOEKN3       3
 
 
-static int add_to_cache_with_LRU(struct tgid_info_hash_t **tgid_infos, unsigned int tgid, struct proc_info *info)
+static int add_to_cache_with_LRU(TgidProcInfo_Table **tgid_infos, char *tgid, ProcInfo *info)
 {
-    struct tgid_info_hash_t *entry, *tmp_entry;
-    entry = malloc(sizeof(struct tgid_info_hash_t));
+    TgidProcInfo_Table *entry;
+    entry = malloc(sizeof(TgidProcInfo_Table));
     if (entry == NULL) {
         return -1;
     }
-    memset(entry, 0, sizeof(struct tgid_info_hash_t));
-    entry->tgid = tgid;
-    (void)memcpy(&entry->info, info, sizeof(struct proc_info));
+
+    memset(entry, 0, sizeof(TgidProcInfo_Table));
+    memcpy(entry->tgid, tgid, strlen(tgid));
+    memcpy(&entry->info, info, sizeof(ProcInfo));
 
     // delete all caches when exceeds the quota
     if (HASH_COUNT(*tgid_infos) > MAX_CACHE_SIZE) {
-        H_ITER(*tgid_infos, entry, tmp_entry) {
-            H_DEL(*tgid_infos, entry);
-            free(entry);
+        TgidProcInfo_Table *current_entry, *tmp_entry;
+        H_ITER(*tgid_infos, current_entry, tmp_entry) {
+            H_DEL(*tgid_infos, current_entry);
+            free(current_entry);
         }
     }
 
-    H_ADD_I(*tgid_infos, tgid, entry);
+    H_ADD_S(*tgid_infos, tgid, entry);
 
     return 0;
 }
 
-static int find_in_cache_with_LRU(struct tgid_info_hash_t **tgid_infos, unsigned int tgid, struct proc_info *info)
+static int find_in_cache_with_LRU(TgidProcInfo_Table **tgid_infos, char *tgid, ProcInfo *info)
 {
-    struct tgid_info_hash_t *entry;
+    TgidProcInfo_Table *entry;
 
-    H_FIND_I(*tgid_infos, &tgid, entry);
+    H_FIND_S(*tgid_infos, tgid, entry);
     if (entry) {
-        memcpy(info, &entry->info, sizeof(struct proc_info));
+        memcpy(info, &entry->info, sizeof(ProcInfo));
         return 0;
     }
 
     return -1;
 }
 
-static int get_proc_info_by_tgid(unsigned int tgid, struct proc_info *info)
+static int get_proc_info_by_tgid(char *tgid, ProcInfo *info)
 {
     char command[COMMAND_LEN] = {0};
     char line[LINE_BUF_LEN] = {0};
@@ -108,15 +110,15 @@ static int get_proc_info_by_tgid(unsigned int tgid, struct proc_info *info)
     return 0;
 }
 
-struct proc_info * look_up_proc_info_by_tgid(struct tgid_info_hash_t **tgid_infos, unsigned int tgid)
+ProcInfo * look_up_proc_info_by_tgid(TgidProcInfo_Table **tgid_infos, char *tgid)
 {
-    struct proc_info *info = (struct proc_info *)malloc(sizeof(struct proc_info));
+    ProcInfo *info = (ProcInfo *)malloc(sizeof(ProcInfo));
     if (info == NULL) {
         return NULL;
     }
 
-    memset(info, 0, sizeof(struct proc_info));
-    
+    memset(info, 0, sizeof(ProcInfo));
+
     if (find_in_cache_with_LRU(tgid_infos, tgid, info) >= 0) {
         return info;
     } else {
