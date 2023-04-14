@@ -26,6 +26,7 @@ SET(PROBE_DIR       ${SRC_DIR}/lib/probe)
 SET(IMDB_DIR        ${SRC_DIR}/lib/imdb)
 SET(CMD_DIR         ${SRC_DIR}/cmd)
 SET(COMMON_DIR      ${SRC_DIR}/common)
+SET(RESTAPI_DIR     ${SRC_DIR}/api)
 
 SET(LIBRDKAFKA_DIR /usr/include/librdkafka)
 SET(LIBELF_DIR /usr/include/libelf)
@@ -50,9 +51,10 @@ SET(SOURCES main.c daemon.c
 
     ${PROBE_DIR}/probe.c
     ${PROBE_DIR}/extend_probe.c
+    ${PROBE_DIR}/probe_mng.c
     ${IMDB_DIR}/imdb.c
     ${IMDB_DIR}/metrics.c
-    
+
     ${CMD_DIR}/server.c
     ${COMMON_DIR}/kern_config.c
     ${COMMON_DIR}/args.c
@@ -65,6 +67,8 @@ SET(SOURCES main.c daemon.c
     ${COMMON_DIR}/whitelist_config.c
     ${COMMON_DIR}/event_config.c
     ${COMMON_DIR}/kern_symb.c
+
+    ${RESTAPI_DIR}/rest_server.c
 )
 
 SET(SOURCE_CMD ${CMD_DIR}/client.c)
@@ -88,6 +92,7 @@ TARGET_INCLUDE_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE
     ${EGRESS_DIR}
     ${INGRESS_DIR}
     ${WEB_SERVER_DIR}
+    ${RESTAPI_DIR}
 
     ${FIFO_DIR}
     ${META_DIR}
@@ -102,4 +107,4 @@ TARGET_INCLUDE_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE
     ${COMMON_DIR}
 )
 
-TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE config pthread rt dl bpf rdkafka microhttpd elf log4cplus)
+TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE config pthread rt dl bpf rdkafka microhttpd elf log4cplus gnutls)

@@ -42,6 +42,8 @@ static int EgressMgrInit(ResourceMgr *resourceMgr);
 static void EgressMgrDeinit(ResourceMgr *resourceMgr);
 static int WebServerInit(ResourceMgr *resourceMgr);
 static void WebServerDeinit(ResourceMgr *resourceMgr);
+static int RestServerInit(ResourceMgr *resourceMgr);
+static void RestServerDeinit(ResourceMgr *resourceMgr);
 static int LogsMgrInit(ResourceMgr *resourceMgr);
 static void LogsMgrDeinit(ResourceMgr *resourceMgr);
 static int EventMgrInit(ResourceMgr *resourceMgr);
@@ -66,6 +68,7 @@ SubModuleInitor gSubModuleInitorTbl[] = {
     { EgressMgrInit,        EgressMgrDeinit },      // egress must precede ingress
     { IngressMgrInit,       IngressMgrDeinit },
     { WebServerInit,        WebServerDeinit },
+    { RestServerInit,       RestServerDeinit },
     { LogsMgrInit,          LogsMgrDeinit },
     { EventMgrInit,         EventMgrDeinit }
 };
@@ -267,7 +270,7 @@ static int MeasurementMgrInit(ResourceMgr *resourceMgr)
     int ret = 0;
     MeasurementMgr *mmMgr = NULL;
 
-    mmMgr = MeasurementMgrCreate(resourceMgr->configMgr->imdbConfig->maxTablesNum, 
+    mmMgr = MeasurementMgrCreate(resourceMgr->configMgr->imdbConfig->maxTablesNum,
                                     resourceMgr->configMgr->imdbConfig->maxMetricsNum);
     if (mmMgr == NULL) {
         ERROR("[RESOURCE] create mmMgr failed.\n");
@@ -564,6 +567,41 @@ static void WebServerDeinit(ResourceMgr *resourceMgr)
     WebServerDestroy(resourceMgr->webServer);
     resourceMgr->webServer = NULL;
     return;
+}
+
+static int RestServerInit(ResourceMgr *resourceMgr)
+{
+    int ret = 0;
+    ConfigMgr *configMgr = resourceMgr->configMgr;
+    RestServer *restServer = NULL;
+
+    restServer = (RestServer *)malloc(sizeof(RestServer));
+    if (restServer == NULL) {
+        ERROR("[RESOURCE] create restServer failed.\n");
+        return -1;
+    }
+    memset(restServer, 0, sizeof(RestServer));
+
+    restServer->port = configMgr->restServerConfig->port;
+    restServer->sslAuth = configMgr->restServerConfig->sslAuth;
+    if (restServer->sslAuth) {
+        ret = RestServerSslInit(configMgr->restServerConfig->privateKey,
+                                configMgr->restServerConfig->certFile,
+                                configMgr->restServerConfig->caFile);
+        if (ret < 0) {
+            RestServerDestroy(restServer);
+            return ret;
+        }
+    }
+
+    resourceMgr->restServer = restServer;
+    return 0;
+}
+
+static void RestServerDeinit(ResourceMgr *resourceMgr)
+{
+    RestServerDestroy(resourceMgr->restServer);
+    resourceMgr->restServer = NULL;
 }
 
 static int LogsMgrInit(ResourceMgr *resourceMgr)
