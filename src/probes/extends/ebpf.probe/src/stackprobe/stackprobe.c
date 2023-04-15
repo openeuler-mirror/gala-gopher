@@ -51,9 +51,6 @@
 #include "stackprobe.h"
 #include "java_support.h"
 
-#define JAVA_SYM_AGENT_FILE "jvm_agent.so"
-#define JAVA_SYM_FILE  		"java-symbols.bin"
-
 #define ON_CPU_PROG    "/opt/gala-gopher/extend_probes/stack_bpf/oncpu.bpf.o"
 #define OFF_CPU_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/offcpu.bpf.o"
 #define IO_PROG        "/opt/gala-gopher/extend_probes/stack_bpf/io.bpf.o"
@@ -1563,10 +1560,12 @@ static void init_java_support_proc(StackprobeConfig *conf)
 {
     int err;
     pthread_t attach_thd;
-	struct java_attach_args args = {0};
-    
-	args.proc_obj_map_fd = conf->generalConfig->whitelistEnable ? g_st->proc_obj_map_fd : 0;
-	(void)snprintf(args.agent_file_name, FILENAME_LEN, JAVA_SYM_AGENT_FILE);
+    struct java_attach_args args = {0};
+
+    args.proc_obj_map_fd = conf->generalConfig->whitelistEnable ? g_st->proc_obj_map_fd : 0;
+    args.loop_period = DEFAULT_PERIOD;
+    args.is_only_attach_once = 1;
+    (void)snprintf(args.agent_file_name, FILENAME_LEN, JAVA_SYM_AGENT_FILE);
     (void)snprintf(args.tmp_file_name, FILENAME_LEN, JAVA_SYM_FILE);
 
     err = pthread_create(&attach_thd, NULL, java_support, (void *)&args);

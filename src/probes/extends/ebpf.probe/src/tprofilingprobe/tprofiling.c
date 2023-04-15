@@ -257,8 +257,15 @@ static void init_java_symb_mgmt(int proc_filter_map_fd)
 {
     int ret;
     pthread_t thd;
+    struct java_attach_args args = {0};
 
-    ret = pthread_create(&thd, NULL, java_support, (void *)&proc_filter_map_fd);
+    args.proc_obj_map_fd = proc_filter_map_fd;
+    args.is_only_attach_once = 1;
+    args.loop_period = DEFAULT_PERIOD;
+    (void)snprintf(args.agent_file_name, FILENAME_LEN, JAVA_SYM_AGENT_FILE);
+    (void)snprintf(args.tmp_file_name, FILENAME_LEN, JAVA_SYM_FILE);
+
+    ret = pthread_create(&thd, NULL, java_support, (void *)&args);
     if (ret) {
         fprintf(stderr, "ERROR: Failed to create java support thread.\n");
         return;

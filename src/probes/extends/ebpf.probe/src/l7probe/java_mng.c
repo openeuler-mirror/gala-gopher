@@ -15,11 +15,8 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
-#include <errno.h>
 #include <pthread.h>
-#include <dirent.h>
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <sys/file.h>
 #include "args.h"
 #include "common.h"
@@ -41,69 +38,15 @@ typedef struct {
     LoadFunc func;
 } JavaProc;
 
-int proc_obj_map_fd;
-
-static int __jsse_read_metric_file(struct probe_params *args)
-{
-    struct stat st = {0};
-    if (stat("/tmp", &st) < 0) {
-        ERROR("[L7PROBE]: java_mng stat /tmp failed.\n");
-        return -1;
-    }
-
-    DIR *dir = opendir("/tmp");
-    if (dir == NULL) {
-        ERROR("[L7PROBE]: java_mng opendir /tmp failed.\n");
-        return -1;
-    }
-
-    struct dirent *entry;
-    while (entry = readdir(dir)) {
-        if (strstr(entry->d_name, "java-data-") == NULL) {
-            continue;
-        }
-        int pid = atoi(entry->d_name + strlen("java-data-"));
-        char tmp_file_path[PATH_LEN];
-        tmp_file_path[0] = 0;
-        (void)get_host_java_tmp_file(pid, JSSE_TMP_FILE, tmp_file_path, PATH_LEN);
-
-        int fd = open(tmp_file_path, O_RDWR);
-        if (fd < 0) {
-            DEBUG("[L7PROBE]: java_mng open tmp file: %s failed.\n", tmp_file_path);
-            continue;
-        }
-        if (lockf(fd, F_LOCK, 0) != 0) {
-            DEBUG("[L7PROBE]: java_mng lockf failed.\n");
-            continue;
-        }
-        FILE *fp = fdopen(fd, "r");
-        if (fp == NULL) {
-            DEBUG("[L7PROBE]: java_mng fopen tmp file: %s failed.\n", tmp_file_path);
-            continue;
-        }
-        char line[LINE_BUF_LEN];
-        line[0] = 0;
-        while (fgets(line, LINE_BUF_LEN, fp)) {
-            (void)fprintf(stdout, "%s", line);
-            line[0] = 0;
-        }
-        (void)fflush(stdout);
-        (void)ftruncate(fd, 0);
-        (void)fclose(fp);
-    }
-
-    return 0;
-}
+static struct probe_params params = {.period = DEFAULT_PERIOD};
 
 static void* l7_jsse_msg_handler(void *args)
 {
-    struct probe_params *msg_args = (struct probe_params *)args;
+    struct java_attach_args *attach_args = (struct java_attach_args *)args;
 
     while (1) {
-        if (__jsse_read_metric_file(msg_args) < 0) {
-            break;
-        }
-        sleep(msg_args->period);
+        java_msg_handler(attach_args);
+        sleep(attach_args->loop_period);
     }
     return NULL;
 }
@@ -114,7 +57,9 @@ static int l7_load_probe_jsse(struct probe_params *args)
     pthread_t attach_thd, msg_hd_thd;
     struct java_attach_args attach_args = {0};
 
-    attach_args.proc_obj_map_fd = proc_obj_map_fd;
+    attach_args.proc_obj_map_fd = obj_get_proc_obj_map_fd();
+    attach_args.loop_period = DEFAULT_PERIOD;
+    attach_args.is_only_attach_once = 1;
     (void)snprintf(attach_args.agent_file_name, FILENAME_LEN, JSSE_AGENT_FILE);
     (void)snprintf(attach_args.tmp_file_name, FILENAME_LEN, JSSE_TMP_FILE);
 
@@ -125,7 +70,7 @@ static int l7_load_probe_jsse(struct probe_params *args)
     }
     (void)pthread_detach(attach_thd);
 
-    err = pthread_create(&msg_hd_thd, NULL, l7_jsse_msg_handler, (void *)args);
+    err = pthread_create(&msg_hd_thd, NULL, l7_jsse_msg_handler, (void *)&attach_args);
     if (err != 0) {
         ERROR("L7PROBE]: Failed to create jsse msg handler thread.\n");
         return -1;
@@ -144,7 +89,9 @@ static char is_load_probe(struct probe_params *args)
 
 int init_java_progs(struct probe_params *args)
 {
-    proc_obj_map_fd = obj_get_proc_obj_map_fd();
+    if (args != NULL) {
+        params.period = args->period;
+    }
 
     static JavaProc java_procs[] = {
         { JAVA_INDEX_JSSE,  l7_load_probe_jsse },

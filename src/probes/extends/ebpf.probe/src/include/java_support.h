@@ -19,8 +19,14 @@
 
 #define FILENAME_LEN    128
 
+#define JAVA_SYM_AGENT_FILE     "jvm_agent.so"
+#define JAVA_SYM_FILE           "java-symbols.bin"
+
 struct java_attach_args {
     int proc_obj_map_fd;
+    int loop_period;
+    int is_only_attach_once;    // 1 - attach only once, eg: jvmtiagent
+                                // 0 - attach every loop, eg: jsseprobeagent
     char agent_file_name[FILENAME_LEN];
     char tmp_file_name[FILENAME_LEN];
 };
