@@ -22,6 +22,7 @@
 #include "imdb.h"
 
 static uint32_t g_recordTimeout = 60;       // default timeout: 60 seconds
+TgidProcInfo_Table *tgid_infos = NULL;  // LRU cache of process tgid hash table
 
 IMDB_Metric *IMDB_MetricCreate(char *name, char *description, char *type)
 {
@@ -610,6 +611,16 @@ static int MetricTypeIsLabel(IMDB_Metric *metric)
     return 0;
 }
 
+static int MetricNameIsTgid(IMDB_Metric *metric)
+{
+    const char *tgid = "tgid";
+    if (strcmp(metric->name, tgid) == 0) {
+        return 1;
+    }
+
+    return 0;
+}
+
 #if 1
 
 static int IMDB_BuildEntiyID(const IMDB_DataBaseMgr *mgr,
@@ -718,6 +729,7 @@ static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
     int ret;
     int size = maxLen;
     char first_flag = 1;
+    int tgid_idx = -1;
 
     ret = __snprintf(&p, size, &size, "%s", "{");
     if (ret < 0) {
@@ -725,6 +737,10 @@ static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
     }
 
     for (int i = 0; i < record->metricsNum; i++) {
+        if (MetricNameIsTgid(record->metrics[i]) == 1) {
+            tgid_idx = i;
+        }
+
         if (MetricTypeIsLabel(record->metrics[i]) == 0) {
             continue;
         }
@@ -745,6 +761,23 @@ static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
             goto err;
         }
         first_flag = 0;
+    }
+
+    if (mgr->podInfoSwitch == POD_INFO_ON && tgid_idx >= 0) {
+        ProcInfo *info = look_up_proc_info_by_tgid(&tgid_infos, record->metrics[tgid_idx]->val);
+        if (strlen(info->container_name) > 0) {
+            ret = __snprintf(&p, size, &size, ",container_name=\"%s\"", info->container_name);
+            if (ret < 0) {
+                goto err;
+            }
+        }
+
+        if (strlen(info->pod_name) > 0) {
+            ret = __snprintf(&p, size, &size, ",pod_name=\"%s\"", info->pod_name);
+            if (ret < 0) {
+                goto err;
+            }
+        }
     }
 
     // append machine_id

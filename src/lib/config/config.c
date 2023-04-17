@@ -548,6 +548,15 @@ static int ConfigMgrLoadOutConfig(void *config, config_setting_t *settings)
         (void)strncpy(outConfig->lang_type, strVal, MAX_LANGUAGE_TYPE_LEN - 1);
     }
 
+    ret = config_setting_lookup_string(settings, "pod_info_switch", &strVal);
+    if (ret > 0) {
+        if (strcmp(strVal, "on") == 0) {
+            outConfig->podInfoSwitch = POD_INFO_ON;
+        } else {
+            outConfig->podInfoSwitch = POD_INFO_OFF;
+        }
+    }
+
     return 0;
 }
 
