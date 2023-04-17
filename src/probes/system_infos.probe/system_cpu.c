@@ -119,7 +119,6 @@ static int get_proc_stat_info(void)
     if (f == NULL) {
         return -1;
     }
-    first_line[0] = 0;
     while (!feof(f)) {
         dst_line[0] = 0;
         line[0] = 0;
@@ -127,8 +126,8 @@ static int get_proc_stat_info(void)
             fclose(f);
             return 0;
         }
+        strncpy(dst_line, line, strlen(line) + 1);
         if (is_first_line) {
-            strncpy(first_line, line, strlen(line) + 1);
             get_cpu_time(dst_line, &last_time_total, &last_time_used,
                          &cur_time_total, &cur_time_used);
             is_first_line = false;
