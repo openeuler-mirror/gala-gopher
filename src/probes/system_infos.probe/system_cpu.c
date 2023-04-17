@@ -95,14 +95,14 @@ static void report_cpu_status(struct probe_params *params)
     }
 }
 
-static void get_cpu_time(char *src)
+static void get_cpu_time(char *src, u64 *last_total, u64 *last_used, u64 *cur_total, u64 *cur_used)
 {
     if (is_first_get == true) {
-        get_cpu_time_in_jiff(src, &cur_time_total, &cur_time_used);
+        get_cpu_time_in_jiff(src, cur_total, cur_used);
     } else {
-        last_time_total = cur_time_total;
-        last_time_used = cur_time_used;
-        get_cpu_time_in_jiff(src, &cur_time_total, &cur_time_used);
+        *last_total = *cur_total;
+        *last_used = *cur_used;
+        get_cpu_time_in_jiff(src, cur_total, cur_used);
     }
 }
 
@@ -110,7 +110,7 @@ static int get_proc_stat_info(void)
 {
     FILE *f = NULL;
     char line[LINE_BUF_LEN];
-    char first_line[LINE_BUF_LEN];
+    char dst_line[LINE_BUF_LEN];
     int ret;
     int index = 0;
     bool is_first_line = true;
@@ -121,6 +121,7 @@ static int get_proc_stat_info(void)
     }
     first_line[0] = 0;
     while (!feof(f)) {
+        dst_line[0] = 0;
         line[0] = 0;
         if (fgets(line, LINE_BUF_LEN, f) == NULL) {
             fclose(f);
@@ -128,21 +129,31 @@ static int get_proc_stat_info(void)
         }
         if (is_first_line) {
             strncpy(first_line, line, strlen(line) + 1);
-            get_cpu_time(first_line);
+            get_cpu_time(dst_line, &last_time_total, &last_time_used,
+                         &cur_time_total, &cur_time_used);
             is_first_line = false;
             continue;
         }
         if (strstr(line, "cpu") == NULL) {
             continue;
         }
+        get_cpu_time(dst_line, &old_cpus[index]->cpu_time_total,
+                     &old_cpus[index]->cpu_time_used,
+                     &cur_cpus[index]->cpu_time_total,
+                     &cur_cpus[index]->cpu_time_used)
+        cur_cpus[index]->cpu_util_per = (cur_cpus[index]->cpu_time_used - old_cpus[index]->cpu_time_used) * \
+                                         FULL_PER * 1.0 / \
+                                         (cur_cpus[index]->cpu_time_total - old_cpus[index]->cpu_time_total);
         ret = sscanf(line,
-            "%*s %llu %llu %llu %*llu %llu %llu %llu %*llu %*llu %*llu",
+            "%*s %llu %llu %llu %llu %llu %llu %llu %llu %*llu %*llu",
             &cur_cpus[index]->cpu_user_total_second,
             &cur_cpus[index]->cpu_nice_total_second,
             &cur_cpus[index]->cpu_system_total_second,
+            &cur_cpus[index]->cpu_idle_total_second,
             &cur_cpus[index]->cpu_iowait_total_second,
             &cur_cpus[index]->cpu_irq_total_second,
-            &cur_cpus[index]->cpu_softirq_total_second);
+            &cur_cpus[index]->cpu_softirq_total_second,
+            &cur_cpus[index]->cpu_steal_total_second);
         if (ret < PROC_STAT_FILEDS_NUM) {
             DEBUG("system_cpu.probe faild get proc_stat metrics.\n");
         }
@@ -332,7 +343,7 @@ int system_cpu_probe(struct probe_params *params)
     util_per = (cur_time_used - last_time_used) * FULL_PER * 1.0 / (cur_time_total - last_time_total);
     report_cpu_status(params);
     for (size_t i = 0; i < cpus_num; i++) {
-        ret = nprobe_fprintf(stdout, "|%s|%d|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|\n",
+        ret = nprobe_fprintf(stdout, "|%s|%d|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|\n",
             METRICS_CPU_NAME,
             cur_cpus[i]->cpu_num,
             cur_cpus[i]->rcu - old_cpus[i]->rcu,
@@ -345,14 +356,19 @@ int system_cpu_probe(struct probe_params *params)
                 jiffies_to_msecs(cur_cpus[i]->cpu_nice_total_second - old_cpus[i]->cpu_nice_total_second) : 0,
             (cur_cpus[i]->cpu_system_total_second > old_cpus[i]->cpu_system_total_second) ?
                 jiffies_to_msecs(cur_cpus[i]->cpu_system_total_second - old_cpus[i]->cpu_system_total_second) : 0,
+            (cur_cpus[i]->cpu_idle_total_second > old_cpus[i]->cpu_idle_total_second) ?
+                jiffies_to_msecs(cur_cpus[i]->cpu_idle_total_second - old_cpus[i]->cpu_idle_total_second) : 0,
             (cur_cpus[i]->cpu_iowait_total_second > old_cpus[i]->cpu_iowait_total_second) ?
                 jiffies_to_msecs(cur_cpus[i]->cpu_iowait_total_second - old_cpus[i]->cpu_iowait_total_second) : 0,
             (cur_cpus[i]->cpu_irq_total_second > old_cpus[i]->cpu_irq_total_second) ?
                 jiffies_to_msecs(cur_cpus[i]->cpu_irq_total_second - old_cpus[i]->cpu_irq_total_second) : 0,
             (cur_cpus[i]->cpu_softirq_total_second > old_cpus[i]->cpu_softirq_total_second) ?
                 jiffies_to_msecs(cur_cpus[i]->cpu_softirq_total_second - old_cpus[i]->cpu_softirq_total_second) : 0,
+            (cur_cpus[i]->cpu_steal_total_second > old_cpus[i]->cpu_steal_total_second) ?
+                jiffies_to_msecs(cur_cpus[i]->cpu_steal_total_second - old_cpus[i]->cpu_steal_total_second) : 0,
             cur_cpus[i]->backlog_drops - old_cpus[i]->backlog_drops,
-            cur_cpus[i]->rps_count - old_cpus[i]->rps_count);
+            cur_cpus[i]->rps_count - old_cpus[i]->rps_count,
+            cur_cpus[i]->cpu_util_per);
         tmp_ptr = old_cpus[i];
         old_cpus[i] = cur_cpus[i];
         cur_cpus[i] = tmp_ptr;

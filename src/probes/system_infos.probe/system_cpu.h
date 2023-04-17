@@ -29,9 +29,14 @@ struct cpu_stat {
     u64 cpu_user_total_second;
     u64 cpu_nice_total_second;
     u64 cpu_system_total_second;
+    u64 cpu_idle_total_second;
     u64 cpu_iowait_total_second;
     u64 cpu_irq_total_second;
     u64 cpu_softirq_total_second;
+    u64 cpu_steal_total_second;
+    u64 cpu_time_used;
+    u64 cpu_time_total;
+    float cpu_util_per;
     u64 backlog_drops;
     u64 rps_count;
 };
