@@ -17,6 +17,7 @@
 
 #include <uthash.h>
 
+#define MAX_CACHE_FD_NUM 1024
 #define MAX_PATH_SIZE 128
 #define MAX_NET_CONN_INFO_SIZE 128
 
@@ -75,6 +76,12 @@ void HASH_del_fd_info(fd_info_t **fd_table, fd_info_t *fd_info);
 fd_info_t *HASH_find_fd_info(fd_info_t **fd_table, int fd);
 unsigned int HASH_count_fd_table(fd_info_t **fd_table);
 
+void HASH_add_fd_info_with_LRU(fd_info_t **fd_table, fd_info_t *fd_info);
+fd_info_t *HASH_find_fd_info_with_LRU(fd_info_t **fd_table, int fd);
+
 int fill_fd_info(fd_info_t *fd_info, int tgid);
+
+void free_fd_info(fd_info_t *fd_info);
+void free_fd_table(fd_info_t **fd_table);
 
 #endif

@@ -15,9 +15,11 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
-#include "proc_info.h"
+#include <time.h>
 #include "debug_elf_reader.h"
 #include "elf_symb.h"
+#include "container.h"
+#include "proc_info.h"
 
 void HASH_add_proc_info(proc_info_t **proc_table, proc_info_t *proc_info)
 {
@@ -37,44 +39,89 @@ proc_info_t *HASH_find_proc_info(proc_info_t **proc_table, int tgid)
     return pi;
 }
 
+void HASH_add_proc_info_with_LRU(proc_info_t **proc_table, proc_info_t *proc_info)
+{
+    proc_info_t *pi, *tmp;
+
+    if (HASH_COUNT(*proc_table) >= MAX_CACHE_PROC_NUM) {
+        HASH_ITER(hh, *proc_table, pi, tmp) {
+            HASH_DEL(*proc_table, pi);
+            free_proc_info(pi);
+            break;
+        }
+    }
+
+    HASH_add_proc_info(proc_table, proc_info);
+}
+
+proc_info_t *HASH_find_proc_info_with_LRU(proc_info_t **proc_table, int tgid)
+{
+    proc_info_t *pi;
+
+    pi = HASH_find_proc_info(proc_table, tgid);
+    if (pi) {
+        HASH_del_proc_info(proc_table, pi);
+        HASH_add_proc_info(proc_table, pi);
+    }
+
+    return pi;
+}
+
 unsigned int HASH_count_proc_table(proc_info_t **proc_table)
 {
     return HASH_COUNT(*proc_table);
 }
 
-static void del_tail_newline(char *str)
-{
-    int len = strlen(str);
-    if (len > 0 && str[len - 1] == '\n') {
-        str[len - 1] = '\0';
-    }
-}
-
-static int fill_proc_info(proc_info_t *proc_info)
+static int set_proc_comm(int tgid, char *comm, int size)
 {
     char cmd[MAX_CMD_SIZE];
-    FILE *file;
     int ret;
 
-    ret = snprintf(cmd, sizeof(cmd), CMD_CAT_PROC_COMM, proc_info->tgid);
+    ret = snprintf(cmd, sizeof(cmd), CMD_CAT_PROC_COMM, tgid);
     if (ret < 0 || ret >= sizeof(cmd)) {
         fprintf(stderr, "ERROR: Failed to set command.\n");
         return -1;
     }
 
-    file = popen(cmd, "r");
-    if (file == NULL) {
+    ret = exec_cmd(cmd, comm, size);
+    if (ret) {
         fprintf(stderr, "ERROR: Failed to execute command:%s.\n", cmd);
         return -1;
     }
 
-    if (fgets(proc_info->comm, sizeof(proc_info->comm), file) == NULL) {
-        fprintf(stderr, "WARN: Failed to read process name of %d.\n", proc_info->tgid);
-        pclose(file);
-        return 0;
+    return 0;
+}
+
+static int fill_container_info(proc_info_t *proc_info)
+{
+    container_info_t *ci = &proc_info->container_info;
+    int ret;
+
+    ret = get_container_id_by_pid(proc_info->tgid, ci->id, sizeof(ci->id));
+    if (ret) {
+        return -1;
     }
-    del_tail_newline((char *)proc_info->comm);
-    pclose(file);
+
+    ret = get_container_name(ci->id, ci->name, sizeof(ci->name));
+    if (ret) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int fill_proc_info(proc_info_t *proc_info)
+{
+    int ret;
+
+    ret = set_proc_comm(proc_info->tgid, proc_info->comm, sizeof(proc_info->comm));
+    if (ret) {
+        return -1;
+    }
+
+    // process may be not a container, so failure is allowed.
+    (void)fill_container_info(proc_info);
+
     return 0;
 }
 
@@ -83,12 +130,11 @@ proc_info_t *add_proc_info(proc_info_t **proc_table, int tgid)
     proc_info_t *pi;
     int ret;
 
-    pi = (proc_info_t *)malloc(sizeof(proc_info_t));
+    pi = (proc_info_t *)calloc(1, sizeof(proc_info_t));
     if (pi == NULL) {
         fprintf(stderr, "ERROR: Failed to allocate process info.\n");
         return NULL;
     }
-    memset(pi, 0, sizeof(proc_info_t));
 
     pi->tgid = tgid;
     ret = fill_proc_info(pi);
@@ -105,7 +151,7 @@ proc_info_t *add_proc_info(proc_info_t **proc_table, int tgid)
     }
     *(pi->fd_table) = NULL;
 
-    HASH_add_proc_info(proc_table, pi);
+    HASH_add_proc_info_with_LRU(proc_table, pi);
     return pi;
 }
 
@@ -113,7 +159,7 @@ proc_info_t *get_proc_info(proc_info_t **proc_table, int tgid)
 {
     proc_info_t *pi;
 
-    pi = HASH_find_proc_info(proc_table, tgid);
+    pi = HASH_find_proc_info_with_LRU(proc_table, tgid);
     if (pi == NULL) {
         pi = add_proc_info(proc_table, tgid);
     }
@@ -141,7 +187,7 @@ fd_info_t *add_fd_info(proc_info_t *proc_info, int fd)
         return NULL;
     }
 
-    HASH_add_fd_info(proc_info->fd_table, fi);
+    HASH_add_fd_info_with_LRU(proc_info->fd_table, fi);
     return fi;
 }
 
@@ -149,7 +195,7 @@ fd_info_t *get_fd_info(proc_info_t *proc_info, int fd)
 {
     fd_info_t *fi;
 
-    fi = HASH_find_fd_info(proc_info->fd_table, fd);
+    fi = HASH_find_fd_info_with_LRU(proc_info->fd_table, fd);
     if (fi == NULL) {
         fi = add_fd_info(proc_info, fd);
     }
@@ -158,24 +204,20 @@ fd_info_t *get_fd_info(proc_info_t *proc_info, int fd)
 }
 
 #define SYMB_DEBUG_DIR "/usr/lib/debug"
+static struct elf_reader_s gElfReader = {
+    .global_dbg_dir = SYMB_DEBUG_DIR
+};
 
 struct proc_symbs_s *add_symb_info(proc_info_t *proc_info)
 {
     struct proc_symbs_s *symbs;
-    struct elf_reader_s *elf_reader;    // TODO: make it globally and free just once ?
 
-    elf_reader = create_elf_reader(SYMB_DEBUG_DIR);
-    symbs = proc_load_all_symbs(elf_reader, proc_info->tgid);
-    if (symbs == NULL) {
-        free(elf_reader);
-        return NULL;
-    }
+    symbs = proc_load_all_symbs(&gElfReader, proc_info->tgid);
     proc_info->symbs = symbs;
 
     return symbs;
 }
 
-// TODO: this function moves to somewhere ?
 static void update_proc_symbs(struct proc_symbs_s *symbs)
 {
     struct mod_s *mod;
@@ -184,26 +226,49 @@ static void update_proc_symbs(struct proc_symbs_s *symbs)
         mod = symbs->mods[i];
         if (mod && mod->mod_type == MODULE_JVM) {
             mod->mod_symbs = update_symb_from_jvm_sym_file((const char *)mod->__mod_info.name);
-            if (mod->mod_symbs != NULL && mod->mod_symbs->symbs_count != 0) {
-                symbs->need_update = 0;
-            }
             break;
         }
     }
+    time(&symbs->update_time);
 }
+
+#define SYMB_UPDATE_DURATION_SEC 300    // TODO: as a config?
 
 struct proc_symbs_s *get_symb_info(proc_info_t *proc_info)
 {
     struct proc_symbs_s *symbs;
+    time_t now;
 
     symbs = proc_info->symbs;
     if (symbs == NULL) {
         symbs = add_symb_info(proc_info);
+        if (symbs == NULL) {
+            return NULL;
+        }
     }
 
-    if (symbs->need_update) {
+    time(&now);
+    if (symbs->update_time + SYMB_UPDATE_DURATION_SEC < now) {
         update_proc_symbs(symbs);
     }
 
     return symbs;
+}
+
+void free_proc_info(proc_info_t *proc_info)
+{
+    if (proc_info == NULL) {
+        return;
+    }
+    
+    if (proc_info->fd_table != NULL) {
+        free_fd_table(proc_info->fd_table);
+        free(proc_info->fd_table);
+    }
+
+    if (proc_info->symbs != NULL) {
+        proc_delete_all_symbs(proc_info->symbs);
+    }
+
+    free(proc_info);
 }

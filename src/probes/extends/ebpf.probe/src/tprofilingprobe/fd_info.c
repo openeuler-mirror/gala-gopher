@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
+#include "common.h"
 #include "fd_info.h"
 
 void HASH_add_fd_info(fd_info_t **fd_table, fd_info_t *fd_info)
@@ -26,7 +27,6 @@ void HASH_add_fd_info(fd_info_t **fd_table, fd_info_t *fd_info)
 void HASH_del_fd_info(fd_info_t **fd_table, fd_info_t *fd_info)
 {
     HASH_DEL(*fd_table, fd_info);
-    free(fd_info);
 }
 
 fd_info_t *HASH_find_fd_info(fd_info_t **fd_table, int fd)
@@ -42,12 +42,32 @@ unsigned int HASH_count_fd_table(fd_info_t **fd_table)
     return HASH_COUNT(*fd_table);
 }
 
-static void del_tail_newline(char *str)
+void HASH_add_fd_info_with_LRU(fd_info_t **fd_table, fd_info_t *fd_info)
 {
-    int len = strlen(str);
-    if (len > 0 && str[len - 1] == '\n') {
-        str[len - 1] = '\0';
+    fd_info_t *fi, *tmp;
+
+    if (HASH_COUNT(*fd_table) >= MAX_CACHE_FD_NUM) {
+        HASH_ITER(hh, *fd_table, fi, tmp) {
+            HASH_DEL(*fd_table, fi);
+            free_fd_info(fi);
+            break;
+        }
     }
+
+    HASH_add_fd_info(fd_table, fd_info);
+}
+
+fd_info_t *HASH_find_fd_info_with_LRU(fd_info_t **fd_table, int fd)
+{
+    fd_info_t *fi;
+
+    fi = HASH_find_fd_info(fd_table, fd);
+    if (fi) {
+        HASH_del_fd_info(fd_table, fi);
+        HASH_add_fd_info(fd_table, fi);
+    }
+
+    return fi;
 }
 
 static int fill_reg_file_info(fd_info_t *fd_info, const char *fd_path)
@@ -113,7 +133,7 @@ static int fill_sock_info(fd_info_t *fd_info, int tgid)
     }
 
     while (fgets(buf, sizeof(buf), file) != NULL) {
-        del_tail_newline(buf);
+        SPLIT_NEWLINE_SYMBOL(buf);
         switch (buf[0]) {
             case 't':
                 strncpy(sock_type, buf + 1, sizeof(sock_type));
@@ -165,5 +185,20 @@ int fill_fd_info(fd_info_t *fd_info, int tgid)
             fprintf(stderr, "WARN: Unsupported file type of fd %s.\n", fd_path);
             fd_info->type = FD_TYPE_UNSUPPORTED;
             return 0;
+    }
+}
+
+void free_fd_info(fd_info_t *fd_info)
+{
+    free(fd_info);
+}
+
+void free_fd_table(fd_info_t **fd_table)
+{
+    fd_info_t *fi, *tmp;
+
+    HASH_ITER(hh, *fd_table, fi, tmp) {
+        HASH_DEL(*fd_table, fi);
+        free_fd_info(fi);
     }
 }
