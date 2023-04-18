@@ -123,7 +123,7 @@ static void CleanData(const ResourceMgr *mgr)
 
     cmd[0] = 0;
     pinPath = NULL;
-    
+
     if (mgr->configMgr && mgr->configMgr->globalConfig) {
         pinPath = mgr->configMgr->globalConfig->bpfPinPath;
     }
@@ -134,7 +134,7 @@ static void CleanData(const ResourceMgr *mgr)
     if (strstr(pinPath, __SYS_FS_BPF) == NULL) {
         return;
     }
-    
+
     (void)snprintf(cmd, MAX_COMMAND_LEN, RM_MAP_CMD, pinPath, CGRP_MAP_PATH, NM_MAP_PATH, PROC_MAP_PATH);
     fp = popen(cmd, "r");
     if (fp != NULL) {
@@ -192,7 +192,7 @@ static int DaemonCreateTimer(ResourceMgr *mgr)
     (void)sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
     sa.sa_flags |= SA_INTERRUPT;
-    
+
     ret = sigaction(SIGUSR1, &sa, NULL);
     if (ret != 0) {
         ERROR("[DAEMON] set sig action failed(%d)\n", ret);
@@ -339,6 +339,15 @@ int DaemonRun(const ResourceMgr *mgr)
         return -1;
     }
     INFO("[DAEMON] create keeplive timer success.\n");
+
+    // 10. start rest_api_server thread
+    ret = RestServerStartDaemon(mgr->restServer);
+    if (ret != 0) {
+        ERROR("[DAEMON] create rest api server daemon failed. errno: %d\n", errno);
+        RestServerDestroy(mgr->restServer);
+        return -1;
+    }
+    INFO("[DAEMON] create rest api server daemon success.\n");
 
     return 0;
 }

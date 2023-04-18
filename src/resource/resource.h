@@ -36,6 +36,7 @@
 #include "egress.h"
 
 #include "web_server.h"
+#include "rest_server.h"
 
 #include "logs.h"
 
@@ -68,6 +69,9 @@ typedef struct {
 
     // web server
     WebServer *webServer;
+
+    // rest api server
+    RestServer *restServer;
 
     // logs
     LogsMgr *logsMgr;

@@ -90,6 +90,14 @@ typedef struct {
 } WebServerConfig;
 
 typedef struct {
+    uint16_t port;
+    char sslAuth;  // enable https and client authentication
+    char privateKey[PATH_LEN];
+    char certFile[PATH_LEN];
+    char caFile[PATH_LEN];
+} RestServerConfig;
+
+typedef struct {
     char metricDir[PATH_LEN];
     char eventDir[PATH_LEN];
     char metaDir[PATH_LEN];
@@ -112,6 +120,7 @@ typedef struct {
     ExtendProbesConfig *extendProbesConfig;
     IMDBConfig *imdbConfig;
     WebServerConfig *webServerConfig;
+    RestServerConfig *restServerConfig;
     LogsConfig *logsConfig;
     OutConfig *metricOutConfig;
     OutConfig *eventOutConfig;

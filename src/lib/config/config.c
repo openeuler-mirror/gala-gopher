@@ -76,6 +76,12 @@ ConfigMgr *ConfigMgrCreate(void)
     }
     memset(mgr->webServerConfig, 0, sizeof(WebServerConfig));
 
+    mgr->restServerConfig = (RestServerConfig *)malloc(sizeof(RestServerConfig));
+    if (mgr->restServerConfig == NULL) {
+        goto ERR;
+    }
+    memset(mgr->restServerConfig, 0, sizeof(RestServerConfig));
+
     mgr->logsConfig = (LogsConfig *)malloc(sizeof(LogsConfig));
     if (mgr->logsConfig == NULL) {
         goto ERR;
@@ -144,6 +150,10 @@ void ConfigMgrDestroy(ConfigMgr *mgr)
 
     if (mgr->webServerConfig != NULL) {
         free(mgr->webServerConfig);
+    }
+
+    if (mgr->restServerConfig != NULL) {
+        free(mgr->restServerConfig);
     }
 
     if (mgr->logsConfig != NULL) {
@@ -471,6 +481,53 @@ static int ConfigMgrLoadWebServerConfig(void *config, config_setting_t *settings
     return 0;
 }
 
+static int ConfigMgrLoadRestServerConfig(void *config, config_setting_t *settings)
+{
+    RestServerConfig *restServerConfig = (RestServerConfig *)config;
+    uint32_t ret = 0;
+    const char *strVal = NULL;
+    uint32_t intVal = 0;
+
+    ret = config_setting_lookup_int(settings, "port", &intVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for restServerConfig port failed.\n");
+        return -1;
+    }
+    restServerConfig->port = (uint16_t)intVal;
+
+    ret = config_setting_lookup_string(settings, "ssl_auth", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for restServerConfig ssl_auth failed.\n");
+        return -1;
+    }
+    if (strcmp(strVal, "on") == 0) {
+        restServerConfig->sslAuth = 1;
+    }
+
+    ret = config_setting_lookup_string(settings, "private_key", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for restServerConfig private_key failed.\n");
+        return -1;
+    }
+    (void)strncpy(restServerConfig->privateKey, strVal, PATH_LEN - 1);
+
+    ret = config_setting_lookup_string(settings, "cert_file", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for restServerConfig cert_file failed.\n");
+        return -1;
+    }
+    (void)strncpy(restServerConfig->certFile, strVal, PATH_LEN - 1);
+
+    ret = config_setting_lookup_string(settings, "ca_file", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for restServerConfig ca_file failed.\n");
+        return -1;
+    }
+    (void)strncpy(restServerConfig->caFile, strVal, PATH_LEN - 1);
+
+    return 0;
+}
+
 static int ConfigMgrLoadLogsConfig(void *config, config_setting_t *settings)
 {
     LogsConfig *logsConfig = (LogsConfig *)config;
@@ -570,6 +627,7 @@ int ConfigMgrLoad(const ConfigMgr *mgr, const char *confPath)
         { (void *)mgr->extendProbesConfig, "extend_probes", ConfigMgrLoadExtendProbesConfig },
         { (void *)mgr->imdbConfig, "imdb", ConfigMgrLoadIMDBConfig },
         { (void *)mgr->webServerConfig, "web_server", ConfigMgrLoadWebServerConfig },
+        { (void *)mgr->restServerConfig, "rest_api_server", ConfigMgrLoadRestServerConfig },
         { (void *)mgr->logsConfig, "logs", ConfigMgrLoadLogsConfig },
         { (void *)mgr->metricOutConfig, "metric", ConfigMgrLoadOutConfig },
         { (void *)mgr->eventOutConfig, "event", ConfigMgrLoadOutConfig },
