@@ -139,7 +139,7 @@ static int get_proc_stat_info(void)
         get_cpu_time(dst_line, &old_cpus[index]->cpu_time_total,
                      &old_cpus[index]->cpu_time_used,
                      &cur_cpus[index]->cpu_time_total,
-                     &cur_cpus[index]->cpu_time_used)
+                     &cur_cpus[index]->cpu_time_used);
         cur_cpus[index]->cpu_util_per = (cur_cpus[index]->cpu_time_used - old_cpus[index]->cpu_time_used) * \
                                          FULL_PER * 1.0 / \
                                          (cur_cpus[index]->cpu_time_total - old_cpus[index]->cpu_time_total);
