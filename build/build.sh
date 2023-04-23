@@ -228,6 +228,30 @@ function prepare_dependence()
         return 1
     fi
 
+    yum install -y libbpf-devel
+    if [ $? -ne 0 ];then
+        echo "Error: Failed to install libbpf-devel."
+        return 1
+    fi
+
+    yum install -y clang
+    if [ $? -ne 0 ];then
+        echo "Error: Failed to install clang."
+        return 1
+    fi
+
+    yum install -y llvm
+    if [ $? -ne 0 ];then
+        echo "Error: Failed to install llvm."
+        return 1
+    fi
+
+    yum install -y java-1.8.0-openjdk-devel
+    if [ $? -ne 0 ];then
+        echo "Error: Failed to install java-1.8.0-openjdk-devel"
+        return 1
+    fi
+
     return 0
 }
 
