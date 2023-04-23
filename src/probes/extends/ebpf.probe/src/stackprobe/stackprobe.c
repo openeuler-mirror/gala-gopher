@@ -903,28 +903,31 @@ static struct svg_stack_trace_s *create_svg_stack_trace(StackprobeConfig *conf, 
 
     svg_st->svg_mng = create_svg_mng(conf->generalConfig->period);
     if (!svg_st->svg_mng) {
-        return NULL;
+        goto cleanup;
     }
 
     if (set_svg_dir(&svg_st->svg_mng->svg, conf->generalConfig->svgDir, flame_name)) {
-        return NULL;
+        goto cleanup;
     }
 
     if (set_flame_graph_path(svg_st->svg_mng, conf->generalConfig->flameDir, flame_name)) {
-        return NULL;
+        goto cleanup;
     }
 
     svg_st->raw_stack_trace_a = create_raw_stack_trace(g_st);
     if (!svg_st->raw_stack_trace_a) {
-        return NULL;
+        goto cleanup;
     }
     svg_st->raw_stack_trace_b = create_raw_stack_trace(g_st);
     if (!svg_st->raw_stack_trace_b) {
-        return NULL;
+        goto cleanup;
     }
 
     INFO("[STACKPROBE]: create %s svg stack trace succeed.\n", flame_name);
     return svg_st;
+cleanup:
+    destroy_svg_stack_trace(&svg_st);
+    return NULL;
 }
 
 
