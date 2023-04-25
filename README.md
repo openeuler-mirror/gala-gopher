@@ -336,3 +336,80 @@ openEuler-22.09 : https://117.78.1.88/package/show/home:zpublic:branches:openEul
 基于CDN简化场景部署架构感知服务做了拓扑绘制的效果演示如下。
 
 ![系统演示](doc/pic/demo.gif)
+
+
+
+
+
+### 项目路线图
+
+#### 巡检能力
+
+| 特性                             | 发布时间 | 发布版本                             |
+| -------------------------------- | -------- | ------------------------------------ |
+| TCP异常巡检                      | 22.12    | openEuler 22.03 SP1                  |
+| Socket异常巡检                   | 22.12    | openEuler 22.03 SP1                  |
+| 系统调用异常巡检                 | 22.12    | openEuler 22.03 SP1                  |
+| 进程I/O异常巡检                  | 22.12    | openEuler 22.03 SP1                  |
+| Block I/O异常巡检                | 22.12    | openEuler 22.03 SP1                  |
+| 资源泄漏异常巡检                 | 22.12    | openEuler 22.03 SP1                  |
+| 硬件（磁盘/网卡/内存）故障巡检   | 23.09    | openEuler 22.03 SP1, openEuler 23.09 |
+| JVM异常巡检                      | 23.09    | openEuler 22.03 SP1, openEuler 23.09 |
+| 主机网络栈（包括虚拟化）丢包巡检 | 23.09    | openEuler 22.03 SP1, openEuler 23.09 |
+
+#### 可观测性
+
+| 特性                                                         | 发布时间 | 发布版本                             |
+| ------------------------------------------------------------ | -------- | ------------------------------------ |
+| 进程级TCP观测能力                                            | 22.12    | openEuler 22.03 SP1                  |
+| 进程级Socket观测能力                                         | 22.12    | openEuler 22.03 SP1                  |
+| 分布式存储全栈I/O观测能力                                    | 22.12    | openEuler 22.03 SP1                  |
+| 虚拟化存储I/O观测能力                                        | 22.12    | openEuler 22.03 SP1                  |
+| Block I/O观测能力                                            | 22.12    | openEuler 22.03 SP1                  |
+| 容器运行观测能力                                             | 22.12    | openEuler 22.03 SP1                  |
+| Redis性能观测能力                                            | 22.12    | openEuler 22.03 SP1                  |
+| PG性能观测能力                                               | 22.12    | openEuler 22.03 SP1                  |
+| Nginx会话观测能力                                            | 22.12    | openEuler 22.03 SP1                  |
+| Haproxy会话观测能力                                          | 22.12    | openEuler 22.03 SP1                  |
+| Kafka会话观测能力                                            | 22.12    | openEuler 22.03 SP1                  |
+| JVM性能观测能力                                              | 23.06    | openEuler 22.03 SP1, openEuler 23.09 |
+| L7协议观测能力（HTTP1.X/MySQL/PGSQL/Redis/Kafka）            | 23.09    | openEuler 22.03 SP1, openEuler 23.09 |
+| L7协议观测能力（HTTP1.X/MySQL/PGSQL/Redis/Kafka/MongoDB/DNS/RocketMQ） | 24.03    | openEuler 22.03 SP3，openEuler 24.03 |
+| 通用应用性能观测能力                                         | 24.03    | openEuler 24.03                      |
+| 全链路协议跟踪能力                                           | 24.09    | openEuler 24.09                      |
+
+#### 性能profiling
+
+| 特性                                    | 发布时间 | 发布版本                             |
+| --------------------------------------- | -------- | ------------------------------------ |
+| 系统性能Profiling（OnCPU、Mem）         | 23.03    | openEuler 23.09                      |
+| 系统性能Profiling（OnCPU、Mem、OffCPU） | 23.04    | openEuler 22.03 SP1, openEuler 23.09 |
+| 线程级性能Profiling（java、C）          | 23.06    | openEuler 22.03 SP1, openEuler 23.09 |
+
+#### 版本兼容性
+
+| 特性                        | 发布时间 | 发布版本                             |
+| --------------------------- | -------- | ------------------------------------ |
+| 支持内核Release版本跨度兼容 | 23.12    | openEuler 22.03 SP3, openEuler 24.03 |
+| 支持内核大版本跨度兼容      | 24.09    | openEuler 24.09                      |
+|                             |          |                                      |
+
+#### 可编程&扩展能力
+
+| 特性                           | 发布时间 | 发布版本            |
+| ------------------------------ | -------- | ------------------- |
+| 非侵入集成第三方探针           | 22.12    | openEuler 22.03 SP1 |
+| 非侵入集成第三方eBPF源码       | 24.03    | openEuler 23.09     |
+| 大语言驱动自动生成eBPF观测探针 | 24.09    | openEuler 24.09     |
+
+
+
+#### 部署&集成能力
+
+| 特性                             | 发布时间 | 发布版本                             |
+| -------------------------------- | -------- | ------------------------------------ |
+| 支持Prometheus exporter对接      | 22.12    | openEuler 22.03 SP1                  |
+| 支持日志文件形式对接             | 22.12    | openEuler 22.03 SP1                  |
+| 支持kafka client形式对接         | 22.12    | openEuler 22.03 SP1                  |
+| 支持REST接口动态变更探针监控能力 | 23.06    | openEuler 22.03 SP1, openEuler 23.09 |
+

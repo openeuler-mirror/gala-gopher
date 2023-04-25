@@ -1,4 +1,4 @@
-/******************************************************************************
+******************************************************************************
  * Copyright (c) Huawei Technologies Co., Ltd. 2022. All rights reserved.
  * gala-gopher licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -383,7 +383,7 @@ static int append_debug_logger(struct log_mgr_s * mgr)
 
     SharedAppenderPtr append(new RollingFileAppender(g_debug_abs_path, DEBUG_LOGS_FILESIZE, 1, true, true));
 
-    log4cplus::tstring pattern = LOG4CPLUS_TEXT("%d{%m/%d/%y %H:%M:%S}  - %m");
+    log4cplus::tstring pattern = LOG4CPLUS_TEXT("%D{%m/%d/%y %H:%M:%S}  - %m");
     append->setLayout(std::unique_ptr<log4cplus::Layout>(new log4cplus::PatternLayout(pattern)));
 
     g_debug_logger.addAppender(append);
