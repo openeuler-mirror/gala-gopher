@@ -8,10 +8,13 @@ public class JSSEProbeAgent {
 
     private static void createTmpFile(ArgsParse parse) throws IOException {
         File tmpDirectory = new File(ArgsParse.getArgMetricDataPath());
-        tmpDirectory.mkdir();
+        if (!tmpDirectory.exists()) {
+            tmpDirectory.mkdir();
+        }
         File metricTmpFile = new File(ArgsParse.getArgMetricTmpFile());
-        metricTmpFile.createNewFile();
-
+        if (!metricTmpFile.exists()) {
+            metricTmpFile.createNewFile();
+        }
     }
 
     // 该方法仅在premain使用，获取当前进程PID

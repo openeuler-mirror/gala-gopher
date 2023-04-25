@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
+#include <ctype.h>
 #include <time.h>
 #include <string.h>
 #include <sys/file.h>
@@ -367,7 +368,7 @@ static void __clear_invalid_pids()
    when attaching. Yet a multi-threaded process may not change user namespace with setns().
    Therefore, we have to do attach in the child process (because the stackprobe process is multi-threaded).
 */
-static void __do_attach(struct jvm_agent_hash_t *pid_bpf_link) {
+static int __do_attach(struct jvm_agent_hash_t *pid_bpf_link) {
     char cmd[LINE_BUF_LEN] = {0};
     char result_buf[LINE_BUF_LEN];
 
@@ -390,35 +391,40 @@ static void __do_attach(struct jvm_agent_hash_t *pid_bpf_link) {
             pid_bpf_link->v.ns_java_data_path);
     } else {
         ERROR("[JAVA_SUPPORT]: invalid jvm_agent_file input, return.\n");
-        return;
+        return -1;
     }
 
     FILE *f = popen(cmd, "r");
     if (f == NULL) {
         ERROR("[JAVA_SUPPORT]: attach fail, popen error.\n");
+        return -1;
     }
     INFO("[JAVA_SUPPORT]: __do_attach %s\n", cmd);
     while(fgets(result_buf, sizeof(result_buf), f) != NULL) {
-        printf("%s", result_buf);
+        INFO("%s", result_buf);
+        /* 判断load指令执行返回值，非0表示load失败 */
+        if (isdigit(result_buf[0]) && atoi(result_buf) != 0) {
+            (void)pclose(f);
+            return -1;
+        }
     }
     (void)pclose(f);
-    return;
+    return 0;
 }
 
 void *java_support(void *arg)
 {
-    int err = 0;
     struct jvm_agent_hash_t *pid_bpf_link, *tmp;
     struct java_attach_args *args = (struct java_attach_args *)arg;
 
     int proc_obj_map_fd = args->proc_obj_map_fd;
-    jvm_agent_file[0] = 0;
-    (void)strncpy(jvm_agent_file, args->agent_file_name, FILENAME_LEN - 1);
-    jvm_tmp_file[0] = 0;
-    (void)strncpy(jvm_tmp_file, args->tmp_file_name, FILENAME_LEN - 1);
+    int loop_period = args->loop_period;
+    int is_only_attach_once = args->is_only_attach_once;
+    (void)strncpy(jvm_agent_file, args->agent_file_name, FILENAME_LEN);
+    (void)strncpy(jvm_tmp_file, args->tmp_file_name, FILENAME_LEN);
 
     while (1) {
-        sleep(DEFAULT_PERIOD);
+        sleep(loop_period);
         __set_pids_inactive();
         if (__check_proc_to_attach(proc_obj_map_fd) != 0) {
             continue;
@@ -427,17 +433,63 @@ void *java_support(void *arg)
         H_ITER(jvm_agent_head, pid_bpf_link, tmp) { // for pids
             // only when the proc is a java proc and has not been successfully attached
             if (pid_bpf_link->v.pid_state == PID_ELF_TO_ATTACH) {
-                pid_bpf_link->v.attached = 1; // TODO: Is it necessary to try to attach again?
                 (void)__set_effective_id(pid_bpf_link);
-                err = __set_attach_argv(pid_bpf_link);
-                if (err != 0) {
+                if (__set_attach_argv(pid_bpf_link) != 0) {
                     continue;
                 }
-                __do_attach(pid_bpf_link);
+                if (__do_attach(pid_bpf_link) != 0) {
+                    continue;
+                }
+                if (is_only_attach_once == 1) {
+                    // attached: 1 means attach successed and no need to attach again
+                    pid_bpf_link->v.attached = 1;
+                }
             }
         }
         __clear_invalid_pids();
     }
 
     return NULL;
+}
+
+void java_msg_handler(void *arg)
+{
+    struct jvm_agent_hash_t *item, *tmp;
+    char tmp_file_path[PATH_LEN];
+    struct java_attach_args *args = (struct java_attach_args *)arg;
+
+    H_ITER(jvm_agent_head, item, tmp) {
+        if (item->v.pid_state != PID_NOEXIST) {
+            tmp_file_path[0] = 0;
+            (void)get_host_java_tmp_file(item->pid, args->tmp_file_name, tmp_file_path, PATH_LEN);
+
+            int fd = open(tmp_file_path, O_RDWR);
+            if (fd < 0) {
+                DEBUG("[JAVA_MSG_HANDLER]: open tmp file: %s failed.\n", tmp_file_path);
+                continue;
+            }
+            if (lockf(fd, F_LOCK, 0) != 0) {
+                DEBUG("[JAVA_MSG_HANDLER]: lockf tmpfile failed.\n");
+                close(fd);
+                continue;
+            }
+            FILE *fp = fdopen(fd, "r");
+            if (fp == NULL) {
+                DEBUG("[JAVA_MSG_HANDLER]: fopen tmp file: %s failed.\n", tmp_file_path);
+                close(fd);
+                continue;
+            }
+            char line[LINE_BUF_LEN];
+            line[0] = 0;
+            while (fgets(line, LINE_BUF_LEN, fp)) {
+                (void)fprintf(stdout, "%s", line);
+                line[0] = 0;
+            }
+            (void)fflush(stdout);
+            (void)ftruncate(fd, 0);
+            (void)fclose(fp);
+        }
+    }
+
+    return;
 }

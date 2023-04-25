@@ -19,21 +19,15 @@ function make_jvmprobe_agent_jar()
     cd tmp
     javac ../src/agent/JvmProbeAgent.java -d ./
     cd ..
-    jar cfm JvmProbeAgent.jar src/agent/config/META-INF/MANIFEST.MF -C tmp/ .
+    jar cfm JvmProbeAgent.jar config/META-INF/MANIFEST.MF -C tmp/ .
 
     rm -rf tmp 2>/dev/null
     return 0
 }
 
-function make_jvmprobe_jar()
+function make_jvmprobe_bin()
 {
-    mkdir -p tmp
-    cd tmp/
-    javac ../src/JvmProbe.java -d .
-    cd ..
-    jar cfm JvmProbe.jar config/META-INF/MANIFEST.MF -C tmp/ .
-
-    rm -rf tmp 2>/dev/null
+    make -s -C src/
     return 0
 }
 
@@ -44,7 +38,7 @@ function compile_jvmprobe()
     make_jvmprobe_agent_jar
     
     echo "Compile jvmProbe...."
-    make_jvmprobe_jar
+    make_jvmprobe_bin
 
     cd ${PRJ_DIR}
     return 0
@@ -82,6 +76,9 @@ if [ "$1" == "-c"  -o  "$1" == "--clean" ];
 then
     compile_clean
     find ${PRJ_DIR} -name "*.jar" -type f -delete 2>/dev/null
+    for app in $(find . -name Makefile -type f); do
+        make -s clean -C $(dirname $app)
+    done
     exit
 fi
 
