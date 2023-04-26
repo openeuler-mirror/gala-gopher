@@ -17,10 +17,10 @@
 #include <unistd.h>
 #include <string.h>
 #include <jvmti.h>
-#include "../java_support.h"
 
 #define COMMAND_LEN             256
 #define LINE_BUF_LEN            512
+#define JAVA_SYM_FILE		"java-symbols.bin"
 
 #ifndef __u64
 typedef long long unsigned int __u64;

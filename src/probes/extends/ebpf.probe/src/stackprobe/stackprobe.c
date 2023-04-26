@@ -364,11 +364,30 @@ static int __stack_addrsymbs2string(struct proc_symbs_s *proc_symbs, struct addr
     }
     symb = addr_symb->sym;
 
-    if (*layer == STACK_LAYER_1ST) {
-        if (strstr(symb, ".") != NULL) {
+    if (proc_symbs->is_java) {
+        if (*layer == STACK_LAYER_1ST) {
+            if (strstr(symb, ".") != NULL) {
+                ret = __snprintf(&cur_p, len, &len, "; %s", symb); 
+                *layer = STACK_LAYER_2ND;
+            } else {
+                if (proc_symbs->pod[0] != 0) {
+                    ret = __snprintf(&cur_p, len, &len, "[Pod]%s; ", proc_symbs->pod);
+                }
+                if (proc_symbs->container_name[0] != 0) {
+                    ret = __snprintf(&cur_p, len, &len, "[Con]%s; ", proc_symbs->container_name);
+                }
+                ret = __snprintf(&cur_p, len, &len, "[%d]%s; %s", proc_symbs->proc_id, proc_symbs->comm, symb);
+                *layer = STACK_LAYER_ELSE;
+            }
+        } else if (*layer == STACK_LAYER_2ND) {
             ret = __snprintf(&cur_p, len, &len, "; %s", symb); 
-            *layer = STACK_LAYER_2ND;
+            *layer = STACK_LAYER_3RD;
         } else {
+            ret = __snprintf(&cur_p, len, &len, "; %s", symb);
+            *layer = STACK_LAYER_ELSE;
+        }
+    } else {
+        if (*layer == STACK_LAYER_1ST) {
             if (proc_symbs->pod[0] != 0) {
                 ret = __snprintf(&cur_p, len, &len, "[Pod]%s; ", proc_symbs->pod);
             }
@@ -376,14 +395,10 @@ static int __stack_addrsymbs2string(struct proc_symbs_s *proc_symbs, struct addr
                 ret = __snprintf(&cur_p, len, &len, "[Con]%s; ", proc_symbs->container_name);
             }
             ret = __snprintf(&cur_p, len, &len, "[%d]%s; %s", proc_symbs->proc_id, proc_symbs->comm, symb);
-            *layer = STACK_LAYER_ELSE;
+            *layer = STACK_LAYER_2ND;
+        } else {
+            ret = __snprintf(&cur_p, len, &len, "; %s", symb);
         }
-    } else if (*layer == STACK_LAYER_2ND) {
-        ret = __snprintf(&cur_p, len, &len, "; %s", symb); 
-        *layer = STACK_LAYER_3RD;
-    } else {
-        ret = __snprintf(&cur_p, len, &len, "; %s", symb);
-        *layer = STACK_LAYER_ELSE;
     }
 
     if (ret < 0) {
@@ -405,7 +420,7 @@ static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, struct proc_s
         addr_symb = &(stack_symbs->user_stack_symbs[i]);
         if (addr_symb->orign_addr != 0) {
             len = __stack_addrsymbs2string(proc_symbs, addr_symb, &layer, pos, remain_len);
-            if (layer == STACK_LAYER_3RD) {
+            if (proc_symbs->is_java && layer == STACK_LAYER_3RD) {
                 return -1;
             }
             if (len < 0) {
@@ -446,7 +461,7 @@ static int add_stack_histo(struct stack_trace_s *st, struct stack_symbs_s *stack
     }
 
     // Java incomplete call stack merge
-    if (str[0] == ';') {
+    if (proc_symbs->is_java && str[0] == ';') {
         char tmp_str[__FUNC_NAME_LEN] = {0};
         (void)snprintf(tmp_str, __FUNC_NAME_LEN, "[%d]", proc_symbs->proc_id);
         H_ITER(st->svg_stack_traces[en_type]->histo_tbl, item, tmp) {
@@ -459,7 +474,7 @@ static int add_stack_histo(struct stack_trace_s *st, struct stack_symbs_s *stack
         return -1;
     }
 
-    H_FIND_S(st->svg_stack_traces[en_type]->histo_tbl, str, item);
+    H_FIND_S(st->svg_stack_traces[en_type]->histo_tbl, str, item); // TODO: use stack_id as key?
     if (item) {
         st->stats.count[STACK_STATS_HISTO_FOLDED]++;
         item->count = (s64)item->count + count;
@@ -736,6 +751,33 @@ static void process_oncpu_raw_stack_trace(void *ctx, int cpu, void *data, u32 si
     return;
 }
 
+static void process_offcpu_raw_stack_trace(void *ctx, int cpu, void *data, u32 size)
+{
+    struct raw_stack_trace_s *raw_st;
+    if (!g_st || !data) {
+        return;
+    }
+
+    if (g_st->is_stackmap_a) {
+        raw_st = g_st->svg_stack_traces[STACK_SVG_OFFCPU]->raw_stack_trace_a;
+    } else {
+        raw_st = g_st->svg_stack_traces[STACK_SVG_OFFCPU]->raw_stack_trace_b;
+    }
+
+    if (!raw_st) {
+        return;
+    }
+
+    if (add_raw_stack_id(raw_st, (struct raw_trace_s *)data)) {
+        g_st->stats.count[STACK_STATS_LOSS]++;
+    } else {
+        g_st->stats.count[STACK_STATS_RAW]++;
+    }
+
+    return;
+}
+
+
 static void process_memleak_raw_stack_trace(void *ctx, int cpu, void *data, u32 size)
 {
     struct raw_stack_trace_s *raw_st;
@@ -773,16 +815,21 @@ static void destroy_svg_stack_trace(struct svg_stack_trace_s **ptr_svg_st)
 
     if (svg_st->obj) {
         bpf_object__close(svg_st->obj);
+        svg_st->obj = NULL;
     }
 
     if (svg_st->pb_a) {
         perf_buffer__free(svg_st->pb_a);
+        svg_st->pb_a = NULL;
+        
     }
     if (svg_st->pb_b) {
         perf_buffer__free(svg_st->pb_b);
+        svg_st->pb_b = NULL;
     }
     if (svg_st->svg_mng) {
         destroy_svg_mng(svg_st->svg_mng);
+        svg_st->svg_mng = NULL;
     }
     if (svg_st->raw_stack_trace_a) {
         (void)free(svg_st->raw_stack_trace_a);
@@ -853,30 +900,29 @@ static struct svg_stack_trace_s *create_svg_stack_trace(StackprobeConfig *conf, 
 
     svg_st->svg_mng = create_svg_mng(conf->generalConfig->period);
     if (!svg_st->svg_mng) {
-        goto err;
+        goto cleanup;
     }
 
     if (set_svg_dir(&svg_st->svg_mng->svg, conf->generalConfig->svgDir, flame_name)) {
-        goto err;
+        goto cleanup;
     }
 
     if (set_flame_graph_path(svg_st->svg_mng, conf->generalConfig->flameDir, flame_name)) {
-        goto err;
+        goto cleanup;
     }
 
     svg_st->raw_stack_trace_a = create_raw_stack_trace(g_st);
     if (!svg_st->raw_stack_trace_a) {
-        goto err;
+        goto cleanup;
     }
     svg_st->raw_stack_trace_b = create_raw_stack_trace(g_st);
     if (!svg_st->raw_stack_trace_b) {
-        goto err;
+        goto cleanup;
     }
 
     INFO("[STACKPROBE]: create %s svg stack trace succeed.\n", flame_name);
     return svg_st;
-
-err:
+cleanup:
     destroy_svg_stack_trace(&svg_st);
     return NULL;
 }
@@ -1082,6 +1128,32 @@ static int attach_oncpu_bpf_prog(struct svg_stack_trace_s *svg_st, StackprobeCon
     return 0;
 
 err:
+    return -1;
+}
+
+static int attach_offcpu_bpf_prog(struct svg_stack_trace_s *svg_st, StackprobeConfig *conf)
+{
+    int err;
+
+    int i = 0;
+    struct bpf_program *prog;
+    struct bpf_link *links;
+    bpf_object__for_each_program(prog, svg_st->obj) {
+        links = bpf_program__attach(prog);
+        err = libbpf_get_error(links);
+        if (err) {
+            ERROR("[STACKPROBE]: attach offcpu bpf failed %d\n", err);
+            links = NULL;
+            goto cleanup;
+        }
+        i++;
+    }
+
+    INFO("[STACKPROBE]: attach offcpu bpf succeed.\n");
+    return 0;
+
+cleanup:
+    bpf_link__destroy(links);
     return -1;
 }
 
@@ -1516,7 +1588,7 @@ static int init_enabled_svg_stack_traces(StackprobeConfig *conf)
     FlameProc flameProcs[] = {
         // This array order must be the same as the order of enum stack_svg_type_e
         { conf->flameTypesConfig->oncpu, STACK_SVG_ONCPU, "oncpu", ON_CPU_PROG, attach_oncpu_bpf_prog, process_oncpu_raw_stack_trace},
-        { conf->flameTypesConfig->offcpu, STACK_SVG_OFFCPU, "offcpu", OFF_CPU_PROG, NULL, NULL},
+        { conf->flameTypesConfig->offcpu, STACK_SVG_OFFCPU, "offcpu", OFF_CPU_PROG, attach_offcpu_bpf_prog, process_offcpu_raw_stack_trace},
         { conf->flameTypesConfig->io, STACK_SVG_IO, "io", IO_PROG, NULL, NULL},
         { conf->flameTypesConfig->memleak, STACK_SVG_MEMLEAK, "memleak", MEMLEAK_PROG, attach_memleak_bpf_prog, process_memleak_raw_stack_trace},
     };
@@ -1528,21 +1600,21 @@ static int init_enabled_svg_stack_traces(StackprobeConfig *conf)
 
         svg_st = create_svg_stack_trace(conf, flameProcs[i].flame_name);
         if (!svg_st) {
-            goto err;
+            return -1;
         }
         g_st->svg_stack_traces[i] = svg_st;
 
         if (load_bpf_prog(conf, svg_st, flameProcs[i].prog_name)) {
-            goto err;
+            return -1;
         }
 
         if (create_perf(svg_st, flameProcs[i].cb)) {
-            goto err;
+            return -1;
         }
 
         if (flameProcs[i].func) {
             if (flameProcs[i].func(svg_st, conf)) {
-                goto err;
+                return -1;
             }
         }
 
@@ -1550,19 +1622,21 @@ static int init_enabled_svg_stack_traces(StackprobeConfig *conf)
         init_wr_flame_pthreads(svg_st, flameProcs[i].flame_name);
     }
     return 0;
-
-err:
-    destroy_svg_stack_trace(&svg_st);
-    return -1;
 }
 
 static void init_java_support_proc(StackprobeConfig *conf)
 {
     int err;
     pthread_t attach_thd;
-    int proc_obj_map_fd = conf->generalConfig->whitelistEnable ? g_st->proc_obj_map_fd : 0;
+    struct java_attach_args args = {0};
 
-    err = pthread_create(&attach_thd, NULL, java_support, (void *)&proc_obj_map_fd);
+    args.proc_obj_map_fd = conf->generalConfig->whitelistEnable ? g_st->proc_obj_map_fd : 0;
+    args.loop_period = DEFAULT_PERIOD;
+    args.is_only_attach_once = 1;
+    (void)snprintf(args.agent_file_name, FILENAME_LEN, JAVA_SYM_AGENT_FILE);
+    (void)snprintf(args.tmp_file_name, FILENAME_LEN, JAVA_SYM_FILE);
+
+    err = pthread_create(&attach_thd, NULL, java_support, (void *)&args);
     if (err != 0) {
         ERROR("[STACKPROBE]: Failed to create java_support_pthread.\n");
         return;
