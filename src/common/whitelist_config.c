@@ -278,7 +278,7 @@ int check_proc_probe_flag(ApplicationConfig *appsConfig, u32 appsConfig_len,
         if (strstr(cmdline, appsConfig[index].cmd_line) != NULL) {
             return 1;
         } else {
-            return 0;
+            continue;
         }
     }
     return 0;

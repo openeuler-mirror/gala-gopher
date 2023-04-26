@@ -17,9 +17,21 @@
 
 #pragma once
 
-#define JAVA_SYM_FILE "java-symbols.bin"
+#define FILENAME_LEN    128
 
-int get_host_java_sym_file(int pid, char *file_path, int path_len);
+#define JAVA_SYM_AGENT_FILE     "jvm_agent.so"
+#define JAVA_SYM_FILE           "java-symbols.bin"
+
+struct java_attach_args {
+    int proc_obj_map_fd;
+    int loop_period;
+    int is_only_attach_once;    // 1 - attach only once, eg: jvmtiagent
+                                // 0 - attach every loop, eg: jsseprobeagent
+    char agent_file_name[FILENAME_LEN];
+    char tmp_file_name[FILENAME_LEN];
+};
+
+int get_host_java_tmp_file(int pid, const char *file_name, char *file_path, int path_len);
 int detect_proc_is_java(int pid, char *comm, int comm_len);
 void *java_support(void *arg);
 
