@@ -211,6 +211,7 @@ static int __check_proc_to_attach(int proc_obj_map_fd)
 
     while (fgets(line, sizeof(line), f)) {
         if (sscanf(line, "%d", &pid) != 1) {
+            (void)pclose(f);
             return -1;
         }
         if (proc_obj_map_fd != 0) { // whitelist_enable
@@ -241,6 +242,7 @@ static int __check_proc_to_attach(int proc_obj_map_fd)
         }
         
     }
+    (void)pclose(f);
     return 0;
 }
 
