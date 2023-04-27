@@ -315,7 +315,11 @@ static __always_inline struct io_latency_s* get_io_latency(struct io_trace_s* io
 KRAWTRACE(block_rq_issue, bpf_raw_tracepoint_args)
 {
     struct io_trace_s *io_trace = NULL;
+#if (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(5, 10, 0))
+    struct request* req = (struct request *)ctx->args[0];
+#else
     struct request* req = (struct request *)ctx->args[1];
+#endif
 
     io_trace = get_io_trace(req);
     if (io_trace == NULL) {
