@@ -78,7 +78,7 @@ public class JvmProbeAgent {
 
     private static void infoCollector(RuntimeMXBean runtimeBean) {
         String jvmName = runtimeBean.getVmName();
-        String jvmVersion = runtimeBean.getVmVersion();   // 原始的为getSpecVersion();
+        String jvmVersion = runtimeBean.getVmVersion();   // or getSpecVersion();
         String jvmVender = runtimeBean.getVmVendor();
 
         writeMetricRecords(String.format("|jvm_info|%s|%s|%s|%s|%d|\n", pid, jvmName, jvmVender, jvmVersion, 1));
