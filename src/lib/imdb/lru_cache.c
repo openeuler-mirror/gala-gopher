@@ -19,7 +19,7 @@
 #include "hash.h"
 
 #define CONTAINER_POD_INFO_CMD "docker ps -q | xargs docker inspect --format "\
-        " '{{.State.Pid}}%s{{.Id}}%s{{.Name}}%s{{.Config.Hostname}}' | /usr/bin/grep -w %s"
+        " '{{.State.Pid}}%s{{.Id}}%s{{.Name}}%s{{.Config.Hostname}}' 2> /dev/null | /usr/bin/grep -w %s"
 
 #define DELIM        ","
 
