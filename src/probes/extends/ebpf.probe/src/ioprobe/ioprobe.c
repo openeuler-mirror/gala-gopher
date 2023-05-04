@@ -71,6 +71,92 @@ static volatile sig_atomic_t g_stop;
 static struct probe_params params = {.period = DEFAULT_PERIOD};
 static int io_args_fd;
 
+struct scsi_err_desc_s {
+    int scsi_ret_code;
+    const char *desc;
+};
+
+struct scsi_err_desc_s  scsi_err_desc[] = {
+    {SCSI_ERR_HOST_BUSY,            "HOST_BUSY"},
+    {SCSI_ERR_DEVICE_BUSY,          "DEVICE_BUSY"},
+    {SCSI_ERR_EH_BUSY,              "EH_BUSY"},
+    {SCSI_ERR_TARGET_BUSY,          "TARGET_BUSY"},
+    {SCSI_ERR_NEEDS_RETRY,          "NEEDS_RETRY"},
+    {SCSI_ERR_SUCCESS,              "SUCCESS"},
+    {SCSI_ERR_FAILED,               "FAILED"},
+    {SCSI_ERR_QUEUED,               "QUEUED"},
+    {SCSI_ERR_SOFT_ERROR,           "SOFT_ERROR"},
+    {SCSI_ERR_ADD_TO_MLQUEUE,       "ADD_TO_MLQUEUE"},
+    {SCSI_ERR_TIMEOUT,              "TIMEOUT_ERROR"},
+    {SCSI_ERR_RETURN_NOT_HANDLED,   "NOT_HANDELED"},
+    {SCSI_ERR_FAST_IO_FAIL,         "FAST_TO_FAIL"}
+};
+
+static const char* get_scis_err_desc(int scsi_err)
+{
+    for (int i = 0; i < sizeof(scsi_err_desc) / sizeof(struct scsi_err_desc_s); i++) {
+        if (scsi_err_desc[i].scsi_ret_code == scsi_err)
+            return scsi_err_desc[i].desc;
+    }
+
+    return "UNKNOW";
+}
+
+struct blk_err_desc_s {
+    int ret_code;
+    int blk_err_code;
+    const char *desc;
+};
+
+// Refer to linux souce code: include/linux/blk_types.h
+#define BLK_STS_OK                      (0)
+#define BLK_STS_NOTSUPP                 (1)
+#define BLK_STS_TIMEOUT                 (2)
+#define BLK_STS_NOSPC                   (3)
+#define BLK_STS_TRANSPORT               (4)
+#define BLK_STS_TARGET                  (5)
+#define BLK_STS_NEXUS                   (6)
+#define BLK_STS_MEDIUM                  (7)
+#define BLK_STS_PROTECTION              (8)
+#define BLK_STS_RESOURCE                (9)
+#define BLK_STS_IOERR                   (10)
+#define BLK_STS_DM_REQUEUE              (11)
+#define BLK_STS_AGAIN                   (12)
+#define BLK_STS_DEV_RESOURCE            (13)
+#define BLK_STS_ZONE_RESOURCE           (14)
+#define BLK_STS_ZONE_OPEN_RESOURCE      (15)
+#define BLK_STS_ZONE_ACTIVE_RESOURCE    (16)
+struct blk_err_desc_s  blk_err_desc[] = {
+    {0,             BLK_STS_OK,                     "OK"},
+    {-EOPNOTSUPP,   BLK_STS_NOTSUPP,                "operation not supported"},
+    {-ETIMEDOUT,    BLK_STS_TIMEOUT,                "timeout"},
+    {-ENOSPC,       BLK_STS_NOSPC,                  "critical space allocation"},
+    {-ENOLINK,      BLK_STS_TRANSPORT,              "recoverable transport"},
+    {-EREMOTEIO,    BLK_STS_TARGET,                 "critical target"},
+    {-EBADE,        BLK_STS_NEXUS,                  "critical nexus"},
+    {-ENODATA,      BLK_STS_MEDIUM,                 "critical medium"},
+    {-EILSEQ,       BLK_STS_PROTECTION,             "protection"},
+    {-ENOMEM,       BLK_STS_RESOURCE,               "kernel resource"},
+    {-EBUSY,        BLK_STS_DEV_RESOURCE,           "device resource"},
+    {-EAGAIN,       BLK_STS_AGAIN,                  "nonblocking retry"},
+    {-EREMCHG,      BLK_STS_DM_REQUEUE,             "dm internal retry"},
+    {-ETOOMANYREFS, BLK_STS_ZONE_OPEN_RESOURCE,     "open zones exceeded"},
+    {-EOVERFLOW,    BLK_STS_ZONE_ACTIVE_RESOURCE,   "active zones exceeded"},
+    {-EIO,          BLK_STS_IOERR,                  "I/O error"}
+};
+
+static const char* get_blk_err_desc(int ret_err, int *blk_err)
+{
+    for (int i = 0; i < sizeof(blk_err_desc) / sizeof(struct blk_err_desc_s); i++) {
+        if (blk_err_desc[i].ret_code == ret_err) {
+            *blk_err = blk_err_desc[i].blk_err_code;
+            return blk_err_desc[i].desc;
+        }
+    }
+
+    return "UNKNOW";
+}
+
 static void sig_int(int signo)
 {
     g_stop = 1;
@@ -327,6 +413,7 @@ static void rcv_io_latency(void *ctx, int cpu, void *data, __u32 size)
 
 static void rcv_io_err(void *ctx, int cpu, void *data, __u32 size)
 {
+    int blk_err = 0;
     char entityId[__ENTITY_ID_LEN];
     struct io_err_s *io_err = data;
 
@@ -336,17 +423,19 @@ static void rcv_io_err(void *ctx, int cpu, void *data, __u32 size)
 
     entityId[0] = 0;
     __build_entity_id(io_err->major, io_err->first_minor, entityId, __ENTITY_ID_LEN);
-    
+
+    const char *blk_err_desc = get_blk_err_desc(io_err->err_code, &blk_err);
     report_logs(OO_NAME,
                 entityId,
                 "err_code",
                 EVT_SEC_WARN,
                 "IO errors occured."
                 "(Block %d:%d, COMM %s, PID %u, op: %s, datalen %u, "
-                "err_code %d, scsi_err %d, scsi_tmout %d)",
+                "blk_err(%d) '%s', scsi_err(%d) '%s', timestamp %f)",
                 io_err->major, io_err->first_minor,
                 io_err->comm, io_err->proc_id, io_err->rwbs, io_err->data_len,
-                io_err->err_code, io_err->scsi_err, io_err->scsi_tmout);
+                blk_err, blk_err_desc, io_err->scsi_err, get_scis_err_desc(io_err->scsi_err),
+                io_err->timestamp / 1000000.0);
 
     (void)fflush(stdout);
 }

@@ -156,7 +156,7 @@ KPROBE(scsi_times_out, pt_regs)
         return 0;
     }
 
-    io_err->scsi_tmout = 1;
+    io_err->scsi_err = SCSI_ERR_TIMEOUT;
     return 0;
 }
 
@@ -225,7 +225,11 @@ KRAWTRACE(scsi_dispatch_cmd_timeout, bpf_raw_tracepoint_args)
         return 0;
     }
 
-    io_err->scsi_tmout = 1;
+    if (io_err->timestamp == 0) {
+        io_err->timestamp = bpf_ktime_get_ns() >> 3;
+    }
+
+    io_err->scsi_err = SCSI_ERR_TIMEOUT;
     return 0;
 }
 
@@ -248,6 +252,10 @@ KRAWTRACE(scsi_dispatch_cmd_error, bpf_raw_tracepoint_args)
     io_err = get_io_err(major, minor);
     if (io_err == NULL) {
         return 0;
+    }
+
+    if (io_err->timestamp == 0) {
+        io_err->timestamp = bpf_ktime_get_ns() >> 3;
     }
 
     io_err->scsi_err = scsi_err;
