@@ -106,6 +106,16 @@ static void get_cpu_time(char *src, u64 *last_total, u64 *last_used, u64 *cur_to
     }
 }
 
+static float get_cpu_util(char *src, u64 *last_total, u64 *last_used, u64 *cur_total, u64 *cur_used)
+{
+    float util;
+    get_cpu_time(src, last_total, last_used, cur_total, cur_used);
+
+    util = (*cur_used - *last_used) * FULL_PER * 1.0 / (*cur_total - *last_total);
+
+    return util;
+}
+
 static int get_proc_stat_info(void)
 {
     FILE *f = NULL;
@@ -128,21 +138,18 @@ static int get_proc_stat_info(void)
         }
         strncpy(dst_line, line, strlen(line) + 1);
         if (is_first_line) {
-            get_cpu_time(dst_line, &last_time_total, &last_time_used,
-                         &cur_time_total, &cur_time_used);
+             util_per = get_cpu_util(dst_line, &last_time_total, &last_time_used,
+                                     &cur_time_total, &cur_time_used);
             is_first_line = false;
             continue;
         }
         if (strstr(line, "cpu") == NULL) {
             continue;
         }
-        get_cpu_time(dst_line, &old_cpus[index]->cpu_time_total,
-                     &old_cpus[index]->cpu_time_used,
-                     &cur_cpus[index]->cpu_time_total,
-                     &cur_cpus[index]->cpu_time_used);
-        cur_cpus[index]->cpu_util_per = (cur_cpus[index]->cpu_time_used - old_cpus[index]->cpu_time_used) * \
-                                         FULL_PER * 1.0 / \
-                                         (cur_cpus[index]->cpu_time_total - old_cpus[index]->cpu_time_total);
+        cur_cpus[index]->cpu_util_per = get_cpu_util(dst_line, &old_cpus[index]->cpu_time_total,
+                                                     &old_cpus[index]->cpu_time_used,
+                                                     &cur_cpus[index]->cpu_time_total,
+                                                     &cur_cpus[index]->cpu_time_used);
         ret = sscanf(line,
             "%*s %llu %llu %llu %llu %llu %llu %llu %llu %*llu %*llu",
             &cur_cpus[index]->cpu_user_total_second,
@@ -339,7 +346,6 @@ int system_cpu_probe(struct probe_params *params)
         is_first_get = false;
         return 0;
     }
-    util_per = (cur_time_used - last_time_used) * FULL_PER * 1.0 / (cur_time_total - last_time_total);
     report_cpu_status(params);
     for (size_t i = 0; i < cpus_num; i++) {
         ret = nprobe_fprintf(stdout, "|%s|%d|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|\n",
