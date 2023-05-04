@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <time.h>
 #include "kern_symb.h"
 
 #define MOD_MAX_COUNT       1000
@@ -98,6 +99,7 @@ struct proc_symbs_s {
     char pod[POD_NAME_LEN];
     int is_java;
     int need_update; // update jvm symbols
+    time_t update_time;
     u32 mods_count;
     struct mod_s* mods[MOD_MAX_COUNT];
 };

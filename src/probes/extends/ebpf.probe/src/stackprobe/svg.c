@@ -50,7 +50,7 @@ struct svg_param_s {
 
 static struct svg_param_s svg_params[STACK_SVG_MAX] =
     {{"oncpu", "--countname=us", "On-CPU Time Flame Graph"},
-    {"offcpu", "--countname=us", "Off-CPU Time Flame Graph"},
+    {"offcpu", "--colors=io --countname=us", "Off-CPU Time Flame Graph"},
     {"io", "--colors=io --countname=us", "IO Time Flame Graph"},
     {"memleak", "--colors=mem --countname=Bytes", "Memory Leak Flame Graph"}};
 

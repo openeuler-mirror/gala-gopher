@@ -55,8 +55,12 @@ static void get_host_ip(const unsigned char *value, unsigned short family)
     }
 
     fp = popen(cmd, "r");
+    if (fp == NULL) {
+        return;
+    }
     if (fgets(buffer, INET6_ADDRSTRLEN, fp) == NULL) {
         printf("Fail get_host_ip.\n");
+        (void)pclose(fp);
         return ;
     }
     (void)pclose(fp);

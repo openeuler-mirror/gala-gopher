@@ -113,8 +113,8 @@ struct post_server_s {
 
 struct stack_trace_s {
     char pad[3];
-    int cpus_num;
     char is_stackmap_a;
+    int cpus_num;
     u32 whitelist_enable;
     int convert_map_fd;
     int proc_obj_map_fd;
