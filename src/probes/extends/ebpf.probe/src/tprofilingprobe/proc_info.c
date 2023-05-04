@@ -72,12 +72,32 @@ unsigned int HASH_count_proc_table(proc_info_t **proc_table)
     return HASH_COUNT(*proc_table);
 }
 
-static int set_proc_comm(int tgid, char *comm, int size)
+int set_proc_comm(int tgid, char *comm, int size)
 {
     char cmd[MAX_CMD_SIZE];
     int ret;
 
     ret = snprintf(cmd, sizeof(cmd), CMD_CAT_PROC_COMM, tgid);
+    if (ret < 0 || ret >= sizeof(cmd)) {
+        fprintf(stderr, "ERROR: Failed to set command.\n");
+        return -1;
+    }
+
+    ret = exec_cmd(cmd, comm, size);
+    if (ret) {
+        fprintf(stderr, "ERROR: Failed to execute command:%s.\n", cmd);
+        return -1;
+    }
+
+    return 0;
+}
+
+int set_thrd_comm(int pid, int tgid, char *comm, int size)
+{
+    char cmd[MAX_CMD_SIZE];
+    int ret;
+
+    ret = snprintf(cmd, sizeof(cmd), CMD_CAT_THRD_COMM, tgid, pid);
     if (ret < 0 || ret >= sizeof(cmd)) {
         fprintf(stderr, "ERROR: Failed to set command.\n");
         return -1;
@@ -271,4 +291,20 @@ void free_proc_info(proc_info_t *proc_info)
     }
 
     free(proc_info);
+}
+
+void free_proc_table(proc_info_t **proc_table)
+{
+    proc_info_t *pi, *tmp;
+
+    if (*proc_table == NULL) {
+        return;
+    }
+
+    HASH_ITER(hh, *proc_table, pi, tmp) {
+        HASH_DEL(*proc_table, pi);
+        free_proc_info(pi);
+    }
+
+    *proc_table = NULL;
 }

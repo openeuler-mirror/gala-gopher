@@ -24,16 +24,17 @@ typedef unsigned long long __u64;
 typedef unsigned int __u32;
 #endif
 
-// TODO: use config param instead
-#define MIN_AGGR_INTERVAL_NS 1000000000
-
 #define EVENT_NAME_LEN  16
 #define MAX_SIZE_OF_THREAD 1024
 #define MAX_SIZE_OF_STASH_EVENT 10240
 #define THREAD_COMM_LEN 16
 
+#define DFT_AGGR_DURATION (1000 * NSEC_PER_MSEC)
+
 typedef struct {
+    int filter_enabled;
     int filter_local;
+    __u64 aggr_duration;
 } profiling_setting_t;
 
 typedef enum {
@@ -45,6 +46,7 @@ enum {
     SYSCALL_FLAG_FD = 1,            // 获取 fd 信息的标记
     SYSCALL_FLAG_STACK = 1 << 1,    // 获取函数调用栈信息的标记
 };
+#define SYSCALL_FLAG_FD_STACK (0 | SYSCALL_FLAG_FD | SYSCALL_FLAG_STACK)
 
 typedef struct {
     unsigned long nr;
@@ -111,5 +113,24 @@ typedef struct {
         oncpu_data_t oncpu_d;
     };
 } trace_event_data_t;
+
+#if !defined(BPF_PROG_KERN) && !defined(BPF_PROG_USER)
+#include "proc_info.h"
+#include "thrd_bl.h"
+
+typedef struct {
+    int stackMapFd;             /* ebpf map，用于获取调用栈信息 */
+    int threadBlMapFd;          /* ebpf map，用于更新线程黑名单 */
+    int enableFilter;           /* 是否开启进程/线程过滤功能，默认开启。若探针启动时指定了 -A 参数，则关闭，此时会观测所有进程/线程 */
+    int filterLocal;            /* 是否启用本地配置进行进程过滤。若值为 1 则启用，否则使用全局共享的进程白名单进行过滤 */
+    __u64 aggrDuration;         /* 线程profiling事件聚合周期，单位：纳秒（ns） */
+    syscall_meta_t *scmTable;   /* 系统调用元数据表，是一个 hash 表 */
+    __u64 sysBootTime;          /* 系统启动时间，单位：纳秒（ns） */
+    proc_info_t *procTable;     /* 缓存的进程信息表，是一个 hash 表 */
+    ThrdBlacklist thrdBl;       /* 线程黑名单 */
+} Tprofiler;
+
+extern Tprofiler tprofiler;
+#endif
 
 #endif

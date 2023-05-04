@@ -34,24 +34,22 @@
 #define LEN_OF_RESOURCE 1024
 #define LEN_OF_ATTRS    8192
 
-static __u64 g_boot_time = 0;
-static proc_info_t *g_proc_table = NULL;
-
 static int get_sys_boot_time(__u64 *boot_time);
 static __u64 get_unix_time_from_uptime(__u64 uptime);
 
 static void set_syscall_name(unsigned long nr, char *name);
 static int set_evt_resource(trace_event_data_t *evt_data, char *evt_resource, int resource_size);
 static int set_evt_attrs(trace_event_data_t *evt_data, char *evt_attrs, int attrs_size);
+static int filter_by_thread_bl(trace_event_data_t *evt_data);
 
-int init_sys_boot_time()
+int init_sys_boot_time(__u64 *sysBootTime)
 {
-    return get_sys_boot_time(&g_boot_time);
+    return get_sys_boot_time(sysBootTime);
 }
 
 static __u64 get_unix_time_from_uptime(__u64 uptime)
 {
-    return g_boot_time + uptime;
+    return tprofiler.sysBootTime + uptime;
 }
 
 void output_profiling_event(trace_event_data_t *evt_data)
@@ -60,6 +58,10 @@ void output_profiling_event(trace_event_data_t *evt_data)
     char resource[LEN_OF_RESOURCE] = {0};
     char attrs[LEN_OF_ATTRS] = {0};
     struct otel_log ol = {0};
+
+    if (filter_by_thread_bl(evt_data)) {
+        return;
+    }
 
     timestamp = get_unix_time_from_uptime(evt_data->timestamp) / NSEC_PER_MSEC;
     if (set_evt_resource(evt_data, resource, LEN_OF_RESOURCE)) {
@@ -104,13 +106,11 @@ static int get_sys_boot_time(__u64 *boot_time)
     return 0;
 }
 
-extern syscall_meta_t *g_syscall_meta_table;
-
 static syscall_meta_t *get_syscall_meta(unsigned long nr)
 {
     syscall_meta_t *scm;
 
-    HASH_FIND(hh, g_syscall_meta_table, &nr, sizeof(unsigned long), scm);
+    HASH_FIND(hh, tprofiler.scmTable, &nr, sizeof(unsigned long), scm);
     if (scm == NULL) {
         fprintf(stderr, "WARN: cannot find syscall metadata of syscall number:%ld.\n", nr);
     }
@@ -135,7 +135,7 @@ static int set_evt_resource(trace_event_data_t *evt_data, char *evt_resource, in
     proc_info_t *pi;
     container_info_t *ci;
 
-    pi = get_proc_info(&g_proc_table, evt_data->tgid);
+    pi = get_proc_info(&tprofiler.procTable, evt_data->tgid);
     if (pi == NULL) {
         return -1;
     }
@@ -153,19 +153,17 @@ static int set_evt_resource(trace_event_data_t *evt_data, char *evt_resource, in
     return 0;
 }
 
-extern int g_stackmap_fd;
-
 int get_addr_stack(__u64 *addr_stack, int uid)
 {
-    if (g_stackmap_fd <= 0) {
-        fprintf(stderr, "ERROR: cannot get stack map fd:%d.\n", g_stackmap_fd);
+    if (tprofiler.stackMapFd <= 0) {
+        fprintf(stderr, "ERROR: cannot get stack map fd:%d.\n", tprofiler.stackMapFd);
         return -1;
     }
 
     if (uid <= 0) {
         return -1;
     }
-    if (bpf_map_lookup_elem(g_stackmap_fd, &uid, addr_stack) != 0) {
+    if (bpf_map_lookup_elem(tprofiler.stackMapFd, &uid, addr_stack) != 0) {
         return -1;
     }
 
@@ -223,7 +221,7 @@ static int get_symb_stack(char *symbs_str, int symb_size, trace_event_data_t *ev
         return -1;
     }
 
-    pi = get_proc_info(&g_proc_table, evt_data->tgid);
+    pi = get_proc_info(&tprofiler.procTable, evt_data->tgid);
     if (pi == NULL) {
         return -1;
     }
@@ -307,7 +305,7 @@ static int append_fd_attrs(strbuf_t *attrs_buf, trace_event_data_t *evt_data)
     proc_info_t *pi;
     fd_info_t *fi;
 
-    pi = get_proc_info(&g_proc_table, tgid);
+    pi = get_proc_info(&tprofiler.procTable, tgid);
     if (pi == NULL) {
         return -1;
     }
@@ -538,6 +536,42 @@ static int set_evt_attrs(trace_event_data_t *evt_data, char *evt_attrs, int attr
     }
     strbuf_append_chr(&sbuf, '}');
     strbuf_append_chr(&sbuf, '\0');
+
+    return 0;
+}
+
+static int filter_by_thread_bl(trace_event_data_t *evt_data)
+{
+    ThrdBlacklist *thrdBl = &tprofiler.thrdBl;
+    BlacklistItem *blItem;
+    char procComm[TASK_COMM_LEN] = {0};
+    char thrdComm[TASK_COMM_LEN] = {0};
+    int i, j;
+
+    if (!tprofiler.enableFilter || tprofiler.threadBlMapFd <= 0) {
+        return 0;
+    }
+
+    if (set_proc_comm(evt_data->tgid, procComm, TASK_COMM_LEN)) {
+        return 0;
+    }
+    if (set_thrd_comm(evt_data->pid, evt_data->tgid, thrdComm, TASK_COMM_LEN)) {
+        return 0;
+    }
+
+    for (i = 0; i < thrdBl->blNum; i++) {
+        blItem = &thrdBl->blItems[i];
+        if (strcmp(procComm, blItem->procComm)) {
+            continue;
+        }
+
+        for (j = 0; j < blItem->thrdNum; j++) {
+            if (strcmp(thrdComm, blItem->thrdComms[j]) == 0) {
+                (void)bpf_map_update_elem(tprofiler.threadBlMapFd, &evt_data->pid, &evt_data->tgid, BPF_ANY);
+                return -1;
+            }
+        }
+    }
 
     return 0;
 }
