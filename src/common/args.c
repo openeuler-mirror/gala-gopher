@@ -190,6 +190,9 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
                 (void)snprintf(params->tgids, sizeof(params->tgids), "%s", arg);
             }
             break;
+        case 'A':
+            params->enable_all_thrds = 1;
+            break;
         default:
             return -1;
     }

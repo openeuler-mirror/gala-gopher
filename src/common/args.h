@@ -37,7 +37,7 @@
 
 #define MAX_TGIDS_LEN       64
 
-#define __OPT_S "t:s:T:J:O:D:F:lU:L:c:p:w:d:P:Ck:i:m:e:f:"
+#define __OPT_S "t:s:T:J:O:D:F:lU:L:c:p:w:d:P:Ck:i:m:e:f:A"
 struct probe_params {
     unsigned int period;          // [-t <>] Report period, unit second, default is 5 seconds
     unsigned int sample_period;   // [-s <>] Sampling period, unit milliseconds, default is 100 milliseconds
@@ -78,6 +78,7 @@ struct probe_params {
         0x0020  NATS
     */
     unsigned int l7_probe_proto_flags;
+    int enable_all_thrds;         // [-A] Enable all threads, default is 0
 };
 int args_parse(int argc, char **argv, struct probe_params* params);
 int params_parse(char *s, struct probe_params *params);

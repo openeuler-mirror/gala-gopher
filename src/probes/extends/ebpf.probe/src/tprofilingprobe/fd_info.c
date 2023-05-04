@@ -136,13 +136,13 @@ static int fill_sock_info(fd_info_t *fd_info, int tgid)
         SPLIT_NEWLINE_SYMBOL(buf);
         switch (buf[0]) {
             case 't':
-                strncpy(sock_type, buf + 1, sizeof(sock_type));
+                strncpy(sock_type, buf + 1, sizeof(sock_type) - 1);
                 break;
             case 'P':
-                strncpy(proto_type, buf + 1, sizeof(proto_type));
+                strncpy(proto_type, buf + 1, sizeof(proto_type) - 1);
                 break;
             case 'n':
-                strncpy(conn, buf + 1, sizeof(conn));
+                strncpy(conn, buf + 1, sizeof(conn) - 1);
                 break;
             default:
                 continue;
@@ -152,7 +152,7 @@ static int fill_sock_info(fd_info_t *fd_info, int tgid)
     si->type = get_sock_type(sock_type);
     if (si->type == SOCK_TYPE_IPV4 || si->type == SOCK_TYPE_IPV6) {
         si->ip_info.proto = get_proto_type(proto_type);
-        strncpy(si->ip_info.conn, conn, sizeof(si->ip_info.conn));
+        strncpy(si->ip_info.conn, conn, sizeof(si->ip_info.conn) - 1);
     }
 
     pclose(file);
@@ -172,7 +172,7 @@ int fill_fd_info(fd_info_t *fd_info, int tgid)
     }
 
     if (stat(fd_path, &st)) {
-        fprintf(stderr, "ERROR: Failed to get stat info of fd %s.\n", fd_path);
+        fprintf(stderr, "WARN: Failed to get stat info of fd %s.\n", fd_path);
         return -1;
     }
 

@@ -25,6 +25,7 @@
 #define MAX_PATH_SIZE 128
 
 #define CMD_CAT_PROC_COMM "cat /proc/%d/comm"
+#define CMD_CAT_THRD_COMM "cat /proc/%d/task/%d/comm"
 #define MAX_CMD_SIZE 64
 
 typedef struct {
@@ -57,5 +58,10 @@ struct proc_symbs_s *add_symb_info(proc_info_t *proc_info);
 struct proc_symbs_s *get_symb_info(proc_info_t *proc_info);
 
 void free_proc_info(proc_info_t *proc_info);
+void free_proc_table(proc_info_t **proc_table);
+
+// util
+int set_proc_comm(int tgid, char *comm, int size);
+int set_thrd_comm(int pid, int tgid, char *comm, int size);
 
 #endif

@@ -16,9 +16,6 @@
 #undef BPF_PROG_USER
 #endif
 #define BPF_PROG_KERN
-#include <vmlinux.h>
-#include <bpf/bpf_helpers.h>
-#include <bpf/bpf_tracing.h>
 #include "bpf.h"
 #include "tprofiling.h"
 
@@ -56,6 +53,13 @@ struct {
     __uint(value_size, sizeof(struct obj_ref_s));
     __uint(max_entries, MAX_SIZE_OF_THREAD);
 } proc_filter_map SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_LRU_HASH);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, MAX_SIZE_OF_THREAD);
+} thrd_bl_map SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
@@ -116,20 +120,19 @@ static __always_inline long bpf_syscall_get_nr(struct pt_regs *regs)
 #endif
 }
 
-static __always_inline bool enable_process2(u32 tgid)
+static __always_inline profiling_setting_t *get_tp_setting()
 {
     u32 setting_k = 0;
-    profiling_setting_t *setting_v;
+    return (profiling_setting_t *)bpf_map_lookup_elem(&setting_map, &setting_k);
+}
+
+static __always_inline bool enable_proc(u32 tgid, profiling_setting_t *setting)
+{
     struct proc_s proc_k = {.proc_id = tgid};
     void *proc_v;
     int filter_local = 0;
 
-    setting_v = (profiling_setting_t *)bpf_map_lookup_elem(&setting_map, &setting_k);
-    if (setting_v != (void *)0) {
-        filter_local = setting_v->filter_local;
-    }
-
-    if (filter_local) {
+    if (setting->filter_local) {
         proc_v = bpf_map_lookup_elem(&proc_filter_map, &proc_k);
     } else {
         proc_v = bpf_map_lookup_elem(&proc_obj_map, &proc_k);
@@ -141,10 +144,37 @@ static __always_inline bool enable_process2(u32 tgid)
     return false;
 }
 
-static __always_inline bool enable_process()
+static __always_inline bool enable_thrd(u32 pid, u32 tgid)
 {
-    u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;
-    return enable_process2(tgid);
+    u32 *val;
+    val = (u32 *)bpf_map_lookup_elem(&thrd_bl_map, &pid);
+    if (val == (void *)0) {
+        return true;
+    }
+
+    if (*val == tgid) {
+        return false;
+    } else {
+        // invalid thread item in blacklist map
+        bpf_map_delete_elem(&thrd_bl_map, &pid);
+        return true;
+    }
+}
+
+static __always_inline bool enable_proc_thrd(profiling_setting_t *setting)
+{
+    u64 pid_tgid;
+    u32 tgid, pid;
+
+    if (!setting->filter_enabled) {
+        return true;
+    }
+
+    pid_tgid = bpf_get_current_pid_tgid();
+    tgid = pid_tgid >> INT_LEN;
+    pid = (u32)pid_tgid;
+
+    return enable_proc(tgid, setting) && enable_thrd(pid, tgid);
 }
 
 static __always_inline void init_syscall_data(syscall_data_t *scd, syscall_m_enter_t *sce,
@@ -218,9 +248,26 @@ static __always_inline void stash_incomming_syscall_event(syscall_m_enter_t *sce
     bpf_map_update_elem(&syscall_stash_map, &sc_stash_key, &sc_stash, BPF_ANY);
 }
 
+static __always_inline u64 get_aggr_duration()
+{
+    u32 setting_k = 0;
+    profiling_setting_t *setting_v;
+    u64 aggr_duration = 0;
+
+    setting_v = (profiling_setting_t *)bpf_map_lookup_elem(&setting_map, &setting_k);
+    if (setting_v != (void *)0) {
+        aggr_duration = setting_v->aggr_duration;
+    }
+    if (aggr_duration == 0) {
+        aggr_duration = DFT_AGGR_DURATION;
+    }
+
+    return aggr_duration;
+}
+
 static __always_inline bool can_emit(u64 stime, u64 etime)
 {
-    if (etime >= stime + MIN_AGGR_INTERVAL_NS) {
+    if (etime >= stime + get_aggr_duration()) {
         return true;
     }
     return false;
@@ -278,22 +325,23 @@ static __always_inline void process_sys_enter(syscall_m_meta_t *scm)
     (void)bpf_map_update_elem(&syscall_map, &sce.pid, &sce, BPF_ANY);
 }
 
-static __always_inline void process_sys_exit(syscall_m_meta_t *scm, struct bpf_raw_tracepoint_args *ctx)
+static __always_inline void process_sys_exit(syscall_m_enter_t *sce, struct bpf_raw_tracepoint_args *ctx)
 {
-    u32 pid;
-    syscall_m_enter_t *sce;
+    unsigned long nr;
+    syscall_m_meta_t *scm;
+    struct pt_regs *regs = (struct pt_regs *)ctx->args[0];
 
-    pid = (u32)bpf_get_current_pid_tgid();
-    sce = (syscall_m_enter_t *)bpf_map_lookup_elem(&syscall_map, &pid);
-    if (sce == (void *)0) {
+    nr = bpf_syscall_get_nr(regs);
+    if (__builtin_expect((nr != sce->nr), 0)) { // not likely happened
         return;
     }
 
-    if (sce->nr == scm->nr) {
-        process_syscall_event(sce, scm, ctx);
+    scm = get_syscall_meta(nr);
+    if (__builtin_expect((scm == (void *)0), 0)) {  // not likely happened
+        return;
     }
 
-    (void)bpf_map_delete_elem(&syscall_map, &pid);
+    process_syscall_event(sce, scm, ctx);
 }
 
 SEC("raw_tracepoint/sys_enter")
@@ -301,6 +349,7 @@ int bpf_raw_tp_sys_enter(struct bpf_raw_tracepoint_args *ctx)
 {
     unsigned long nr;
     syscall_m_meta_t *scm;
+    profiling_setting_t *setting;
 
     nr = ctx->args[1];
     scm = get_syscall_meta(nr);
@@ -308,7 +357,12 @@ int bpf_raw_tp_sys_enter(struct bpf_raw_tracepoint_args *ctx)
         return 0;
     }
 
-    if (!enable_process()) {
+    setting = get_tp_setting();
+    if (setting == (void *)0) {
+        return 0;
+    }
+
+    if (!enable_proc_thrd(setting)) {
         return 0;
     }
 
@@ -320,21 +374,19 @@ int bpf_raw_tp_sys_enter(struct bpf_raw_tracepoint_args *ctx)
 SEC("raw_tracepoint/sys_exit")
 int bpf_raw_tp_sys_exit(struct bpf_raw_tracepoint_args *ctx)
 {
-    unsigned long nr;
-    syscall_m_meta_t *scm;
-    struct pt_regs *regs = (struct pt_regs *)ctx->args[0];
+    u32 pid;
+    syscall_m_enter_t *sce;
 
-    nr = bpf_syscall_get_nr(regs);
-    scm = get_syscall_meta(nr);
-    if (scm == (void *)0) {
+    pid = (u32)bpf_get_current_pid_tgid();
+    // 如果查询到 sce ，则说明当前进程和系统调用满足过滤条件，无需再额外添加相应的过滤判断逻辑
+    sce = (syscall_m_enter_t *)bpf_map_lookup_elem(&syscall_map, &pid);
+    if (sce == (void *)0) {
         return 0;
     }
 
-    if (!enable_process()) {
-        return 0;
-    }
+    process_sys_exit(sce, ctx);
 
-    process_sys_exit(scm, ctx);
+    (void)bpf_map_delete_elem(&syscall_map, &pid);
 
     return 0;
 }
@@ -429,33 +481,29 @@ static __always_inline void process_oncpu_event(oncpu_m_enter_t *oncpu_enter, st
     }
 }
 
-static __always_inline void process_oncpu(struct task_struct *task)
+static __always_inline void process_oncpu(struct task_struct *task, profiling_setting_t *setting)
 {
-    u32 tgid;
+    u32 pid, tgid;
     oncpu_m_enter_t oncpu_enter = {0};
 
+    pid = _(task->pid);
     tgid = _(task->tgid);
-    if (!enable_process2(tgid)) {
-        return;
+    if (setting->filter_enabled) {
+        if (!enable_proc(tgid, setting) || !enable_thrd(pid, tgid)) {
+            return;
+        }
     }
 
-    oncpu_enter.pid = _(task->pid);
+    oncpu_enter.pid = pid;
     oncpu_enter.start_time = bpf_ktime_get_ns();
     (void)bpf_map_update_elem(&oncpu_map, &oncpu_enter.pid, &oncpu_enter, BPF_ANY);
 }
 
 static __always_inline void process_offcpu(struct task_struct *task, struct pt_regs *ctx)
 {
-    u32 pid;
-    u32 tgid;
+    u32 pid = _(task->pid);
     oncpu_m_enter_t *oncpu_enter;
 
-    tgid = _(task->tgid);
-    if (!enable_process2(tgid)) {
-        return;
-    }
-
-    pid = _(task->pid);
     oncpu_enter = (oncpu_m_enter_t *)bpf_map_lookup_elem(&oncpu_map, &pid);
     if (oncpu_enter == (void *)0) {
         return;
@@ -470,9 +518,15 @@ KPROBE(finish_task_switch, pt_regs)
 {
     struct task_struct *prev = (struct task_struct *)PT_REGS_PARM1(ctx);
     struct task_struct *current = (struct task_struct *)bpf_get_current_task();
+    profiling_setting_t *setting;
+
+    setting = get_tp_setting();
+    if (setting == (void *)0) {
+        return 0;
+    }
 
     process_offcpu(prev, ctx);
-    process_oncpu(current);
+    process_oncpu(current, setting);
 
     return 0;
 }

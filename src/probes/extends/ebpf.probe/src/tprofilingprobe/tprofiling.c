@@ -35,17 +35,11 @@
 #include "java_support.h"
 #include "tprofiling.h"
 
-#define SYSCALL_FLAG_FD_STACK (0 | SYSCALL_FLAG_FD | SYSCALL_FLAG_STACK)
+Tprofiler tprofiler;
 
-syscall_meta_t *g_syscall_meta_table = NULL;
-int g_stackmap_fd = 0;
+static struct probe_params g_params;
 
-static int g_filter_local = 0;
-
-static struct probe_params g_params = {
-    .period = DEFAULT_PERIOD
-};
-
+// TODO: set in config file?
 static syscall_meta_t g_syscall_metas[] = {
     // file
     {SYSCALL_READ_ID, SYSCALL_READ_NAME, SYSCALL_FLAG_FD_STACK, PROFILE_EVT_TYPE_FILE},
@@ -96,11 +90,12 @@ static syscall_meta_t g_syscall_metas[] = {
 };
 
 static int init_setting_map(int setting_map_fd);
+static int init_proc_thrd_filter();
 static int init_proc_filter_map(int proc_filter_map_fd);
 static int init_syscall_table_map(int syscall_table_fd);
 static void init_java_symb_mgmt(int proc_filter_map_fd);
 static void perf_event_handler(void *ctx, int cpu, void *data, __u32 size);
-static void clean_syscall_meta_table();
+static void clean_tprofiler();
 
 int main(int argc, char **argv)
 {
@@ -114,11 +109,14 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    if (g_params.tgids != NULL && g_params.tgids[0] != '\0') {
-        g_filter_local = 1;
+    if (init_proc_thrd_filter()) {
+        fprintf(stderr, "ERROR: init process/thread filter failed.\n");
+        return -1;
     }
 
-    if (init_sys_boot_time()) {
+    tprofiler.aggrDuration = DFT_AGGR_DURATION;
+
+    if (init_sys_boot_time(&tprofiler.sysBootTime)) {
         fprintf(stderr, "ERROR: get system boot time failed.\n");
         return -1;
     }
@@ -132,18 +130,20 @@ int main(int argc, char **argv)
         goto cleanup;
     }
 
-    // 如果本地指定了进程过滤参数，则使用本地 map 进行过滤；否则使用全局共享的进程 map 过滤
-    if (g_filter_local) {
-        err = init_proc_filter_map(GET_MAP_FD(syscall, proc_filter_map));
-        if (err) {
-            fprintf(stderr, "ERROR: init bpf process filter failed.\n");
-            goto cleanup;
+    proc_filter_map_fd = 0;
+    if (tprofiler.enableFilter) {
+        // 如果本地指定了进程过滤参数，则使用本地 map 进行过滤；否则使用全局共享的进程 map 过滤
+        if (tprofiler.filterLocal) {
+            err = init_proc_filter_map(GET_MAP_FD(syscall, proc_filter_map));
+            if (err) {
+                fprintf(stderr, "ERROR: init bpf process filter failed.\n");
+                goto cleanup;
+            }
+            proc_filter_map_fd = GET_MAP_FD(syscall, proc_filter_map);
+        } else {
+            proc_filter_map_fd = GET_MAP_FD(syscall, proc_obj_map);
         }
-        proc_filter_map_fd = GET_MAP_FD(syscall, proc_filter_map);
-    } else {
-        proc_filter_map_fd = GET_MAP_FD(syscall, proc_obj_map);
     }
-
     init_java_symb_mgmt(proc_filter_map_fd);
 
     err = init_syscall_table_map(GET_MAP_FD(syscall, syscall_table_map));
@@ -152,7 +152,8 @@ int main(int argc, char **argv)
         goto cleanup;
     }
 
-    g_stackmap_fd = GET_MAP_FD(syscall, stack_map);
+    tprofiler.stackMapFd = GET_MAP_FD(syscall, stack_map);
+    tprofiler.threadBlMapFd = GET_MAP_FD(syscall, thrd_bl_map);
 
     evt_map_fd = GET_MAP_FD(syscall, event_map);
     pb = create_pref_buffer(evt_map_fd, perf_event_handler);
@@ -167,9 +168,7 @@ cleanup:
     if (pb) {
         perf_buffer__free(pb);
     }
-    if (g_syscall_meta_table) {
-        clean_syscall_meta_table();
-    }
+    clean_tprofiler();
     return -err;
 }
 
@@ -180,11 +179,39 @@ static int init_setting_map(int setting_map_fd)
     profiling_setting_t ps = {0};
     long ret;
 
-    ps.filter_local = g_filter_local;
+    ps.filter_enabled = tprofiler.enableFilter;
+    ps.filter_local = tprofiler.filterLocal;
+    ps.aggr_duration = tprofiler.aggrDuration;
 
     ret = bpf_map_update_elem(setting_map_fd, &key, &ps, BPF_ANY);
     if (ret) {
         return -1;
+    }
+
+    return 0;
+}
+
+// 初始化进程/线程过滤参数
+static int init_proc_thrd_filter()
+{
+    int ret;
+
+    tprofiler.enableFilter = 1;
+    tprofiler.filterLocal = 0;
+
+    if (g_params.enable_all_thrds) {
+        tprofiler.enableFilter = 0;
+    }
+
+    if (g_params.tgids != NULL && g_params.tgids[0] != '\0') {
+        tprofiler.filterLocal = 1;
+    }
+
+    if (tprofiler.enableFilter) {
+        ret = initThreadBlacklist(&tprofiler.thrdBl);
+        if (ret) {
+            return -1;
+        }
     }
 
     return 0;
@@ -248,7 +275,7 @@ static int init_syscall_table_map(int syscall_table_fd)
         scm_ptr->flag = g_syscall_metas[i].flag;
         strcpy(scm_ptr->name, g_syscall_metas[i].name);
         strcpy(scm_ptr->default_type, g_syscall_metas[i].default_type);
-        HASH_ADD(hh, g_syscall_meta_table, nr, sizeof(unsigned long), scm_ptr);
+        HASH_ADD(hh, tprofiler.scmTable, nr, sizeof(unsigned long), scm_ptr);
     }
 
     return 0;
@@ -280,13 +307,28 @@ static void perf_event_handler(void *ctx, int cpu, void *data, __u32 size)
     output_profiling_event((trace_event_data_t *)data);
 }
 
-static void clean_syscall_meta_table()
+static void clean_syscall_meta_table(syscall_meta_t **scmTable)
 {
     syscall_meta_t *scm;
     syscall_meta_t *tmp;
 
-    HASH_ITER(hh, g_syscall_meta_table, scm, tmp) {
-        HASH_DEL(g_syscall_meta_table, scm);
+    HASH_ITER(hh, *scmTable, scm, tmp) {
+        HASH_DEL(*scmTable, scm);
         free(scm);
     }
+
+    *scmTable = NULL;
+}
+
+static void clean_tprofiler()
+{
+    if (tprofiler.scmTable) {
+        clean_syscall_meta_table(&tprofiler.scmTable);
+    }
+
+    if (tprofiler.procTable) {
+        free_proc_table(&tprofiler.procTable);
+    }
+
+    destroyThreadBlacklist(&tprofiler.thrdBl);
 }
