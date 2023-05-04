@@ -48,6 +48,11 @@ measurements:
                 name: "system_msec",
             },
             {
+                description: "cpu_idle_total_second(unit: ms)",
+                type: "gauge",
+                name: "idle_msec",
+            },
+            {
                 description: "cpu_iowait_total_second(unit: ms)",
                 type: "gauge",
                 name: "iowait_msec",
@@ -63,6 +68,11 @@ measurements:
                 name: "softirq_msec",
             },
             {
+                description: "cpu_steal_total_second(unit: ms)",
+                type: "gauge",
+                name: "steal_msec",
+            },
+            {
                 description: "Count of dropped packets due to full processing queue",
                 type: "gauge",
                 name: "backlog_drops",
@@ -71,6 +81,11 @@ measurements:
                 description: "times has been woken up to process packets via Inter-processor Interrupt",
                 type: "gauge",
                 name: "rps_count",
+            },
+            {
+                description: "CPU utilization (%)",
+                type: "gauge",
+                name: "util_per",
             }
         )
     },
