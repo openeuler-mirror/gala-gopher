@@ -26,6 +26,29 @@
 
 #define IS_LOAD_PROBE(LOAD_TYPE, PROG_TYPE) (LOAD_TYPE & PROG_TYPE)
 
+// Refer to linux souce code: include/scsi/scsi.h
+
+/*
+ * Midlevel queue return values.
+ */
+#define SCSI_ERR_HOST_BUSY      0x1055
+#define SCSI_ERR_DEVICE_BUSY    0x1056
+#define SCSI_ERR_EH_BUSY        0x1057
+#define SCSI_ERR_TARGET_BUSY    0x1058
+
+/*
+ * Internal return values.
+ */
+#define SCSI_ERR_NEEDS_RETRY    0x2001
+#define SCSI_ERR_SUCCESS        0x2002
+#define SCSI_ERR_FAILED         0x2003
+#define SCSI_ERR_QUEUED         0x2004
+#define SCSI_ERR_SOFT_ERROR     0x2005
+#define SCSI_ERR_ADD_TO_MLQUEUE 0x2006
+#define SCSI_ERR_TIMEOUT        0x2007
+#define SCSI_ERR_RETURN_NOT_HANDLED     0x2008
+#define SCSI_ERR_FAST_IO_FAIL           0x2009
+
 enum IO_ISSUE_E {
     IO_ISSUE_START = 0,
     IO_ISSUE_DRIVER,
@@ -80,8 +103,8 @@ struct io_err_s {
     char rwbs[RWBS_LEN];
     unsigned int data_len;
     int err_code;
-    int scsi_tmout;
     int scsi_err;
+    u64 timestamp;
 };
 
 struct io_req_s {
