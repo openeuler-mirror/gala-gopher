@@ -15,9 +15,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/prctl.h>
 #include <unistd.h>
 
 #include "extend_probe.h"
+#include "probe_mng.h"
 
 #define PROBE_START_DELAY 5
 
@@ -187,3 +189,105 @@ ExtendProbe *ExtendProbeMgrGet(ExtendProbeMgr *mgr, const char *probeName)
     return NULL;
 }
 
+FILE* New__DoRunExtProbe(struct probe_s *probe)
+{
+    char command[MAX_COMMAND_LEN];
+    FILE *f = NULL;
+
+    command[0] = 0;
+    (void)snprintf(command, MAX_COMMAND_LEN - 1, "%s", probe->bin);
+repeat:
+    f = popen(command, "r");
+    if (feof(f) != 0 || ferror(f) != 0) {
+        pclose(f);
+        f = NULL;
+        sleep(PROBE_START_DELAY);
+        goto repeat;
+    }
+    return f;
+}
+
+int New_RunExtendProbe(struct probe_s *probe)
+{
+    int ret = 0;
+    FILE *f = NULL;
+    char buffer[MAX_DATA_STR_LEN];
+    uint32_t bufferSize = 0;
+
+    char *dataStr = NULL;
+    uint32_t index = 0;
+
+    f = New__DoRunExtProbe(probe);
+    SET_PROBE_FLAGS(probe, PROBE_FLAGS_RUNNING);
+
+    while (feof(f) == 0 && ferror(f) == 0) {
+        if (IS_STOPPING_PROBE(probe)) {
+            break;
+        }
+        if (fgets(buffer, sizeof(buffer), f) == NULL)
+            continue;
+
+        if (buffer[0] != '|') {
+            //INFO("[%s]: %s", probe->name, buffer);
+            continue;
+        }
+
+        if ((bufferSize = strlen(buffer)) >= MAX_DATA_STR_LEN) {
+            ERROR("[E-PROBE %s] stdout buf(len:%u) is too long\n", probe->name, bufferSize);
+            continue;
+        }
+        for (int i = 0; i < bufferSize; i++) {
+            if (dataStr == NULL) {
+                dataStr = (char *)malloc(MAX_DATA_STR_LEN);
+                if (dataStr == NULL) {
+                    break;
+                }
+                // memset(dataStr, 0, sizeof(MAX_DATA_STR_LEN));
+                index = 0;
+            }
+
+            if (buffer[i] == '\n') {
+                dataStr[index] = '\0';
+                ret = FifoPut(probe->fifo, (void *)dataStr);
+                if (ret != 0) {
+                    ERROR("[E-PROBE %s] fifo full.\n", probe->name);
+                    (void)free(dataStr);
+                    dataStr = NULL;
+                    break;
+                }
+
+                uint64_t msg = 1;
+                ret = write(probe->fifo->triggerFd, &msg, sizeof(uint64_t));
+                if (ret != sizeof(uint64_t)) {
+                    ERROR("[E-PROBE %s] send trigger msg to eventfd failed.\n", probe->name);
+                    break;
+                }
+
+                // reset dataStr
+                DEBUG("[E-PROBE %s] send data to ingresss succeed.(content=%s)\n", probe->name, dataStr);
+                dataStr = NULL;
+            } else {
+                dataStr[index] = buffer[i];
+                index++;
+            }
+        }
+    }
+
+    SET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPED);
+    UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_RUNNING);
+    pclose(f);
+    return 0;
+}
+
+
+void *extend_probe_thread_cb(void *arg)
+{
+    int ret = 0;
+    struct probe_s *probe = (struct probe_s *)arg;
+
+    char thread_name[MAX_THREAD_NAME_LEN];
+    snprintf(thread_name, MAX_THREAD_NAME_LEN - 1, "[EPROBE]%s", probe->name);
+    prctl(PR_SET_NAME, thread_name);
+
+    (void)New_RunExtendProbe(probe);
+}

@@ -343,7 +343,7 @@ int DaemonRun(const ResourceMgr *mgr)
     // 10. start rest_api_server thread
     ret = RestServerStartDaemon(mgr->restServer);
     if (ret != 0) {
-        ERROR("[DAEMON] create rest api server daemon failed. errno: %d\n", errno);
+        ERROR("[DAEMON] create rest api server daemon failed: %s\n", strerror(errno));
         RestServerDestroy(mgr->restServer);
         return -1;
     }

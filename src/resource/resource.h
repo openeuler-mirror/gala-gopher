@@ -27,6 +27,7 @@
 
 #include "probe.h"
 #include "extend_probe.h"
+#include "probe_mng.h"
 #include "meta.h"
 #include "fifo.h"
 
@@ -52,6 +53,7 @@ typedef struct {
     // inner component
     ProbeMgr *probeMgr;
     ExtendProbeMgr *extendProbeMgr;
+    struct probe_mng_s *probe_mng;
 
     MeasurementMgr *mmMgr;
     FifoMgr *fifoMgr;

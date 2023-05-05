@@ -11,54 +11,54 @@
 下面是火焰图同时开启oncpu, offcpu采集特性的API举例：
 
 ```
-curl -X POST http://gala-gopher:9999/flamegraph/
+curl -X POST http://gala-gopher:9999/flamegraph/ -d json='
 {
     "cmd": {
-        "bin": "/opt/gala-gopher/extend_probes/stackprobe", 
+        "bin": "/opt/gala-gopher/extend_probes/stackprobe",
         "check_cmd": ""
-    }, 
+    },
     "probes": [
         {
             "probe": [
-                "oncpu", 
+                "oncpu",
                 "offcpu"
-            ], 
+            ],
             "proc_id": [
-                101, 
+                101,
                 102
-            ], 
+            ],
             "proc_name": [
                 {
-                    "comm": "app1", 
+                    "comm": "app1",
                     "cmdline": "",
-                    "debuing_dir": ""
-                }, 
+                    "debugging_dir": ""
+                },
                 {
-                    "comm": "app2", 
+                    "comm": "app2",
                     "cmdline": "",
-                    "debuing_dir": ""
+                    "debugging_dir": ""
                 }
-            ], 
+            ],
             "pod": [
-                "pod1", 
+                "pod1",
                 "pod2"
-            ], 
+            ],
             "container_id": [
-                "container1", 
+                "container1",
                 "container2"
             ]
         }
     ]
-}
+}'
 ```
 
 通过REST关闭火焰图的采集能力
 
 ```
-curl -X POST http://gala-gopher:9999/flamegraph/
+curl -X POST http://gala-gopher:9999/flamegraph/ -d json='
 {
-    "switch": "off"
-}
+    "operate": "start" // optional: start, stop, delete
+}'
 ```
 
 详细采集能力REST接口定义如下：
@@ -95,14 +95,17 @@ curl -X POST http://gala-gopher:9999/flamegraph/
 探针在运行期间还需要设置一些参数设置，例如：设置火焰图的采样周期、上报周期
 
 ```
-curl -X POST http://gala-gopher:9999/flamegraph/
+curl -X POST http://gala-gopher:9999/flamegraph/ -d json='
 {
-    "params": [
-        {
-            "report_period": 180
-        }
-    ]
-}
+    "params": {
+        "report_period": 180,
+        "sample_period": 180,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ]
+    }
+}'
 ```
 
 详细参数运行参数如下：
@@ -117,49 +120,52 @@ curl -X POST http://gala-gopher:9999/flamegraph/
 | res_upper_thr      | 资源百分比上限                                         | 0%, [0%~100%]                                                | percent | ALL                      | Y                   |
 | report_event       | 上报异常事件                                           | 0, [0, 1]                                                    |         | ALL                      | Y                   |
 | metrics_type       | 上报telemetry metrics                                  | raw, [raw, telemetry]                                        |         | ALL                      | N                   |
-| env                | 工作环境类型                                           | [node, container, kubenet]                                   |         | ALL                      | N                   |
+| env                | 工作环境类型                                           | node, [node, container, kubenet]                             |         | ALL                      | N                   |
 | report_source_port | 是否上报源端口                                         | 0, [0, 1]                                                    |         | tcp                      | Y                   |
-| l7_protocol        | L7层协议范围                                           | http1.x, [http1.x, postgresql, mysql, redis, kafka, http2.0, mongodb, rocketmq, dns] |         | l7                       | Y                   |
+| l7_protocol        | L7层协议范围                                           | http, [http, postgresql, mysql, redis, kafka,  mongodb, rocketmq, dns] |         | l7                       | Y                   |
 | support_ssl        | 支持SSL加密协议观测                                    | 0, [0, 1]                                                    |         | l7                       | Y                   |
-| svg_dir            | 设置火焰图svg文件存储路径                              | /var/log/gala-gopher/stacktrace                              |         | flamegraph               | Y                   |
-| flame_dir          | 设置火焰图flame graph文件存储路径                      | /var/log/gala-gopher/stacktrace/logs                         |         | flamegraph               | Y                   |
 | pyroscope_server   | 设置火焰图UI服务端地址                                 | localhost:4040                                               |         | flamegraph               | Y                   |
-| debuging_dir       | 设置系统debuging文件目录（用于查找火焰图内的函数符号） |                                                              |         | flamegraph               | Y                   |
-| log_dir            | 设置探针日志目录                                       | /var/log/gala-gopher/[probe]/logs                            |         | ALL                      | Y                   |
+| debugging_dir       | 设置系统debugging文件目录（用于查找火焰图内的函数符号） |                                                              |         | flamegraph               | Y                   |
 
 
 
 ## 探针运行状态
 
 ```
-curl -X GET http://gala-gopher:9999/probe_status
+curl -X GET http://gala-gopher:9999/flamegraph
 {
+    "cmd": {
+        "bin": "/opt/gala-gopher/extend_probes/stackprobe",
+        "check_cmd": ""
+    },
     "probes": [
         {
             "probe": [
-                "oncpu", 
+                "oncpu",
                 "offcpu"
-            ], 
+            ],
             "proc_id": [
-                101, 
+                101,
                 102
-            ], 
+            ],
             "proc_name": [
                 {
-                    "comm": "app1", 
-                    "cmdline": ""
-                }, 
+                    "comm": "app1",
+                    "cmdline": "",
+                    "debugging_dir": ""
+                },
                 {
-                    "comm": "app2", 
-                    "cmdline": ""
+                    "comm": "app2",
+                    "cmdline": "",
+                    "debugging_dir": ""
                 }
-            ], 
+            ],
             "pod": [
-                "pod1", 
+                "pod1",
                 "pod2"
-            ], 
+            ],
             "container_id": [
-                "container1", 
+                "container1",
                 "container2"
             ]
         }
@@ -199,4 +205,3 @@ src
 
 
 
-  

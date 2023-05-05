@@ -21,8 +21,10 @@
 #include <sys/prctl.h>
 #include <unistd.h>
 #include <stdarg.h>
+
 #include "nprobe_fprintf.h"
 #include "probe.h"
+#include "probe_mng.h"
 
 #define MACRO2STR1(MACRO) #MACRO
 #define MACRO2STR2(MACRO) MACRO2STR1(MACRO)
@@ -495,4 +497,17 @@ int nprobe_fprintf(FILE *stream, const char *format, ...)
 
     return 0;
 
+}
+
+__thread struct probe_s *g_probe_new;
+
+void *native_probe_thread_cb(void *arg)
+{
+    g_probe_new = (struct probe_s *)arg;
+
+    char thread_name[MAX_THREAD_NAME_LEN];
+    snprintf(thread_name, MAX_THREAD_NAME_LEN - 1, "[PROBE]%s", g_probe_new->name);
+    prctl(PR_SET_NAME, thread_name);
+
+    g_probe_new->probe_entry(&(g_probe_new->probe_param));
 }

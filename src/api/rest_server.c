@@ -1,6 +1,6 @@
 /******************************************************************************
  * Copyright (c) Huawei Technologies Co., Ltd. 2021. All rights reserved.
- * iSulad licensed under the Mulan PSL v2.
+ * gala-gopher licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
  *     http://license.coscl.org.cn/MulanPSL2
@@ -30,7 +30,7 @@ static char *keyPem;
 static char *certPem;
 static char *rootCaPem;
 
-static enum MHD_Result RestResponseMessage(struct MHD_Connection *connection,
+static MHD_Result RestResponseMessage(struct MHD_Connection *connection,
                                     int status_code,
                                     const char * message)
 {
@@ -204,7 +204,7 @@ void RestServerDestroy(RestServer *restServer)
     RestServerSslDestroy();
 }
 
-static enum MHD_Result RestPostIterator(void *cls, enum MHD_ValueKind kind, const char *key,
+static MHD_Result RestPostIterator(void *cls, enum MHD_ValueKind kind, const char *key,
                         const char *filename, const char *content_type,
                         const char *transfer_encoding, const char *data, uint64_t off,
                         size_t size)
@@ -234,7 +234,7 @@ static enum MHD_Result RestPostIterator(void *cls, enum MHD_ValueKind kind, cons
     return MHD_NO;
 }
 
-static enum MHD_Result RestHandlePostRequest(struct MHD_Connection *connection,
+static MHD_Result RestHandlePostRequest(struct MHD_Connection *connection,
                                 const char *url,
                                 const char *upload_data,
                                 size_t *upload_data_size,
@@ -251,7 +251,7 @@ static enum MHD_Result RestHandlePostRequest(struct MHD_Connection *connection,
     }
 
     if (request->post_data != NULL && strlen(request->post_data) != 0) {
-        if (ProbeMgrPostHandler(request->post_data, url) == 0) {
+        if (parse_probe_json(url, request->post_data) == 0) {
             return RestResponseMessage(connection, MHD_HTTP_OK, "New config takes effect");
         }
     }
@@ -259,26 +259,27 @@ static enum MHD_Result RestHandlePostRequest(struct MHD_Connection *connection,
     return RestResponseMessage(connection, MHD_HTTP_BAD_REQUEST, "Bad request");
 }
 
-static enum MHD_Result RestHandleGetRequest(struct MHD_Connection *connection,
+static MHD_Result RestHandleGetRequest(struct MHD_Connection *connection,
                                             const char *url)
 {
     int ret;
     struct MHD_Response *response;
-    const char *buf = ProbeMgrGetHandler(url);
+    char *buf = get_probe_json(url);
 
-    if (buf && strlen(buf)) {
+    if (buf) {
         response = MHD_create_response_from_buffer(strlen(buf), (void *)buf,
                                                 MHD_RESPMEM_MUST_COPY);
         MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, "applicaton/json");
         ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
         MHD_destroy_response(response);
+        free(buf);
         return ret;
     }
 
     return RestResponseMessage(connection, MHD_HTTP_NOT_FOUND, "Url not found");
 }
 
-static enum MHD_Result RestRequestCallback(void *cls,
+static MHD_Result RestRequestCallback(void *cls,
                               struct MHD_Connection *connection,
                               const char *url,
                               const char *method,
