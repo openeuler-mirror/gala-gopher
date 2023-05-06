@@ -149,8 +149,8 @@ int RestServerClientAuth(struct MHD_Connection *connection)
 {
     int ret = 0;
     unsigned int verify_status;
+    gnutls_x509_trust_list_t tl;
     gnutls_x509_crt_t client_cert;
-    gnutls_x509_crt_t rootCA_cert;
     const gnutls_datum_t ca_data = {rootCaPem, strlen(rootCaPem) - 1};
 
     /* Import client certificate */
@@ -166,28 +166,26 @@ int RestServerClientAuth(struct MHD_Connection *connection)
         return -1;
     }
 
-    /* Import rootCA certificate */
-    if (gnutls_x509_crt_init(&rootCA_cert)) {
-        ERROR("[RESTSERVER] Failed to initialize rootCA certificate\n");
+    gnutls_x509_trust_list_init(&tl, 0);
+    ret = gnutls_x509_trust_list_add_trust_mem(tl, &ca_data, NULL, GNUTLS_X509_FMT_PEM, 0, 0);
+    if (ret != 1) {
+        ERROR("[RESTSERVER] Failed to add CA certificate to trust list: %s\n", gnutls_strerror(ret));
+        gnutls_x509_trust_list_deinit(tl, 1);
         gnutls_x509_crt_deinit(client_cert);
         return -1;
     }
 
-    if (gnutls_x509_crt_import(rootCA_cert, &ca_data, GNUTLS_X509_FMT_PEM)) {
-        ERROR("[RESTSERVER] Failed to import rootCA certificate\n");
-        gnutls_x509_crt_deinit(rootCA_cert);
-        gnutls_x509_crt_deinit(client_cert);
-        return -1;
-    }
-
-    ret = gnutls_x509_crt_verify(client_cert, &rootCA_cert, 1, 0, &verify_status);
+    ret = gnutls_x509_trust_list_verify_crt2(tl, &client_cert, 1, NULL, 0, 0, &verify_status, NULL);
     if (ret < 0 || verify_status != 0) {
-        ERROR("[RESTSERVETR] Client Certificate verification failed\n");
+        ERROR("[RESTSERVER] Client Certificate verification failed, status: 0x%x\n",verify_status);
+        gnutls_x509_trust_list_deinit(tl, 1);
+        gnutls_x509_crt_deinit(client_cert);
+        return -1;
     }
 
-    gnutls_x509_crt_deinit(rootCA_cert);
+    gnutls_x509_trust_list_deinit(tl, 1);
     gnutls_x509_crt_deinit(client_cert);
-    return ret;
+    return 0;
 }
 
 void RestServerDestroy(RestServer *restServer)
@@ -290,6 +288,16 @@ static enum MHD_Result RestRequestCallback(void *cls,
     RestRequest *request = *ptr;
     struct MHD_Response *response;
 
+    /* url must be /xxxx */
+    if (strlen(url) <= 1) {
+        return RestResponseMessage(connection, MHD_HTTP_NOT_FOUND, "Url not found");
+    }
+
+    /* Client Authentication */
+    if ((rootCaPem != NULL) && RestServerClientAuth(connection) < 0) {
+        return RestResponseMessage(connection, MHD_HTTP_UNAUTHORIZED, "Client unauthorized");
+    }
+
     /* it is the first iteration of a new request */
     if (request == NULL) {
         request = malloc(sizeof(RestRequest));
@@ -309,16 +317,6 @@ static enum MHD_Result RestRequestCallback(void *cls,
             }
         }
         return MHD_YES;
-    }
-
-    /* url must be /xxxx */
-    if (strlen(url) <= 1) {
-        return RestResponseMessage(connection, MHD_HTTP_NOT_FOUND, "Url not found");
-    }
-
-    /* Client Authentication */
-    if ((rootCaPem != NULL) && RestServerClientAuth(connection) < 0) {
-        return RestResponseMessage(connection, MHD_HTTP_UNAUTHORIZED, "Client unauthorized");
     }
 
     url++;
