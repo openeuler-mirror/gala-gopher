@@ -29,7 +29,7 @@ enum container_status_e {
 
 typedef struct container_info_s {
     enum container_status_e status;
-    char abbrContainerId[CONTAINER_ID_LEN];
+    char abbrContainerId[CONTAINER_ID_LEN + 1];
 } container_info;
 
 typedef struct container_tbl_s {
