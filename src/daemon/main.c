@@ -88,12 +88,12 @@ static int CmdProcessing(int argc, char *argv[])
         int option_index = 0;
         cmd = getopt_long(argc, argv, short_options, long_options, &option_index);
         if (cmd == -1)
-            break;
+            return -1;
 
         switch (cmd) {
             case 'h':
-                ShowUsage();
-                break;
+                // print usage later
+                return -1;
             case 'c':
                 ret = ParseConfigPath(optarg);
                 break;
