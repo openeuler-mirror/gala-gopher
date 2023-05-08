@@ -431,7 +431,7 @@ int get_elf_path(unsigned int pid, char elf_path[], int max_path_len, const char
 {
     char cmd[COMMAND_LEN] = {0};
     char elf_relative_path[PATH_LEN] = {0};
-    char container_id[CONTAINER_ABBR_ID_LEN] = {0};
+    char container_id[CONTAINER_ABBR_ID_LEN + 1] = {0};
     char container_path[PATH_LEN] = {0};
 
     // 1. get elf_path
