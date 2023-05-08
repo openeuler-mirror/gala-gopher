@@ -228,7 +228,7 @@ events_en_US =
 	}
 );
 
-events_chinese =
+events_zh_CN =
 (
 	{
 		entity_name = "cpu",
