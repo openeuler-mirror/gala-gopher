@@ -1646,6 +1646,18 @@ static void init_java_support_proc(StackprobeConfig *conf)
     return;
 }
 
+static void unload_java_agent(StackprobeConfig *conf)
+{
+    struct java_attach_args args = {0};
+
+    args.proc_obj_map_fd = conf->generalConfig->whitelistEnable ? g_st->proc_obj_map_fd : 0;
+    (void)snprintf(args.agent_file_name, FILENAME_LEN, JAVA_SYM_AGENT_FILE);
+    (void)snprintf(args.tmp_file_name, FILENAME_LEN, JAVA_SYM_FILE);
+
+    java_unload(&args);
+    INFO("[STACKPROBE]: java_agent_unload successfully!\n");
+}
+
 #ifdef EBPF_RLIM_LIMITED
 #undef EBPF_RLIM_LIMITED
 #endif
@@ -1699,6 +1711,7 @@ int main(int argc, char **argv)
     }
 
     destroy_stack_trace(&g_st);
+    unload_java_agent(conf);
 
     return -err;
 }

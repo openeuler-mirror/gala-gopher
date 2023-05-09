@@ -16,5 +16,6 @@
 #define __JAVA_MNG_H__
 
 int init_java_progs(struct probe_params *args);
+void unload_java_progs(struct probe_params *args);
 
 #endif

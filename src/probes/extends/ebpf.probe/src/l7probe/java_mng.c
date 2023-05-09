@@ -35,7 +35,8 @@ typedef int (*LoadFunc)(struct probe_params *args);
 
 typedef struct {
     enum java_index_t java_index;
-    LoadFunc func;
+    LoadFunc load_func;
+    LoadFunc unload_func;
 } JavaProc;
 
 static struct probe_params params = {.period = DEFAULT_PERIOD};
@@ -77,7 +78,21 @@ static int l7_load_probe_jsse(struct probe_params *args)
     }
     (void)pthread_detach(msg_hd_thd);
 
-    INFO("[L7PROBE]: init jsse bpf prog succeed.\n");
+    INFO("[L7PROBE]: init jsse prog succeed.\n");
+
+    return 0;
+}
+
+static int l7_unload_probe_jsse(struct probe_params *args)
+{
+    struct java_attach_args attach_args = {0};
+
+    attach_args.proc_obj_map_fd = obj_get_proc_obj_map_fd();
+    (void)snprintf(attach_args.agent_file_name, FILENAME_LEN, JSSE_AGENT_FILE);
+    (void)snprintf(attach_args.tmp_file_name, FILENAME_LEN, JSSE_TMP_FILE);
+
+    java_unload(&attach_args);
+    INFO("[L7PROBE]: unload jsse agent succeed.\n");
 
     return 0;
 }
@@ -87,25 +102,37 @@ static char is_load_probe(struct probe_params *args)
     return 1;
 }
 
+static JavaProc java_procs[] = {
+    { JAVA_INDEX_JSSE,  l7_load_probe_jsse,  l7_unload_probe_jsse },
+
+};
+
 int init_java_progs(struct probe_params *args)
 {
     if (args != NULL) {
         params.period = args->period;
     }
 
-    static JavaProc java_procs[] = {
-        { JAVA_INDEX_JSSE,  l7_load_probe_jsse },
-    };
-
     for (int i = 0; i < JAVA_INDEX_MAX; i++) {
-        if (!is_load_probe(args) || !java_procs[i].func) {
+        if (!is_load_probe(args) || !java_procs[i].load_func) {
             continue;
         }
-        if (java_procs[i].func(args)) {
+        if (java_procs[i].load_func(args)) {
             return -1;
         }
     }
 
     return 0;
+}
+
+void unload_java_progs(struct probe_params *args)
+{
+    for (int i = 0; i < JAVA_INDEX_MAX; i++) {
+        if (!java_procs[i].unload_func) {
+            continue;
+        }
+        java_procs[i].unload_func(args);
+    }
+    return;
 }
 

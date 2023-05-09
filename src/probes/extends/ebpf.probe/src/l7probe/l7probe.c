@@ -87,6 +87,7 @@ int main(int argc, char **argv)
 
 out:
     unload_bpf_prog(&prog);
+    unload_java_progs(&params);
     del_pods();
     return -err;
 }
