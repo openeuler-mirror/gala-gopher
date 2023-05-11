@@ -633,6 +633,12 @@ struct probe_mng_s *create_probe_mng(void)
     }
 
     memset(g_probe_mng, 0, sizeof(struct probe_mng_s));
+    if (load_snooper_bpf(g_probe_mng)) {
+        free(g_probe_mng);
+        g_probe_mng = NULL;
+        return NULL;
+    }
+
     return g_probe_mng;
 }
 
@@ -649,8 +655,30 @@ void destroy_probe_mng(void)
         g_probe_mng->probes[i] = NULL;
     }
 
+    unload_snooper_bpf(g_probe_mng);
     free(g_probe_mng);
     g_probe_mng = NULL;
+}
+
+void run_probe_mng_daemon(struct probe_mng_s *probe_mng)
+{
+    int ret;
+
+    for (;;) {
+        if (probe_mng->snooper_proc_pb != NULL) {
+            ret = perf_buffer__poll(probe_mng->snooper_proc_pb, THOUSAND);
+            if (ret < 0) {
+                break;
+            }
+        }
+
+        if (probe_mng->snooper_cgrp_pb != NULL) {
+            ret = perf_buffer__poll(probe_mng->snooper_cgrp_pb, THOUSAND);
+            if (ret < 0) {
+                break;
+            }
+        }
+    }
 }
 
 void New_DaemonKeeplive(int sig)

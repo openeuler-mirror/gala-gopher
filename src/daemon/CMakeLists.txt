@@ -27,6 +27,7 @@ SET(IMDB_DIR        ${SRC_DIR}/lib/imdb)
 SET(CMD_DIR         ${SRC_DIR}/cmd)
 SET(COMMON_DIR      ${SRC_DIR}/common)
 SET(RESTAPI_DIR     ${SRC_DIR}/api)
+SET(EBPF_PROBE_DIR  ${SRC_DIR}/probes/extends/ebpf.probe)
 
 SET(LIBRDKAFKA_DIR /usr/include/librdkafka)
 SET(LIBELF_DIR /usr/include/libelf)
@@ -107,6 +108,7 @@ TARGET_INCLUDE_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE
 
     ${CMD_DIR}
     ${COMMON_DIR}
+    ${EBPF_PROBE_DIR}/src/include
 )
 
 TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE config pthread rt dl bpf rdkafka microhttpd elf log4cplus gnutls cjson)
