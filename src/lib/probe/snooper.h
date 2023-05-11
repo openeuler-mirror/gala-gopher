@@ -1,0 +1,83 @@
+/******************************************************************************
+ * Copyright (c) Huawei Technologies Co., Ltd. 2023. All rights reserved.
+ * gala-gopher licensed under the Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *     http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+ * PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * Author: luzhihao
+ * Create: 2023-04-06
+ * Description: snooper managment
+ ******************************************************************************/
+#ifndef __GOPHER_SNOOPER__
+#define __GOPHER_SNOOPER__
+
+#pragma once
+
+#include "base.h"
+#include "object.h"
+
+
+enum snooper_conf_e {
+    SNOOPER_CONF_APP = 0,
+    SNOOPER_CONF_GAUSSDB,
+    SNOOPER_CONF_PROC_ID,
+    SNOOPER_CONF_POD,
+    SNOOPER_CONF_CONTAINER_ID,
+
+    SNOOPER_CONF_MAX
+};
+
+struct snooper_app_s {
+    char comm[TASK_COMM_LEN + 1];
+    char *cmdline;
+    char *debuging_dir;
+};
+
+struct snooper_gaussdb_s {
+    u32 port;
+    char *ip;
+    char *dbname;
+    char *usr;
+    char *pass;
+};
+
+struct snooper_conf_s {
+    enum snooper_conf_e type;
+    union {
+        struct snooper_gaussdb_s gaussdb;
+        struct snooper_app_s app;
+        u32 proc_id;
+        char *pod;
+        char container_id[CONTAINER_ABBR_ID_LEN + 1];
+    } conf;
+};
+
+enum snooper_obj_e {
+    SNOOPER_OBJ_PROC = 0,
+    SNOOPER_OBJ_CGRP,
+    SNOOPER_OBJ_NM,
+    SNOOPER_OBJ_GAUSSDB,
+
+    SNOOPER_OBJ_MAX
+};
+
+struct snooper_obj_s {
+    enum snooper_obj_e type;
+    union {
+        struct proc_s proc;
+        struct cgroup_s cgrp;
+        struct nm_s nm;
+        struct snooper_gaussdb_s gaussdb;
+    } obj;
+};
+
+void print_snooper(struct probe_s *probe, cJSON *json);
+int parse_snooper(struct probe_s *probe, const cJSON *json);
+void free_snooper_conf(struct snooper_conf_s* snooper_conf);
+void free_snooper_obj(struct snooper_obj_s* snooper_obj);
+#endif
+

@@ -27,6 +27,9 @@
 #define DEFAULT_KAFKA_PORT    9092
 #define MAX_IP_LEN          20	// xxx.xxx.xxx.xxx/xx
 #define MAX_IP_NUM          8
+#define MAX_TGIDS_LEN       64
+
+#define PYSCOPE_SERVER_URL_LEN  256
 
 #define SUPPORT_NODE_ENV        0x01
 #define SUPPORT_CONTAINER_ENV   0x02
@@ -35,7 +38,16 @@
 #define SUPPORT_METRICS_RAW     0x01
 #define SUPPORT_METRICS_TELEM   0x02
 
-#define MAX_TGIDS_LEN       64
+
+#define L7PROBE_TRACING_HTTP    0x0001
+#define L7PROBE_TRACING_DNS     0x0002
+#define L7PROBE_TRACING_REDIS   0x0004
+#define L7PROBE_TRACING_MYSQL   0x0008
+#define L7PROBE_TRACING_PGSQL   0x0010
+#define L7PROBE_TRACING_KAFKA   0x0012
+#define L7PROBE_TRACING_MONGO   0x0014
+#define L7PROBE_TRACING_CQL     0x0018
+#define L7PROBE_TRACING_NATS    0x0020
 
 #define __OPT_S "t:s:T:J:O:D:F:lU:L:c:p:w:d:P:Ck:i:m:e:f:A"
 struct probe_params {
@@ -51,14 +63,14 @@ struct probe_params {
     char logs;                    // [-l <warn>] Enable the logs function
     char metrics_flags;           // [-m <>] Support for report metrics flags(0x01(raw metrics), 0x02(openTelemetry metrics, eg.. P50/P90/P99) );
     char env_flags;               // [-e <>] Support for env flags(default 0x01(node), 0x02(container), 0x04(K8S));
-    char pad;                     // Reserved fields;
+    char support_ssl;             // Support for SSL probe;
     char filter_task_probe;       // [-F <>] Filtering PID monitoring ranges by task probe, default is 0 (no filter)
     char res_percent_upper;       // [-U <>] Upper limit of resource percentage, default is 0%
     char res_percent_lower;       // [-L <>] Lower limit of resource percentage, default is 0%
     unsigned char cport_flag;     // [-c <>] Indicates whether the probes(such as tcp) identifies the client port, default is 0 (no identify)
     char continuous_sampling_flag;     // [-C <>] Enables the continuous sampling, default is 0
-    char target_dev[DEV_NAME];    // [-d <>] Device name, default is null 
-    char elf_path[MAX_PATH_LEN];  // [-p <>] Set ELF file path of the monitored software, default is null 
+    char target_dev[DEV_NAME];    // [-d <>] Device name, default is null
+    char elf_path[MAX_PATH_LEN];  // [-p <>] Set ELF file path of the monitored software, default is null
     char task_whitelist[MAX_PATH_LEN]; // [-w <>] Filtering app monitoring ranges, default is null
     char netcard_list[MAX_PATH_LEN]; // [-d <>] Device name, default is null
     char target_comm[MAX_COMM_LEN]; // [-F <>] Process comm name, default is null
@@ -79,6 +91,8 @@ struct probe_params {
     */
     unsigned int l7_probe_proto_flags;
     int enable_all_thrds;         // [-A] Enable all threads, default is 0
+    char sys_debuging_dir[MAX_PATH_LEN];
+    char pyroscope_server[PYSCOPE_SERVER_URL_LEN];
 };
 int args_parse(int argc, char **argv, struct probe_params* params);
 int params_parse(char *s, struct probe_params *params);

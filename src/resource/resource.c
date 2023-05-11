@@ -28,6 +28,8 @@ static int ProbeMgrInit(ResourceMgr *resourceMgr);
 static void ProbeMgrDeinit(ResourceMgr *resourceMgr);
 static int ExtendProbeMgrInit(ResourceMgr *resourceMgr);
 static void ExtendProbeMgrDeinit(ResourceMgr *resourceMgr);
+static int ProbeMngInit(ResourceMgr *resourceMgr);
+static void ProbeMngDeinit(ResourceMgr *resourceMgr);
 static int MeasurementMgrInit(ResourceMgr *resourceMgr);
 static void MeasurementMgrDeinit(ResourceMgr *resourceMgr);
 static int FifoMgrInit(ResourceMgr *resourceMgr);
@@ -61,6 +63,7 @@ SubModuleInitor gSubModuleInitorTbl[] = {
     { ConfigMgrInit,        ConfigMgrDeinit },      // config must be the first
     { ProbeMgrInit,         ProbeMgrDeinit },
     { ExtendProbeMgrInit,   ExtendProbeMgrDeinit },
+    { ProbeMngInit,         ProbeMngDeinit },
     { MeasurementMgrInit,   MeasurementMgrDeinit },
     { FifoMgrInit,          FifoMgrDeinit },
     { KafkaMgrInit,         KafkaMgrDeinit },       // kafka must precede egress
@@ -263,6 +266,26 @@ static void ExtendProbeMgrDeinit(ResourceMgr *resourceMgr)
     ExtendProbeMgrDestroy(resourceMgr->extendProbeMgr);
     resourceMgr->probeMgr = NULL;
     return;
+}
+
+static int ProbeMngInit(ResourceMgr *resourceMgr)
+{
+    int ret = 0;
+
+    struct probe_mng_s *probe_mng = NULL;
+
+    probe_mng = create_probe_mng();
+    if (probe_mng == NULL)
+        return -1;
+
+    resourceMgr->probe_mng = probe_mng;
+    return 0;
+}
+
+static void ProbeMngDeinit(ResourceMgr *resourceMgr)
+{
+    destroy_probe_mng();
+    resourceMgr->probe_mng = NULL;
 }
 
 static int MeasurementMgrInit(ResourceMgr *resourceMgr)

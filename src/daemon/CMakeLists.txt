@@ -52,6 +52,8 @@ SET(SOURCES main.c daemon.c
     ${PROBE_DIR}/probe.c
     ${PROBE_DIR}/extend_probe.c
     ${PROBE_DIR}/probe_mng.c
+    ${PROBE_DIR}/snooper.c
+    ${PROBE_DIR}/probe_params_parser.c
     ${IMDB_DIR}/imdb.c
     ${IMDB_DIR}/metrics.c
 
@@ -107,4 +109,4 @@ TARGET_INCLUDE_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE
     ${COMMON_DIR}
 )
 
-TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE config pthread rt dl bpf rdkafka microhttpd elf log4cplus gnutls)
+TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE config pthread rt dl bpf rdkafka microhttpd elf log4cplus gnutls cjson)
