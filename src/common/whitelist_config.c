@@ -154,7 +154,7 @@ int parse_whitelist_config(ApplicationsConfig **conf, const char *path)
     return 0;
 }
 
-int get_proc_cmdline(const char *pid, char *buf, u32 buf_len)
+static int get_proc_cmdline(const char *pid, char *buf, u32 buf_len)
 {
     FILE *f = NULL;
     char path[LINE_BUF_LEN];
@@ -196,7 +196,7 @@ int get_proc_cmdline(const char *pid, char *buf, u32 buf_len)
     return 0;
 }
 
-int get_proc_comm(const char *pid, char *buf)
+static int get_proc_comm(const char *pid, char *buf)
 {
     FILE *f = NULL;
     char fname_or_cmd[LINE_BUF_LEN];

@@ -68,5 +68,32 @@ measurements:
                 name: "swap_util",
             }
         )
+    },
+    {
+        table_name: "system_dentry",
+        entity_name: "mem",
+        fields:
+        (
+            {
+                description: "indexs of origin",
+                type: "key",
+                name: "infos",
+            },
+            {
+                description: "The total number of dentries allocated",
+                type: "gauge",
+                name: "dentry",
+            },
+            {
+                description: "The number of dentries that are not actively used",
+                type: "gauge",
+                name: "unused_dentry",
+            },
+            {
+                description: "The age in seconds after which dcache entries can be reclaimed when memory is short",
+                type: "gauge",
+                name: "age_limit",
+            }
+        )
     }
 )

@@ -23,7 +23,11 @@
 
 #define METRICS_MEMINFO_NAME "system_meminfo"
 #define METRICS_MEMINFO_PATH "/proc/meminfo"
+#define METRTCS_DENTRY_NAME  "system_dentry"
+#define METRICS_DENTRY_ORIGIN  "fs.dentry-state"
+#define SYSTEM_FS_DENTRY_STATE "cat /proc/sys/fs/dentry-state"
 static struct system_meminfo_field* meminfo_fields = NULL;
+static struct dentry_stat dentry_state = {0};
 
 int system_meminfo_init(void)
 {
@@ -104,7 +108,7 @@ static void report_meminfo_status(struct probe_params *params, double mem_util, 
     }
 }
 
-static void output_info(struct probe_params *params)
+static void output_meminfo(struct probe_params *params)
 {
     //  v3.2.8 used = total - free; v3.3.10 used = total - free - cache - buffers; cur_ver=v5.10
     // alculate memusage
@@ -137,8 +141,8 @@ static void output_info(struct probe_params *params)
         swap_usage);
 }
 
-// probes
-int system_meminfo_probe(struct probe_params *params)
+// /proc/meminfo
+static int get_meminfo(struct probe_params *params)
 {
     FILE* f = NULL;
     char line[LINE_BUF_LEN];
@@ -164,9 +168,57 @@ int system_meminfo_probe(struct probe_params *params)
             break;
         }
     }
-	
+    output_meminfo(params);
+
     (void)fclose(f);
-    
-    output_info(params);
     return 0;
+}
+
+// fs.dentry-state
+#define DENTRY_STATE_VALID_FIELD_NUM    3
+static int get_dentry_state(void)
+{
+    FILE *f = NULL;
+    char line[LINE_BUF_LEN];
+
+    f = popen(SYSTEM_FS_DENTRY_STATE, "r");
+    if (f == NULL) {
+        return -1;
+    }
+    line[0] = 0;
+    if (fgets(line, LINE_BUF_LEN, f) == NULL) {
+        pclose(f);
+        return -1;
+    }
+    SPLIT_NEWLINE_SYMBOL(line);
+    int ret = sscanf(line, "%d %d %d %*d %*d %*d",
+        &dentry_state.dentry, &dentry_state.unused, &dentry_state.age_limit);
+    if (ret < DENTRY_STATE_VALID_FIELD_NUM) {
+        DEBUG("[SYSTEM_PROBE] get dentry_state fields fail.\n");
+        pclose(f);
+        return -1;
+    }
+    // report data
+    (void)nprobe_fprintf(stdout, "|%s|%s|%d|%d|%d|\n",
+        METRTCS_DENTRY_NAME,
+        METRICS_DENTRY_ORIGIN,
+        dentry_state.dentry,
+        dentry_state.unused,
+        dentry_state.age_limit);
+
+    pclose(f);
+    return 0;
+}
+
+// probes
+int system_meminfo_probe(struct probe_params *params)
+{
+    if (get_meminfo(params) < 0) {
+        ERROR("[SYSTEM_PROBE] failed to collect proc meminfo.\n");
+        return -1;
+    }
+    if (get_dentry_state() < 0) {
+        ERROR("[SYSTEM_PROBE] failed to collect fs dentry_state.\n");
+        return -1;
+    }
 }

@@ -26,7 +26,6 @@ struct system_meminfo_field {
     unsigned long long value;
 };
 
-
 enum mem_infos {
     MEM_TOTAL = 0,
     MEM_FREE,
@@ -39,6 +38,12 @@ enum mem_infos {
     SWAP_FREE,
 
     TOTAL_DATA_INDEX,
+};
+
+struct dentry_stat {
+    int dentry;
+    int unused;
+    int age_limit;
 };
 
 int system_meminfo_init(void);
