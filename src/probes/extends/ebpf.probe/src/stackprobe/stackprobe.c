@@ -1386,6 +1386,7 @@ cleanup:
         ERROR("[STACKPROBE]: attach memleak bpf failed %d\n", err);
         return -1;
     }
+    (void)pthread_detach(uprobe_attach_thd);
 #endif
 
     INFO("[STACKPROBE]: attach memleak bpf succeed.\n");
@@ -1576,6 +1577,7 @@ static void init_wr_flame_pthreads(struct svg_stack_trace_s *svg_st, const char 
         g_stop = 1;
         return;
     }
+    (void)pthread_detach(wr_flame_thd);
     INFO("[STACKPROBE]: %s wr_flame_pthread successfully started!\n", flame_name);
 
     return;
@@ -1641,6 +1643,7 @@ static void init_java_support_proc(StackprobeConfig *conf)
         ERROR("[STACKPROBE]: Failed to create java_support_pthread.\n");
         return;
     }
+    (void)pthread_detach(attach_thd);
     INFO("[STACKPROBE]: java_support_pthread successfully started!\n");
 
     return;

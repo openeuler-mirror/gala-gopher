@@ -301,6 +301,7 @@ static void init_java_symb_mgmt(int proc_filter_map_fd)
         fprintf(stderr, "ERROR: Failed to create java support thread.\n");
         return;
     }
+    (void)pthread_detach(thd);
     printf("INFO: java support thread sucessfully started.\n");
 }
 
