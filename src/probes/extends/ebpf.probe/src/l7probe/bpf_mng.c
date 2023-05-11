@@ -98,7 +98,7 @@ static int __create_msg_hdl_thd(int msg_fd, perf_buffer_sample_fn cb, struct bpf
         ERROR("[L7PROBE]: Failed to create message event handler thread.\n");
         return -1;
     }
-
+    (void)pthread_detach(prog->resident_thd[prog->num]);
     prog->num++;
     return 0;
 }
@@ -169,6 +169,7 @@ int l7_load_probe_libssl(struct bpf_prog_s *prog)
         ERROR("[L7PROBE]: Failed to create libssl bpf load thread.\n");
         return 0;
     }
+    (void)pthread_detach(prog->resident_thd[prog->num]);
     prog->num++;
 
     INFO("[L7PROBE]: init libssl bpf prog succeed.\n");
