@@ -51,6 +51,13 @@ static void *DaemonRunEgress(void *arg)
     EgressMain(mgr);
 }
 
+static void *DaemonRunProbeMng(void *arg)
+{
+    struct probe_mng_s *probe_mng = (struct probe_mng_s *)arg;
+    prctl(PR_SET_NAME, "[PROBEMNG]");
+    run_probe_mng_daemon(probe_mng);
+}
+
 static void *DaemonRunSingleProbe(void *arg)
 {
     g_probe = (Probe *)arg;
@@ -315,6 +322,14 @@ int DaemonRun(const ResourceMgr *mgr)
         mgr->extendProbeMgr->probes[i]->is_running = 1;
         INFO("[DAEMON] create extend probe %s thread success.\n", mgr->extendProbeMgr->probes[i]->name);
     }
+
+    // 6. start probe manager thread
+    ret = pthread_create(&mgr->probe_mng->tid, NULL, DaemonRunProbeMng, mgr->probe_mng);
+    if (ret != 0) {
+        ERROR("[DAEMON] create probe_mng thread failed. errno: %d\n", errno);
+        return -1;
+    }
+    INFO("[DAEMON] create probe_mng thread success.\n");
 
     // 7. start write metricsLogs thread
     ret = pthread_create(&mgr->imdbMgr->metrics_tid, NULL, DaemonRunMetricsWriteLogs, mgr->imdbMgr);
