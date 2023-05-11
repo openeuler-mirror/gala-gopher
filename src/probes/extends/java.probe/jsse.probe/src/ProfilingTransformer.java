@@ -1,5 +1,7 @@
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
+import java.io.File;
+import java.io.IOException;
 import java.security.ProtectionDomain;
 import jdk.internal.org.objectweb.asm.*;
 import jdk.internal.org.objectweb.asm.commons.AdviceAdapter;
@@ -8,19 +10,43 @@ import static jdk.internal.org.objectweb.asm.Opcodes.*;
 
 public class ProfilingTransformer implements ClassFileTransformer {
 
+    public boolean isWriteTransformed = false;
+    public boolean isReadTransformed = false;
+
     @Override
     public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined, ProtectionDomain protectionDomain, byte[] classfileBuffer) throws IllegalClassFormatException {
         try {
             className = className.replace("/", ".");
-            if (!"sun.security.ssl.SSLSocketImpl$AppOutputStream".equals(className) &&
-                !"sun.security.ssl.SSLSocketImpl$AppInputStream".equals(className)) {
-                return classfileBuffer;
+            if ("sun.security.ssl.SSLSocketImpl$AppOutputStream".equals(className)) {
+                createTmpFile();
+                if (!isWriteTransformed) {
+                    // ensure only transform once even if javaagent be loaded multiple times.
+                    isWriteTransformed = true;
+                    return getBytes(loader, className, classfileBuffer);
+                }
             }
-            return getBytes(loader, className, classfileBuffer);
+            if ("sun.security.ssl.SSLSocketImpl$AppInputStream".equals(className)) {
+                createTmpFile();
+                if (!isReadTransformed) {
+                    isReadTransformed = true;
+                    return getBytes(loader, className, classfileBuffer);
+                }
+            }
         } catch (Throwable e) {
             System.out.println(e.getMessage());
         }
         return classfileBuffer;
+    }
+
+    private static void createTmpFile() throws IOException {
+        File tmpDirectory = new File(ArgsParse.getArgMetricDataPath());
+        if (!tmpDirectory.exists()) {
+            tmpDirectory.mkdir();
+        }
+        File metricTmpFile = new File(ArgsParse.getArgMetricTmpFile());
+        if (!metricTmpFile.exists()) {
+            metricTmpFile.createNewFile();
+        }
     }
 
     private byte[] getBytes(ClassLoader loader, String className, byte[] classfileBuffer) {
@@ -91,6 +117,22 @@ public class ProfilingTransformer implements ClassFileTransformer {
         @Override
         protected void onMethodExit(int opcode) {
 
+            // if (判断语句的值 != 0) {
+            //     enhance process: write message to tmpFile
+            // }
+            // create labels
+            Label labelIf = new Label();
+            Label labelEnd = new Label();
+            // if判断语句：new File(this.metricTmpFile).exists()
+            mv.visitTypeInsn(NEW, "java/io/File");
+            mv.visitInsn(DUP);
+            mv.visitLdcInsn(this.metricTmpFile);
+            mv.visitMethodInsn(INVOKESPECIAL, "java/io/File", "<init>", "(Ljava/lang/String;)V", false);
+            mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/File", "exists", "()Z", false);
+            // if File.exists == 0 jump to labelEnd (反转判断，这样能保证if块在前)
+            mv.visitJumpInsn(IFEQ, labelEnd);
+            // if块内容
+            mv.visitLabel(labelIf);
             // RandomAccessFile raf = new RandomAccessFile(this.metricTmpFile, "rw");
             mv.visitTypeInsn(NEW, "java/io/RandomAccessFile");
             mv.visitInsn(DUP);
@@ -151,6 +193,10 @@ public class ProfilingTransformer implements ClassFileTransformer {
             // raf.close();
             mv.visitVarInsn(ALOAD, this.maxLocalSlot + 1);
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/RandomAccessFile", "close", "()V", false);
+
+            // 条件块之外的内容
+            mv.visitLabel(labelEnd);
+            mv.visitFrame(Opcodes.F_SAME1, 0, null, 1, new Object[] { "java/lang/String" });
         }
     }
 

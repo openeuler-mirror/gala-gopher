@@ -39,6 +39,7 @@ enum java_pid_state_t {
     PID_ELF_NO_NEED_ATTACH // non-java proc or have been attached
 };
 
+#define ATTACH_TYPE_LEN 64
 #define NS_PATH_LEN 128
 struct jvm_agent_hash_value {
     enum java_pid_state_t pid_state;
@@ -62,6 +63,7 @@ struct jvm_agent_hash_t {
 static struct jvm_agent_hash_t *jvm_agent_head = NULL;
 static char jvm_agent_file[FILENAME_LEN];
 static char jvm_tmp_file[FILENAME_LEN];
+static char attach_type[ATTACH_TYPE_LEN] = {0}; // start | stop
 
 #define FIND_JAVA_PROC_COMM "ps -e -o pid,comm | grep java | awk '{print $1}'"
 #define PROC_COMM "/usr/bin/cat /proc/%u/comm 2> /dev/null"
@@ -211,6 +213,7 @@ static int __check_proc_to_attach(int proc_obj_map_fd)
 
     while (fgets(line, sizeof(line), f)) {
         if (sscanf(line, "%d", &pid) != 1) {
+            (void)pclose(f);
             return -1;
         }
         if (proc_obj_map_fd != 0) { // whitelist_enable
@@ -239,8 +242,8 @@ static int __check_proc_to_attach(int proc_obj_map_fd)
             item->v.pid_state = PID_ELF_TO_ATTACH;
             INFO("[JAVA_SUPPORT]: add java pid %u success\n", pid);
         }
-        
     }
+    (void)pclose(f);
     return 0;
 }
 
@@ -370,25 +373,43 @@ static void __clear_invalid_pids()
 */
 static int __do_attach(struct jvm_agent_hash_t *pid_bpf_link) {
     char cmd[LINE_BUF_LEN] = {0};
+    char args[LINE_BUF_LEN] = {0};
     char result_buf[LINE_BUF_LEN];
 
     if (strstr(jvm_agent_file, ".so")) {
         // jvm_attach <pid> <nspid> load /tmp/xxxx.so true /tmp/java-data-<pid>
+        if (strlen(attach_type) > 0) {
+            (void)snprintf(args, LINE_BUF_LEN, "%s,%s",
+                pid_bpf_link->v.ns_java_data_path,
+                attach_type);
+        } else {
+            (void)snprintf(args, LINE_BUF_LEN, "%s",
+                pid_bpf_link->v.ns_java_data_path);
+        }
         (void)snprintf(cmd, LINE_BUF_LEN, "%s %d %d load %s true %s",
             ATTACH_BIN_PATH,
             pid_bpf_link->pid,
             pid_bpf_link->v.nspid,
             pid_bpf_link->v.ns_agent_path,
-            pid_bpf_link->v.ns_java_data_path);
+            args);
     } else if (strstr(jvm_agent_file, ".jar")) {
         // jvm_attach <pid> <nspid> load instrument false "/tmp/xxxxx.jar=<pid>,/tmp/java-data-<pid>"
-        (void)snprintf(cmd, LINE_BUF_LEN, "%s %d %d load instrument false \"%s=%d,%s\"",
+        if (strlen(attach_type) > 0) {
+            (void)snprintf(args, LINE_BUF_LEN, "%d,%s,%s",
+                pid_bpf_link->pid,
+                pid_bpf_link->v.ns_java_data_path,
+                attach_type);
+        } else {
+            (void)snprintf(args, LINE_BUF_LEN, "%d,%s",
+                pid_bpf_link->pid,
+                pid_bpf_link->v.ns_java_data_path);
+        }
+        (void)snprintf(cmd, LINE_BUF_LEN, "%s %d %d load instrument false \"%s=%s\"",
             ATTACH_BIN_PATH,
             pid_bpf_link->pid,
             pid_bpf_link->v.nspid,
             pid_bpf_link->v.ns_agent_path,
-            pid_bpf_link->pid,
-            pid_bpf_link->v.ns_java_data_path);
+            args);
     } else {
         ERROR("[JAVA_SUPPORT]: invalid jvm_agent_file input, return.\n");
         return -1;
@@ -402,7 +423,7 @@ static int __do_attach(struct jvm_agent_hash_t *pid_bpf_link) {
     INFO("[JAVA_SUPPORT]: __do_attach %s\n", cmd);
     while(fgets(result_buf, sizeof(result_buf), f) != NULL) {
         INFO("%s", result_buf);
-        /* ÅÐ¶ÏloadÖ¸ÁîÖ´ÐÐ·µ»ØÖµ£¬·Ç0±íÊ¾loadÊ§°Ü */
+        /* åˆ¤æ–­loadæŒ‡ä»¤æ‰§è¡Œè¿”å›žç»“æžœï¼Œéž0è¡¨ç¤ºå¤±è´¥ */
         if (isdigit(result_buf[0]) && atoi(result_buf) != 0) {
             (void)pclose(f);
             return -1;
@@ -422,6 +443,8 @@ void *java_support(void *arg)
     int is_only_attach_once = args->is_only_attach_once;
     (void)strncpy(jvm_agent_file, args->agent_file_name, FILENAME_LEN);
     (void)strncpy(jvm_tmp_file, args->tmp_file_name, FILENAME_LEN);
+
+    (void)strcpy(attach_type, "start");
 
     while (1) {
         sleep(loop_period);
@@ -452,9 +475,36 @@ void *java_support(void *arg)
     return NULL;
 }
 
+void java_unload(void *arg)
+{
+    struct jvm_agent_hash_t *pid_bpf_link, *tmp;
+    struct java_attach_args *args = (struct java_attach_args *)arg;
+
+    (void)strncpy(jvm_agent_file, args->agent_file_name, FILENAME_LEN);
+    (void)strncpy(jvm_tmp_file, args->tmp_file_name, FILENAME_LEN);
+
+    (void)strcpy(attach_type, "stop");
+
+    if (__check_proc_to_attach(args->proc_obj_map_fd) != 0) {
+        return;
+    }
+
+    H_ITER(jvm_agent_head, pid_bpf_link, tmp) {
+        (void)__set_effective_id(pid_bpf_link);
+        if (__set_attach_argv(pid_bpf_link) != 0) {
+            continue;
+        }
+        if (__do_attach(pid_bpf_link) != 0) {
+            continue;
+        }
+    }
+    return;
+}
+
 void java_msg_handler(void *arg)
 {
     struct jvm_agent_hash_t *item, *tmp;
+    char line[LINE_BUF_LEN];
     char tmp_file_path[PATH_LEN];
     struct java_attach_args *args = (struct java_attach_args *)arg;
 
@@ -479,7 +529,7 @@ void java_msg_handler(void *arg)
                 close(fd);
                 continue;
             }
-            char line[LINE_BUF_LEN];
+
             line[0] = 0;
             while (fgets(line, LINE_BUF_LEN, fp)) {
                 (void)fprintf(stdout, "%s", line);

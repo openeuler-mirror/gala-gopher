@@ -94,6 +94,7 @@ static int init_proc_thrd_filter();
 static int init_proc_filter_map(int proc_filter_map_fd);
 static int init_syscall_table_map(int syscall_table_fd);
 static void init_java_symb_mgmt(int proc_filter_map_fd);
+static void unload_java_symb_mgmt(int proc_filter_map_fd);
 static void perf_event_handler(void *ctx, int cpu, void *data, __u32 size);
 static void clean_tprofiler();
 
@@ -169,6 +170,7 @@ cleanup:
         perf_buffer__free(pb);
     }
     clean_tprofiler();
+    unload_java_symb_mgmt(proc_filter_map_fd);
     return -err;
 }
 
@@ -300,6 +302,17 @@ static void init_java_symb_mgmt(int proc_filter_map_fd)
         return;
     }
     printf("INFO: java support thread sucessfully started.\n");
+}
+
+static void unload_java_symb_mgmt(int proc_filter_map_fd)
+{
+    struct java_attach_args args = {0};
+    args.proc_obj_map_fd = proc_filter_map_fd;
+    (void)snprintf(args.agent_file_name, FILENAME_LEN, JAVA_SYM_AGENT_FILE);
+    (void)snprintf(args.tmp_file_name, FILENAME_LEN, JAVA_SYM_FILE);
+
+    java_unload(&args);
+    printf("INFO: unload java agent sucessfully!\n");
 }
 
 static void perf_event_handler(void *ctx, int cpu, void *data, __u32 size)

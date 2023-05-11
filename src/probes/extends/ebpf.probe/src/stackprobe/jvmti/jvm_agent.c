@@ -20,7 +20,9 @@
 
 #define COMMAND_LEN             256
 #define LINE_BUF_LEN            512
-#define JAVA_SYM_FILE		"java-symbols.bin"
+#define MAX_ARGS_NUM            4
+#define ARGS_BUF_LEN            128
+#define JAVA_SYM_FILE           "java-symbols.bin"
 
 #ifndef __u64
 typedef long long unsigned int __u64;
@@ -68,7 +70,7 @@ jint set_jvmti_caps(jvmtiEnv* jvmti) {
 
     jvmtiError error = (*jvmti)->AddCapabilities(jvmti, &cap);
     if (error != JVMTI_ERROR_NONE) {
-        printf("[JMI_AGENT]: set jvmti caps failed");
+        printf("[JMI_AGENT]: set jvmti caps failed\n");
         return JNI_ERR;
     }
     return JNI_OK;
@@ -79,13 +81,13 @@ jint set_notification_modes(jvmtiEnv* jvmti) {
 
     error = (*jvmti)->SetEventNotificationMode(jvmti, JVMTI_ENABLE, JVMTI_EVENT_DYNAMIC_CODE_GENERATED, (jthread)NULL);
     if (error != JVMTI_ERROR_NONE) {
-        printf("[JMI_AGENT]: set notification mode for DynamicCodeGenerated failed.");
+        printf("[JMI_AGENT]: set notification mode for DynamicCodeGenerated failed.\n");
         return JNI_ERR;
     }
 
     error = (*jvmti)->SetEventNotificationMode(jvmti, JVMTI_ENABLE, JVMTI_EVENT_COMPILED_METHOD_LOAD, (jthread)NULL);
     if (error != JVMTI_ERROR_NONE) {
-        printf("[JMI_AGENT]: set notification mode for CompiledMethodLoad failed.");
+        printf("[JMI_AGENT]: set notification mode for CompiledMethodLoad failed.\n");
         return JNI_ERR;
     }
 
@@ -165,7 +167,7 @@ jint set_callbacks(jvmtiEnv* jvmti) {
 
     jvmtiError error = (*jvmti)->SetEventCallbacks(jvmti, &cb, sizeof(cb));
     if (error != JVMTI_ERROR_NONE) {
-        printf("[JMI_AGENT]: Unable to attach CompiledMethodLoad callback.");
+        printf("[JMI_AGENT]: Unable to attach CompiledMethodLoad callback.\n");
         return JNI_ERR;
     }
     g_agent_attached = 1;
@@ -178,12 +180,12 @@ jint get_missed_events(jvmtiEnv* jvmti) {
 
     jvmtiError error = (*jvmti)->GetPhase(jvmti, &phase);
     if (error != JVMTI_ERROR_NONE) {
-        printf("[JMI_AGENT]: Unable to get JVMTI phase.");
+        printf("[JMI_AGENT]: Unable to get JVMTI phase.\n");
         return JNI_OK;
     }
 
     if (phase != JVMTI_PHASE_LIVE) {
-        printf("[JMI_AGENT]: JVMTI not in live phase.");
+        printf("[JMI_AGENT]: JVMTI not in live phase.\n");
         return JNI_OK;
     }
 
@@ -193,17 +195,36 @@ jint get_missed_events(jvmtiEnv* jvmti) {
     return JNI_OK;
 }
 
-JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM *jvm, char *options, void *reserved) {
+int parse_args(char *options, char (*args)[ARGS_BUF_LEN]) {
+    char *p = NULL;
+    int index = 0;
+
+    if (options == NULL || args == NULL) {
+        printf("[JMI_AGENT]: input args is NULL, please input tmp_file_path at least.\n");
+        return -1;
+    }
+    p = strtok(options, ",");
+    while (p != NULL) {
+        if (index >= MAX_ARGS_NUM) {
+            break;
+        }
+        (void)strncpy(args[index++], p, ARGS_BUF_LEN - 1);
+        p = strtok(NULL, ",");
+    }
+    return 0;
+}
+
+jint JNICALL start(JavaVM *jvm, char *options, void *reserved) {
     static jvmtiEnv* jvmti = NULL;
     jint err;
-
-    if (g_agent_attached) {
-        return JNI_OK;
-    }
 
     err = open_tmp_file(options);
     if (err != JNI_OK) {
         return err;
+    }
+
+    if (g_agent_attached) {
+        return JNI_OK;
     }
 
     (*jvm)->GetEnv(jvm, (void **)&jvmti, JVMTI_VERSION_1);
@@ -222,8 +243,31 @@ JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM *jvm, char *options, void *reserved
     }
     get_missed_events(jvmti);
 
-    printf("[JMI_AGENT]: Agent OnAttach success");
+    printf("[JMI_AGENT]: Agent OnAttach success\n");
     return JNI_OK;
+}
+
+jint JNICALL stop(void) {
+    if (g_sym_fp != NULL) {
+        (void)fclose(g_sym_fp);
+        g_sym_fp = NULL;
+    }
+    return JNI_OK;
+}
+
+JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM *jvm, char *options, void *reserved) {
+    char args[MAX_ARGS_NUM][ARGS_BUF_LEN] = {0};
+
+    if (parse_args(options, args) < 0) {
+        printf("[JMI_AGENT]: parse args failed.\n");
+        return -1;
+    }
+
+    if (!strcmp(args[1], "stop")) {
+        return stop();
+    } else {
+        return start(jvm, args[0], reserved);
+    }
 }
 
 JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* jvm, char* options, void *reserved) {

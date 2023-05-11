@@ -26,7 +26,7 @@ struct java_attach_args {
     int proc_obj_map_fd;
     int loop_period;
     int is_only_attach_once;    // 1 - attach only once, eg: jvmtiagent
-                                // 0 - attach every loop, eg: jsseprobeagent
+                                // 0 - attach every loop, eg: jvmprobeagent
     char agent_file_name[FILENAME_LEN];
     char tmp_file_name[FILENAME_LEN];
 };
@@ -34,5 +34,7 @@ struct java_attach_args {
 int get_host_java_tmp_file(int pid, const char *file_name, char *file_path, int path_len);
 int detect_proc_is_java(int pid, char *comm, int comm_len);
 void *java_support(void *arg);
+void java_unload(void *arg);
+void java_msg_handler(void *arg);
 
 #endif
