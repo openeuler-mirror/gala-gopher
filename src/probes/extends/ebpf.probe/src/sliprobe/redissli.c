@@ -131,6 +131,7 @@ static int init_conn_mgt_process(int cmd_evt_map_fd)
         fprintf(stderr, "Failed to create connection command event handler thread.\n");
         return -1;
     }
+    (void)pthread_detach(cmd_evt_hdl_thd);
     printf("Connection command event handler thread successfully started!\n");
 
     return 0;

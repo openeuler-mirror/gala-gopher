@@ -194,6 +194,7 @@ static int init_conn_mgt_process(int msg_evt_map_fd)
         fprintf(stderr, "Failed to create connection read/write message event handler thread.\n");
         return -1;
     }
+    (void)pthread_detach(msg_evt_hdl_thd);
     printf("Connection read/write message event handler thread successfully started!\n");
 
     return 0;
