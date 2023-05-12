@@ -27,9 +27,9 @@
 #endif
 
 static struct evt_ts_hash_t *g_evt_head = NULL;
-static unsigned int g_evt_period = 0;
+static unsigned int g_evt_period = 600;
 static EventsConfig *g_evt_conf;
-static char g_lang_type[MAX_EVT_GRP_NAME_LEN];
+static char g_lang_type[MAX_EVT_GRP_NAME_LEN] = "zh_CN";
 
 static void hash_clear_older_evt(time_t cur_time);
 static unsigned int hash_count_evt(void);
