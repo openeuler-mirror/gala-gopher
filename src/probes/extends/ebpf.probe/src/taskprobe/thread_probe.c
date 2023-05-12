@@ -56,6 +56,7 @@ static struct probe_params *g_args;
 static void report_thread_metrics(struct thread_data *thr)
 {
     char entityId[INT_LEN];
+    struct event_info_s evt = {0};
 
     if (g_args->logs == 0) {
         return;
@@ -64,9 +65,12 @@ static void report_thread_metrics(struct thread_data *thr)
     entityId[0] = 0;
     (void)snprintf(entityId, INT_LEN, "%d", thr->id.pid);
 
-    report_logs(OO_NAME,
-                entityId,
-                "off_cpu_ns",
+    evt.entityName = OO_NAME;
+    evt.entityId = entityId;
+    evt.metrics = "off_cpu_ns";
+    evt.pid = (int)thr->id.tgid;
+
+    report_logs((const struct event_info_s *)&evt,
                 EVT_SEC_WARN,
                 "Process(COMM:%s TID:%d) is preempted(COMM:%s PID:%d) and off-CPU %llu ns.",
                 thr->id.comm,

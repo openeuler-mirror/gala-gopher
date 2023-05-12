@@ -288,26 +288,36 @@ static void __build_entity_id(int major, int minor, char *buf, int buf_len)
 static void rcv_io_latency_thr(struct io_latency_s *io_latency)
 {
     char entityId[__ENTITY_ID_LEN];
-
     unsigned int latency_thr_us;
+    struct event_info_s evt = {0};
+    char dev_name[DISK_NAME_LEN];
+    char disk_name[DISK_NAME_LEN];
 
     if (params.logs == 0) {
         return;
     }
 
     latency_thr_us = params.latency_thr << 3; // milliseconds to microseconds
-    entityId[0] = 0;
-    __build_entity_id(io_latency->major, io_latency->first_minor, entityId, __ENTITY_ID_LEN);
-
     if ((latency_thr_us > 0) && (io_latency->latency[IO_STAGE_BLOCK].max >= latency_thr_us)) {
-        report_logs(OO_NAME,
-                    entityId,
-                    "latency_req_max",
+        entityId[0] = 0;
+        __build_entity_id(io_latency->major, io_latency->first_minor, entityId, __ENTITY_ID_LEN);
+
+        dev_name[0] = 0;
+        disk_name[0] = 0;
+        get_devname(io_latency->major, io_latency->first_minor, dev_name, DISK_NAME_LEN);
+        get_diskname((const char*)dev_name, disk_name, DISK_NAME_LEN);
+
+        evt.entityName = OO_NAME;
+        evt.entityId = entityId;
+        evt.metrics = "latency_req_max";
+        evt.dev = disk_name;
+
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "IO latency occured."
-                    "(Block %d:%d, COMM %s, PID %u, op: %s, datalen %u, "
+                    "(Disk %s(%d:%d), COMM %s, PID %u, op: %s, datalen %u, "
                     "drv_latency %llu, dev_latency %llu)",
-                    io_latency->major, io_latency->first_minor,
+                    disk_name, io_latency->major, io_latency->first_minor,
                     io_latency->comm, io_latency->proc_id, io_latency->rwbs, io_latency->data_len,
                     io_latency->latency[IO_STAGE_DRIVER].max,
                     io_latency->latency[IO_STAGE_DEVICE].max);
@@ -416,6 +426,9 @@ static void rcv_io_err(void *ctx, int cpu, void *data, __u32 size)
     int blk_err = 0;
     char entityId[__ENTITY_ID_LEN];
     struct io_err_s *io_err = data;
+    struct event_info_s evt = {0};
+    char dev_name[DISK_NAME_LEN];
+    char disk_name[DISK_NAME_LEN];
 
     if (params.logs == 0) {
         return;
@@ -424,15 +437,23 @@ static void rcv_io_err(void *ctx, int cpu, void *data, __u32 size)
     entityId[0] = 0;
     __build_entity_id(io_err->major, io_err->first_minor, entityId, __ENTITY_ID_LEN);
 
+    dev_name[0] = 0;
+    disk_name[0] = 0;
+    get_devname(io_err->major, io_err->first_minor, dev_name, DISK_NAME_LEN);
+    get_diskname((const char*)dev_name, disk_name, DISK_NAME_LEN);
+
+    evt.entityName = OO_NAME;
+    evt.entityId = entityId;
+    evt.metrics = "err_code";
+    evt.dev = disk_name;
+
     const char *blk_err_desc = get_blk_err_desc(io_err->err_code, &blk_err);
-    report_logs(OO_NAME,
-                entityId,
-                "err_code",
+    report_logs((const struct event_info_s *)&evt,
                 EVT_SEC_WARN,
                 "IO errors occured."
-                "(Block %d:%d, COMM %s, PID %u, op: %s, datalen %u, "
+                "(Disk %s(%d:%d), COMM %s, PID %u, op: %s, datalen %u, "
                 "blk_err(%d) '%s', scsi_err(%d) '%s', timestamp %f)",
-                io_err->major, io_err->first_minor,
+                disk_name, io_err->major, io_err->first_minor,
                 io_err->comm, io_err->proc_id, io_err->rwbs, io_err->data_len,
                 blk_err, blk_err_desc, io_err->scsi_err, get_scis_err_desc(io_err->scsi_err),
                 io_err->timestamp / 1000000.0);

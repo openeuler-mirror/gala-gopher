@@ -196,6 +196,29 @@ char is_digit_str(const char *s)
     return 1;
 }
 
+int get_system_ip(char ip_str[], unsigned int size)
+{
+    const char *cmd = "/sbin/ip a | grep inet | grep -v \"127.0.0.1\" | grep -v inet6 | awk 'NR==1 {print $2}' |  awk -F '/' '{print $1}'";
+
+    return exec_cmd(cmd, ip_str, size);
+}
+
+int get_comm(int pid, char comm_str[], unsigned int size)
+{
+    char proc_comm[PATH_LEN];
+    char cat_proc_comm[PATH_LEN];
+    const char *fmt1 = "/proc/%d/comm";
+    const char *fmt2 = "/usr/bin/cat /proc/%d/comm";
+
+    (void)snprintf(proc_comm, PATH_LEN, fmt1, pid);
+    if (access((const char *)proc_comm, 0) != 0) {
+        return -1;
+    }
+
+    (void)snprintf(cat_proc_comm, PATH_LEN, fmt2, pid);
+    return exec_cmd(cat_proc_comm, comm_str, size);
+}
+
 int get_system_uuid(char *buffer, unsigned int size)
 {
     FILE *fp = NULL;
