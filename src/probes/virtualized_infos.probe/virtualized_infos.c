@@ -17,8 +17,15 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <signal.h>
 #include "args.h"
 #include "virt_proc.h"
+
+static volatile sig_atomic_t stop;
+static void sig_int(int signo)
+{
+    stop = 1;
+}
 
 static int virt_probe_init(struct probe_params * params)
 {
@@ -42,7 +49,12 @@ int main(struct probe_params * params)
         goto err;
     }
 
-    for (;;) {
+    if (signal(SIGINT, sig_int) == SIG_ERR) {
+        ERROR("[VIRT_PROBE] can't set signal handler: %s\n", strerror(errno));
+        goto err;
+    }
+
+    while(!stop) {
         ret = virt_proc_probe();
         if (ret < 0) {
             ERROR("[VIRT_PROBE] system virt proc probe fail.\n");
