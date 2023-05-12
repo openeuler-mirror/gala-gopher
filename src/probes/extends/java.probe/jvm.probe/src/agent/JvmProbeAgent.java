@@ -25,20 +25,26 @@ public class JvmProbeAgent {
     private static final int NSEC_PER_SEC = 1000000000;
     private static final String METRIC_FILE_NAME = "jvm-metrics.txt";
     private static String pid;
-    private static String nspid;
+    private static String metricTmpPath;
+    private static String metricTmpFile;
 
-    private static String getMetricFilePath() {
-        String filePath = String.format("/proc/%s/root/tmp/%s", nspid, METRIC_FILE_NAME);
-        return filePath;
+    private static void createTmpFile() throws IOException {
+        File tmpDirectory = new File(metricTmpPath);
+        if (!tmpDirectory.exists()) {
+            tmpDirectory.mkdir();
+        }
+
+        File tmpFile = new File(tmpDirectory, METRIC_FILE_NAME);
+        if (!tmpFile.exists()) {
+            tmpFile.createNewFile();
+        }
+
+        metricTmpFile = String.format("%s/%s", metricTmpPath, METRIC_FILE_NAME);
     }
 
     private static void writeMetricRecords(String record) {
         try {
-            File file = new File(getMetricFilePath());
-            if (!file.exists()) {
-                file.createNewFile();
-            }
-            FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
+            FileWriter fw = new FileWriter(metricTmpFile, true);
             BufferedWriter bw = new BufferedWriter(fw);
             bw.write(record);
             bw.close();
@@ -179,8 +185,9 @@ public class JvmProbeAgent {
     public static void agentmain(String agentArgs) {
         String[] argStr = agentArgs.split("[,]");
         pid = argStr[0];
-        nspid = argStr[1];
+        metricTmpPath = argStr[1];
         try {
+            createTmpFile();
             getJmxInfo();
         } catch (IOException e) {
             System.out.println(e.getMessage());

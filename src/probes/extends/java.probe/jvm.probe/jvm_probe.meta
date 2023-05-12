@@ -51,7 +51,7 @@ measurements:
             },
             {
                 description: "Total user and system CPU time spent in seconds.",
-                type: "gauge",
+                type: "counter",
                 name: "process_cpu_seconds_total",
             },
         )
@@ -73,7 +73,7 @@ measurements:
             },
             {
                 description: "Total user and system CPU time spent in seconds.",
-                type: "gauge",
+                type: "counter",
                 name: "classes_loaded_total",
             },
         )
@@ -105,7 +105,7 @@ measurements:
             },
             {
                 description: "Started thread count of a JVM.",
-                type: "gauge",
+                type: "counter",
                 name: "threads_started_total",
             },
             {
@@ -248,12 +248,12 @@ measurements:
             },
             {
                 description: "Collection count of a given JVM garbage collector.",
-                type: "gauge",
+                type: "summary",
                 name: "gc_collection_seconds_count",
             },
             {
                 description: "Time spent in a given JVM garbage collector in seconds.",
-                type: "gauge",
+                type: "summary",
                 name: "gc_collection_seconds_sum",
             },
         )
