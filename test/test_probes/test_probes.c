@@ -320,7 +320,7 @@ void TestSystemProcProbe(void)
     uint32_t *elemP = NULL;
     FILE *f = NULL;
     char cmd[COMMAND_LEN];
-    struct probe_params params = {.period = DEFAULT_PERIOD, .task_whitelist="/tmp/gala-gopher-app.conf"};
+    struct probe_params params = {.period = DEFAULT_PERIOD};
 
     /* prepare create proc_map */
     ret = mkdir("/sys/fs/bpf/gala-gopher", 0775);
@@ -341,8 +341,7 @@ void TestSystemProcProbe(void)
     f = popen(cmd, "r");
     CU_ASSERT(f != NULL);
 
-    system_proc_init(&params.task_whitelist);
-    CU_ASSERT(&params.task_whitelist != NULL);
+    system_proc_init();
 
     g_probe = ProbeCreate();
     CU_ASSERT(g_probe != NULL);

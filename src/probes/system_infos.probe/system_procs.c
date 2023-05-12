@@ -20,12 +20,15 @@
 #include <errno.h>
 #include "object.h"
 #include "nprobe_fprintf.h"
-#include "whitelist_config.h"
 #include "system_procs.h"
 
 #define METRICS_PROC_NAME   "system_proc"
+#define PROC_PATH           "/proc"
+#define PROC_COMM           "/proc/%s/comm"
+#define PROC_COMM_CMD       "/usr/bin/cat /proc/%s/comm 2> /dev/null"
 #define PROC_STAT           "/proc/%s/stat"
 #define PROC_START_TIME_CMD "/usr/bin/cat /proc/%s/stat | awk '{print $22}'"
+#define PROC_CMDLINE_CMD    "/proc/%s/cmdline"
 #define PROC_FD             "/proc/%s/fd"
 #define PROC_FD_CNT_CMD     "/usr/bin/ls /proc/%s/fd 2>/dev/null | wc -l 2>/dev/null"
 #define PROC_IO             "/proc/%s/io"
@@ -41,9 +44,6 @@
 
 static proc_hash_t *g_procmap = NULL;
 static proc_info_t g_pre_proc_info;
-
-static ApplicationConfig g_appsConfig[PROC_MAX_RANGE] = {0};
-static int g_appsConfig_len = 0;
 
 static void add_proc_obj(const int pid)
 {
@@ -111,6 +111,14 @@ static void hash_clear_invalid_proc(void)
     }
 }
 
+static inline int is_proc_subdir(const char *pid)
+{
+    if (*pid >= '1' && *pid <= '9') {
+        return 0;
+    }
+    return -1;
+}
+
 static int do_read_line(const char* pid, const char *command, const char *fname, char *buf, u32 buf_len)
 {
     FILE *f = NULL;
@@ -141,6 +149,11 @@ static int do_read_line(const char* pid, const char *command, const char *fname,
     (void)strncpy(buf, line, buf_len - 1);
     (void)pclose(f);
     return 0;
+}
+
+static int get_proc_comm(const char* pid, char *buf)
+{
+    return do_read_line(pid, PROC_COMM_CMD, PROC_COMM, buf, PROC_NAME_MAX);
 }
 
 static int get_proc_start_time(const char* pid, char *buf)
@@ -239,6 +252,48 @@ out:
         (void)pclose(f);
     }
     return;
+}
+
+int get_proc_cmdline(const char *pid, char *buf, u32 buf_len)
+{
+    FILE *f = NULL;
+    char path[LINE_BUF_LEN];
+    int index = 0;
+
+    (void)memset(buf, 0, buf_len);
+
+    path[0] = 0;
+    (void)snprintf(path, LINE_BUF_LEN, PROC_CMDLINE_CMD, pid);
+    f = fopen(path, "r");
+    if (f == NULL) {
+        return -1;
+    }
+    /* parse line */
+    while (!feof(f)) {
+        if (index >= buf_len - 1) {
+            buf[index] = '\0';
+            break;
+        }
+        buf[index] = fgetc(f);
+        if (buf[index] == '\"') {
+            if (index > buf_len -2) {
+                buf[index] = '\0';
+                break;
+            } else {
+                buf[index] = '\\';
+                buf[index + 1] =  '\"';
+                index++;
+            }
+        } else if (buf[index] == '\0') {
+            buf[index] = ' ';
+        } else if (buf[index] == EOF) {
+            buf[index] = '\0';
+        }
+        index++;
+    }
+
+    (void)fclose(f);
+    return 0;
 }
 
 static int __is_valid_container_id(char *str)
@@ -609,15 +664,15 @@ int system_proc_probe(void)
     char pid_str[PROC_NAME_MAX];
     proc_hash_t *l, *p = NULL;
 
-    u32 proc_whitelist[PROC_LIST_LEN_MAX] = {0};
-    
-    get_probe_proc_whitelist(g_appsConfig, g_appsConfig_len, proc_whitelist, PROC_LIST_LEN_MAX);
-
-    for (int i = 0; i < PROC_LIST_LEN_MAX; i++) {
-        if (proc_whitelist[i] == 0) {
-            break;
+    dir = opendir(PROC_PATH);
+    if (dir == NULL) {
+        return -1;
+    }
+    while(entry = readdir(dir)) {
+        if (is_proc_subdir(entry->d_name) == -1) {
+            continue;
         }
-        snprintf(pid_str, sizeof(pid_str), "%d", proc_whitelist[i]);
+        snprintf(pid_str, PROC_NAME_MAX, "%s", entry->d_name);
         /* proc start time(avoid repetition of pid) */
         stime[0] = 0;
         (void)get_proc_start_time(pid_str, stime);
@@ -649,11 +704,8 @@ void system_proc_destroy(void)
     obj_module_exit();
 }
 
-void system_proc_init(char *task_whitelist)
+void system_proc_init(void)
 {
-    int i;
-    ApplicationsConfig *conf;
-
     obj_module_init();
     // if proc_obj_map's fd is 0, create obj_map
     if (!(obj_module_init_ok() & PROC_MAP_INIT_OK)) {
@@ -661,20 +713,6 @@ void system_proc_init(char *task_whitelist)
         (void)obj_module_create_map("proc_obj_map");
         obj_module_set_maps_fd();
     }
-
-    if (parse_whitelist_config(&conf, task_whitelist) < 0) {
-        ERROR("[SYSTEM_PROC] parse whitelist failed.\n");
-        return;
-    }
-
-    for (i = 0; i < conf->apps_num; i++) {
-        ApplicationConfig *_app = conf->apps[i];
-        strncpy(g_appsConfig[i].comm, _app->comm, PROC_NAME_MAX - 1);
-        strncpy(g_appsConfig[i].cmd_line, _app->cmd_line, PROC_CMDLINE_LEN - 1);
-    }
-    g_appsConfig_len = i;
-
-    whitelist_config_destroy(conf);
 
     return;
 }

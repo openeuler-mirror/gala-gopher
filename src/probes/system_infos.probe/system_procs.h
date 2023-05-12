@@ -106,7 +106,7 @@ typedef struct {
 } proc_hash_t;
 
 int system_proc_probe(void);
-void system_proc_init(char *task_whitelist);
+void system_proc_init(void);
 void system_proc_destroy(void);
 
 #endif

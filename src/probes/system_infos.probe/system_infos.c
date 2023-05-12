@@ -17,6 +17,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <signal.h>
 #include "args.h"
 #include "system_disk.h"
 #include "system_net.h"
@@ -24,6 +25,12 @@
 #include "system_cpu.h"
 #include "system_meminfo.h"
 #include "system_os.h"
+
+static volatile sig_atomic_t stop;
+static void sig_int(int signo)
+{
+    stop = 1;
+}
 
 static int system_probe_init(struct probe_params * params)
 {
@@ -44,7 +51,7 @@ static int system_probe_init(struct probe_params * params)
     }
 
     /* system proc init */
-    system_proc_init(params->task_whitelist);
+    system_proc_init();
 
     /* system_iostat init */
     if (system_iostat_init() < 0) {
@@ -81,7 +88,12 @@ int main(struct probe_params * params)
         goto err;
     }
 
-    for (;;) {
+    if (signal(SIGINT, sig_int) == SIG_ERR) {
+        ERROR("[SYSTEM_PROBE] can't set signal handler: %s\n", strerror(errno));
+        goto err;
+    }
+
+    while(!stop) {
         ret = system_meminfo_probe(params);
         if (ret < 0) {
             ERROR("[SYSTEM_PROBE] system meminfo probe fail.\n");
