@@ -432,7 +432,7 @@ int get_container_id_by_pid(unsigned int pid, char *container_id, unsigned int b
 static int __is_container_id(char *container_id)
 {
     int len = strlen(container_id);
-    if (len != CONTAINER_ID_LEN) {
+    if (len > CONTAINER_ID_LEN) {
         return 0;
     }
 
