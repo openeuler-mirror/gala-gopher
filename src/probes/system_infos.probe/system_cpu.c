@@ -78,6 +78,8 @@ static void get_cpu_time_in_jiff(char *cpu_total_line, u64 *time_total, u64 *tim
 static void report_cpu_status(struct probe_params *params)
 {
     char entityId[INT_LEN];
+    struct event_info_s evt = {0};
+
     if (params->logs == 0) {
         return;
     }
@@ -85,10 +87,12 @@ static void report_cpu_status(struct probe_params *params)
     entityId[0] = 0;
     (void)strcpy(entityId, "cpu");
 
+    evt.entityName = ENTITY_NAME;
+    evt.entityId = entityId;
+    evt.metrics = "total_used_per";
+
     if (params->res_percent_upper > 0 && util_per > params->res_percent_upper) {
-        report_logs(ENTITY_NAME,
-                    entityId,
-                    "total_used_per",
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "Too high cpu utilization(%.2f%%).",
                     util_per);

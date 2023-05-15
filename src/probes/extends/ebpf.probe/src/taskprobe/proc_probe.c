@@ -121,6 +121,7 @@ static void report_proc_metrics(struct proc_data_s *proc)
 {
     char entityId[INT_LEN];
     u64 latency_thr_us = US(tp_probe->params.latency_thr);
+    struct event_info_s evt = {0};
 
     if (tp_probe->params.logs == 0) {
         return;
@@ -129,10 +130,13 @@ static void report_proc_metrics(struct proc_data_s *proc)
     entityId[0] = 0;
     (void)snprintf(entityId, INT_LEN, "%d", proc->proc_id);
 
+    evt.entityName = OO_NAME;
+    evt.entityId = entityId;
+    evt.pid = (int)proc->proc_id;
+
     if (proc->syscall.failed > 0) {
-        report_logs(OO_NAME,
-                    entityId,
-                    "syscall_failed",
+        evt.metrics = "syscall_failed";
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "Process(COMM:%s PID:%u) syscall failed(SysCall-ID:%d RET:%d COUNT:%u).",
                     proc->comm,
@@ -143,9 +147,8 @@ static void report_proc_metrics(struct proc_data_s *proc)
     }
 
     if (proc->dns_op.gethostname_failed > 0) {
-        report_logs(OO_NAME,
-                    entityId,
-                    "gethostname_failed",
+        evt.metrics = "gethostname_failed";
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "Process(COMM:%s PID:%u) gethostname failed(COUNT:%u).",
                     proc->comm,
@@ -154,9 +157,8 @@ static void report_proc_metrics(struct proc_data_s *proc)
     }
 
     if (latency_thr_us > 0 && proc->proc_io.iowait_us > latency_thr_us) {
-        report_logs(OO_NAME,
-                    entityId,
-                    "iowait_us",
+        evt.metrics = "iowait_us";
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "Process(COMM:%s PID:%u) iowait %llu us.",
                     proc->comm,
@@ -165,9 +167,8 @@ static void report_proc_metrics(struct proc_data_s *proc)
     }
 
     if (proc->proc_io.hang_count > 0) {
-        report_logs(OO_NAME,
-                    entityId,
-                    "hang_count",
+        evt.metrics = "hang_count";
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "Process(COMM:%s PID:%u) hang count %u.",
                     proc->comm,
@@ -176,9 +177,8 @@ static void report_proc_metrics(struct proc_data_s *proc)
     }
 
     if (proc->proc_io.bio_err_count > 0) {
-        report_logs(OO_NAME,
-                    entityId,
-                    "bio_err_count",
+        evt.metrics = "bio_err_count";
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "Process(COMM:%s PID:%u) bio error %u.",
                     proc->comm,
@@ -210,7 +210,7 @@ static void output_proc_metrics_syscall_io(struct proc_data_s *proc)
         proc->syscall.ns_mount,
         proc->syscall.ns_umount,
         proc->syscall.ns_read,
-	proc->syscall.ns_write,
+        proc->syscall.ns_write,
         proc->syscall.ns_fsync);
 }
 

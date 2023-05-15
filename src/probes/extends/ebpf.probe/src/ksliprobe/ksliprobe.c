@@ -56,6 +56,7 @@ static void report_sli_event(struct msg_event_data_t *msg_evt_data)
     u64 latency_thr_ns = MS2NS(params.latency_thr);
     unsigned char ser_ip_str[INET6_ADDRSTRLEN];
     unsigned char cli_ip_str[INET6_ADDRSTRLEN];
+    struct event_info_s evt = {0};
 
     if (params.logs == 0) {
         return;
@@ -72,9 +73,17 @@ static void report_sli_event(struct msg_event_data_t *msg_evt_data)
         ip_str(msg_evt_data->client_ip_info.family, (unsigned char *)&(msg_evt_data->client_ip_info.ipaddr),
             cli_ip_str, INET6_ADDRSTRLEN);
 
-        report_logs(OO_NAME,
-                    entityId,
-                    "rtt_nsec",
+        evt.entityName = OO_NAME;
+        evt.entityId = entityId;
+        evt.metrics = "rtt_nsec";
+        evt.pid = (int)msg_evt_data->conn_id.tgid;
+        (void)snprintf(evt.ip, EVT_IP_LEN, "CIP(%s:%u), SIP(%s:%u)",
+                        cli_ip_str,
+                        ntohs(msg_evt_data->client_ip_info.port),
+                        ser_ip_str,
+                        msg_evt_data->server_ip_info.port);
+
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "Process(TID:%d, CIP(%s:%u), SIP(%s:%u)) SLI(%s:%llu) exceed the threshold.",
                     msg_evt_data->conn_id.tgid,

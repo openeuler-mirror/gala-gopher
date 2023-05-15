@@ -37,11 +37,19 @@ struct evt_ts_hash_t {
     time_t evt_ts;
 };
 
-void report_logs(const char* entityName,
-                 const char* entityId,
-                 const char* metrics,
-                 enum evt_sec_e sec,
-                 const char * fmt, ...);
+#define EVT_IP_LEN      128
+struct event_info_s {
+    const char *entityName;
+    const char *entityId;
+    const char *metrics;
+    const char *dev;
+    char ip[EVT_IP_LEN];
+    int pid;
+};
+
+void report_logs(const struct event_info_s* evt,
+              enum evt_sec_e sec,
+              const char * fmt, ...);
 
 void init_event_mgr(unsigned int time_out, char *lang_type);
 

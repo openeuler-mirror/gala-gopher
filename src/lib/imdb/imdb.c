@@ -24,6 +24,31 @@
 static uint32_t g_recordTimeout = 60;       // default timeout: 60 seconds
 TgidProcInfo_Table *tgid_infos = NULL;  // LRU cache of process tgid hash table
 
+#define __EVT_TBL_ENTITYNAME "EntityName"
+#define __EVT_TBL_ENTITYID "EntityID"
+#define __EVT_TBL_METRICS "metrics"
+#define __EVT_TBL_PID "PID"
+#define __EVT_TBL_COMM "COMM"
+#define __EVT_TBL_IP "IP"
+#define __EVT_TBL_CONTAINERID "ContainerID"
+#define __EVT_TBL_POD "POD"
+#define __EVT_TBL_DEVICE "Device"
+#define __EVT_TBL_SECTXT "SeverityText"
+#define __EVT_TBL_SECNUM "SeverityNumber"
+#define __EVT_TBL_BODY "Body"
+
+static const char* IMDB_GetEvtVal(IMDB_Record *record, const char *metricsName)
+{
+    int i;
+
+    for (i = 0; i < record->metricsNum; i++) {
+        if (strcmp(record->metrics[i]->name, metricsName) == 0) {
+            return (const char *)record->metrics[i]->val;
+        }
+    }
+    return NULL;
+}
+
 IMDB_Metric *IMDB_MetricCreate(char *name, char *description, char *type)
 {
     int ret = 0;
@@ -266,6 +291,13 @@ IMDB_DataBaseMgr *IMDB_DataBaseMgrCreate(uint32_t capacity)
     ret = get_system_uuid(mgr->nodeInfo.systemUuid, sizeof(mgr->nodeInfo.systemUuid));
     if (ret != 0) {
         ERROR("[IMDB] Can not get system uuid.\n");
+        free(mgr);
+        return NULL;
+    }
+
+    ret = get_system_ip(mgr->nodeInfo.hostIP, MAX_IMDB_HOSTIP_LEN);
+    if (ret != 0) {
+        ERROR("[IMDB] Can not get system ip.\n");
         free(mgr);
         return NULL;
     }
@@ -692,6 +724,92 @@ static int IMDB_BuildMetrics(const char *entity_name,
     return __snprintf(&buffer, size, &size, fmt, entity_name, metrcisName);
 }
 
+static int IMDB_BuildLabel(const char *label_name,
+                          const char *label_val, char is_end,
+                          char **buffer, uint32_t maxLen)
+{
+    int ret;
+    int size = (int)maxLen;
+    int remainLen = 0;
+    const char *fmt;
+
+    if (is_end) {
+        const char *fmt1 = " \"%s\": \"%s\"";
+        fmt = fmt1;
+    } else {
+        const char *fmt2 = " \"%s\": \"%s\",";
+        fmt = fmt2;
+    }
+
+    ret  = __snprintf(buffer, size, &remainLen, fmt, label_name, label_val);
+    if (ret < 0) {
+        return ret;
+    }
+    return remainLen;
+}
+
+static int IMDB_BuildLabels(const IMDB_DataBaseMgr *mgr,
+                                  IMDB_Record *record,
+                                  char *buffer, uint32_t maxLen)
+{
+    char **p = &buffer;
+    size_t len = maxLen;
+    int remain_len;
+    char hostVal[LINE_BUF_LEN];
+
+    const char *PID = IMDB_GetEvtVal(record, __EVT_TBL_PID);
+    const char *COMM = IMDB_GetEvtVal(record, __EVT_TBL_COMM);
+    const char *ip = IMDB_GetEvtVal(record, __EVT_TBL_IP);
+    const char *container_id = IMDB_GetEvtVal(record, __EVT_TBL_CONTAINERID);
+    const char *pod_name = IMDB_GetEvtVal(record, __EVT_TBL_POD);
+    const char *dev = IMDB_GetEvtVal(record, __EVT_TBL_DEVICE);
+
+    hostVal[0] = 0;
+    (void)snprintf(hostVal, LINE_BUF_LEN, "%s-%s", mgr->nodeInfo.systemUuid, mgr->nodeInfo.hostIP);
+    remain_len = IMDB_BuildLabel("Host", hostVal, 0, p, len);
+    if (remain_len <= 0) {
+        return -1;
+    }
+
+    len = remain_len;
+    remain_len = IMDB_BuildLabel(__EVT_TBL_PID, PID, 0, p, len);
+    if (remain_len <= 0) {
+        return -1;
+    }
+
+    len = remain_len;
+    remain_len = IMDB_BuildLabel(__EVT_TBL_COMM, COMM, 0, p, len);
+    if (remain_len <= 0) {
+        return -1;
+    }
+
+    len = remain_len;
+    remain_len = IMDB_BuildLabel(__EVT_TBL_IP, ip, 0, p, len);
+    if (remain_len <= 0) {
+        return -1;
+    }
+
+    len = remain_len;
+    remain_len = IMDB_BuildLabel(__EVT_TBL_CONTAINERID, container_id, 0, p, len);
+    if (remain_len <= 0) {
+        return -1;
+    }
+
+    len = remain_len;
+    remain_len = IMDB_BuildLabel(__EVT_TBL_POD, pod_name, 0, p, len);
+    if (remain_len <= 0) {
+        return -1;
+    }
+
+    len = remain_len;
+    remain_len = IMDB_BuildLabel(__EVT_TBL_DEVICE, dev, 1, p, len);
+    if (remain_len <= 0) {
+        return -1;
+    }
+    return 0;
+}
+
+
 // eg: gala_gopher_tcp_link_rx_bytes(label) 128 1586960586000000000
 static int IMDB_BuildPrometheusMetrics(const IMDB_Metric *metric, char *buffer, uint32_t maxLen,
                                        const char *entity_name, const char *labels)
@@ -1038,25 +1156,6 @@ static int IMDB_Record2Json(const IMDB_DataBaseMgr *mgr, const IMDB_Table *table
     return 0;
 }
 
-#define __EVT_TBL_ENTITYNAME "EntityName"
-#define __EVT_TBL_ENTITYID "EntityID"
-#define __EVT_TBL_METRICS "metrics"
-#define __EVT_TBL_SECTXT "SeverityText"
-#define __EVT_TBL_SECNUM "SeverityNumber"
-#define __EVT_TBL_BODY "Body"
-
-static const char* IMDB_GetEvtVal(IMDB_Record *record, const char *metricsName)
-{
-    int i;
-
-    for (i = 0; i < record->metricsNum; i++) {
-        if (strcmp(record->metrics[i]->name, metricsName) == 0) {
-            return (const char *)record->metrics[i]->val;
-        }
-    }
-    return NULL;
-}
-
 // 对entityID中出现的特殊字符进行替换，替换为':'
 static void transfer_entityID(char *entityID)
 {
@@ -1089,6 +1188,15 @@ static void transfer_entityID(char *entityID)
   },
   "Resource": {
     "metric": "gala_gopher_tcp_link_health_rx_bytes",
+      "labels": {
+          "Host": "2c1c455d-24a5-897c-ea11-bc08f2d510da-192.168.128.123",
+          "PID": "1123",
+          "COMM": "ceph2-10.xxx.xxx.xxx",
+          "IP": "sip 187.10.1.123, dip 192.136.123.1",
+          "ContainerID": "2c1c455d-24a5-897c-ea11-bc08f2d510da",
+          "POD": "",
+          "Device": ""
+      },
   },
   "SeverityText": "WARN",
   "SeverityNumber": 13,
@@ -1205,7 +1313,23 @@ static int IMDB_Evt2Json(const IMDB_DataBaseMgr *mgr,
     p = jsonStr + len;
     len = jsonStrLen - len;
 
-    ret = __snprintf(&p, len, &len, "\"}, \"SeverityText\": \"%s\",", secTxt);
+
+    ret = __snprintf(&p, len, &len, "%s", "\",\"labels\": { ");
+    if (ret < 0) {
+        goto err;
+    }
+
+    ret = IMDB_BuildLabels(mgr, record, p, len);
+    if (ret < 0) {
+        goto err;
+    }
+
+    // Readdressing end of string
+    len = strlen(jsonStr);
+    p = jsonStr + len;
+    len = jsonStrLen - len;
+
+    ret = __snprintf(&p, len, &len, "}, }, \"SeverityText\": \"%s\",", secTxt);
     if (ret < 0) {
         goto err;
     }

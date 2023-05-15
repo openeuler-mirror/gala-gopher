@@ -34,5 +34,6 @@ struct java_attach_args {
 int get_host_java_tmp_file(int pid, const char *file_name, char *file_path, int path_len);
 int detect_proc_is_java(int pid, char *comm, int comm_len);
 void *java_support(void *arg);
+void java_msg_handler(void *arg);
 
 #endif

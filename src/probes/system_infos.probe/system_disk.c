@@ -47,6 +47,7 @@ static int get_df_fields(char *line, df_stats *stats)
 static void report_disk_status(df_stats inode_stats, df_stats blk_stats, struct probe_params *params)
 {
     char entityid[LINE_BUF_LEN];
+    struct event_info_s evt = {0};
 
     if (params->logs == 0) {
         return;
@@ -56,9 +57,12 @@ static void report_disk_status(df_stats inode_stats, df_stats blk_stats, struct 
 
     if (params->res_percent_upper > 0 && inode_stats.inode_or_blk_used_per > params->res_percent_upper) {
         (void)strncpy(entityid, inode_stats.mount_on, LINE_BUF_LEN - 1);
-        report_logs(ENTITY_FS_NAME,
-                    entityid,
-                    "IUsePer",
+
+        evt.entityName = ENTITY_FS_NAME;
+        evt.entityId = entityid;
+        evt.metrics = "IUsePer";
+
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "Too many Inodes consumed(%d%%).",
                     inode_stats.inode_or_blk_used_per);
@@ -67,9 +71,10 @@ static void report_disk_status(df_stats inode_stats, df_stats blk_stats, struct 
         if (entityid[0] == 0) {
             (void)strncpy(entityid, blk_stats.mount_on, LINE_BUF_LEN - 1);
         }
-        report_logs(ENTITY_FS_NAME,
-                    entityid,
-                    "UsePer",
+        evt.entityName = ENTITY_FS_NAME;
+        evt.entityId = entityid;
+        evt.metrics = "UsePer";
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "Too many Blocks used(%d%%).",
                     blk_stats.inode_or_blk_used_per);
@@ -205,6 +210,7 @@ static void cal_disk_io_stats(disk_stats *last, disk_stats *cur, disk_io_stats *
 static void report_disk_iostat(const char *disk_name, disk_io_stats *io_info, struct probe_params *params)
 {
     char entityid[LINE_BUF_LEN];
+    struct event_info_s evt = {0};
 
     if (params->logs == 0) {
         return;
@@ -214,9 +220,13 @@ static void report_disk_iostat(const char *disk_name, disk_io_stats *io_info, st
 
     if (params->res_percent_upper > 0 && io_info->util > params->res_percent_upper) {
         (void)strncpy(entityid, disk_name, LINE_BUF_LEN - 1);
-        report_logs(ENTITY_DISK_NAME,
-                    entityid,
-                    "util",
+
+        evt.entityName = ENTITY_DISK_NAME;
+        evt.entityId = entityid;
+        evt.metrics = "util";
+        evt.dev = disk_name;
+
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "Disk device saturated(%.2f%%).",
                     io_info->util);

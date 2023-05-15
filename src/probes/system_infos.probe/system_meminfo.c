@@ -76,6 +76,7 @@ static void report_meminfo_status(struct probe_params *params, double mem_util, 
 {
     char entityId[INT_LEN];
     char entityName[INT_LEN];
+    struct event_info_s evt = {0};
     if (params->logs == 0) {
         return;
     }
@@ -84,20 +85,21 @@ static void report_meminfo_status(struct probe_params *params, double mem_util, 
     entityName[0] = 0;
     (void)strcpy(entityId, "/proc/meminfo");
     (void)strcpy(entityName, "mem");
+
+    evt.entityName = entityName;
+    evt.entityId = entityId;
     // mem util
     if (params->res_percent_upper > 0 && mem_util > params->res_percent_upper) {
-        report_logs(entityName,
-                    entityId,
-                    "util",
+        evt.metrics = "util";
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "Too high mem utilization(%.2f%%).",
                     mem_util);
     }
     // swap util
     if (params->res_percent_upper > 0 && swap_util > params->res_percent_upper) {
-        report_logs(entityName,
-                    entityId,
-                    "swap_util",
+        evt.metrics = "swap_util";
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "Too high swap utilization(%.2f%%).",
                     swap_util);

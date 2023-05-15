@@ -178,9 +178,53 @@ static void build_entity_id(struct endpoint_val_t *ep, char *buf, int buf_len)
     }
 }
 
+static void build_event_lable(struct endpoint_val_t *ep, struct event_info_s *evt)
+{
+    size_t size = sizeof(evt->ip);
+    unsigned char s_addr[INET6_ADDRSTRLEN];
+
+    evt->ip[0] = 0;
+    s_addr[0] = 0;
+    switch (ep->key.type) {
+        case SK_TYPE_LISTEN_TCP: {
+            (void)snprintf(evt->ip, size, "Listen port %d", ep->key.key.tcp_listen_key.port);
+            evt->pid = ep->key.key.tcp_listen_key.tgid;
+            break;
+        }
+        case SK_TYPE_LISTEN_UDP: {
+            ip_str(ep->key.key.udp_server_key.ip_addr.family, 
+                   (unsigned char *)&(ep->key.key.udp_server_key.ip_addr.ip), 
+                   s_addr, 
+                   INET6_ADDRSTRLEN);
+            (void)snprintf(evt->ip, size, "udp bind %s", s_addr);
+            evt->pid = ep->key.key.udp_server_key.tgid;
+            break;
+        }
+        case SK_TYPE_CLIENT_TCP: {
+            ip_str(ep->key.key.tcp_connect_key.ip_addr.family, 
+                   (unsigned char *)&(ep->key.key.tcp_connect_key.ip_addr.ip), 
+                   s_addr, 
+                   INET6_ADDRSTRLEN);
+            (void)snprintf(evt->ip, size, "Tcp connect %s", s_addr);
+            evt->pid = ep->key.key.tcp_connect_key.tgid;
+            break;
+        }
+        case SK_TYPE_CLIENT_UDP: {
+            ip_str(ep->key.key.udp_client_key.ip_addr.family, 
+                   (unsigned char *)&(ep->key.key.udp_client_key.ip_addr.ip), 
+                   s_addr, 
+                   INET6_ADDRSTRLEN);
+            (void)snprintf(evt->ip, size, "Udp rcv %s", s_addr);
+            evt->pid = ep->key.key.udp_client_key.tgid;
+            break;
+        }
+    }
+}
+
 static void report_ep(struct endpoint_val_t *ep)
 {
     char entityId[EP_ENTITY_ID_LEN];
+    struct event_info_s evt = {0};
 
     if (params.logs == 0)
         return;
@@ -188,45 +232,61 @@ static void report_ep(struct endpoint_val_t *ep)
     entityId[0] = 0;
     if (ep->ep_stats.stats[EP_STATS_LISTEN_DROPS] != 0) {
         build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
-        report_logs(OO_NAME,
-                    entityId,
-                    "listendrop",
+
+        evt.metrics = "listendrop";
+        evt.entityId = entityId;
+        evt.entityName = OO_NAME;
+        build_event_lable(ep, &evt);
+
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "TCP listen drops(%lu).",
                     ep->ep_stats.stats[EP_STATS_LISTEN_DROPS]);
     }
 
     if (ep->ep_stats.stats[EP_STATS_ACCEPT_OVERFLOW] != 0) {
-        if (entityId[0] != 0)
+        if (entityId[0] != 0) {
             build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
+        }
 
-        report_logs(OO_NAME,
-                    entityId,
-                    "accept_overflow",
+        evt.metrics = "accept_overflow";
+        evt.entityId = entityId;
+        evt.entityName = OO_NAME;
+        build_event_lable(ep, &evt);
+
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "TCP accept queue overflow(%lu).",
                     ep->ep_stats.stats[EP_STATS_ACCEPT_OVERFLOW]);
     }
 
     if (ep->ep_stats.stats[EP_STATS_SYN_OVERFLOW] != 0) {
-        if (entityId[0] != 0)
+        if (entityId[0] != 0) {
             build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
+        }
 
-        report_logs(OO_NAME,
-                    entityId,
-                    "syn_overflow",
+        evt.metrics = "syn_overflow";
+        evt.entityId = entityId;
+        evt.entityName = OO_NAME;
+        build_event_lable(ep, &evt);
+
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "TCP syn queue overflow(%lu).",
                     ep->ep_stats.stats[EP_STATS_SYN_OVERFLOW]);
     }
 
     if (ep->ep_stats.stats[EP_STATS_PASSIVE_FAILS] != 0) {
-        if (entityId[0] != 0)
+        if (entityId[0] != 0) {
             build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
+        }
 
-        report_logs(OO_NAME,
-                    entityId,
-                    "passive_open_failed",
+        evt.metrics = "passive_open_failed";
+        evt.entityId = entityId;
+        evt.entityName = OO_NAME;
+        build_event_lable(ep, &evt);
+
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "TCP passive open failed(%lu).",
                     ep->ep_stats.stats[EP_STATS_PASSIVE_FAILS]);
@@ -235,9 +295,13 @@ static void report_ep(struct endpoint_val_t *ep)
     entityId[0] = 0;
     if (ep->ep_stats.stats[EP_STATS_ACTIVE_FAILS] != 0) {
         build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
-        report_logs(OO_NAME,
-                    entityId,
-                    "active_open_failed",
+
+        evt.metrics = "active_open_failed";
+        evt.entityId = entityId;
+        evt.entityName = OO_NAME;
+        build_event_lable(ep, &evt);
+
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "TCP active open failed(%lu).",
                     ep->ep_stats.stats[EP_STATS_ACTIVE_FAILS]);
@@ -247,17 +311,18 @@ static void report_ep(struct endpoint_val_t *ep)
     if (ep->ep_stats.stats[EP_STATS_QUE_RCV_FAILED] != 0) {
         build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
 
+        evt.entityId = entityId;
+        evt.entityName = OO_NAME;
+        evt.metrics = "udp_rcv_drops";
+        build_event_lable(ep, &evt);
+
         if (ep->key.type == SK_TYPE_LISTEN_UDP) {
-            report_logs(OO_NAME,
-                        entityId,
-                        "bind_rcv_drops",
+            report_logs((const struct event_info_s *)&evt,
                         EVT_SEC_WARN,
                         "UDP(S) queue drops(%lu).",
                         ep->ep_stats.stats[EP_STATS_QUE_RCV_FAILED]);
         } else {
-            report_logs(OO_NAME,
-                        entityId,
-                        "udp_rcv_drops",
+            report_logs((const struct event_info_s *)&evt,
                         EVT_SEC_WARN,
                         "UDP(C) queue drops(%lu).",
                         ep->ep_stats.stats[EP_STATS_QUE_RCV_FAILED]);
@@ -269,9 +334,11 @@ static void report_ep(struct endpoint_val_t *ep)
         build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
 
         if (ep->key.type == SK_TYPE_LISTEN_TCP) {
-            report_logs(OO_NAME,
-                        entityId,
-                        "lost_synacks",
+            evt.entityId = entityId;
+            evt.entityName = OO_NAME;
+            evt.metrics = "lost_synacks";
+            build_event_lable(ep, &evt);
+            report_logs((const struct event_info_s *)&evt,
                         EVT_SEC_WARN,
                         "TCP connection setup failure due to loss of SYN/ACK(%lu).",
                         ep->ep_stats.stats[EP_STATS_LOST_SYNACK]);
@@ -283,9 +350,11 @@ static void report_ep(struct endpoint_val_t *ep)
         build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
 
         if (ep->key.type == SK_TYPE_LISTEN_TCP) {
-            report_logs(OO_NAME,
-                        entityId,
-                        "retran_synacks",
+            evt.entityId = entityId;
+            evt.entityName = OO_NAME;
+            evt.metrics = "retran_synacks";
+            build_event_lable(ep, &evt);
+            report_logs((const struct event_info_s *)&evt,
                         EVT_SEC_WARN,
                         "TCP SYN/ACK retransmission occurs.(%lu).",
                         ep->ep_stats.stats[EP_STATS_RETRANS_SYNACK]);
