@@ -52,32 +52,6 @@ typedef struct {
     uint32_t queueBufferingMaxMs;
 } KafkaConfig;
 
-typedef struct {
-    char name[MAX_PROBE_NAME_LEN];
-    ProbeSwitch probeSwitch;
-    uint32_t interval;
-    char param[MAX_PARAM_LEN];
-} ProbeConfig;
-
-typedef struct {
-    uint32_t probesNum;
-    ProbeConfig *probesConfig[MAX_PROBES_NUM];
-} ProbesConfig;
-
-typedef struct {
-    char name[MAX_PROBE_NAME_LEN];
-    char command[MAX_EXTEND_PROBE_COMMAND_LEN];
-    char param[MAX_PARAM_LEN];
-    char startChkCmd[MAX_EXTEND_PROBE_COMMAND_LEN];
-    ProbeStartCheckType startChkType;
-    ProbeSwitch probeSwitch;
-} ExtendProbeConfig;
-
-typedef struct {
-    uint32_t probesNum;
-    ExtendProbeConfig *probesConfig[MAX_PROBES_NUM];
-} ExtendProbesConfig;
-
 typedef struct  {
     uint32_t maxTablesNum;
     uint32_t maxRecordsNum;
@@ -116,8 +90,6 @@ typedef struct {
     IngressConfig *ingressConfig;
     EgressConfig *egressConfig;
     KafkaConfig *kafkaConfig;
-    ProbesConfig *probesConfig;
-    ExtendProbesConfig *extendProbesConfig;
     IMDBConfig *imdbConfig;
     WebServerConfig *webServerConfig;
     RestServerConfig *restServerConfig;

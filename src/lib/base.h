@@ -22,13 +22,8 @@
 #include "common.h"
 
 // ======== COMMON ========
-// probe
-#define MAX_PROBES_NUM        32
-// extend probe
-#define MAX_EXTEND_PROBES_NUM   32
-
 // fifo
-#define MAX_FIFO_NUM          MAX_PROBES_NUM
+#define MAX_FIFO_NUM          32
 #define MAX_FIFO_SIZE         1024
 
 // meta

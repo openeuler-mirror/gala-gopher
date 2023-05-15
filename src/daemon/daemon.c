@@ -58,6 +58,7 @@ static void *DaemonRunProbeMng(void *arg)
     run_probe_mng_daemon(probe_mng);
 }
 
+#if 0
 static void *DaemonRunSingleProbe(void *arg)
 {
     g_probe = (Probe *)arg;
@@ -104,6 +105,7 @@ static int DaemonCheckProbeNeedStart(char *check_cmd, ProbeStartCheckType chkTyp
 
     return (cnt > 0);
 }
+#endif
 
 static void *DaemonRunMetadataReport(void *arg)
 {
@@ -150,6 +152,7 @@ static void CleanData(const ResourceMgr *mgr)
     DEBUG("[DAEMON] clean data success[%s].\n", cmd);
 }
 
+#if 0
 static void DaemonKeeplive(int sig)
 {
     int ret;
@@ -239,7 +242,7 @@ err:
     }
     return ret;
 }
-
+#endif
 int DaemonRun(const ResourceMgr *mgr)
 {
     int ret;
@@ -282,6 +285,7 @@ int DaemonRun(const ResourceMgr *mgr)
     }
     INFO("[DAEMON] create metadata_report thread success.\n");
 
+#if 0
     // 5. start probe thread
     for (int i = 0; i < mgr->probeMgr->probesNum; i++) {
         Probe *_probe = mgr->probeMgr->probes[i];
@@ -322,7 +326,7 @@ int DaemonRun(const ResourceMgr *mgr)
         mgr->extendProbeMgr->probes[i]->is_running = 1;
         INFO("[DAEMON] create extend probe %s thread success.\n", mgr->extendProbeMgr->probes[i]->name);
     }
-
+#endif
     // 6. start probe manager thread
     ret = pthread_create(&mgr->probe_mng->tid, NULL, DaemonRunProbeMng, mgr->probe_mng);
     if (ret != 0) {
@@ -347,6 +351,7 @@ int DaemonRun(const ResourceMgr *mgr)
     }
     INFO("[DAEMON] create cmd_server thread success.\n");
 
+#if 0
     // 9. create keeplive timer
     ret = DaemonCreateTimer((ResourceMgr *)mgr);
     if (ret != 0) {
@@ -354,6 +359,7 @@ int DaemonRun(const ResourceMgr *mgr)
         return -1;
     }
     INFO("[DAEMON] create keeplive timer success.\n");
+#endif
 
     // 10. start rest_api_server thread
     ret = RestServerStartDaemon(mgr->restServer);
@@ -378,6 +384,7 @@ int DaemonWaitDone(const ResourceMgr *mgr)
     // 3. wait metadata_report done
     pthread_join(mgr->mmMgr->tid, NULL);
 
+#if 0
     // 4. wait probe done
     for (int i = 0; i < mgr->probeMgr->probesNum; i++) {
         pthread_join(mgr->probeMgr->probes[i]->tid, NULL);
@@ -387,11 +394,15 @@ int DaemonWaitDone(const ResourceMgr *mgr)
     for (int i = 0; i < mgr->extendProbeMgr->probesNum; i++) {
         pthread_join(mgr->extendProbeMgr->probes[i]->tid, NULL);
     }
+#endif
 
-    // 6. wait metric_write_logs done
+    // 6. wait probe mng done
+    pthread_join(mgr->probe_mng->tid, NULL);
+
+    // 7. wait metric_write_logs done
     pthread_join(mgr->imdbMgr->metrics_tid, NULL);
 
-    // 7.wait ctl thread done
+    // 8.wait ctl thread done
     pthread_join(mgr->ctl_tid, NULL);
 
     return 0;

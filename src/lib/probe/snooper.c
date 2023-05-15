@@ -129,6 +129,8 @@ struct probe_range_define_s probe_range_define[] = {
 
 static void refresh_snooper_obj(struct probe_s *probe);
 
+void get_probemng_lock(void);
+void put_probemng_lock(void);
 static int get_probe_range(const char *range)
 {
 
@@ -850,38 +852,31 @@ static int __get_snooper_obj_idle(struct probe_s *probe, size_t size)
 
 static int add_snooper_obj_procid(struct probe_s *probe, u32 proc_id)
 {
-    pthread_rwlock_wrlock(&probe->rwlock);
     int pos = __get_snooper_obj_idle(probe, SNOOPER_MAX);
     if (pos < 0) {
-        pthread_rwlock_unlock(&probe->rwlock);
         return -1;
     }
 
     struct snooper_obj_s* snooper_obj = new_snooper_obj();
     if (snooper_obj == NULL) {
-        pthread_rwlock_unlock(&probe->rwlock);
         return -1;
     }
     snooper_obj->type = SNOOPER_OBJ_PROC;
     snooper_obj->obj.proc.proc_id = proc_id;
 
     probe->snooper_objs[pos] = snooper_obj;
-    pthread_rwlock_unlock(&probe->rwlock);
     return 0;
 }
 
 static int add_snooper_obj_cgrp(struct probe_s *probe, u32 knid)
 {
-    pthread_rwlock_wrlock(&probe->rwlock);
     int pos = __get_snooper_obj_idle(probe, SNOOPER_MAX);
     if (pos < 0) {
-        pthread_rwlock_unlock(&probe->rwlock);
         return -1;
     }
 
     struct snooper_obj_s* snooper_obj = new_snooper_obj();
     if (snooper_obj == NULL) {
-        pthread_rwlock_unlock(&probe->rwlock);
         return -1;
     }
     snooper_obj->type = SNOOPER_OBJ_CGRP;
@@ -889,22 +884,18 @@ static int add_snooper_obj_cgrp(struct probe_s *probe, u32 knid)
     snooper_obj->obj.cgrp.type = CGP_TYPE_CPUACCT;
 
     probe->snooper_objs[pos] = snooper_obj;
-    pthread_rwlock_unlock(&probe->rwlock);
     return 0;
 }
 
 static int add_snooper_obj_gaussdb(struct probe_s *probe, struct snooper_gaussdb_s *db_param)
 {
-    pthread_rwlock_wrlock(&probe->rwlock);
     int pos = __get_snooper_obj_idle(probe, SNOOPER_MAX);
     if (pos < 0) {
-        pthread_rwlock_unlock(&probe->rwlock);
         return -1;
     }
 
     struct snooper_obj_s* snooper_obj = new_snooper_obj();
     if (snooper_obj == NULL) {
-        pthread_rwlock_unlock(&probe->rwlock);
         return -1;
     }
 
@@ -924,7 +915,6 @@ static int add_snooper_obj_gaussdb(struct probe_s *probe, struct snooper_gaussdb
     snooper_obj->obj.gaussdb.port = db_param->port;
 
     probe->snooper_objs[pos] = snooper_obj;
-    pthread_rwlock_unlock(&probe->rwlock);
     return 0;
 }
 
@@ -1079,12 +1069,10 @@ static void refresh_snooper_obj(struct probe_s *probe)
     struct snooper_generator_s *generator;
     size_t size = sizeof(snooper_generators) / sizeof(struct snooper_generator_s);
 
-    pthread_rwlock_wrlock(&probe->rwlock);
     for (i = 0 ; i < SNOOPER_MAX ; i++) {
         free_snooper_obj(probe->snooper_objs[i]);
         probe->snooper_objs[i] = NULL;
     }
-    pthread_rwlock_unlock(&probe->rwlock);
 
     for (i = 0; i < probe->snooper_conf_num; i++) {
         snooper_conf = probe->snooper_confs[i];
@@ -1139,7 +1127,6 @@ static void __rcv_snooper_proc_exit(struct probe_mng_s *probe_mng, u32 proc_id)
             continue;
         }
 
-        pthread_rwlock_wrlock(&probe->rwlock);
         for (j = 0; j < SNOOPER_MAX; j++) {
             snooper_obj = probe->snooper_objs[j];
             if (!snooper_obj || snooper_obj->type != SNOOPER_OBJ_PROC) {
@@ -1152,7 +1139,6 @@ static void __rcv_snooper_proc_exit(struct probe_mng_s *probe_mng, u32 proc_id)
                 snooper_obj = NULL;
             }
         }
-        pthread_rwlock_unlock(&probe->rwlock);
         send_snooper_obj(probe);
     }
 }
@@ -1170,18 +1156,25 @@ static void rcv_snooper_proc_evt(void *ctx, int cpu, void *data, __u32 size)
         strncpy(comm, evt->filename, TASK_COMM_LEN - 1);
     }
 
+    get_probemng_lock();
+
     if (evt->proc_event == PROC_EXEC) {
         __rcv_snooper_proc_exec(__probe_mng_snooper, (const char *)comm, (u32)evt->pid);
     } else {
         __rcv_snooper_proc_exit(__probe_mng_snooper, (u32)evt->pid);
     }
+    put_probemng_lock();
 }
 
 static void rcv_snooper_cgrp_evt(void *ctx, int cpu, void *data, __u32 size)
 {
     struct snooper_cgrp_evt_s *msg_data = (struct snooper_cgrp_evt_s *)data;
 
+    get_probemng_lock();
+
     // TODO: chk snooper pattern
+
+    put_probemng_lock();
 
     return;
 }

@@ -62,6 +62,10 @@ void EgressMgrDestroy(EgressMgr *mgr)
         FifoDestroy(mgr->event_fifo);
     }
 
+    if (mgr->epoll_fd > 0) {
+        close(mgr->epoll_fd);
+    }
+
     (void)free(mgr);
     return;
 }

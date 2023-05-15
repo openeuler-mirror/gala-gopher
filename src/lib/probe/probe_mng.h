@@ -120,24 +120,32 @@ struct probe_s {
     u32 probe_range_flags;                              // Refer to flags defined [PROBE_RANGE_XX_XX]
     ProbeMain probe_entry;                              // Main function for native probe
     ProbeCB cb;                                         // Thread cb for probe
-    struct probe_status_s probe_status;                 // Status of extend probe
-    Fifo *fifo;                                         // Data channel for probe, !!!NOTICE: context in thread of probe
+    Fifo *fifo;                                         // Data channel for probe, !!!NOTICE: context in probe-thread
     pthread_t tid;                                      // Thread for admin probe
-    u32 snooper_conf_num;
-    struct snooper_conf_s *snooper_confs[SNOOPER_MAX];  // snooper config
 
-    struct snooper_obj_s *snooper_objs[SNOOPER_MAX];    // snooper object
+    int pid;                                            // PID of extend probe process(Invalid value -1), wr&rd by rest/probe/probe-mng thread
+    struct probe_status_s probe_status;                 // Status of probe, wr&rd by rest/probe/probe-mng thread
+    pthread_rwlock_t rwlock;                            // Used to exclusive operations between multi-thread.
+
+    u32 snooper_conf_num;
+    struct snooper_conf_s *snooper_confs[SNOOPER_MAX];  // snooper config, wr&rd by rest/probe-mng thread
+    struct snooper_obj_s *snooper_objs[SNOOPER_MAX];    // snooper object, wr&rd by rest/probe-mng thread
+
     struct probe_params probe_param;                    // params for probe
-    pthread_rwlock_t rwlock;                            // protects snooper_objs and probe_status
 };
 
 struct probe_mng_s {
     int msq_id;                                         // ipc control msg channnel
     struct probe_s *probes[PROBE_TYPE_MAX];
     void *snooper_skel;
-    void *snooper_proc_pb;
-    void *snooper_cgrp_pb;
-    pthread_t tid;
+    void *snooper_proc_pb;                              // context in perf event
+    void *snooper_cgrp_pb;                              // context in perf event
+    int ingress_epoll_fd;                               // !!!NOTICE: NO NEED FREE.
+    pthread_t tid;                                      // probe mng thread, used to poll perf event
+    time_t keeplive_ts;                                 // Used to keeplive probe
+
+    pthread_rwlock_t rwlock;                            // Exclusive operations between rest-api event and perf event.
+
 };
 
 #define IS_EXTEND_PROBE(probe)  (probe->is_extend_probe)

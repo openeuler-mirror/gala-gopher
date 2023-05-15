@@ -40,10 +40,25 @@ void IngressMgrDestroy(IngressMgr *mgr)
         return;
     }
 
+    if (mgr->epoll_fd > 0) {
+        close(mgr->epoll_fd);
+    }
     free(mgr);
     return;
 }
 
+static int IngressInit(IngressMgr *mgr)
+{
+    mgr->epoll_fd = epoll_create(MAX_EPOLL_SIZE);
+    if (mgr->epoll_fd < 0) {
+        return -1;
+    }
+
+    mgr->probsMgr->ingress_epoll_fd = mgr->epoll_fd;
+    return 0;
+}
+
+#if 0
 static int IngressInit(IngressMgr *mgr)
 {
     struct epoll_event event;
@@ -88,6 +103,7 @@ static int IngressInit(IngressMgr *mgr)
 
     return 0;
 }
+#endif
 
 static int LogData2Egress(IngressMgr *mgr, const char *logData)
 {

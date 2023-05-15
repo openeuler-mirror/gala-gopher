@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <dlfcn.h>
 #include <cjson/cJSON.h>
+#include <sys/epoll.h>
 
 #include "probe_mng.h"
 #include "snooper.h"
@@ -51,6 +52,16 @@ struct probe_define_s probe_define[] = {
 
 static struct probe_mng_s *g_probe_mng;
 
+void get_probemng_lock(void)
+{
+    (void)pthread_rwlock_rdlock(&g_probe_mng->rwlock);
+}
+
+void put_probemng_lock(void)
+{
+    (void)pthread_rwlock_unlock(&g_probe_mng->rwlock);
+}
+
 u32 get_probe_status_flags(struct probe_s* probe)
 {
     u32 probe_status_flags;
@@ -73,6 +84,39 @@ void unset_probe_status_flags(struct probe_s* probe, u32 flags)
     (void)pthread_rwlock_wrlock(&probe->rwlock);
     probe->probe_status.status_flags &= ~(flags);
     (void)pthread_rwlock_unlock(&probe->rwlock);
+}
+
+static int attach_probe_fd(struct probe_mng_s *probe_mng, struct probe_s *probe)
+{
+    int ret;
+    struct epoll_event event;
+    if (probe_mng->ingress_epoll_fd < 0) {
+        return -1;
+    }
+
+    event.events = EPOLLIN;
+    event.data.ptr = probe->fifo;
+
+    ret = epoll_ctl(probe_mng->ingress_epoll_fd, EPOLL_CTL_ADD, probe->fifo->triggerFd, &event);
+    if (ret) {
+        ERROR("[PROBMNG] add EPOLLIN event failed, probe %s.\n", probe->name);
+        return ret;
+    }
+    return 0;
+}
+
+static void detach_probe_fd(struct probe_mng_s *probe_mng, struct probe_s *probe)
+{
+    struct epoll_event event;
+    if (probe_mng->ingress_epoll_fd < 0) {
+        return;
+    }
+
+    event.events = EPOLLIN;
+    event.data.ptr = probe->fifo;
+
+    (void)epoll_ctl(probe_mng->ingress_epoll_fd, EPOLL_CTL_DEL, probe->fifo->triggerFd, &event);
+    return;
 }
 
 static void destroy_probe(struct probe_s *probe)
@@ -115,12 +159,15 @@ static void destroy_probe(struct probe_s *probe)
 
     probe->snooper_conf_num = 0;
     (void)pthread_rwlock_destroy(&probe->rwlock);
+
+    detach_probe_fd(g_probe_mng, probe);
     free(probe);
     probe = NULL;
 }
 
 static struct probe_s* new_probe(const char* name, enum probe_type_e probe_type)
 {
+    int ret;
     struct probe_s *probe = NULL;
     probe = (struct probe_s *)malloc(sizeof(struct probe_s));
     if (probe == NULL) {
@@ -130,7 +177,7 @@ static struct probe_s* new_probe(const char* name, enum probe_type_e probe_type)
     memset(probe, 0, sizeof(struct probe_s));
     probe->name = strdup(name);
 
-    int ret = pthread_rwlock_init(&probe->rwlock, NULL);
+    ret = pthread_rwlock_init(&probe->rwlock, NULL);
     if (ret) {
         goto err;
     }
@@ -141,6 +188,14 @@ static struct probe_s* new_probe(const char* name, enum probe_type_e probe_type)
     }
     probe->probe_type = probe_type;
     set_default_params(probe);
+
+    ret = attach_probe_fd(g_probe_mng, probe);
+    if (ret) {
+        goto err;
+    }
+
+    probe->pid = -1;
+
     return probe;
 
 err:
@@ -252,6 +307,21 @@ static void set_probe_chk_cmd(struct probe_s *probe, const char *chk_cmd)
     probe->chk_cmd = strdup(chk_cmd);
 }
 
+static int get_probe_pid(struct probe_s *probe)
+{
+    int pid;
+    (void)pthread_rwlock_wrlock(&probe->rwlock);
+    pid = probe->pid;
+    (void)pthread_rwlock_unlock(&probe->rwlock);
+    return pid;
+}
+
+static void set_probe_pid(struct probe_s *probe, int pid)
+{
+    (void)pthread_rwlock_wrlock(&probe->rwlock);
+    probe->pid = pid;
+    (void)pthread_rwlock_unlock(&probe->rwlock);
+}
 
 static int check_probe_need_start(const char *check_cmd)
 {
@@ -277,60 +347,51 @@ static int check_probe_need_start(const char *check_cmd)
     return (cnt > 0);
 }
 
-
-#define EXTEND_PROBE_PROCID_CMD  "ps -ef | grep -w %s | grep -v grep | awk '{print $2}'"
-static int get_extend_probe_pid(struct probe_s *probe)
+static char is_probe_ready(struct probe_s *probe)
 {
-    char cmd[COMMAND_LEN] = {0};
-    char line[LINE_BUF_LEN] = {0};
-
-    if (IS_NATIVE_PROBE(probe) || probe->bin == NULL) {
-        return -1;
-    }
-
-    (void)snprintf(cmd, COMMAND_LEN, EXTEND_PROBE_PROCID_CMD, probe->bin);
-    if (exec_cmd((const char *)cmd, line, LINE_BUF_LEN) < 0) {
-        return -1;
-    }
-    return atoi(line);
-}
-
-static int start_probe(struct probe_s *probe)
-{
-    int ret;
-
-    if (IS_RUNNING_PROBE(probe)) {
-        ERROR("[PROBEMNG] Fail to start probe(name:%s) which is already running\n", probe->name);
-        return -1;
-    }
-
     if (!probe->cb) {
-        return -1;
+        goto end;
     }
 
     if (IS_NATIVE_PROBE(probe)) {
         if (probe->probe_entry == NULL) {
-            ERROR("[PROBEMNG] Invalid entry for native probe(name: %s)\n", probe->name);
-            return -1;
+            goto end;
         }
     } else {
         if (probe->bin == NULL || access(probe->bin, 0) != 0) {
-            ERROR("[PROBEMNG] Invalid executing bin file for probe(name: %s)\n", probe->name);
-            return -1;
+            goto end;
         }
 
         if (probe->fifo == NULL) {
-            ERROR("[PROBEMNG] Fail to create fifo for probe(name: %s)\n", probe->name);
-            return -1;
+            goto end;
         }
 
         if (check_probe_need_start(probe->chk_cmd) != 1) {
-            WARN("[PROBEMNG] Check command failed, skip starting probe(name: %s)\n", probe->name);
-            return 0;
+            goto end;
         }
     }
 
-    // TODO: send snooper conf/params to probe
+    return 1;
+end:
+    ERROR("[PROBEMNG] Probe is not ready(name: %s)\n", probe->name);
+    return 0;
+}
+
+static int try_start_probe(struct probe_s *probe)
+{
+    int ret;
+
+    if (IS_RUNNING_PROBE(probe)) {
+        return 0;
+    }
+
+    if (!IS_STARTED_PROBE(probe)) {
+        return 0;
+    }
+
+    if (!is_probe_ready(probe)) {
+        return -1;
+    }
 
     ret = pthread_create(&probe->tid, NULL, probe->cb, probe);
     if (ret != 0) {
@@ -340,9 +401,19 @@ static int start_probe(struct probe_s *probe)
     }
 
     (void)pthread_detach(probe->tid);
+    return 0;
+}
+
+static int start_probe(struct probe_s *probe)
+{
+    if (IS_RUNNING_PROBE(probe)) {
+        return 0;
+    }
+
     SET_PROBE_FLAGS(probe, PROBE_FLAGS_STARTED);
     UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPING);
-    return 0;
+
+    return try_start_probe(probe);
 }
 
 static int delete_probe(struct probe_s *probe)
@@ -352,10 +423,7 @@ static int delete_probe(struct probe_s *probe)
         return -1;
     }
 
-    if (IS_NATIVE_PROBE(probe)) {
-        ERROR("[PROBEMNG] Cannot delete native probe(name:%s)\n", probe->name);
-        return -1;
-    }
+    UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_STARTED);
 
     g_probe_mng->probes[probe->probe_type] = NULL;
     destroy_probe(probe);
@@ -365,20 +433,18 @@ static int delete_probe(struct probe_s *probe)
 static int stop_probe(struct probe_s *probe)
 {
     int pid;
-
     if (!IS_RUNNING_PROBE(probe)) {
         ERROR("[PROBEMNG] Fail to stop probe(name:%s) which is not running\n", probe->name);
         return -1;
     }
 
-    if (IS_NATIVE_PROBE(probe)) {
-        ERROR("[PROBEMNG] Cannot stop native probe(name:%s)\n", probe->name);
-        return -1;
-        // TODO: pthread_kill to native probe
-    }
+    SET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPING);
+    UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_STARTED);
 
-    if (IS_EXTEND_PROBE(probe)) {
-        pid = get_extend_probe_pid(probe);
+    if (IS_NATIVE_PROBE(probe)) {
+        kill(probe->tid, SIGINT);
+    } else {
+        pid = get_probe_pid(probe);
         if (pid < 0) {
             ERROR("[PROBEMNG] Fail to find process of extend probe(name:%s)\n", probe->name);
             return -1;
@@ -386,11 +452,9 @@ static int stop_probe(struct probe_s *probe)
         kill(pid, SIGINT);
     }
 
-    SET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPING);
-    UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_STARTED);
+    set_probe_pid(probe, -1);
     return 0;
 }
-
 
 static enum probe_type_e get_probe_type_by_name(const char *probe_name)
 {
@@ -556,15 +620,17 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
 {
     int ret = -1;
     struct probe_parser_s *parser;
-    cJSON *json, *item;
+    cJSON *json = NULL, *item;
+
+    get_probemng_lock();
 
     struct probe_s *probe = get_probe_by_name(probe_name);
     if (probe == NULL) {
-        return -1;
+        goto end;
     }
     json = cJSON_Parse(probe_content);
     if (json == NULL) {
-        return -1;
+        goto end;
     }
 
     size_t size = sizeof(probe_parsers) / sizeof(struct probe_parser_s);
@@ -581,19 +647,26 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
         }
     }
 
-    cJSON_Delete(json);
+end:
+    put_probemng_lock();
+    if (json) {
+        cJSON_Delete(json);
+    }
     return ret;
 }
 
 char *get_probe_json(const char *probe_name)
 {
-    cJSON *res, *item;
-    char *buf;
+    cJSON *res = NULL, *item;
+    char *buf = NULL;
     struct probe_s *probe;
     struct probe_parser_s *parser;
+
+    get_probemng_lock();
+
     enum probe_type_e probe_type = get_probe_type_by_name(probe_name);
     if (probe_type >= PROBE_TYPE_MAX) {
-        return NULL;
+        goto end;
     }
 
     res = cJSON_CreateObject();
@@ -613,11 +686,33 @@ char *get_probe_json(const char *probe_name)
     }
 
 end:
-    buf = cJSON_PrintUnformatted(res);
-    cJSON_Delete(res);
+    if (res) {
+        buf = cJSON_PrintUnformatted(res);
+        cJSON_Delete(res);
+    }
+    put_probemng_lock();
     return buf;
 }
 
+void destroy_probe_mng(void)
+{
+    struct probe_s *probe;
+
+    if (g_probe_mng == NULL) {
+        return;
+    }
+
+    (void)pthread_rwlock_destroy(&g_probe_mng->rwlock);
+
+    for (int i = 0; i < PROBE_TYPE_MAX; i++) {
+        destroy_probe(g_probe_mng->probes[i]);
+        g_probe_mng->probes[i] = NULL;
+    }
+
+    unload_snooper_bpf(g_probe_mng);
+    free(g_probe_mng);
+    g_probe_mng = NULL;
+}
 
 struct probe_mng_s *create_probe_mng(void)
 {
@@ -632,32 +727,80 @@ struct probe_mng_s *create_probe_mng(void)
         return NULL;
     }
 
+    g_probe_mng->ingress_epoll_fd = -1;
+
     memset(g_probe_mng, 0, sizeof(struct probe_mng_s));
-    if (load_snooper_bpf(g_probe_mng)) {
-        free(g_probe_mng);
-        g_probe_mng = NULL;
-        return NULL;
+    int ret = pthread_rwlock_init(&g_probe_mng->rwlock, NULL);
+    if (ret) {
+        goto err;
     }
+
+    ret = load_snooper_bpf(g_probe_mng);
+    if (ret) {
+        goto err;
+    }
+
+    g_probe_mng->keeplive_ts = (time_t)time(NULL);
 
     return g_probe_mng;
+
+err:
+    destroy_probe_mng();
+    return NULL;
 }
 
-void destroy_probe_mng(void)
+static char is_valid_pid(int pid)
 {
+    const char *fmt = "/proc/%d/comm";
+    char proc_comm[PATH_LEN];
+
+    proc_comm[0] = 0;
+    (void)snprintf(proc_comm, PATH_LEN, fmt, pid);
+    if (access(proc_comm, 0) != 0) {
+        return 0;
+    }
+    return 1;
+}
+
+static void keeplive_probes(struct probe_mng_s *probe_mng)
+{
+    int pid;
     struct probe_s *probe;
 
-    if (g_probe_mng == NULL) {
-        return;
-    }
-
     for (int i = 0; i < PROBE_TYPE_MAX; i++) {
-        destroy_probe(g_probe_mng->probes[i]);
-        g_probe_mng->probes[i] = NULL;
-    }
+        probe = probe_mng->probes[i];
+        if (probe == NULL) {
+            continue;
+        }
 
-    unload_snooper_bpf(g_probe_mng);
-    free(g_probe_mng);
-    g_probe_mng = NULL;
+        pid = get_probe_pid(probe);
+        if (pid < 0) {
+            continue;
+        }
+        if (is_valid_pid(pid)) {
+            continue;
+        }
+
+        (void)try_start_probe(probe);
+        break;
+
+    }
+}
+
+#define __PROBE_KEEPLIVE_TIMEOUT    (120) // 120 Seconds
+static char is_keeplive_tmout(struct probe_mng_s *probe_mng)
+{
+    time_t current = (time_t)time(NULL);
+    time_t secs;
+
+    if (current > probe_mng->keeplive_ts) {
+        secs = current - probe_mng->keeplive_ts;
+        if (secs >= __PROBE_KEEPLIVE_TIMEOUT) {
+            probe_mng->keeplive_ts = current;
+            return 1;
+        }
+    }
+    return 0;
 }
 
 void run_probe_mng_daemon(struct probe_mng_s *probe_mng)
@@ -678,31 +821,12 @@ void run_probe_mng_daemon(struct probe_mng_s *probe_mng)
                 break;
             }
         }
-    }
-}
 
-void New_DaemonKeeplive(int sig)
-{
-    int ret;
-    struct probe_s *probe;
-
-    for (int i = 0; i < PROBE_TYPE_MAX; i++) {
-        probe = g_probe_mng->probes[i];
-        if (probe == NULL || IS_NATIVE_PROBE(probe)) {
-            continue;
-        }
-
-        /* probe has not been started or is stopping by user, skip keepaliving */
-        if (IS_STOPPING_PROBE(probe) || !IS_STARTED_PROBE(probe)) {
-            continue;
-        }
-
-        if (!IS_RUNNING_PROBE(probe)) {
-            (void)pthread_create(&probe->tid, NULL, probe->cb, probe);
-            (void)pthread_detach(probe->tid);
-
-            INFO("[DAEMON] keepalive create probe(%s) thread.\n", probe->name);
-            break;
+        if (is_keeplive_tmout(probe_mng)) {
+            get_probemng_lock();
+            keeplive_probes(probe_mng);
+            put_probemng_lock();
         }
     }
 }
+

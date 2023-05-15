@@ -52,18 +52,6 @@ ConfigMgr *ConfigMgrCreate(void)
     }
     memset(mgr->kafkaConfig, 0, sizeof(KafkaConfig));
 
-    mgr->probesConfig = (ProbesConfig *)malloc(sizeof(ProbesConfig));
-    if (mgr->probesConfig == NULL) {
-        goto ERR;
-    }
-    memset(mgr->probesConfig, 0, sizeof(ProbesConfig));
-
-    mgr->extendProbesConfig = (ExtendProbesConfig *)malloc(sizeof(ExtendProbesConfig));
-    if (mgr->extendProbesConfig == NULL) {
-        goto ERR;
-    }
-    memset(mgr->extendProbesConfig, 0, sizeof(ExtendProbesConfig));
-
     mgr->imdbConfig = (IMDBConfig *)malloc(sizeof(IMDBConfig));
     if (mgr->imdbConfig == NULL) {
         goto ERR;
@@ -124,24 +112,6 @@ void ConfigMgrDestroy(ConfigMgr *mgr)
 
     if (mgr->kafkaConfig != NULL) {
         free(mgr->kafkaConfig);
-    }
-
-    if (mgr->probesConfig != NULL) {
-        for (int i = 0; i < mgr->probesConfig->probesNum; i++) {
-            if (mgr->probesConfig->probesConfig[i] != NULL) {
-                free(mgr->probesConfig->probesConfig[i]);
-            }
-        }
-        free(mgr->probesConfig);
-    }
-
-    if (mgr->extendProbesConfig != NULL) {
-        for (int i = 0; i < mgr->extendProbesConfig->probesNum; i++) {
-            if (mgr->extendProbesConfig->probesConfig[i] != NULL) {
-                free(mgr->extendProbesConfig->probesConfig[i]);
-            }
-        }
-        free(mgr->extendProbesConfig);
     }
 
     if (mgr->imdbConfig != NULL) {
@@ -290,142 +260,6 @@ static int ConfigMgrLoadKafkaConfig(void *config, config_setting_t *settings)
 
     return 0;
 }
-
-static int ConfigMgrLoadProbesConfig(void *config, config_setting_t *settings)
-{
-    ProbesConfig *probesConfig = (ProbesConfig *)config;
-    uint32_t ret = 0;
-    int count = 0;
-    const char *strVal = NULL;
-    uint32_t intVal = 0;
-
-    count = config_setting_length(settings);
-    for (int i = 0; i < count; i++) {
-        if (probesConfig->probesNum == MAX_PROBES_NUM) {
-            ERROR("[CONFIG] probesConfig list full.\n");
-            return -1;
-        }
-        config_setting_t *_probe = config_setting_get_elem(settings, i);
-
-        ProbeConfig *_probeConfig = (ProbeConfig *)malloc(sizeof(ProbeConfig));
-        if (_probeConfig == NULL) {
-            ERROR("[CONFIG] failed to malloc memory for ProbeConfig \n");
-            return -1;
-        }
-        memset(_probeConfig, 0, sizeof(ProbeConfig));
-        probesConfig->probesConfig[probesConfig->probesNum] = _probeConfig;
-        probesConfig->probesNum++;
-
-        ret = config_setting_lookup_string(_probe, "name", &strVal);
-        if (ret == 0) {
-            ERROR("[CONFIG] load config for probe name failed.\n");
-            return -1;
-        }
-        (void)strncpy(_probeConfig->name, strVal, MAX_PROBE_NAME_LEN - 1);
-
-        ret = config_setting_lookup_string(_probe, "param", &strVal);
-        if (ret == 0) {
-            ERROR("[CONFIG] load config for probe param failed.\n");
-            return -1;
-        }
-        (void)strncpy(_probeConfig->param, strVal, MAX_PARAM_LEN - 1);
-
-        ret = config_setting_lookup_string(_probe, "switch", &strVal);
-        if (ret == 0) {
-            ERROR("[CONFIG] load config for probe switch failed.\n");
-            return -1;
-        }
-        if (strcmp(strVal, "auto") == 0) {
-            _probeConfig->probeSwitch = PROBE_SWITCH_AUTO;
-        } else if (strcmp(strVal, "on") == 0) {
-            _probeConfig->probeSwitch = PROBE_SWITCH_ON;
-        } else {
-            _probeConfig->probeSwitch = PROBE_SWITCH_OFF;
-        }
-    }
-
-    return 0;
-}
-
-static int ConfigMgrLoadExtendProbesConfig(void *config, config_setting_t *settings)
-{
-    ExtendProbesConfig *probesConfig = (ExtendProbesConfig *)config;
-    uint32_t ret = 0;
-    int count = 0;
-    const char *strVal = NULL;
-    int intVal = 0;
-
-    count = config_setting_length(settings);
-    for (int i = 0; i < count; i++) {
-        if (probesConfig->probesNum == MAX_EXTEND_PROBES_NUM) {
-            ERROR("[CONFIG] extendProbesConfig list full.\n");
-            return -1;
-        }
-        config_setting_t *_probe = config_setting_get_elem(settings, i);
-
-        ExtendProbeConfig *_probeConfig = (ExtendProbeConfig *)malloc(sizeof(ExtendProbeConfig));
-        if (_probeConfig == NULL) {
-            ERROR("[CONFIG] failed to malloc memory for ExtendProbeConfig \n");
-            return -1;
-        }
-        memset(_probeConfig, 0, sizeof(ExtendProbeConfig));
-        probesConfig->probesConfig[probesConfig->probesNum] = _probeConfig;
-        probesConfig->probesNum++;
-
-        ret = config_setting_lookup_string(_probe, "name", &strVal);
-        if (ret == 0) {
-            ERROR("[CONFIG] load config for extend probe name failed.\n");
-            return -1;
-        }
-        (void)strncpy(_probeConfig->name, strVal, MAX_PROBE_NAME_LEN - 1);
-
-        ret = config_setting_lookup_string(_probe, "command", &strVal);
-        if (ret == 0) {
-            ERROR("[CONFIG] load config for extend probe command failed.\n");
-            return -1;
-        }
-        (void)strncpy(_probeConfig->command, strVal, MAX_EXTEND_PROBE_COMMAND_LEN - 1);
-
-        ret = config_setting_lookup_string(_probe, "param", &strVal);
-        if (ret == 0) {
-            ERROR("[CONFIG] load config for extend probe param failed.\n");
-            return -1;
-        }
-        (void)strncpy(_probeConfig->param, strVal, MAX_PARAM_LEN - 1);
-
-        ret = config_setting_lookup_string(_probe, "switch", &strVal);
-        if (ret == 0) {
-            ERROR("[CONFIG] load config for extend probe switch failed.\n");
-            return -1;
-        }
-        if (strcmp(strVal, "auto") == 0) {
-            _probeConfig->probeSwitch = PROBE_SWITCH_AUTO;
-        } else if (strcmp(strVal, "on") == 0) {
-            _probeConfig->probeSwitch = PROBE_SWITCH_ON;
-        } else {
-            _probeConfig->probeSwitch = PROBE_SWITCH_OFF;
-        }
-
-        if (_probeConfig->probeSwitch != PROBE_SWITCH_AUTO) {
-            continue;
-        }
-        /* probe satrt check param -- not necessary */
-        _probeConfig->startChkType = PROBE_CHK_MAX;
-        ret = config_setting_lookup_string(_probe, "start_check", &strVal);
-        if (ret == 0) {
-            continue;
-        }
-        (void)strncpy(_probeConfig->startChkCmd, strVal, MAX_EXTEND_PROBE_COMMAND_LEN - 1);
-
-        ret = config_setting_lookup_string(_probe, "check_type", &strVal);
-        if (ret != 0 && strcmp(strVal, "count") == 0) {
-            _probeConfig->startChkType = PROBE_CHK_CNT;
-        }
-    }
-
-    return 0;
-}
-
 
 static int ConfigMgrLoadIMDBConfig(void *config, config_setting_t *settings)
 {
@@ -623,8 +457,6 @@ int ConfigMgrLoad(const ConfigMgr *mgr, const char *confPath)
         { (void *)mgr->ingressConfig, "ingress", ConfigMgrLoadIngressConfig },
         { (void *)mgr->egressConfig, "egress", ConfigMgrLoadEgressConfig },
         { (void *)mgr->kafkaConfig, "kafka", ConfigMgrLoadKafkaConfig },
-        { (void *)mgr->probesConfig, "probes", ConfigMgrLoadProbesConfig },
-        { (void *)mgr->extendProbesConfig, "extend_probes", ConfigMgrLoadExtendProbesConfig },
         { (void *)mgr->imdbConfig, "imdb", ConfigMgrLoadIMDBConfig },
         { (void *)mgr->webServerConfig, "web_server", ConfigMgrLoadWebServerConfig },
         { (void *)mgr->restServerConfig, "rest_api_server", ConfigMgrLoadRestServerConfig },

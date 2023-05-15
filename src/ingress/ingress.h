@@ -23,16 +23,15 @@
 #include "base.h"
 #include "fifo.h"
 #include "meta.h"
-#include "probe.h"
-#include "extend_probe.h"
 #include "imdb.h"
 #include "egress.h"
+#include "probe_mng.h"
 
 typedef struct {
     FifoMgr *fifoMgr;
     MeasurementMgr *mmMgr;
-    ProbeMgr *probeMgr;
-    ExtendProbeMgr *extendProbeMgr;
+
+    struct probe_mng_s *probsMgr;
 
     IMDB_DataBaseMgr *imdbMgr;
 

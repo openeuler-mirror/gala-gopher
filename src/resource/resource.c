@@ -24,10 +24,6 @@
 #if GALA_GOPHER_INFO("inner func")
 static int ConfigMgrInit(ResourceMgr *resourceMgr);
 static void ConfigMgrDeinit(ResourceMgr *resourceMgr);
-static int ProbeMgrInit(ResourceMgr *resourceMgr);
-static void ProbeMgrDeinit(ResourceMgr *resourceMgr);
-static int ExtendProbeMgrInit(ResourceMgr *resourceMgr);
-static void ExtendProbeMgrDeinit(ResourceMgr *resourceMgr);
 static int ProbeMngInit(ResourceMgr *resourceMgr);
 static void ProbeMngDeinit(ResourceMgr *resourceMgr);
 static int MeasurementMgrInit(ResourceMgr *resourceMgr);
@@ -61,8 +57,6 @@ extern char* g_galaConfPath;
 
 SubModuleInitor gSubModuleInitorTbl[] = {
     { ConfigMgrInit,        ConfigMgrDeinit },      // config must be the first
-    { ProbeMgrInit,         ProbeMgrDeinit },
-    { ExtendProbeMgrInit,   ExtendProbeMgrDeinit },
     { ProbeMngInit,         ProbeMngDeinit },
     { MeasurementMgrInit,   MeasurementMgrDeinit },
     { FifoMgrInit,          FifoMgrDeinit },
@@ -173,6 +167,7 @@ static void ConfigMgrDeinit(ResourceMgr *resourceMgr)
     return;
 }
 
+#if 0
 static int ProbeMgrInit(ResourceMgr *resourceMgr)
 {
     int ret = 0;
@@ -267,6 +262,7 @@ static void ExtendProbeMgrDeinit(ResourceMgr *resourceMgr)
     resourceMgr->probeMgr = NULL;
     return;
 }
+#endif
 
 static int ProbeMngInit(ResourceMgr *resourceMgr)
 {
@@ -519,8 +515,7 @@ static int IngressMgrInit(ResourceMgr *resourceMgr)
 
     ingressMgr->fifoMgr = resourceMgr->fifoMgr;
     ingressMgr->mmMgr = resourceMgr->mmMgr;
-    ingressMgr->probeMgr = resourceMgr->probeMgr;
-    ingressMgr->extendProbeMgr = resourceMgr->extendProbeMgr;
+    ingressMgr->probsMgr = resourceMgr->probe_mng;
     ingressMgr->imdbMgr = resourceMgr->imdbMgr;
 
     ingressMgr->egressMgr = resourceMgr->egressMgr;
