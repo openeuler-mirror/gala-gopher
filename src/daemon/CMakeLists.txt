@@ -70,6 +70,7 @@ SET(SOURCES main.c daemon.c
     ${COMMON_DIR}/whitelist_config.c
     ${COMMON_DIR}/event_config.c
     ${COMMON_DIR}/kern_symb.c
+    ${COMMON_DIR}/ipc.c
 
     ${RESTAPI_DIR}/rest_server.c
 )

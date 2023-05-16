@@ -21,77 +21,14 @@
 
 #include "base.h"
 #include "fifo.h"
+#include "ipc.h"
+
 #include "args.h"
-
-
-/* FlameGraph subprobe define */
-#define PROBE_RANGE_ONCPU       0x00000001
-#define PROBE_RANGE_OFFCPU      0x00000002
-#define PROBE_RANGE_MEM         0x00000004
-
-
-/* L7 subprobe define */
-#define PROBE_RANGE_L7BYTES_METRICS 0x00000001
-#define PROBE_RANGE_L7RPC_METRICS   0x00000002
-#define PROBE_RANGE_L7RPC_TRACE     0x00000004
-
-/* tcp subprobe define */
-#define PROBE_RANGE_TCP_ABNORMAL    0x00000001
-#define PROBE_RANGE_TCP_WINDOWS     0x00000002
-#define PROBE_RANGE_TCP_RTT         0x00000004
-#define PROBE_RANGE_TCP_STATS       0x00000008
-#define PROBE_RANGE_TCP_SOCKBUF     0x00000010
-#define PROBE_RANGE_TCP_RATE        0x00000020
-#define PROBE_RANGE_TCP_SRTT        0x00000040
-
-/* socket subprobe define */
-#define PROBE_RANGE_SOCKET_TCP      0x00000001
-#define PROBE_RANGE_SOCKET_UDP      0x00000002
-
-/* io subprobe define */
-#define PROBE_RANGE_IO_TRACE        0x00000001
-#define PROBE_RANGE_IO_ERR          0x00000002
-#define PROBE_RANGE_IO_COUNT        0x00000004
-#define PROBE_RANGE_IO_PAGECACHE    0x00000008
-
-/* proc subprobe define */
-#define PROBE_RANGE_PROC_SYSCALL    0x00000001
-#define PROBE_RANGE_PROC_FS         0x00000002
-#define PROBE_RANGE_PROC_DNS        0x00000004
-#define PROBE_RANGE_PROC_IO         0x00000008
-#define PROBE_RANGE_PROC_PAGECACHE  0x00000010
-#define PROBE_RANGE_PROC_BASIC      0x00000020
 
 #define PROBE_FLAGS_STARTED         0x00000001    // probe has been tried to start by user
 #define PROBE_FLAGS_STOPPED         0x00000002    // probe is in stopped state
 #define PROBE_FLAGS_STOPPING        0x00000004    // probe has been tried to stop by user
 #define PROBE_FLAGS_RUNNING         0x00000008    // probe is in running state
-
-#define SNOOPER_MAX    100
-
-enum probe_type_e {
-    PROBE_BASEINFO = 0,
-    PROBE_VIRT,
-
-    /* The following are extended probes. */
-    PROBE_FG,
-    PROBE_L7,
-    PROBE_TCP,
-    PROBE_SOCKET,
-    PROBE_IO,
-    PROBE_PROC,
-    PROBE_JVM,
-    PROBE_REDIS_SLI,
-    PROBE_POSTGRE_SLI,
-    PROBE_GAUSS_SLI,
-    PROBE_DNSMASQ,
-    PROBE_LVS,
-    PROBE_NGINX,
-    PROBE_HAPROXY,
-    PROBE_KAFKA,
-
-    PROBE_TYPE_MAX
-};
 
 struct probe_define_s {
     char *desc;

@@ -29,6 +29,7 @@
 
 #include "bpf.h"
 #include "args.h"
+#include "ipc.h"
 #include "io_trace_scsi.skel.h"
 #include "io_trace_nvme.skel.h"
 #include "io_trace_virtblk.skel.h"
@@ -68,8 +69,9 @@
     LOAD_ATTACH(probe_name, end, load)
 
 static volatile sig_atomic_t g_stop;
-static struct probe_params params = {.period = DEFAULT_PERIOD};
-static int io_args_fd;
+static int io_args_fd = -1;
+static struct ipc_body_s g_ipc_body;
+static struct bpf_prog_s *g_bpf_prog = NULL;
 
 static void sig_int(int signo)
 {
@@ -205,11 +207,11 @@ static void rcv_io_latency_thr(struct io_latency_s *io_latency)
 
     unsigned int latency_thr_us;
 
-    if (params.logs == 0) {
+    if (g_ipc_body.probe_param.logs == 0) {
         return;
     }
 
-    latency_thr_us = params.latency_thr << 3; // milliseconds to microseconds
+    latency_thr_us = g_ipc_body.probe_param.latency_thr << 3; // milliseconds to microseconds
     entityId[0] = 0;
     __build_entity_id(io_latency->major, io_latency->first_minor, entityId, __ENTITY_ID_LEN);
 
@@ -330,7 +332,7 @@ static void rcv_io_err(void *ctx, int cpu, void *data, __u32 size)
     char entityId[__ENTITY_ID_LEN];
     struct io_err_s *io_err = data;
 
-    if (params.logs == 0) {
+    if (g_ipc_body.probe_param.logs == 0) {
         return;
     }
 
@@ -374,36 +376,291 @@ static char is_load_probe(char *probe_name)
     return (count > 0) ? 1 : 0;
 }
 
-static void load_io_args(int fd, struct probe_params* args)
+static int load_io_args(int fd, struct ipc_body_s* ipc_body)
 {
     u32 key = 0;
-    int major;
-    int minor;
     struct io_trace_args_s io_args = {0};
 
+    if (fd < 0) {
+        return -1;
+    }
+
+    // TODO: Support for 'dev' snooper
+#if 0
+    int major;
+    int minor;
     if ((args->target_dev[0] != 0) && (!get_devt(args->target_dev, &major, &minor))) {
         io_args.target_major = major;
         io_args.target_first_minor = minor;
     }
-    io_args.report_period = NS(args->period);
-    io_args.sample_interval = (u64)((u64)args->sample_period * 1000 * 1000);
+#endif
+    io_args.report_period = NS(ipc_body->probe_param.period);
+    io_args.sample_interval = (u64)((u64)ipc_body->probe_param.sample_period * 1000 * 1000);
 
-    (void)bpf_map_update_elem(fd, &key, &io_args, BPF_ANY);
+    return bpf_map_update_elem(fd, &key, &io_args, BPF_ANY);
+}
+
+static int load_io_count_probe(struct bpf_prog_s *prog, char is_load_count)
+{
+    int fd;
+    struct perf_buffer *pb = NULL;
+
+    if (is_load_count == 0) {
+        return 0;
+    }
+
+    __LOAD_IO_PROBE(io_count, err, 1);
+    prog->skels[prog->num].skel = io_count_skel;
+    prog->skels[prog->num].fn = (skel_destroy_fn)io_count_bpf__destroy;
+
+    fd = GET_MAP_FD(io_count, io_count_channel_map);
+    pb = create_pref_buffer(fd, rcv_io_count);
+    if (pb == NULL) {
+        ERROR("[IOPROBE] Crate 'io_count' perf buffer failed.\n");
+        goto err;
+    }
+    prog->pbs[prog->num] = pb;
+    prog->num++;
+
+    if (io_args_fd < 0) {
+        io_args_fd = GET_MAP_FD(io_count, io_args_map);
+    }
+
+    return 0;
+err:
+    UNLOAD(io_count);
+    return -1;
+}
+
+static int load_io_err_probe(struct bpf_prog_s *prog, char is_load_err)
+{
+    int fd;
+    struct perf_buffer *pb = NULL;
+
+    if (is_load_err == 0) {
+        return 0;
+    }
+
+    __LOAD_IO_PROBE(io_err, err, 1);
+    prog->skels[prog->num].skel = io_err_skel;
+    prog->skels[prog->num].fn = (skel_destroy_fn)io_err_bpf__destroy;
+
+    fd = GET_MAP_FD(io_err, io_err_channel_map);
+    pb = create_pref_buffer(fd, rcv_io_err);
+    if (pb == NULL) {
+        ERROR("[IOPROBE] Crate 'io_err' perf buffer failed.\n");
+        goto err;
+    }
+    prog->pbs[prog->num] = pb;
+    prog->num++;
+
+    if (io_args_fd < 0) {
+        io_args_fd = GET_MAP_FD(io_err, io_args_map);
+    }
+
+    return 0;
+err:
+    UNLOAD(io_err);
+    return -1;
+}
+
+static int load_io_pagecache_probe(struct bpf_prog_s *prog, char is_load_pagecache)
+{
+    int fd;
+    struct perf_buffer *pb = NULL;
+
+    if (is_load_pagecache == 0) {
+        return 0;
+    }
+
+    __LOAD_IO_PROBE(page_cache, err, 1);
+    prog->skels[prog->num].skel = page_cache_skel;
+    prog->skels[prog->num].fn = (skel_destroy_fn)page_cache_bpf__destroy;
+
+    fd = GET_MAP_FD(page_cache, page_cache_channel_map);
+    pb = create_pref_buffer(fd, rcv_pagecache_stats);
+    if (pb == NULL) {
+        ERROR("[IOPROBE] Crate 'pagecache' perf buffer failed.\n");
+        goto err;
+    }
+    prog->pbs[prog->num] = pb;
+    prog->num++;
+
+    if (io_args_fd < 0) {
+        io_args_fd = GET_MAP_FD(page_cache, io_args_map);
+    }
+
+    return 0;
+err:
+    UNLOAD(page_cache);
+    return -1;
+}
+
+static int load_io_scsi_probe(struct bpf_prog_s *prog, char scsi_probe)
+{
+    int fd;
+    struct perf_buffer *pb = NULL;
+
+    if (scsi_probe == 0) {
+        return 0;
+    }
+
+    __LOAD_IO_LATENCY(io_trace_scsi, err, 1);
+    prog->skels[prog->num].skel = io_trace_scsi_skel;
+    prog->skels[prog->num].fn = (skel_destroy_fn)io_trace_scsi_bpf__destroy;
+
+    fd = GET_MAP_FD(io_trace_scsi, io_latency_channel_map);
+    pb = create_pref_buffer(fd, rcv_io_latency);
+    if (pb == NULL) {
+        ERROR("[IOPROBE] Crate 'scsi' perf buffer failed.\n");
+        goto err;
+    }
+    prog->pbs[prog->num] = pb;
+    prog->num++;
+
+    if (io_args_fd < 0) {
+        io_args_fd = GET_MAP_FD(io_trace_scsi, io_args_map);
+    }
+
+    return 0;
+err:
+    UNLOAD(io_trace_scsi);
+    return -1;
+}
+
+static int load_io_nvme_probe(struct bpf_prog_s *prog, char nvme_probe)
+{
+    int fd;
+    struct perf_buffer *pb = NULL;
+
+    if (nvme_probe == 0) {
+        return 0;
+    }
+
+    __LOAD_IO_LATENCY(io_trace_nvme, err, 1);
+    prog->skels[prog->num].skel = io_trace_nvme_skel;
+    prog->skels[prog->num].fn = (skel_destroy_fn)io_trace_nvme_bpf__destroy;
+
+    fd = GET_MAP_FD(io_trace_nvme, io_latency_channel_map);
+    pb = create_pref_buffer(fd, rcv_io_latency);
+    if (pb == NULL) {
+        ERROR("[IOPROBE] Crate 'nvme' perf buffer failed.\n");
+        goto err;
+    }
+    prog->pbs[prog->num] = pb;
+    prog->num++;
+
+    if (io_args_fd < 0) {
+        io_args_fd = GET_MAP_FD(io_trace_nvme, io_args_map);
+    }
+
+    return 0;
+err:
+    UNLOAD(io_trace_nvme);
+    return -1;
+}
+
+static int load_io_virtblk_probe(struct bpf_prog_s *prog, char virtblk_probe)
+{
+    int fd;
+    struct perf_buffer *pb = NULL;
+
+    if (virtblk_probe == 0) {
+        return 0;
+    }
+
+    __LOAD_IO_LATENCY(io_trace_virtblk, err, 1);
+    prog->skels[prog->num].skel = io_trace_virtblk_skel;
+    prog->skels[prog->num].fn = (skel_destroy_fn)io_trace_virtblk_bpf__destroy;
+
+    fd = GET_MAP_FD(io_trace_virtblk, io_latency_channel_map);
+    pb = create_pref_buffer(fd, rcv_io_latency);
+    if (pb == NULL) {
+        ERROR("[IOPROBE] Crate 'virtblk' perf buffer failed.\n");
+        goto err;
+    }
+    prog->pbs[prog->num] = pb;
+    prog->num++;
+
+    if (io_args_fd < 0) {
+        io_args_fd = GET_MAP_FD(io_trace_virtblk, io_args_map);
+    }
+
+    return 0;
+err:
+    UNLOAD(io_trace_virtblk);
+    return -1;
+}
+
+static void ioprobe_unload_bpf(void)
+{
+    unload_bpf_prog(&g_bpf_prog);
+    io_args_fd = -1;
+}
+
+static int ioprobe_load_bpf(struct ipc_body_s *ipc_body)
+{
+    int ret;
+    struct bpf_prog_s *prog;
+    char scsi_probe, nvme_probe, virtblk_probe;
+    char is_load_err, is_load_count, is_load_pagecache;
+
+    scsi_probe = is_load_probe(SCSI_PROBE) & IS_LOAD_PROBE(ipc_body->probe_range_flags, PROBE_RANGE_IO_TRACE);
+    nvme_probe = is_load_probe(NVME_PROBE) & IS_LOAD_PROBE(ipc_body->probe_range_flags, PROBE_RANGE_IO_TRACE);
+    virtblk_probe = is_load_probe(VIRTBLK_PROBE) & IS_LOAD_PROBE(ipc_body->probe_range_flags, PROBE_RANGE_IO_TRACE);
+
+    is_load_err = IS_LOAD_PROBE(ipc_body->probe_range_flags, PROBE_RANGE_IO_ERR);
+    is_load_count = IS_LOAD_PROBE(ipc_body->probe_range_flags, PROBE_RANGE_IO_COUNT);
+    is_load_pagecache = IS_LOAD_PROBE(ipc_body->probe_range_flags, PROBE_RANGE_IO_PAGECACHE);
+
+    g_bpf_prog = alloc_bpf_prog();
+    if (g_bpf_prog == NULL) {
+        return -1;
+    }
+    prog = g_bpf_prog;
+
+    ret = load_io_count_probe(prog, is_load_count);
+    if (ret) {
+        goto err;
+    }
+    ret = load_io_err_probe(prog, is_load_err);
+    if (ret) {
+        goto err;
+    }
+    ret = load_io_pagecache_probe(prog, is_load_pagecache);
+    if (ret) {
+        goto err;
+    }
+    ret = load_io_scsi_probe(prog, scsi_probe);
+    if (ret) {
+        goto err;
+    }
+    ret = load_io_nvme_probe(prog, nvme_probe);
+    if (ret) {
+        goto err;
+    }
+    ret = load_io_virtblk_probe(prog, virtblk_probe);
+    if (ret) {
+        goto err;
+    }
+
+    ret = load_io_args(io_args_fd, ipc_body);
+    if (ret) {
+        ERROR("[IOPROBE] load io args failed.\n");
+        goto err;
+    }
+
+    return 0;
+err:
+    ioprobe_unload_bpf();
+    return ret;
 }
 
 int main(int argc, char **argv)
 {
     int ret = 0;
-    char scsi_probe, nvme_probe, virtblk_probe;
-    char is_load_err, is_load_count, is_load_pagecache;
     FILE *fp = NULL;
-    struct perf_buffer *io_err_pb = NULL, *io_latency_pb = NULL;
-    struct perf_buffer *page_cache_pb = NULL, *io_count_pb = NULL;
-
-    ret = args_parse(argc, argv, &params);
-    if (ret != 0) {
-        return -1;
-    }
+    struct ipc_body_s ipc_body;
 
     fp = popen(RM_IO_PATH, "r");
     if (fp != NULL) {
@@ -411,83 +668,11 @@ int main(int argc, char **argv)
         fp = NULL;
     }
 
-    scsi_probe = is_load_probe(SCSI_PROBE) & IS_LOAD_PROBE(params.load_probe, IO_PROBE_TRACE);
-    nvme_probe = is_load_probe(NVME_PROBE) & IS_LOAD_PROBE(params.load_probe, IO_PROBE_TRACE);
-    virtblk_probe = is_load_probe(VIRTBLK_PROBE) & IS_LOAD_PROBE(params.load_probe, IO_PROBE_TRACE);
+    (void)memset(&g_ipc_body, 0, sizeof(g_ipc_body));
 
-    is_load_err = IS_LOAD_PROBE(params.load_probe, IO_PROBE_ERR);
-    is_load_count = IS_LOAD_PROBE(params.load_probe, IO_PROBE_COUNT);
-    is_load_pagecache = IS_LOAD_PROBE(params.load_probe, IO_PROBE_PAGECACHE);
-
-    INIT_BPF_APP(ioprobe, EBPF_RLIM_LIMITED);
-
-    __LOAD_IO_PROBE(io_count, err6, is_load_count);
-    __LOAD_IO_PROBE(io_err, err5, is_load_err);
-    __LOAD_IO_PROBE(page_cache, err4, is_load_pagecache);
-    __LOAD_IO_LATENCY(io_trace_scsi, err3, scsi_probe);
-    __LOAD_IO_LATENCY(io_trace_nvme, err2, nvme_probe);
-    __LOAD_IO_LATENCY(io_trace_virtblk, err, virtblk_probe);
-
-    if (is_load_pagecache) {
-        page_cache_pb = create_pref_buffer(GET_MAP_FD(page_cache, page_cache_channel_map),
-                                           rcv_pagecache_stats);
-        io_args_fd = GET_MAP_FD(page_cache, io_args_map);
-    }
-
-    if (is_load_count) {
-        io_count_pb = create_pref_buffer(GET_MAP_FD(io_count, io_count_channel_map),
-                                           rcv_io_count);
-        io_args_fd = GET_MAP_FD(io_count, io_args_map);
-    }
-
-    if (is_load_err) {
-        io_err_pb = create_pref_buffer(GET_MAP_FD(io_err, io_err_channel_map),
-                                           rcv_io_err);
-        io_args_fd = GET_MAP_FD(io_err, io_args_map);
-    }
-
-    if (scsi_probe) {
-        io_latency_pb = create_pref_buffer(GET_MAP_FD(io_trace_scsi, io_latency_channel_map),
-                                           rcv_io_latency);
-        io_args_fd = GET_MAP_FD(io_trace_scsi, io_args_map);
-    } else if (nvme_probe) {
-        io_latency_pb = create_pref_buffer(GET_MAP_FD(io_trace_nvme, io_latency_channel_map),
-                                           rcv_io_latency);
-        io_args_fd = GET_MAP_FD(io_trace_nvme, io_args_map);
-    } else if (virtblk_probe) {
-        io_latency_pb = create_pref_buffer(GET_MAP_FD(io_trace_virtblk, io_latency_channel_map),
-                                           rcv_io_latency);
-        io_args_fd = GET_MAP_FD(io_trace_virtblk, io_args_map);
-    }
-
-    load_io_args(io_args_fd, &params);
-
-    if (scsi_probe || nvme_probe || virtblk_probe) {
-        if (io_latency_pb == NULL) {
-            fprintf(stderr, "Load io latency prog failed.\n");
-            goto err;
-        }
-    }
-
-    if (is_load_pagecache) {
-        if (page_cache_pb == NULL) {
-            fprintf(stderr, "Load io page-cache prog failed.\n");
-            goto err;
-        }
-    }
-
-    if (is_load_count) {
-        if (io_count_pb == NULL) {
-            fprintf(stderr, "Load io count prog failed.\n");
-            goto err;
-        }
-    }
-
-    if (is_load_err) {
-        if (io_err_pb == NULL) {
-            fprintf(stderr, "Load io err prog failed.\n");
-            goto err;
-        }
+    int msq_id = create_ipc_msg_queue(IPC_EXCL);
+    if (msq_id < 0) {
+        goto err;
     }
 
     if (signal(SIGINT, sig_int) == SIG_ERR) {
@@ -496,73 +681,35 @@ int main(int argc, char **argv)
     }
 
     printf("Successfully started!\n");
+    INIT_BPF_APP(ioprobe, EBPF_RLIM_LIMITED);
 
     while (!g_stop) {
-        if (io_latency_pb) {
-            ret = perf_buffer__poll(io_latency_pb, THOUSAND);
-            if (ret < 0) {
-                break;
-            }
+        ret = recv_ipc_msg(msq_id, (long)PROBE_IO, &ipc_body);
+        if (ret == 0) {
+            ioprobe_unload_bpf();
+            ioprobe_load_bpf(&ipc_body);
+            (void)memcpy(&g_ipc_body, &ipc_body, sizeof(g_ipc_body));
         }
 
-        if (io_err_pb) {
-            ret = perf_buffer__poll(io_err_pb, THOUSAND);
-            if (ret < 0) {
-                break;
-            }
+        if (g_bpf_prog == NULL) {
+            continue;
         }
 
-        if (io_count_pb) {
-            ret = perf_buffer__poll(io_count_pb, THOUSAND);
-            if (ret < 0) {
-                break;
-            }
-        }
-
-        if (page_cache_pb) {
-            ret = perf_buffer__poll(page_cache_pb, THOUSAND);
-            if (ret < 0) {
+        for (int i = 0; i < g_bpf_prog->num; i++) {
+            if (g_bpf_prog->pbs[i] && (ret = perf_buffer__poll(g_bpf_prog->pbs[i], THOUSAND) < 0)) {
+                ERROR("[IOPROBE]: perf poll prog_%d failed.\n", i);
                 break;
             }
         }
     }
 
 err:
-    if (io_latency_pb) {
-        perf_buffer__free(io_latency_pb);
+    if (msq_id > 0) {
+        destroy_ipc_msg_queue(msq_id);
+        msq_id = -1;
     }
-    if (io_err_pb) {
-        perf_buffer__free(io_err_pb);
-    }
-    if (io_count_pb) {
-        perf_buffer__free(io_count_pb);
-    }
-    if (page_cache_pb) {
-        perf_buffer__free(page_cache_pb);
-    }
-    if (virtblk_probe) {
-        UNLOAD(io_trace_virtblk);
-    }
-err2:
-    if (nvme_probe) {
-        UNLOAD(io_trace_nvme);
-    }
-err3:
-    if (scsi_probe) {
-        UNLOAD(io_trace_scsi);
-    }
-err4:
-    if (is_load_pagecache) {
-        UNLOAD(page_cache);
-    }
-err5:
-    if (is_load_err) {
-        UNLOAD(io_err);
-    }
-err6:
-    if (is_load_count) {
-        UNLOAD(io_count);
-    }
+    ioprobe_unload_bpf();
+
     return ret;
 }
 

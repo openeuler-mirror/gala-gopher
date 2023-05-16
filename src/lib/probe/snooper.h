@@ -19,7 +19,7 @@
 
 #include "base.h"
 #include "object.h"
-
+#include "ipc.h"
 
 enum snooper_conf_e {
     SNOOPER_CONF_APP = 0,
@@ -37,14 +37,6 @@ struct snooper_app_s {
     char *debuging_dir;
 };
 
-struct snooper_gaussdb_s {
-    u32 port;
-    char *ip;
-    char *dbname;
-    char *usr;
-    char *pass;
-};
-
 struct snooper_conf_s {
     enum snooper_conf_e type;
     union {
@@ -54,25 +46,6 @@ struct snooper_conf_s {
         char *pod;
         char container_id[CONTAINER_ABBR_ID_LEN + 1];
     } conf;
-};
-
-enum snooper_obj_e {
-    SNOOPER_OBJ_PROC = 0,
-    SNOOPER_OBJ_CGRP,
-    SNOOPER_OBJ_NM,
-    SNOOPER_OBJ_GAUSSDB,
-
-    SNOOPER_OBJ_MAX
-};
-
-struct snooper_obj_s {
-    enum snooper_obj_e type;
-    union {
-        struct proc_s proc;
-        struct cgroup_s cgrp;
-        struct nm_s nm;
-        struct snooper_gaussdb_s gaussdb;
-    } obj;
 };
 
 void print_snooper(struct probe_s *probe, cJSON *json);
