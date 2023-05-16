@@ -42,11 +42,6 @@ measurements:
                 name: "protocol",
             },
             {
-                description: "comm",
-                type: "label",
-                name: "comm",
-            },
-            {
                 description: "rx bytes",
                 type: "gauge",
                 name: "rx_bytes",
@@ -109,11 +104,6 @@ measurements:
                 name: "protocol",
             },
             {
-                description: "comm",
-                type: "label",
-                name: "comm",
-            },
-            {
                 description: "Smoothed Round Trip Time(us).",
                 type: "gauge",
                 name: "srtt",
@@ -122,6 +112,16 @@ measurements:
                 description: "Receive end RTT (unidirectional measurement).",
                 type: "gauge",
                 name: "rcv_rtt",
+            },
+            {
+                description: "max value of srtt.",
+                type: "gauge",
+                name: "srtt_max",
+            },
+            {
+                description: "max value of Receive end RTT.",
+                type: "gauge",
+                name: "rcv_rtt_max",
             }
         )
     },
@@ -164,11 +164,6 @@ measurements:
                 description: "protocol",
                 type: "key",
                 name: "protocol",
-            },
-            {
-                description: "comm",
-                type: "label",
-                name: "comm",
             },
             {
                 description: "Congestion Control Window Size.",
@@ -246,11 +241,6 @@ measurements:
                 description: "protocol",
                 type: "key",
                 name: "protocol",
-            },
-            {
-                description: "comm",
-                type: "label",
-                name: "comm",
             },
             {
                 description: "Retransmission timeOut(us)",
@@ -355,11 +345,6 @@ measurements:
                 name: "protocol",
             },
             {
-                description: "comm",
-                type: "label",
-                name: "comm",
-            },
-            {
                 description: "RTT of syn packet(us).",
                 type: "gauge",
                 name: "syn_srtt",
@@ -405,11 +390,6 @@ measurements:
                 description: "protocol",
                 type: "key",
                 name: "protocol",
-            },
-            {
-                description: "comm",
-                type: "label",
-                name: "comm",
             },
             {
                 description: "Size of error queue in sock.",
@@ -497,11 +477,6 @@ measurements:
                 description: "protocol",
                 type: "key",
                 name: "protocol",
-            },
-            {
-                description: "comm",
-                type: "label",
-                name: "comm",
             },
             {
                 description: "retrans packets",

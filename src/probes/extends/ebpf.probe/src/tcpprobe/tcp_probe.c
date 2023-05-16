@@ -38,6 +38,7 @@
 #include "tcp_rate.skel.h"
 #include "tcp_abn.skel.h"
 #include "tcp_link.skel.h"
+#include "tcp_rtt2.skel.h"
 
 #define TCP_TBL_ABN     "tcp_abn"
 #define TCP_TBL_SYNRTT  "tcp_srtt"
@@ -50,7 +51,7 @@
 static struct probe_params *g_args = NULL;
 
 static void output_tcp_metrics(void *ctx, int cpu, void *data, u32 size);
-static char is_load_probe(struct probe_params *args, u32 probe);
+static unsigned int is_load_probe(struct probe_params *args, u32 probe);
 
 static void output_tcp_abn(void *ctx, int cpu, void *data, __u32 size)
 {
@@ -79,7 +80,7 @@ static void output_tcp_abn(void *ctx, int cpu, void *data, __u32 size)
         (metrics->abn_stats.sacked_out - metrics->abn_stats.last_time_sacked_out) : metrics->abn_stats.sacked_out;
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
+        "|%s|%u|%u|%s|%s|%u|%u|%u"
         "|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%d|%d|\n",
         TCP_TBL_ABN,
         link->tgid,
@@ -89,7 +90,6 @@ static void output_tcp_abn(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
-        link->comm,
 
         metrics->abn_stats.total_retrans,
         metrics->abn_stats.backlog_drops,
@@ -125,7 +125,7 @@ static void output_tcp_syn_rtt(void *ctx, int cpu, void *data, __u32 size)
     ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
+        "|%s|%u|%u|%s|%s|%u|%u|%u"
         "|%u|\n",
         TCP_TBL_SYNRTT,
         link->tgid,
@@ -135,7 +135,6 @@ static void output_tcp_syn_rtt(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
-        link->comm,
 
         metrics->srtt_stats.syn_srtt);
     (void)fflush(stdout);
@@ -154,7 +153,36 @@ static void output_tcp_rtt(void *ctx, int cpu, void *data, __u32 size)
     ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
+        "|%s|%u|%u|%s|%s|%u|%u|%u"
+        "|%u|%u|||\n",
+        TCP_TBL_RTT,
+        link->tgid,
+        link->role,
+        src_ip_str,
+        dst_ip_str,
+        link->c_port,
+        link->s_port,
+        link->family,
+
+        metrics->rtt_stats.tcpi_srtt,
+        metrics->rtt_stats.tcpi_rcv_rtt);
+    (void)fflush(stdout);
+}
+
+static void output_tcp_rtt2(void *ctx, int cpu, void *data, __u32 size)
+{
+    struct tcp_link_s *link;
+    unsigned char src_ip_str[INET6_ADDRSTRLEN];
+    unsigned char dst_ip_str[INET6_ADDRSTRLEN];
+
+    struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
+
+    link = &(metrics->link);
+    ip_str(link->family, (unsigned char *)&(link->c_ip), src_ip_str, INET6_ADDRSTRLEN);
+    ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
+
+    (void)fprintf(stdout,
+        "|%s|%u|%u|%s|%s|%u|%u|%u||"
         "|%u|%u|\n",
         TCP_TBL_RTT,
         link->tgid,
@@ -164,10 +192,9 @@ static void output_tcp_rtt(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
-        link->comm,
 
-        metrics->rtt_stats.tcpi_srtt,
-        metrics->rtt_stats.tcpi_rcv_rtt);
+        metrics->rtt_stats.tcpi_srtt_max,
+        metrics->rtt_stats.tcpi_rcv_rtt_max);
     (void)fflush(stdout);
 }
 
@@ -190,7 +217,7 @@ static void output_tcp_txrx(void *ctx, int cpu, void *data, __u32 size)
         (metrics->tx_rx_stats.segs_out - metrics->tx_rx_stats.last_time_segs_out) : metrics->tx_rx_stats.segs_out;
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
+        "|%s|%u|%u|%s|%s|%u|%u|%u"
         "|%llu|%llu|%u|%u|\n",
         TCP_TBL_TXRX,
         link->tgid,
@@ -200,7 +227,6 @@ static void output_tcp_txrx(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
-        link->comm,
 
         metrics->tx_rx_stats.rx,
         metrics->tx_rx_stats.tx,
@@ -224,7 +250,7 @@ static void output_tcp_win(void *ctx, int cpu, void *data, __u32 size)
     ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
+        "|%s|%u|%u|%s|%s|%u|%u|%u"
         "|%u|%u|%u|%u|%u|%u|%u|\n",
         TCP_TBL_WIN,
         link->tgid,
@@ -234,7 +260,6 @@ static void output_tcp_win(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
-        link->comm,
 
         metrics->win_stats.tcpi_snd_cwnd,
         metrics->win_stats.tcpi_notsent_bytes,
@@ -259,7 +284,7 @@ static void output_tcp_rate(void *ctx, int cpu, void *data, __u32 size)
     ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
+        "|%s|%u|%u|%s|%s|%u|%u|%u"
         "|%u|%u|%u|%u|%u|%u|%llu|%u|%u|%u|%u|%u|\n",
         TCP_TBL_RATE,
         link->tgid,
@@ -269,7 +294,6 @@ static void output_tcp_rate(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
-        link->comm,
 
         metrics->rate_stats.tcpi_rto,
         metrics->rate_stats.tcpi_ato,
@@ -299,7 +323,7 @@ static void output_tcp_sockbuf(void *ctx, int cpu, void *data, __u32 size)
     ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
+        "|%s|%u|%u|%s|%s|%u|%u|%u"
         "|%u|%u|%u|%u|%u|%u|%u|%d|%d|\n",
         TCP_TBL_SOCKBUF,
         link->tgid,
@@ -309,7 +333,6 @@ static void output_tcp_sockbuf(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
-        link->comm,
 
         metrics->sockbuf_stats.tcpi_sk_err_que_size,
         metrics->sockbuf_stats.tcpi_sk_rcv_que_size,
@@ -323,18 +346,23 @@ static void output_tcp_sockbuf(void *ctx, int cpu, void *data, __u32 size)
     (void)fflush(stdout);
 }
 
+// 由于目前各个子探针数据周期性上报，如果连接down以后会导致部分数据不上报
+// 因而在tcp_link中会捕捉TCP down并上报数据，同时在用户态检查其他flag，有数据则一起上报
 static void output_tcp_metrics(void *ctx, int cpu, void *data, u32 size)
 {
     struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
 
     char is_load_txrx, is_load_abn, is_load_win, is_load_rate, is_load_rtt, is_load_sockbuf;
+    short is_load_rtt2;
 
-    is_load_txrx = is_load_probe(g_args, TCP_PROBE_TXRX);
-    is_load_abn = is_load_probe(g_args, TCP_PROBE_ABN);
-    is_load_rate = is_load_probe(g_args, TCP_PROBE_RATE);
-    is_load_win = is_load_probe(g_args, TCP_PROBE_WINDOWS);
-    is_load_rtt = is_load_probe(g_args, TCP_PROBE_RTT);
-    is_load_sockbuf = is_load_probe(g_args, TCP_PROBE_SOCKBUF);
+    is_load_txrx = (char)is_load_probe(g_args, TCP_PROBE_TXRX);
+    is_load_abn = (char)is_load_probe(g_args, TCP_PROBE_ABN);
+    is_load_rate = (char)is_load_probe(g_args, TCP_PROBE_RATE);
+    is_load_win = (char)is_load_probe(g_args, TCP_PROBE_WINDOWS);
+    is_load_rtt = (char)is_load_probe(g_args, TCP_PROBE_RTT);
+    is_load_sockbuf = (char)is_load_probe(g_args, TCP_PROBE_SOCKBUF);
+
+    is_load_rtt2 = (is_load_rtt == 0) ? (short)is_load_probe(g_args, TCP_PROBE_RTT2) : 0;
 
     u32 flags = metrics->report_flags & TCP_PROBE_ALL;
 
@@ -366,9 +394,13 @@ static void output_tcp_metrics(void *ctx, int cpu, void *data, u32 size)
         output_tcp_rate(ctx, cpu, data, size);
     }
 
+    if ((flags & TCP_PROBE_RTT2) && is_load_rtt2) {
+        output_tcp_rtt2(ctx, cpu, data, size);
+    }
+
 }
 
-static char is_load_probe(struct probe_params *args, u32 probe)
+static unsigned int is_load_probe(struct probe_params *args, u32 probe)
 {
     return args->load_probe & probe;
 }
@@ -435,6 +467,32 @@ static int tcp_load_probe_rtt(struct bpf_prog_s *prog, char is_load)
     return 0;
 err:
     UNLOAD(tcp_rtt);
+    return -1;
+}
+
+static int tcp_load_probe_rtt2(struct bpf_prog_s *prog, short is_load)
+{
+    int fd;
+    struct perf_buffer *pb = NULL;
+
+    __LOAD_PROBE(tcp_rtt2, err, is_load);
+    if (is_load) {
+        prog->skels[prog->num].skel = tcp_rtt2_skel;
+        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_rtt2_bpf__destroy;
+
+        fd = GET_MAP_FD(tcp_rtt2, tcp_output);
+        pb = create_pref_buffer(fd, output_tcp_rtt2);
+        if (pb == NULL) {
+            ERROR("[TCPPROBE] Crate 'tcp_rtt2' perf buffer failed.\n");
+            goto err;
+        }
+        prog->pbs[prog->num] = pb;
+        prog->num++;
+    }
+
+    return 0;
+err:
+    UNLOAD(tcp_rtt2);
     return -1;
 }
 
@@ -572,13 +630,16 @@ struct bpf_prog_s* tcp_load_probe(struct probe_params *args)
 {
     struct bpf_prog_s *prog;
     char is_load_txrx, is_load_abn, is_load_win, is_load_rate, is_load_rtt, is_load_sockbuf;
+    short is_load_rtt2;
 
-    is_load_txrx = is_load_probe(args, TCP_PROBE_TXRX);
-    is_load_abn = is_load_probe(args, TCP_PROBE_ABN);
-    is_load_rate = is_load_probe(args, TCP_PROBE_RATE);
-    is_load_win = is_load_probe(args, TCP_PROBE_WINDOWS);
-    is_load_rtt = is_load_probe(args, TCP_PROBE_RTT);
-    is_load_sockbuf = is_load_probe(args, TCP_PROBE_SOCKBUF);
+    is_load_txrx = (char)is_load_probe(args, TCP_PROBE_TXRX);
+    is_load_abn = (char)is_load_probe(args, TCP_PROBE_ABN);
+    is_load_rate = (char)is_load_probe(args, TCP_PROBE_RATE);
+    is_load_win = (char)is_load_probe(args, TCP_PROBE_WINDOWS);
+    is_load_rtt = (char)is_load_probe(args, TCP_PROBE_RTT);
+    is_load_sockbuf = (char)is_load_probe(args, TCP_PROBE_SOCKBUF);
+    // tcp_rtt and tcp_rtt2 only one takes effect at same time, default tcp_rtt takes effect
+    is_load_rtt2 = (is_load_rtt == 0) ? (short)is_load_probe(args, TCP_PROBE_RTT2) : 0;
 
     g_args = args;
 
@@ -612,6 +673,10 @@ struct bpf_prog_s* tcp_load_probe(struct probe_params *args)
     }
 
     if (tcp_load_probe_sockbuf(prog, is_load_sockbuf)) {
+        goto err;
+    }
+
+    if (tcp_load_probe_rtt2(prog, is_load_rtt2)) {
         goto err;
     }
 

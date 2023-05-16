@@ -34,9 +34,10 @@
 #define TCP_PROBE_SOCKBUF   (u32)(1 << 4)
 #define TCP_PROBE_RATE      (u32)(1 << 5)
 #define TCP_PROBE_SRTT      (u32)(1 << 6)
+#define TCP_PROBE_RTT2      (u32)(1 << 8)
 #define TCP_PROBE_ALL       (u32)(TCP_PROBE_ABN | TCP_PROBE_WINDOWS \
-                | TCP_PROBE_RTT | TCP_PROBE_TXRX \
-                | TCP_PROBE_SOCKBUF | TCP_PROBE_RATE | TCP_PROBE_SRTT)
+                | TCP_PROBE_RTT | TCP_PROBE_TXRX | TCP_PROBE_SOCKBUF \
+                | TCP_PROBE_RATE | TCP_PROBE_SRTT | TCP_PROBE_RTT2)
 
 #if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(5, 10, 0))
 #define TCP_FD_PER_PROC_MAX (10)
@@ -137,7 +138,9 @@ struct tcp_windows {
 
 struct tcp_rtt {
     __u32   tcpi_srtt;          // FROM tcp_sock.srtt_us in tcp_recvmsg
+    __u32   tcpi_srtt_max;      // max value of tcpi_srtt
     __u32   tcpi_rcv_rtt;       // Receive end RTT (unidirectional measurement).
+    __u32   tcpi_rcv_rtt_max;   // max value of tcpi_rcv_rtt
 };
 
 #define TCP_BACKLOG_DROPS_INC(data) __sync_fetch_and_add(&((data).backlog_drops), 1)
@@ -153,6 +156,11 @@ struct tcp_rtt {
 
 #define TCP_RX_XADD(data, delta) __sync_fetch_and_add(&((data).rx), (__u64)(delta))
 #define TCP_TX_XADD(data, delta) __sync_fetch_and_add(&((data).tx), (__u64)(delta))
+
+#define CALC_MAX_VAL(cur_data, max_data) \
+do { \
+    max_data = (cur_data > max_data) ? cur_data : max_data; \
+} while(0)
 
 struct tcp_link_s {
     __u32 tgid;     // process id
