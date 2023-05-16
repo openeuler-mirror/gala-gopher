@@ -1,5 +1,6 @@
+
 /******************************************************************************
- * Copyright (c) Huawei Technologies Co., Ltd. 2022. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2021. All rights reserved.
  * gala-gopher licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -10,23 +11,30 @@
  * See the Mulan PSL v2 for more details.
  * Author: algorithmofdish
  * Create: 2023-04-03
- * Description: header file for handling thread profiling event.
+ * Description: the bpf-side prog of thread profiling probe
  ******************************************************************************/
-#ifndef __PROFILING_EVENT_H__
-#define __PROFILING_EVENT_H__
+#ifdef BPF_PROG_USER
+#undef BPF_PROG_USER
+#endif
+#define BPF_PROG_KERN
+#include "bpf.h"
+#include "syscall.bpf.h"
 
-#include "tprofiling.h"
+char g_license[] SEC("license") = "GPL";
 
-#define MAX_LEN_OF_PROFILE_EVT_TYPE 8
+SET_SYSCALL_PARAMS(futex)
+{
+    sce->ext_info.futex_info.op = (int)_(PT_REGS_PARM2(regs));
+}
 
-#define PROFILE_EVT_TYPE_FILE  "file"
-#define PROFILE_EVT_TYPE_NET   "net"
-#define PROFILE_EVT_TYPE_SCHED  "sched"
-#define PROFILE_EVT_TYPE_LOCK "lock"
-#define PROFILE_EVT_TYPE_ONCPU "oncpu"
-#define PROFILE_EVT_TYPE_OTHER "other"
+SET_SYSCALL_META(futex)
+{
+    scm->nr = SYSCALL_FUTEX_ID;
+    scm->flag = SYSCALL_FLAG_STACK;
+}
 
-int init_sys_boot_time(__u64 *sysBootTime);
-void output_profiling_event(trace_event_data_t *evt_data);
-
+#if defined(__TARGET_ARCH_x86)
+KPROBE_SYSCALL(__x64_sys_, futex)
+#elif defined(__TARGET_ARCH_arm64)
+KPROBE_SYSCALL(__arm64_sys_, futex)
 #endif

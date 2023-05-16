@@ -357,8 +357,8 @@ static int append_futex_attrs(strbuf_t *attrs_buf, trace_event_data_t *evt_data)
     }
 
     ret = snprintf(attrs_buf->buf, attrs_buf->size,
-                   ",\"event.type\":\"%s\",\"futex.addr\":\"%p\",\"futex.op\":\"%s\"",
-                   PROFILE_EVT_TYPE_FUTEX, evt_data->syscall_d.ext_info.futex_info.addr, futexOp);
+                   ",\"event.type\":\"%s\",\"futex.op\":\"%s\"",
+                   PROFILE_EVT_TYPE_LOCK, futexOp);
     if (ret < 0 || ret >= attrs_buf->size) {
         fprintf(stderr, "ERROR: Failed to set futex attributes.\n");
         return -1;
@@ -548,7 +548,7 @@ static int filter_by_thread_bl(trace_event_data_t *evt_data)
     char thrdComm[TASK_COMM_LEN] = {0};
     int i, j;
 
-    if (!tprofiler.enableFilter || tprofiler.threadBlMapFd <= 0) {
+    if (tprofiler.threadBlMapFd <= 0) {
         return 0;
     }
 
