@@ -113,7 +113,7 @@ static int attach_probe_fd(struct probe_mng_s *probe_mng, struct probe_s *probe)
 static void detach_probe_fd(struct probe_mng_s *probe_mng, struct probe_s *probe)
 {
     struct epoll_event event;
-    if (probe_mng->ingress_epoll_fd < 0) {
+    if (probe_mng->ingress_epoll_fd < 0 || probe->fifo == NULL) {
         return;
     }
 
@@ -147,6 +147,7 @@ static void destroy_probe(struct probe_s *probe)
         probe->chk_cmd = NULL;
     }
 
+    detach_probe_fd(g_probe_mng, probe);
     if (probe->fifo != NULL) {
         FifoDestroy(probe->fifo);
         probe->fifo = NULL;
@@ -165,7 +166,6 @@ static void destroy_probe(struct probe_s *probe)
     probe->snooper_conf_num = 0;
     (void)pthread_rwlock_destroy(&probe->rwlock);
 
-    detach_probe_fd(g_probe_mng, probe);
     free(probe);
     probe = NULL;
 }
@@ -511,14 +511,6 @@ static int probe_parser_cmd(struct probe_s *probe, const cJSON *item)
 {
     int ret;
     cJSON *bin_object, *chkcmd_object;
-#if 0
-    int is_extend_probe_bak = probe->is_extend_probe;
-    char *bin_bak = NULL;
-    char *chk_cmd_bak = NULL;
-    ProbeMain probe_entry_bak = probe->probe_entry;
-    bin_bak = probe->bin ? strdup(probe->bin) : NULL;
-    chk_cmd_bak = probe->chk_cmd ? strdup(probe->chk_cmd) : NULL;
-#endif
 
     if (IS_RUNNING_PROBE(probe)) {
         ERROR("[PROBEMNG] Fail to modify cmd of probe(name:%s) which is running\n", probe->name);
@@ -546,22 +538,36 @@ static int probe_parser_cmd(struct probe_s *probe, const cJSON *item)
     }
 
     return 0;
+}
 
-#if 0
-resume:
+static void probe_backup_cmd(struct probe_s *probe, struct probe_s *probe_backup)
+{
+    probe_backup->bin = probe->bin ? strdup(probe->bin) : NULL;
+    probe_backup->chk_cmd = probe->chk_cmd ? strdup(probe->chk_cmd) : NULL;
+    probe_backup->is_extend_probe = probe->is_extend_probe;
+    probe_backup->probe_entry = probe->probe_entry;
+    probe_backup->cb = probe->cb;
+}
+
+static void probe_rollback_cmd(struct probe_s *probe, struct probe_s *probe_backup)
+{
     if (probe->bin) {
         free(probe->bin);
     }
     if (probe->chk_cmd) {
         free(probe->chk_cmd);
     }
-    probe->bin = chk_cmd_bak;
-    probe->bin = bin_bak;
-    probe->is_extend_probe = is_extend_probe_bak;
-    probe->probe_entry = probe_entry_bak;
-    return -1;
-#endif
+    probe->bin = probe_backup->bin;
+    probe_backup->bin = NULL;
+
+    probe->chk_cmd = probe_backup->chk_cmd;
+    probe_backup->chk_cmd = NULL;
+
+    probe->is_extend_probe = probe_backup->is_extend_probe;
+    probe->probe_entry = probe_backup->probe_entry;
+    probe->cb = probe_backup->cb;
 }
+
 
 static int probe_parser_operate(struct probe_s *probe, const cJSON *item)
 {
@@ -596,6 +602,16 @@ static int probe_parser_probes(struct probe_s *probe, const cJSON *item)
     return parse_snooper(probe, item);
 }
 
+static void probe_backup_probes(struct probe_s *probe, struct probe_s *probe_backup)
+{
+    return backup_snooper(probe, probe_backup);
+}
+
+static void probe_rollback_probes(struct probe_s *probe, struct probe_s *probe_backup)
+{
+    return rollback_snooper(probe, probe_backup);
+}
+
 static int probe_parser_params(struct probe_s *probe, const cJSON *item)
 {
     if (parse_params(probe, item)) {
@@ -608,26 +624,62 @@ static int probe_parser_params(struct probe_s *probe, const cJSON *item)
     return 0;
 }
 
+static void probe_backup_params(struct probe_s *probe, struct probe_s *probe_backup)
+{
+    memcpy(&probe_backup->probe_param, &probe->probe_param, sizeof(struct probe_params));
+}
+
+static void probe_rollback_params(struct probe_s *probe, struct probe_s *probe_backup)
+{
+    memcpy(&probe->probe_param, &probe_backup->probe_param, sizeof(struct probe_params));
+}
+
 typedef int (*probe_json_parser)(struct probe_s *, const cJSON *);
 typedef void (*probe_json_printer)(struct probe_s *, cJSON *);
+typedef void (*probe_backuper)(struct probe_s *, struct probe_s *);
+typedef void (*probe_rollbacker)(struct probe_s *, struct probe_s *);
 struct probe_parser_s {
     const char *item;
     probe_json_parser parser;
     probe_json_printer printer;
+    probe_backuper backuper;
+    probe_rollbacker rollbacker;
 };
 
 // !!!NOTICE:The function sequence cannot be changed.
 struct probe_parser_s probe_parsers[] = {
-    {"cmd",     probe_parser_cmd,     probe_printer_cmd},
-    {"probes",  probe_parser_probes,  probe_printer_probes},
-    {"params",  probe_parser_params,  NULL},
-    {"operate", probe_parser_operate, NULL}
+    {"cmd",     probe_parser_cmd,     probe_printer_cmd,    probe_backup_cmd,    probe_rollback_cmd},
+    {"probes",  probe_parser_probes,  probe_printer_probes, probe_backup_probes, probe_rollback_probes},
+    {"params",  probe_parser_params,  NULL,                 probe_backup_params, probe_rollback_params},
+    {"operate", probe_parser_operate, NULL, NULL, NULL}
 };
+
+static void rollback_probe(struct probe_s *probe, struct probe_s *probe_backup, u32 flag)
+{
+    struct probe_parser_s *parser;
+
+    if (!probe || !probe_backup) {
+        return;
+    }
+
+    size_t size = sizeof(probe_parsers) / sizeof(struct probe_parser_s);
+    for (int i = 0; i < size; i++) {
+        if ((flag >> i) & 0x1) {
+            parser = &(probe_parsers[i]);
+
+            if (parser->rollbacker) {
+                parser->rollbacker(probe, probe_backup);
+            }
+        }
+    }
+}
 
 int parse_probe_json(const char *probe_name, const char *probe_content)
 {
     int ret = -1;
+    u32 parse_flag = 0;
     struct probe_parser_s *parser;
+    struct probe_s *probe_backup = NULL;
     cJSON *json = NULL, *item;
 
     get_probemng_lock();
@@ -641,6 +693,12 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
         goto end;
     }
 
+    probe_backup = (struct probe_s *)malloc(sizeof(struct probe_s));
+    if (probe_backup == NULL) {
+        goto end;
+    }
+    (void)memset(probe_backup, 0, sizeof(struct probe_s));
+
     size_t size = sizeof(probe_parsers) / sizeof(struct probe_parser_s);
     for (int i = 0; i < size; i++) {
         parser = &(probe_parsers[i]);
@@ -649,12 +707,18 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
             continue;
         }
 
+        parse_flag |= 0x1 << i;
+        if (parser->backuper) {
+            parser->backuper(probe, probe_backup);
+        }
         ret = parser->parser(probe, item);
         if (ret) {
+            rollback_probe(probe, probe_backup, parse_flag);
             break;
         }
     }
 
+    destroy_probe(probe_backup);
 end:
     put_probemng_lock();
     if (json) {
