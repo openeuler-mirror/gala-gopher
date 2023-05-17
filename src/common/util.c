@@ -210,13 +210,41 @@ int get_comm(int pid, char comm_str[], unsigned int size)
     const char *fmt1 = "/proc/%d/comm";
     const char *fmt2 = "/usr/bin/cat /proc/%d/comm";
 
+    proc_comm[0] = 0;
     (void)snprintf(proc_comm, PATH_LEN, fmt1, pid);
     if (access((const char *)proc_comm, 0) != 0) {
         return -1;
     }
 
+    cat_proc_comm[0] = 0;
     (void)snprintf(cat_proc_comm, PATH_LEN, fmt2, pid);
     return exec_cmd(cat_proc_comm, comm_str, size);
+}
+
+int get_proc_startup_ts(int pid)
+{
+    int ret;
+    char proc_stat[PATH_LEN];
+    char cat_proc_stat[PATH_LEN];
+    char startup_ts[INT_LEN];
+    const char *fmt1 = "/proc/%d/stat";
+    const char *fmt2 = "/usr/bin/cat /proc/%d/stat | awk '{print $22}'";
+
+    proc_stat[0] = 0;
+    (void)snprintf(proc_stat, PATH_LEN, fmt1, pid);
+    if (access((const char *)proc_stat, 0) != 0) {
+        return -1;
+    }
+
+    cat_proc_stat[0] = 0;
+    startup_ts[0] = 0;
+    (void)snprintf(cat_proc_stat, PATH_LEN, fmt2, pid);
+    ret = exec_cmd(cat_proc_stat, startup_ts, INT_LEN);
+    if (ret) {
+        return -1;
+    }
+
+    return atoi(startup_ts);
 }
 
 int get_system_uuid(char *buffer, unsigned int size)

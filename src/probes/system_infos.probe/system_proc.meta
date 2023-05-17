@@ -23,19 +23,9 @@ measurements:
                 name: "ppid",
             },
             {
-                description: "comm of the process",
-                type: "label",
-                name: "comm",
-            },
-            {
                 description: "cmdline of the process",
                 type: "label",
                 name: "cmdline",
-            },
-            {
-                description: "ID of container",
-                type: "label",
-                name: "container_id",
             },
             {
                 description: "fd counts of the process",

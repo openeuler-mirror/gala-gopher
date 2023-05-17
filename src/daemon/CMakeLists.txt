@@ -51,7 +51,6 @@ SET(SOURCES main.c daemon.c
     ${PROBE_DIR}/extend_probe.c
     ${IMDB_DIR}/imdb.c
     ${IMDB_DIR}/metrics.c
-    ${IMDB_DIR}/lru_cache.c
 
     ${CMD_DIR}/server.c
     ${COMMON_DIR}/kern_config.c
