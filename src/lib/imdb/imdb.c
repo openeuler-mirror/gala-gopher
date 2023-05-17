@@ -1196,7 +1196,7 @@ static void transfer_entityID(char *entityID)
           "ContainerID": "2c1c455d-24a5-897c-ea11-bc08f2d510da",
           "POD": "",
           "Device": ""
-      },
+      }
   },
   "SeverityText": "WARN",
   "SeverityNumber": 13,
@@ -1329,7 +1329,7 @@ static int IMDB_Evt2Json(const IMDB_DataBaseMgr *mgr,
     p = jsonStr + len;
     len = jsonStrLen - len;
 
-    ret = __snprintf(&p, len, &len, "}, }, \"SeverityText\": \"%s\",", secTxt);
+    ret = __snprintf(&p, len, &len, "} }, \"SeverityText\": \"%s\",", secTxt);
     if (ret < 0) {
         goto err;
     }
