@@ -30,6 +30,7 @@
 
 #include "ipc.h"
 #include "probe_mng.h"
+#include "pod_mng.h"
 #include "snooper.h"
 #include "probe_params_parser.h"
 
@@ -210,6 +211,10 @@ err:
 
 static int is_extend_probe(struct probe_s *probe)
 {
+    if (probe->bin == NULL) {
+        return 0;
+    }
+
     // Independent running binary for extend probe, Otherwise, it's a native probe
     if (access(probe->bin, 0) == 0) {
         return 1;
@@ -720,6 +725,7 @@ void destroy_probe_mng(void)
     unload_snooper_bpf(g_probe_mng);
     free(g_probe_mng);
     g_probe_mng = NULL;
+    del_pods();
 }
 
 struct probe_mng_s *create_probe_mng(void)

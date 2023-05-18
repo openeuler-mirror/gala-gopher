@@ -52,6 +52,7 @@ SET(SOURCES main.c daemon.c
 
     ${PROBE_DIR}/probe.c
     ${PROBE_DIR}/extend_probe.c
+    ${PROBE_DIR}/pod_mng.c
     ${PROBE_DIR}/probe_mng.c
     ${PROBE_DIR}/snooper.c
     ${PROBE_DIR}/probe_params_parser.c

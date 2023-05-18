@@ -29,6 +29,7 @@
 #include "bpf.h"
 #include "container.h"
 #include "probe_mng.h"
+#include "pod_mng.h"
 
 #include "ipc.h"
 #include "snooper.h"
@@ -750,6 +751,31 @@ void free_snooper_obj(struct snooper_obj_s* snooper_obj)
             (void)free(snooper_obj->obj.gaussdb.ip);
         }
     }
+
+    if (snooper_obj->type == SNOOPER_OBJ_CON) {
+        if (snooper_obj->obj.con_info.con_id) {
+            (void)free(snooper_obj->obj.con_info.con_id);
+        }
+        if (snooper_obj->obj.con_info.container_name) {
+            (void)free(snooper_obj->obj.con_info.container_name);
+        }
+        if (snooper_obj->obj.con_info.libc_path) {
+            (void)free(snooper_obj->obj.con_info.libc_path);
+        }
+        if (snooper_obj->obj.con_info.libssl_path) {
+            (void)free(snooper_obj->obj.con_info.libssl_path);
+        }
+        if (snooper_obj->obj.con_info.pod_id) {
+            (void)free(snooper_obj->obj.con_info.pod_id);
+        }
+        if (snooper_obj->obj.con_info.pod_name) {
+            (void)free(snooper_obj->obj.con_info.pod_name);
+        }
+        if (snooper_obj->obj.con_info.pod_ip_str) {
+            (void)free(snooper_obj->obj.con_info.pod_ip_str);
+        }
+    }
+
     (void)free(snooper_obj);
     snooper_obj = NULL;
 }
@@ -889,7 +915,7 @@ static int add_snooper_obj_procid(struct probe_s *probe, u32 proc_id)
     return 0;
 }
 
-static int add_snooper_obj_cgrp(struct probe_s *probe, u32 knid)
+static int add_snooper_obj_con_info(struct probe_s *probe, struct pod_info_s *pod_info, struct con_info_s *con_info)
 {
     int pos = __get_snooper_obj_idle(probe, SNOOPER_MAX);
     if (pos < 0) {
@@ -900,9 +926,33 @@ static int add_snooper_obj_cgrp(struct probe_s *probe, u32 knid)
     if (snooper_obj == NULL) {
         return -1;
     }
-    snooper_obj->type = SNOOPER_OBJ_CGRP;
-    snooper_obj->obj.cgrp.knid = knid;
-    snooper_obj->obj.cgrp.type = CGP_TYPE_CPUACCT;
+    if (pod_info == NULL || con_info == NULL) {
+        return -1;
+    }
+    snooper_obj->type = SNOOPER_OBJ_CON;
+    snooper_obj->obj.con_info.flags = con_info->flags;
+    snooper_obj->obj.con_info.cpucg_inode = con_info->cpucg_inode;
+    if (con_info->con_id) {
+        snooper_obj->obj.con_info.con_id = strdup(con_info->con_id);
+    }
+    if (con_info->container_name) {
+        snooper_obj->obj.con_info.container_name = strdup(con_info->container_name);
+    }
+    if (con_info->libc_path) {
+        snooper_obj->obj.con_info.libc_path = strdup(con_info->libc_path);
+    }
+    if (con_info->libssl_path) {
+        snooper_obj->obj.con_info.libssl_path = strdup(con_info->libssl_path);
+    }
+    if (pod_info->pod_id) {
+        snooper_obj->obj.con_info.pod_id = strdup(pod_info->pod_id);
+    }
+    if (pod_info->pod_name) {
+        snooper_obj->obj.con_info.pod_name = strdup(pod_info->pod_name);
+    }
+    if (pod_info->pod_ip_str) {
+        snooper_obj->obj.con_info.pod_ip_str = strdup(pod_info->pod_ip_str);
+    }
 
     probe->snooper_objs[pos] = snooper_obj;
     return 0;
@@ -1008,54 +1058,46 @@ static int gen_snooper_by_procid(struct probe_s *probe, struct snooper_conf_s *s
 
 static int gen_snooper_by_container(struct probe_s *probe, struct snooper_conf_s *snooper_conf)
 {
-    int ret;
-    unsigned int inode;
     if (snooper_conf->type != SNOOPER_CONF_CONTAINER_ID || snooper_conf->conf.container_id[0] == 0) {
         return 0;
     }
 
-    ret = get_container_cpucg_inode((const char *)snooper_conf->conf.container_id, &inode);
-    if (ret) {
-        return ret;
+    struct pod_info_s *pod_info = get_pod_info_from_pod_name(NULL);
+    if (pod_info == NULL) {
+        return -1;
     }
 
-    return add_snooper_obj_cgrp(probe, inode);
+    struct con_info_s *con_info = get_and_add_con_info(NULL, snooper_conf->conf.container_id);
+    if (con_info == NULL) {
+        return -1;
+    }
+
+    return add_snooper_obj_con_info(probe, pod_info, con_info);
 }
 
 static int gen_snooper_by_pod(struct probe_s *probe, struct snooper_conf_s *snooper_conf)
 {
-    int i, ret;
-    unsigned int inode;
-    char pod[POD_NAME_LEN];
-
     if (snooper_conf->type != SNOOPER_CONF_POD || snooper_conf->conf.pod == NULL) {
         return 0;
     }
 
-    container_tbl* cstbl = get_all_container();
-    if (cstbl == NULL) {
-        return 0;
+    struct pod_info_s *pod_info = get_and_add_pod_info(snooper_conf->conf.pod);
+    if (pod_info == NULL) {
+        return -1;
     }
 
-    container_info *p = cstbl->cs;
-    for (i = 0; i < cstbl->num; i++) {
-        pod[0] = 0;
-        ret = get_container_pod((const char *)p->abbrContainerId, pod, POD_NAME_LEN);
-        if (ret || strcasecmp(pod, snooper_conf->conf.pod)) {
-            p++;
-            continue;
-        }
-
-        ret = get_container_cpucg_inode((const char *)p->abbrContainerId, &inode);
-        if (ret) {
-            p++;
-            continue;
-        }
-
-        (void)add_snooper_obj_cgrp(probe, inode);
-        p++;
+    if (pod_info->con_head == NULL) {
+        return -1;
     }
-    free_container_tbl(&cstbl);
+
+    struct containers_hash_t *con, *tmp;
+    struct con_info_s *con_info;
+    if (H_COUNT(pod_info->con_head) > 0) {
+        H_ITER(pod_info->con_head, con, tmp) {
+            add_snooper_obj_con_info(probe, pod_info, &con->con_info);
+        }
+    }
+
     return 0;
 }
 
@@ -1186,15 +1228,58 @@ static void rcv_snooper_proc_evt(void *ctx, int cpu, void *data, __u32 size)
     put_probemng_lock();
 }
 
+static void __rcv_snooper_cgrp_exit(struct probe_mng_s *probe_mng, char *pod_id, char *con_id, enum id_ret_t id_ret)
+{
+    int i, j;
+    struct probe_s *probe;
+    struct snooper_obj_s *snooper_obj;
+
+    for (i = 0; i < PROBE_TYPE_MAX; i++) {
+        probe = probe_mng->probes[i];
+        if (!probe) {
+            continue;
+        }
+
+        for (j = 0; j < SNOOPER_MAX; j++) {
+            snooper_obj = probe->snooper_objs[j];
+            if (!snooper_obj || snooper_obj->type != SNOOPER_OBJ_CON) {
+                continue;
+            }
+
+            if (strcmp(snooper_obj->obj.con_info.con_id, con_id) == 0) {
+                free_snooper_obj(snooper_obj);
+                probe->snooper_objs[j] = NULL;
+                snooper_obj = NULL;
+            }
+        }
+        send_snooper_obj(probe);
+    }
+}
+
 static void rcv_snooper_cgrp_evt(void *ctx, int cpu, void *data, __u32 size)
 {
     struct snooper_cgrp_evt_s *msg_data = (struct snooper_cgrp_evt_s *)data;
 
-    get_probemng_lock();
+    char pod_id[POD_ID_LEN + 1] = {0};
+    char con_id[CONTAINER_ABBR_ID_LEN + 1] = {0};
+    struct pods_hash_t *pod = NULL;
+    enum id_ret_t id_ret = get_pod_container_id(msg_data->cgrp_path, pod_id, con_id);
 
-    // TODO: chk snooper pattern
+    if (id_ret == ID_FAILED) {
+        return;
+    }
 
-    put_probemng_lock();
+    if (msg_data->cgrp_event == CGRP_MK) {
+        cgrp_mk_process(pod_id, con_id, id_ret);
+    } else {
+        cgrp_rm_process(pod_id, con_id, id_ret);
+        if (id_ret == ID_CON_POD || id_ret == ID_CON_ONLY) {
+            get_probemng_lock();
+            __rcv_snooper_cgrp_exit(__probe_mng_snooper, pod_id, con_id, id_ret);
+            put_probemng_lock();
+        }
+
+    }
 
     return;
 }
