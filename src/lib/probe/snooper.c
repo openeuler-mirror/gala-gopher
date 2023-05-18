@@ -30,6 +30,7 @@
 #include "container.h"
 #include "probe_mng.h"
 
+#include "ipc.h"
 #include "snooper.h"
 #include "snooper.skel.h"
 #include "snooper_bpf.h"
@@ -151,7 +152,7 @@ void free_snooper_conf(struct snooper_conf_s* snooper_conf)
         return;
     }
 
-    if (snooper_conf->type = SNOOPER_CONF_APP) {
+    if (snooper_conf->type == SNOOPER_CONF_APP) {
         if (snooper_conf->conf.app.cmdline) {
             (void)free(snooper_conf->conf.app.cmdline);
         }
@@ -160,7 +161,7 @@ void free_snooper_conf(struct snooper_conf_s* snooper_conf)
         }
     }
 
-    if (snooper_conf->type = SNOOPER_CONF_GAUSSDB) {
+    if (snooper_conf->type == SNOOPER_CONF_GAUSSDB) {
         if (snooper_conf->conf.gaussdb.dbname) {
             (void)free(snooper_conf->conf.gaussdb.dbname);
         }
@@ -175,7 +176,7 @@ void free_snooper_conf(struct snooper_conf_s* snooper_conf)
         }
     }
 
-    if (snooper_conf->type = SNOOPER_CONF_POD) {
+    if (snooper_conf->type == SNOOPER_CONF_POD) {
         if (snooper_conf->conf.pod) {
             (void)free(snooper_conf->conf.pod);
         }
@@ -631,10 +632,31 @@ void print_snooper(struct probe_s *probe, cJSON *json)
     print_snooper_gaussdb(probe, json);
 }
 
+static int __build_ipc_body(struct probe_s *probe, struct ipc_body_s* ipc_body)
+{
+    ipc_body->snooper_obj_num = 0;
+
+    for (int i = 0; i < SNOOPER_MAX; i++) {
+        if (probe->snooper_objs[i] == NULL) {
+            continue;
+        }
+
+        memcpy(&(ipc_body->snooper_objs[ipc_body->snooper_obj_num]),
+                probe->snooper_objs[i], sizeof(struct snooper_obj_s));
+
+        ipc_body->snooper_obj_num++;
+    }
+
+    ipc_body->probe_range_flags = probe->probe_range_flags;
+    memcpy(&(ipc_body->probe_param), &probe->probe_param, sizeof(struct probe_params));
+}
+
 static int send_snooper_obj(struct probe_s *probe)
 {
-    //TODO: send snooper obj to probe by ipc msg
-    return 0;
+    struct ipc_body_s ipc_body; // Initialized at '__build_ipc_body' function
+
+    __build_ipc_body(probe, &ipc_body);
+    return send_ipc_msg(__probe_mng_snooper->msq_id, (long)probe->probe_type, &ipc_body);
 }
 
 //TODO: refactor this func
@@ -714,7 +736,7 @@ void free_snooper_obj(struct snooper_obj_s* snooper_obj)
         return;
     }
 
-    if (snooper_obj->type = SNOOPER_OBJ_GAUSSDB) {
+    if (snooper_obj->type == SNOOPER_OBJ_GAUSSDB) {
         if (snooper_obj->obj.gaussdb.dbname) {
             (void)free(snooper_obj->obj.gaussdb.dbname);
         }
@@ -743,7 +765,6 @@ static struct snooper_obj_s* new_snooper_obj(void)
 
     return snooper_obj;
 }
-
 
 #define __SYS_PROC_DIR  "/proc"
 static inline char __is_proc_dir(const char *dir_name)
@@ -944,6 +965,7 @@ static int gen_snooper_by_procname(struct probe_s *probe, struct snooper_conf_s 
             continue;
         }
 
+        comm[0] = 0;
         ret = __read_proc_comm(entry->d_name, comm, __PROC_NAME_MAX);
         if (ret) {
             continue;
@@ -1045,8 +1067,6 @@ static int gen_snooper_by_gaussdb(struct probe_s *probe, struct snooper_conf_s *
 
     return add_snooper_obj_gaussdb(probe, &(snooper_conf->conf.gaussdb));
 }
-
-
 
 typedef int (*probe_snooper_generator)(struct probe_s *, struct snooper_conf_s *);
 struct snooper_generator_s {
@@ -1190,6 +1210,8 @@ int load_snooper_bpf(struct probe_mng_s *probe_mng)
     struct snooper_bpf *snooper_skel;
 
     __probe_mng_snooper = probe_mng;
+
+    INIT_BPF_APP(snooper, EBPF_RLIM_LIMITED);
 
     /* Open load and verify BPF application */
     snooper_skel = snooper_bpf__open();
