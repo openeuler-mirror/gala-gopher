@@ -47,9 +47,18 @@ struct event_info_s {
     int pid;
 };
 
+struct otel_log {
+    unsigned long long timestamp;
+    enum evt_sec_e sec;
+    char *resource;
+    char *attrs;
+    char *body;
+};
+
 void report_logs(const struct event_info_s* evt,
               enum evt_sec_e sec,
               const char * fmt, ...);
+void emit_otel_log(struct otel_log *ol);
 
 void init_event_mgr(unsigned int time_out, char *lang_type);
 

@@ -35,7 +35,9 @@
 #define SUPPORT_METRICS_RAW     0x01
 #define SUPPORT_METRICS_TELEM   0x02
 
-#define __OPT_S "t:s:T:J:O:D:F:lU:L:c:p:w:d:P:Ck:i:m:e:"
+#define MAX_TGIDS_LEN       64
+
+#define __OPT_S "t:s:T:J:O:D:F:lU:L:c:p:w:d:P:Ck:i:m:e:f:"
 struct probe_params {
     unsigned int period;          // [-t <>] Report period, unit second, default is 5 seconds
     unsigned int sample_period;   // [-s <>] Sampling period, unit milliseconds, default is 100 milliseconds
@@ -61,6 +63,7 @@ struct probe_params {
     char netcard_list[MAX_PATH_LEN]; // [-d <>] Device name, default is null
     char target_comm[MAX_COMM_LEN]; // [-F <>] Process comm name, default is null
     char host_ip_list[MAX_IP_NUM][MAX_IP_LEN]; // [-i <>] Host ip fields list, default is null
+    char tgids[MAX_TGIDS_LEN];    // [-f <>] Filter tgids, default is null
     /*
         [-P <>]
         L7 probe monitoring protocol flags, Refer to the below definitions(default is 0):

@@ -184,6 +184,10 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
         case 'i':
             __parse_host_ip_fields(arg, params);
             break;
+        case 'f':
+            if (arg != NULL) {
+                (void)snprintf(params->tgids, sizeof(params->tgids), "%s", arg);
+            }
             break;
         default:
             return -1;
