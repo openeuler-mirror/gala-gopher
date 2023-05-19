@@ -17,11 +17,6 @@ measurements:
                 name: "tgid",
             },
             {
-                description: "comm of the process",
-                type: "label",
-                name: "comm",
-            },
-            {
                 description: "Thread offcpu times, unit is ns.",
                 type: "gauge",
                 name: "off_cpu_ns",

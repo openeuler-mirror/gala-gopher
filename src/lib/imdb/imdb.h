@@ -19,8 +19,8 @@
 
 #include <stdint.h>
 #include <pthread.h>
-#include <uthash.h>
 #include "base.h"
+#include "hash.h"
 
 #define MAX_IMDB_DATABASEMGR_CAPACITY   256
 // metric specification
@@ -51,10 +51,6 @@
 
 // NUMS OF RECORD TO STRING EVERY PERIOD
 #define DEFAULT_PERIOD_RECORD_NUM       100
-
-// MAX NUMS OF CACHE SIZE
-#define MAX_CACHE_SIZE  10000
-
 
 typedef struct {
     char systemUuid[MAX_IMDB_SYSTEM_UUID_LEN];
@@ -92,6 +88,19 @@ typedef struct {
 } IMDB_Table;
 
 typedef struct {
+    char tgid[INT_LEN + 1];
+    int startup_ts;
+} TGID_RecordKey;
+
+typedef struct {
+    TGID_RecordKey key;
+    char container_id[CONTAINER_ABBR_ID_LEN + 1];
+    char pod_name[POD_NAME_LEN + 1];
+    char comm[TASK_COMM_LEN + 1];
+    H_HANDLE;
+} TGID_Record;
+
+typedef struct {
     uint32_t tblsCapability;        // Capability for tables count in one database
     uint32_t tablesNum;
 
@@ -99,22 +108,11 @@ typedef struct {
     IMDB_NodeInfo nodeInfo;
     pthread_rwlock_t rwlock;
     uint32_t writeLogsOn;
-    PodInfoSwitch podInfoSwitch;    // A switcher that controls whether pod infos is attached
+
+    TGID_Record **tgids;
 
     pthread_t metrics_tid;
 } IMDB_DataBaseMgr;
-
-typedef struct {
-    char container_id[CONTAINER_ID_LEN];
-    char container_name[CONTAINER_NAME_LEN];
-    char pod_name[POD_NAME_LEN];
-} ProcInfo;
-
-typedef struct {
-    char tgid[TGID_LEN];        // key
-    ProcInfo info;      // val
-    UT_hash_handle hh;
-} TgidProcInfo_Table;
 
 IMDB_Metric *IMDB_MetricCreate(char *name, char *description, char *type);
 int IMDB_MetricSetValue(IMDB_Metric *metric, char *val);
@@ -157,8 +155,6 @@ int IMDB_Rec2Json(IMDB_DataBaseMgr *mgr, IMDB_Table *table,
 void WriteMetricsLogsMain(IMDB_DataBaseMgr *mgr);
 int ReadMetricsLogs(char logs_file_name[]);
 void RemoveMetricsLogs(char logs_file_name[]);
-
-ProcInfo *look_up_proc_info_by_tgid(TgidProcInfo_Table **tgid_infos, char *tgid);
 
 #endif
 

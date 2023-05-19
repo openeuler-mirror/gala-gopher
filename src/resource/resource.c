@@ -470,7 +470,6 @@ static int IMDBMgrInit(ResourceMgr *resourceMgr)
         return -1;
     }
 
-    imdbMgr->podInfoSwitch = configMgr->metricOutConfig->podInfoSwitch;
     resourceMgr->imdbMgr = imdbMgr;
     return 0;
 }

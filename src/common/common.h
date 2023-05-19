@@ -55,7 +55,6 @@
 #define CONTAINER_ABBR_ID_LEN   12
 #define NAMESPACE_LEN           64
 #define POD_NAME_LEN            64
-#define TGID_LEN                10
 
 #define COMMAND_LEN             256
 #define LINE_BUF_LEN            512
@@ -198,6 +197,7 @@ char is_digit_str(const char *s);
 int get_system_uuid(char *buffer, unsigned int size);
 int get_system_ip(char ip_str[], unsigned int size);
 int get_comm(int pid, char comm_str[], unsigned int size);
+int get_proc_startup_ts(int pid);
 int copy_file(const char *dst_file, const char *src_file);
 
 #endif
