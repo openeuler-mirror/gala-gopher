@@ -501,6 +501,10 @@ int init_log_mgr(struct log_mgr_s* mgr, int is_meta_out_log)
 
 void destroy_log_mgr(struct log_mgr_s* mgr)
 {
+    if (mgr == NULL) {
+        return;
+    }
+
     destroy_queue(mgr->metrics_files);
     destroy_queue(mgr->event_files);
     (void)free(mgr);

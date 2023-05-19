@@ -17,8 +17,10 @@
 #include <string.h>
 #include <getopt.h>
 #include <errno.h>
+#include <signal.h>
 #include "daemon.h"
 #include "base.h"
+#include "ipc.h"
 
 #define GOPHER_CMD_MAX                    3
 #define GOPHER_CMD_MIN                    1
@@ -104,44 +106,68 @@ static int CmdProcessing(int argc, char *argv[])
     return ret;
 }
 
+static int g_probe_mng_ipc_msgid = -1;
+
+static void quit_handler(int signo)
+{
+    // probe_mng创建的ipc消息队列是跟随内核的，进程结束消息队列还会存在，需要显示调用函数销毁
+    if (g_probe_mng_ipc_msgid > 0) {
+        destroy_ipc_msg_queue(g_probe_mng_ipc_msgid);
+    }
+    exit(EXIT_SUCCESS);
+}
+
+static void sig_setup(void)
+{
+    struct sigaction quit_action;
+
+    (void)memset(&quit_action, 0, sizeof(struct sigaction));
+    quit_action.sa_handler = quit_handler;
+
+    (void)sigaction(SIGINT, &quit_action, NULL);
+    (void)sigaction(SIGTERM, &quit_action, NULL);
+}
 
 int main(int argc, char *argv[])
 {
     int ret = 0;
     ResourceMgr *resourceMgr = NULL;
 
+    sig_setup();
+
     ret = CmdProcessing(argc, argv);
     if (ret != 0) {
         ShowUsage();
-        return 0;
+        goto err;
     }
 
     resourceMgr = ResourceMgrCreate();
     if (resourceMgr == NULL) {
         ERROR("[MAIN] create resource manager failed.\n");
-        return 0;
+        goto err;
     }
 
     ret = ResourceMgrInit(resourceMgr);
     if (ret != 0) {
         ERROR("[MAIN] ResourceMgrInit failed.\n");
-        return 0;
+        goto err;
     }
+    g_probe_mng_ipc_msgid = resourceMgr->probe_mng->msq_id;
 
     ret = DaemonRun(resourceMgr);
     if (ret != 0) {
         ERROR("[MAIN] daemon run failed.\n");
-        return 0;
+        goto err;
     }
 
     ret = DaemonWaitDone(resourceMgr);
     if (ret != 0) {
         ERROR("[MAIN] daemon wait done failed.\n");
-        return 0;
+        goto err;
     }
-
+err:
     ResourceMgrDeinit(resourceMgr);
     ResourceMgrDestroy(resourceMgr);
-    return 0;
+    exit(EXIT_FAILURE);
 }
 
