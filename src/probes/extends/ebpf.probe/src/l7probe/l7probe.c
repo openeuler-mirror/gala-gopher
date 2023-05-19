@@ -31,7 +31,6 @@
 
 #include "include/bpf_mng.h"
 #include "include/java_mng.h"
-#include "include/pod.h"
 
 volatile sig_atomic_t stop;
 static struct probe_params params = {.period = DEFAULT_PERIOD};
@@ -88,6 +87,5 @@ int main(int argc, char **argv)
 out:
     unload_bpf_prog(&prog);
     unload_java_progs(&params);
-    del_pods();
     return -err;
 }

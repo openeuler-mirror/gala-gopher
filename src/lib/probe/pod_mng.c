@@ -25,19 +25,18 @@
 #endif
 
 #include "args.h"
-#include "hash.h"
 #include "object.h"
+#include "ipc.h"
 #include "container.h"
-#include "include/pod.h"
-#include "bpf/cgroup.skel.h"
+#include "pod_mng.h"
 
 #define POD_TBL_NAME "pod_state"
-#define FAKE_POD_ID "-no-pod" // fake pod id for host container
 #define KUBEPODS_PREFIX "/kubepods/"
 #define DOCKER_PREFIX "/docker/"
 #define PODID_PREFIX "/pod"
-#define POD_ID_LEN 64
-#define POD_NAME_LEN 64
+
+#define CGRP_PATH_FROM_POD_NAME_CMD "docker ps -q | xargs docker inspect --format '{{.Config.Hostname}}, {{.Id}}' | \
+    /usr/bin/grep \"%s\" | awk -F ', ' '{print $2}' | xargs find /sys/fs/cgroup/pids/ -name 2>/dev/null"
 #define POD_NAME_CMD "docker inspect %s --format '{{.Config.Hostname}}' 2>/dev/null"
 #define POD_IP_BY_NAME_CMD "docker exec -it %s /usr/bin/cat /etc/hosts | /usr/bin/grep \"%s\" | /usr/bin/awk 'NR==1{print $1}' 2>/dev/null"
 #define POD_IP_BY_END_CMD "docker exec -it %s /usr/bin/cat /etc/hosts | /usr/bin/awk 'END{print $1}' 2>/dev/null"
@@ -45,40 +44,17 @@
 #define FILTER_FLAGS_IGNORE 0x0000  // default value
 #define FILTER_FLAGS_NORMAL 0x0001
 
-enum id_ret_t {
-    ID_FAILED = -1,
-    ID_CON_POD = 0, // pod with containers
-    ID_CON_ONLY = 1, // host container
-    ID_POD_ONLY = 2  // pod without containers for now
-};
 
-struct con_info_s {
-    u32 flags;
-    char container_name[CONTAINER_NAME_LEN];
-    char libc_path[PATH_LEN];
-    char libssl_path[PATH_LEN];
-};
-
-struct containers_hash_t {
-    H_HANDLE;
-    char con_id[CONTAINER_ABBR_ID_LEN]; // key
-    struct con_info_s con_info; // value
-};
-
-struct pod_info_s {
-    char pod_name[POD_NAME_LEN];
-    char pod_ip_str[INET6_ADDRSTRLEN];
-    struct containers_hash_t *con_head;
-};
 
 struct pods_hash_t {
     H_HANDLE;
-    char pod_id[POD_ID_LEN]; // key
+    char pod_id[POD_ID_LEN + 1]; // key
     struct pod_info_s pod_info; // value
 };
 
 static struct pods_hash_t *pod_head = NULL;
 
+#if 0
 static void print_pod_state_metrics(struct pod_info_s *pod_info, struct containers_hash_t *con, const char *event)
 {
     fprintf(stdout,
@@ -93,6 +69,7 @@ static void print_pod_state_metrics(struct pod_info_s *pod_info, struct containe
 
     (void)fflush(stdout);
 }
+#endif
 
 static void get_pod_name(char *con_id, char *pod_name, int len)
 {
@@ -120,7 +97,7 @@ static void get_pod_ip(char *con_id, char *pod_name, char *pod_ip_str, int len)
     }
 }
 
-static enum id_ret_t get_pod_container_id(char *cgrp_path, char *pod_id, char *con_id)
+enum id_ret_t get_pod_container_id(char *cgrp_path, char *pod_id, char *con_id)
 {
     int full_path_len;
     char *p;
@@ -133,12 +110,16 @@ static enum id_ret_t get_pod_container_id(char *cgrp_path, char *pod_id, char *c
     full_path_len = strlen(cgrp_path);
 
     if (strstr(cgrp_path, KUBEPODS_PREFIX) != NULL) {
+        /* In the k8s scenario, cgrp_path is like:
+         * /kubepods/besteffort/pod6cfd4235-599f-493a-9880-970f3a3d4c31/50a3732f21659025473ae82f575cdac290e945d3191ae9286fd27dc36da0aa44
+         * /kubepods/besteffort/pod<pod_id>/<con_id>
+         */
         p = strstr(cgrp_path, PODID_PREFIX);
         if (p == NULL) {
             return ID_FAILED;
         }
         // get pod id
-        p += 4;
+        p += 4; // "/pod"
         i = 0;
         while (i < POD_ID_LEN && i + p - cgrp_path < full_path_len) {
             if (p[i] == '/') {
@@ -148,15 +129,20 @@ static enum id_ret_t get_pod_container_id(char *cgrp_path, char *pod_id, char *c
             pod_id[i] = p[i];
             i++;
         }
-        pod_id[POD_ID_LEN - 1] = 0;
+        pod_id[POD_ID_LEN] = 0;
         if (i + p - cgrp_path == full_path_len) {
             return ID_POD_ONLY;
         }
         ret = ID_CON_POD;
     } else if ((p = strstr(cgrp_path, DOCKER_PREFIX)) != NULL) {
+        /* In the docker scenario, cgrp_path is like:
+         * /docker/a5034afbb059c76c0f4a6ff44ff9a524770744695b6b320d52a08e4c020e37c2
+         * /docker/<con_id>
+         */
         // set fake pod id
-        i = 8;
-        (void)strncpy(pod_id, FAKE_POD_ID, POD_ID_LEN - 1);
+        
+        i = 8; // "/docker/"
+        (void)strncpy(pod_id, FAKE_POD_ID, POD_ID_LEN);
         ret = ID_CON_ONLY;
     } else {
         return ID_FAILED;
@@ -173,8 +159,24 @@ static enum id_ret_t get_pod_container_id(char *cgrp_path, char *pod_id, char *c
         con_id[j] = p[j];
         j++;
     }
-    con_id[CONTAINER_ABBR_ID_LEN - 1] = 0;
+    con_id[CONTAINER_ABBR_ID_LEN] = 0;
     return ret;
+}
+
+struct con_info_s *get_con_info(char *con_id)
+{
+    struct containers_hash_t *con = NULL;
+    struct pod_info_s *pod_info = get_pod_info_from_pod_name(FAKE_POD_ID);
+    if (pod_info == NULL) {
+        return NULL;
+    }
+
+    H_FIND_S(pod_info->con_head, con_id, con);
+    if (con == NULL) {
+        return NULL;
+    }
+
+    return &con->con_info;
 }
 
 static int add_con_hash(struct containers_hash_t **con_head, char *con_id)
@@ -185,10 +187,32 @@ static int add_con_hash(struct containers_hash_t **con_head, char *con_id)
     }
 
     (void)memset(new_container, 0, sizeof(struct containers_hash_t));
-    (void)strncpy(new_container->con_id, con_id, CONTAINER_ABBR_ID_LEN - 1);
+    (void)strncpy(new_container->con_id, con_id, CONTAINER_ABBR_ID_LEN);
     H_ADD_S(*con_head, con_id, new_container);
 
     return 0;
+}
+
+static void set_con_info(char *con_id,  struct containers_hash_t *con)
+{
+    if (con->con_info.con_id[0] == 0) {
+        (void)strncpy(con->con_info.con_id, con_id, CONTAINER_ABBR_ID_LEN);
+    }
+
+    int ret = get_container_cpucg_inode((const char *)con_id, &con->con_info.cpucg_inode);
+    if (ret) {
+        ERROR("[L7PROBE]: Failed to get cpucg inode of container %s.\n", con_id);
+    }
+
+    ret = get_container_name(con_id, con->con_info.container_name, CONTAINER_NAME_LEN);
+    if (ret) {
+        ERROR("[L7PROBE]: Failed to get container name of container %s.\n", con_id);
+    }
+
+    get_elf_path_by_con_id(con_id, con->con_info.libc_path, PATH_LEN, "libc.so");
+    get_elf_path_by_con_id(con_id, con->con_info.libssl_path, PATH_LEN, "libssl");
+
+    return;
 }
 
 static struct containers_hash_t *add_one_con(struct pod_info_s *pod_info, char *con_id)
@@ -212,14 +236,8 @@ static struct containers_hash_t *add_one_con(struct pod_info_s *pod_info, char *
         return NULL;
     }
 
-    ret = get_container_name(con_id, con->con_info.container_name, CONTAINER_NAME_LEN);
-    if (ret) {
-        ERROR("[L7PROBE]: Failed to get container name of container %s.\n", con_id);
-    }
-
-    get_elf_path_by_con_id(con_id, con->con_info.libc_path, PATH_LEN, "libc.so");
-    get_elf_path_by_con_id(con_id, con->con_info.libssl_path, PATH_LEN, "libssl");
-    print_pod_state_metrics(pod_info, con, "create_container");
+    set_con_info(con_id, con);
+    // print_pod_state_metrics(pod_info, con, "create_container");
 
     return con;
 }
@@ -235,7 +253,7 @@ static void del_one_con(struct pod_info_s *pod_info, char *con_id)
 
     H_FIND_S(con_head, con_id, con);
     if (con != NULL) {
-        print_pod_state_metrics(pod_info, con, "destroy_container");
+        //print_pod_state_metrics(pod_info, con, "destroy_container");
         H_DEL(con_head, con);
         (void)free(con);
     }
@@ -258,6 +276,24 @@ static void del_cons(struct containers_hash_t **con_head)
     *con_head = NULL;
 }
 
+struct pod_info_s *get_pod_info_from_pod_name(char *pod_name_origin)
+{
+    struct pods_hash_t *pod = NULL;
+    char *pod_id;
+    if (pod_name_origin == NULL || pod_name_origin[0] == 0) {
+        pod_id = FAKE_POD_ID;
+    }
+
+    char pod_name[POD_NAME_LEN] = {0};
+    strncpy(pod_name, pod_name_origin, POD_NAME_LEN - 1);
+
+    H_FIND_S(pod_head, pod_id, pod);
+    if (pod != NULL) {
+        return &pod->pod_info;
+    }
+    return NULL;
+}
+
 static int add_pod_hash(char *pod_id)
 {
     struct pods_hash_t *new_pod = malloc(sizeof(struct pods_hash_t));
@@ -266,10 +302,25 @@ static int add_pod_hash(char *pod_id)
     }
 
     (void)memset(new_pod, 0, sizeof(struct pods_hash_t));
-    (void)strncpy(new_pod->pod_id, pod_id, POD_ID_LEN - 1);
+    (void)strncpy(new_pod->pod_id, pod_id, POD_ID_LEN);
     H_ADD_S(pod_head, pod_id, new_pod);
 
     return 0;
+}
+
+static void set_pod_info(char *pod_id, char *con_id, struct pods_hash_t *pod)
+{
+    if (pod->pod_info.pod_id[0] == 0) {
+        (void)strncpy(pod->pod_info.pod_id, pod_id, POD_ID_LEN);
+    }
+    if (pod->pod_info.pod_name[0] == 0) {
+        get_pod_name(con_id, pod->pod_info.pod_name, POD_NAME_LEN);
+    }
+    if (pod->pod_info.pod_ip_str[0] == 0) {
+        get_pod_ip(con_id, pod->pod_info.pod_name, pod->pod_info.pod_ip_str, INET6_ADDRSTRLEN);
+    }
+
+    return;
 }
 
 static struct pods_hash_t *add_one_pod(char *pod_id, char *con_id, enum id_ret_t id_ret)
@@ -296,12 +347,7 @@ static struct pods_hash_t *add_one_pod(char *pod_id, char *con_id, enum id_ret_t
     }
 
     if (con_id[0] != 0 && id_ret != ID_CON_ONLY) {
-        if (pod->pod_info.pod_name[0] == 0) {
-            get_pod_name(con_id, pod->pod_info.pod_name, POD_NAME_LEN);
-        }
-        if (pod->pod_info.pod_ip_str[0] == 0) {
-            get_pod_ip(con_id, pod->pod_info.pod_name, pod->pod_info.pod_ip_str, INET6_ADDRSTRLEN);
-        }
+        set_pod_info(pod_id, con_id, pod);
     }
 
     return pod;
@@ -343,20 +389,41 @@ void del_pods()
     pod_head = NULL;
 }
 
-static void cgrp_mk_process(char *cgrp_path)
+void existing_pod_mk_process(char *pod_name)
 {
-    char pod_id[POD_ID_LEN] = {0};
-    char con_id[CONTAINER_ABBR_ID_LEN] = {0};
-    struct pods_hash_t *pod = NULL;
-    enum id_ret_t id_ret = 0;
+    FILE *f = NULL;
+    char cmd[COMMAND_LEN] = {0};
+    char line[LINE_BUF_LEN];
+    enum id_ret_t id_ret;
 
-    id_ret = get_pod_container_id(cgrp_path, pod_id, con_id);
-
-    if (id_ret == ID_FAILED) {
+    (void)snprintf(cmd, COMMAND_LEN, CGRP_PATH_FROM_POD_NAME_CMD, pod_name);
+    f = popen(cmd, "r");
+    if (f == NULL) {
         return;
     }
+    while (!feof(f)) {
+        line[0] = 0;
+        if (fgets(line, LINE_BUF_LEN, f) == NULL) {
+            break;
+        }
+        SPLIT_NEWLINE_SYMBOL(line);
+        char con_id[CONTAINER_ABBR_ID_LEN + 1] = {0};
+        char pod_id[POD_ID_LEN + 1] = {0};
+        id_ret = get_pod_container_id(line, pod_id, con_id);
+        if (id_ret == ID_FAILED) {
+            continue;
+        }
+        cgrp_mk_process(pod_id, con_id, id_ret);
+    }
 
-    pod = add_one_pod(pod_id, con_id, id_ret);
+    pclose(f);
+
+    return;
+}
+
+void cgrp_mk_process(char *pod_id, char *con_id, enum id_ret_t id_ret)
+{
+    struct pods_hash_t *pod = add_one_pod(pod_id, con_id, id_ret);
     if (pod == NULL) {
         return;
     }
@@ -368,19 +435,10 @@ static void cgrp_mk_process(char *cgrp_path)
     return;
 }
 
-static void cgrp_rm_process(char *cgrp_path)
+void cgrp_rm_process(char *pod_id, char *con_id, enum id_ret_t id_ret)
 {
-    char pod_id[POD_ID_LEN] = {0};
-    char con_id[CONTAINER_ABBR_ID_LEN] = {0};
     struct pods_hash_t *pod = NULL;
-    enum id_ret_t id_ret = 0;
 
-    id_ret = get_pod_container_id(cgrp_path, pod_id, con_id);
-    
-    if (id_ret == ID_FAILED) {
-        return;
-    }
-    
     if (id_ret == ID_POD_ONLY) {
         del_one_pod(pod_id);
     } else if (id_ret == ID_CON_POD || id_ret == ID_CON_ONLY) {
@@ -392,17 +450,46 @@ static void cgrp_rm_process(char *cgrp_path)
     }
 }
 
-void l7_cgroup_msg_handler(void *ctx, int cpu, void *data, unsigned int size)
+// Try to get con_info. If can't then try to add.
+struct con_info_s *get_and_add_con_info(char *pod_id, char *container_id)
 {
-    struct cgroup_msg_data_t *msg_data = (struct cgroup_msg_data_t *)data;
-
-    if (msg_data->cgrp_event == CGRP_MK) {
-        cgrp_mk_process(msg_data->cgrp_path);
-    } else {
-        cgrp_rm_process(msg_data->cgrp_path);
+    if (container_id == NULL) {
+        return NULL;
     }
 
-    return;
+    char con_id[CONTAINER_ABBR_ID_LEN + 1] = {0};
+    strncpy(con_id, container_id, CONTAINER_ABBR_ID_LEN);
+
+    struct con_info_s *con_info = get_con_info(con_id);
+    if (con_info != NULL) {
+        return con_info;
+    }
+
+    // add_con_info
+    if (pod_id == NULL || pod_id[0] == 0) {
+        cgrp_mk_process(FAKE_POD_ID, con_id, ID_CON_ONLY);
+    } else {
+        cgrp_mk_process(pod_id, con_id, ID_CON_POD);
+    }
+
+    return get_con_info(con_id);
+}
+
+// Try to get pod_info. If can't then try to add.
+struct pod_info_s *get_and_add_pod_info(char *pod_name)
+{
+    if (pod_name == NULL) {
+        return NULL;
+    }
+
+    struct pod_info_s *pod_info = get_pod_info_from_pod_name(pod_name);
+    if (pod_info != NULL) {
+        return pod_info;
+    }
+
+    // add_pod_info
+    existing_pod_mk_process(pod_name);
+    return get_pod_info_from_pod_name(pod_name);
 }
 
 typedef enum cb_rslt_t {

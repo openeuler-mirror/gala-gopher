@@ -87,7 +87,7 @@ enum probe_type_e {
 
 enum snooper_obj_e {
     SNOOPER_OBJ_PROC = 0,
-    SNOOPER_OBJ_CGRP,
+    SNOOPER_OBJ_CON,
     SNOOPER_OBJ_NM,
     SNOOPER_OBJ_GAUSSDB,
 
@@ -102,11 +102,24 @@ struct snooper_gaussdb_s {
     char *pass;
 };
 
+struct snooper_con_info_s {
+    u32 flags;
+    u32 cpucg_inode;
+    char *con_id;
+    char *container_name;
+    char *libc_path;
+    char *libssl_path;
+    // pod_info
+    char *pod_id;
+    char *pod_name;
+    char *pod_ip_str;
+};
+
 struct snooper_obj_s {
     enum snooper_obj_e type;
     union {
         struct proc_s proc;
-        struct cgroup_s cgrp;
+        struct snooper_con_info_s con_info;
         struct nm_s nm;
         struct snooper_gaussdb_s gaussdb;
     } obj;

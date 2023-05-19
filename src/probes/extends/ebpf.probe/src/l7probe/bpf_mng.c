@@ -30,14 +30,11 @@
 #include "args.h"
 #include "object.h"
 #include "include/uprobe_loader.h"
-#include "include/pod.h"
 #include "include/conn_tracker.h"
-#include "bpf/cgroup.skel.h"
 #include "bpf/kern_sock.skel.h"
 
 enum bpf_index_t {
     BPF_KERN_SOCK = 0,
-    BPF_CGROUP,
     BPF_LIBSSl,
     BPF_INDEX_MAX
 };
@@ -176,28 +173,6 @@ int l7_load_probe_libssl(struct bpf_prog_s *prog)
     return 0;
 }
 
-int l7_load_probe_cgroup(struct bpf_prog_s *prog)
-{
-    int fd, ret;
-
-    __LOAD_PROBE(cgroup, err, 1);
-    prog->skels[prog->num].skel = cgroup_skel;
-    prog->skels[prog->num].fn = (skel_destroy_fn)cgroup_bpf__destroy;
-
-    fd = GET_MAP_FD(cgroup, cgroup_msg_map);
-
-    ret = __create_msg_hdl_thd(fd, l7_cgroup_msg_handler, prog);
-    if (ret != 0) {
-        return ret;
-    }
-
-    INFO("[L7PROBE]: init cgroup bpf prog  succeed.\n");
-    return 0;
-err:
-    UNLOAD(cgroup);
-    return -1;
-}
-
 int l7_load_probe_kern_sock(struct bpf_prog_s *prog)
 {
     int fd, ret;
@@ -240,7 +215,6 @@ struct bpf_prog_s *init_bpf_progs(struct probe_params *args)
 
     static BpfProc bpf_procs[] = {
         { BPF_KERN_SOCK, l7_load_probe_kern_sock },
-        { BPF_CGROUP, l7_load_probe_cgroup },
         { BPF_LIBSSl, l7_load_probe_libssl }
     };
 
