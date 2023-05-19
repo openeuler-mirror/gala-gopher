@@ -12,11 +12,6 @@ measurements:
                 name: "tgid",
             },
             {
-                description: "comm of the process",
-                type: "label",
-                name: "comm",
-            },
-            {
                 description: "Duration of the process in the system state due to scheduling delay.",
                 type: "gauge",
                 name: "sched_systime",
@@ -32,11 +27,6 @@ measurements:
                 description: "ID of the process",
                 type: "key",
                 name: "tgid",
-            },
-            {
-                description: "comm of the process",
-                type: "label",
-                name: "comm",
             },
             {
                 description: "Process syscall delay due to scheduling preemption.",

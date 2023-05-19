@@ -22,7 +22,6 @@
 #include "imdb.h"
 
 static uint32_t g_recordTimeout = 60;       // default timeout: 60 seconds
-TgidProcInfo_Table *tgid_infos = NULL;  // LRU cache of process tgid hash table
 
 #define __EVT_TBL_ENTITYNAME "EntityName"
 #define __EVT_TBL_ENTITYID "EntityID"
@@ -291,33 +290,43 @@ IMDB_DataBaseMgr *IMDB_DataBaseMgrCreate(uint32_t capacity)
     ret = get_system_uuid(mgr->nodeInfo.systemUuid, sizeof(mgr->nodeInfo.systemUuid));
     if (ret != 0) {
         ERROR("[IMDB] Can not get system uuid.\n");
-        free(mgr);
-        return NULL;
+        goto err;
     }
 
     ret = get_system_ip(mgr->nodeInfo.hostIP, MAX_IMDB_HOSTIP_LEN);
     if (ret != 0) {
         ERROR("[IMDB] Can not get system ip.\n");
-        free(mgr);
-        return NULL;
+        goto err;
     }
 
     mgr->tables = (IMDB_Table **)malloc(sizeof(IMDB_Table *) * capacity);
     if (mgr->tables == NULL) {
-        free(mgr);
-        return NULL;
+        goto err;
     }
     memset(mgr->tables, 0, sizeof(IMDB_Table *) * capacity);
+
+    mgr->tgids = (TGID_Record **)malloc(sizeof(TGID_Record *));
+    if (mgr->tgids == NULL) {
+        goto err;
+    }
+    *(mgr->tgids) = NULL;     // necessary
 
     mgr->tblsCapability = capacity;
     ret = pthread_rwlock_init(&mgr->rwlock, NULL);
     if (ret != 0) {
-        free(mgr->tables);
-        free(mgr);
-        return NULL;
+        goto err;
     }
 
     return mgr;
+err:
+    if (mgr->tgids) {
+        free(mgr->tgids);
+    }
+    if (mgr->tables) {
+        free(mgr->tables);
+    }
+    free(mgr);
+    return NULL;
 }
 
 void IMDB_DataBaseMgrSetRecordTimeout(uint32_t timeout)
@@ -326,6 +335,94 @@ void IMDB_DataBaseMgrSetRecordTimeout(uint32_t timeout)
         g_recordTimeout = timeout;
     }
 
+    return;
+}
+
+#define __IMDB_TGID_CACHE_SIZE  1024
+
+void IMDB_TgidAddRecord(const IMDB_DataBaseMgr *mgr, TGID_Record *record)
+{
+    if (H_COUNT(*(mgr->tgids)) > __IMDB_TGID_CACHE_SIZE) {
+        TGID_Record *r, *tmp;
+        H_ITER(*(mgr->tgids), r, tmp) {
+            HASH_DEL(*(mgr->tgids), r);
+            free(r);
+            break;
+        }
+    }
+
+    H_ADD_KEYPTR(*(mgr->tgids), &record->key, sizeof(TGID_RecordKey), record);
+    return;
+}
+
+TGID_Record* IMDB_TgidLkupRecord(const IMDB_DataBaseMgr *mgr, const char* tgid)
+{
+    TGID_Record *record = NULL;
+    TGID_RecordKey key = {0};
+
+    strncpy(key.tgid, tgid, INT_LEN);
+    key.startup_ts = get_proc_startup_ts(atoi(tgid));
+
+    H_FIND(*(mgr->tgids), &key, sizeof(TGID_RecordKey), record);
+    return record;
+}
+
+TGID_Record* IMDB_TgidCreateRecord(const IMDB_DataBaseMgr *mgr, const char* tgid)
+{
+    int ret;
+    int pid, startup_ts;
+    char container_id[CONTAINER_ABBR_ID_LEN + 1];
+    char pod_name[POD_NAME_LEN + 1];
+    char comm[TASK_COMM_LEN + 1];
+    TGID_Record *record;
+
+    comm[0] = 0;
+    pid = atoi(tgid);
+    ret = get_comm(pid, comm, TASK_COMM_LEN + 1);
+    if (ret) {
+        return NULL;
+    }
+
+    startup_ts = get_proc_startup_ts(pid);
+    if (startup_ts < 0) {
+        return NULL;
+    }
+
+    container_id[0] = 0;
+    ret = get_container_id_by_pid_cpuset(tgid, container_id, CONTAINER_ABBR_ID_LEN + 1);
+    if (ret) {
+        return NULL;
+    }
+
+    pod_name[0] = 0;
+    (void)get_container_pod((const char *)container_id, pod_name, POD_NAME_LEN + 1);
+
+    record = (TGID_Record *)malloc(sizeof(TGID_Record));
+    if (record == NULL) {
+        return NULL;
+    }
+    (void)memset(record, 0, sizeof(TGID_Record));
+    record->key.startup_ts = startup_ts;
+    strncpy(record->key.tgid, tgid, INT_LEN);
+    strncpy(record->container_id, container_id, CONTAINER_ABBR_ID_LEN);
+    strncpy(record->pod_name, pod_name, POD_NAME_LEN);
+    strncpy(record->comm, comm, TASK_COMM_LEN);
+
+    IMDB_TgidAddRecord(mgr, record);
+    return record;
+}
+
+void IMDB_deleteAndFreeTgids(TGID_Record **tgids)
+{
+    if (tgids == NULL)  {
+        return;
+    }
+
+    TGID_Record *r, *tmp;
+    H_ITER(*tgids, r, tmp) {
+        HASH_DEL(*tgids, r);
+        free(r);
+    }
     return;
 }
 
@@ -341,6 +438,13 @@ void IMDB_DataBaseMgrDestroy(IMDB_DataBaseMgr *mgr)
         }
         free(mgr->tables);
     }
+
+    if (mgr->tgids != NULL) {
+        IMDB_deleteAndFreeTgids(mgr->tgids);
+        free(mgr->tgids);
+        mgr->tgids = NULL;
+    }
+
     (void)pthread_rwlock_destroy(&mgr->rwlock);
     free(mgr);
     return;
@@ -646,7 +750,7 @@ static int MetricTypeIsLabel(IMDB_Metric *metric)
 static int MetricNameIsTgid(IMDB_Metric *metric)
 {
     const char *tgid = "tgid";
-    if (strcmp(metric->name, tgid) == 0) {
+    if (strcasecmp(metric->name, tgid) == 0) {
         return 1;
     }
 
@@ -837,7 +941,6 @@ static int IMDB_BuildPrometheusMetrics(const IMDB_Metric *metric, char *buffer, 
     return (int)((int)maxLen - size);   // Returns the number of printed characters
 }
 
-                                    
 static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
                                      IMDB_Record *record,
                                      char *buffer,
@@ -881,25 +984,42 @@ static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
         first_flag = 0;
     }
 
-    if (mgr->podInfoSwitch == POD_INFO_ON && tgid_idx >= 0) {
-        ProcInfo *info = look_up_proc_info_by_tgid(&tgid_infos, record->metrics[tgid_idx]->val);
-        if (strlen(info->container_name) > 0) {
-            ret = __snprintf(&p, size, &size, ",container_name=\"%s\"", info->container_name);
+    // Append 'COMM, Container and POD' label for ALL process-level metrics.
+    if (tgid_idx >= 0) {
+        TGID_Record *tgidRecord = IMDB_TgidLkupRecord(mgr, (const char *)record->metrics[tgid_idx]->val);
+        if (tgidRecord == NULL) {
+            tgidRecord = IMDB_TgidCreateRecord(mgr, (const char *)record->metrics[tgid_idx]->val);
+        }
+
+        if (tgidRecord == NULL) {
+            ERROR("[IMDB] append proc(PID = %s) common label fail.\n", record->metrics[tgid_idx]->val);
+            goto err;
+        }
+
+        if (tgidRecord->comm[0] != 0) {
+            ret = __snprintf(&p, size, &size, ",comm=\"%s\"", tgidRecord->comm);
             if (ret < 0) {
                 goto err;
             }
         }
 
-        if (strlen(info->pod_name) > 0) {
-            ret = __snprintf(&p, size, &size, ",pod_name=\"%s\"", info->pod_name);
+        if (tgidRecord->container_id[0] != 0) {
+            ret = __snprintf(&p, size, &size, ",container_id=\"%s\"", tgidRecord->container_id);
+            if (ret < 0) {
+                goto err;
+            }
+        }
+
+        if (tgidRecord->pod_name[0] != 0) {
+            ret = __snprintf(&p, size, &size, ",pod_name=\"%s\"", tgidRecord->pod_name);
             if (ret < 0) {
                 goto err;
             }
         }
     }
 
-    // append machine_id
-    ret = __snprintf(&p, size, &size, ",machine_id=\"%s\"", mgr->nodeInfo.systemUuid);
+    // Append 'machine_id' label for ALL metrics.
+    ret = __snprintf(&p, size, &size, ",machine_id=\"%s-%s\"", mgr->nodeInfo.systemUuid, mgr->nodeInfo.hostIP);
     if (ret < 0) {
         goto err;
     }
@@ -1196,7 +1316,7 @@ static void transfer_entityID(char *entityID)
           "ContainerID": "2c1c455d-24a5-897c-ea11-bc08f2d510da",
           "POD": "",
           "Device": ""
-      },
+      }
   },
   "SeverityText": "WARN",
   "SeverityNumber": 13,
@@ -1329,7 +1449,7 @@ static int IMDB_Evt2Json(const IMDB_DataBaseMgr *mgr,
     p = jsonStr + len;
     len = jsonStrLen - len;
 
-    ret = __snprintf(&p, len, &len, "}, }, \"SeverityText\": \"%s\",", secTxt);
+    ret = __snprintf(&p, len, &len, "} }, \"SeverityText\": \"%s\",", secTxt);
     if (ret < 0) {
         goto err;
     }

@@ -12,11 +12,6 @@ measurements:
                 name: "tgid",
             },
             {
-                description: "comm of the process",
-                type: "label",
-                name: "comm",
-            },
-            {
                 description: "Number of process system call failures.",
                 type: "gauge",
                 name: "syscall_failed",
@@ -32,11 +27,6 @@ measurements:
                 description: "ID of the process",
                 type: "key",
                 name: "tgid",
-            },
-            {
-                description: "comm of the process",
-                type: "label",
-                name: "comm",
             },
             {
                 description: "Process mount operation duration, in ns.",
@@ -76,11 +66,6 @@ measurements:
                 name: "tgid",
             },
             {
-                description: "comm of the process",
-                type: "label",
-                name: "comm",
-            },
-            {
                 description: "Process sendmsg operation duration, in ns.",
                 type: "gauge",
                 name: "ns_sendmsg",
@@ -101,11 +86,6 @@ measurements:
                 description: "ID of the process",
                 type: "key",
                 name: "tgid",
-            },
-            {
-                description: "comm of the process",
-                type: "label",
-                name: "comm",
             },
             {
                 description: "Process sched_yield operation duration, in ns.",
@@ -140,11 +120,6 @@ measurements:
                 name: "tgid",
             },
             {
-                description: "comm of the process",
-                type: "label",
-                name: "comm",
-            },
-            {
                 description: "Process fork operation duration, in ns.",
                 type: "gauge",
                 name: "ns_fork",
@@ -170,11 +145,6 @@ measurements:
                 description: "ID of the process",
                 type: "key",
                 name: "tgid",
-            },
-            {
-                description: "comm of the process",
-                type: "label",
-                name: "comm",
             },
             {
                 description: "Process read operation duration in ext4 file-system, in ns.",
@@ -209,11 +179,6 @@ measurements:
                 name: "tgid",
             },
             {
-                description: "comm of the process",
-                type: "label",
-                name: "comm",
-            },
-            {
                 description: "Process read operation duration in overlay file-system, in ns.",
                 type: "gauge",
                 name: "ns_overlay_read",
@@ -246,11 +211,6 @@ measurements:
                 name: "tgid",
             },
             {
-                description: "comm of the process",
-                type: "label",
-                name: "comm",
-            },
-            {
                 description: "Process read operation duration in tmpfs file-system, in ns.",
                 type: "gauge",
                 name: "ns_tmpfs_read",
@@ -276,11 +236,6 @@ measurements:
                 description: "ID of the process",
                 type: "key",
                 name: "tgid",
-            },
-            {
-                description: "comm of the process",
-                type: "label",
-                name: "comm",
             },
             {
                 description: "Duration for a process to reclaim virtual memory, in ns.",
@@ -320,11 +275,6 @@ measurements:
                 name: "tgid",
             },
             {
-                description: "comm of the process",
-                type: "label",
-                name: "comm",
-            },
-            {
                 description: "Number of failed DNS obtaining by processes.",
                 type: "gauge",
                 name: "gethostname_failed",
@@ -345,11 +295,6 @@ measurements:
                 description: "ID of the process",
                 type: "key",
                 name: "tgid",
-            },
-            {
-                description: "comm of the process",
-                type: "label",
-                name: "comm",
             },
             {
                 description: "Number of small I/O (less than 4 KB) read operations at the BIO layer.",
