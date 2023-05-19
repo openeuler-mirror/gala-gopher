@@ -112,6 +112,16 @@ measurements:
                 description: "Receive end RTT (unidirectional measurement).",
                 type: "gauge",
                 name: "rcv_rtt",
+            },
+            {
+                description: "max value of srtt.",
+                type: "gauge",
+                name: "srtt_max",
+            },
+            {
+                description: "max value of Receive end RTT.",
+                type: "gauge",
+                name: "rcv_rtt_max",
             }
         )
     },
