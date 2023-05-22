@@ -29,17 +29,17 @@
 #endif
 
 #include "bpf.h"
-#include "syscall.skel.h"
 #include "args.h"
 #include "profiling_event.h"
 #include "java_support.h"
+#include "bpf_prog.h"
 #include "tprofiling.h"
 
 Tprofiler tprofiler;
 
 static struct probe_params g_params;
+static volatile sig_atomic_t stop = 0;
 
-// TODO: set in config file?
 static syscall_meta_t g_syscall_metas[] = {
     // file
     {SYSCALL_READ_ID, SYSCALL_READ_NAME, SYSCALL_FLAG_FD_STACK, PROFILE_EVT_TYPE_FILE},
@@ -48,20 +48,20 @@ static syscall_meta_t g_syscall_metas[] = {
     {SYSCALL_WRITEV_ID, SYSCALL_WRITE_NAME, SYSCALL_FLAG_FD_STACK, PROFILE_EVT_TYPE_FILE},
     {SYSCALL_PREADV_ID, SYSCALL_PREADV_NAME, SYSCALL_FLAG_FD_STACK, PROFILE_EVT_TYPE_FILE},
     {SYSCALL_PWRITEV_ID, SYSCALL_PWRITEV_NAME, SYSCALL_FLAG_FD_STACK, PROFILE_EVT_TYPE_FILE},
-    {SYSCALL_PREADV2_ID, SYSCALL_PREADV2_NAME, SYSCALL_FLAG_FD_STACK, PROFILE_EVT_TYPE_FILE},
-    {SYSCALL_PWRITEV2_ID, SYSCALL_PWRITEV2_NAME, SYSCALL_FLAG_FD_STACK, PROFILE_EVT_TYPE_FILE},
-    {SYSCALL_SYNC_ID, SYSCALL_SYNC_NAME, 0, PROFILE_EVT_TYPE_OTHER},
-    {SYSCALL_FSYNC_ID, SYSCALL_FSYNC_NAME, SYSCALL_FLAG_FD, PROFILE_EVT_TYPE_FILE},
-    {SYSCALL_FDATASYNC_ID, SYSCALL_FDATASYNC_NAME, SYSCALL_FLAG_FD, PROFILE_EVT_TYPE_FILE},
-    {SYSCALL_SYNCFS_ID, SYSCALL_SYNCFS_NAME, SYSCALL_FLAG_FD, PROFILE_EVT_TYPE_FILE},
-    {SYSCALL_MSYNC_ID, SYSCALL_MSYNC_NAME, 0, PROFILE_EVT_TYPE_OTHER},
-    // process
-    {SYSCALL_SCHED_YIELD_ID, SYSCALL_SCHED_YIELD_NAME, 0, PROFILE_EVT_TYPE_PROC},
-    {SYSCALL_PAUSE_ID, SYSCALL_PAUSE_NAME, 0, PROFILE_EVT_TYPE_PROC},
-    {SYSCALL_NANOSLEEP_ID, SYSCALL_NANOSLEEP_NAME, 0, PROFILE_EVT_TYPE_PROC},
-    {SYSCALL_CLOCK_NANOSLEEP_ID, SYSCALL_CLOCK_NANOSLEEP_NAME, 0, PROFILE_EVT_TYPE_PROC},
-    {SYSCALL_WAIT4_ID, SYSCALL_WAIT4_NAME, 0, PROFILE_EVT_TYPE_PROC},
-    {SYSCALL_WAITPID_ID, SYSCALL_WAITPID_NAME, 0, PROFILE_EVT_TYPE_PROC},
+    {SYSCALL_SYNC_ID, SYSCALL_SYNC_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_FILE},
+    {SYSCALL_FSYNC_ID, SYSCALL_FSYNC_NAME, SYSCALL_FLAG_FD_STACK, PROFILE_EVT_TYPE_FILE},
+    {SYSCALL_FDATASYNC_ID, SYSCALL_FDATASYNC_NAME, SYSCALL_FLAG_FD_STACK, PROFILE_EVT_TYPE_FILE},
+    // process schedule
+    {SYSCALL_SCHED_YIELD_ID, SYSCALL_SCHED_YIELD_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_SCHED},
+    {SYSCALL_NANOSLEEP_ID, SYSCALL_NANOSLEEP_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_SCHED},
+    {SYSCALL_CLOCK_NANOSLEEP_ID, SYSCALL_CLOCK_NANOSLEEP_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_SCHED},
+    {SYSCALL_WAIT4_ID, SYSCALL_WAIT4_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_SCHED},
+    {SYSCALL_WAITPID_ID, SYSCALL_WAITPID_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_SCHED},
+    {SYSCALL_SELECT_ID, SYSCALL_SELECT_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_SCHED},
+    {SYSCALL_PSELECT6_ID, SYSCALL_PSELECT6_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_SCHED},
+    {SYSCALL_POLL_ID, SYSCALL_POLL_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_SCHED},
+    {SYSCALL_PPOLL_ID, SYSCALL_PPOLL_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_SCHED},
+    {SYSCALL_EPOLL_WAIT_ID, SYSCALL_EPOLL_WAIT_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_SCHED},
     // network
     {SYSCALL_SENDTO_ID, SYSCALL_SENDTO_NAME, SYSCALL_FLAG_FD_STACK, PROFILE_EVT_TYPE_NET},
     {SYSCALL_RECVFROM_ID, SYSCALL_RECVFROM_NAME, SYSCALL_FLAG_FD_STACK, PROFILE_EVT_TYPE_NET},
@@ -69,109 +69,160 @@ static syscall_meta_t g_syscall_metas[] = {
     {SYSCALL_RECVMSG_ID, SYSCALL_RECVMSG_NAME, SYSCALL_FLAG_FD_STACK, PROFILE_EVT_TYPE_NET},
     {SYSCALL_SENDMMSG_ID, SYSCALL_SENDMMSG_NAME, SYSCALL_FLAG_FD_STACK, PROFILE_EVT_TYPE_NET},
     {SYSCALL_RECVMMSG_ID, SYSCALL_RECVMMSG_NAME, SYSCALL_FLAG_FD_STACK, PROFILE_EVT_TYPE_NET},
-    {SYSCALL_SENDFILE_ID, SYSCALL_SENDFILE_NAME, 0, PROFILE_EVT_TYPE_NET},
-    {SYSCALL_SELECT_ID, SYSCALL_SELECT_NAME, 0, PROFILE_EVT_TYPE_OTHER},
-    {SYSCALL_PSELECT6_ID, SYSCALL_PSELECT6_NAME, 0, PROFILE_EVT_TYPE_OTHER},
-    {SYSCALL_POLL_ID, SYSCALL_POLL_NAME, 0, PROFILE_EVT_TYPE_OTHER},
-    {SYSCALL_PPOLL_ID, SYSCALL_PPOLL_NAME, 0, PROFILE_EVT_TYPE_OTHER},
-    {SYSCALL_EPOLL_WAIT_ID, SYSCALL_EPOLL_WAIT_NAME, 0, PROFILE_EVT_TYPE_OTHER},
-    {SYSCALL_EPOLL_CTL_ID, SYSCALL_EPOLL_CTL_NAME, 0, PROFILE_EVT_TYPE_OTHER},
-    // IPC
-    {SYSCALL_SEMOP_ID, SYSCALL_SEMOP_NAME, 0, PROFILE_EVT_TYPE_IPC},
-    {SYSCALL_MSGSND_ID, SYSCALL_MSGSND_NAME, 0, PROFILE_EVT_TYPE_IPC},
-    {SYSCALL_MSGRCV_ID, SYSCALL_MSGRCV_NAME, 0, PROFILE_EVT_TYPE_IPC},
-    {SYSCALL_RT_SIGTIMEDWAIT_ID, SYSCALL_RT_SIGTIMEDWAIT_NAME, 0, PROFILE_EVT_TYPE_IPC},
-    {SYSCALL_RT_SIGSUSPEND_ID, SYSCALL_RT_SIGSUSPEND_NAME, 0, PROFILE_EVT_TYPE_IPC},
-    {SYSCALL_MQ_TIMEDSEND_ID, SYSCALL_MQ_TIMEDSEND_NAME, 0, PROFILE_EVT_TYPE_IPC},
-    {SYSCALL_MQ_TIMEDRECEIVE_ID, SYSCALL_MQ_TIMEDRECEIVE_NAME, 0, PROFILE_EVT_TYPE_IPC},
-    {SYSCALL_FUTEX_ID, SYSCALL_FUTEX_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_FUTEX},
-    // log
-    {SYSCALL_SYSLOG_ID, SYSCALL_SYSLOG_NAME, 0, PROFILE_EVT_TYPE_OTHER}
+    // lock
+    {SYSCALL_FUTEX_ID, SYSCALL_FUTEX_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_LOCK},
 };
 
+static void sig_int(int signal);
+static int init_tprofiler();
+static int init_tprofiler_map_fds();
 static int init_setting_map(int setting_map_fd);
 static int init_proc_thrd_filter();
 static int init_proc_filter_map(int proc_filter_map_fd);
-static int init_syscall_table_map(int syscall_table_fd);
+static int init_syscall_metas();
 static void init_java_symb_mgmt(int proc_filter_map_fd);
 static void unload_java_symb_mgmt(int proc_filter_map_fd);
-static void perf_event_handler(void *ctx, int cpu, void *data, __u32 size);
+static void clean_map_files();
 static void clean_tprofiler();
 
 int main(int argc, char **argv)
 {
     int err = -1;
-    int evt_map_fd = 0;
-    int proc_filter_map_fd = 0;
-    struct perf_buffer *pb = NULL;
+    struct bpf_prog_s *syscall_bpf_progs = NULL;
+    struct bpf_prog_s *oncpu_bpf_progs = NULL;
+
+    if (signal(SIGINT, sig_int) == SIG_ERR) {
+        fprintf(stderr, "can't set signal handler: %s\n", strerror(errno));
+        return -1;
+    }
 
     err = args_parse(argc, argv, &g_params);
     if (err != 0) {
         return -1;
     }
 
+    if (init_tprofiler()) {
+        return -1;
+    }
+
+    clean_map_files();
+
+    INIT_BPF_APP(tprofiling, EBPF_RLIM_LIMITED);
+
+    syscall_bpf_progs = load_syscall_bpf_prog(&g_params);
+    if (syscall_bpf_progs == NULL) {
+        goto cleanup;
+    }
+
+    oncpu_bpf_progs = load_oncpu_bpf_prog(&g_params);
+    if (oncpu_bpf_progs == NULL) {
+        goto cleanup;
+    }
+
+    if (init_tprofiler_map_fds()) {
+        goto cleanup;
+    }
+
+    err = init_setting_map(tprofiler.settingMapFd);
+    if (err) {
+        fprintf(stderr, "ERROR: init bpf prog setting failed.\n");
+        goto cleanup;
+    }
+
+    // 如果本地指定了进程过滤参数，则使用本地 map 进行过滤；否则使用全局共享的进程 map 过滤
+    if (tprofiler.filterLocal) {
+        err = init_proc_filter_map(tprofiler.procFilterMapFd);
+        if (err) {
+            fprintf(stderr, "ERROR: init bpf process filter failed.\n");
+            goto cleanup;
+        }
+    }
+
+    if (tprofiler.stackMapFd > 0) {
+        init_java_symb_mgmt(tprofiler.procFilterMapFd);
+    }
+
+    while (!stop) {
+        if (syscall_bpf_progs->pb != NULL) {
+            if (perf_buffer__poll(syscall_bpf_progs->pb, THOUSAND) < 0) {
+                goto cleanup;
+            }
+        }
+        if (oncpu_bpf_progs->pb != NULL) {
+            if (perf_buffer__poll(oncpu_bpf_progs->pb, THOUSAND) < 0) {
+                goto cleanup;
+            }
+        }
+    }
+
+cleanup:
+    unload_bpf_prog(&syscall_bpf_progs);
+    unload_bpf_prog(&oncpu_bpf_progs);
+    clean_tprofiler();
+    clean_map_files();
+    if (tprofiler.stackMapFd > 0) {
+        unload_java_symb_mgmt(tprofiler.procFilterMapFd);
+    }
+    return -err;
+}
+
+static void sig_int(int signal)
+{
+    stop = 1;
+}
+
+static int init_tprofiler()
+{
     if (init_proc_thrd_filter()) {
         fprintf(stderr, "ERROR: init process/thread filter failed.\n");
         return -1;
     }
-
-    tprofiler.aggrDuration = DFT_AGGR_DURATION;
 
     if (init_sys_boot_time(&tprofiler.sysBootTime)) {
         fprintf(stderr, "ERROR: get system boot time failed.\n");
         return -1;
     }
 
-    INIT_BPF_APP(tprofiling, EBPF_RLIM_LIMITED);
-    LOAD(syscall, cleanup);
-
-    err = init_setting_map(GET_MAP_FD(syscall, setting_map));
-    if (err) {
-        fprintf(stderr, "ERROR: init bpf prog setting failed.\n");
-        goto cleanup;
+    if (init_syscall_metas()) {
+        fprintf(stderr, "ERROR: init syscall meta info failed.\n");
+        return -1;
     }
 
-    proc_filter_map_fd = 0;
-    if (tprofiler.enableFilter) {
-        // 如果本地指定了进程过滤参数，则使用本地 map 进行过滤；否则使用全局共享的进程 map 过滤
-        if (tprofiler.filterLocal) {
-            err = init_proc_filter_map(GET_MAP_FD(syscall, proc_filter_map));
-            if (err) {
-                fprintf(stderr, "ERROR: init bpf process filter failed.\n");
-                goto cleanup;
-            }
-            proc_filter_map_fd = GET_MAP_FD(syscall, proc_filter_map);
-        } else {
-            proc_filter_map_fd = GET_MAP_FD(syscall, proc_obj_map);
+    return 0;
+}
+
+static int init_tprofiler_map_fds()
+{
+    tprofiler.settingMapFd = bpf_obj_get(SETTING_MAP_PATH);
+    if (tprofiler.settingMapFd < 0) {
+        fprintf(stderr, "ERROR: get bpf prog setting map failed.\n");
+        return -1;
+    }
+
+    tprofiler.procFilterMapFd = bpf_obj_get(PROC_MAP_PATH);
+    if (tprofiler.filterLocal) {
+        tprofiler.procFilterMapFd = bpf_obj_get(PROC_FILTER_MAP_PATH);
+    }
+    if (tprofiler.procFilterMapFd < 0) {
+        fprintf(stderr, "ERROR: get bpf prog process filter map failed.\n");
+        return -1;
+    }
+
+    tprofiler.threadBlMapFd = bpf_obj_get(THRD_BL_MAP_PATH);
+    if (tprofiler.threadBlMapFd < 0) {
+        fprintf(stderr, "ERROR: get bpf prog thread blacklist map failed.\n");
+        return -1;
+    }
+
+    if ((g_params.load_probe & TPROFILING_PROBE_SYSCALL_ALL)) {
+        tprofiler.stackMapFd = bpf_obj_get(STACK_MAP_PATH);
+        if (tprofiler.stackMapFd < 0) {
+            fprintf(stderr, "ERROR: get bpf prog stack map failed.\n");
+            return -1;
         }
     }
-    init_java_symb_mgmt(proc_filter_map_fd);
 
-    err = init_syscall_table_map(GET_MAP_FD(syscall, syscall_table_map));
-    if (err) {
-        fprintf(stderr, "ERROR: init bpf syscall table failed.\n");
-        goto cleanup;
-    }
-
-    tprofiler.stackMapFd = GET_MAP_FD(syscall, stack_map);
-    tprofiler.threadBlMapFd = GET_MAP_FD(syscall, thrd_bl_map);
-
-    evt_map_fd = GET_MAP_FD(syscall, event_map);
-    pb = create_pref_buffer(evt_map_fd, perf_event_handler);
-    if (pb == NULL) {
-        fprintf(stderr, "ERROR: create perf buffer failed.\n");
-        goto cleanup;
-    }
-    poll_pb(pb, g_params.period * THOUSAND);
-
-cleanup:
-    UNLOAD(syscall);
-    if (pb) {
-        perf_buffer__free(pb);
-    }
-    clean_tprofiler();
-    unload_java_symb_mgmt(proc_filter_map_fd);
-    return -err;
+    return 0;
 }
 
 // 初始化 bpf 程序的全局配置项
@@ -181,9 +232,8 @@ static int init_setting_map(int setting_map_fd)
     profiling_setting_t ps = {0};
     long ret;
 
-    ps.filter_enabled = tprofiler.enableFilter;
+    ps.inited = 1;
     ps.filter_local = tprofiler.filterLocal;
-    ps.aggr_duration = tprofiler.aggrDuration;
 
     ret = bpf_map_update_elem(setting_map_fd, &key, &ps, BPF_ANY);
     if (ret) {
@@ -198,22 +248,13 @@ static int init_proc_thrd_filter()
 {
     int ret;
 
-    tprofiler.enableFilter = 1;
-    tprofiler.filterLocal = 0;
-
-    if (g_params.enable_all_thrds) {
-        tprofiler.enableFilter = 0;
-    }
-
     if (g_params.tgids != NULL && g_params.tgids[0] != '\0') {
         tprofiler.filterLocal = 1;
     }
 
-    if (tprofiler.enableFilter) {
-        ret = initThreadBlacklist(&tprofiler.thrdBl);
-        if (ret) {
-            return -1;
-        }
+    ret = initThreadBlacklist(&tprofiler.thrdBl);
+    if (ret) {
+        return -1;
     }
 
     return 0;
@@ -254,30 +295,20 @@ static int init_proc_filter_map(int proc_filter_map_fd)
 }
 
 // 初始化需要观测的系统调用
-static int init_syscall_table_map(int syscall_table_fd)
+static int init_syscall_metas()
 {
-    syscall_m_meta_t scm = {0};
-    syscall_meta_t *scm_ptr = NULL;
-    long ret;
+    syscall_meta_t *scm = NULL;
 
     for (int i = 0; i < sizeof(g_syscall_metas) / sizeof(syscall_meta_t); i++) {
-        scm.nr = g_syscall_metas[i].nr;
-        scm.flag = g_syscall_metas[i].flag;
-
-        ret = bpf_map_update_elem(syscall_table_fd, &scm.nr, &scm, BPF_ANY);
-        if (ret) {
+        scm = (syscall_meta_t *)calloc(1, sizeof(syscall_meta_t));
+        if (scm == NULL) {
             return -1;
         }
-
-        scm_ptr = (syscall_meta_t *)calloc(1, sizeof(syscall_meta_t));
-        if (scm_ptr == NULL) {
-            return -1;
-        }
-        scm_ptr->nr = g_syscall_metas[i].nr;
-        scm_ptr->flag = g_syscall_metas[i].flag;
-        strcpy(scm_ptr->name, g_syscall_metas[i].name);
-        strcpy(scm_ptr->default_type, g_syscall_metas[i].default_type);
-        HASH_ADD(hh, tprofiler.scmTable, nr, sizeof(unsigned long), scm_ptr);
+        scm->nr = g_syscall_metas[i].nr;
+        scm->flag = g_syscall_metas[i].flag;
+        strcpy(scm->name, g_syscall_metas[i].name);
+        strcpy(scm->default_type, g_syscall_metas[i].default_type);
+        HASH_ADD(hh, tprofiler.scmTable, nr, sizeof(unsigned long), scm);
     }
 
     return 0;
@@ -316,9 +347,14 @@ static void unload_java_symb_mgmt(int proc_filter_map_fd)
     printf("INFO: unload java agent sucessfully!\n");
 }
 
-static void perf_event_handler(void *ctx, int cpu, void *data, __u32 size)
+static void clean_map_files()
 {
-    output_profiling_event((trace_event_data_t *)data);
+    FILE *fp = NULL;
+
+    fp = popen(RM_TPROFILING_MAP_PATH, "r");
+    if (fp != NULL) {
+        (void)pclose(fp);
+    }
 }
 
 static void clean_syscall_meta_table(syscall_meta_t **scmTable)

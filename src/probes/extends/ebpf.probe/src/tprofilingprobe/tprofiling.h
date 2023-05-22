@@ -32,9 +32,8 @@ typedef unsigned int __u32;
 #define DFT_AGGR_DURATION (1000 * NSEC_PER_MSEC)
 
 typedef struct {
-    int filter_enabled;
+    int inited;
     int filter_local;
-    __u64 aggr_duration;
 } profiling_setting_t;
 
 typedef enum {
@@ -58,21 +57,21 @@ typedef struct {
     int kid;    // 内核栈ID
 } stack_trace_t;
 
-typedef struct {
-    __u32 pid;
-    unsigned long nr;
-    __u64 start_time;
-} syscall_m_enter_t;
-
 typedef union {
     struct {
         int fd;
     } fd_info;
     struct {
-        void *addr;
         int op;
     } futex_info;
 } syscall_ext_info_t;
+
+typedef struct {
+    __u32 pid;
+    __u64 start_time;
+    __u64 end_time;
+    syscall_ext_info_t ext_info;
+} syscall_m_enter_t;
 
 typedef struct {
     unsigned long nr;   // 系统调用号
@@ -93,6 +92,7 @@ typedef syscall_data_t syscall_m_stash_val_t;
 typedef struct {
     int pid;
     __u64 start_time;
+    __u64 end_time;
 } oncpu_m_enter_t;
 
 typedef struct {
@@ -119,11 +119,11 @@ typedef struct {
 #include "thrd_bl.h"
 
 typedef struct {
+    int settingMapFd;           /* ebpf map，用于bpf程序配置 */
     int stackMapFd;             /* ebpf map，用于获取调用栈信息 */
+    int procFilterMapFd;        /* ebpf map，用于更新进程白名单 */
     int threadBlMapFd;          /* ebpf map，用于更新线程黑名单 */
-    int enableFilter;           /* 是否开启进程/线程过滤功能，默认开启。若探针启动时指定了 -A 参数，则关闭，此时会观测所有进程/线程 */
     int filterLocal;            /* 是否启用本地配置进行进程过滤。若值为 1 则启用，否则使用全局共享的进程白名单进行过滤 */
-    __u64 aggrDuration;         /* 线程profiling事件聚合周期，单位：纳秒（ns） */
     syscall_meta_t *scmTable;   /* 系统调用元数据表，是一个 hash 表 */
     __u64 sysBootTime;          /* 系统启动时间，单位：纳秒（ns） */
     proc_info_t *procTable;     /* 缓存的进程信息表，是一个 hash 表 */
@@ -131,6 +131,124 @@ typedef struct {
 } Tprofiler;
 
 extern Tprofiler tprofiler;
+#else
+#include "bpf.h"
+
+#define BPF_F_INDEX_MASK  0xffffffffULL
+#define BPF_F_CURRENT_CPU BPF_F_INDEX_MASK
+
+#ifndef BPF_F_FAST_STACK_CMP
+#define BPF_F_FAST_STACK_CMP    (1ULL << 9)
+#endif
+
+#ifndef BPF_F_USER_STACK
+#define BPF_F_USER_STACK    (1ULL << 8)
+#endif
+
+#define USER_STACKID_FLAGS (0 | BPF_F_FAST_STACK_CMP | BPF_F_USER_STACK)
+
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, MAX_CPU);
+} event_map SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(profiling_setting_t));
+    __uint(max_entries, 1);
+} setting_map SEC(".maps");
+
+// filter process locally if enabled
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct proc_s));
+    __uint(value_size, sizeof(struct obj_ref_s));
+    __uint(max_entries, MAX_SIZE_OF_THREAD);
+} proc_filter_map SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_LRU_HASH);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, MAX_SIZE_OF_THREAD);
+} thrd_bl_map SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_STACK_TRACE);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u64) * PERF_MAX_STACK_DEPTH);
+    __uint(max_entries, 1024);
+} stack_map SEC(".maps");
+
+static __always_inline profiling_setting_t *get_tp_setting()
+{
+    u32 setting_k = 0;
+    profiling_setting_t *ps;
+
+    ps = (profiling_setting_t *)bpf_map_lookup_elem(&setting_map, &setting_k);
+    if (ps && ps->inited) {
+        return ps;
+    }
+    return (void *)0;
+}
+
+static __always_inline bool is_proc_enabled(u32 tgid, profiling_setting_t *setting)
+{
+    struct proc_s proc_k = {.proc_id = tgid};
+    void *proc_v;
+
+    if (setting->filter_local) {
+        proc_v = bpf_map_lookup_elem(&proc_filter_map, &proc_k);
+    } else {
+        proc_v = bpf_map_lookup_elem(&proc_obj_map, &proc_k);
+    }
+    if (proc_v != (void *)0) {
+        return true;
+    }
+
+    return false;
+}
+
+static __always_inline bool is_thrd_enabled(u32 pid, u32 tgid)
+{
+    u32 *val;
+    val = (u32 *)bpf_map_lookup_elem(&thrd_bl_map, &pid);
+    if (val == (void *)0) {
+        return true;
+    }
+
+    if (*val == tgid) {
+        return false;
+    } else {
+        // invalid thread item in blacklist map
+        bpf_map_delete_elem(&thrd_bl_map, &pid);
+        return true;
+    }
+}
+
+static __always_inline bool is_proc_thrd_enabled(profiling_setting_t *setting)
+{
+    u64 pid_tgid;
+    u32 tgid, pid;
+
+    pid_tgid = bpf_get_current_pid_tgid();
+    tgid = pid_tgid >> INT_LEN;
+    pid = (u32)pid_tgid;
+
+    return is_proc_enabled(tgid, setting) && is_thrd_enabled(pid, tgid);
+}
+
+static __always_inline bool can_emit(u64 stime, u64 etime)
+{
+    if (etime >= stime + DFT_AGGR_DURATION) {
+        return true;
+    }
+    return false;
+}
+
 #endif
 
 #endif
