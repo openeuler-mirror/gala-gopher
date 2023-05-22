@@ -88,7 +88,6 @@ enum probe_type_e {
 enum snooper_obj_e {
     SNOOPER_OBJ_PROC = 0,
     SNOOPER_OBJ_CON,
-    SNOOPER_OBJ_NM,
     SNOOPER_OBJ_GAUSSDB,
 
     SNOOPER_OBJ_MAX
@@ -120,7 +119,6 @@ struct snooper_obj_s {
     union {
         struct proc_s proc;
         struct snooper_con_info_s con_info;
-        struct nm_s nm;
         struct snooper_gaussdb_s gaussdb;
     } obj;
 };
@@ -132,13 +130,9 @@ struct ipc_body_s {
     struct snooper_obj_s snooper_objs[SNOOPER_MAX];
 };
 
-struct ipc_msg_s {
-    long msg_type;  // Equivalent to enum probe_type_e
-    struct ipc_body_s ipc_body;
-};
-
 int create_ipc_msg_queue(int ipc_flag);
 void destroy_ipc_msg_queue(int msqid);
 int send_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body);
 int recv_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body);
+void destroy_ipc_body(struct ipc_body_s *ipc_body);
 #endif
