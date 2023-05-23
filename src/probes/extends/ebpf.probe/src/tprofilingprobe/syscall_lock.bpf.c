@@ -19,12 +19,13 @@
 #define BPF_PROG_KERN
 #include "bpf.h"
 #include "syscall.bpf.h"
+#include "syscall_tp_args.h"
 
 char g_license[] SEC("license") = "GPL";
 
-SET_SYSCALL_PARAMS(futex)
+SET_TP_SYSCALL_PARAMS(futex)
 {
-    sce->ext_info.futex_info.op = (int)_(PT_REGS_PARM2(regs));
+    sce->ext_info.futex_info.op = ctx->op;
 }
 
 SET_SYSCALL_META(futex)
@@ -33,8 +34,4 @@ SET_SYSCALL_META(futex)
     scm->flag = SYSCALL_FLAG_STACK;
 }
 
-#if defined(__TARGET_ARCH_x86)
-KPROBE_SYSCALL(__x64_sys_, futex)
-#elif defined(__TARGET_ARCH_arm64)
-KPROBE_SYSCALL(__arm64_sys_, futex)
-#endif
+TP_SYSCALL(futex)

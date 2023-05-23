@@ -73,7 +73,7 @@ static syscall_meta_t g_syscall_metas[] = {
     {SYSCALL_FUTEX_ID, SYSCALL_FUTEX_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_LOCK},
 };
 
-static void sig_int(int signal);
+static void sig_handling(int signal);
 static int init_tprofiler();
 static int init_tprofiler_map_fds();
 static int init_setting_map(int setting_map_fd);
@@ -91,7 +91,11 @@ int main(int argc, char **argv)
     struct bpf_prog_s *syscall_bpf_progs = NULL;
     struct bpf_prog_s *oncpu_bpf_progs = NULL;
 
-    if (signal(SIGINT, sig_int) == SIG_ERR) {
+    if (signal(SIGINT, sig_handling) == SIG_ERR) {
+        fprintf(stderr, "can't set signal handler: %s\n", strerror(errno));
+        return -1;
+    }
+    if (signal(SIGTERM, sig_handling) == SIG_ERR) {
         fprintf(stderr, "can't set signal handler: %s\n", strerror(errno));
         return -1;
     }
@@ -166,7 +170,7 @@ cleanup:
     return -err;
 }
 
-static void sig_int(int signal)
+static void sig_handling(int signal)
 {
     stop = 1;
 }

@@ -30,6 +30,7 @@ typedef unsigned int __u32;
 #define THREAD_COMM_LEN 16
 
 #define DFT_AGGR_DURATION (1000 * NSEC_PER_MSEC)
+#define MIN_EXEC_DURATION NSEC_PER_MSEC
 
 typedef struct {
     int inited;
@@ -229,7 +230,7 @@ static __always_inline bool is_thrd_enabled(u32 pid, u32 tgid)
     }
 }
 
-static __always_inline bool is_proc_thrd_enabled(profiling_setting_t *setting)
+static __always_inline __maybe_unused bool is_proc_thrd_enabled(profiling_setting_t *setting)
 {
     u64 pid_tgid;
     u32 tgid, pid;

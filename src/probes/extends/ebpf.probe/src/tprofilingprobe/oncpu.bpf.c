@@ -144,7 +144,7 @@ static __always_inline void process_offcpu(struct task_struct *task, struct pt_r
         return;
     }
     oncpu_enter->end_time = bpf_ktime_get_ns();
-    if (oncpu_enter->end_time < oncpu_enter->start_time + NSEC_PER_MSEC) {
+    if (oncpu_enter->end_time < oncpu_enter->start_time + MIN_EXEC_DURATION) {
         (void)bpf_map_delete_elem(&oncpu_enter_map, &pid);
         return;
     }

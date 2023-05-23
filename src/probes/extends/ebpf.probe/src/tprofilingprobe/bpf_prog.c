@@ -37,25 +37,6 @@
 #include "syscall_sched.skel.h"
 #include "oncpu.skel.h"
 
-#define __LOAD_SYSCALL_PROBE(probe_name, end, load) \
-    OPEN(probe_name, end, load); \
-    MAP_SET_PIN_PATH(probe_name, event_map, SYSCALL_EVENT_MAP_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, setting_map, SETTING_MAP_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, proc_filter_map, PROC_FILTER_MAP_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, thrd_bl_map, THRD_BL_MAP_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, stack_map, STACK_MAP_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, syscall_enter_map, SYSCALL_ENTER_MAP_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, syscall_stash_map, SYSCALL_STASH_MAP_PATH, load); \
-    LOAD_ATTACH(probe_name, end, load)
-
-#define __LOAD_ONCPU_PROBE(probe_name, end, load) \
-    OPEN(probe_name, end, load); \
-    MAP_SET_PIN_PATH(probe_name, event_map, ONCPU_EVENT_MAP_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, setting_map, SETTING_MAP_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, proc_filter_map, PROC_FILTER_MAP_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, thrd_bl_map, THRD_BL_MAP_PATH, load); \
-    LOAD_ATTACH(probe_name, end, load)
-
 static char is_load_probe(struct probe_params *args, u32 probe)
 {
     if (args->load_probe & probe) {
@@ -86,81 +67,13 @@ static int load_syscall_create_pb(struct bpf_prog_s *prog, int fd)
     return 0;
 }
 
-static int __load_syscall_file_bpf_prog(struct bpf_prog_s *prog, char is_load)
-{
-    int ret = 0;
+LOAD_SYSCALL_BPF_PROG(file)
 
-    __LOAD_SYSCALL_PROBE(syscall_file, err, is_load);
-    if (is_load) {
-        prog->skels[prog->num].skel = syscall_file_skel;
-        prog->skels[prog->num].fn = (skel_destroy_fn)syscall_file_bpf__destroy;
-        prog->num++;
+LOAD_SYSCALL_BPF_PROG(net)
 
-        ret = load_syscall_create_pb(prog, GET_MAP_FD(syscall_file, event_map));
-    }
+LOAD_SYSCALL_BPF_PROG(lock)
 
-    return ret;
-err:
-    UNLOAD(syscall_file);
-    return -1;
-}
-
-static int __load_syscall_net_bpf_prog(struct bpf_prog_s *prog, char is_load)
-{
-    int ret = 0;
-
-    __LOAD_SYSCALL_PROBE(syscall_net, err, is_load);
-    if (is_load) {
-        prog->skels[prog->num].skel = syscall_net_skel;
-        prog->skels[prog->num].fn = (skel_destroy_fn)syscall_net_bpf__destroy;
-        prog->num++;
-
-        ret = load_syscall_create_pb(prog, GET_MAP_FD(syscall_net, event_map));
-    }
-
-    return ret;
-err:
-    UNLOAD(syscall_net);
-    return -1;
-}
-
-static int __load_syscall_lock_bpf_prog(struct bpf_prog_s *prog, char is_load)
-{
-    int ret = 0;
-
-    __LOAD_SYSCALL_PROBE(syscall_lock, err, is_load);
-    if (is_load) {
-        prog->skels[prog->num].skel = syscall_lock_skel;
-        prog->skels[prog->num].fn = (skel_destroy_fn)syscall_lock_bpf__destroy;
-        prog->num++;
-
-        ret = load_syscall_create_pb(prog, GET_MAP_FD(syscall_lock, event_map));
-    }
-
-    return ret;
-err:
-    UNLOAD(syscall_lock);
-    return -1;
-}
-
-static int __load_syscall_sched_bpf_prog(struct bpf_prog_s *prog, char is_load)
-{
-    int ret = 0;
-
-    __LOAD_SYSCALL_PROBE(syscall_sched, err, is_load);
-    if (is_load) {
-        prog->skels[prog->num].skel = syscall_sched_skel;
-        prog->skels[prog->num].fn = (skel_destroy_fn)syscall_sched_bpf__destroy;
-        prog->num++;
-
-        ret = load_syscall_create_pb(prog, GET_MAP_FD(syscall_sched, event_map));
-    }
-
-    return ret;
-err:
-    UNLOAD(syscall_sched);
-    return -1;
-}
+LOAD_SYSCALL_BPF_PROG(sched)
 
 struct bpf_prog_s *load_syscall_bpf_prog(struct probe_params *params)
 {
@@ -222,7 +135,7 @@ static int __load_oncpu_bpf_prog(struct bpf_prog_s *prog, char is_load)
 {
     int ret = 0;
 
-    __LOAD_ONCPU_PROBE(oncpu, err, is_load);
+    LOAD_ONCPU_PROBE(oncpu, err, is_load);
     if (is_load) {
         prog->skels[prog->num].skel = oncpu_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)oncpu_bpf__destroy;
