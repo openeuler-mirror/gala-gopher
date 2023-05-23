@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include "args.h"
+#include "ipc.h"
 #include "tcpprobe.h"
 
 void report_tcp_syn_rtt_evt(struct probe_params *args, struct tcp_metrics_s *metrics);

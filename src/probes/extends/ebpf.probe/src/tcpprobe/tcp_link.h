@@ -102,20 +102,9 @@ static __always_inline __maybe_unused u16 get_cport_flag()
 
 static __always_inline __maybe_unused char is_valid_tgid(u32 tgid)
 {
-    u32 key = 0;
-    struct tcp_args_s *args;
+    struct proc_s obj = {.proc_id = tgid};
 
-    args = (struct tcp_args_s *)bpf_map_lookup_elem(&args_map, &key);
-    if (args && args->filter_by_task) {
-        struct proc_s obj = {.proc_id = tgid};
-        return is_proc_exist(&obj);
-    }
-
-    if (args && args->filter_by_tgid) {
-        return (args->filter_by_tgid == tgid);
-    }
-
-    return 1;
+    return is_proc_exist(&obj);
 }
 
 #define REPORT_START_DELAY_2    2

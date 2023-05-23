@@ -35,9 +35,8 @@
 
 #include "bpf.h"
 #include "tcp.h"
-#include "args.h"
+#include "ipc.h"
 #include "hash.h"
-#include "object.h"
 #include "container.h"
 #include "tcpprobe.h"
 
@@ -264,17 +263,18 @@ void lkup_established_tcp(void)
 
 #endif
 #if 1
-static int is_need_load_established_tcp(struct probe_params *args, struct estab_tcp_hash_t *item)
+static int is_need_load_established_tcp(struct ipc_body_s *ipc_body, struct estab_tcp_hash_t *item)
 {
-    if (args->filter_task_probe) {
-        struct proc_s obj = {.proc_id = item->k.proc_id};
-        return is_proc_exist(&obj);
-    }
+    for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_body->snooper_objs[i].type != SNOOPER_OBJ_PROC) {
+            continue;
+        }
 
-    if (args->filter_pid != 0) {
-        return (item->k.proc_id == args->filter_pid);
+        if (ipc_body->snooper_objs[i].obj.proc.proc_id == item->k.proc_id) {
+            return 1;
+        }
     }
-    return 1;
+    return 0;
 }
 
 
@@ -317,10 +317,10 @@ static int do_load_established_tcp(int map_fd, struct estab_tcp_hash_t *item, in
 #define LOAD_ESTAB_TCP_SUCCEED  0
 #define LOAD_ESTAB_TCP_NO_NEED  (-1)
 #define LOAD_ESTAB_TCP_LIMIT    (-2)
-static int load_established_tcp(struct probe_params *args, int map_fd, struct estab_tcp_hash_t *item)
+static int load_established_tcp(struct ipc_body_s *ipc_body, int map_fd, struct estab_tcp_hash_t *item)
 {
     int ret, loaded;
-    if (!is_need_load_established_tcp(args, item)) {
+    if (!is_need_load_established_tcp(ipc_body, item)) {
         item->v.try_load_cnt++;
         return LOAD_ESTAB_TCP_NO_NEED;
     }
@@ -333,7 +333,7 @@ static int load_established_tcp(struct probe_params *args, int map_fd, struct es
     return LOAD_ESTAB_TCP_SUCCEED;
 }
 
-void load_established_tcps(struct probe_params *args, int map_fd)
+void load_established_tcps(struct ipc_body_s *ipc_body, int map_fd)
 {
     struct estab_tcp_hash_t *item, *tmp;
     if (head == NULL) {
@@ -347,7 +347,7 @@ void load_established_tcps(struct probe_params *args, int map_fd)
             continue;
         }
 
-        if (load_established_tcp(args, map_fd, item) == LOAD_ESTAB_TCP_SUCCEED) {
+        if (load_established_tcp(ipc_body, map_fd, item) == LOAD_ESTAB_TCP_SUCCEED) {
             H_DEL(head, item);
             (void)free(item);
         }

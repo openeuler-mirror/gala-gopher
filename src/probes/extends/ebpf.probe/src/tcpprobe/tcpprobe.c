@@ -34,87 +34,135 @@
 #endif
 
 #include "bpf.h"
-#include "args.h"
-#include "object.h"
+#include "ipc.h"
 #include "tcpprobe.h"
 
 #define UNLOAD_TCP_FD_PROBE (120)   // 2 min
 
-static struct probe_params params = {.period = DEFAULT_PERIOD,
-                                     .cport_flag = 0};
 static volatile sig_atomic_t g_stop;
+static struct ipc_body_s g_ipc_body;
 
 #define RM_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__tcplink_*"
+
+void load_established_tcps(struct ipc_body_s *ipc_body, int map_fd);
+struct bpf_prog_s* tcp_load_probe(struct ipc_body_s *ipc_body);
 
 static void sig_int(int signo)
 {
     g_stop = 1;
 }
 
+static void load_tcp_snoopers(int fd, struct ipc_body_s *ipc_body)
+{
+    struct proc_s proc = {0};
+    struct obj_ref_s ref = {.count = 1};
+
+    if (fd <= 0) {
+        return;
+    }
+
+    for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_body->snooper_objs[i].type == SNOOPER_OBJ_PROC) {
+            proc.proc_id = ipc_body->snooper_objs[i].obj.proc.proc_id;
+            (void)bpf_map_update_elem(fd, &proc, &ref, BPF_ANY);
+        }
+    }
+}
+
+static void unload_tcp_snoopers(int fd, struct ipc_body_s *ipc_body)
+{
+    struct proc_s proc = {0};
+
+    if (fd <= 0) {
+        return;
+    }
+
+    for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_body->snooper_objs[i].type == SNOOPER_OBJ_PROC) {
+            proc.proc_id = ipc_body->snooper_objs[i].obj.proc.proc_id;
+            (void)bpf_map_delete_elem(fd, &proc);
+        }
+    }
+}
+
 int main(int argc, char **argv)
 {
-    int err = -1;
-    int fd;
+    int err = -1, ret;
+    int tcp_fd_map_fd = -1, proc_obj_map_fd = -1;
     int start_time_second;
     struct bpf_prog_s *tcp_progs = NULL;
     FILE *fp = NULL;
-
-    if (signal(SIGINT, sig_int) == SIG_ERR) {
-        fprintf(stderr, "can't set signal handler: %d\n", errno);
-        return errno;
-    }
-
-    err = args_parse(argc, argv, &params);
-    if (err != 0) {
-        return -1;
-    }
+    struct ipc_body_s ipc_body;
 
     fp = popen(RM_MAP_PATH, "r");
     if (fp != NULL) {
         (void)pclose(fp);
         fp = NULL;
     }
+    if (signal(SIGINT, sig_int) == SIG_ERR) {
+        fprintf(stderr, "can't set signal handler: %d\n", errno);
+        return errno;
+    }
+    (void)memset(&g_ipc_body, 0, sizeof(g_ipc_body));
 
-    obj_module_init();
-    lkup_established_tcp();
-
-    INIT_BPF_APP(tcpprobe, EBPF_RLIM_LIMITED);
-
-    tcp_progs = tcp_load_probe(&params);
-    if (!tcp_progs) {
+    int msq_id = create_ipc_msg_queue(IPC_EXCL);
+    if (msq_id < 0) {
+        fprintf(stderr, "Create ipc msg que failed.\n");
         goto err;
     }
 
-    fd = tcp_load_fd_probe();
+    INIT_BPF_APP(tcpprobe, EBPF_RLIM_LIMITED);
+    lkup_established_tcp();
+    ret = tcp_load_fd_probe(&tcp_fd_map_fd, &proc_obj_map_fd);
+    if (ret) {
+        fprintf(stderr, "Load tcp fd ebpf prog failed.\n");
+        goto err;
+    }
 
     printf("Successfully started!\n");
 
     start_time_second = 0;
     while (!g_stop) {
-        start_time_second++;
-        if (start_time_second > UNLOAD_TCP_FD_PROBE) {
-            tcp_unload_fd_probe();
-        }
-
-        load_established_tcps(&params, fd);
-
-        //if (tcp_progs->pb && ((err = perf_buffer__poll(tcp_progs->pb, THOUSAND)) < 0)) {
-        //    ERROR("[TCPPROBE]: perf poll failed.\n");
-        //    break;
-        //}
-        for (int i = 0; i < tcp_progs->num; i++) {
-            if (tcp_progs->pbs[i] && (err = perf_buffer__poll(tcp_progs->pbs[i], THOUSAND) < 0)) {
-                ERROR("[TCPPROBE]: perf poll prog_%d failed.\n", i);
+        ret = recv_ipc_msg(msq_id, (long)PROBE_TCP, &ipc_body);
+        if (ret == 0) {
+            unload_bpf_prog(&tcp_progs);
+            tcp_progs = tcp_load_probe(&ipc_body);
+            if (!tcp_progs) {
+                destroy_ipc_body(&ipc_body);
                 break;
             }
+
+            unload_tcp_snoopers(proc_obj_map_fd, &g_ipc_body);
+
+            destroy_ipc_body(&g_ipc_body);
+            (void)memcpy(&g_ipc_body, &ipc_body, sizeof(g_ipc_body));
+            load_tcp_snoopers(proc_obj_map_fd, &g_ipc_body);
+        }
+
+        if (tcp_progs) {
+            load_established_tcps(&g_ipc_body, tcp_fd_map_fd);
+
+            start_time_second++;
+            if (start_time_second > UNLOAD_TCP_FD_PROBE) {
+                tcp_unload_fd_probe();
+                start_time_second = 0;
+            }
+            for (int i = 0; i < tcp_progs->num && i < SKEL_MAX_NUM; i++) {
+                if (tcp_progs->pbs[i] && (err = perf_buffer__poll(tcp_progs->pbs[i], THOUSAND) < 0)) {
+                    ERROR("[TCPPROBE]: perf poll prog_%d failed.\n", i);
+                    break;
+                }
+            }
+        } else {
+            sleep(1);
         }
     }
 
 err:
+    destroy_ipc_msg_queue(msq_id);
     unload_bpf_prog(&tcp_progs);
 
     tcp_unload_fd_probe();
     destroy_established_tcps();
-    obj_module_exit();
     return -err;
 }
