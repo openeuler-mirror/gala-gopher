@@ -131,12 +131,11 @@ static __always_inline void process_syscall_event(syscall_m_enter_t *sce, syscal
     }
 }
 
-#define KPROBE_SYSCALL_ENTER(arch, name) \
-    KPROBE(arch##name, pt_regs) \
+#define __PROBE_SYSCALL_ENTER_BODY(name, probe_type) \
+    do \
     { \
         syscall_m_enter_t sce; \
         profiling_setting_t *setting; \
-        struct pt_regs *regs; \
         \
         setting = get_tp_setting(); \
         if (setting == (void *)0) { \
@@ -149,14 +148,13 @@ static __always_inline void process_syscall_event(syscall_m_enter_t *sce, syscal
         __builtin_memset(&sce, 0, sizeof(sce)); \
         sce.pid = (u32)bpf_get_current_pid_tgid(); \
         sce.start_time = bpf_ktime_get_ns(); \
-        regs = (struct pt_regs *)PT_REGS_PARM1(ctx); \
-        set_syscall_params_##name(&sce, regs); \
+        __SET_##probe_type##_SYSCALL_PARAMS(name, sce, ctx); \
         (void)bpf_map_update_elem(&syscall_enter_map, &sce.pid, &sce, BPF_ANY); \
         return 0; \
-    }
+    } while(0)
 
-#define KPROBE_SYSCALL_EXIT(arch, name) \
-    KRETPROBE(arch##name, pt_regs) \
+#define __PROBE_SYSCALL_EXIT_BODY(name) \
+    do \
     { \
         u32 pid = (u32)bpf_get_current_pid_tgid(); \
         syscall_m_enter_t *sce; \
@@ -168,7 +166,7 @@ static __always_inline void process_syscall_event(syscall_m_enter_t *sce, syscal
         } \
         \
         sce->end_time = bpf_ktime_get_ns(); \
-        if (sce->end_time < sce->start_time + NSEC_PER_MSEC) { \
+        if (sce->end_time < sce->start_time + MIN_EXEC_DURATION) { \
             (void)bpf_map_delete_elem(&syscall_enter_map, &pid); \
             return 0; \
         } \
@@ -178,15 +176,57 @@ static __always_inline void process_syscall_event(syscall_m_enter_t *sce, syscal
         process_syscall_event(sce, &scm, ctx); \
         (void)bpf_map_delete_elem(&syscall_enter_map, &pid); \
         return 0; \
+    } while(0)
+
+#define SET_SYSCALL_PARAMS(name) static __always_inline void \
+    set_syscall_params_##name(syscall_m_enter_t *sce, struct pt_regs *regs)
+
+#define SET_SYSCALL_META(name) static __always_inline void set_syscall_meta_##name(syscall_m_meta_t *scm)
+
+#define __SET_KP_SYSCALL_PARAMS(name, sce, ctx) \
+    do \
+    { \
+        struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx); \
+        set_syscall_params_##name(&sce, regs); \
+    } while(0)
+
+#define KPROBE_SYSCALL_ENTER(arch, name) \
+    KPROBE(arch##name, pt_regs) \
+    { \
+        __PROBE_SYSCALL_ENTER_BODY(name, KP); \
+    }
+
+#define KPROBE_SYSCALL_EXIT(arch, name) \
+    KRETPROBE(arch##name, pt_regs) \
+    { \
+        __PROBE_SYSCALL_EXIT_BODY(name); \
     }
 
 #define KPROBE_SYSCALL(arch, name) \
     KPROBE_SYSCALL_ENTER(arch, name); \
     KPROBE_SYSCALL_EXIT(arch, name)
 
-#define SET_SYSCALL_PARAMS(name) static __always_inline void \
-    set_syscall_params_##name(syscall_m_enter_t *sce, struct pt_regs *regs)
+#define __SET_TP_SYSCALL_PARAMS(name, sce, ctx) set_tp_syscall_params_##name(&sce, ctx)
 
-#define SET_SYSCALL_META(name) static __always_inline void set_syscall_meta_##name(syscall_m_meta_t *scm)
+#define TP_SYSCALL_ENTER(name) \
+    SEC("tracepoint/syscalls/sys_enter_" #name) \
+    int bpf_tp_enter_##name(syscalls_enter_##name##_args_t *ctx) \
+    { \
+        __PROBE_SYSCALL_ENTER_BODY(name, TP); \
+    }
+
+#define TP_SYSCALL_EXIT(name) \
+    SEC("tracepoint/syscalls/sys_exit_" #name) \
+    int bpf_tp_exit_##name(syscalls_exit_##name##_args_t *ctx) \
+    { \
+        __PROBE_SYSCALL_EXIT_BODY(name); \
+    }
+
+#define SET_TP_SYSCALL_PARAMS(name) static __always_inline void \
+    set_tp_syscall_params_##name(syscall_m_enter_t *sce, syscalls_enter_##name##_args_t *ctx)
+
+#define TP_SYSCALL(name) \
+    TP_SYSCALL_ENTER(name); \
+    TP_SYSCALL_EXIT(name)
 
 #endif

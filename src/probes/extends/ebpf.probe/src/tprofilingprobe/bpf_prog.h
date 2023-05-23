@@ -46,6 +46,46 @@
           | TPROFILING_PROBE_SYSCALL_SCHED | TPROFILING_PROBE_SYSCALL_LOCK)
 #define TPROFILING_PROBE_ALL (u32)(TPROFILING_PROBE_ONCPU | TPROFILING_PROBE_SYSCALL_ALL)
 
+#define MAP_SET_COMMON_PIN_PATHS(probe_name, load) \
+    MAP_SET_PIN_PATH(probe_name, setting_map, SETTING_MAP_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, proc_filter_map, PROC_FILTER_MAP_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, thrd_bl_map, THRD_BL_MAP_PATH, load); \
+
+#define LOAD_SYSCALL_PROBE(probe_name, end, load) \
+    OPEN(probe_name, end, load); \
+    MAP_SET_COMMON_PIN_PATHS(probe_name, load); \
+    MAP_SET_PIN_PATH(probe_name, event_map, SYSCALL_EVENT_MAP_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, stack_map, STACK_MAP_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, syscall_enter_map, SYSCALL_ENTER_MAP_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, syscall_stash_map, SYSCALL_STASH_MAP_PATH, load); \
+    LOAD_ATTACH(probe_name, end, load)
+
+#define LOAD_ONCPU_PROBE(probe_name, end, load) \
+    OPEN(probe_name, end, load); \
+    MAP_SET_COMMON_PIN_PATHS(probe_name, load); \
+    MAP_SET_PIN_PATH(probe_name, event_map, ONCPU_EVENT_MAP_PATH, load); \
+    LOAD_ATTACH(probe_name, end, load)
+
+#define LOAD_SYSCALL_BPF_PROG(type) \
+    static int __load_syscall_##type##_bpf_prog(struct bpf_prog_s *prog, char is_load) \
+    { \
+        int ret = 0; \
+        \
+        LOAD_SYSCALL_PROBE(syscall_##type, err, is_load); \
+        if (is_load) { \
+            prog->skels[prog->num].skel = syscall_##type##_skel; \
+            prog->skels[prog->num].fn = (skel_destroy_fn)syscall_##type##_bpf__destroy; \
+            prog->num++; \
+            \
+            ret = load_syscall_create_pb(prog, GET_MAP_FD(syscall_##type, event_map)); \
+        } \
+        \
+        return ret; \
+    err: \
+        UNLOAD(syscall_##type); \
+        return -1; \
+    }
+
 struct bpf_prog_s* load_syscall_bpf_prog(struct probe_params *params);
 struct bpf_prog_s* load_oncpu_bpf_prog(struct probe_params *params);
 
