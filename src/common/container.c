@@ -427,6 +427,61 @@ int get_container_id_by_pid(unsigned int pid, char *container_id, unsigned int b
     return 0;
 }
 
+#define __PROC_CPUSET           "/proc/%s/cpuset"
+#define __CAT_PROC_CPUSET_CMD   "/usr/bin/cat %s | awk -F '/' '{print $NF}'"
+static int __is_container_id(char *container_id)
+{
+    int len = strlen(container_id);
+    if (len != CONTAINER_ID_LEN) {
+        return 0;
+    }
+
+    for (int i = 0; i < len; i++) {
+        if (*(container_id + i) >= '0' && *(container_id + i) <= '9') {
+            continue;
+        } else if (*(container_id + i) >= 'A' && *(container_id + i) <= 'F') {
+            continue;
+        } else if (*(container_id + i) >= 'a' && *(container_id + i) <= 'f') {
+            continue;
+        } else {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int get_container_id_by_pid_cpuset(const char *pid, char *container_id, unsigned int buf_len)
+{
+    int ret;
+    char cmd[COMMAND_LEN];
+    char proc_cpuset[LINE_BUF_LEN];
+
+    if (buf_len <= CONTAINER_ABBR_ID_LEN) {
+        return -1;
+    }
+
+    proc_cpuset[0] = 0;
+    (void)snprintf(proc_cpuset, LINE_BUF_LEN, __PROC_CPUSET, pid);
+    if (access((const char *)proc_cpuset, 0) != 0) {
+        return -1;
+    }
+
+    cmd[0] = 0;
+    (void)snprintf(cmd, COMMAND_LEN, __CAT_PROC_CPUSET_CMD, proc_cpuset);
+    container_id[0] = 0;
+    ret = exec_cmd((const char *)cmd, container_id, buf_len);
+    if (ret) {
+        return ret;
+    }
+
+    if (!__is_container_id(container_id)) {
+        return -1;
+    }
+
+    container_id[CONTAINER_ABBR_ID_LEN] = 0;
+    return 0;
+}
+
 int get_elf_path(unsigned int pid, char elf_path[], int max_path_len, const char *comm)
 {
     char cmd[COMMAND_LEN] = {0};
