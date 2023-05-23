@@ -688,6 +688,8 @@ int main(int argc, char **argv)
         if (ret == 0) {
             ioprobe_unload_bpf();
             ioprobe_load_bpf(&ipc_body);
+
+            destroy_ipc_body(&g_ipc_body);
             (void)memcpy(&g_ipc_body, &ipc_body, sizeof(g_ipc_body));
         }
 
@@ -709,6 +711,7 @@ err:
         msq_id = -1;
     }
     ioprobe_unload_bpf();
+    destroy_ipc_body(&g_ipc_body);
 
     return ret;
 }
