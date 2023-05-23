@@ -41,12 +41,4 @@
                 | TASK_PROBE_TMPFS_OP | TASK_PROBE_PAGE_OP | TASK_PROBE_DNS_OP \
                 | TASK_PROBE_IO | TASK_PROBE_THREAD_CPU)
 
-static __always_inline __maybe_unused char is_load_probe(struct probe_params *args, u32 probe)
-{
-    if (args->load_probe & probe) {
-        return 1;
-    }
-    return 0;
-}
-
 #endif

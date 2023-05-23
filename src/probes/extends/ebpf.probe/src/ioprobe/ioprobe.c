@@ -694,6 +694,7 @@ int main(int argc, char **argv)
         }
 
         if (g_bpf_prog == NULL) {
+            sleep(1);
             continue;
         }
 
@@ -706,10 +707,7 @@ int main(int argc, char **argv)
     }
 
 err:
-    if (msq_id > 0) {
-        destroy_ipc_msg_queue(msq_id);
-        msq_id = -1;
-    }
+    destroy_ipc_msg_queue(msq_id);
     ioprobe_unload_bpf();
     destroy_ipc_body(&g_ipc_body);
 
