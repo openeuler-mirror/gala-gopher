@@ -36,17 +36,4 @@ static __always_inline __maybe_unused struct proc_data_s* get_proc_entry(u32 pro
     return (struct proc_data_s *)bpf_map_lookup_elem(&g_proc_map, &proc_id);
 }
 
-static __always_inline __maybe_unused int proc_add_entry(u32 proc_id, const char *comm)
-{
-    struct proc_data_s proc_data = {.proc_id = proc_id};
-    __builtin_memcpy(proc_data.comm, comm, TASK_COMM_LEN);
-
-    return bpf_map_update_elem(&g_proc_map, &proc_id, &proc_data, BPF_ANY);
-}
-
-static __always_inline __maybe_unused int proc_put_entry(u32 proc_id)
-{
-    return bpf_map_delete_elem(&g_proc_map, &proc_id);
-}
-
 #endif

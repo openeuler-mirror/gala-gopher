@@ -710,10 +710,8 @@ void destroy_probe_mng(void)
         return;
     }
 
-    if (g_probe_mng->msq_id > 0) {
-        destroy_ipc_msg_queue(g_probe_mng->msq_id);
-        g_probe_mng->msq_id = -1;
-    }
+    destroy_ipc_msg_queue(g_probe_mng->msq_id);
+    g_probe_mng->msq_id = -1;
 
     (void)pthread_rwlock_destroy(&g_probe_mng->rwlock);
 

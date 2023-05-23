@@ -35,7 +35,6 @@
 #include "cpu.skel.h"
 #include "thread.skel.h"
 #include "bpf_prog.h"
-#include "taskprobe.h"
 
 #ifdef OO_NAME
 #undef OO_NAME
@@ -43,7 +42,7 @@
 #define OO_NAME  "thread"
 #define THREAD_TBL_CPU      "thread_cpu"
 
-static struct probe_params *g_args;
+static struct ipc_body_s *__ipc_body = NULL;
 
 #define __LOAD_PROBE(probe_name, end, load) \
     OPEN(probe_name, end, load); \
@@ -57,7 +56,7 @@ static void report_thread_metrics(struct thread_data *thr)
 {
     char entityId[INT_LEN];
 
-    if (g_args->logs == 0) {
+    if (__ipc_body->probe_param.logs == 0) {
         return;
     }
 
@@ -121,7 +120,7 @@ static int load_thread_create_pb(struct bpf_prog_s* prog, int fd)
     return 0;
 }
 
-static int load_thread_cpu_prog(struct bpf_prog_s *prog, char is_load)
+static int load_thread_cpu_prog(struct task_probe_s *task_probe, struct bpf_prog_s *prog, char is_load)
 {
     int ret = 0;
 
@@ -130,6 +129,9 @@ static int load_thread_cpu_prog(struct bpf_prog_s *prog, char is_load)
         prog->skels[prog->num].skel = cpu_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)cpu_bpf__destroy;
         prog->num++;
+
+        task_probe->proc_map_fd = GET_MAP_FD(cpu, g_proc_map);
+        task_probe->args_fd = GET_MAP_FD(cpu, args_map);
 
         ret = load_thread_create_pb(prog, GET_MAP_FD(cpu, g_thread_output));
     }
@@ -140,7 +142,7 @@ err:
     return -1;
 }
 
-static int load_thread_prog(struct bpf_prog_s *prog, char is_load)
+static int load_thread_prog(struct task_probe_s *task_probe, struct bpf_prog_s *prog, char is_load)
 {
     int ret = 0;
 
@@ -148,6 +150,10 @@ static int load_thread_prog(struct bpf_prog_s *prog, char is_load)
     if (is_load) {
         prog->skels[prog->num].skel = thread_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)thread_bpf__destroy;
+
+        task_probe->proc_map_fd = GET_MAP_FD(thread, g_proc_map);
+        task_probe->args_fd = GET_MAP_FD(thread, args_map);
+
         prog->num++;
     }
 
@@ -157,32 +163,37 @@ err:
     return -1;
 }
 
-struct bpf_prog_s* load_thread_bpf_prog(struct probe_params *args)
+int load_thread_bpf_prog(struct task_probe_s *task_probe, struct ipc_body_s *ipc_body, struct bpf_prog_s **new_prog)
 {
-    struct bpf_prog_s *prog;
-    char is_load_cpu;
+    struct bpf_prog_s *prog = NULL;
+    char is_load_cpu = ipc_body->probe_range_flags & PROBE_RANGE_PROC_OFFCPU;
 
-    g_args = args;
+    *new_prog = NULL;
+    if (!is_load_cpu) {
+        return 0;
+    }
+
+    __ipc_body = ipc_body;
     prog = alloc_bpf_prog();
     if (prog == NULL) {
-        return NULL;
-    }
-
-    is_load_cpu = is_load_probe(args, TASK_PROBE_THREAD_CPU);
-
-    if (load_thread_cpu_prog(prog, is_load_cpu)) {
         goto err;
     }
 
-    if (load_thread_prog(prog, is_load_cpu)) {
+    if (load_thread_cpu_prog(task_probe, prog, is_load_cpu)) {
         goto err;
     }
 
-    return prog;
+    if (load_thread_prog(task_probe, prog, is_load_cpu)) {
+        goto err;
+    }
+
+    *new_prog = prog;
+    return 0;
 
 err:
     unload_bpf_prog(&prog);
-    g_args = NULL;
-    return NULL;
+    *new_prog = NULL;
+    __ipc_body = NULL;
+    return -1;
 }
 

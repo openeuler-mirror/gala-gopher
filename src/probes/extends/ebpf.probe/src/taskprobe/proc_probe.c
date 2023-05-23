@@ -42,16 +42,14 @@
 #include "tmpfs.skel.h"
 #include "page.skel.h"
 #include "proc_io.skel.h"
-#include "proc.skel.h"
 #include "bpf_prog.h"
-#include "taskprobe.h"
 
 #ifdef OO_NAME
 #undef OO_NAME
 #endif
 #define OO_NAME  "proc"
 
-static struct task_probe_s *tp_probe = NULL;
+static struct ipc_body_s *__ipc_body = NULL;
 
 #define PROC_TBL_SYSCALL        "proc_syscall"
 #define PROC_TBL_SYSCALL_IO     "proc_syscall_io"
@@ -78,51 +76,12 @@ static struct task_probe_s *tp_probe = NULL;
     MAP_SET_PIN_PATH(probe_name, g_proc_output, PROC_OUTPUT_PATH, load); \
     LOAD_ATTACH(probe_name, end, load)
 
-static char is_wl_range(const char *comm, ApplicationsConfig *conf)
-{
-    ApplicationConfig *appc;
-    if (conf == NULL) {
-        return 0;
-    }
-
-    for (int i = 0; i < conf->apps_num; i++) {
-        appc = conf->apps[i];
-        if (appc) {
-            if (comm && (is_str_match_pattern(comm, appc->comm) == 1)) {
-                return 1;
-            }
-        }
-    }
-    return 0;
-}
-
-static void rcv_proc_exec_evt(void *ctx, int cpu, void *data, __u32 size)
-{
-    struct proc_exec_evt *evt = data;
-    char comm[TASK_COMM_LEN];
-
-    comm[0] = 0;
-    char *p = strrchr(evt->filename, '/');
-    if (p) {
-        strncpy(comm, p + 1, TASK_COMM_LEN - 1);
-    } else {
-        strncpy(comm, evt->filename, TASK_COMM_LEN - 1);
-    }
-
-    if (is_wl_range((const char *)comm, tp_probe->conf)) {
-        DEBUG("[TASKPROBE]: create new proc '[proc_id=%d,comm=%s]'.\n", evt->pid, comm);
-
-        load_proc2bpf(evt->pid, (const char *)comm, tp_probe->proc_map_fd);
-        load_thread2bpf(evt->pid, tp_probe->thread_map_fd);
-    }
-}
-
 static void report_proc_metrics(struct proc_data_s *proc)
 {
     char entityId[INT_LEN];
-    u64 latency_thr_us = US(tp_probe->params.latency_thr);
+    u64 latency_thr_us = US(__ipc_body->probe_param.latency_thr);
 
-    if (tp_probe->params.logs == 0) {
+    if (__ipc_body->probe_param.logs == 0) {
         return;
     }
 
@@ -210,7 +169,7 @@ static void output_proc_metrics_syscall_io(struct proc_data_s *proc)
         proc->syscall.ns_mount,
         proc->syscall.ns_umount,
         proc->syscall.ns_read,
-	proc->syscall.ns_write,
+        proc->syscall.ns_write,
         proc->syscall.ns_fsync);
 }
 
@@ -354,7 +313,7 @@ static void output_proc_io_stats(struct proc_data_s *proc)
         proc->proc_io.iowait_us);
 }
 
-static void output_proc_metrics(void *ctx, int cpu, void *data, __u32 size)
+void output_proc_metrics(void *ctx, int cpu, void *data, __u32 size)
 {
     struct proc_data_s *proc = (struct proc_data_s *)data;
     u32 flags = proc->flags;
@@ -405,7 +364,7 @@ static int load_proc_create_pb(struct bpf_prog_s* prog, int fd)
     return 0;
 }
 
-static int load_proc_syscall_prog(struct bpf_prog_s *prog, char is_load)
+static int load_proc_syscall_prog(struct task_probe_s *task_probe, struct bpf_prog_s *prog, char is_load)
 {
     int ret = 0;
 
@@ -414,6 +373,9 @@ static int load_proc_syscall_prog(struct bpf_prog_s *prog, char is_load)
         prog->skels[prog->num].skel = syscall_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)syscall_bpf__destroy;
         prog->num++;
+
+        task_probe->proc_map_fd = GET_MAP_FD(syscall, g_proc_map);
+        task_probe->args_fd = GET_MAP_FD(syscall, args_map);
 
         ret = load_proc_create_pb(prog, GET_MAP_FD(syscall, g_proc_output));
     }
@@ -424,7 +386,7 @@ err:
     return -1;
 }
 
-static int load_proc_syscall_io_prog(struct bpf_prog_s *prog, char is_load)
+static int load_proc_syscall_io_prog(struct task_probe_s *task_probe, struct bpf_prog_s *prog, char is_load)
 {
     int ret = 0;
 
@@ -433,6 +395,9 @@ static int load_proc_syscall_io_prog(struct bpf_prog_s *prog, char is_load)
         prog->skels[prog->num].skel = syscall_io_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)syscall_io_bpf__destroy;
         prog->num++;
+
+        task_probe->proc_map_fd = GET_MAP_FD(syscall_io, g_proc_map);
+        task_probe->args_fd = GET_MAP_FD(syscall_io, args_map);
 
         ret = load_proc_create_pb(prog, GET_MAP_FD(syscall_io, g_proc_output));
     }
@@ -443,7 +408,7 @@ err:
     return -1;
 }
 
-static int load_proc_syscall_net_prog(struct bpf_prog_s *prog, char is_load)
+static int load_proc_syscall_net_prog(struct task_probe_s *task_probe, struct bpf_prog_s *prog, char is_load)
 {
     int ret = 0;
 
@@ -452,6 +417,9 @@ static int load_proc_syscall_net_prog(struct bpf_prog_s *prog, char is_load)
         prog->skels[prog->num].skel = syscall_net_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)syscall_net_bpf__destroy;
         prog->num++;
+
+        task_probe->proc_map_fd = GET_MAP_FD(syscall_net, g_proc_map);
+        task_probe->args_fd = GET_MAP_FD(syscall_net, args_map);
 
         ret = load_proc_create_pb(prog, GET_MAP_FD(syscall_net, g_proc_output));
     }
@@ -462,7 +430,7 @@ err:
     return -1;
 }
 
-static int load_proc_syscall_fork_prog(struct bpf_prog_s *prog, char is_load)
+static int load_proc_syscall_fork_prog(struct task_probe_s *task_probe, struct bpf_prog_s *prog, char is_load)
 {
     int ret = 0;
 
@@ -471,6 +439,9 @@ static int load_proc_syscall_fork_prog(struct bpf_prog_s *prog, char is_load)
         prog->skels[prog->num].skel = syscall_fork_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)syscall_fork_bpf__destroy;
         prog->num++;
+
+        task_probe->proc_map_fd = GET_MAP_FD(syscall_fork, g_proc_map);
+        task_probe->args_fd = GET_MAP_FD(syscall_fork, args_map);
 
         ret = load_proc_create_pb(prog, GET_MAP_FD(syscall_fork, g_proc_output));
     }
@@ -481,7 +452,7 @@ err:
     return -1;
 }
 
-static int load_proc_syscall_sched_prog(struct bpf_prog_s *prog, char is_load)
+static int load_proc_syscall_sched_prog(struct task_probe_s *task_probe, struct bpf_prog_s *prog, char is_load)
 {
     int ret = 0;
 
@@ -490,6 +461,9 @@ static int load_proc_syscall_sched_prog(struct bpf_prog_s *prog, char is_load)
         prog->skels[prog->num].skel = syscall_sched_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)syscall_sched_bpf__destroy;
         prog->num++;
+
+        task_probe->proc_map_fd = GET_MAP_FD(syscall_sched, g_proc_map);
+        task_probe->args_fd = GET_MAP_FD(syscall_sched, args_map);
 
         ret = load_proc_create_pb(prog, GET_MAP_FD(syscall_sched, g_proc_output));
     }
@@ -500,7 +474,7 @@ err:
     return -1;
 }
 
-static int load_proc_ext4_prog(struct bpf_prog_s *prog, char is_load)
+static int load_proc_ext4_prog(struct task_probe_s *task_probe, struct bpf_prog_s *prog, char is_load)
 {
     int ret = 0;
 
@@ -509,6 +483,9 @@ static int load_proc_ext4_prog(struct bpf_prog_s *prog, char is_load)
         prog->skels[prog->num].skel = ex4_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)ex4_bpf__destroy;
         prog->num++;
+
+        task_probe->proc_map_fd = GET_MAP_FD(ex4, g_proc_map);
+        task_probe->args_fd = GET_MAP_FD(ex4, args_map);
 
         ret = load_proc_create_pb(prog, GET_MAP_FD(ex4, g_proc_output));
     }
@@ -519,7 +496,7 @@ err:
     return -1;
 }
 
-static int load_proc_overlay_prog(struct bpf_prog_s *prog, char is_load)
+static int load_proc_overlay_prog(struct task_probe_s *task_probe, struct bpf_prog_s *prog, char is_load)
 {
     int ret = 0;
 
@@ -528,6 +505,9 @@ static int load_proc_overlay_prog(struct bpf_prog_s *prog, char is_load)
         prog->skels[prog->num].skel = overlay_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)overlay_bpf__destroy;
         prog->num++;
+
+        task_probe->proc_map_fd = GET_MAP_FD(overlay, g_proc_map);
+        task_probe->args_fd = GET_MAP_FD(overlay, args_map);
 
         ret = load_proc_create_pb(prog, GET_MAP_FD(overlay, g_proc_output));
     }
@@ -538,7 +518,7 @@ err:
     return -1;
 }
 
-static int load_proc_tmpfs_prog(struct bpf_prog_s *prog, char is_load)
+static int load_proc_tmpfs_prog(struct task_probe_s *task_probe, struct bpf_prog_s *prog, char is_load)
 {
     int ret = 0;
 
@@ -547,6 +527,9 @@ static int load_proc_tmpfs_prog(struct bpf_prog_s *prog, char is_load)
         prog->skels[prog->num].skel = tmpfs_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tmpfs_bpf__destroy;
         prog->num++;
+
+        task_probe->proc_map_fd = GET_MAP_FD(tmpfs, g_proc_map);
+        task_probe->args_fd = GET_MAP_FD(tmpfs, args_map);
 
         ret = load_proc_create_pb(prog, GET_MAP_FD(tmpfs, g_proc_output));
     }
@@ -557,7 +540,7 @@ err:
     return -1;
 }
 
-static int load_proc_page_prog(struct bpf_prog_s *prog, char is_load)
+static int load_proc_page_prog(struct task_probe_s *task_probe, struct bpf_prog_s *prog, char is_load)
 {
     int ret = 0;
 
@@ -566,6 +549,9 @@ static int load_proc_page_prog(struct bpf_prog_s *prog, char is_load)
         prog->skels[prog->num].skel = page_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)page_bpf__destroy;
         prog->num++;
+
+        task_probe->proc_map_fd = GET_MAP_FD(page, g_proc_map);
+        task_probe->args_fd = GET_MAP_FD(page, args_map);
 
         ret = load_proc_create_pb(prog, GET_MAP_FD(page, g_proc_output));
     }
@@ -576,7 +562,7 @@ err:
     return -1;
 }
 
-static int load_proc_io_prog(struct bpf_prog_s *prog, char is_load)
+static int load_proc_io_prog(struct task_probe_s *task_probe, struct bpf_prog_s *prog, char is_load)
 {
     int ret = 0;
 
@@ -585,6 +571,9 @@ static int load_proc_io_prog(struct bpf_prog_s *prog, char is_load)
         prog->skels[prog->num].skel = proc_io_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)proc_io_bpf__destroy;
         prog->num++;
+
+        task_probe->proc_map_fd = GET_MAP_FD(proc_io, g_proc_map);
+        task_probe->args_fd = GET_MAP_FD(proc_io, args_map);
 
         ret = load_proc_create_pb(prog, GET_MAP_FD(proc_io, g_proc_output));
     }
@@ -595,109 +584,88 @@ err:
     return -1;
 }
 
-static int load_proc_prog(struct bpf_prog_s *prog, char is_load)
-{
-    int ret = 0;
-    struct perf_buffer *pb;
-
-    __LOAD_PROBE(proc, err, is_load);
-    if (is_load) {
-        prog->skels[prog->num].skel = proc_skel;
-        prog->skels[prog->num].fn = (skel_destroy_fn)proc_bpf__destroy;
-        prog->num++;
-
-        pb = create_pref_buffer(GET_MAP_FD(proc, proc_exec_channel_map), rcv_proc_exec_evt);
-        if (pb == NULL) {
-            fprintf(stderr, "ERROR: crate perf buffer failed\n");
-            return -1;
-        }
-        prog->pbs[prog->num] = pb;
-        prog->num++;
-    }
-
-    return ret;
-err:
-    UNLOAD(proc);
-    return -1;
-}
-
-struct bpf_prog_s* load_proc_bpf_prog(void *probe)
+int load_proc_bpf_prog(struct task_probe_s *task_probe, struct ipc_body_s *ipc_body, struct bpf_prog_s **new_prog)
 {
     struct bpf_prog_s *prog;
+    char is_load = 0;
     char is_load_syscall, is_load_syscall_io, is_load_syscall_net;
     char is_load_syscall_fork, is_load_syscall_sched, is_load_proc_io;
     char is_load_overlay, is_load_ext4, is_load_tmpfs, is_load_page;
 
-    tp_probe = probe;
+    *new_prog = NULL;
+    __ipc_body = ipc_body;
 
-    is_load_overlay = is_load_probe(&(tp_probe->params), TASK_PROBE_OVERLAY_OP) & is_exist_mod(OVERLAY_MOD);
-    is_load_ext4 = is_load_probe(&(tp_probe->params), TASK_PROBE_EXT4_OP) & is_exist_mod(EXT4_MOD);
+    is_load_overlay = (ipc_body->probe_range_flags & PROBE_RANGE_PROC_FS) & is_exist_mod(OVERLAY_MOD);
+    is_load_ext4 = (ipc_body->probe_range_flags & PROBE_RANGE_PROC_FS) & is_exist_mod(EXT4_MOD);
 
-    is_load_syscall = is_load_probe(&(tp_probe->params), TASK_PROBE_SYSCALL);
-    is_load_syscall_io = is_load_probe(&(tp_probe->params), TASK_PROBE_IO_SYSCALL);
-    is_load_syscall_net = is_load_probe(&(tp_probe->params), TASK_PROBE_NET_SYSCALL);
-    is_load_syscall_fork = is_load_probe(&(tp_probe->params), TASK_PROBE_FORK_SYSCALL);
-    is_load_syscall_sched = is_load_probe(&(tp_probe->params), TASK_PROBE_SCHED_SYSCALL);
+    is_load_syscall = ipc_body->probe_range_flags & PROBE_RANGE_PROC_SYSCALL;
+    is_load_syscall_io = ipc_body->probe_range_flags & PROBE_RANGE_PROC_IO;
+    is_load_syscall_net = ipc_body->probe_range_flags & PROBE_RANGE_PROC_NET;
+    is_load_syscall_fork = ipc_body->probe_range_flags & PROBE_RANGE_PROC_SYSCALL;
+    is_load_syscall_sched = ipc_body->probe_range_flags & PROBE_RANGE_PROC_SYSCALL;
 
-    is_load_tmpfs = is_load_probe(&(tp_probe->params), TASK_PROBE_TMPFS_OP);
-    is_load_page = is_load_probe(&(tp_probe->params), TASK_PROBE_PAGE_OP);
+    is_load_tmpfs = ipc_body->probe_range_flags & PROBE_RANGE_PROC_FS;
+    is_load_page = ipc_body->probe_range_flags & PROBE_RANGE_PROC_PAGECACHE;
 
-    is_load_proc_io = is_load_probe(&(tp_probe->params), TASK_PROBE_IO);
+    is_load_proc_io = ipc_body->probe_range_flags & PROBE_RANGE_PROC_IO;
+
+    is_load = is_load_overlay | is_load_ext4 | is_load_syscall | is_load_syscall_io | is_load_syscall_net;
+    is_load |= is_load_syscall_fork | is_load_syscall_sched | is_load_tmpfs | is_load_page | is_load_proc_io;
+    if (!is_load) {
+        return 0;
+    }
 
     prog = alloc_bpf_prog();
     if (prog == NULL) {
-        return NULL;
+        return -1;
     }
 
-    if (load_proc_syscall_prog(prog, is_load_syscall)) {
+    if (load_proc_syscall_prog(task_probe, prog, is_load_syscall)) {
         goto err;
     }
 
-    if (load_proc_syscall_io_prog(prog, is_load_syscall_io)) {
+    if (load_proc_syscall_io_prog(task_probe, prog, is_load_syscall_io)) {
         goto err;
     }
 
-    if (load_proc_syscall_net_prog(prog, is_load_syscall_net)) {
+    if (load_proc_syscall_net_prog(task_probe, prog, is_load_syscall_net)) {
         goto err;
     }
 
-    if (load_proc_syscall_sched_prog(prog, is_load_syscall_sched)) {
+    if (load_proc_syscall_sched_prog(task_probe, prog, is_load_syscall_sched)) {
         goto err;
     }
 
-    if (load_proc_syscall_fork_prog(prog, is_load_syscall_fork)) {
+    if (load_proc_syscall_fork_prog(task_probe, prog, is_load_syscall_fork)) {
         goto err;
     }
 
-    if (load_proc_ext4_prog(prog, is_load_ext4)) {
+    if (load_proc_ext4_prog(task_probe, prog, is_load_ext4)) {
         goto err;
     }
 
-    if (load_proc_overlay_prog(prog, is_load_overlay)) {
+    if (load_proc_overlay_prog(task_probe, prog, is_load_overlay)) {
         goto err;
     }
 
-    if (load_proc_tmpfs_prog(prog, is_load_tmpfs)) {
+    if (load_proc_tmpfs_prog(task_probe, prog, is_load_tmpfs)) {
         goto err;
     }
 
-    if (load_proc_page_prog(prog, is_load_page)) {
+    if (load_proc_page_prog(task_probe, prog, is_load_page)) {
         goto err;
     }
 
-    if (load_proc_io_prog(prog, is_load_proc_io)) {
+    if (load_proc_io_prog(task_probe, prog, is_load_proc_io)) {
         goto err;
     }
 
-    if (load_proc_prog(prog, 1)) {
-        goto err;
-    }
-
-    return prog;
+    *new_prog = prog;
+    return 0;
 
 err:
     unload_bpf_prog(&prog);
-    tp_probe = NULL;
-    return NULL;
+    __ipc_body = NULL;
+    return -1;
 }
 

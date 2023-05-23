@@ -50,7 +50,6 @@ SET(SOURCES main.c test_probes.c
     ${COMMON_DIR}/object.c
     ${COMMON_DIR}/event.c
     ${COMMON_DIR}/logs.cpp
-    ${COMMON_DIR}/whitelist_config.c
     ${COMMON_DIR}/event_config.c
 )
 

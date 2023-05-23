@@ -121,12 +121,13 @@ struct probe_range_define_s probe_range_define[] = {
     {PROBE_IO,     "io_count",            PROBE_RANGE_IO_COUNT},
     {PROBE_IO,     "page_cache",          PROBE_RANGE_IO_PAGECACHE},
 
-    {PROBE_PROC,   "base_metrics",        PROBE_RANGE_PROC_BASIC},
     {PROBE_PROC,   "proc_syscall",        PROBE_RANGE_PROC_SYSCALL},
     {PROBE_PROC,   "proc_fs",             PROBE_RANGE_PROC_FS},
-    {PROBE_PROC,   "proc_io",             PROBE_RANGE_PROC_IO},
     {PROBE_PROC,   "proc_dns",            PROBE_RANGE_PROC_DNS},
-    {PROBE_PROC,   "proc_pagecache",      PROBE_RANGE_PROC_PAGECACHE}
+    {PROBE_PROC,   "proc_io",             PROBE_RANGE_PROC_IO},
+    {PROBE_PROC,   "proc_pagecache",      PROBE_RANGE_PROC_PAGECACHE},
+    {PROBE_PROC,   "proc_net",            PROBE_RANGE_PROC_NET},
+    {PROBE_PROC,   "proc_offcpu",         PROBE_RANGE_PROC_OFFCPU}
 };
 
 static void refresh_snooper_obj(struct probe_s *probe);
@@ -1156,6 +1157,19 @@ static void __rcv_snooper_proc_exec(struct probe_mng_s *probe_mng, const char* c
     int i, j;
     struct probe_s *probe;
     struct snooper_conf_s *snooper_conf;
+    char container_id[CONTAINER_ABBR_ID_LEN + 1];
+    char pod_name[POD_NAME_LEN + 1];
+    char pid_str[INT_LEN + 1];
+
+    pid_str[0] = 0;
+    (void)snprintf(pid_str, INT_LEN + 1, "%u", proc_id);
+
+    container_id[0] = 0;
+    pod_name[0] = 0;
+    (void)get_container_id_by_pid_cpuset(pid_str, container_id, CONTAINER_ABBR_ID_LEN + 1);
+    if (container_id[0] != 0) {
+        (void)get_container_pod((const char *)container_id, pod_name, POD_NAME_LEN + 1);
+    }
 
     for (i = 0; i < PROBE_TYPE_MAX; i++) {
         probe = probe_mng->probes[i];
@@ -1163,15 +1177,25 @@ static void __rcv_snooper_proc_exec(struct probe_mng_s *probe_mng, const char* c
             continue;
         }
 
-        for (j = 0; j < probe->snooper_conf_num; j++) {
+        for (j = 0; j < probe->snooper_conf_num && j < SNOOPER_MAX; j++) {
             snooper_conf = probe->snooper_confs[j];
-            if (!snooper_conf || snooper_conf->type != SNOOPER_CONF_APP) {
-                continue;
+            if (snooper_conf && snooper_conf->type == SNOOPER_CONF_APP) {
+                if (__chk_snooper_pattern((const char *)(snooper_conf->conf.app.comm), comm)) {
+                    (void)add_snooper_obj_procid(probe, proc_id);
+                }
             }
-            if (!__chk_snooper_pattern((const char *)(snooper_conf->conf.app.comm), comm)) {
-                continue;
+            if (snooper_conf && snooper_conf->type == SNOOPER_CONF_CONTAINER_ID) {
+                if (container_id[0] != 0 && !strcasecmp(container_id, snooper_conf->conf.container_id)) {
+                    (void)add_snooper_obj_procid(probe, proc_id);
+                }
             }
-            (void)add_snooper_obj_procid(probe, proc_id);
+            if (snooper_conf && snooper_conf->type == SNOOPER_CONF_POD) {
+                if (pod_name[0] != 0
+                    && snooper_conf->conf.pod != NULL
+                    && !strcasecmp(pod_name, snooper_conf->conf.pod)) {
+                    (void)add_snooper_obj_procid(probe, proc_id);
+                }
+            }
         }
         send_snooper_obj(probe);
     }

@@ -30,124 +30,20 @@
 
 #include "bpf.h"
 #include "args.h"
-#include "taskprobe.skel.h"
-#include "taskprobe.h"
+#include "ipc.h"
 #include "bpf_prog.h"
 #include "proc.h"
 #include "thread.h"
 #include "task_args.h"
-#include "whitelist_config.h"
 
 #define RM_TASK_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__taskprobe*"
-#define TASK_CMDLINE_PATH "/proc/%d/cmdline"
 
-#define LOAD_TASK_PROBE(probe_name, end, load) \
-    OPEN(probe_name, end, load); \
-    MAP_SET_PIN_PATH(probe_name, args_map, ARGS_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, g_thread_map, THREAD_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, g_proc_map, PROC_PATH, load); \
-    LOAD_ATTACH(probe_name, end, load)
-
-static struct task_probe_s probe = {0};
-
+static struct task_probe_s g_task_probe;
 static volatile sig_atomic_t stop = 0;
 
 static void sig_int(int signal)
 {
     stop = 1;
-}
-
-static void add_proc_item(u32 proc_id, const char *comm, struct task_probe_s* probep)
-{
-    struct proc_id_s *proc = malloc(sizeof(struct proc_id_s));
-    if (proc == NULL) {
-        return;
-    }
-
-    proc->id = proc_id;
-    memcpy(proc->comm, comm, TASK_COMM_LEN);
-    H_ADD_I(probep->procs, id, proc);
-}
-
-static char is_wl_range(const char *comm, const char* cmdline, ApplicationsConfig *conf)
-{
-    ApplicationConfig *appc;
-    if (conf == NULL) {
-        return 0;
-    }
-
-    for (int i = 0; i < conf->apps_num; i++) {
-        appc = conf->apps[i];
-        if (appc) {
-            // only match comm
-            if ((appc->comm[0] != 0) && (appc->cmd_line[0] == 0)) {
-                if ((comm[0] != 0) && (is_str_match_pattern(comm, appc->comm) == 1)) {
-                    return 1;
-                }
-            }
-            // match comm and cmdline
-            if ((appc->comm[0] != 0) && (appc->cmd_line[0] != 0)) {
-                if (((comm[0] != 0) && (is_str_match_pattern(comm, appc->comm) == 1)) &&
-                    ((cmdline[0] != 0) && strstr(cmdline, appc->cmd_line))) {
-                    return 1;
-                }
-            }
-        }
-    }
-    return 0;
-}
-
-static void get_wl_proc(struct task_probe_s* probep)
-{
-    u32 proc_id;
-    DIR *dir = NULL;
-    struct dirent *entry = NULL;
-    char comm[TASK_COMM_LEN];
-    char cmdline[PROC_CMDLINE_LEN];
-    char command[COMMAND_LEN];
-    const char *get_comm_fmt = "/usr/bin/cat /proc/%u/comm 2>/dev/null";
-    const char *get_cmdline_fmt = "/usr/bin/cat /proc/%u/cmdline 2>/dev/null";
-
-    dir = opendir("/proc");
-    if (dir == NULL) {
-        return;
-    }
-
-    do {
-        entry = readdir(dir);
-        if (entry == NULL) {
-            break;
-        }
-        if (!is_digit_str(entry->d_name)) {
-            continue;
-        }
-
-        proc_id = (u32)atoi(entry->d_name);
-
-        comm[0] = 0;
-        command[0] = 0;
-        (void)snprintf(command, COMMAND_LEN, get_comm_fmt, proc_id);
-        if (exec_cmd((const char *)command, comm, TASK_COMM_LEN)) {
-            continue;
-        }
-
-        cmdline[0] = 0;
-        command[0] = 0;
-        (void)snprintf(command, COMMAND_LEN, get_cmdline_fmt, proc_id);
-        if (exec_cmd((const char *)command, cmdline, PROC_CMDLINE_LEN)) {
-            continue;
-        }
-
-        if (!is_wl_range((const char *)comm, (const char *)command, probep->conf)) {
-            continue;
-        }
-
-        add_proc_item(proc_id, (const char *)comm, probep);
-    } while (1);
-
-    closedir(dir);
-
-    return;
 }
 
 static void load_task_args(int fd, struct probe_params *params)
@@ -160,63 +56,206 @@ static void load_task_args(int fd, struct probe_params *params)
     (void)bpf_map_update_elem(fd, &key, &args, BPF_ANY);
 }
 
-static void load_wl2bpf(struct task_probe_s* probep)
+static void load_task_snoopers(int fd, struct ipc_body_s *ipc_body)
 {
-    struct proc_id_s *item, *tmp;
-    if (probep->procs) {
-        H_ITER(probep->procs, item, tmp) {
-            load_proc2bpf(item->id, (const char *)(item->comm), probep->proc_map_fd);
-            load_thread2bpf(item->id, probep->thread_map_fd);
+    u32 key = 0;
+    struct proc_data_s proc = {0};
+
+    if (fd <= 0) {
+        return;
+    }
+
+    for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_body->snooper_objs[i].type == SNOOPER_OBJ_PROC) {
+            key = ipc_body->snooper_objs[i].obj.proc.proc_id;
+            proc.proc_id = key;
+            (void)bpf_map_update_elem(fd, &key, &proc, BPF_ANY);
         }
     }
 }
 
-static void __deinit_probe(struct task_probe_s *probep)
+static void unload_task_snoopers(int fd, struct ipc_body_s *ipc_body)
 {
-    struct proc_id_s *item, *tmp;
+    u32 key = 0;
 
-    if (probep->procs) {
-        H_ITER(probep->procs, item, tmp) {
-            H_DEL(probep->procs, item);
-            (void)free(item);
+    if (fd <= 0) {
+        return;
+    }
+
+    for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_body->snooper_objs[i].type == SNOOPER_OBJ_PROC) {
+            key = ipc_body->snooper_objs[i].obj.proc.proc_id;
+            (void)bpf_map_delete_elem(fd, &key);
         }
     }
-    probep->procs = NULL;
+}
 
-    if (probep->conf != NULL) {
-        whitelist_config_destroy(probep->conf);
+static void taskprobe_unload_bpf(void)
+{
+    unload_bpf_prog(&(g_task_probe.thread_bpf_progs));
+    unload_bpf_prog(&(g_task_probe.proc_bpf_progs));
+
+    for (int i = 0; i < GLIBC_EBPF_PROG_MAX; i++) {
+        if (g_task_probe.glibc_bpf_progs[i].prog) {
+            unload_bpf_prog(&(g_task_probe.glibc_bpf_progs[i].prog));
+        }
+        if (g_task_probe.glibc_bpf_progs[i].glibc_path) {
+            (void)free(g_task_probe.glibc_bpf_progs[i].glibc_path);
+            g_task_probe.glibc_bpf_progs[i].glibc_path = NULL;
+        }
     }
-    probep->conf = NULL;
+}
 
-    return;
+static char __is_exist_glibc_ebpf(struct task_probe_s *task_probe, const char *glibc)
+{
+    for (int i = 0; i < GLIBC_EBPF_PROG_MAX; i++) {
+        if (task_probe->glibc_bpf_progs[i].glibc_path 
+            && !strcmp(glibc, task_probe->glibc_bpf_progs[i].glibc_path)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int __add_glibc_ebpf(struct task_probe_s *task_probe, struct bpf_prog_s *ebpf_prog, const char *glibc)
+{
+    for (int i = 0; i < GLIBC_EBPF_PROG_MAX; i++) {
+        if (task_probe->glibc_bpf_progs[i].prog == NULL) {
+            task_probe->glibc_bpf_progs[i].prog = ebpf_prog;
+            task_probe->glibc_bpf_progs[i].glibc_path = strdup(glibc);
+            return 0;
+        }
+    }
+    return -1;
+}
+
+static int taskprobe_load_glibc_bpf(struct task_probe_s *task_probe, struct ipc_body_s *ipc_body)
+{
+    int ret;
+    char *glibc;
+    struct bpf_prog_s *new_prog = NULL;
+    char host_glibc[PATH_LEN];
+
+    if (!(ipc_body->probe_range_flags & PROBE_RANGE_PROC_DNS)) {
+        return 0;
+    }
+
+    host_glibc[0] = 0;
+    (void)get_glibc_path(NULL, host_glibc, PATH_LEN);
+
+    // Default: load 'glibc of host' ebpf prog
+    ret = load_glibc_bpf_prog(task_probe, host_glibc, &new_prog);
+    if (ret) {
+        goto err;
+    }
+    ret = __add_glibc_ebpf(task_probe, new_prog, (const char *)host_glibc);
+    if (ret) {
+        unload_bpf_prog(&new_prog);
+        goto err;
+    }
+
+    for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_body->snooper_objs[i].type != SNOOPER_OBJ_CON) {
+            continue;
+        }
+        glibc = ipc_body->snooper_objs[i].obj.con_info.libc_path;
+        if (glibc == NULL) {
+            continue;
+        }
+        if (__is_exist_glibc_ebpf(task_probe, (const char *)glibc)) {
+            continue;
+        }
+        new_prog = NULL;
+        ret = load_glibc_bpf_prog(task_probe, glibc, &new_prog);
+        if (ret) {
+            goto err;
+        }
+        ret = __add_glibc_ebpf(task_probe, new_prog, (const char *)glibc);
+        if (ret) {
+            unload_bpf_prog(&new_prog);
+            goto err;
+        }
+    }
+
+    return 0;
+err:
+    return -1;
+}
+
+static int taskprobe_load_bpf(struct ipc_body_s *ipc_body)
+{
+    int ret;
+    struct bpf_prog_s *new_prog = NULL;
+
+    ret = taskprobe_load_glibc_bpf(&g_task_probe, ipc_body);
+    if (ret) {
+        goto err;
+    }
+
+    ret = load_thread_bpf_prog(&g_task_probe, ipc_body, &new_prog);
+    if (ret) {
+        goto err;
+    }
+    g_task_probe.thread_bpf_progs = new_prog;
+
+    ret = load_proc_bpf_prog(&g_task_probe, ipc_body, &new_prog);
+    if (ret) {
+        goto err;
+    }
+    g_task_probe.proc_bpf_progs = new_prog;
+    return 0;
+err:
+    fprintf(stderr, "[TASKPROBE] load prog failed.\n");
+    return ret;
+}
+
+static int perf_poll(struct task_probe_s *task_probe)
+{
+    int err = 0, ret;
+    int ebpf_installed = 0;
+
+    if (task_probe->thread_bpf_progs && task_probe->thread_bpf_progs->pb != NULL) {
+        ebpf_installed = 1;
+        if ((ret = perf_buffer__poll(task_probe->thread_bpf_progs->pb, THOUSAND)) < 0) {
+            err = -1;
+            goto end;
+        }
+    }
+
+    if (task_probe->proc_bpf_progs && task_probe->proc_bpf_progs->pb != NULL) {
+        ebpf_installed = 1;
+        if ((ret = perf_buffer__poll(task_probe->proc_bpf_progs->pb, THOUSAND)) < 0) {
+            err = -1;
+            goto end;
+        }
+    }
+
+    for (int i = 0; i < GLIBC_EBPF_PROG_MAX; i++) {
+        if (task_probe->glibc_bpf_progs[i].prog == NULL) {
+            break;
+        }
+
+        if (task_probe->glibc_bpf_progs[i].prog->pb == NULL) {
+            break;
+        }
+        ebpf_installed = 1;
+        if ((ret = perf_buffer__poll(task_probe->glibc_bpf_progs[i].prog->pb, THOUSAND)) < 0) {
+            err = -1;
+            goto end;
+        }
+    }
+    if (!ebpf_installed) {
+        sleep(1);
+    }
+end:
+    return err;
 }
 
 int main(int argc, char **argv)
 {
     int ret = -1;
     FILE *fp = NULL;
-    struct bpf_prog_s* thread_bpf_progs = NULL;
-    struct bpf_prog_s* proc_bpf_progs = NULL;
-    struct bpf_prog_s* glibc_bpf_progs = NULL;
-
-    if (signal(SIGINT, sig_int) == SIG_ERR) {
-        fprintf(stderr, "can't set signal handler: %s\n", strerror(errno));
-        return -1;
-    }
-
-    ret = args_parse(argc, argv, &probe.params);
-    if (ret != 0) {
-        return ret;
-    }
-
-    if (strlen(probe.params.task_whitelist) == 0) {
-        fprintf(stderr, "***task_whitelist_path is null, please check param : -c xx/xxx *** \n");
-        return -1;
-    }
-
-    if (parse_whitelist_config(&(probe.conf), probe.params.task_whitelist) < 0) {
-        return -1;
-    }
+    struct ipc_body_s ipc_body;
 
     fp = popen(RM_TASK_MAP_PATH, "r");
     if (fp != NULL) {
@@ -224,69 +263,51 @@ int main(int argc, char **argv)
         fp = NULL;
     }
 
-    INIT_BPF_APP(taskprobe, EBPF_RLIM_LIMITED);
+    (void)memset(&g_task_probe, 0, sizeof(g_task_probe));
 
-    // load task probe bpf prog
-    LOAD_TASK_PROBE(taskprobe, err, 1);
-
-    probe.args_fd = GET_MAP_FD(taskprobe, args_map);
-    probe.thread_map_fd = GET_MAP_FD(taskprobe, g_thread_map);
-    probe.proc_map_fd = GET_MAP_FD(taskprobe, g_proc_map);
-
-    // Set task probe collection period
-    load_task_args(probe.args_fd, &(probe.params));
-
-    // load wl proc
-    get_wl_proc(&probe);
-
-    // load daemon thread and proc
-    load_wl2bpf(&probe);
-
-    // Load thread bpf prog
-    thread_bpf_progs = load_thread_bpf_prog(&(probe.params));
-    if (thread_bpf_progs == NULL) {
+    int msq_id = create_ipc_msg_queue(IPC_EXCL);
+    if (msq_id < 0) {
         goto err;
     }
 
-    // Load proc bpf prog
-    proc_bpf_progs = load_proc_bpf_prog(&probe);
-    if (proc_bpf_progs == NULL) {
+    if (signal(SIGINT, sig_int) == SIG_ERR) {
+        fprintf(stderr, "can't set signal handler: %s\n", strerror(errno));
         goto err;
     }
-
-    // Load glibc bpf prog
-    glibc_bpf_progs = load_glibc_bpf_prog(&(probe.params));
 
     printf("Successfully started!\n");
+    INIT_BPF_APP(taskprobe, EBPF_RLIM_LIMITED);
 
     while (!stop) {
-        if (thread_bpf_progs->pb != NULL) {
-            if ((ret = perf_buffer__poll(thread_bpf_progs->pb, THOUSAND)) < 0) {
-                break;
-            }
-        }
-        if (proc_bpf_progs->pb != NULL) {
-            if ((ret = perf_buffer__poll(proc_bpf_progs->pb, THOUSAND)) < 0) {
-                break;
-            }
-        }
-        for (int i = 0; i < proc_bpf_progs->num; i++) {
-            if (proc_bpf_progs->pbs[i] != NULL) {
-                if ((ret = perf_buffer__poll(proc_bpf_progs->pbs[i], THOUSAND)) < 0) {
+        ret = recv_ipc_msg(msq_id, (long)PROBE_PROC, &ipc_body);
+        if (ret == 0) {
+            // Probe range changed, reload bpf prog.
+            if (ipc_body.probe_range_flags != g_task_probe.ipc_body.probe_range_flags) {
+                taskprobe_unload_bpf();
+                if (taskprobe_load_bpf(&ipc_body)) {
                     break;
                 }
             }
+
+            // Reload snooper range and params.
+            unload_task_snoopers(g_task_probe.proc_map_fd, &(g_task_probe.ipc_body));
+
+            destroy_ipc_body(&(g_task_probe.ipc_body));
+            (void)memcpy(&(g_task_probe.ipc_body), &ipc_body, sizeof(g_task_probe.ipc_body));
+            load_task_snoopers(g_task_probe.proc_map_fd, &(g_task_probe.ipc_body));
+            load_task_args(g_task_probe.args_fd, &(g_task_probe.ipc_body.probe_param));
+        }
+
+        ret = perf_poll(&g_task_probe);
+        if (ret) {
+            break;
         }
     }
 
 err:
-    unload_bpf_prog(&glibc_bpf_progs);
-    unload_bpf_prog(&proc_bpf_progs);
-    unload_bpf_prog(&thread_bpf_progs);
-    UNLOAD(taskprobe);
-
-    __deinit_probe(&probe);
-
+    destroy_ipc_msg_queue(msq_id);
+    taskprobe_unload_bpf();
+    destroy_ipc_body(&(g_task_probe.ipc_body));
     return ret;
 }
 
