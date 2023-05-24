@@ -122,7 +122,6 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
             ERROR("Failed to open BPF " #probe_name " skeleton\n"); \
             goto end; \
         } \
-        __PIN_SHARE_MAP_ALL(probe_name); \
         if (probe_name##_bpf__load(probe_name##_skel)) { \
             ERROR("Failed to load BPF " #probe_name " skeleton\n"); \
             goto end; \
@@ -167,7 +166,6 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
         if (load) \
         { \
             int err; \
-            __PIN_SHARE_MAP_ALL(probe_name); \
             if (probe_name##_bpf__load(probe_name##_skel)) { \
                 ERROR("Failed to load BPF " #probe_name " skeleton\n"); \
                 goto end; \

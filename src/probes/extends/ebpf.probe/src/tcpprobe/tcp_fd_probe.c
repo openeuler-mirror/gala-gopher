@@ -30,13 +30,13 @@
 
 #include "bpf.h"
 #include "tcp.h"
-#include "args.h"
+#include "ipc.h"
 #include "tcpprobe.h"
 #include "tcp_fd.skel.h"
 
 static struct bpf_prog_s* fd_probe = NULL;
 
-int tcp_load_fd_probe(void)
+int tcp_load_fd_probe(int *tcp_fd_map_fd, int *proc_obj_map_fd)
 {
     struct bpf_prog_s *prog;
 
@@ -51,7 +51,9 @@ int tcp_load_fd_probe(void)
     prog->num++;
 
     fd_probe = prog;
-    return GET_MAP_FD(tcp_fd, tcp_fd_map);
+    *tcp_fd_map_fd = GET_MAP_FD(tcp_fd, tcp_fd_map);
+    *proc_obj_map_fd = GET_MAP_FD(tcp_fd, proc_obj_map);
+    return 0;
 err:
     UNLOAD(tcp_fd);
     return -1;

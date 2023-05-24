@@ -15,7 +15,6 @@
 #ifndef __TCPPROBE__H
 #define __TCPPROBE__H
 
-#include "args.h"
 #include "bpf.h"
 
 #define LINK_ROLE_SERVER 0
@@ -209,15 +208,11 @@ struct sock_stats_s {
 struct tcp_args_s {
     __u64 period;               // Sampling period, unit ns
     __u32 cport_flag;           // Indicates whether the probes(such as tcp) identifies the client port
-    __u32 filter_by_task;       // Filtering PID monitoring ranges by task probe
-    __u32 filter_by_tgid;       // Filtering PID monitoring ranges by specific pid
 };
 
-void load_established_tcps(struct probe_params *args, int map_fd);
 void lkup_established_tcp(void);
 void destroy_established_tcps(void);
-struct bpf_prog_s* tcp_load_probe(struct probe_params *args);
-int tcp_load_fd_probe(void);
+int tcp_load_fd_probe(int *tcp_fd_map_fd, int *proc_obj_map_fd);
 void tcp_unload_fd_probe(void);
 
 #define __LOAD_PROBE(probe_name, end, load) \

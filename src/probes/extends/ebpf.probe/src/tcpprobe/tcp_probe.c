@@ -28,7 +28,7 @@
 #endif
 
 #include "bpf.h"
-#include "args.h"
+#include "ipc.h"
 #include "tcpprobe.h"
 #include "tcp_event.h"
 #include "tcp_tx_rx.skel.h"
@@ -47,10 +47,9 @@
 #define TCP_TBL_SOCKBUF "tcp_sockbuf"
 #define TCP_TBL_TXRX    "tcp_tx_rx"
 
-static struct probe_params *g_args = NULL;
+static struct ipc_body_s *__ipc_body = NULL;
 
 static void output_tcp_metrics(void *ctx, int cpu, void *data, u32 size);
-static char is_load_probe(struct probe_params *args, u32 probe);
 
 static void output_tcp_abn(void *ctx, int cpu, void *data, __u32 size)
 {
@@ -63,7 +62,7 @@ static void output_tcp_abn(void *ctx, int cpu, void *data, __u32 size)
 
     struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
 
-    report_tcp_abn_evt(g_args, metrics);
+    report_tcp_abn_evt(&(__ipc_body->probe_param), metrics);
 
     link = &(metrics->link);
     ip_str(link->family, (unsigned char *)&(link->c_ip), src_ip_str, INET6_ADDRSTRLEN);
@@ -116,7 +115,7 @@ static void output_tcp_syn_rtt(void *ctx, int cpu, void *data, __u32 size)
 
     struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
 
-    report_tcp_syn_rtt_evt(g_args, metrics);
+    report_tcp_syn_rtt_evt(&(__ipc_body->probe_param), metrics);
 
     output_tcp_metrics(ctx, cpu, data, size);
 
@@ -217,7 +216,7 @@ static void output_tcp_win(void *ctx, int cpu, void *data, __u32 size)
 
     struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
 
-    report_tcp_win_evt(g_args, metrics);
+    report_tcp_win_evt(&(__ipc_body->probe_param), metrics);
 
     link = &(metrics->link);
     ip_str(link->family, (unsigned char *)&(link->c_ip), src_ip_str, INET6_ADDRSTRLEN);
@@ -329,12 +328,12 @@ static void output_tcp_metrics(void *ctx, int cpu, void *data, u32 size)
 
     char is_load_txrx, is_load_abn, is_load_win, is_load_rate, is_load_rtt, is_load_sockbuf;
 
-    is_load_txrx = is_load_probe(g_args, TCP_PROBE_TXRX);
-    is_load_abn = is_load_probe(g_args, TCP_PROBE_ABN);
-    is_load_rate = is_load_probe(g_args, TCP_PROBE_RATE);
-    is_load_win = is_load_probe(g_args, TCP_PROBE_WINDOWS);
-    is_load_rtt = is_load_probe(g_args, TCP_PROBE_RTT);
-    is_load_sockbuf = is_load_probe(g_args, TCP_PROBE_SOCKBUF);
+    is_load_txrx = __ipc_body->probe_range_flags & PROBE_RANGE_TCP_STATS;
+    is_load_abn = __ipc_body->probe_range_flags & PROBE_RANGE_TCP_ABNORMAL;
+    is_load_rate = __ipc_body->probe_range_flags & PROBE_RANGE_TCP_RATE;
+    is_load_win = __ipc_body->probe_range_flags & PROBE_RANGE_TCP_WINDOWS;
+    is_load_rtt = __ipc_body->probe_range_flags & PROBE_RANGE_TCP_RTT;
+    is_load_sockbuf = __ipc_body->probe_range_flags & PROBE_RANGE_TCP_SOCKBUF;
 
     u32 flags = metrics->report_flags & TCP_PROBE_ALL;
 
@@ -368,11 +367,6 @@ static void output_tcp_metrics(void *ctx, int cpu, void *data, u32 size)
 
 }
 
-static char is_load_probe(struct probe_params *args, u32 probe)
-{
-    return args->load_probe & probe;
-}
-
 static void load_args(int args_fd, struct probe_params* params)
 {
     u32 key = 0;
@@ -380,8 +374,6 @@ static void load_args(int args_fd, struct probe_params* params)
 
     args.cport_flag = (u32)params->cport_flag;
     args.period = NS(params->period);
-    args.filter_by_task = (u32)params->filter_task_probe;
-    args.filter_by_tgid = (u32)params->filter_pid;
 
     (void)bpf_map_update_elem(args_fd, &key, &args, BPF_ANY);
 }
@@ -568,26 +560,32 @@ err:
     return -1;
 }
 
-struct bpf_prog_s* tcp_load_probe(struct probe_params *args)
+struct bpf_prog_s* tcp_load_probe(struct ipc_body_s *ipc_body)
 {
+    char is_load = 0;
     struct bpf_prog_s *prog;
     char is_load_txrx, is_load_abn, is_load_win, is_load_rate, is_load_rtt, is_load_sockbuf;
 
-    is_load_txrx = is_load_probe(args, TCP_PROBE_TXRX);
-    is_load_abn = is_load_probe(args, TCP_PROBE_ABN);
-    is_load_rate = is_load_probe(args, TCP_PROBE_RATE);
-    is_load_win = is_load_probe(args, TCP_PROBE_WINDOWS);
-    is_load_rtt = is_load_probe(args, TCP_PROBE_RTT);
-    is_load_sockbuf = is_load_probe(args, TCP_PROBE_SOCKBUF);
+    is_load_txrx = ipc_body->probe_range_flags & PROBE_RANGE_TCP_STATS;
+    is_load_abn = ipc_body->probe_range_flags & PROBE_RANGE_TCP_ABNORMAL;
+    is_load_rate = ipc_body->probe_range_flags & PROBE_RANGE_TCP_RATE;
+    is_load_win = ipc_body->probe_range_flags & PROBE_RANGE_TCP_WINDOWS;
+    is_load_rtt = ipc_body->probe_range_flags & PROBE_RANGE_TCP_RTT;
+    is_load_sockbuf = ipc_body->probe_range_flags & PROBE_RANGE_TCP_SOCKBUF;
 
-    g_args = args;
+    __ipc_body = ipc_body;
+
+    is_load = is_load_txrx | is_load_abn | is_load_rate | is_load_win | is_load_rtt | is_load_sockbuf;
+    if (!is_load) {
+        return NULL;
+    }
 
     prog = alloc_bpf_prog();
     if (prog == NULL) {
         return NULL;
     }
 
-    if (tcp_load_probe_link(args, prog)) {
+    if (tcp_load_probe_link(&(ipc_body->probe_param), prog)) {
         goto err;
     }
 
@@ -618,7 +616,6 @@ struct bpf_prog_s* tcp_load_probe(struct probe_params *args)
     return prog;
 
 err:
-
     unload_bpf_prog(&prog);
     return NULL;
 }
