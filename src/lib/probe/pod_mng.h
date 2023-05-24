@@ -32,6 +32,7 @@ enum id_ret_t {
 struct con_info_s {
     u32 flags;
     u32 cpucg_inode;
+    struct pod_info_s *pod_info_ptr; // No need to free
     char con_id[CONTAINER_ABBR_ID_LEN + 1];
     char container_name[CONTAINER_NAME_LEN];
     char libc_path[PATH_LEN];
@@ -51,10 +52,11 @@ struct pod_info_s {
     struct containers_hash_t *con_head; // TODO: This field is invalid during ipc communication. Change to an array?
 };
 
+struct pod_info_s *get_pod_info_from_pod_id(char *pod_id);
 struct pod_info_s *get_pod_info_from_pod_name(char *pod_name_origin);
 void existing_pod_mk_process(char *pod_name);
 enum id_ret_t get_pod_container_id(char *cgrp_path, char *pod_id, char *con_id);
-struct con_info_s *get_con_info(char *con_id);
+struct con_info_s *get_con_info(char *pod_id, char *con_id);
 struct pod_info_s *get_pod_info(char *pod_id);
 void del_pods();
 void cgrp_mk_process(char *pod_id, char *con_id, enum id_ret_t id_ret);

@@ -163,10 +163,10 @@ enum id_ret_t get_pod_container_id(char *cgrp_path, char *pod_id, char *con_id)
     return ret;
 }
 
-struct con_info_s *get_con_info(char *con_id)
+struct con_info_s *get_con_info(char *pod_id, char *con_id)
 {
     struct containers_hash_t *con = NULL;
-    struct pod_info_s *pod_info = get_pod_info_from_pod_name(FAKE_POD_ID);
+    struct pod_info_s *pod_info = get_pod_info_from_pod_id(pod_id);
     if (pod_info == NULL) {
         return NULL;
     }
@@ -193,8 +193,10 @@ static int add_con_hash(struct containers_hash_t **con_head, char *con_id)
     return 0;
 }
 
-static void set_con_info(char *con_id,  struct containers_hash_t *con)
+static void set_con_info(struct pod_info_s *pod_info, char *con_id,  struct containers_hash_t *con)
 {
+    con->con_info.pod_info_ptr = pod_info;
+
     if (con->con_info.con_id[0] == 0) {
         (void)strncpy(con->con_info.con_id, con_id, CONTAINER_ABBR_ID_LEN);
     }
@@ -236,7 +238,7 @@ static struct containers_hash_t *add_one_con(struct pod_info_s *pod_info, char *
         return NULL;
     }
 
-    set_con_info(con_id, con);
+    set_con_info(pod_info, con_id, con);
     // print_pod_state_metrics(pod_info, con, "create_container");
 
     return con;
@@ -274,6 +276,19 @@ static void del_cons(struct containers_hash_t **con_head)
     }
 
     *con_head = NULL;
+}
+
+struct pod_info_s *get_pod_info_from_pod_id(char *pod_id)
+{
+    struct pods_hash_t *pod = NULL;
+    if (pod_id == NULL || pod_id[0] == 0) {
+        return NULL;
+    }
+    H_FIND_S(pod_head, pod_id, pod);
+    if (pod != NULL) {
+        return &pod->pod_info;
+    }
+    return NULL;
 }
 
 struct pod_info_s *get_pod_info_from_pod_name(char *pod_name_origin)
@@ -460,19 +475,15 @@ struct con_info_s *get_and_add_con_info(char *pod_id, char *container_id)
     char con_id[CONTAINER_ABBR_ID_LEN + 1] = {0};
     strncpy(con_id, container_id, CONTAINER_ABBR_ID_LEN);
 
-    struct con_info_s *con_info = get_con_info(con_id);
+    struct con_info_s *con_info = get_con_info(pod_id, con_id);
     if (con_info != NULL) {
         return con_info;
     }
 
     // add_con_info
-    if (pod_id == NULL || pod_id[0] == 0) {
-        cgrp_mk_process(FAKE_POD_ID, con_id, ID_CON_ONLY);
-    } else {
-        cgrp_mk_process(pod_id, con_id, ID_CON_POD);
-    }
+    cgrp_mk_process(pod_id, con_id, ID_CON_ONLY);
 
-    return get_con_info(con_id);
+    return get_con_info(pod_id, con_id);
 }
 
 // Try to get pod_info. If can't then try to add.
