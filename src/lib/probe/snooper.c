@@ -661,23 +661,9 @@ static int send_snooper_obj(struct probe_s *probe)
     return send_ipc_msg(__probe_mng_snooper->msq_id, (long)probe->probe_type, &ipc_body);
 }
 
-//TODO: refactor this func
 int parse_snooper(struct probe_s *probe, const cJSON *json)
 {
     int i;
-#if 0
-    u32 probe_range_flags_bak;
-    u32 snooper_conf_num_bak = probe->snooper_conf_num;
-    struct snooper_conf_s *snooper_confs_bak[SNOOPER_MAX] = {0};
-
-    /* Backup and clear current snooper config*/
-    probe_range_flags_bak = probe->probe_range_flags;
-
-    snooper_conf_num_bak = probe->snooper_conf_num;
-    probe->snooper_conf_num = 0;
-    (void)memcpy(&snooper_confs_bak, &probe->snooper_confs, snooper_conf_num_bak * (sizeof(struct snooper_conf_s *)));
-    (void)memset(&probe->snooper_confs, 0, snooper_conf_num_bak * (sizeof(struct snooper_conf_s *)));
-#endif
 
     /* free current snooper config */
     for (i = 0 ; i < probe->snooper_conf_num ; i++) {
@@ -718,18 +704,6 @@ int parse_snooper(struct probe_s *probe, const cJSON *json)
 
     refresh_snooper_obj(probe);
     return send_snooper_obj(probe);
-#if 0
-resume_snooper:
-    for (i = 0 ; i < snooper_conf_num_bak ; i++) {
-        free_snooper_conf(probe->snooper_confs[i]);
-        probe->snooper_confs[i] = snooper_confs_bak[i];
-    }
-    probe->snooper_conf_num = snooper_conf_num_bak;
-
-resume_range:
-    probe->probe_range_flags = probe_range_flags_bak;
-    return -1;
-#endif
 }
 
 void free_snooper_obj(struct snooper_obj_s* snooper_obj)
@@ -791,6 +765,42 @@ static struct snooper_obj_s* new_snooper_obj(void)
     (void)memset(snooper_obj, 0, sizeof(struct snooper_obj_s));
 
     return snooper_obj;
+}
+
+void backup_snooper(struct probe_s *probe, struct probe_s *probe_backup)
+{
+    u32 snooper_conf_num = probe->snooper_conf_num;
+
+    probe_backup->snooper_conf_num = snooper_conf_num;
+    probe_backup->probe_range_flags = probe->probe_range_flags;
+
+    (void)memcpy(&probe_backup->snooper_confs, &probe->snooper_confs,
+                    SNOOPER_MAX * (sizeof(struct snooper_conf_s *)));
+    (void)memset(&probe->snooper_confs, 0, SNOOPER_MAX * (sizeof(struct snooper_conf_s *)));
+
+    (void)memcpy(&probe_backup->snooper_objs, &probe->snooper_objs,
+                    SNOOPER_MAX * (sizeof(struct snooper_obj_s *)));
+    (void)memset(&probe->snooper_objs, 0, SNOOPER_MAX * (sizeof(struct snooper_obj_s *)));
+}
+
+void rollback_snooper(struct probe_s *probe, struct probe_s *probe_backup)
+{
+    int i;
+
+    probe->probe_range_flags = probe_backup->probe_range_flags;
+
+    for (i = 0 ; i < SNOOPER_MAX; i++) {
+        free_snooper_conf(probe->snooper_confs[i]);
+        probe->snooper_confs[i] = probe_backup->snooper_confs[i];
+        probe_backup->snooper_confs[i] = NULL;
+
+        free_snooper_obj(probe->snooper_objs[i]);
+        probe->snooper_objs[i] = probe_backup->snooper_objs[i];
+        probe_backup->snooper_objs[i] = NULL;
+    }
+
+    probe->snooper_conf_num = probe_backup->snooper_conf_num;
+    probe_backup->snooper_conf_num = 0;
 }
 
 #define __SYS_PROC_DIR  "/proc"
