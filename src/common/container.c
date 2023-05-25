@@ -428,7 +428,7 @@ int get_container_id_by_pid(unsigned int pid, char *container_id, unsigned int b
 }
 
 #define __PROC_CPUSET           "/proc/%s/cpuset"
-#define __CAT_PROC_CPUSET_CMD   "/usr/bin/cat %s | awk -F '/' '{print $NF}'"
+#define __CAT_PROC_CPUSET_CMD   "/usr/bin/cat %s 2>/dev/null | awk -F '/' '{print $NF}'"
 static int __is_container_id(char *container_id)
 {
     int len = strlen(container_id);

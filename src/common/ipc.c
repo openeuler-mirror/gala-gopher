@@ -17,6 +17,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 #include "ipc.h"
 
 #define IPC_TLV_LEN_DEFAULT ((2 * (sizeof(struct ipc_tlv_s) + sizeof(u32))) \
@@ -820,7 +821,7 @@ static int __build_ipc_msg(char *buf, size_t size, struct ipc_body_s* ipc_body)
 
     build_len = __build_snooper_num_tlv(cur, (size_t)max_len, ipc_body);
     max_len = max_len - build_len;
-    if (max_len <= 0) {
+    if (max_len < 0) {  // snooper_num为0的情况，此时max_len==0
         return -1;
     }
     cur += build_len;
@@ -870,7 +871,7 @@ static struct ipc_msg_s* __create_ipc_msg(struct ipc_body_s* ipc_body, long msg_
         return NULL;
     }
 
-    buf = (char *)(ipc_msg + 1);
+    buf = (char *)(ipc_msg->msg);
 
     ret = __build_ipc_msg(buf, ipc_msg->msg_len, ipc_body);
     if (ret) {
@@ -985,7 +986,7 @@ static int __deserialize_ipc_msg(struct ipc_msg_s* ipc_msg, struct ipc_body_s* i
         return -1;
     }
     offset += deserialize_len;
-    max_len -= offset;
+    max_len -= deserialize_len;
     if (max_len < 0) {
         return -1;
     }
@@ -996,7 +997,7 @@ static int __deserialize_ipc_msg(struct ipc_msg_s* ipc_msg, struct ipc_body_s* i
         return -1;
     }
     offset += deserialize_len;
-    max_len -= offset;
+    max_len -= deserialize_len;
     if (max_len < 0) {
         return -1;
     }
@@ -1007,7 +1008,7 @@ static int __deserialize_ipc_msg(struct ipc_msg_s* ipc_msg, struct ipc_body_s* i
         return -1;
     }
     offset += deserialize_len;
-    max_len -= offset;
+    max_len -= deserialize_len;
     if (max_len < 0) {
         return -1;
     }
@@ -1022,7 +1023,7 @@ static int __deserialize_ipc_msg(struct ipc_msg_s* ipc_msg, struct ipc_body_s* i
         return -1;
     }
     offset += deserialize_len;
-    max_len -= offset;
+    max_len -= deserialize_len;
     if (max_len < 0) {
         return -1;
     }
@@ -1070,7 +1071,7 @@ int send_ipc_msg(int msqid, long msg_type, struct ipc_body_s* ipc_body)
     }
 
     if (msgsnd(msqid, ipc_msg, ipc_msg->msg_len + sizeof(u32), 0) < 0) {
-        ERROR("[IPC] send ipc message(msg_type = %d) failed.\n", msg_type);
+        ERROR("[IPC] send ipc message(msg_type = %ld) failed(%d).\n", msg_type, errno);
         err = -1;
     }
 

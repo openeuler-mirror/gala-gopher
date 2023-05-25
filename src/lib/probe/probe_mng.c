@@ -455,7 +455,10 @@ static int stop_probe(struct probe_s *probe)
     UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_STARTED);
 
     if (IS_NATIVE_PROBE(probe)) {
-        kill(probe->tid, SIGINT);
+        if (pthread_cancel(probe->tid) != 0) {
+            ERROR("[PROBEMNG] Fail to cancel native probe(name:%s)\n", probe->name);
+            return -1;
+        }
     } else {
         pid = get_probe_pid(probe);
         if (pid < 0) {
