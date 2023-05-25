@@ -52,7 +52,8 @@ struct probe_define_s probe_define[] = {
     {"nginx",               PROBE_NGINX},
     {"haproxy",             PROBE_HAPROXY},
     {"kafka",               PROBE_KAFKA},
-    {"tprofiling",          PROBE_TP}
+    {"tprofiling",          PROBE_TP},
+    {"hw",                  PROBE_HW},
 };
 
 static struct probe_mng_s *g_probe_mng;

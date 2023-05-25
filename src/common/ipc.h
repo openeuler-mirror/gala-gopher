@@ -80,6 +80,10 @@
 #define PROBE_RANGE_TPROFILING_SYSCALL_SCHED    0x00000008
 #define PROBE_RANGE_TPROFILING_SYSCALL_LOCK     0x00000010
 
+/* hardware subprobe define */
+#define PROBE_RANGE_HW_NIC          0x00000001
+#define PROBE_RANGE_HW_MEM          0x00000002
+
 enum probe_type_e {
     PROBE_BASEINFO = 1,
     PROBE_VIRT,
@@ -101,6 +105,7 @@ enum probe_type_e {
     PROBE_HAPROXY,
     PROBE_KAFKA,
     PROBE_TP,
+    PROBE_HW,
 
     PROBE_TYPE_MAX
 };
