@@ -109,7 +109,7 @@ static void taskprobe_unload_bpf(void)
 static char __is_exist_glibc_ebpf(struct task_probe_s *task_probe, const char *glibc)
 {
     for (int i = 0; i < GLIBC_EBPF_PROG_MAX; i++) {
-        if (task_probe->glibc_bpf_progs[i].glibc_path 
+        if (task_probe->glibc_bpf_progs[i].glibc_path
             && !strcmp(glibc, task_probe->glibc_bpf_progs[i].glibc_path)) {
             return 1;
         }
@@ -305,7 +305,6 @@ int main(int argc, char **argv)
     }
 
 err:
-    destroy_ipc_msg_queue(msq_id);
     taskprobe_unload_bpf();
     destroy_ipc_body(&(g_task_probe.ipc_body));
     return ret;

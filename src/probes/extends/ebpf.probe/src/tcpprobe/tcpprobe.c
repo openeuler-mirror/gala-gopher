@@ -159,7 +159,6 @@ int main(int argc, char **argv)
     }
 
 err:
-    destroy_ipc_msg_queue(msq_id);
     unload_bpf_prog(&tcp_progs);
 
     tcp_unload_fd_probe();

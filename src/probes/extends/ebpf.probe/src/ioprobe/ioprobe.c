@@ -110,7 +110,7 @@ static char* __get_first_letter_pos(char *buf)
         pos++;
         p = buf + pos;
     }
-    
+
     if (pos >= len) {
         return NULL;
     }
@@ -338,7 +338,7 @@ static void rcv_io_err(void *ctx, int cpu, void *data, __u32 size)
 
     entityId[0] = 0;
     __build_entity_id(io_err->major, io_err->first_minor, entityId, __ENTITY_ID_LEN);
-    
+
     report_logs(OO_NAME,
                 entityId,
                 "err_code",
@@ -707,7 +707,6 @@ int main(int argc, char **argv)
     }
 
 err:
-    destroy_ipc_msg_queue(msq_id);
     ioprobe_unload_bpf();
     destroy_ipc_body(&g_ipc_body);
 
