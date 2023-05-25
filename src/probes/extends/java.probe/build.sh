@@ -17,9 +17,9 @@ function make_jvmprobe_agent_jar()
 {
     mkdir -p tmp
     cd tmp
-    javac ../src/agent/JvmProbeAgent.java -d ./
+    javac ../src/agent/JvmProbeAgent.java -d ./ || return 1
     cd ..
-    jar cfm JvmProbeAgent.jar config/META-INF/MANIFEST.MF -C tmp/ .
+    jar cfm JvmProbeAgent.jar config/META-INF/MANIFEST.MF -C tmp/ . || return 1
 
     rm -rf tmp 2>/dev/null
     return 0
@@ -27,7 +27,7 @@ function make_jvmprobe_agent_jar()
 
 function make_jvmprobe_bin()
 {
-    make -s -C src/
+    make -s -C src/ || return 1
     return 0
 }
 
@@ -35,10 +35,10 @@ function compile_jvmprobe()
 {
     cd ${PRJ_DIR}/jvm.probe
     echo "Compile jvmProbeAgent...."
-    make_jvmprobe_agent_jar
-    
+    make_jvmprobe_agent_jar || return 1
+
     echo "Compile jvmProbe...."
-    make_jvmprobe_bin
+    make_jvmprobe_bin || return 1
 
     cd ${PRJ_DIR}
     return 0
@@ -61,7 +61,7 @@ fi
 
 java_link=$(which java 2>/dev/null)
 javac_link=$(which javac 2>/dev/null)
-    
+
 if [ -z $java_link ] || [ -z $javac_link ];
 then
     echo "Error: java and javac : command not found"
@@ -72,7 +72,7 @@ else
     then
         exit 1
     fi
-    compile_jvmprobe
+    compile_jvmprobe || exit 1
     compile_clean
     exit
 fi
