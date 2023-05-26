@@ -179,7 +179,7 @@ function compile_extend_probes_release()
     for BUILD_PATH in ${EXT_PROBE_BUILD_LIST}
     do
         echo "==== BUILD_PATH: " ${BUILD_PATH}
-        ${BUILD_PATH} --build
+        ${BUILD_PATH} --build || return 1
     done
 }
 
@@ -271,18 +271,19 @@ fi
 
 if [ "$1" == "--check" ]; then
     prepare_dependence
+    if [ $? -ne 0 ];then
+        echo "Error: prepare dependence softwares failed"
+        exit 1
+    fi
 fi
-if [ $? -ne 0 ];then
-    echo "Error: prepare dependence softwares failed"
-    exit
-fi
+
 
 if [ "$1" = "--release" ];then
     load_tailor
     prepare_probes
-    compile_lib
-    compile_daemon_release
-    compile_extend_probes_release
+    compile_lib || exit 1
+    compile_daemon_release || exit 1
+    compile_extend_probes_release || exit 1
     clean_env
     exit
 fi
