@@ -62,8 +62,18 @@
 #define PROBE_RANGE_PROC_NET        0x00000020
 #define PROBE_RANGE_PROC_OFFCPU     0x00000040
 
+/* system_infos subprobe define */
+#define PROBE_RANGE_SYS_CPU         0x00000001
+#define PROBE_RANGE_SYS_MEM         0x00000002
+#define PROBE_RANGE_SYS_NIC         0x00000004
+#define PROBE_RANGE_SYS_NET         0x00000008
+#define PROBE_RANGE_SYS_DISK        0x00000010
+#define PROBE_RANGE_SYS_FS          0x00000020
+#define PROBE_RANGE_SYS_PROC        0x00000040
+#define PROBE_RANGE_SYS_HOST        0x00000080
+
 enum probe_type_e {
-    PROBE_BASEINFO = 0,
+    PROBE_BASEINFO = 1,
     PROBE_VIRT,
 
     /* The following are extended probes. */

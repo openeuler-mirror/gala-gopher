@@ -127,20 +127,29 @@ struct probe_range_define_s probe_range_define[] = {
     {PROBE_PROC,   "proc_io",             PROBE_RANGE_PROC_IO},
     {PROBE_PROC,   "proc_pagecache",      PROBE_RANGE_PROC_PAGECACHE},
     {PROBE_PROC,   "proc_net",            PROBE_RANGE_PROC_NET},
-    {PROBE_PROC,   "proc_offcpu",         PROBE_RANGE_PROC_OFFCPU}
+    {PROBE_PROC,   "proc_offcpu",         PROBE_RANGE_PROC_OFFCPU},
+
+    {PROBE_BASEINFO,  "cpu",              PROBE_RANGE_SYS_CPU},
+    {PROBE_BASEINFO,  "mem",              PROBE_RANGE_SYS_MEM},
+    {PROBE_BASEINFO,  "nic",              PROBE_RANGE_SYS_NIC},
+    {PROBE_BASEINFO,  "net",              PROBE_RANGE_SYS_NET},
+    {PROBE_BASEINFO,  "disk",             PROBE_RANGE_SYS_DISK},
+    {PROBE_BASEINFO,  "fs",               PROBE_RANGE_SYS_FS},
+    {PROBE_BASEINFO,  "proc",             PROBE_RANGE_SYS_PROC},
+    {PROBE_BASEINFO,  "host",             PROBE_RANGE_SYS_HOST}
 };
 
 static void refresh_snooper_obj(struct probe_s *probe);
 
 void get_probemng_lock(void);
 void put_probemng_lock(void);
-static int get_probe_range(const char *range)
+static int get_probe_range(enum probe_type_e probe_type, const char *range)
 {
 
     size_t size = sizeof(probe_range_define) / sizeof(struct probe_range_define_s);
 
     for (int i = 0; i < size; i++) {
-        if (!strcasecmp(probe_range_define[i].desc, range)) {
+        if (probe_range_define[i].probe_type == probe_type && !strcasecmp(probe_range_define[i].desc, range)) {
             return probe_range_define[i].flags;
         }
     }
@@ -412,7 +421,7 @@ static int parse_snooper_probe(struct probe_s *probe, const cJSON *json)
             return -1;
         }
 
-        range = get_probe_range((const char*)object->valuestring);
+        range = get_probe_range(probe->probe_type, (const char*)object->valuestring);
         probe->probe_range_flags |= range;
     }
 
