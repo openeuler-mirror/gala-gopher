@@ -37,9 +37,9 @@
 #include "syscall_sched.skel.h"
 #include "oncpu.skel.h"
 
-static char is_load_probe(struct probe_params *args, u32 probe)
+static char is_load_probe_ipc(struct ipc_body_s *ipc_body, u32 probe)
 {
-    if (args->load_probe & probe) {
+    if (ipc_body->probe_range_flags & probe) {
         return 1;
     }
     return 0;
@@ -75,16 +75,16 @@ LOAD_SYSCALL_BPF_PROG(lock)
 
 LOAD_SYSCALL_BPF_PROG(sched)
 
-struct bpf_prog_s *load_syscall_bpf_prog(struct probe_params *params)
+struct bpf_prog_s *load_syscall_bpf_prog(struct ipc_body_s *ipc_body)
 {
     struct bpf_prog_s *prog;
     char is_load_syscall_file, is_load_syscall_net;
     char is_load_syscall_lock, is_load_syscall_sched;
 
-    is_load_syscall_file = is_load_probe(params, TPROFILING_PROBE_SYSCALL_FILE);
-    is_load_syscall_net = is_load_probe(params, TPROFILING_PROBE_SYSCALL_NET);
-    is_load_syscall_lock = is_load_probe(params, TPROFILING_PROBE_SYSCALL_LOCK);
-    is_load_syscall_sched = is_load_probe(params, TPROFILING_PROBE_SYSCALL_SCHED);
+    is_load_syscall_file = is_load_probe_ipc(ipc_body, TPROFILING_PROBE_SYSCALL_FILE);
+    is_load_syscall_net = is_load_probe_ipc(ipc_body, TPROFILING_PROBE_SYSCALL_NET);
+    is_load_syscall_lock = is_load_probe_ipc(ipc_body, TPROFILING_PROBE_SYSCALL_LOCK);
+    is_load_syscall_sched = is_load_probe_ipc(ipc_body, TPROFILING_PROBE_SYSCALL_SCHED);
 
     prog = alloc_bpf_prog();
     if (prog == NULL) {
@@ -150,13 +150,13 @@ err:
     return -1;
 }
 
-struct bpf_prog_s *load_oncpu_bpf_prog(struct probe_params *params)
+struct bpf_prog_s *load_oncpu_bpf_prog(struct ipc_body_s *ipc_body)
 {
 
     struct bpf_prog_s *prog;
     char is_load_oncpu;
 
-    is_load_oncpu = is_load_probe(params, TPROFILING_PROBE_ONCPU);
+    is_load_oncpu = is_load_probe_ipc(ipc_body, TPROFILING_PROBE_ONCPU);
 
     prog = alloc_bpf_prog();
     if (prog == NULL) {

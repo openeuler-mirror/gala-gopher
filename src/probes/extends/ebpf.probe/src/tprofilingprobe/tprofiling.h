@@ -32,11 +32,6 @@ typedef unsigned int __u32;
 #define DFT_AGGR_DURATION (1000 * NSEC_PER_MSEC)
 #define MIN_EXEC_DURATION NSEC_PER_MSEC
 
-typedef struct {
-    int inited;
-    int filter_local;
-} profiling_setting_t;
-
 typedef enum {
     EVT_TYPE_SYSCALL = 1,
     EVT_TYPE_ONCPU
@@ -116,19 +111,20 @@ typedef struct {
 } trace_event_data_t;
 
 #if !defined(BPF_PROG_KERN) && !defined(BPF_PROG_USER)
+#include <pthread.h>
+
 #include "proc_info.h"
 #include "thrd_bl.h"
 
 typedef struct {
-    int settingMapFd;           /* ebpf map，用于bpf程序配置 */
     int stackMapFd;             /* ebpf map，用于获取调用栈信息 */
     int procFilterMapFd;        /* ebpf map，用于更新进程白名单 */
     int threadBlMapFd;          /* ebpf map，用于更新线程黑名单 */
-    int filterLocal;            /* 是否启用本地配置进行进程过滤。若值为 1 则启用，否则使用全局共享的进程白名单进行过滤 */
     syscall_meta_t *scmTable;   /* 系统调用元数据表，是一个 hash 表 */
     __u64 sysBootTime;          /* 系统启动时间，单位：纳秒（ns） */
     proc_info_t *procTable;     /* 缓存的进程信息表，是一个 hash 表 */
     ThrdBlacklist thrdBl;       /* 线程黑名单 */
+    pthread_t javaSymbThrd;     /* Java符号表管理线程ID */
 } Tprofiler;
 
 extern Tprofiler tprofiler;
@@ -156,14 +152,6 @@ struct {
 } event_map SEC(".maps");
 
 struct {
-    __uint(type, BPF_MAP_TYPE_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(profiling_setting_t));
-    __uint(max_entries, 1);
-} setting_map SEC(".maps");
-
-// filter process locally if enabled
-struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(key_size, sizeof(struct proc_s));
     __uint(value_size, sizeof(struct obj_ref_s));
@@ -184,28 +172,12 @@ struct {
     __uint(max_entries, 1024);
 } stack_map SEC(".maps");
 
-static __always_inline profiling_setting_t *get_tp_setting()
-{
-    u32 setting_k = 0;
-    profiling_setting_t *ps;
-
-    ps = (profiling_setting_t *)bpf_map_lookup_elem(&setting_map, &setting_k);
-    if (ps && ps->inited) {
-        return ps;
-    }
-    return (void *)0;
-}
-
-static __always_inline bool is_proc_enabled(u32 tgid, profiling_setting_t *setting)
+static __always_inline bool is_proc_enabled(u32 tgid)
 {
     struct proc_s proc_k = {.proc_id = tgid};
     void *proc_v;
 
-    if (setting->filter_local) {
-        proc_v = bpf_map_lookup_elem(&proc_filter_map, &proc_k);
-    } else {
-        proc_v = bpf_map_lookup_elem(&proc_obj_map, &proc_k);
-    }
+    proc_v = bpf_map_lookup_elem(&proc_filter_map, &proc_k);
     if (proc_v != (void *)0) {
         return true;
     }
@@ -230,7 +202,7 @@ static __always_inline bool is_thrd_enabled(u32 pid, u32 tgid)
     }
 }
 
-static __always_inline __maybe_unused bool is_proc_thrd_enabled(profiling_setting_t *setting)
+static __always_inline __maybe_unused bool is_proc_thrd_enabled()
 {
     u64 pid_tgid;
     u32 tgid, pid;
@@ -239,7 +211,7 @@ static __always_inline __maybe_unused bool is_proc_thrd_enabled(profiling_settin
     tgid = pid_tgid >> INT_LEN;
     pid = (u32)pid_tgid;
 
-    return is_proc_enabled(tgid, setting) && is_thrd_enabled(pid, tgid);
+    return is_proc_enabled(tgid) && is_thrd_enabled(pid, tgid);
 }
 
 static __always_inline bool can_emit(u64 stime, u64 etime)

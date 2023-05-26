@@ -118,7 +118,7 @@ static int fill_container_info(proc_info_t *proc_info)
     int ret;
 
     ret = get_container_id_by_pid(proc_info->tgid, ci->id, sizeof(ci->id));
-    if (ret) {
+    if (ret || ci->id[0] == '\0') {
         return -1;
     }
 

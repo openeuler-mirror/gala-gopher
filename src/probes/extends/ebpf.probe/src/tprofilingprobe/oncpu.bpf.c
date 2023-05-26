@@ -117,14 +117,14 @@ static __always_inline void process_oncpu_event(oncpu_m_enter_t *oncpu_enter, st
     }
 }
 
-static __always_inline void process_oncpu(struct task_struct *task, profiling_setting_t *setting)
+static __always_inline void process_oncpu(struct task_struct *task)
 {
     u32 pid, tgid;
     oncpu_m_enter_t oncpu_enter;
 
     pid = _(task->pid);
     tgid = _(task->tgid);
-    if (!is_proc_enabled(tgid, setting) || !is_thrd_enabled(pid, tgid)) {
+    if (!is_proc_enabled(tgid) || !is_thrd_enabled(pid, tgid)) {
         return;
     }
 
@@ -158,15 +158,9 @@ KPROBE(finish_task_switch, pt_regs)
 {
     struct task_struct *prev = (struct task_struct *)PT_REGS_PARM1(ctx);
     struct task_struct *current = (struct task_struct *)bpf_get_current_task();
-    profiling_setting_t *setting;
-
-    setting = get_tp_setting();
-    if (setting == (void *)0) {
-        return 0;
-    }
 
     process_offcpu(prev, ctx);
-    process_oncpu(current, setting);
+    process_oncpu(current);
 
     return 0;
 }

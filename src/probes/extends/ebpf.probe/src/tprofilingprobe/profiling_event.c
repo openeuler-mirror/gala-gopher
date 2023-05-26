@@ -545,7 +545,6 @@ static int filter_by_thread_bl(trace_event_data_t *evt_data)
     ThrdBlacklist *thrdBl = &tprofiler.thrdBl;
     BlacklistItem *blItem;
     char procComm[TASK_COMM_LEN] = {0};
-    char thrdComm[TASK_COMM_LEN] = {0};
     int i, j;
 
     if (tprofiler.threadBlMapFd <= 0) {
@@ -553,9 +552,6 @@ static int filter_by_thread_bl(trace_event_data_t *evt_data)
     }
 
     if (set_proc_comm(evt_data->tgid, procComm, TASK_COMM_LEN)) {
-        return 0;
-    }
-    if (set_thrd_comm(evt_data->pid, evt_data->tgid, thrdComm, TASK_COMM_LEN)) {
         return 0;
     }
 
@@ -566,7 +562,7 @@ static int filter_by_thread_bl(trace_event_data_t *evt_data)
         }
 
         for (j = 0; j < blItem->thrdNum; j++) {
-            if (strcmp(thrdComm, blItem->thrdComms[j]) == 0) {
+            if (strcmp(evt_data->comm, blItem->thrdComms[j]) == 0) {
                 (void)bpf_map_update_elem(tprofiler.threadBlMapFd, &evt_data->pid, &evt_data->tgid, BPF_ANY);
                 return -1;
             }
