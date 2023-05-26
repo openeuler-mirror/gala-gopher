@@ -56,5 +56,6 @@ int load_snooper_bpf(struct probe_mng_s *probe_mng);
 void unload_snooper_bpf(struct probe_mng_s *probe_mng);
 void backup_snooper(struct probe_s *probe, struct probe_s *probe_backup);
 void rollback_snooper(struct probe_s *probe, struct probe_s *probe_backup);
+int send_snooper_obj(struct probe_s *probe);
 #endif
 
