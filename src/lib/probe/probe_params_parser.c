@@ -250,6 +250,30 @@ static int parser_support_ssl(struct probe_s *probe, struct param_key_s *param_k
     return 0;
 }
 
+static int parser_svg_dir(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
+{
+    const char *value = (const char*)key_item->valuestring;
+
+    if (key_item->type != cJSON_String) {
+        return -1;
+    }
+
+    (void)strncpy(probe->probe_param.svg_dir, value, PATH_LEN - 1);
+    return 0;
+}
+
+static int parser_flame_dir(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
+{
+    const char *value = (const char*)key_item->valuestring;
+
+    if (key_item->type != cJSON_String) {
+        return -1;
+    }
+
+    (void)strncpy(probe->probe_param.flame_dir, value, PATH_LEN - 1);
+    return 0;
+}
+
 static int parser_pyscope_server(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
 {
     const char *value = (const char*)key_item->valuestring;
@@ -258,7 +282,37 @@ static int parser_pyscope_server(struct probe_s *probe, struct param_key_s *para
         return -1;
     }
 
+    if (value == 0) {
+        value = param_key->v.default_int;
+    } else
+
     (void)strncpy(probe->probe_param.pyroscope_server, value, PYSCOPE_SERVER_URL_LEN - 1);
+    return 0;
+}
+
+static int parser_svg_period(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
+{
+    int value = (int)key_item->valueint;
+    if (value == 0) {
+        value = param_key->v.default_int;
+    } else if (value < param_key->v.min || value > param_key->v.max) {
+        return -1;
+    }
+
+    probe->probe_param.svg_period = (u32)value;
+    return 0;
+}
+
+static int parser_perf_sample_period(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
+{
+    int value = (int)key_item->valueint;
+    if (value == 0) {
+        value = param_key->v.default_int;
+    } else if (value < param_key->v.min || value > param_key->v.max) {
+        return -1;
+    }
+
+    probe->probe_param.perf_sample_period = (u32)value;
     return 0;
 }
 
@@ -288,6 +342,10 @@ struct param_key_s param_keys[] = {
     {"l7_protocol",        {0, 0, 0, "http"},                       parser_l7pro},
     {"support_ssl",        {0, 0, 1, ""},                           parser_support_ssl},
     {"pyroscope_server",   {0, 0, 0, "localhost:4040"},             parser_pyscope_server},
+    {"svg_period",         {180, 30, 600, ""},                      parser_svg_period},
+    {"perf_sample_period", {10, 10, 1000, ""},                      parser_perf_sample_period},
+    {"svg_dir",            {0, 0, 0, "/var/log/gala-gopher/stacktrace"},             parser_svg_dir},
+    {"flame_dir",          {0, 0, 0, "/var/log/gala-gopher/flamegraph"},             parser_flame_dir},
     {"debugging_dir",      {0, 0, 0, ""},                           parser_sysdebuging_dir}
 };
 

@@ -4,7 +4,6 @@ INCLUDES = $(BASE_INC)
 APP := stackprobe
 AGENT := jvm_agent.so
 ATTACH := jvm_attach
-CONF_FILE = $(wildcard conf/*.conf)
 SRC_CPLUS := $(wildcard *.cpp)
 SRC_CPLUS += $(CPLUSFILES)
 
@@ -13,7 +12,6 @@ BPF_PROG := $(patsubst %.bpf.c, %.bpf.o, $(BPF_C))
 DEPS = $(BPF_PROG) $(patsubst %.cpp, %.o, $(SRC_CPLUS))
 
 SRC_C := $(wildcard *.c)
-SRC_C += $(wildcard conf/*.c)
 SRC_C += $(CFILES)
 
 ALL := pre deps app agent attach
@@ -62,8 +60,6 @@ install:
 	mkdir -p $(INSTALL_DIR)/stack_bpf
 	cp $(APP) $(INSTALL_DIR)
 	cp $(BPF_PROG) $(INSTALL_DIR)/stack_bpf
-	mkdir -p $(CONF_INSTALL_DIR)
-	cp $(CONF_FILE) $(CONF_INSTALL_DIR)
 	cp $(AGENT) $(INSTALL_DIR)
 	cp $(ATTACH) $(INSTALL_DIR)
 

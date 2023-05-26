@@ -342,6 +342,10 @@ int set_flame_graph_path(struct stack_svg_mng_s *svg_mng, const char* path, cons
     size_t len;
     char dir[PATH_LEN] = {0};
 
+    if (path == NULL || path[0] == 0) {
+        path = "/var/log/gala-gopher/flamegraph";
+    }
+
     len = strlen(path);
     if (len == 0 || len + strlen(flame_name) >= PATH_LEN) {
         return -1;
