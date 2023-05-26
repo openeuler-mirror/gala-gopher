@@ -581,7 +581,7 @@ static int get_mod_elf_so_offset(struct mod_s* mod)
         return 0;
     }
 
-    if (gopher_get_elf_text_section((const char *)mod->mod_path, 
+    if (gopher_get_elf_text_section((const char *)mod->mod_path,
         &mod->mod_elf_so_addr, &mod->mod_elf_so_offset)) {
         ERROR("[SYMBOL]: Get elf offset failed(%s).\n", mod->mod_path);
         return GET_ELF_OFFSET;
@@ -618,7 +618,7 @@ static int add_mod(void *elf_reader, struct proc_symbs_s* proc_symbs, struct mod
         ret = 0;
         goto err;
     }
-    
+
     if (new_mod->mod_type == MODULE_JVM) {
         if (new_mod->mod_symbs != NULL && new_mod->symbs_count != 0)
             proc_symbs->need_update = 0;
@@ -943,6 +943,7 @@ static int __get_container_id_by_pid(int pid, char container_id[], size_t len)
     }
 
     (void)strncpy(container_id, buf, CONTAINER_ABBR_ID_LEN);
+    container_id[CONTAINER_ABBR_ID_LEN] = 0;
     return 0;
 }
 
@@ -1038,7 +1039,7 @@ int proc_search_addr_symb(struct proc_symbs_s *proc_symbs,
     addr_symb->orign_addr = addr;
     for (int i = 0; i < proc_symbs->mods_count; i++) {
         target_addr = 0;
-        
+
         if (proc_symbs->mods[i]) {
             // search jvm mods
             if (proc_symbs->mods[i]->mod_type == MODULE_JVM) {

@@ -367,7 +367,7 @@ static int __stack_addrsymbs2string(struct proc_symbs_s *proc_symbs, struct addr
     if (proc_symbs->is_java) {
         if (*layer == STACK_LAYER_1ST) {
             if (strstr(symb, ".") != NULL) {
-                ret = __snprintf(&cur_p, len, &len, "; %s", symb); 
+                ret = __snprintf(&cur_p, len, &len, "; %s", symb);
                 *layer = STACK_LAYER_2ND;
             } else {
                 if (proc_symbs->pod[0] != 0) {
@@ -380,7 +380,7 @@ static int __stack_addrsymbs2string(struct proc_symbs_s *proc_symbs, struct addr
                 *layer = STACK_LAYER_ELSE;
             }
         } else if (*layer == STACK_LAYER_2ND) {
-            ret = __snprintf(&cur_p, len, &len, "; %s", symb); 
+            ret = __snprintf(&cur_p, len, &len, "; %s", symb);
             *layer = STACK_LAYER_3RD;
         } else {
             ret = __snprintf(&cur_p, len, &len, "; %s", symb);
@@ -673,7 +673,7 @@ static int stack_id2histogram(struct stack_trace_s *st, enum stack_svg_type_e en
     } else {
         raw_st = st->svg_stack_traces[en_type]->raw_stack_trace_b;
     }
-    if (raw_st == NULL) { 
+    if (raw_st == NULL) {
         return -1;
     }
     int rt_count = raw_st->raw_trace_count;
@@ -821,7 +821,7 @@ static void destroy_svg_stack_trace(struct svg_stack_trace_s **ptr_svg_st)
     if (svg_st->pb_a) {
         perf_buffer__free(svg_st->pb_a);
         svg_st->pb_a = NULL;
-        
+
     }
     if (svg_st->pb_b) {
         perf_buffer__free(svg_st->pb_b);
@@ -870,7 +870,7 @@ static void destroy_stack_trace(struct stack_trace_s **ptr_st)
         }
         destroy_svg_stack_trace(&st->svg_stack_traces[i]);
     }
-    
+
     if (st->ksymbs) {
         destroy_ksymbs_tbl(st->ksymbs);
         (void)free(st->ksymbs);
@@ -1047,7 +1047,11 @@ static int load_bpf_prog(StackprobeConfig *conf, struct svg_stack_trace_s *svg_s
         goto err;
     }
 
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+    prog = bpf_object__next_program(svg_st->obj, NULL);
+#else
     prog = bpf_program__next(NULL, svg_st->obj);
+#endif
     if (prog == NULL) {
         ERROR("[STACKPROBE]: Cannot find bpf_prog.\n");
         goto err;
@@ -1163,7 +1167,7 @@ static void set_pids_inactive()
     if (bpf_link_head == NULL) {
         return;
     }
-    
+
     H_ITER(bpf_link_head, item, tmp) {
         item->v.pid_state = PID_NOEXIST;
     }
@@ -1255,7 +1259,7 @@ static void clear_invalid_pids()
             (void)free(pid_bpf_links);
         }
     }
-    
+
 }
 
 static bool get_bpf_prog(struct bpf_program *prog, char func_sec[], int func_len)
@@ -1325,7 +1329,7 @@ static void *__uprobe_attach_check(void *arg)
                     pid_bpf_links->v.bpf_links[i] = bpf_program__attach_uprobe(prog, is_uretprobe, -1,
                         elf_path, (size_t)symbol_offset);
 
-                    err = libbpf_get_error(pid_bpf_links->v.bpf_links[i]); 
+                    err = libbpf_get_error(pid_bpf_links->v.bpf_links[i]);
                     if (err) {
                         ERROR("[STACKPROBE]: attach memleak bpf to pid %u failed %d\n", pid_bpf_links->pid, err);
                         break;
@@ -1363,7 +1367,7 @@ static int attach_memleak_bpf_prog(struct svg_stack_trace_s *svg_st, StackprobeC
     // this is for memleak_fp.bpf.c
     bpf_object__for_each_program(prog, svg_st->obj) {
         links[i] = bpf_program__attach(prog);
-        err = libbpf_get_error(links[i]); 
+        err = libbpf_get_error(links[i]);
         if (err) {
             ERROR("[STACKPROBE]: attach memleak bpf failed %d\n", err);
             links[i] = NULL;
@@ -1594,7 +1598,7 @@ static int init_enabled_svg_stack_traces(StackprobeConfig *conf)
         { conf->flameTypesConfig->io, STACK_SVG_IO, "io", IO_PROG, NULL, NULL},
         { conf->flameTypesConfig->memleak, STACK_SVG_MEMLEAK, "memleak", MEMLEAK_PROG, attach_memleak_bpf_prog, process_memleak_raw_stack_trace},
     };
-    
+
     for (int i = 0; i < STACK_SVG_MAX; i++) {
         if (!flameProcs[i].sw) {
             continue;

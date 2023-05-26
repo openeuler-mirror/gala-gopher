@@ -23,23 +23,23 @@
 
 
 #if GALA_GOPHER_INFO("inner func")
-static int WebRequestCallback(void *cls,
+static MHD_Result WebRequestCallback(void *cls,
                               struct MHD_Connection *connection,
                               const char *url,
                               const char *method,
                               const char *version,
                               const char *upload_data,
-                              const size_t *upload_data_size,
+                              size_t *upload_data_size,
                               void **ptr);
 #endif
 
-static int WebRequestCallback(void *cls,
+static MHD_Result WebRequestCallback(void *cls,
                               struct MHD_Connection *connection,
                               const char *url,
                               const char *method,
                               const char *version,
                               const char *upload_data,
-                              const size_t *upload_data_size,
+                              size_t *upload_data_size,
                               void **ptr)
 {
     static int dummy;

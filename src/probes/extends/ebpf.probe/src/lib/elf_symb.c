@@ -240,7 +240,7 @@ static struct symb_s* resolve_java_symbs(char *s)
 
     // 4. set new_symb method_name
     method_name++;
-    while (*method_name != ' ' && *method_name != '\n' && name_len < JAVASYMB_NAME_LEN) {
+    while (*method_name != ' ' && *method_name != '\n' && name_len < JAVASYMB_NAME_LEN - 1) {
         symb[name_len++] = *method_name;
         method_name++;
     }

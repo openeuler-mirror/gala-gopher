@@ -20,6 +20,7 @@
 #include <unistd.h>
 #include "common.h"
 #include "imdb.h"
+#include "container.h"
 
 static uint32_t g_recordTimeout = 60;       // default timeout: 60 seconds
 
@@ -1067,15 +1068,15 @@ static void IMDB_AdjustTblPrio(IMDB_DataBaseMgr *mgr)
     do {
         RequeueTable(mgr->tables, mgr->tablesNum);
         num_adjust++;
-        
+
         if (!mgr->tables[0]->weighting) {
             break; // End of adjustment
         }
-        
+
         if (strcmp(mgr->tables[0]->name, tblName) == 0) {
             break; // End of adjustment
         }
-        
+
         if (num_adjust >= mgr->tablesNum) {
             break; // Error, End of adjustment
         }
