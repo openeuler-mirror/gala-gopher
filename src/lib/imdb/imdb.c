@@ -395,7 +395,9 @@ TGID_Record* IMDB_TgidCreateRecord(const IMDB_DataBaseMgr *mgr, const char* tgid
     }
 
     pod_name[0] = 0;
-    (void)get_container_pod((const char *)container_id, pod_name, POD_NAME_LEN + 1);
+    if (container_id[0] != 0) {
+        (void)get_container_pod((const char *)container_id, pod_name, POD_NAME_LEN + 1);
+    }
 
     record = (TGID_Record *)malloc(sizeof(TGID_Record));
     if (record == NULL) {
@@ -1067,15 +1069,15 @@ static void IMDB_AdjustTblPrio(IMDB_DataBaseMgr *mgr)
     do {
         RequeueTable(mgr->tables, mgr->tablesNum);
         num_adjust++;
-        
+
         if (!mgr->tables[0]->weighting) {
             break; // End of adjustment
         }
-        
+
         if (strcmp(mgr->tables[0]->name, tblName) == 0) {
             break; // End of adjustment
         }
-        
+
         if (num_adjust >= mgr->tablesNum) {
             break; // Error, End of adjustment
         }
