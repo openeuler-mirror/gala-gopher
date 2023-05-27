@@ -22,7 +22,6 @@
 #include "svg.h"
 #include "stack.h"
 
-#define STACKPROBE_CONF_PATH_DEFAULT "/etc/gala-gopher/extend_probes/stackprobe.conf"
 #define BPF_FUNC_NAME_LEN 32
 #define APP_SUFFIX_LEN 64
 

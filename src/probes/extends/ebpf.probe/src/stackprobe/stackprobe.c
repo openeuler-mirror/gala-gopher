@@ -38,7 +38,7 @@
 #endif
 
 #include "bpf.h"
-#include "args.h"
+#include "ipc.h"
 #include "hash.h"
 #include "logs.h"
 #include "syscall.h"
@@ -47,9 +47,10 @@
 #include "debug_elf_reader.h"
 #include "elf_symb.h"
 #include "container.h"
-#include "conf/stackprobe_conf.h"
 #include "stackprobe.h"
 #include "java_support.h"
+
+#define IS_LOAD_PROBE(LOAD_TYPE, PROG_TYPE) (LOAD_TYPE & PROG_TYPE)
 
 #define ON_CPU_PROG    "/opt/gala-gopher/extend_probes/stack_bpf/oncpu.bpf.o"
 #define OFF_CPU_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/offcpu.bpf.o"
@@ -57,9 +58,12 @@
 #define MEMLEAK_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/memleak.bpf.o"
 
 #define RM_STACK_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__stack*"
+#define STACK_PROC_MAP_PATH     "/sys/fs/bpf/gala-gopher/__stack_proc_map"
 #define STACK_CONVERT_PATH      "/sys/fs/bpf/gala-gopher/__stack_convert"
 #define STACK_STACKMAPA_PATH    "/sys/fs/bpf/gala-gopher/__stack_stackmap_a"
 #define STACK_STACKMAPB_PATH    "/sys/fs/bpf/gala-gopher/__stack_stackmap_b"
+
+#define DEBUG_DIR "/usr/lib/debug"
 
 #define IS_IEG_ADDR(addr)     ((addr) != 0xcccccccccccccccc && (addr) != 0xffffffffffffffff)
 
@@ -67,7 +71,7 @@
 #define HISTO_TMP_LEN   (2 * STACK_SYMBS_LEN)
 #define POST_MAX_STEP_SIZE 1048576 // 1M
 
-typedef int (*AttachFunc)(struct svg_stack_trace_s *svg_st, StackprobeConfig *conf);
+typedef int (*AttachFunc)(struct ipc_body_s *ipc_body, struct svg_stack_trace_s *svg_st);
 typedef int (*PerfProcessFunc)(void *ctx, int cpu, void *data, u32 size);
 
 enum pid_state_t {
@@ -101,7 +105,7 @@ struct bpf_link_hash_t {
 
 static char __histo_tmp_str[HISTO_TMP_LEN];
 int g_post_max = POST_MAX_STEP_SIZE;
-static struct probe_params params = {.period = DEFAULT_PERIOD};
+static struct ipc_body_s g_ipc_body;
 static volatile sig_atomic_t g_stop;
 static struct stack_trace_s *g_st = NULL;
 static struct bpf_link_hash_t *bpf_link_head = NULL;
@@ -109,6 +113,39 @@ static struct bpf_link_hash_t *bpf_link_head = NULL;
 static void sig_int(int signo)
 {
     g_stop = 1;
+}
+
+static void load_stackprobe_snoopers(struct ipc_body_s *ipc_body)
+{
+    struct proc_s proc = {0};
+    struct obj_ref_s ref = {.count = 1};
+
+    if (!g_st || (g_st->proc_obj_map_fd <= 0)) {
+        return;
+    }
+
+    for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_body->snooper_objs[i].type == SNOOPER_OBJ_PROC) {
+            proc.proc_id = ipc_body->snooper_objs[i].obj.proc.proc_id;
+            (void)bpf_map_update_elem(g_st->proc_obj_map_fd, &proc, &ref, BPF_ANY);
+            g_st->whitelist_enable = 1;
+        }
+    }
+}
+
+static void unload_stackprobe_snoopers(struct ipc_body_s *ipc_body)
+{
+    struct proc_s proc = {0};
+    if (!g_st || (g_st->proc_obj_map_fd <= 0)) {
+        return;
+    }
+
+    for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_body->snooper_objs[i].type == SNOOPER_OBJ_PROC) {
+            proc.proc_id = ipc_body->snooper_objs[i].obj.proc.proc_id;
+            (void)bpf_map_delete_elem(g_st->proc_obj_map_fd, &proc);
+        }
+    }
 }
 
 #if 1
@@ -890,7 +927,7 @@ static void destroy_stack_trace(struct stack_trace_s **ptr_st)
     return;
 }
 
-static struct svg_stack_trace_s *create_svg_stack_trace(StackprobeConfig *conf, const char *flame_name)
+static struct svg_stack_trace_s *create_svg_stack_trace(struct ipc_body_s *ipc_body, const char *flame_name)
 {
     struct svg_stack_trace_s *svg_st = (struct svg_stack_trace_s *)malloc(sizeof(struct svg_stack_trace_s));
     if (!svg_st) {
@@ -898,16 +935,16 @@ static struct svg_stack_trace_s *create_svg_stack_trace(StackprobeConfig *conf, 
     }
     memset(svg_st, 0, sizeof(struct svg_stack_trace_s));
 
-    svg_st->svg_mng = create_svg_mng(conf->generalConfig->period);
+    svg_st->svg_mng = create_svg_mng(ipc_body->probe_param.svg_period);
     if (!svg_st->svg_mng) {
         goto cleanup;
     }
 
-    if (set_svg_dir(&svg_st->svg_mng->svg, conf->generalConfig->svgDir, flame_name)) {
+    if (set_svg_dir(&svg_st->svg_mng->svg, ipc_body->probe_param.svg_dir, flame_name)) {
         goto cleanup;
     }
 
-    if (set_flame_graph_path(svg_st->svg_mng, conf->generalConfig->flameDir, flame_name)) {
+    if (set_flame_graph_path(svg_st->svg_mng, ipc_body->probe_param.flame_dir, flame_name)) {
         goto cleanup;
     }
 
@@ -928,7 +965,7 @@ cleanup:
 }
 
 
-static struct stack_trace_s *create_stack_trace(StackprobeConfig *conf)
+static struct stack_trace_s *create_stack_trace(struct ipc_body_s *ipc_body)
 {
     int cpus_num = NR_CPUS;
     size_t size = sizeof(struct stack_trace_s) + cpus_num * sizeof(int);
@@ -946,17 +983,17 @@ static struct stack_trace_s *create_stack_trace(StackprobeConfig *conf)
     }
 #endif
 
-    if (set_post_server(&st->post_server, conf->generalConfig->pyroscopeServer) != 0) {
+    if (set_post_server(&st->post_server, ipc_body->probe_param.pyroscope_server) != 0) {
         INFO("[STACKPROBE]: Do not post to Pyroscope Server.\n");
         st->post_server.post_enable = 0;
     } else {
         if (get_system_uuid(st->post_server.app_suffix, APP_SUFFIX_LEN) != 0) {
             st->post_server.app_suffix[0] = 0;
         }
-        INFO("[STACKPROBE]: Will post to Pyroscope Server: %s.\n", conf->generalConfig->pyroscopeServer);
+        INFO("[STACKPROBE]: Will post to Pyroscope Server: %s.\n", ipc_body->probe_param.pyroscope_server);
     }
 
-    st->elf_reader = create_elf_reader(conf->generalConfig->debugDir);
+    st->elf_reader = create_elf_reader(DEBUG_DIR);
     if (!st->elf_reader) {
         goto err;
     }
@@ -975,7 +1012,7 @@ static struct stack_trace_s *create_stack_trace(StackprobeConfig *conf)
 
     st->running_times = (time_t)time(NULL);
     st->is_stackmap_a = ((st->convert_stack_count % 2) == 0);
-    st->whitelist_enable = conf->generalConfig->whitelistEnable;
+
     INFO("[STACKPROBE]: whitelist %s\n", st->whitelist_enable ? "enable" : "disable");
     INFO("[STACKPROBE]: create stack trace succeed(cpus_num = %d, kern_symbols = %u).\n",
         st->cpus_num, st->ksymbs->ksym_size);
@@ -999,16 +1036,16 @@ static void update_convert_counter()
     }
 }
 
-static void init_convert_counter(StackprobeConfig *conf)
+static void init_convert_counter()
 {
     u32 key = 0;
     struct convert_data_t convert_data = {
-        .whitelist_enable = conf->generalConfig->whitelistEnable,
+        .whitelist_enable = g_st->whitelist_enable,
         .convert_counter = g_st->convert_stack_count};
     (void)bpf_map_update_elem(g_st->convert_map_fd, &key, &convert_data, BPF_ANY);
 }
 
-static int load_bpf_prog(StackprobeConfig *conf, struct svg_stack_trace_s *svg_st, const char *prog_name)
+static int load_bpf_prog(struct svg_stack_trace_s *svg_st, const char *prog_name)
 {
     int ret;
     struct bpf_program *prog;
@@ -1020,7 +1057,7 @@ static int load_bpf_prog(StackprobeConfig *conf, struct svg_stack_trace_s *svg_s
         goto err;
     }
 
-    ret = BPF_OBJ_PIN_MAP_PATH(svg_st->obj, "proc_obj_map", PROC_MAP_PATH);
+    ret = BPF_OBJ_PIN_MAP_PATH(svg_st->obj, "proc_obj_map", STACK_PROC_MAP_PATH);
     if (ret) {
         ERROR("[STACKPROBE]: Failed to pin proc_obj_map map(err = %d).\n", ret);
         goto err;
@@ -1058,7 +1095,7 @@ static int load_bpf_prog(StackprobeConfig *conf, struct svg_stack_trace_s *svg_s
         g_st->proc_obj_map_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "proc_obj_map");
         g_st->stackmap_a_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "stackmap_a");
         g_st->stackmap_b_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "stackmap_b");
-        init_convert_counter(conf);
+        init_convert_counter();
     }
     svg_st->stackmap_perf_a_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "stackmap_perf_a");
     svg_st->stackmap_perf_b_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "stackmap_perf_b");
@@ -1091,13 +1128,16 @@ err:
     return -1;
 }
 
-static int attach_oncpu_bpf_prog(struct svg_stack_trace_s *svg_st, StackprobeConfig *conf)
+static int attach_oncpu_bpf_prog(struct ipc_body_s *ipc_body, struct svg_stack_trace_s *svg_st)
 {
     int ret;
-    int samplePeriod = conf->generalConfig->samplePeriod;
+    int perf_sample_period = ipc_body->probe_param.perf_sample_period;
 
+    if (perf_sample_period == 0) {
+        perf_sample_period = 10;
+    }
     struct perf_event_attr attr_type_sw = {
-        .sample_freq = samplePeriod, // default 10ms
+        .sample_freq = perf_sample_period, // default 10ms
         .freq = 1,
         .type = PERF_TYPE_SOFTWARE,
         .config = PERF_COUNT_SW_CPU_CLOCK,
@@ -1131,7 +1171,7 @@ err:
     return -1;
 }
 
-static int attach_offcpu_bpf_prog(struct svg_stack_trace_s *svg_st, StackprobeConfig *conf)
+static int attach_offcpu_bpf_prog(struct ipc_body_s *ipc_body, struct svg_stack_trace_s *svg_st)
 {
     int err;
 
@@ -1305,7 +1345,7 @@ static void *__uprobe_attach_check(void *arg)
     u64 symbol_offset;
     // Read raw stack-trace data from current data channel.
     while (!g_stop) {
-        sleep(params.period);
+        sleep(g_ipc_body.probe_param.period);
 
         set_pids_inactive();
         if (add_pids() != 0) {
@@ -1353,7 +1393,7 @@ static void *__uprobe_attach_check(void *arg)
 
 }
 
-static int attach_memleak_bpf_prog(struct svg_stack_trace_s *svg_st, StackprobeConfig *conf)
+static int attach_memleak_bpf_prog(struct ipc_body_s *ipc_body, struct svg_stack_trace_s *svg_st)
 {
     int err;
 #if 0
@@ -1583,30 +1623,30 @@ static void init_wr_flame_pthreads(struct svg_stack_trace_s *svg_st, const char 
     return;
 }
 
-static int init_enabled_svg_stack_traces(StackprobeConfig *conf)
+static int init_enabled_svg_stack_traces(struct ipc_body_s *ipc_body)
 {
     struct svg_stack_trace_s *svg_st;
 
     FlameProc flameProcs[] = {
         // This array order must be the same as the order of enum stack_svg_type_e
-        { conf->flameTypesConfig->oncpu, STACK_SVG_ONCPU, "oncpu", ON_CPU_PROG, attach_oncpu_bpf_prog, process_oncpu_raw_stack_trace},
-        { conf->flameTypesConfig->offcpu, STACK_SVG_OFFCPU, "offcpu", OFF_CPU_PROG, attach_offcpu_bpf_prog, process_offcpu_raw_stack_trace},
-        { conf->flameTypesConfig->io, STACK_SVG_IO, "io", IO_PROG, NULL, NULL},
-        { conf->flameTypesConfig->memleak, STACK_SVG_MEMLEAK, "memleak", MEMLEAK_PROG, attach_memleak_bpf_prog, process_memleak_raw_stack_trace},
+        { PROBE_RANGE_ONCPU, STACK_SVG_ONCPU, "oncpu", ON_CPU_PROG, attach_oncpu_bpf_prog, process_oncpu_raw_stack_trace},
+        { PROBE_RANGE_OFFCPU, STACK_SVG_OFFCPU, "offcpu", OFF_CPU_PROG, attach_offcpu_bpf_prog, process_offcpu_raw_stack_trace},
+        { PROBE_RANGE_MEM, STACK_SVG_MEMLEAK, "memleak", MEMLEAK_PROG, attach_memleak_bpf_prog, process_memleak_raw_stack_trace},
+        { PROBE_RANGE_IO, STACK_SVG_IO, "io", IO_PROG, NULL, NULL},
     };
     
     for (int i = 0; i < STACK_SVG_MAX; i++) {
-        if (!flameProcs[i].sw) {
+        if (!IS_LOAD_PROBE(ipc_body->probe_range_flags, flameProcs[i].sw)) {
             continue;
         }
 
-        svg_st = create_svg_stack_trace(conf, flameProcs[i].flame_name);
+        svg_st = create_svg_stack_trace(ipc_body, flameProcs[i].flame_name);
         if (!svg_st) {
             return -1;
         }
         g_st->svg_stack_traces[i] = svg_st;
 
-        if (load_bpf_prog(conf, svg_st, flameProcs[i].prog_name)) {
+        if (load_bpf_prog(svg_st, flameProcs[i].prog_name)) {
             return -1;
         }
 
@@ -1615,7 +1655,7 @@ static int init_enabled_svg_stack_traces(StackprobeConfig *conf)
         }
 
         if (flameProcs[i].func) {
-            if (flameProcs[i].func(svg_st, conf)) {
+            if (flameProcs[i].func(ipc_body, svg_st)) {
                 return -1;
             }
         }
@@ -1626,34 +1666,44 @@ static int init_enabled_svg_stack_traces(StackprobeConfig *conf)
     return 0;
 }
 
-static void init_java_support_proc(StackprobeConfig *conf)
+static int init_java_support_proc(struct ipc_body_s *ipc_body, pthread_t *attach_thd)
 {
     int err;
-    pthread_t attach_thd;
     struct java_attach_args args = {0};
 
-    args.proc_obj_map_fd = conf->generalConfig->whitelistEnable ? g_st->proc_obj_map_fd : 0;
+    if (attach_thd == NULL) {
+        return 0;
+    }
+    args.proc_obj_map_fd = g_st->whitelist_enable ? g_st->proc_obj_map_fd : 0;
     args.loop_period = DEFAULT_PERIOD;
     args.is_only_attach_once = 1;
     (void)snprintf(args.agent_file_name, FILENAME_LEN, JAVA_SYM_AGENT_FILE);
     (void)snprintf(args.tmp_file_name, FILENAME_LEN, JAVA_SYM_FILE);
 
-    err = pthread_create(&attach_thd, NULL, java_support, (void *)&args);
+    err = pthread_create(attach_thd, NULL, java_support, (void *)&args);
     if (err != 0) {
         ERROR("[STACKPROBE]: Failed to create java_support_pthread.\n");
-        return;
+        return 0;
     }
-    (void)pthread_detach(attach_thd);
+    (void)pthread_detach(*attach_thd);
     INFO("[STACKPROBE]: java_support_pthread successfully started!\n");
 
-    return;
+    return 1;
 }
 
-static void unload_java_agent(StackprobeConfig *conf)
+static void unload_java_agent(int java_supported, pthread_t java_support_thd)
 {
     struct java_attach_args args = {0};
 
-    args.proc_obj_map_fd = conf->generalConfig->whitelistEnable ? g_st->proc_obj_map_fd : 0;
+    if (java_supported > 0) {
+        pthread_cancel(java_support_thd);
+    }
+    
+    if (g_st != NULL && g_st->whitelist_enable) {
+        args.proc_obj_map_fd = g_st->proc_obj_map_fd;
+    } else {
+        args.proc_obj_map_fd = 0;
+    }
     (void)snprintf(args.agent_file_name, FILENAME_LEN, JAVA_SYM_AGENT_FILE);
     (void)snprintf(args.tmp_file_name, FILENAME_LEN, JAVA_SYM_FILE);
 
@@ -1668,7 +1718,10 @@ static void unload_java_agent(StackprobeConfig *conf)
 int main(int argc, char **argv)
 {
     int err = -1;
-    StackprobeConfig *conf;
+    int init = 0;
+    struct ipc_body_s ipc_body;
+    pthread_t java_support_thd;
+    int java_supported = 0;
 
     if (signal(SIGINT, sig_int) == SIG_ERR) {
         ERROR("[STACKPROBE]: can't set signal handler: %d\n", errno);
@@ -1681,40 +1734,57 @@ int main(int argc, char **argv)
         fp = NULL;
     }
 
-    err = configInit(&conf, STACKPROBE_CONF_PATH_DEFAULT);
-    if (err != 0) {
-        return -1;
-    }
+    (void)memset(&g_ipc_body, 0, sizeof(g_ipc_body));
 
-    err = args_parse(argc, argv, &params);
-    if (err != 0) {
-        return -1;
+    int msq_id = create_ipc_msg_queue(IPC_EXCL);
+    if (msq_id < 0) {
+        ERROR("[STACKPROBE]: can't create ipc msg_queue: %d\n", errno);
+        goto out;
     }
 
     INIT_BPF_APP(stackprobe, EBPF_RLIM_LIMITED);
-
-    g_st = create_stack_trace(conf);
-    if (!g_st) {
-        return -1;
-    }
-
-    err = init_enabled_svg_stack_traces(conf);
-    if (err != 0) {
-        destroy_stack_trace(&g_st);
-        return -1;
-    }
-
-    init_java_support_proc(conf);
-
     INFO("[STACKPROBE]: Started successfully.\n");
 
     while (!g_stop) {
+        err = recv_ipc_msg(msq_id, (long)PROBE_FG, &ipc_body);
+        if (err == 0) {
+            INFO("[STACKPROBE]: recv new ipc\n");
+            if (!init) { // execute once
+                g_st = create_stack_trace(&ipc_body);
+                if (!g_st) {
+                    ERROR("[STACKPROBE]: can't create stack trace\n");
+                    goto out;
+                }
+            }
+
+            unload_stackprobe_snoopers(&g_ipc_body);
+            destroy_ipc_body(&g_ipc_body);
+            (void)memcpy(&g_ipc_body, &ipc_body, sizeof(g_ipc_body));
+            load_stackprobe_snoopers(&g_ipc_body);
+
+            if (!init) { // execute once
+                err = init_enabled_svg_stack_traces(&g_ipc_body);
+                if (err != 0) {
+                    goto out;
+                }
+
+                java_supported = init_java_support_proc(&g_ipc_body, &java_support_thd);
+
+                init = 1;
+                INFO("[STACKPROBE]: Init successfully!\n");
+            } 
+        }
         switch_stackmap();
         sleep(1);
     }
 
-    destroy_stack_trace(&g_st);
-    unload_java_agent(conf);
+out:
+    g_stop = 1;
+    unload_java_agent(java_supported, java_support_thd);
+    if (g_st != NULL) {
+        destroy_stack_trace(&g_st);
+    }
+    destroy_ipc_body(&g_ipc_body);
 
     return -err;
 }

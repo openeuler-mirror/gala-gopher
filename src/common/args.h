@@ -30,6 +30,9 @@
 #define MAX_TGIDS_LEN       64
 
 #define PYSCOPE_SERVER_URL_LEN  256
+#ifndef PATH_LEN
+#define PATH_LEN            256
+#endif
 
 #define SUPPORT_NODE_ENV        0x01
 #define SUPPORT_CONTAINER_ENV   0x02
@@ -92,7 +95,11 @@ struct probe_params {
     unsigned int l7_probe_proto_flags;
     int enable_all_thrds;         // [-A] Enable all threads, default is 0
     char sys_debuging_dir[MAX_PATH_LEN];
+    unsigned int svg_period;
+    unsigned int perf_sample_period;
     char pyroscope_server[PYSCOPE_SERVER_URL_LEN];
+    char svg_dir[PATH_LEN];
+    char flame_dir[PATH_LEN];
 };
 int args_parse(int argc, char **argv, struct probe_params* params);
 int params_parse(char *s, struct probe_params *params);

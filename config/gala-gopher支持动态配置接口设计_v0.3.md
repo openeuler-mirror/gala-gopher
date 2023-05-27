@@ -17,8 +17,7 @@ curl -X POST http://gala-gopher:9999/flamegraph/ -d json='
         "bin": "/opt/gala-gopher/extend_probes/stackprobe",
         "check_cmd": ""
     },
-    "probes": [
-        {
+    "probes": {
             "probe": [
                 "oncpu",
                 "offcpu"
@@ -47,8 +46,7 @@ curl -X POST http://gala-gopher:9999/flamegraph/ -d json='
                 "container1",
                 "container2"
             ]
-        }
-    ]
+    }
 }'
 ```
 

@@ -51,8 +51,8 @@ struct svg_param_s {
 static struct svg_param_s svg_params[STACK_SVG_MAX] =
     {{"oncpu", "--countname=us", "On-CPU Time Flame Graph"},
     {"offcpu", "--colors=io --countname=us", "Off-CPU Time Flame Graph"},
-    {"io", "--colors=io --countname=us", "IO Time Flame Graph"},
-    {"memleak", "--colors=mem --countname=Bytes", "Memory Leak Flame Graph"}};
+    {"memleak", "--colors=mem --countname=Bytes", "Memory Leak Flame Graph"},
+    {"io", "--colors=io --countname=us", "IO Time Flame Graph"}};
 
 #if 1
 static void __rm_svg(const char *svg_file)
@@ -256,6 +256,10 @@ struct stack_svg_mng_s* create_svg_mng(u32 default_period)
 
     (void)memset(svg_mng, 0, sizeof(struct stack_svg_mng_s));
 
+    if (default_period == 0) {
+        default_period = 180;
+    }
+
     svg_mng->svg.last_create_time = (time_t)time(NULL);
     svg_mng->svg.period = default_period;
     (void)__create_svg_files(&svg_mng->svg.svg_files, default_period);
@@ -307,6 +311,10 @@ int set_svg_dir(struct stack_svgs_s *svg, const char *dir, const char *flame_nam
         return -1;
     }
 
+    if (dir == NULL || dir[0] == 0) {
+        dir = "/var/log/gala-gopher/stacktrace";
+    }
+
     len = strlen(dir);
     if (len <= 1 || len + strlen(flame_name) >= PATH_LEN) {
         return -1;
@@ -318,24 +326,6 @@ int set_svg_dir(struct stack_svgs_s *svg, const char *dir, const char *flame_nam
         (void)snprintf(svg->svg_dir, PATH_LEN, "%s/%s", dir, flame_name);
     }
     __mkdir_svg_dir(svg);
-    return 0;
-}
-
-int set_svg_period(struct stack_svg_mng_s* svg_mng, u32 period)
-{
-    struct stack_svgs_s *svgs;
-
-    if (!svg_mng) {
-        return -1;
-    }
-    svgs = &(svg_mng->svg);
-
-    __destroy_svg_files(&svgs->svg_files);
-    if (__create_svg_files(&svgs->svg_files, period)) {
-        return -1;
-    }
-    svgs->period = period;
-
     return 0;
 }
 

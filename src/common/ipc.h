@@ -28,6 +28,7 @@
 #define PROBE_RANGE_ONCPU       0x00000001
 #define PROBE_RANGE_OFFCPU      0x00000002
 #define PROBE_RANGE_MEM         0x00000004
+#define PROBE_RANGE_IO          0x00000008
 
 /* L7 subprobe define */
 #define PROBE_RANGE_L7BYTES_METRICS 0x00000001
