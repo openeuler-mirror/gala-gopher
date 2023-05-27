@@ -294,11 +294,8 @@ IMDB_DataBaseMgr *IMDB_DataBaseMgrCreate(uint32_t capacity)
         goto err;
     }
 
-    ret = get_system_ip(mgr->nodeInfo.hostIP, MAX_IMDB_HOSTIP_LEN);
-    if (ret != 0) {
-        ERROR("[IMDB] Can not get system ip.\n");
-        goto err;
-    }
+    /* Silence here when faid to get system ip and leave it handled afterwards */
+    (void)get_system_ip(mgr->nodeInfo.hostIP, MAX_IMDB_HOSTIP_LEN);
 
     mgr->tables = (IMDB_Table **)malloc(sizeof(IMDB_Table *) * capacity);
     if (mgr->tables == NULL) {
@@ -368,7 +365,7 @@ TGID_Record* IMDB_TgidLkupRecord(const IMDB_DataBaseMgr *mgr, const char* tgid)
     return record;
 }
 
-TGID_Record* IMDB_TgidCreateRecord(const IMDB_DataBaseMgr *mgr, const char* tgid)
+static TGID_Record* IMDB_TgidCreateRecord(const IMDB_DataBaseMgr *mgr, const char* tgid)
 {
     int ret;
     int pid, startup_ts;
@@ -944,7 +941,7 @@ static int IMDB_BuildPrometheusMetrics(const IMDB_Metric *metric, char *buffer, 
     return (int)((int)maxLen - size);   // Returns the number of printed characters
 }
 
-static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
+static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
                                      IMDB_Record *record,
                                      char *buffer,
                                      uint32_t maxLen)
@@ -1022,6 +1019,13 @@ static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
 
 out:
     // Append 'machine_id' label for ALL metrics.
+    if (mgr->nodeInfo.hostIP[0] == 0) {
+        ret = get_system_ip(mgr->nodeInfo.hostIP, MAX_IMDB_HOSTIP_LEN);
+        if (ret) {
+            ERROR("[IMDB] Can not get system ip\n");
+            goto err;
+        }
+    }
     ret = __snprintf(&p, size, &size, ",machine_id=\"%s-%s\"", mgr->nodeInfo.systemUuid, mgr->nodeInfo.hostIP);
     if (ret < 0) {
         goto err;

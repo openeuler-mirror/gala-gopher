@@ -428,11 +428,11 @@ int get_container_id_by_pid(unsigned int pid, char *container_id, unsigned int b
 }
 
 #define __PROC_CPUSET           "/proc/%s/cpuset"
-#define __CAT_PROC_CPUSET_CMD   "/usr/bin/cat %s | awk -F '/' '{print $NF}'"
+#define __CAT_PROC_CPUSET_CMD   "/usr/bin/cat %s 2>/dev/null | awk -F '/' '{print $NF}'"
 static int __is_container_id(char *container_id)
 {
     int len = strlen(container_id);
-    if (len > CONTAINER_ID_LEN) {
+    if (len == 0 || len > CONTAINER_ID_LEN) {
         return 0;
     }
 
@@ -475,7 +475,8 @@ int get_container_id_by_pid_cpuset(const char *pid, char *container_id, unsigned
     }
 
     if (!__is_container_id(container_id)) {
-        return -1;
+        container_id[0] = 0;
+        return 0;
     }
 
     container_id[CONTAINER_ABBR_ID_LEN] = 0;
