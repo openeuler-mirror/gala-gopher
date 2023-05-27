@@ -75,17 +75,17 @@ static void get_cpu_time_in_jiff(char *cpu_total_line, u64 *time_total, u64 *tim
     }
 }
 
-static void report_cpu_status(struct probe_params *params)
+static void report_cpu_status(struct ipc_body_s *ipc_body)
 {
     char entityId[INT_LEN];
-    if (params->logs == 0) {
+    if (ipc_body->probe_param.logs == 0) {
         return;
     }
 
     entityId[0] = 0;
     (void)strcpy(entityId, "cpu");
 
-    if (params->res_percent_upper > 0 && util_per > params->res_percent_upper) {
+    if (ipc_body->probe_param.res_percent_upper > 0 && util_per > ipc_body->probe_param.res_percent_upper) {
         report_logs(ENTITY_NAME,
                     entityId,
                     "total_used_per",
@@ -313,7 +313,7 @@ void system_cpu_destroy(void)
     old_cpus = NULL;
 }
 
-int system_cpu_probe(struct probe_params *params)
+int system_cpu_probe(struct ipc_body_s *ipc_body)
 {
     struct cpu_stat **tmp_pptr;
     struct cpu_stat *tmp_ptr;
@@ -330,7 +330,7 @@ int system_cpu_probe(struct probe_params *params)
         return 0;
     }
     util_per = (cur_time_used - last_time_used) * FULL_PER * 1.0 / (cur_time_total - last_time_total);
-    report_cpu_status(params);
+    report_cpu_status(ipc_body);
     for (size_t i = 0; i < cpus_num; i++) {
         ret = nprobe_fprintf(stdout, "|%s|%d|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|\n",
             METRICS_CPU_NAME,

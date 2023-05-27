@@ -18,7 +18,7 @@
 #pragma once
 
 #include "common.h"
-#include "args.h"
+#include "ipc.h"
 
 #define MAX_FIELD_LEN       64
 #define IPV4_STR_LEN        16
@@ -36,7 +36,7 @@ struct node_infos {
     char is_host_vm;    // 1: vm / 0: pm
 };
 
-int system_os_probe(struct probe_params * params);
+int system_os_probe(struct ipc_body_s * ipc_body);
 
 #endif
 

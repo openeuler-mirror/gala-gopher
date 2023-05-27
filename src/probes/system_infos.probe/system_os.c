@@ -193,7 +193,7 @@ static int check_skip_ifa(struct ifaddrs *ifa)
     return 0;
 }
 
-static int get_ip_addr(struct node_infos *infos, struct probe_params * params)
+static int get_ip_addr(struct node_infos *infos, struct ipc_body_s * ipc_body)
 {
     char buf[NI_MAXHOST];
     struct ifaddrs *ifaddr, *ifa;
@@ -208,7 +208,7 @@ static int get_ip_addr(struct node_infos *infos, struct probe_params * params)
         return -1;
     }
 
-    if (params == NULL || params->host_ip_list[0][0] == 0) {
+    if (ipc_body->probe_param.host_ip_list[0][0] == 0) {
         // 不需要过滤业务IP
         filter_flag = 0;
     }
@@ -238,10 +238,10 @@ static int get_ip_addr(struct node_infos *infos, struct probe_params * params)
         }
 
         for (int i = 0; i < MAX_IP_NUM; i++) {
-            if (params->host_ip_list[i][0] == 0) {
+            if (ipc_body->probe_param.host_ip_list[i][0] == 0) {
                 break;
             }
-            if (check_ip_in_net_segment(buf, params->host_ip_list[i]) == true) {
+            if (check_ip_in_net_segment(buf, ipc_body->probe_param.host_ip_list[i]) == true) {
                 if (first_flag == 0) {
                     (void)__snprintf(&ip_addr_str, ip_addr_len, &ip_addr_len, "%s", buf);
                     first_flag = 1;
@@ -300,7 +300,7 @@ static int get_host_type(struct node_infos *infos)
 }
 
 static char g_first_get = 1;
-int system_os_probe(struct probe_params * params)
+int system_os_probe(struct ipc_body_s * ipc_body)
 {
     // 部分节点(如系统、版本等)信息不会变更，仅在探针启动时获取一次
     if (g_first_get == 1) {
@@ -310,7 +310,7 @@ int system_os_probe(struct probe_params * params)
 
         g_first_get = 0;
     }
-    (void)get_ip_addr(&g_nodeinfos, params);
+    (void)get_ip_addr(&g_nodeinfos, ipc_body);
     (void)get_host_name(&g_nodeinfos);
 
     nprobe_fprintf(stdout, "|%s|%s|%s|%s|%llu|%llu|%s|%s|%d|\n",
