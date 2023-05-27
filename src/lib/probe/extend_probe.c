@@ -21,6 +21,8 @@
 #include "probe_mng.h"
 
 #define PROBE_START_DELAY 5
+#define PROBE_LKUP_PID_RETRY_MAX 2
+#define PROBE_LKUP_PID_DELAY 2
 
 FILE* __DoRunExtProbe(struct probe_s *probe)
 {
@@ -66,7 +68,7 @@ static int lkup_and_set_probe_pid(struct probe_s *probe)
 
 int RunExtendProbe(struct probe_s *probe)
 {
-    int ret = 0;
+    int ret = 0, retry = 0;
     FILE *f = NULL;
     char buffer[MAX_DATA_STR_LEN];
     uint32_t bufferSize = 0;
@@ -78,7 +80,13 @@ int RunExtendProbe(struct probe_s *probe)
     SET_PROBE_FLAGS(probe, PROBE_FLAGS_RUNNING);
     UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPED);
 
-    (void)lkup_and_set_probe_pid(probe);
+retry:
+    if (lkup_and_set_probe_pid(probe) && retry <= PROBE_LKUP_PID_RETRY_MAX) {
+        /* The process may still be inaccessible here, so just retry */
+        sleep(PROBE_LKUP_PID_DELAY);
+        retry++;
+        goto retry;
+    }
 
     while (feof(f) == 0 && ferror(f) == 0) {
         if (IS_STOPPING_PROBE(probe)) {
