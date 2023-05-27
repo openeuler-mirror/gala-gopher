@@ -21,6 +21,7 @@
 #include <unistd.h>
 #include "logs.h"
 #include "ingress.h"
+#include "event2json.h"
 
 IngressMgr *IngressMgrCreate(void)
 {
@@ -83,6 +84,40 @@ static int IngressInit(IngressMgr *mgr)
         }
 
         INFO("[INGRESS] Add EPOLLIN event success, extend probe %s.\n", extendProbe->name);
+    }
+
+    return 0;
+}
+
+static int LogData2Egress(IngressMgr *mgr, const char *logData)
+{
+    int ret = 0;
+    char *jsonFmt = NULL;
+    uint64_t msg = 1;
+
+    jsonFmt = malloc(MAX_DATA_STR_LEN);
+    if (jsonFmt == NULL) {
+        ERROR("[INGRESS] alloc jsonFmt failed.\n");
+        return -1;
+    }
+
+    if (LogData2Json(mgr, logData, jsonFmt, MAX_DATA_STR_LEN)) {
+        ERROR("[INGRESS] transfer log data to json format failed.\n");
+        free(jsonFmt);
+        return -1;
+    }
+
+    ret = FifoPut(mgr->egressMgr->event_fifo, (void *)jsonFmt);
+    if (ret != 0) {
+        ERROR("[INGRESS] egress event fifo full.\n");
+        free(jsonFmt);
+        return -1;
+    }
+    ret = write(mgr->egressMgr->event_fifo->triggerFd, &msg, sizeof(uint64_t));
+    if (ret != sizeof(uint64_t)) {
+        ERROR("[INGRESS] send trigger msg to egress event_fifo fd failed.\n");
+        free(jsonFmt);
+        return -1;
     }
 
     return 0;
@@ -237,6 +272,18 @@ static int IngressDataProcesssInput(Fifo *fifo, IngressMgr *mgr)
         ret = GetTableNameAndContent((const char*)dataStr, tblName, MAX_IMDB_TABLE_NAME_LEN, &content);
         if (ret < 0 || (content == NULL)) {
             ERROR("[INGRESS] Get dirty data str: %s\n", dataStr);
+            goto next;
+        }
+
+        // process log (one telemetry category in otel) message
+        if (strcmp(tblName, "log") == 0 && mgr->egressMgr->event_kafkaMgr) {
+            // send log data to egress
+            ret = LogData2Egress(mgr, content);
+            if (ret) {
+                ERROR("[INGRESS] send log data to egress failed.\n");
+            } else {
+                DEBUG("[INGRESS] send log data to egress succeed.(tbl=%s,content=%s)\n", tblName, content);
+            }
             goto next;
         }
 
