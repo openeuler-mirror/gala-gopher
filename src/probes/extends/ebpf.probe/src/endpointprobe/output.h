@@ -56,6 +56,12 @@ struct {
     __uint(max_entries, 1);
 } args_map SEC(".maps");
 
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(struct proc_s));
+    __uint(value_size, sizeof(struct obj_ref_s));
+    __uint(max_entries, PROC_MAP_MAX_ENTRIES);
+} g_ep_proc_map SEC(".maps");
 
 #define __PERIOD ((u64)30 * 1000000000)
 static __always_inline u64 get_period()
@@ -73,19 +79,10 @@ static __always_inline u64 get_period()
 
 static __always_inline char is_valid_tgid(u32 tgid)
 {
-    u32 key = 0;
-    struct endpoint_args_s *args;
-
-    args = (struct endpoint_args_s *)bpf_map_lookup_elem(&args_map, &key);
-    if (args && args->filter_by_task) {
-        struct proc_s obj = {.proc_id = tgid};
-        return is_proc_exist(&obj);
+    struct proc_s obj = {.proc_id = tgid};
+    if (bpf_map_lookup_elem(&g_ep_proc_map, &obj) == (void *)0) {
+        return 0;
     }
-
-    if (args && args->filter_by_tgid) {
-        return (args->filter_by_tgid == tgid);
-    }
-
     return 1;
 }
 

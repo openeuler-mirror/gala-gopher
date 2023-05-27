@@ -94,8 +94,6 @@ struct endpoint_val_t {
 
 struct endpoint_args_s {
     __u64 period;               // Sampling period, unit ns
-    __u32 filter_by_task;       // Filtering PID monitoring ranges by task probe
-    __u32 filter_by_tgid;       // Filtering PID monitoring ranges by specific pid
 };
 
 #endif
