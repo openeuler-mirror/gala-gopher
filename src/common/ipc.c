@@ -787,7 +787,7 @@ static int __build_snooper_tlv(char *buf, size_t size, struct ipc_body_s* ipc_bo
             return -1;
         }
         max_len = max_len - build_len;
-        if (max_len <= 0) {
+        if (max_len < 0) {
             return -1;
         }
         cur += build_len;
@@ -966,11 +966,11 @@ static int __deserialize_snooper_tlv(char *buf, size_t size, struct ipc_body_s* 
             return -1;
         }
         offset_len += deserialize_len;
-        max_len -= offset_len;
+        max_len -= deserialize_len;
         snooper_index++;
     } while (max_len > 0);
 
-    return ((size_t)offset_len + sizeof(struct ipc_tlv_s));
+    return (size_t)offset_len;
 }
 
 static int __deserialize_ipc_msg(struct ipc_msg_s* ipc_msg, struct ipc_body_s* ipc_body)

@@ -22,10 +22,10 @@
 
 #include "common.h"
 #include "args.h"
+#include "ipc.h"
 
 #define RM_TPROFILING_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__tprofiling*"
 
-#define SETTING_MAP_PATH       "/sys/fs/bpf/gala-gopher/__tprofiling_setting"
 #define PROC_FILTER_MAP_PATH   "/sys/fs/bpf/gala-gopher/__tprofiling_proc_filter"
 #define THRD_BL_MAP_PATH       "/sys/fs/bpf/gala-gopher/__tprofiling_thrd_bl"
 #define STACK_MAP_PATH         "/sys/fs/bpf/gala-gopher/__tprofiling_stack"
@@ -47,7 +47,6 @@
 #define TPROFILING_PROBE_ALL (u32)(TPROFILING_PROBE_ONCPU | TPROFILING_PROBE_SYSCALL_ALL)
 
 #define MAP_SET_COMMON_PIN_PATHS(probe_name, load) \
-    MAP_SET_PIN_PATH(probe_name, setting_map, SETTING_MAP_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, proc_filter_map, PROC_FILTER_MAP_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, thrd_bl_map, THRD_BL_MAP_PATH, load); \
 
@@ -86,7 +85,7 @@
         return -1; \
     }
 
-struct bpf_prog_s* load_syscall_bpf_prog(struct probe_params *params);
-struct bpf_prog_s* load_oncpu_bpf_prog(struct probe_params *params);
+struct bpf_prog_s* load_syscall_bpf_prog(struct ipc_body_s *ipc_body);
+struct bpf_prog_s* load_oncpu_bpf_prog(struct ipc_body_s *ipc_body);
 
 #endif

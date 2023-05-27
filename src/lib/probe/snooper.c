@@ -136,7 +136,13 @@ struct probe_range_define_s probe_range_define[] = {
     {PROBE_BASEINFO,  "disk",             PROBE_RANGE_SYS_DISK},
     {PROBE_BASEINFO,  "fs",               PROBE_RANGE_SYS_FS},
     {PROBE_BASEINFO,  "proc",             PROBE_RANGE_SYS_PROC},
-    {PROBE_BASEINFO,  "host",             PROBE_RANGE_SYS_HOST}
+    {PROBE_BASEINFO,  "host",             PROBE_RANGE_SYS_HOST},
+
+    {PROBE_TP,     "oncpu",               PROBE_RANGE_TPROFILING_ONCPU},
+    {PROBE_TP,     "syscall_file",        PROBE_RANGE_TPROFILING_SYSCALL_FILE},
+    {PROBE_TP,     "syscall_net",        PROBE_RANGE_TPROFILING_SYSCALL_NET},
+    {PROBE_TP,     "syscall_lock",        PROBE_RANGE_TPROFILING_SYSCALL_LOCK},
+    {PROBE_TP,     "syscall_sched",        PROBE_RANGE_TPROFILING_SYSCALL_SCHED},
 };
 
 static void refresh_snooper_obj(struct probe_s *probe);

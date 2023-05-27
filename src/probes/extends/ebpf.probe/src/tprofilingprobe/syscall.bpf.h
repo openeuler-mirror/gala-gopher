@@ -135,13 +135,8 @@ static __always_inline void process_syscall_event(syscall_m_enter_t *sce, syscal
     do \
     { \
         syscall_m_enter_t sce; \
-        profiling_setting_t *setting; \
         \
-        setting = get_tp_setting(); \
-        if (setting == (void *)0) { \
-            return 0; \
-        } \
-        if (!is_proc_thrd_enabled(setting)) { \
+        if (!is_proc_thrd_enabled()) { \
             return 0; \
         } \
         \
