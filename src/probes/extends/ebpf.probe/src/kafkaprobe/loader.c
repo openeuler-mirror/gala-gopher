@@ -28,50 +28,64 @@ void set_socket_mode(__u32 *flag)
 {
     *flag = XDP_FLAGS_UPDATE_IF_NOEXIST;
     *flag &= ~XDP_FLAGS_MODES;    /* Clear flags */
-    *flag |= XDP_FLAGS_SKB_MODE;  /* Set   flag */    
+    *flag |= XDP_FLAGS_SKB_MODE;  /* Set   flag */
 }
 
 void set_offload_mode(__u32 *flag)
 {
     *flag = XDP_FLAGS_UPDATE_IF_NOEXIST;
     *flag &= ~XDP_FLAGS_MODES;    /* Clear flags */
-    *flag |= XDP_FLAGS_HW_MODE;  /* Set   flag */        
+    *flag |= XDP_FLAGS_HW_MODE;  /* Set   flag */
 }
 
 
 struct bpf_object *load(struct KafkaConfig *cfg){
     struct bpf_object *obj;
-
-    struct bpf_prog_load_attr load_attr = {
-        .prog_type = BPF_PROG_TYPE_XDP,
-        .ifindex = 0,
-        .file = cfg->load_file_name,
-    };
-
-    if (cfg->xdp_flag & XDP_FLAGS_HW_MODE)
-        load_attr.ifindex = cfg->ifindex;
-
     int ret;
-    int first_prog_fd = -1;
+    struct bpf_program *prog;
 
-    ret = bpf_prog_load_xattr(&load_attr, &obj, &first_prog_fd);
+    obj = bpf_object__open_file(cfg->load_file_name, NULL);
+    if (libbpf_get_error(obj)) {
+        ERROR("Opening BPF-OBJ file %s fail\n",cfg->load_file_name);
+        return NULL;
+    }
+
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+    prog = bpf_object__next_program(obj, NULL);
+#else
+    prog = bpf_program__next(NULL, obj);
+#endif
+    if (!prog) {
+        bpf_object__close(obj);
+        return NULL;
+    }
+
+    bpf_program__set_type(prog, BPF_PROG_TYPE_XDP);
+    if (cfg->xdp_flag & XDP_FLAGS_HW_MODE)
+        bpf_program__set_ifindex(prog, cfg->ifindex);
+
+    ret = bpf_object__load(obj);
     if (ret) {
         fprintf(stderr, "ERROR: loading BPF-OBJ file %s fail\n",cfg->load_file_name);
+        bpf_object__close(obj);
         return NULL;
-    }    
+    }
 
     return obj;
 }
 
 int unload(struct bpf_object *obj){
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 6))
+    bpf_object__close(obj);
+#else
     int ret;
-
     ret = bpf_object__unload(obj);
+
     if (ret){
         fprintf(stderr, "ERROR: unloading BPF-OBJ file fail\n");
-        return 1;        
+        return 1;
     }
-
+#endif
     return 0;
 }
 
@@ -81,29 +95,37 @@ int link_xdp(struct KafkaConfig *cfg, struct bpf_object *obj){
     int prog_fd = -1;
     int ret;
 
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+    prog = bpf_object__next_program(obj, NULL);
+#else
     prog = bpf_program__next(NULL, obj);
+#endif
     if(!prog){
         fprintf(stderr, "ERROR: can't find prog in bpf object\n");
-        return 1;             
+        return 1;
     }
 
     prog_fd = bpf_program__fd(prog);
 
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+    ret = bpf_xdp_attach(cfg->ifindex, prog_fd, cfg->xdp_flag, NULL);
+#else
     ret = bpf_set_link_xdp_fd(cfg->ifindex, prog_fd, cfg->xdp_flag);
+#endif
     if(ret){
         switch(ret){
             case -EBUSY:
-                fprintf(stderr, "Warn: net interface %s already loaded XDP prog\n", cfg->ifname);     
+                fprintf(stderr, "Warn: net interface %s already loaded XDP prog\n", cfg->ifname);
                 break;
             case -EOPNOTSUPP:
-                fprintf(stderr, "Warn: net interface %s not support flag 0x%x\n", cfg->ifname, cfg->xdp_flag);     
-                break;               
+                fprintf(stderr, "Warn: net interface %s not support flag 0x%x\n", cfg->ifname, cfg->xdp_flag);
+                break;
             default:
                 fprintf(stderr, "ERROR: net interface %s link prog %s fail\n",cfg->ifname, cfg->load_file_name);
                 break;
-        }     
-        return ret;   
-    }    
+        }
+        return ret;
+    }
 
     return 0;
 }
@@ -112,7 +134,11 @@ int unlink_xdp(struct KafkaConfig *cfg){
     int ret;
     __u32 prog_fd;
 
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+    ret = bpf_xdp_query_id(cfg->ifindex, cfg->xdp_flag, &prog_fd);
+#else
     ret = bpf_get_link_xdp_id(cfg->ifindex, &prog_fd, cfg->xdp_flag);
+#endif
     if (ret) {
         fprintf(stderr, "ERR: get link xdp prog fd failed \n");
         return 1;
@@ -123,7 +149,12 @@ int unlink_xdp(struct KafkaConfig *cfg){
         return 0;
     }
 
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+    ret = bpf_xdp_detach(cfg->ifindex, cfg->xdp_flag, NULL);
+#else
     ret = bpf_set_link_xdp_fd(cfg->ifindex, -1, cfg->xdp_flag);
+#endif
+
     if (ret < 0) {
         fprintf(stderr, "ERROR: unlink xdp prog from net interface %s fail\n", cfg->ifname);
         return 3;
@@ -136,13 +167,13 @@ int unpin(struct KafkaConfig *cfg, struct bpf_object *obj){
     int ret;
 
     char dir_path[LARGE_BUF_SIZE];
-    snprintf(dir_path, LARGE_BUF_SIZE, "%s/%s", cfg->pin_path, cfg->ifname);   
+    snprintf(dir_path, LARGE_BUF_SIZE, "%s/%s", cfg->pin_path, cfg->ifname);
 
     ret = bpf_object__unpin_maps(obj, dir_path);
     if(ret){
         fprintf(stderr, "ERROR: can't remove map!\n");
         return 1;
-    }    
+    }
 
     return 0;
 }
@@ -151,8 +182,8 @@ int pin(struct KafkaConfig *cfg, struct bpf_object *obj){
     int ret;
     char map_path[LARGE_BUF_SIZE];
     char dir_path[LARGE_BUF_SIZE];
-    snprintf(dir_path, LARGE_BUF_SIZE, "%s/%s", cfg->pin_path, cfg->ifname);   
-    for(int i=0;i<MAP_NUM;i++){            
+    snprintf(dir_path, LARGE_BUF_SIZE, "%s/%s", cfg->pin_path, cfg->ifname);
+    for(int i=0;i<MAP_NUM;i++){
         snprintf(map_path, LARGE_BUF_SIZE, "%s/%s/%s",cfg->pin_path, cfg->ifname, get_map_name(i));
 
         ret = access(map_path, F_OK);
@@ -165,10 +196,10 @@ int pin(struct KafkaConfig *cfg, struct bpf_object *obj){
     ret = bpf_object__pin_maps(obj, dir_path);
     if(ret){
         fprintf(stderr, "ERROR: can't pin map in %s\n", dir_path);
-        return 1;            
+        return 1;
     }
 
-    return 0;    
+    return 0;
 }
 
 struct bpf_object *load_link_pin(struct KafkaConfig *cfg){
@@ -179,7 +210,7 @@ struct bpf_object *load_link_pin(struct KafkaConfig *cfg){
     obj = load(cfg);
     if(!obj){
         fprintf(stderr, "ERROR: can't load bpf object!\n");
-        return NULL;            
+        return NULL;
     }
 
     ret = link_xdp(cfg, obj);
@@ -194,24 +225,24 @@ struct bpf_object *load_link_pin(struct KafkaConfig *cfg){
         } else {
             return NULL;
         }
-    }    
-    
+    }
+
     if (ret == -EOPNOTSUPP || ret == -ENOMEM) {
         printf("Info: Change XDP mode to socket mode...\n");
         set_socket_mode(&cfg->xdp_flag);
         ret = link_xdp(cfg, obj);
     }
-    
+
     if(ret){
         fprintf(stderr, "ERROR %d: can't link bpf prog!, \n", ret);
-        return NULL;            
-    }    
+        return NULL;
+    }
 
     ret = pin(cfg, obj);
     if(ret){
         fprintf(stderr, "ERROR: can't pin bpf map!\n");
-        return NULL;            
-    }   
+        return NULL;
+    }
 
     return obj;
 }
@@ -221,20 +252,20 @@ int unpin_unlink_unload(struct KafkaConfig *cfg, struct bpf_object *obj){
     ret = unpin(cfg, obj);
     if(ret){
         fprintf(stderr, "ERROR: unpin bpf map fail!\n");
-        return 1;            
-    }       
+        return 1;
+    }
 
     ret = unlink_xdp(cfg);
     if(ret){
         fprintf(stderr, "ERROR: unlink bpf prog fail!\n");
-        return 1;            
-    }   
+        return 1;
+    }
 
     ret = unload(obj);
     if(ret){
         fprintf(stderr, "ERROR: unload bpf object fail!\n");
-        return 1;            
-    }        
+        return 1;
+    }
 
     return 0;
 }
@@ -247,7 +278,7 @@ int open_bpf_map_file(struct KafkaConfig *cfg, const char *map_name, int *map_fd
     fd = bpf_obj_get(map_path);
     if(fd < 0){
         printf("ERROR: Failed to open bpf map file:%s\n", map_path);
-        return 1;       
+        return 1;
     }
 
     *map_fd = fd;
@@ -256,7 +287,7 @@ int open_bpf_map_file(struct KafkaConfig *cfg, const char *map_name, int *map_fd
 
 static char local_ip[SMALL_BUF_SIZE];
 
-const char* get_local_ip() 
+const char* get_local_ip()
 {
     return local_ip;
 }
@@ -282,11 +313,11 @@ int set_local_ip(char * ifname)
                 inet_ntop(family, &addr->sin_addr, local_ip, SMALL_BUF_SIZE);
                 return 0;
             }
-        }  
-    }  
+        }
+    }
 
     printf("Error: can't find ip address the ifname %s attached!\n", ifname);
     freeifaddrs(if_addr);
-    
+
     return -1;
 }

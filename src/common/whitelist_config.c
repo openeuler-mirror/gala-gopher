@@ -224,6 +224,7 @@ int get_proc_comm(const char *pid, char *buf)
 
     SPLIT_NEWLINE_SYMBOL(line);
     (void)strncpy(buf, line, PROC_NAME_MAX - 1);
+    buf[PROC_NAME_MAX - 1] = 0;
     (void)pclose(f);
     return 0;
 }
@@ -291,7 +292,7 @@ int get_probe_proc_whitelist(ApplicationConfig *appsConfig, u32 appsConfig_len,
     struct dirent *entry;
     char comm[PROC_NAME_MAX];
     int list_len = 0;
-    
+
     dir = opendir(PROC_PATH);
     if (dir == NULL) {
         return -1;
@@ -312,7 +313,7 @@ int get_probe_proc_whitelist(ApplicationConfig *appsConfig, u32 appsConfig_len,
             continue;
         } else {
             proc_whitelist[list_len] = (u32)atoi(entry->d_name);
-            list_len++;            
+            list_len++;
         }
         if (list_len >= proc_whitelist_len) {
             ERROR("[WHITELIST] probe proc list is full.\n");

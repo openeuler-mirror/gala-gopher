@@ -20,6 +20,7 @@
 #include <unistd.h>
 #include "common.h"
 #include "imdb.h"
+#include "container.h"
 
 static uint32_t g_recordTimeout = 60;       // default timeout: 60 seconds
 

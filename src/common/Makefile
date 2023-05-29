@@ -8,10 +8,15 @@ endif
 C++ = g++
 CC = gcc
 
+LIBBPF_VER = $(shell rpm -q libbpf | awk -F'-' '{print $$2}')
+LIBBPF_VER_MAJOR = $(shell echo $(LIBBPF_VER) | awk -F'.' '{print $$1}')
+LIBBPF_VER_MINOR = $(shell echo $(LIBBPF_VER) | awk -F'.' '{print $$2}')
+
 LINK_TARGET := -lpthread -lbpf -lelf -lz -llog4cplus
 EXTRA_CFLAGS := -g -O2 -Wall -fPIC -shared -Wl,-z,relro,-z,now -std=gnu11
 EXTRA_CDEFINE := -D__TARGET_ARCH_$(ARCH)
 CFLAGS := $(EXTRA_CFLAGS) $(EXTRA_CDEFINE)
+CFLAGS += -DLIBBPF_VER_MAJOR=$(LIBBPF_VER_MAJOR) -DLIBBPF_VER_MINOR=$(LIBBPF_VER_MINOR)
 CXXFLAGS += -std=c++11 -g -O2 -Wall -fPIC
 
 INCLUDES := -I/usr/include

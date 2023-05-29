@@ -200,9 +200,15 @@ int main(int argc, char **argv)
     }
 
     /* create collect hash map */
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+    int collect_map_fd =
+        bpf_map_create(BPF_MAP_TYPE_HASH, NULL, sizeof(struct collect_key),
+                        sizeof(struct collect_value), IPVS_MAX_ENTRIES, NULL);
+#else
     int collect_map_fd =
         bpf_create_map(BPF_MAP_TYPE_HASH, sizeof(struct collect_key),
                         sizeof(struct collect_value), IPVS_MAX_ENTRIES, 0);
+#endif
     if (collect_map_fd < 0) {
         fprintf(stderr, "bpf_create_map collect map fd failed.\n");
         goto err;

@@ -65,7 +65,7 @@ static int CmdProcessing(int argc, char *argv[])
     static struct option long_options[] = {
         {"help",        no_argument,       0, 'h'},
         {"config_path", required_argument, 0, 'c'},
-        {NULL,          0,                 0, NULL}
+        {0,             0,                 0, 0}
     };
 
     char short_options[] = {
@@ -82,7 +82,7 @@ static int CmdProcessing(int argc, char *argv[])
         ret = ParseConfigPath(GALA_CONF_PATH_DEFAULT);
         return ret;
     }
- 
+
     while(1) {
         int option_index = 0;
         cmd = getopt_long(argc, argv, short_options, long_options, &option_index);

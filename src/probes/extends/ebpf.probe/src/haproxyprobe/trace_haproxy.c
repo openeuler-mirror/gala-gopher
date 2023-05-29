@@ -220,8 +220,13 @@ int main(int argc, char **argv)
         goto err;
 
     /* create collect hash map */
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+    collect_map_fd =
+        bpf_map_create(BPF_MAP_TYPE_HASH, NULL, sizeof(struct collect_key), sizeof(struct collect_value), METRIC_ENTRIES, NULL);
+#else
     collect_map_fd =
         bpf_create_map(BPF_MAP_TYPE_HASH, sizeof(struct collect_key), sizeof(struct collect_value), METRIC_ENTRIES, 0);
+#endif
     if (collect_map_fd < 0) {
         fprintf(stderr, "Haproxy Failed to create map.\n");
         goto err;
