@@ -995,8 +995,7 @@ static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
         }
 
         if (tgidRecord == NULL) {
-            ERROR("[IMDB] append proc(PID = %s) common label fail.\n", record->metrics[tgid_idx]->val);
-            goto err;
+            goto out;
         }
 
         if (tgidRecord->comm[0] != 0) {
@@ -1021,6 +1020,7 @@ static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
         }
     }
 
+out:
     // Append 'machine_id' label for ALL metrics.
     ret = __snprintf(&p, size, &size, ",machine_id=\"%s-%s\"", mgr->nodeInfo.systemUuid, mgr->nodeInfo.hostIP);
     if (ret < 0) {
@@ -1033,6 +1033,7 @@ static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
     }
 
     return 0;
+
 err:
     return ret;
 }
