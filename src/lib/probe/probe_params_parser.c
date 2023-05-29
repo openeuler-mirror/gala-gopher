@@ -284,7 +284,7 @@ static int parser_pyscope_server(struct probe_s *probe, struct param_key_s *para
 
     if (value == 0) {
         value = param_key->v.default_int;
-    } else
+    }
 
     (void)strncpy(probe->probe_param.pyroscope_server, value, PYSCOPE_SERVER_URL_LEN - 1);
     return 0;
@@ -369,7 +369,6 @@ int parse_params(struct probe_s *probe, const cJSON *params_json)
     int ret = -1;
     cJSON *key_item, *object;
     struct param_key_s *param_key;
-    struct probe_params probe_params_bak = probe->probe_param;
     size_t size = sizeof(param_keys) / sizeof(struct param_key_s);
 
     for (int i = 0; i < size; i++) {
@@ -381,8 +380,6 @@ int parse_params(struct probe_s *probe, const cJSON *params_json)
 
         ret = param_key->parser(probe, param_key, key_item);
         if (ret) {
-            /* Resume old probe params */
-            probe->probe_param = probe_params_bak;
             break;
         }
     }

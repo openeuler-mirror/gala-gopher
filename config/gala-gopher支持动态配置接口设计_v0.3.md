@@ -1,6 +1,6 @@
 # Rest API设计
 
- WEB server端口可配置（缺省9999），URL组织方式 http://gala-gopher + [端口号] + function（采集特性），比如火焰图的URL：http://gala-gopher:9999/flamegraph/
+ WEB server端口可配置（缺省9999），URL组织方式 http://gala-gopher + [端口号] + function（采集特性），比如火焰图的URL：http://gala-gopher:9999/flamegraph
 
 
 
@@ -11,7 +11,7 @@
 下面是火焰图同时开启oncpu, offcpu采集特性的API举例：
 
 ```
-curl -X POST http://gala-gopher:9999/flamegraph/ -d json='
+curl -X POST http://gala-gopher:9999/flamegraph -d json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/stackprobe",
@@ -53,7 +53,7 @@ curl -X POST http://gala-gopher:9999/flamegraph/ -d json='
 通过REST关闭火焰图的采集能力
 
 ```
-curl -X POST http://gala-gopher:9999/flamegraph/ -d json='
+curl -X POST http://gala-gopher:9999/flamegraph -d json='
 {
     "operate": "start" // optional: start, stop, delete
 }'
@@ -93,7 +93,7 @@ curl -X POST http://gala-gopher:9999/flamegraph/ -d json='
 探针在运行期间还需要设置一些参数设置，例如：设置火焰图的采样周期、上报周期
 
 ```
-curl -X POST http://gala-gopher:9999/flamegraph/ -d json='
+curl -X POST http://gala-gopher:9999/flamegraph -d json='
 {
     "params": {
         "report_period": 180,

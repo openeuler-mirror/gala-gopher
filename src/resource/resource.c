@@ -607,8 +607,7 @@ static int RestServerInit(ResourceMgr *resourceMgr)
                                 configMgr->restServerConfig->certFile,
                                 configMgr->restServerConfig->caFile);
         if (ret < 0) {
-            RestServerDestroy(restServer);
-            return ret;
+            return -1;
         }
     }
 

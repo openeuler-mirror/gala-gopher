@@ -618,14 +618,7 @@ static void probe_rollback_probes(struct probe_s *probe, struct probe_s *probe_b
 
 static int probe_parser_params(struct probe_s *probe, const cJSON *item)
 {
-    if (parse_params(probe, item)) {
-        return -1;
-    }
-
-    if (IS_RUNNING_PROBE(probe) && IS_EXTEND_PROBE(probe)) {
-        //TODO: send params to probe by ipc msg
-    }
-    return 0;
+    return parse_params(probe, item);
 }
 
 static void probe_backup_params(struct probe_s *probe, struct probe_s *probe_backup)
@@ -684,6 +677,7 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
     u32 parse_flag = 0;
     struct probe_parser_s *parser;
     struct probe_s *probe_backup = NULL;
+    enum probe_type_e probe_type;
     cJSON *json = NULL, *item;
 
     get_probemng_lock();
@@ -692,6 +686,8 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
     if (probe == NULL) {
         goto end;
     }
+    probe_type = probe->probe_type;
+
     json = cJSON_Parse(probe_content);
     if (json == NULL) {
         goto end;
@@ -720,6 +716,11 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
             rollback_probe(probe, probe_backup, parse_flag);
             break;
         }
+    }
+
+    /* Send snooper obj after parsing successfully, except when the probe was deleted */
+    if (ret == 0 && g_probe_mng->probes[probe_type]) {
+        ret = send_snooper_obj(probe);
     }
 
     destroy_probe(probe_backup);
