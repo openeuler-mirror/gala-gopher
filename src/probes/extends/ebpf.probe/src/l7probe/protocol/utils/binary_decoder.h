@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include "common.h"
 #include "../../include/data_stream.h"
 
@@ -132,7 +133,7 @@ parse_state_t decoder_extract_str_until_char(struct raw_data_s *raw_data, char *
  * @param search_str 停止字符串标识
  * @return parse_state_t
  */
-parse_state_t decoder_extract_str_until_str(struct raw_data_s *raw_data, char **res, char *search_str);
+parse_state_t decoder_extract_str_until_str(struct raw_data_s *raw_data, char **res, const char *search_str);
 
 /**
  * 跳过raw_data前prefix_len字节的字符。

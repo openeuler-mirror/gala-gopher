@@ -96,6 +96,8 @@ struct record_buf_s {
     size_t err_count;   // error-matched frame-pair count
     size_t req_count;   // raw request frame count
     size_t resp_count;  // raw response frame count
+    size_t msg_total_count; // protocol's msg total count for calculating error rate.
+    size_t msg_error_count; // protocol's msg error count for calculating error rate.
 };
 
 /*

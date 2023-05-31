@@ -8,20 +8,21 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Author: zhaoguolin
- * Create: 2023-04-24
+ * Author: niebin
+ * Create: 2023-04-12
  * Description:
  ******************************************************************************/
 
-#ifndef __PARSER_MACROS_H__
-#define __PARSER_MACROS_H__
+#ifndef __REDIS_PARSE_H__
+#define __REDIS_PARSE_H__
 
 #pragma once
-#include <stdint.h>
 
-// For unused input parameters, avoid compiler alarms.
-#define PARSER_UNUSED(x) (void) (x)
+#include "../../include/data_stream.h"
+#include "redis_msg_format.h"
 
-#define PARSER_INVALID_BOUNDARY_INDEX (SIZE_MAX)
+size_t redis_find_frame_boundary(struct raw_data_s *raw_data);
+
+parse_state_t redis_parse_frame(enum message_type_t msg_type, struct raw_data_s *raw_data, struct frame_data_s **frame_data);
 
 #endif
