@@ -123,6 +123,10 @@ void write_sym(const void *code_addr, unsigned int code_size, char *csig, const 
     if (method_name == NULL) {
         return;
     }
+    if (strcmp(method_name, "Interpreter") == 0) {
+        // Do not display "Interpreter"
+        return;
+    }
 
     if (g_sym_fp != NULL) {
         __sym_tmp_str[0] = 0;
