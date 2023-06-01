@@ -121,8 +121,9 @@ int __set_effective_id(struct jvm_agent_hash_t *pid_bpf_link) {
         pid_bpf_link->v.ns_changed = 1;
     }
 
-
-    free(line);
+    if (line != NULL) {
+        free(line);
+    }
     fclose(status_file);
 out:
     pid_bpf_link->v.eGid = eGid;
@@ -261,19 +262,19 @@ static void __set_pids_inactive()
 
 static int __mkdir(char dst_dir[])
 {
-    int ret = 0;
-    if (access(dst_dir, F_OK) != 0) {
-        FILE *fp;
-        char command[COMMAND_LEN] = {0};
-        (void)snprintf(command, COMMAND_LEN, "/usr/bin/mkdir -p %s", dst_dir);
-        fp = popen(command, "r");
-        if (fp == NULL) {
-            ret = -1;
-        }
-        (void)pclose(fp);
+    if (access(dst_dir, F_OK) == 0) {
+        return 0;
     }
-    
-    return ret;
+    FILE *fp;
+    char command[COMMAND_LEN];
+    command[0] = 0;
+    (void)snprintf(command, COMMAND_LEN, "/usr/bin/mkdir -p %s", dst_dir);
+    fp = popen(command, "r");
+    if (fp == NULL) {
+        return -1;
+    }
+    (void)pclose(fp);
+    return 0;
 }
 
 int get_host_java_tmp_file(int pid, const char *file_name, char *file_path, int path_len)
