@@ -18,7 +18,6 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <errno.h>
-#include "object.h"
 #include "nprobe_fprintf.h"
 #include "system_procs.h"
 
@@ -38,33 +37,16 @@
 #define PROC_STAT_CMD       "/usr/bin/cat /proc/%s/stat | awk '{print $10\":\"$12\":\"$14\":\"$15\":\"$23\":\"$24}'"
 #define PROC_ID_CMD         "ps -eo pid,ppid,pgid,comm | /usr/bin/awk '{if($1==\"%s\"){print $2 \"|\" $3}}'"
 #define PROC_CPUSET         "/proc/%s/cpuset"
-#define PROC_CPUSET_CMD     "/usr/bin/cat /proc/%s/cpuset | awk -F '/' '{print $NF}'"
+#define PROC_CPUSET_CMD     "/usr/bin/cat /proc/%s/cpuset 2>/dev/null | awk -F '/' '{print $NF}'"
 #define PROC_LIMIT          "/proc/%s/limits"
 #define PROC_LIMIT_CMD      "/usr/bin/cat /proc/%s/limits | grep \"open files\" | awk '{print $4}'"
 
 static proc_hash_t *g_procmap = NULL;
 static proc_info_t g_pre_proc_info;
 
-static void add_proc_obj(const int pid)
-{
-    struct proc_s obj;
-    obj.proc_id = pid;
-
-    (void)proc_add(&obj);
-}
-
-static void put_proc_obj(const int pid)
-{
-    struct proc_s obj;
-    obj.proc_id = pid;
-
-    (void)proc_put(&obj);
-}
-
 static void hash_add_proc(proc_hash_t *one_proc)
 {
     HASH_ADD(hh, g_procmap, key, sizeof(proc_key_t), one_proc);
-    add_proc_obj(one_proc->key.pid);
     return;
 }
 
@@ -103,7 +85,20 @@ static void hash_clear_invalid_proc(void)
         if (!is_proc_exited(r->key.pid)) {
             continue;
         }
-        put_proc_obj(r->key.pid);
+        HASH_DEL(g_procmap, r);
+        if (r != NULL) {
+            (void)free(r);
+        }
+    }
+}
+
+static void hash_clear_all_proc(void)
+{
+    if (g_procmap == NULL) {
+        return;
+    }
+    proc_hash_t *r, *tmp;
+    HASH_ITER(hh, g_procmap, r, tmp) {
         HASH_DEL(g_procmap, r);
         if (r != NULL) {
             (void)free(r);
@@ -655,7 +650,7 @@ static proc_hash_t* init_one_proc(char *pid, char *stime, char *comm)
     return item;
 }
 
-int system_proc_probe(void)
+int system_proc_probe(struct ipc_body_s *ipc_body)
 {
     DIR *dir = NULL;
     struct dirent *entry;
@@ -686,33 +681,37 @@ int system_proc_probe(void)
             continue;
         }
 
-        comm[0] = 0;
-        (void)get_proc_comm(pid_str, comm);
-
-        l = init_one_proc(pid_str, stime, comm);
-
-        /* add new_proc to hashmap and output */
-        hash_add_proc(l);
     }
     closedir(dir);
     hash_clear_invalid_proc();
     return 0;
 }
 
-void system_proc_destroy(void)
+int refresh_proc_filter_map(struct ipc_body_s *ipc_body)
 {
-    obj_module_exit();
-}
+    char pid_str[PROC_NAME_MAX];
+    char comm[PROC_NAME_MAX];
+    char stime[PROC_NAME_MAX];
+    proc_hash_t *item, *p;
 
-void system_proc_init(void)
-{
-    obj_module_init();
-    // if proc_obj_map's fd is 0, create obj_map
-    if (!(obj_module_init_ok() & PROC_MAP_INIT_OK)) {
-        DEBUG("[SYSTEM_PROC] proc_obj_map init pok, create map here.\n");
-        (void)obj_module_create_map("proc_obj_map");
-        obj_module_set_maps_fd();
+    hash_clear_all_proc();
+
+    for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_body->snooper_objs[i].type != SNOOPER_OBJ_PROC) {
+            continue;
+        }
+        pid_str[0] = 0;
+        (void)snprintf(pid_str, PROC_NAME_MAX, "%u", ipc_body->snooper_objs[i].obj.proc.proc_id);
+        comm[0] = 0;
+        (void)get_proc_comm(pid_str, comm);
+        stime[0] = 0;
+        (void)get_proc_start_time(pid_str, stime);
+
+        p = hash_find_proc(pid_str, stime);
+        if (p == NULL) {
+            item = init_one_proc(pid_str, stime, comm);
+            hash_add_proc(item);
+        }
     }
-
-    return;
+    return 0;
 }

@@ -95,7 +95,6 @@ static int parser_report_peirod(struct probe_s *probe, struct param_key_s *param
     return 0;
 }
 
-
 static int parser_latency_thr(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
 {
     int value = (int)key_item->valueint;
@@ -137,6 +136,25 @@ static int parser_res_upper_thr(struct probe_s *probe, struct param_key_s *param
     }
 
     probe->probe_param.res_percent_upper = (u32)value;
+    return 0;
+}
+
+static int parse_host_ip_fields(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
+{
+    char *p = NULL;
+    int index = 0;
+
+    if (key_item->type != cJSON_String) {
+        return -1;
+    }
+
+    char *value = key_item->valuestring;
+    p = strtok(value, ",");
+    while (p != NULL && index < MAX_IP_NUM) {
+        (void)strncpy(probe->probe_param.host_ip_list[index++], p, MAX_IP_LEN - 1);
+        probe->probe_param.host_ip_list[index++][MAX_IP_LEN - 1] = '\0';
+        p = strtok(NULL, ",");
+    }
     return 0;
 }
 
@@ -346,7 +364,8 @@ struct param_key_s param_keys[] = {
     {"perf_sample_period", {10, 10, 1000, ""},                      parser_perf_sample_period},
     {"svg_dir",            {0, 0, 0, "/var/log/gala-gopher/stacktrace"},             parser_svg_dir},
     {"flame_dir",          {0, 0, 0, "/var/log/gala-gopher/flamegraph"},             parser_flame_dir},
-    {"debugging_dir",      {0, 0, 0, ""},                           parser_sysdebuging_dir}
+    {"debugging_dir",      {0, 0, 0, ""},                           parser_sysdebuging_dir},
+    {"host_ip_fields",     {0, 0, 0, ""},                           parse_host_ip_fields}
 };
 
 

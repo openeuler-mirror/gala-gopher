@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include "args.h"
+#include "ipc.h"
 #include "common.h"
 
 struct cpu_stat {
@@ -37,7 +37,7 @@ struct cpu_stat {
 };
 
 int system_cpu_init(void);
-int system_cpu_probe(struct probe_params *params);
+int system_cpu_probe(struct ipc_body_s *ipc_body);
 void system_cpu_destroy(void);
 
 #endif

@@ -19,6 +19,7 @@
 
 #include <uthash.h>
 #include "common.h"
+#include "ipc.h"
 
 #define PROC_NAME_MAX       64
 #define PROC_MAX_RANGE      64
@@ -105,8 +106,7 @@ typedef struct {
     UT_hash_handle hh;
 } proc_hash_t;
 
-int system_proc_probe(void);
-void system_proc_init(void);
-void system_proc_destroy(void);
+int system_proc_probe(struct ipc_body_s *ipc_body);
+int refresh_proc_filter_map(struct ipc_body_s *ipc_body);
 
 #endif

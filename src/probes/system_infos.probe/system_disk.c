@@ -44,17 +44,18 @@ static int get_df_fields(char *line, df_stats *stats)
     return 0;
 }
 
-static void report_disk_status(df_stats inode_stats, df_stats blk_stats, struct probe_params *params)
+static void report_disk_status(df_stats inode_stats, df_stats blk_stats, struct ipc_body_s *ipc_body)
 {
     char entityid[LINE_BUF_LEN];
 
-    if (params->logs == 0) {
+    if (ipc_body->probe_param.logs == 0) {
         return;
     }
 
     entityid[0] = 0;
 
-    if (params->res_percent_upper > 0 && inode_stats.inode_or_blk_used_per > params->res_percent_upper) {
+    if (ipc_body->probe_param.res_percent_upper > 0 &&
+        inode_stats.inode_or_blk_used_per > ipc_body->probe_param.res_percent_upper) {
         (void)strncpy(entityid, inode_stats.mount_on, LINE_BUF_LEN - 1);
         report_logs(ENTITY_FS_NAME,
                     entityid,
@@ -63,7 +64,8 @@ static void report_disk_status(df_stats inode_stats, df_stats blk_stats, struct 
                     "Too many Inodes consumed(%d%%).",
                     inode_stats.inode_or_blk_used_per);
     }
-    if (params->res_percent_upper > 0 && blk_stats.inode_or_blk_used_per > params->res_percent_upper) {
+    if (ipc_body->probe_param.res_percent_upper > 0 &&
+        blk_stats.inode_or_blk_used_per > ipc_body->probe_param.res_percent_upper) {
         if (entityid[0] == 0) {
             (void)strncpy(entityid, blk_stats.mount_on, LINE_BUF_LEN - 1);
         }
@@ -111,7 +113,7 @@ static int get_mnt_block_info(const char *mounted_on, df_stats *blk_stats)
  [root@localhost ~]# df | awk '{if($6==/dev){print $1"%"$2"%"$3"%"$4"%"$5"%"$6}}'
  devtmpfs%3797500%0%3797500%0%%/dev
  */
-int system_disk_probe(struct probe_params *params)
+int system_disk_probe(struct ipc_body_s *ipc_body)
 {
     FILE *f = NULL;
     char line[LINE_BUF_LEN];
@@ -150,7 +152,7 @@ int system_disk_probe(struct probe_params *params)
             block_stats.inode_or_blk_free,
             block_stats.inode_or_blk_used_per);
         /* output event */
-        report_disk_status(inode_stats, block_stats, params);
+        report_disk_status(inode_stats, block_stats, ipc_body);
     }
     (void)pclose(f);
     return 0;
@@ -202,17 +204,17 @@ static void cal_disk_io_stats(disk_stats *last, disk_stats *cur, disk_io_stats *
     return;
 }
 
-static void report_disk_iostat(const char *disk_name, disk_io_stats *io_info, struct probe_params *params)
+static void report_disk_iostat(const char *disk_name, disk_io_stats *io_info, struct ipc_body_s *ipc_body)
 {
     char entityid[LINE_BUF_LEN];
 
-    if (params->logs == 0) {
+    if (ipc_body->probe_param.logs == 0) {
         return;
     }
 
     entityid[0] = 0;
 
-    if (params->res_percent_upper > 0 && io_info->util > params->res_percent_upper) {
+    if (ipc_body->probe_param.res_percent_upper > 0 && io_info->util > ipc_body->probe_param.res_percent_upper) {
         (void)strncpy(entityid, disk_name, LINE_BUF_LEN - 1);
         report_logs(ENTITY_DISK_NAME,
                     entityid,
@@ -236,7 +238,7 @@ static disk_stats *g_disk_stats = NULL;
 static int g_disk_dev_num;
 static int g_first_flag;
 
-int system_iostat_probe(struct probe_params *params)
+int system_iostat_probe(struct ipc_body_s *ipc_body)
 {
     FILE *f = NULL;
     char line[LINE_BUF_LEN];
@@ -264,7 +266,7 @@ int system_iostat_probe(struct probe_params *params)
         if (g_first_flag == 1) {
             (void)memset(&io_datas, 0, sizeof(disk_io_stats));
         } else {
-            cal_disk_io_stats(&temp, &g_disk_stats[index], &io_datas, params->period);
+            cal_disk_io_stats(&temp, &g_disk_stats[index], &io_datas, ipc_body->probe_param.period);
         }
 
         (void)nprobe_fprintf(stdout,
@@ -282,7 +284,7 @@ int system_iostat_probe(struct probe_params *params)
             io_datas.aqu_sz,
             io_datas.util);
         /* event_output */
-        report_disk_iostat(g_disk_stats[index].disk_name, &io_datas, params);
+        report_disk_iostat(g_disk_stats[index].disk_name, &io_datas, ipc_body);
 
         index++;
     }

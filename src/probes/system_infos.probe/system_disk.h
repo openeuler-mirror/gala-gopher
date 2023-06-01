@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include "args.h"
+#include "ipc.h"
 #include "common.h"
 
 /* the interval of time (@p) is given in second */
@@ -69,8 +69,8 @@ typedef struct {
     float aqu_sz;
 } disk_io_stats;
 
-int system_disk_probe(struct probe_params *params);
-int system_iostat_probe(struct probe_params *params);
+int system_disk_probe(struct ipc_body_s *ipc_body);
+int system_iostat_probe(struct ipc_body_s *ipc_body);
 int system_iostat_init(void);
 void system_iostat_destroy(void);
 

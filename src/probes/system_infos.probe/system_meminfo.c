@@ -76,11 +76,11 @@ static int set_meminfosp_fileds(const char* line, const int cur_index)
     return -1;
 }
 
-static void report_meminfo_status(struct probe_params *params, double mem_util, double swap_util)
+static void report_meminfo_status(struct ipc_body_s *ipc_body, double mem_util, double swap_util)
 {
     char entityId[INT_LEN];
     char entityName[INT_LEN];
-    if (params->logs == 0) {
+    if (ipc_body->probe_param.logs == 0) {
         return;
     }
 
@@ -89,7 +89,7 @@ static void report_meminfo_status(struct probe_params *params, double mem_util, 
     (void)strcpy(entityId, "/proc/meminfo");
     (void)strcpy(entityName, "mem");
     // mem util
-    if (params->res_percent_upper > 0 && mem_util > params->res_percent_upper) {
+    if (ipc_body->probe_param.res_percent_upper > 0 && mem_util > ipc_body->probe_param.res_percent_upper) {
         report_logs(entityName,
                     entityId,
                     "util",
@@ -98,7 +98,7 @@ static void report_meminfo_status(struct probe_params *params, double mem_util, 
                     mem_util);
     }
     // swap util
-    if (params->res_percent_upper > 0 && swap_util > params->res_percent_upper) {
+    if (ipc_body->probe_param.res_percent_upper > 0 && swap_util > ipc_body->probe_param.res_percent_upper) {
         report_logs(entityName,
                     entityId,
                     "swap_util",
@@ -108,7 +108,7 @@ static void report_meminfo_status(struct probe_params *params, double mem_util, 
     }
 }
 
-static void output_meminfo(struct probe_params *params)
+static void output_meminfo(struct ipc_body_s *ipc_body)
 {
     //  v3.2.8 used = total - free; v3.3.10 used = total - free - cache - buffers; cur_ver=v5.10
     // alculate memusage
@@ -123,7 +123,7 @@ static void output_meminfo(struct probe_params *params)
         swap_usage = (double)((meminfo_fields[SWAP_TOTAL].value - \
 				meminfo_fields[SWAP_FREE].value)) / meminfo_fields[SWAP_TOTAL].value * 100.0;
     }
-    report_meminfo_status(params, mem_usage, swap_usage);
+    report_meminfo_status(ipc_body, mem_usage, swap_usage);
     // report data
     (void)nprobe_fprintf(stdout, "|%s|%s|%llu|%llu|%llu|%.2f|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|\n",
         METRICS_MEMINFO_NAME,
@@ -142,7 +142,7 @@ static void output_meminfo(struct probe_params *params)
 }
 
 // /proc/meminfo
-static int get_meminfo(struct probe_params *params)
+static int get_meminfo(struct ipc_body_s *ipc_body)
 {
     FILE* f = NULL;
     char line[LINE_BUF_LEN];
@@ -168,7 +168,7 @@ static int get_meminfo(struct probe_params *params)
             break;
         }
     }
-    output_meminfo(params);
+    output_meminfo(ipc_body);
 
     (void)fclose(f);
     return 0;
@@ -211,9 +211,9 @@ static int get_dentry_state(void)
 }
 
 // probes
-int system_meminfo_probe(struct probe_params *params)
+int system_meminfo_probe(struct ipc_body_s *ipc_body)
 {
-    if (get_meminfo(params) < 0) {
+    if (get_meminfo(ipc_body) < 0) {
         ERROR("[SYSTEM_PROBE] failed to collect proc meminfo.\n");
         return -1;
     }

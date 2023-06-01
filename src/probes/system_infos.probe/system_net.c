@@ -265,7 +265,7 @@ static int is_physical_netdev(char *dev_name, int dev_num)
     return 0;
 }
 
-static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct probe_params *params)
+static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct ipc_body_s *ipc_body)
 {
     char entityid[LINE_BUF_LEN];
     u64 tx_drops;
@@ -273,7 +273,7 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
     u64 tx_errs;
     u64 rx_errs;
 
-    if (params->logs == 0) {
+    if (ipc_body->probe_param.logs == 0) {
         return;
     }
 
@@ -283,7 +283,7 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
     tx_errs = new_info->tx_errs - old_info->tx_errs;
     rx_errs = new_info->rx_errs - old_info->rx_errs;
 
-    if (params->drops_count_thr > 0 && tx_drops > params->drops_count_thr) {
+    if (ipc_body->probe_param.drops_count_thr > 0 && tx_drops > ipc_body->probe_param.drops_count_thr) {
         (void)strncpy(entityid, new_info->dev_name, LINE_BUF_LEN - 1);
         report_logs(ENTITY_NIC_NAME,
                     entityid,
@@ -292,7 +292,7 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
                     "net device tx queue drops(%llu).",
                     tx_drops);
     }
-    if (params->drops_count_thr > 0 && rx_drops > params->drops_count_thr) {
+    if (ipc_body->probe_param.drops_count_thr > 0 && rx_drops > ipc_body->probe_param.drops_count_thr) {
         if (entityid[0] == 0) {
             (void)strncpy(entityid, new_info->dev_name, LINE_BUF_LEN - 1);
         }
@@ -303,7 +303,7 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
                     "net device rx queue drops(%llu).",
                     rx_drops);
     }
-    if (params->drops_count_thr > 0 && tx_errs > params->drops_count_thr) {
+    if (ipc_body->probe_param.drops_count_thr > 0 && tx_errs > ipc_body->probe_param.drops_count_thr) {
         if (entityid[0] == 0) {
             (void)strncpy(entityid, new_info->dev_name, LINE_BUF_LEN - 1);
         }
@@ -314,7 +314,7 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
                     "net device tx queue errors(%llu).",
                     tx_errs);
     }
-    if (params->drops_count_thr > 0 && rx_errs > params->drops_count_thr) {
+    if (ipc_body->probe_param.drops_count_thr > 0 && rx_errs > ipc_body->probe_param.drops_count_thr) {
         if (entityid[0] == 0) {
             (void)strncpy(entityid, new_info->dev_name, LINE_BUF_LEN - 1);
         }
@@ -337,7 +337,7 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
 static net_dev_stat *g_dev_stats = NULL;
 static int g_netdev_num;
 
-int system_net_probe(struct probe_params *params)
+int system_net_probe(struct ipc_body_s *ipc_body)
 {
     FILE* f = NULL;
     char line[LINE_BUF_LEN];
@@ -389,9 +389,9 @@ int system_net_probe(struct probe_params *params)
             (g_dev_stats[index].tx_errs > temp.tx_errs) ? (g_dev_stats[index].tx_errs - temp.tx_errs) : 0,
             (g_dev_stats[index].tx_dropped > temp.tx_dropped) ? (g_dev_stats[index].tx_dropped - temp.tx_dropped) : 0,
             (g_dev_stats[index].rx_bytes > temp.rx_bytes) ?
-                SPEED_VALUE(temp.rx_bytes, g_dev_stats[index].rx_bytes, params->period) : 0,
+                SPEED_VALUE(temp.rx_bytes, g_dev_stats[index].rx_bytes, ipc_body->probe_param.period) : 0,
             (g_dev_stats[index].tx_bytes > temp.tx_bytes) ?
-                SPEED_VALUE(temp.tx_bytes, g_dev_stats[index].tx_bytes, params->period) : 0,
+                SPEED_VALUE(temp.tx_bytes, g_dev_stats[index].tx_bytes, ipc_body->probe_param.period) : 0,
             (g_dev_stats[index].tc_sent_drop_count > temp.tc_sent_drop_count) ?
                 (g_dev_stats[index].tc_sent_drop_count - temp.tc_sent_drop_count) : 0,
             (g_dev_stats[index].tc_sent_overlimits_count > temp.tc_sent_overlimits_count) ?
@@ -399,7 +399,7 @@ int system_net_probe(struct probe_params *params)
             g_dev_stats[index].tc_backlog_count,
             g_dev_stats[index].tc_ecn_mark);
         /* output event */
-        report_netdev(&g_dev_stats[index], &temp, params);
+        report_netdev(&g_dev_stats[index], &temp, ipc_body);
         index++;
     }
 
