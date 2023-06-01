@@ -25,6 +25,7 @@ public class JvmProbeAgent {
     private static final int NSEC_PER_SEC = 1000000000;
     private static final String METRIC_FILE_NAME = "jvm-metrics.txt";
     private static String pid;
+    private static String mainClassName = null;
     private static String metricTmpPath;
     private static String metricTmpFile;
 
@@ -50,6 +51,26 @@ public class JvmProbeAgent {
             bw.close();
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    private static void getMainClass() {
+        if (mainClassName != null) {
+            return;
+        }
+
+        RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
+        String wholeCmdLine = runtimeBean.getSystemProperties().get("sun.java.command");
+        if (wholeCmdLine == null) {
+            mainClassName = "Unknown";
+            return;
+        }
+        mainClassName = wholeCmdLine;
+
+        int firstSpace = wholeCmdLine.indexOf(' ');
+        if (firstSpace > 0) {
+            mainClassName = wholeCmdLine.substring(0, firstSpace);
+            return;
         }
     }
 
@@ -81,15 +102,15 @@ public class JvmProbeAgent {
         String jvmVersion = runtimeBean.getVmVersion();   // or getSpecVersion();
         String jvmVender = runtimeBean.getVmVendor();
 
-        writeMetricRecords(String.format("|jvm_info|%s|%s|%s|%s|%d|\n", pid, jvmName, jvmVender, jvmVersion, 1));
+        writeMetricRecords(String.format("|jvm_info|%s|%s|%s|%s|%s|%d|\n", pid, mainClassName, jvmName, jvmVender, jvmVersion, 1));
     }
 
     private static void processCollector(RuntimeMXBean runtimeBean, OperatingSystemMXBean osBean) {
         long processStartTime = runtimeBean.getStartTime(); // ms
         try {
             Long processCpuTime = callLongGetter(osBean.getClass().getMethod("getProcessCpuTime"), osBean); // ns
-            writeMetricRecords(String.format("|jvm_process|%s|%f|%f|\n",
-                pid, ((double)processStartTime / MSEC_PER_SEC), ((double)processCpuTime / NSEC_PER_SEC)));
+            writeMetricRecords(String.format("|jvm_process|%s|%s|%f|%f|\n",
+                pid, mainClassName, ((double)processStartTime / MSEC_PER_SEC), ((double)processCpuTime / NSEC_PER_SEC)));
         } catch (Exception e) {
             //System.out.println("error");
         }
@@ -127,14 +148,14 @@ public class JvmProbeAgent {
         if (deadlocks != null && deadlocks.length > 0) {
             cycleThreadDeadlocked = deadlocks.length;
         }
-        writeMetricRecords(String.format("|jvm_thread|%s|%d|%d|%d|%d|%d|\n",
-            pid, currentThreadCnt, daemonThreadCnt, peakThreadCnt, startThreadCnt, cycleThreadDeadlocked));
+        writeMetricRecords(String.format("|jvm_thread|%s|%s|%d|%d|%d|%d|%d|\n",
+            pid, mainClassName, currentThreadCnt, daemonThreadCnt, peakThreadCnt, startThreadCnt, cycleThreadDeadlocked));
     }
 
     private static void classCollector(ClassLoadingMXBean clBean) {
         int currentClassCnt = clBean.getLoadedClassCount();
         long totalClassCnt = clBean.getTotalLoadedClassCount();
-        writeMetricRecords(String.format("|jvm_class|%s|%d|%d|\n", pid, currentClassCnt, totalClassCnt));
+        writeMetricRecords(String.format("|jvm_class|%s|%s|%d|%d|\n", pid, mainClassName, currentClassCnt, totalClassCnt));
     }
 
     // memory
@@ -143,7 +164,8 @@ public class JvmProbeAgent {
         long memCommitted = memUsage.getCommitted();
         long memMax = memUsage.getMax();
         long memInit = memUsage.getInit();
-        writeMetricRecords(String.format("|jvm_mem|%s|%s|%d|%d|%d|%d|\n", pid, area, memUsed, memCommitted, memMax, memInit));
+        writeMetricRecords(String.format("|jvm_mem|%s|%s|%s|%d|%d|%d|%d|\n",
+            pid, mainClassName, area, memUsed, memCommitted, memMax, memInit));
     }
 
     // memory_pool
@@ -151,8 +173,8 @@ public class JvmProbeAgent {
         for (final MemoryPoolMXBean pool : poolBeans) {
             MemoryUsage poolUsage = pool.getUsage();
             if (poolUsage != null) {
-                writeMetricRecords(String.format("|jvm_mem_pool|%s|%s|%d|%d|%d|",
-                    pid, pool.getName(), poolUsage.getUsed(), poolUsage.getCommitted(), poolUsage.getMax()));
+                writeMetricRecords(String.format("|jvm_mem_pool|%s|%s|%s|%d|%d|%d|",
+                    pid, mainClassName, pool.getName(), poolUsage.getUsed(), poolUsage.getCommitted(), poolUsage.getMax()));
             }
             MemoryUsage colPoolUsage = pool.getCollectionUsage();
             if (colPoolUsage != null) {
@@ -168,16 +190,16 @@ public class JvmProbeAgent {
     // buffer_pool
     private static void bufferPoolCollector(List<BufferPoolMXBean> bufferPools) {
         for (BufferPoolMXBean pool : bufferPools) {
-            writeMetricRecords(String.format("|jvm_buf_pool|%s|%s|%d|%d|%d|\n",
-                pid, pool.getName(), pool.getMemoryUsed(), pool.getCount(), pool.getTotalCapacity()));
+            writeMetricRecords(String.format("|jvm_buf_pool|%s|%s|%s|%d|%d|%d|\n",
+                pid, mainClassName, pool.getName(), pool.getMemoryUsed(), pool.getCount(), pool.getTotalCapacity()));
         }
     }
 
     // gc
     private static void gcCollector(List<GarbageCollectorMXBean> garbageCollectors) {
         for (GarbageCollectorMXBean gc : garbageCollectors) {
-            writeMetricRecords(String.format("|jvm_gc|%s|%s|%d|%f|\n",
-                pid, gc.getName(), gc.getCollectionCount(), ((double)gc.getCollectionTime() / MSEC_PER_SEC)));
+            writeMetricRecords(String.format("|jvm_gc|%s|%s|%s|%d|%f|\n",
+                pid, mainClassName, gc.getName(), gc.getCollectionCount(), ((double)gc.getCollectionTime() / MSEC_PER_SEC)));
         }
     }
 
@@ -188,6 +210,7 @@ public class JvmProbeAgent {
         metricTmpPath = argStr[1];
         try {
             createTmpFile();
+            getMainClass();
             getJmxInfo();
         } catch (IOException e) {
             System.out.println(e.getMessage());

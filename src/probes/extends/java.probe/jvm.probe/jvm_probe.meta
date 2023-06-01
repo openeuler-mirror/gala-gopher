@@ -13,6 +13,11 @@ measurements:
                 name: "tgid",
             },
             {
+                description: "Name of JVM Main Class.",
+                type: "label",
+                name: "name",
+            },
+            {
                 description: "JVM runtime Environment.",
                 type: "label",
                 name: "runtime",
@@ -45,6 +50,11 @@ measurements:
                 name: "tgid",
             },
             {
+                description: "Name of JVM Main Class.",
+                type: "label",
+                name: "name",
+            },
+            {
                 description: "Start time of the process since unix epoch in seconds.",
                 type: "gauge",
                 name: "process_start_time_seconds",
@@ -67,6 +77,11 @@ measurements:
                 name: "tgid",
             },
             {
+                description: "Name of JVM Main Class.",
+                type: "label",
+                name: "name",
+            },
+            {
                 description: "Start time of the process since unix epoch in seconds.",
                 type: "gauge",
                 name: "classes_currently_loaded",
@@ -87,6 +102,11 @@ measurements:
                 description: "ID of current java process.",
                 type: "key",
                 name: "tgid",
+            },
+            {
+                description: "Name of JVM Main Class.",
+                type: "label",
+                name: "name",
             },
             {
                 description: "Current thread count of a JVM.",
@@ -126,6 +146,11 @@ measurements:
                 name: "tgid",
             },
             {
+                description: "Name of JVM Main Class.",
+                type: "label",
+                name: "name",
+            },
+            {
                 description: "type of JVM memory type: heap or noheap.",
                 type: "key",
                 name: "area",
@@ -161,6 +186,11 @@ measurements:
                 description: "ID of current java process.",
                 type: "key",
                 name: "tgid",
+            },
+            {
+                description: "Name of JVM Main Class.",
+                type: "label",
+                name: "name",
             },
             {
                 description: "name representing a memory pool.",
@@ -210,6 +240,11 @@ measurements:
                 name: "tgid",
             },
             {
+                description: "Name of JVM Main Class.",
+                type: "label",
+                name: "name",
+            },
+            {
                 description: "name representing a buffer pool.",
                 type: "key",
                 name: "pool",
@@ -240,6 +275,11 @@ measurements:
                 description: "ID of current java process.",
                 type: "key",
                 name: "tgid",
+            },
+            {
+                description: "Name of JVM Main Class.",
+                type: "label",
+                name: "name",
             },
             {
                 description: "name representing a GC.",
