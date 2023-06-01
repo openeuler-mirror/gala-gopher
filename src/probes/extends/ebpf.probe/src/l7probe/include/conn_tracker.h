@@ -115,5 +115,6 @@ void tracker_rcv_ctrl_evt(struct conn_tracker_s *tracker, struct conn_ctl_s *evt
 void l7_sock_data_msg_handler(void *ctx, int cpu, void *data, unsigned int size);
 void l7_conn_control_msg_handler(void *ctx, int cpu, void *data, unsigned int size);
 void l7_conn_stats_msg_handler(void *ctx, int cpu, void *data, unsigned int size);
+
 #endif
 

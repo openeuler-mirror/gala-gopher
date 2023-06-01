@@ -85,6 +85,9 @@ struct sock_data_args_s {
     // For sendmsg()/recvmsg()/writev()/readv().
     struct iovec* iov;
     size_t iovlen;
+
+    char is_ssl;
+    char pad[3];
 };
 
 
@@ -305,8 +308,8 @@ static __always_inline __maybe_unused void submit_sock_data(void *ctx, conn_ctx_
         return;
     }
 
-    if (sock_conn->info.is_ssl) {
-        // TODO: Return if the ssl packet has not been parsed by libssl
+    if (sock_conn->info.is_ssl != args->is_ssl) {
+        return;
     }
 
     if (args->buf) {
@@ -330,6 +333,7 @@ static __always_inline __maybe_unused void submit_sock_data(void *ctx, conn_ctx_
     submit_conn_data(ctx, args, conn_data, bytes_count);
 
     submit_sock_conn_stats(ctx, sock_conn, direction, bytes_count);
+
     return;
 }
 

@@ -15,6 +15,10 @@
 #ifndef __BPF_MNG_H__
 #define __BPF_MNG_H__
 
-struct bpf_prog_s *init_bpf_progs(struct probe_params *args);
+#include "bpf.h"
+#include "l7_common.h"
+
+int l7_load_probe_kern_sock(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog);
+int l7_load_probe_libssl(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog, const char *libssl_path);
 
 #endif

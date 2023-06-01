@@ -21,6 +21,7 @@
 #include <stddef.h>
 #include <linux/uio.h>
 #endif
+#include "common.h"
 
 #define L7_DATA_BUFFER_MAXSIZE 1024 // TODO: enough?
 
