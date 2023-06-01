@@ -17,6 +17,9 @@
 
 #pragma once
 
+#include <stdlib.h>
+#include <string.h>
+
 #include "include/l7.h"
 
 struct frame_data_s {
@@ -30,9 +33,10 @@ struct frame_data_s {
   Used to cache L7 message frame from protocol parser
 */
 #define __FRAME_BUF_SIZE   (1024)
-struct frame_buf_s { 
+struct frame_buf_s {
     struct frame_data_s *frames[__FRAME_BUF_SIZE];
     size_t frame_buf_size;
+    size_t current_pos;
 };
 
 /*
@@ -40,8 +44,29 @@ struct frame_buf_s {
 */
 struct raw_data_s {
     u64 timestamp_ns;
+    size_t data_len;
+    size_t unconsumed_len;
+    size_t current_pos;
     char data[0];
 };
+
+/**
+ * 拷贝raw_data_s。
+ *
+ * @param raw_data 字符串缓存
+ * @return raw_data_s *
+ */
+struct raw_data_s *parser_copy_raw_data(struct raw_data_s *raw_data);
+
+struct raw_data_s *init_raw_data_with_str(char *str);
+
+/**
+ * 偏移字符串缓存raw_data当前首地址
+ *
+ * @param raw_data 字符串缓存
+ * @param offset 偏移量
+ */
+void parser_raw_data_offset(struct raw_data_s *raw_data, size_t offset);
 
 /*
   Used to cache continuity data from bpf
