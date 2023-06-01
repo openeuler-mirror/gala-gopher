@@ -347,8 +347,8 @@ static int add_raw_stack_id(struct raw_stack_trace_s *raw_st, struct raw_trace_s
 // We query whether the first two layers of this call stack are contained in other call stacks (eg. A),
 // and then count this call on the A call stack.
 #if 1
-static int __stack_addrsymbs2string(struct proc_symbs_s *proc_symbs, struct addr_symb_s *addr_symb,
-                                    int *layer, char *p, int size)
+static int stack_addrsymbs2string_incomplete(struct proc_symbs_s *proc_symbs, struct addr_symb_s *addr_symb,
+                                             int *layer, char *p, int size)
 {
     int ret;
     char *symb;
@@ -364,41 +364,49 @@ static int __stack_addrsymbs2string(struct proc_symbs_s *proc_symbs, struct addr
     }
     symb = addr_symb->sym;
 
-    if (proc_symbs->is_java) {
-        if (*layer == STACK_LAYER_1ST) {
-            if (strstr(symb, ".") != NULL) {
-                ret = __snprintf(&cur_p, len, &len, "; %s", symb);
-                *layer = STACK_LAYER_2ND;
-            } else {
-                if (proc_symbs->pod[0] != 0) {
-                    ret = __snprintf(&cur_p, len, &len, "[Pod]%s; ", proc_symbs->pod);
-                }
-                if (proc_symbs->container_name[0] != 0) {
-                    ret = __snprintf(&cur_p, len, &len, "[Con]%s; ", proc_symbs->container_name);
-                }
-                ret = __snprintf(&cur_p, len, &len, "[%d]%s; %s", proc_symbs->proc_id, proc_symbs->comm, symb);
-                *layer = STACK_LAYER_ELSE;
-            }
-        } else if (*layer == STACK_LAYER_2ND) {
-            ret = __snprintf(&cur_p, len, &len, "; %s", symb);
-            *layer = STACK_LAYER_3RD;
-        } else {
-            ret = __snprintf(&cur_p, len, &len, "; %s", symb);
-            *layer = STACK_LAYER_ELSE;
-        }
+    ret = __snprintf(&cur_p, len, &len, "; %s", symb);
+    if (*layer == STACK_LAYER_1ST) {
+        *layer = STACK_LAYER_2ND;
+    } else if (*layer == STACK_LAYER_2ND) {
+        *layer = STACK_LAYER_3RD;
     } else {
-        if (*layer == STACK_LAYER_1ST) {
-            if (proc_symbs->pod[0] != 0) {
-                ret = __snprintf(&cur_p, len, &len, "[Pod]%s; ", proc_symbs->pod);
-            }
-            if (proc_symbs->container_name[0] != 0) {
-                ret = __snprintf(&cur_p, len, &len, "[Con]%s; ", proc_symbs->container_name);
-            }
-            ret = __snprintf(&cur_p, len, &len, "[%d]%s; %s", proc_symbs->proc_id, proc_symbs->comm, symb);
-            *layer = STACK_LAYER_2ND;
-        } else {
-            ret = __snprintf(&cur_p, len, &len, "; %s", symb);
+        return -1;
+    }
+
+    if (ret < 0) {
+        return -1;
+    }
+    return size > len ? (size - len) : -1;
+}
+
+static int stack_addrsymbs2string(struct proc_symbs_s *proc_symbs, struct addr_symb_s *addr_symb,
+                                  int *layer, char *p, int size)
+{
+    int ret;
+    char *symb;
+    if (size <= 0) {
+        return -1;
+    }
+
+    char *cur_p = p;
+    int len = size;
+
+    if (addr_symb->sym == NULL) {
+        return 0;
+    }
+    symb = addr_symb->sym;
+
+    if (*layer == STACK_LAYER_1ST) {
+        if (proc_symbs->pod[0] != 0) {
+            ret = __snprintf(&cur_p, len, &len, "[Pod]%s; ", proc_symbs->pod);
         }
+        if (proc_symbs->container_name[0] != 0) {
+            ret = __snprintf(&cur_p, len, &len, "[Con]%s; ", proc_symbs->container_name);
+        }
+        ret = __snprintf(&cur_p, len, &len, "[%d]%s; %s", proc_symbs->proc_id, proc_symbs->comm, symb);
+        *layer = STACK_LAYER_2ND;
+    } else {
+        ret = __snprintf(&cur_p, len, &len, "; %s", symb);
     }
 
     if (ret < 0) {
@@ -408,7 +416,7 @@ static int __stack_addrsymbs2string(struct proc_symbs_s *proc_symbs, struct addr
 }
 
 static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, struct proc_symbs_s *proc_symbs,
-                                char symbos_str[], size_t size)
+                                char symbos_str[], size_t size, int incomplete_stack_flag)
 {
     int len;
     int layer = STACK_LAYER_1ST;
@@ -418,17 +426,22 @@ static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, struct proc_s
 
     for (int i = 0; i < PERF_MAX_STACK_DEPTH; i++) {
         addr_symb = &(stack_symbs->user_stack_symbs[i]);
-        if (addr_symb->orign_addr != 0) {
-            len = __stack_addrsymbs2string(proc_symbs, addr_symb, &layer, pos, remain_len);
-            if (proc_symbs->is_java && layer == STACK_LAYER_3RD) {
-                return -1;
-            }
-            if (len < 0) {
-                return -1;
-            }
-            remain_len -= len;
-            pos += len;
+        if (addr_symb->orign_addr == 0) {
+            continue;
         }
+        if (incomplete_stack_flag) {
+            len = stack_addrsymbs2string_incomplete(proc_symbs, addr_symb, &layer, pos, remain_len);
+            if (layer == STACK_LAYER_3RD) {
+                return -1;
+            }
+        } else {
+            len = stack_addrsymbs2string(proc_symbs, addr_symb, &layer, pos, remain_len);
+        }
+        if (len < 0) {
+            return -1;
+        }
+        remain_len -= len;
+        pos += len;
     }
 
     symbos_str[size - 1] = 0;
@@ -441,9 +454,15 @@ static int add_stack_histo(struct stack_trace_s *st, struct stack_symbs_s *stack
     char str[STACK_SYMBS_LEN];
     struct stack_trace_histo_s *item = NULL, *new_item = NULL;
     struct stack_trace_histo_s *tmp;
+    int incomplete_stack_flag = 0;
 
     str[0] = 0;
-    if (__stack_symbs2string(stack_symbs, proc_symbs, str, STACK_SYMBS_LEN)) {
+
+    if (stack_symbs->user_stack_symbs[PERF_MAX_STACK_DEPTH - 1].orign_addr != 0) {
+        incomplete_stack_flag = 1;
+    }
+
+    if (__stack_symbs2string(stack_symbs, proc_symbs, str, STACK_SYMBS_LEN, incomplete_stack_flag)) {
         // Statistic error, but program continues
         st->stats.count[STACK_STATS_HISTO_ERR]++;
     }
@@ -460,8 +479,8 @@ static int add_stack_histo(struct stack_trace_s *st, struct stack_symbs_s *stack
         return 0;
     }
 
-    // Java incomplete call stack merge
-    if (proc_symbs->is_java && str[0] == ';') {
+    // incomplete call stack merge
+    if (incomplete_stack_flag) {
         char tmp_str[__FUNC_NAME_LEN] = {0};
         (void)snprintf(tmp_str, __FUNC_NAME_LEN, "[%d]", proc_symbs->proc_id);
         H_ITER(st->svg_stack_traces[en_type]->histo_tbl, item, tmp) {
@@ -1360,11 +1379,12 @@ static void *__uprobe_attach_check(void *arg)
 static int attach_memleak_bpf_prog(struct svg_stack_trace_s *svg_st, StackprobeConfig *conf)
 {
     int err;
-#if 0
+#if 1
+    // this is for memleak.bpf.c and memleak_fp.bpf.c
     int i = 0;
     struct bpf_program *prog;
     struct bpf_link *links[MEMLEAK_SEC_NUM] = {0};
-    // this is for memleak_fp.bpf.c
+
     bpf_object__for_each_program(prog, svg_st->obj) {
         links[i] = bpf_program__attach(prog);
         err = libbpf_get_error(links[i]);
@@ -1376,6 +1396,8 @@ static int attach_memleak_bpf_prog(struct svg_stack_trace_s *svg_st, StackprobeC
         i++;
     }
 
+    INFO("[STACKPROBE]: attach memleak bpf succeed.\n");
+    return 0;
 cleanup:
     for (i--; i >= 0; i--) {
         bpf_link__destroy(links[i]);
@@ -1383,6 +1405,7 @@ cleanup:
 
     return -1;
 #else
+    // this is for memleak_glibc.bpf.c
     pthread_t uprobe_attach_thd;
 
     err = pthread_create(&uprobe_attach_thd, NULL, __uprobe_attach_check, (void *)svg_st);
@@ -1391,10 +1414,10 @@ cleanup:
         return -1;
     }
     (void)pthread_detach(uprobe_attach_thd);
-#endif
 
     INFO("[STACKPROBE]: attach memleak bpf succeed.\n");
     return 0;
+#endif
 }
 
 static void clear_stackmap(int stackmap_fd)
