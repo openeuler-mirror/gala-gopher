@@ -27,6 +27,7 @@
 #define ENTITY_NAME                 "cpu"
 #define SYSTEM_PROCESSOR_INFO       "cat /proc/softirqs | grep -E '\\sRCU:\\s|\\sTIMER:\\s|\\sSCHED:\\s|\\sNET_RX:\\s'"
 #define SYSTEM_PROC_STAT_PATH       "/proc/stat"
+#define SYSTEM_CPU_MHZ_INFO         "cat /proc/cpuinfo | grep MHz"
 #define SOFTNET_STAT_PATH           "/proc/net/softnet_stat"
 #define PROC_STAT_FILEDS_NUM        6
 #define PROC_STAT_COL_NUM           8
@@ -222,6 +223,35 @@ static int get_softnet_stat_info(void)
     return 0;
 }
 
+static int get_cpu_mhz_info(void)
+{
+    FILE *f = NULL;
+    char line[LINE_BUF_LEN];
+    char *token, *last_token;
+
+    f = popen(SYSTEM_CPU_MHZ_INFO, "r");
+    if (f == NULL) {
+        return -1;
+    }
+    int index = 0;
+    line[0] = 0;
+    while (fgets(line, LINE_BUF_LEN, f) != NULL) {
+        last_token = NULL;
+        token = strtok(line, ":");
+        while (token != NULL) {
+            last_token = token;
+            token = strtok(NULL, ":");
+        }
+        if (last_token != NULL && index < cpus_num) {
+            cur_cpus[index]->mhz = atof(last_token);
+            index++;
+        }
+    }
+
+    pclose(f);
+    return 0;
+}
+
 static int get_cpu_info(void)
 {
     if (get_softirq_info() < 0) {
@@ -234,6 +264,10 @@ static int get_cpu_info(void)
     }
     if (get_softnet_stat_info() < 0) {
         ERROR("[SYSTEM_PROBE] fail to collect softnet stat info\n");
+        return -1;
+    }
+    if (get_cpu_mhz_info() < 0) {
+        ERROR("[SYSTEM_PROBE] fail to collect cpu mhz info\n");
         return -1;
     }
     return 0;
@@ -332,7 +366,7 @@ int system_cpu_probe(struct ipc_body_s *ipc_body)
     util_per = (cur_time_used - last_time_used) * FULL_PER * 1.0 / (cur_time_total - last_time_total);
     report_cpu_status(ipc_body);
     for (size_t i = 0; i < cpus_num; i++) {
-        ret = nprobe_fprintf(stdout, "|%s|%d|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|\n",
+        ret = nprobe_fprintf(stdout, "|%s|%d|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.3f|\n",
             METRICS_CPU_NAME,
             cur_cpus[i]->cpu_num,
             cur_cpus[i]->rcu - old_cpus[i]->rcu,
@@ -352,7 +386,8 @@ int system_cpu_probe(struct ipc_body_s *ipc_body)
             (cur_cpus[i]->cpu_softirq_total_second > old_cpus[i]->cpu_softirq_total_second) ?
                 jiffies_to_msecs(cur_cpus[i]->cpu_softirq_total_second - old_cpus[i]->cpu_softirq_total_second) : 0,
             cur_cpus[i]->backlog_drops - old_cpus[i]->backlog_drops,
-            cur_cpus[i]->rps_count - old_cpus[i]->rps_count);
+            cur_cpus[i]->rps_count - old_cpus[i]->rps_count,
+            cur_cpus[i]->mhz);
         tmp_ptr = old_cpus[i];
         old_cpus[i] = cur_cpus[i];
         cur_cpus[i] = tmp_ptr;

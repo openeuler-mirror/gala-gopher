@@ -144,6 +144,9 @@ struct probe_range_define_s probe_range_define[] = {
     {PROBE_TP,     "syscall_net",        PROBE_RANGE_TPROFILING_SYSCALL_NET},
     {PROBE_TP,     "syscall_lock",        PROBE_RANGE_TPROFILING_SYSCALL_LOCK},
     {PROBE_TP,     "syscall_sched",        PROBE_RANGE_TPROFILING_SYSCALL_SCHED},
+
+    {PROBE_HW,     "hw_nic",              PROBE_RANGE_HW_NIC},
+    {PROBE_HW,     "hw_mem",              PROBE_RANGE_HW_MEM},
 };
 
 static void refresh_snooper_obj(struct probe_s *probe);

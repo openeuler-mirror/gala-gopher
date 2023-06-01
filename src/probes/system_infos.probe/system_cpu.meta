@@ -71,6 +71,11 @@ measurements:
                 description: "times has been woken up to process packets via Inter-processor Interrupt",
                 type: "gauge",
                 name: "rps_count",
+            },
+            {
+                description: "CPU MHz",
+                type: "gauge",
+                name: "mhz"
             }
         )
     },

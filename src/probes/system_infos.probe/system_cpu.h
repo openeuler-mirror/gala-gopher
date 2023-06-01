@@ -34,6 +34,7 @@ struct cpu_stat {
     u64 cpu_softirq_total_second;
     u64 backlog_drops;
     u64 rps_count;
+    float mhz;
 };
 
 int system_cpu_init(void);
