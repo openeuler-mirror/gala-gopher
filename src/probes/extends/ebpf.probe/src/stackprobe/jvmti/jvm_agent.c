@@ -37,17 +37,21 @@ jint open_tmp_file(const char* options) {
     if (options == NULL) {
         return JNI_ERR;
     }
-
+    if (g_sym_fp != NULL) {
+        return JNI_OK;
+    }
     if (access(options, F_OK) != 0) {
         FILE *fp;
-        char command[COMMAND_LEN] = {0};
+        char command[COMMAND_LEN];
+        command[0] = 0;
         (void)snprintf(command, COMMAND_LEN, "/usr/bin/mkdir -p %s", options);
         fp = popen(command, "r");
         if (fp != NULL) {
             (void)pclose(fp);
         }
     }
-    char sym_tmp_path[LINE_BUF_LEN] = {0};
+    char sym_tmp_path[LINE_BUF_LEN];
+    sym_tmp_path[0] = 0;
     (void)snprintf(sym_tmp_path, LINE_BUF_LEN, "%s/%s", options, JAVA_SYM_FILE);
 
     g_sym_fp = fopen(sym_tmp_path, "a+");
@@ -100,7 +104,7 @@ void deallocate(jvmtiEnv *jvmti, void *string) {
 
 void get_class_name_from_csig(char *dest, size_t dest_size, const char *sig) {
     if (sig[0] == 'L') {
-        int i;
+        jint i;
         const char *src = sig + 1;
         for(i = 0; i < (dest_size - 1) && src[i]; i++) {
             char c = src[i];
@@ -110,7 +114,8 @@ void get_class_name_from_csig(char *dest, size_t dest_size, const char *sig) {
         }
         dest[i] = 0;
     } else {
-        strncpy(dest, sig, dest_size);
+        strncpy(dest, sig, dest_size - 1);
+        dest[dest_size - 1] = 0;
     }
 }
 
@@ -123,7 +128,8 @@ void write_sym(const void *code_addr, unsigned int code_size, char *csig, const 
     if (g_sym_fp != NULL) {
         __sym_tmp_str[0] = 0;
         if (csig != NULL) {
-            char class_name[COMMAND_LEN] = {0};
+            char class_name[COMMAND_LEN];
+            class_name[0] = 0;
             get_class_name_from_csig(class_name, sizeof(class_name), csig);
             (void)snprintf(__sym_tmp_str, COMMAND_LEN, "%llx %x %s::%s\n",
                 (u64)code_addr, code_size, class_name, method_name);
@@ -195,13 +201,13 @@ jint get_missed_events(jvmtiEnv* jvmti) {
     return JNI_OK;
 }
 
-int parse_args(char *options, char (*args)[ARGS_BUF_LEN]) {
+jint parse_args(char *options, char (*args)[ARGS_BUF_LEN]) {
     char *p = NULL;
-    int index = 0;
+    jint index = 0;
 
     if (options == NULL || args == NULL) {
         printf("[JMI_AGENT]: input args is NULL, please input tmp_file_path at least.\n");
-        return -1;
+        return JNI_ERR;
     }
     p = strtok(options, ",");
     while (p != NULL) {
@@ -211,7 +217,7 @@ int parse_args(char *options, char (*args)[ARGS_BUF_LEN]) {
         (void)strncpy(args[index++], p, ARGS_BUF_LEN - 1);
         p = strtok(NULL, ",");
     }
-    return 0;
+    return JNI_OK;
 }
 
 jint JNICALL start(JavaVM *jvm, char *options, void *reserved) {
@@ -260,7 +266,7 @@ JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM *jvm, char *options, void *reserved
 
     if (parse_args(options, args) < 0) {
         printf("[JMI_AGENT]: parse args failed.\n");
-        return -1;
+        return JNI_ERR;
     }
 
     if (!strcmp(args[1], "stop")) {
