@@ -806,6 +806,10 @@ static int get_mod_name(struct mod_info_s* mod_info, char *maps_line, struct pro
         return GET_MOD_NAME;
     }
 
+    if (strstr(name, "libjvm.so")) {
+        return GET_MOD_NAME;
+    }
+
     mod_info->name = strdup(name);
     if (!mod_info->name) {
         return GET_MOD_NAME;
