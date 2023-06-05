@@ -326,6 +326,7 @@ KPROBE_SYSCALL(send)
     args.conn_id.tgid = proc_id;
     args.direct = L7_EGRESS;
     args.buf = (char *)PT_REGS_PARM2(ctx);
+    args.is_ssl = 0;
     bpf_map_update_elem(&sock_data_args, &id, &args, BPF_ANY);
     return 0;
 }
@@ -444,6 +445,7 @@ KPROBE_SYSCALL(write)
     args.conn_id.tgid = proc_id;
     args.direct = L7_EGRESS;
     args.buf = (char *)PT_REGS_PARM2(ctx);
+    args.is_ssl = 0;
     bpf_map_update_elem(&sock_data_args, &id, &args, BPF_ANY);
     return 0;
 }
@@ -482,6 +484,7 @@ KPROBE_SYSCALL(read)
     args.conn_id.tgid = proc_id;
     args.direct = L7_INGRESS;
     args.buf = (char *)PT_REGS_PARM2(ctx);
+    args.is_ssl = 0;
     bpf_map_update_elem(&sock_data_args, &id, &args, BPF_ANY);
     return 0;
 }
@@ -520,6 +523,7 @@ KPROBE_SYSCALL(recv)
     args.conn_id.tgid = proc_id;
     args.direct = L7_INGRESS;
     args.buf = (char *)PT_REGS_PARM2(ctx);
+    args.is_ssl = 0;
     bpf_map_update_elem(&sock_data_args, &id, &args, BPF_ANY);
     return 0;
 }
@@ -574,6 +578,7 @@ KPROBE_SYSCALL(sendto)
     data_args.buf = buf;
     data_args.conn_id.fd = sockfd;
     data_args.conn_id.tgid = proc_id;
+    data_args.is_ssl = 0;
     bpf_map_update_elem(&sock_data_args, &id, &data_args, BPF_ANY);
     return 0;
 }
@@ -636,6 +641,7 @@ KPROBE_SYSCALL(recvfrom)
     data_args.buf = buf;
     data_args.conn_id.fd = sockfd;
     data_args.conn_id.tgid = proc_id;
+    data_args.is_ssl = 0;
     bpf_map_update_elem(&sock_data_args, &id, &data_args, BPF_ANY);
     return 0;
 }
@@ -703,6 +709,7 @@ KPROBE_SYSCALL(sendmsg)
     data_args.direct = L7_EGRESS;
     data_args.iov = iov;
     data_args.iovlen = iovlen;
+    data_args.is_ssl = 0;
     bpf_map_update_elem(&sock_data_args, &id, &data_args, BPF_ANY);
     return 0;
 }
@@ -768,6 +775,7 @@ KPROBE_SYSCALL(recvmsg)
     data_args.direct = L7_INGRESS;
     data_args.iov = iov;
     data_args.iovlen = iovlen;
+    data_args.is_ssl = 0;
     bpf_map_update_elem(&sock_data_args, &id, &data_args, BPF_ANY);
     return 0;
 }

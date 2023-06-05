@@ -82,11 +82,14 @@ UPROBE(SSL_read, pt_regs)
         return 0;
     }
 
+    set_sock_conn_ssl(proc_id, fd);
+
     struct sock_data_args_s args = {0};
     args.conn_id.fd = fd;
     args.conn_id.tgid = proc_id;
     args.direct = L7_INGRESS;
     args.buf = (char *)PT_REGS_PARM2(ctx);
+    args.is_ssl = 1;
     bpf_map_update_elem(&sock_data_args, &id, &args, BPF_ANY);
     return 0;
 }
@@ -119,11 +122,14 @@ UPROBE(SSL_write, pt_regs)
         return 0;
     }
 
+    set_sock_conn_ssl(proc_id, fd);
+
     struct sock_data_args_s args = {0};
     args.conn_id.fd = fd;
     args.conn_id.tgid = proc_id;
     args.direct = L7_EGRESS;
     args.buf = (char *)PT_REGS_PARM2(ctx);
+    args.is_ssl = 1;
     bpf_map_update_elem(&sock_data_args, &id, &args, BPF_ANY);
     return 0;
 }

@@ -17,7 +17,7 @@
 
 #pragma once
 
-#ifdef BPF_PROG_KERN
+#if defined( BPF_PROG_KERN ) || defined( BPF_PROG_USER )
 
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
