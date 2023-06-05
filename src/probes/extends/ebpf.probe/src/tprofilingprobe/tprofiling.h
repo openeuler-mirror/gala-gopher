@@ -111,10 +111,26 @@ typedef struct {
 } trace_event_data_t;
 
 #if !defined(BPF_PROG_KERN) && !defined(BPF_PROG_USER)
+#include <time.h>
 #include <pthread.h>
+#include <uthash.h>
 
 #include "proc_info.h"
 #include "thrd_bl.h"
+
+
+typedef struct {
+    trace_event_type_t type;
+    union {
+        syscall_data_t syscall_d;
+        oncpu_data_t oncpu_d;
+    };
+} event_data_t;
+
+#define EVT_DATA(evt_elem) ((event_data_t *)(evt_elem)->data)
+#define EVT_DATA_TYPE(evt_elem) (EVT_DATA(evt_elem)->type)
+#define EVT_DATA_SC(evt_elem) (&EVT_DATA(evt_elem)->syscall_d)
+#define EVT_DATA_CPU(evt_elem) (&EVT_DATA(evt_elem)->oncpu_d)
 
 typedef struct {
     int stackMapFd;             /* ebpf map，用于获取调用栈信息 */
@@ -125,6 +141,7 @@ typedef struct {
     proc_info_t *procTable;     /* 缓存的进程信息表，是一个 hash 表 */
     ThrdBlacklist thrdBl;       /* 线程黑名单 */
     pthread_t javaSymbThrd;     /* Java符号表管理线程ID */
+    int report_period;          /* 线程 profiling 事件上报周期 */
 } Tprofiler;
 
 extern Tprofiler tprofiler;
