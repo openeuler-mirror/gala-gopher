@@ -17,7 +17,7 @@
 
 #pragma once
 
-#define FILENAME_LEN    128
+#define FILENAME_LEN    64
 
 #define JAVA_SYM_AGENT_FILE     "jvm_agent.so"
 #define JAVA_SYM_FILE           "java-symbols.bin"

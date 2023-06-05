@@ -263,8 +263,8 @@ static int __mkdir(char dst_dir[])
     int ret = 0;
     if (access(dst_dir, F_OK) != 0) {
         FILE *fp;
-        char command[COMMAND_LEN] = {0};
-        (void)snprintf(command, COMMAND_LEN, "/usr/bin/mkdir -p %s", dst_dir);
+        char command[LINE_BUF_LEN] = {0};
+        (void)snprintf(command, LINE_BUF_LEN, "/usr/bin/mkdir -p %s", dst_dir);
         fp = popen(command, "r");
         if (fp == NULL) {
             ret = -1;
