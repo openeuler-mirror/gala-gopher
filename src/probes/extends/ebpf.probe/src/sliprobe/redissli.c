@@ -160,7 +160,7 @@ int main(int argc, char **argv)
     }
 
     INIT_BPF_APP(redissli, EBPF_RLIM_LIMITED);
-    LOAD(redissli, err);
+    LOAD(redissli, redissli, err);
 
     load_period(GET_MAP_FD(redissli, period_map), params.period);
 

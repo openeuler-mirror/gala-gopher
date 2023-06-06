@@ -37,7 +37,7 @@
     OPEN(probe_name, end, load); \
     MAP_SET_PIN_PATH(probe_name, args_map, ARGS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, g_proc_map, PROC_PATH, load); \
-    LOAD_ATTACH(probe_name, end, load)
+    LOAD_ATTACH(taskprobe, probe_name, end, load)
 
 void output_proc_metrics(void *ctx, int cpu, void *data, __u32 size);
 

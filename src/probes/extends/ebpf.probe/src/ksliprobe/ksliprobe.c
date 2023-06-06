@@ -197,7 +197,7 @@ int main(int argc, char **argv)
 #endif
 
     INIT_BPF_APP(ksliprobe, EBPF_RLIM_LIMITED);
-    LOAD(ksliprobe, err);
+    LOAD(ksliprobe, ksliprobe, err);
     load_args(GET_MAP_FD(ksliprobe, args_map), &params);
     
     if (signal(SIGINT, sig_int) == SIG_ERR) {

@@ -220,6 +220,6 @@ void tcp_unload_fd_probe(void);
     MAP_SET_PIN_PATH(probe_name, args_map, TCP_LINK_ARGS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, tcp_link_map, TCP_LINK_TCP_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, sock_map, TCP_LINK_SOCKS_PATH, load); \
-    LOAD_ATTACH(probe_name, end, load)
+    LOAD_ATTACH(tcpprobe, probe_name, end, load)
 
 #endif

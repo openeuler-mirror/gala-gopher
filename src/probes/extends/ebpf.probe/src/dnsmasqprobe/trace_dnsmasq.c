@@ -143,7 +143,7 @@ int main(int argc, char **argv)
     }
 
     INIT_BPF_APP(trace_dnsmasq, EBPF_RLIM_LIMITED);
-    LOAD(trace_dnsmasq, err);
+    LOAD(trace_dnsmasq, trace_dnsmasq, err);
 
     /* Cleaner handling of Ctrl-C */
     signal(SIGINT, sig_handler);

@@ -58,7 +58,7 @@ static struct sched_probe_s probe;
     OPEN(probe_name, end, load); \
     MAP_SET_PIN_PATH(probe_name, sched_args_map, SCHED_ARGS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, sched_report_channel_map, SCHED_REPORT_CHANNEL_PATH, load); \
-    LOAD_ATTACH(probe_name, end, load)
+    LOAD_ATTACH(schedprobe, probe_name, end, load)
 
 #define IS_IEG_ADDR(addr)     ((addr) != 0xcccccccccccccccc && (addr) != 0xffffffffffffffff)
 

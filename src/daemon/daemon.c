@@ -26,7 +26,7 @@
 #include "daemon.h"
 #include "object.h"
 
-#define RM_MAP_CMD "/usr/bin/find %s/* 2> /dev/null | /usr/bin/grep -v '%s\\|%s\\|%s' | /usr/bin/xargs rm -f"
+#define RM_MAP_CMD "/usr/bin/find %s/* 2> /dev/null | /usr/bin/xargs rm -f"
 static const ResourceMgr *resouce_msg;
 
 #if GALA_GOPHER_INFO("inner func declaration")
@@ -125,7 +125,7 @@ static void *DaemonRunMetricsWriteLogs(void *arg)
 
 static void CleanData(const ResourceMgr *mgr)
 {
-#define __SYS_FS_BPF "/sys/fs/bpf"
+#define __SYS_FS_BPF "/sys/fs/bpf/gala-gopher"
     FILE *fp = NULL;
     char *pinPath;
     char cmd[MAX_COMMAND_LEN];
@@ -144,7 +144,7 @@ static void CleanData(const ResourceMgr *mgr)
         return;
     }
 
-    (void)snprintf(cmd, MAX_COMMAND_LEN, RM_MAP_CMD, pinPath, CGRP_MAP_PATH, NM_MAP_PATH, PROC_MAP_PATH);
+    (void)snprintf(cmd, MAX_COMMAND_LEN, RM_MAP_CMD, pinPath);
     fp = popen(cmd, "r");
     if (fp != NULL) {
         (void)pclose(fp);

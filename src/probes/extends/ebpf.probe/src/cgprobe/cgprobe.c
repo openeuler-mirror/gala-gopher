@@ -42,7 +42,7 @@
     OPEN(probe_name, end, load); \
     MAP_SET_PIN_PATH(probe_name, output, OUTPUT_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, args_map, ARGS_PATH, load); \
-    LOAD_ATTACH(probe_name, end, load)
+    LOAD_ATTACH(cgprobe, probe_name, end, load)
 
 static struct probe_params params = {.period = DEFAULT_PERIOD};
 
