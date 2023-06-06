@@ -59,6 +59,7 @@
 #define COMMAND_LEN             256
 #define LINE_BUF_LEN            512
 #define PATH_LEN                256
+#define POD_ID_LEN              64
 
 #if !defined INET6_ADDRSTRLEN
     #define INET6_ADDRSTRLEN    48

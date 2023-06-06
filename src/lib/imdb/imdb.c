@@ -370,7 +370,7 @@ static TGID_Record* IMDB_TgidCreateRecord(const IMDB_DataBaseMgr *mgr, const cha
     int ret;
     int pid, startup_ts;
     char container_id[CONTAINER_ABBR_ID_LEN + 1];
-    char pod_name[POD_NAME_LEN + 1];
+    char pod_id[POD_ID_LEN + 1];
     char comm[TASK_COMM_LEN + 1];
     TGID_Record *record;
 
@@ -392,9 +392,9 @@ static TGID_Record* IMDB_TgidCreateRecord(const IMDB_DataBaseMgr *mgr, const cha
         return NULL;
     }
 
-    pod_name[0] = 0;
+    pod_id[0] = 0;
     if (container_id[0] != 0) {
-        (void)get_container_pod((const char *)container_id, pod_name, POD_NAME_LEN + 1);
+        (void)get_container_pod_id((const char *)container_id, pod_id, POD_ID_LEN + 1);
     }
 
     record = (TGID_Record *)malloc(sizeof(TGID_Record));
@@ -405,7 +405,7 @@ static TGID_Record* IMDB_TgidCreateRecord(const IMDB_DataBaseMgr *mgr, const cha
     record->key.startup_ts = startup_ts;
     strncpy(record->key.tgid, tgid, INT_LEN);
     strncpy(record->container_id, container_id, CONTAINER_ABBR_ID_LEN);
-    strncpy(record->pod_name, pod_name, POD_NAME_LEN);
+    strncpy(record->pod_id, pod_id, POD_ID_LEN);
     strncpy(record->comm, comm, TASK_COMM_LEN);
 
     IMDB_TgidAddRecord(mgr, record);
@@ -1009,8 +1009,8 @@ static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
             }
         }
 
-        if (tgidRecord->pod_name[0] != 0) {
-            ret = __snprintf(&p, size, &size, ",pod_name=\"%s\"", tgidRecord->pod_name);
+        if (tgidRecord->pod_id[0] != 0) {
+            ret = __snprintf(&p, size, &size, ",pod_id=\"%s\"", tgidRecord->pod_id);
             if (ret < 0) {
                 goto err;
             }
