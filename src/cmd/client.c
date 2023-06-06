@@ -111,7 +111,7 @@ static int ConnectToGopher(const char *path, int* fd)
     // 2. addr path
     (void)memset(&addr, 0, sizeof(struct sockaddr_un));
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, path, strlen(path) + 1);
+    (void)snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", path);
 
     // 3. connect with server
     ret = connect(client_fd, (const struct sockaddr *)&addr, sizeof(struct sockaddr_un));

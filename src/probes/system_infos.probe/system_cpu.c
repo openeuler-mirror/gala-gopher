@@ -128,7 +128,7 @@ static int get_proc_stat_info(void)
             return 0;
         }
         if (is_first_line) {
-            strncpy(first_line, line, strlen(line) + 1);
+            (void)snprintf(first_line, sizeof(first_line), "%s", line);
             get_cpu_time(first_line);
             is_first_line = false;
             continue;

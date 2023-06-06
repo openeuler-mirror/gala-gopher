@@ -102,14 +102,14 @@ static int initThreadBlacklistItem(struct thrdBl *thrdBlItem, BlacklistItem *blI
 {
     int i;
 
-    strncpy(blItem->procComm, thrdBlItem->procComm, TASK_COMM_LEN - 1);
+    (void)snprintf(blItem->procComm, sizeof(blItem->procComm), "%s", thrdBlItem->procComm);
     blItem->thrdNum = thrdBlItem->thrdNum;
     blItem->thrdComms = createThreadComms(blItem->thrdNum);
     if (blItem->thrdComms == NULL) {
         return -1;
     }
     for (i = 0; i < blItem->thrdNum; i++) {
-        strncpy(blItem->thrdComms[i], (*thrdBlItem->thrdComms)[i], TASK_COMM_LEN - 1);
+        (void)snprintf(blItem->thrdComms[i], TASK_COMM_LEN, "%s", (*thrdBlItem->thrdComms)[i]);
     }
     return 0;
 }

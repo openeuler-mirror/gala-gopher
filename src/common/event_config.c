@@ -115,7 +115,7 @@ static int event_config_load(EventsConfig *conf, eventConfig *evt, config_settin
         ERROR("[EVENT] load event entity_name failed.\n");
         return -1;
     }
-    (void)strncpy(evt->entity_name, entity, MAX_ENTITY_NAME_LEN - 1);
+    (void)snprintf(evt->entity_name, sizeof(evt->entity_name), "%s", entity);
 
 #if LIBCONFIG_VER_MAJOR == 1 && LIBCONFIG_VER_MINOR < 5
     config_setting_t *fields = config_lookup_from(event_config, "fields");
@@ -231,7 +231,7 @@ int get_event_field(EventsConfig *conf, const char *entity, const char *metric, 
             eventConfig *_evt = conf->events[i];
             for (int j = 0; j < _evt->fields_num; j++) {
                 if (strcmp(_evt->json_fields[j].metric, metric) == 0) {
-                    (void)strncpy(desc_fmt, _evt->json_fields[j].desc, MAX_EVT_BODY_LEN - 1);
+                    (void)snprintf(desc_fmt, MAX_EVT_BODY_LEN, "%s", _evt->json_fields[j].desc);
                     return 1;
                 }
             }

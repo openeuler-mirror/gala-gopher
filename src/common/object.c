@@ -349,7 +349,7 @@ int obj_module_create_map(char *name)
             ERROR("object module create %s failed.\n", name);
             return -1;
         }
-        strncpy(pin_path, PROC_MAP_PATH, PATH_LEN - 1);
+        strcpy(pin_path, PROC_MAP_PATH);
     }
     if (bpf_obj_pin(map_fd, pin_path) < 0) {
         ERROR("object module pin %s failed.\n", name);

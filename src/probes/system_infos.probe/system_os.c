@@ -43,11 +43,11 @@ static int do_get_os_release_path(char path[], int path_len)
     // The file /etc/os-release takes precedence over /usr/lib/os-release
     path[0] = 0;
     if (!access(OS_RELEASE_PATH1, 0)) {
-        (void)strncpy(path, OS_RELEASE_PATH1, path_len - 1);
+        (void)snprintf(path, path_len, "%s", OS_RELEASE_PATH1);
         return 0;
     }
     if (!access(OS_RELEASE_PATH2, 0)) {
-        (void)strncpy(path, OS_RELEASE_PATH2, path_len - 1);
+        (void)snprintf(path, path_len, "%s", OS_RELEASE_PATH2);
         return 0;
     }
     ERROR("[SYSTEM_OS] os-release file isn't /etc/os-release or /usr/lib/os-release.\n");
@@ -94,7 +94,7 @@ static int get_os_release_info(struct node_infos *infos)
         ERROR("[SYSTEM_OS] get os id failed.\n");
         return -1;
     }
-    strncpy(infos->os_id, line, MAX_FIELD_LEN - 1);
+    (void)snprintf(infos->os_id, sizeof(infos->os_id), "%s", line);
 
     cmd[0] = 0;
     (void)snprintf(cmd, COMMAND_LEN, OS_RELEASE_PRETTY_NAME, os_release_path);
@@ -102,21 +102,21 @@ static int get_os_release_info(struct node_infos *infos)
         ERROR("[SYSTEM_OS] get os pretty_name failed.\n");
         return -1;
     }
-    strncpy(infos->os_pretty_name, line, MAX_FIELD_LEN - 1);
+    (void)snprintf(infos->os_pretty_name, sizeof(infos->os_pretty_name), "%s", line);
     
     if (do_read_line(OS_KVERSION, line) < 0) {
         ERROR("[SYSTEM_OS] get os kernelversion failed.\n");
         return -1;
     }
-    (void)strncpy(infos->kernel_version, line, MAX_FIELD_LEN - 1);
+    (void)snprintf(infos->kernel_version, sizeof(infos->kernel_version), "%s", line);
 
     os_latest_path[0] = 0;
     if (!strcasecmp(infos->os_id, "openEuler")) {
-        (void)strncpy(os_latest_path, "/etc/openEuler-latest", COMMAND_LEN - 1);
+        strcpy(os_latest_path, "/etc/openEuler-latest");
     } else if (!strcasecmp(infos->os_id, "euleros")) {
-        (void)strncpy(os_latest_path, "/etc/euleros-latest", COMMAND_LEN - 1);
+        strcpy(os_latest_path, "/etc/euleros-latest");
     } else {
-        (void)strncpy(infos->os_version, infos->os_pretty_name, MAX_FIELD_LEN - 1);
+        (void)snprintf(infos->os_version, sizeof(infos->os_version), "%s", infos->os_pretty_name);
         return 0;
     }
 
@@ -126,7 +126,7 @@ static int get_os_release_info(struct node_infos *infos)
         ERROR("[SYSTEM_OS] get os version failed.\n");
         return -1;
     }
-    (void)strncpy(infos->os_version, line, MAX_FIELD_LEN - 1);
+    (void)snprintf(infos->os_version, sizeof(infos->os_version), "%s", line);
 
     return 0;
 }

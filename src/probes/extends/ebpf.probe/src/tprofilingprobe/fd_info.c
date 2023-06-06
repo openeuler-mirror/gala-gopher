@@ -111,12 +111,16 @@ static int fill_sock_info(fd_info_t *fd_info, int tgid)
 {
     char cmd[MAX_CMD_SIZE];
     char buf[64];
-    char conn[64] = {0};
-    char sock_type[8] = {0};
-    char proto_type[8] = {0};
+    char conn[64];
+    char sock_type[8];
+    char proto_type[8];
     FILE *file;
     sock_info_t *si = &fd_info->sock_info;
     int ret;
+
+    conn[0] = 0;
+    sock_type[0] = 0;
+    proto_type[0] = 0;
 
     fd_info->type = FD_TYPE_SOCK;
 
@@ -136,13 +140,13 @@ static int fill_sock_info(fd_info_t *fd_info, int tgid)
         SPLIT_NEWLINE_SYMBOL(buf);
         switch (buf[0]) {
             case 't':
-                strncpy(sock_type, buf + 1, sizeof(sock_type) - 1);
+                (void)snprintf(sock_type, sizeof(sock_type), "%s", buf + 1);
                 break;
             case 'P':
-                strncpy(proto_type, buf + 1, sizeof(proto_type) - 1);
+                (void)snprintf(proto_type, sizeof(proto_type), "%s", buf + 1);
                 break;
             case 'n':
-                strncpy(conn, buf + 1, sizeof(conn) - 1);
+                (void)snprintf(conn, sizeof(conn), "%s", buf + 1);
                 break;
             default:
                 continue;
@@ -152,7 +156,7 @@ static int fill_sock_info(fd_info_t *fd_info, int tgid)
     si->type = get_sock_type(sock_type);
     if (si->type == SOCK_TYPE_IPV4 || si->type == SOCK_TYPE_IPV6) {
         si->ip_info.proto = get_proto_type(proto_type);
-        strncpy(si->ip_info.conn, conn, sizeof(si->ip_info.conn) - 1);
+        (void)snprintf(si->ip_info.conn, sizeof(si->ip_info.conn), "%s", conn);
     }
 
     pclose(file);

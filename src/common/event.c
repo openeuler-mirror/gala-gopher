@@ -53,7 +53,7 @@ static void __replace_desc_fmt(const char* entityName, const char* metrics, cons
     if (new_fmt == NULL) {
         return;
     }
-    (void)strncpy(new_fmt, fmt, MAX_EVT_BODY_LEN - 1);
+    (void)snprintf(new_fmt, MAX_EVT_BODY_LEN, "%s", fmt);
 
     if (g_lang_type[0] == 0) {
         return;
@@ -167,7 +167,7 @@ static void hash_add_evt(const char *entityId, time_t cur_time)
         return;
     }
     item->entity_id[0] = 0;
-    strncpy(item->entity_id, entityId, MAX_ENTITY_NAME_LEN - 1);
+    (void)snprintf(item->entity_id, sizeof(item->entity_id), "%s", entityId);
     item->evt_ts = cur_time;
     H_ADD_S(g_evt_head, entity_id, item);
 }
@@ -181,7 +181,7 @@ static struct evt_ts_hash_t *hash_find_evt(const char *entityId)
     }
 
     str[0] = 0;
-    strncpy(str, entityId, MAX_ENTITY_NAME_LEN - 1);
+    (void)snprintf(str, sizeof(str), "%s", entityId);
     H_FIND_S(g_evt_head, str, item);
     if (item == NULL) {
         return NULL;
@@ -238,6 +238,6 @@ void init_event_mgr(unsigned int time_out, char *lang_type)
     g_evt_period = time_out;
     g_lang_type[0] = 0;
     if (lang_type != NULL && strlen(lang_type) > 0) {
-        (void)strncpy(g_lang_type, lang_type, MAX_EVT_GRP_NAME_LEN - 1);
+        (void)snprintf(g_lang_type, sizeof(g_lang_type), "%s", lang_type);
     }
 }

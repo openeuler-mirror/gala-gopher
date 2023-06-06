@@ -101,7 +101,7 @@ static int __get_path_by_full_path(const char* full_path, char dir[], size_t len
 {
     char *end;
 
-    (void)strncpy(dir, full_path, len - 1);
+    (void)snprintf(dir, len, "%s", full_path);
     end = strrchr(dir, '/');
     if (!end) {
         return -1;
@@ -186,14 +186,14 @@ static int get_pid_root_path(struct proc_symbs_s* proc_symbs, char root_path[], 
 
     if (container_id[0] == 0) {
         if (IS_SYSTEM_ROOT(pid_root)) {
-            (void)strncpy(root_path, pid_root, len - 1);
+            (void)snprintf(root_path, len, "%s", pid_root);
         } else {
             /* Eliminate end '/' */
             path_len = strlen(pid_root);
-            if (pid_root[path_len - 1] == '/') {
+            if (path_len > 0 && pid_root[path_len - 1] == '/') {
                 pid_root[path_len - 1] = 0;
             }
-            (void)strncpy(root_path, pid_root, len - 1);
+            (void)snprintf(root_path, len, "%s", pid_root);
         }
         return 0;
     }
@@ -454,7 +454,7 @@ int get_elf_debug_file(struct elf_reader_s* reader, struct proc_symbs_s* proc_sy
             (const char *)build_id, build_id_path, PATH_LEN * 2);
 
         if (ret == 0) {
-            (void)strncpy(debug_file, build_id_path, len - 1);
+            (void)snprintf(debug_file, len, "%s", build_id_path);
             return 0;
         }
     }
@@ -468,7 +468,7 @@ int get_elf_debug_file(struct elf_reader_s* reader, struct proc_symbs_s* proc_sy
         ret = get_debug_link_path((const char *)pid_root_path, (const char *)reader->global_dbg_dir, 
                 elf, (const char *)debug_link, debug_link_path, PATH_LEN);
         if (ret == 0) {
-            (void)strncpy(debug_file, debug_link_path, len - 1);
+            (void)snprintf(debug_file, len, "%s", debug_link_path);
             return 0;
         }
     }
@@ -483,8 +483,7 @@ struct elf_reader_s* create_elf_reader(const char *global_dbg_dir)
         return NULL;
     }
 
-    (void)memset(reader, 0, sizeof(struct elf_reader_s));
-    (void)strncpy(reader->global_dbg_dir, global_dbg_dir, PATH_LEN - 1);
+    (void)snprintf(reader->global_dbg_dir, sizeof(reader->global_dbg_dir), "%s", global_dbg_dir);
     return reader;
 }
 

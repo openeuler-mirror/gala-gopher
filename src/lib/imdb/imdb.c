@@ -189,13 +189,13 @@ IMDB_Table *IMDB_TableCreate(char *name, uint32_t capacity)
     *(table->records) = NULL;     // necessary
 
     table->recordsCapability = capacity;
-    (void)strncpy(table->name, name, MAX_IMDB_TABLE_NAME_LEN - 1);
+    (void)snprintf(table->name, sizeof(table->name), "%s", name);
     return table;
 }
 
 void IMDB_TableSetEntityName(IMDB_Table *table, char *entity_name)
 {
-    (void)strncpy(table->entity_name, entity_name, MAX_IMDB_TABLE_NAME_LEN - 1);
+    (void)snprintf(table->entity_name, sizeof(table->entity_name), "%s", entity_name);
     return;
 }
 

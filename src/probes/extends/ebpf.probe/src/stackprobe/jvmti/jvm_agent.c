@@ -114,8 +114,7 @@ void get_class_name_from_csig(char *dest, size_t dest_size, const char *sig) {
         }
         dest[i] = 0;
     } else {
-        strncpy(dest, sig, dest_size - 1);
-        dest[dest_size - 1] = 0;
+        (void)snprintf(dest, dest_size, "%s", sig);
     }
 }
 
@@ -214,7 +213,7 @@ jint parse_args(char *options, char (*args)[ARGS_BUF_LEN]) {
         if (index >= MAX_ARGS_NUM) {
             break;
         }
-        (void)strncpy(args[index++], p, ARGS_BUF_LEN - 1);
+        (void)snprintf(args[index++], ARGS_BUF_LEN, "%s", p);
         p = strtok(NULL, ",");
     }
     return JNI_OK;

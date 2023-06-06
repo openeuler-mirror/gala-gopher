@@ -141,7 +141,7 @@ static int do_read_line(const char* pid, const char *command, const char *fname,
     }
     
     SPLIT_NEWLINE_SYMBOL(line);
-    (void)strncpy(buf, line, buf_len - 1);
+    (void)snprintf(buf, buf_len, "%s", line);
     (void)pclose(f);
     return 0;
 }
@@ -241,7 +241,7 @@ static void get_java_proc_cmd(const char* pid, proc_info_t *proc_info)
     }
     SPLIT_NEWLINE_SYMBOL(line);
     (void)memset(proc_info->cmdline, 0, PROC_CMDLINE_LEN);
-    (void)strncpy(proc_info->cmdline, line, PROC_CMDLINE_LEN - 1);
+    (void)snprintf(proc_info->cmdline, sizeof(proc_info->cmdline), "%s", line);
 out:
     if (f != NULL) {
         (void)pclose(f);
@@ -632,7 +632,7 @@ static proc_hash_t* init_one_proc(char *pid, char *stime, char *comm)
     item->key.pid = (u32)atoi(pid);
     item->key.start_time = (u64)atoll(stime);
 
-    (void)strncpy(item->info.comm, comm, PROC_NAME_MAX - 1);
+    (void)snprintf(item->info.comm, sizeof(item->info.comm), "%s", comm);
     item->flag = PROC_IN_PROBE_RANGE;
     if (strcmp(comm, "java") == 0) {
         get_java_proc_cmd(pid, &item->info);
