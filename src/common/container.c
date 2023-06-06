@@ -732,3 +732,53 @@ int get_container_pod(const char *abbr_container_id, char pod[], unsigned int le
     return __get_container_pod(abbr_container_id, pod, len);
 }
 
+int get_container_pod_id(const char *abbr_container_id, char pod_id[], unsigned int len)
+{
+    char *start, *end;
+    int ret;
+    int pod_id_len = 0;
+    char cgrp_path[PATH_LEN];
+
+#define __KUBEPODS_PREFIX "/kubepods/"
+#define __PODID_PREFIX "/pod"
+
+    cgrp_path[0] = 0;
+    ret = get_container_cpucg_dir(abbr_container_id, cgrp_path, PATH_LEN);
+    if (ret || cgrp_path[0] == 0) {
+        return -1;
+    }
+
+    if (strstr(cgrp_path, __KUBEPODS_PREFIX) == NULL) {
+        return -1;
+    }
+
+    /* In the k8s scenario, cgrp_path is like:
+     * /kubepods/besteffort/pod6cfd4235-599f-493a-9880-970f3a3d4c31/50a3732f21659025473ae82f575cdac290e945d3191ae9286fd27dc36da0aa44
+     * /kubepods/besteffort/pod<pod_id>/<con_id>
+     */
+    start = strstr(cgrp_path, __PODID_PREFIX);
+    if (start == NULL) {
+        return -1;
+    }
+    // get pod id
+    start += strlen(__PODID_PREFIX); // "/pod"
+    end = strchr(start, '/');
+    if (end == NULL) {
+        end = cgrp_path + PATH_LEN - 1;
+    }
+
+    while (pod_id_len < len && (start + pod_id_len) < end) {
+        if (start[pod_id_len] == '/') {
+            pod_id[pod_id_len++] = 0;
+            break;
+        }
+        pod_id[pod_id_len] = start[pod_id_len];
+        pod_id_len++;
+    }
+    pod_id[len - 1] = 0;
+
+    return 0;
+}
+
+
+

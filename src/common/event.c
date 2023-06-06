@@ -95,7 +95,7 @@ void report_logs(const struct event_info_s* evt,
     char pid_str[INT_LEN];
     char pid_comm[TASK_COMM_LEN];
     char container_id[CONTAINER_ABBR_ID_LEN + 1];
-    char pod_name[POD_NAME_LEN + 1];
+    char pod_id[POD_ID_LEN + 1];
     char body[__EVT_BODY_LEN];
     char *p;
     time_t cur_time;
@@ -130,9 +130,9 @@ void report_logs(const struct event_info_s* evt,
         (void)get_comm(evt->pid, pid_comm, TASK_COMM_LEN);
     }
 
-    pod_name[0] = 0;
+    pod_id[0] = 0;
     if (container_id[0] != 0) {
-        (void)get_container_pod((const char *)container_id, pod_name, POD_NAME_LEN + 1);
+        (void)get_container_pod_id((const char *)container_id, pod_id, POD_ID_LEN + 1);
     }
 
 #ifdef NATIVE_PROBE_FPRINTF
@@ -145,7 +145,7 @@ void report_logs(const struct event_info_s* evt,
                             (pid_comm[0] != 0) ? pid_comm : "",
                             (evt->ip[0] != 0) ? evt->ip : "",
                             (container_id[0] != 0) ? container_id : "",
-                            (pod_name[0] != 0) ? pod_name : "",
+                            (pod_id[0] != 0) ? pod_id : "",
                             evt->dev ? evt->dev : "",
                             secs[sec].sec_text,
                             secs[sec].sec_number,
@@ -160,7 +160,7 @@ void report_logs(const struct event_info_s* evt,
                             (pid_comm[0] != 0) ? pid_comm : "",
                             (evt->ip[0] != 0) ? evt->ip : "",
                             (container_id[0] != 0) ? container_id : "",
-                            (pod_name[0] != 0) ? pod_name : "",
+                            (pod_id[0] != 0) ? pod_id : "",
                             evt->dev ? evt->dev : "",
                             secs[sec].sec_text,
                             secs[sec].sec_number,
