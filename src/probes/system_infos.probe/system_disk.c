@@ -56,7 +56,7 @@ static void report_disk_status(df_stats inode_stats, df_stats blk_stats, struct 
 
     if (ipc_body->probe_param.res_percent_upper > 0 &&
         inode_stats.inode_or_blk_used_per > ipc_body->probe_param.res_percent_upper) {
-        (void)strncpy(entityid, inode_stats.mount_on, LINE_BUF_LEN - 1);
+        (void)snprintf(entityid, sizeof(entityid), "%s", inode_stats.mount_on);
         report_logs(ENTITY_FS_NAME,
                     entityid,
                     "IUsePer",
@@ -67,7 +67,7 @@ static void report_disk_status(df_stats inode_stats, df_stats blk_stats, struct 
     if (ipc_body->probe_param.res_percent_upper > 0 &&
         blk_stats.inode_or_blk_used_per > ipc_body->probe_param.res_percent_upper) {
         if (entityid[0] == 0) {
-            (void)strncpy(entityid, blk_stats.mount_on, LINE_BUF_LEN - 1);
+            (void)snprintf(entityid, sizeof(entityid), "%s", blk_stats.mount_on);
         }
         report_logs(ENTITY_FS_NAME,
                     entityid,
@@ -215,7 +215,7 @@ static void report_disk_iostat(const char *disk_name, disk_io_stats *io_info, st
     entityid[0] = 0;
 
     if (ipc_body->probe_param.res_percent_upper > 0 && io_info->util > ipc_body->probe_param.res_percent_upper) {
-        (void)strncpy(entityid, disk_name, LINE_BUF_LEN - 1);
+        (void)snprintf(entityid, sizeof(entityid), "%s", disk_name);
         report_logs(ENTITY_DISK_NAME,
                     entityid,
                     "util",

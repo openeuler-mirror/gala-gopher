@@ -129,7 +129,7 @@ static int get_vhost_proc_tgid(struct proc_infos *one_proc)
         return -1;
     }
 
-    (void)strncpy(tmp.uuid, one_proc->uuid, MAX_SYSTEM_UUID_LEN -1);
+    (void)snprintf(tmp.uuid, sizeof(tmp.uuid), "%s", one_proc->uuid);
 
     vhost_comm[0] = 0;
     (void)snprintf(vhost_comm, TASK_COMM_LEN, "vhost-%d", one_proc->tgid);

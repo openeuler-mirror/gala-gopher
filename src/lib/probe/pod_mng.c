@@ -142,7 +142,7 @@ enum id_ret_t get_pod_container_id(char *cgrp_path, char *pod_id, char *con_id)
         // set fake pod id
         
         i = 8; // "/docker/"
-        (void)strncpy(pod_id, FAKE_POD_ID, POD_ID_LEN);
+        (void)snprintf(pod_id, POD_ID_LEN + 1, "%s", FAKE_POD_ID);
         ret = ID_CON_ONLY;
     } else {
         return ID_FAILED;
@@ -198,7 +198,7 @@ static void set_con_info(struct pod_info_s *pod_info, char *con_id,  struct cont
     con->con_info.pod_info_ptr = pod_info;
 
     if (con->con_info.con_id[0] == 0) {
-        (void)strncpy(con->con_info.con_id, con_id, CONTAINER_ABBR_ID_LEN);
+        (void)snprintf(con->con_info.con_id, sizeof(con->con_info.con_id), "%s", con_id);
     }
 
     int ret = get_container_cpucg_inode((const char *)con_id, &con->con_info.cpucg_inode);
@@ -299,8 +299,9 @@ struct pod_info_s *get_pod_info_from_pod_name(char *pod_name_origin)
         pod_id = FAKE_POD_ID;
     }
 
-    char pod_name[POD_NAME_LEN] = {0};
-    strncpy(pod_name, pod_name_origin, POD_NAME_LEN - 1);
+    char pod_name[POD_NAME_LEN];
+    pod_name[0] = 0;
+    (void)snprintf(pod_name, sizeof(pod_name), "%s", pod_name_origin);
 
     H_FIND_S(pod_head, pod_id, pod);
     if (pod != NULL) {
@@ -326,7 +327,7 @@ static int add_pod_hash(char *pod_id)
 static void set_pod_info(char *pod_id, char *con_id, struct pods_hash_t *pod)
 {
     if (pod->pod_info.pod_id[0] == 0) {
-        (void)strncpy(pod->pod_info.pod_id, pod_id, POD_ID_LEN);
+        (void)snprintf(pod->pod_info.pod_id, sizeof(pod->pod_info.pod_id), "%s", pod_id);
     }
     if (pod->pod_info.pod_name[0] == 0) {
         get_pod_name(con_id, pod->pod_info.pod_name, POD_NAME_LEN);
@@ -472,8 +473,9 @@ struct con_info_s *get_and_add_con_info(char *pod_id, char *container_id)
         return NULL;
     }
 
-    char con_id[CONTAINER_ABBR_ID_LEN + 1] = {0};
-    strncpy(con_id, container_id, CONTAINER_ABBR_ID_LEN);
+    char con_id[CONTAINER_ABBR_ID_LEN + 1];
+    con_id[0] = 0;
+    (void)snprintf(con_id, sizeof(con_id), "%s", container_id);
 
     struct con_info_s *con_info = get_con_info(pod_id, con_id);
     if (con_info != NULL) {

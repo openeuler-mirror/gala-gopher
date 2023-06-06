@@ -303,7 +303,7 @@ err:
 }
 
 int gopher_iter_elf_fd_symb(int fd, elf_sym_cb cb, void *ctx)
-{
+{
     int ret = 0;
     Elf *e = NULL;
 
@@ -326,7 +326,7 @@ err:
 }
 
 int gopher_iter_elf_file_symb(const char *elf_file, elf_sym_cb cb, void *ctx)
-{
+{
     int ret = 0, elf_fd = -1;
     Elf *e = NULL;
 
@@ -409,7 +409,7 @@ int gopher_get_elf_build_id(const char *elf_file, char build_id[], size_t len)
     d_buf = (char *)data->d_buf + __ELF_BUILD_ID_LEN;
     d_size = data->d_size - __ELF_BUILD_ID_LEN;
     for (size_t i = 0; i < d_size; i++) {
-      snprintf(build_id + (i * 2), len ,"%02hhx", d_buf[i]);
+        snprintf(build_id + (i * 2), len ,"%02hhx", d_buf[i]);
     }
 
 err:
@@ -442,7 +442,7 @@ int gopher_get_elf_debug_link(const char *elf_file, char debug_link[], size_t le
 
     debug_file = (char *)data->d_buf;
 
-    (void)strncpy(debug_link, debug_file, len - 1);
+    (void)snprintf(debug_link, len, "%s", debug_file);
 
 err:
     if (e) {

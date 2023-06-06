@@ -59,7 +59,7 @@ static int CmdServerCreate(const char *path, int *fd)
 
     memset(&addr, 0, sizeof(struct sockaddr_un));
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, path, strlen(path) + 1);
+    (void)snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", path);
 
     ret = bind(server_fd, (const struct sockaddr *)&addr, sizeof(struct sockaddr_un));
     if (ret < 0) {

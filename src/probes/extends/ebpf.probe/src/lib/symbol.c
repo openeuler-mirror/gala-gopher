@@ -942,7 +942,7 @@ static int __get_container_id_by_pid(int pid, char container_id[], size_t len)
         return -1;
     }
 
-    (void)strncpy(container_id, buf, CONTAINER_ABBR_ID_LEN);
+    (void)snprintf(container_id, CONTAINER_ABBR_ID_LEN + 1, "%s", buf);
     return 0;
 }
 

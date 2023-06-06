@@ -158,7 +158,7 @@ static int ConfigMgrLoadGlobalConfig(void *config, config_setting_t *settings)
         return -1;
     }
 
-    (void)strncpy(globalConfig->logFileName, strVal, PATH_LEN - 1);
+    (void)snprintf(globalConfig->logFileName, sizeof(globalConfig->logFileName), "%s", strVal);
 
     ret = config_setting_lookup_string(settings, "pin_path", &strVal);
     if (ret == 0) {
@@ -166,7 +166,7 @@ static int ConfigMgrLoadGlobalConfig(void *config, config_setting_t *settings)
         return -1;
     }
 
-    (void)strncpy(globalConfig->bpfPinPath, strVal, MAX_PIN_PATH_LEN - 1);
+    (void)snprintf(globalConfig->bpfPinPath, sizeof(globalConfig->bpfPinPath), "%s", strVal);
     return 0;
 }
 
@@ -221,7 +221,7 @@ static int ConfigMgrLoadKafkaConfig(void *config, config_setting_t *settings)
         ERROR("[CONFIG] load config for kafka_broker failed.\n");
         return -1;
     }
-    (void)strncpy(kafkaConfig->broker, strVal, MAX_KAFKA_BROKER_LEN - 1);
+    (void)snprintf(kafkaConfig->broker, sizeof(kafkaConfig->broker), "%s", strVal);
 
     ret = config_setting_lookup_int(settings, "batch_num_messages", &intVal);
     if (ret == 0) {
@@ -235,7 +235,7 @@ static int ConfigMgrLoadKafkaConfig(void *config, config_setting_t *settings)
         ERROR("[CONFIG] load config for compression.codec failed.\n");
         return -1;
     }
-    (void)strncpy(kafkaConfig->compressionCodec, strVal, KAFKA_COMPRESSION_CODEC_LEN - 1);
+    (void)snprintf(kafkaConfig->compressionCodec, sizeof(kafkaConfig->compressionCodec), "%s", strVal);
 
     ret = config_setting_lookup_int(settings, "queue_buffering_max_messages", &intVal);
     if (ret == 0) {
@@ -343,21 +343,21 @@ static int ConfigMgrLoadRestServerConfig(void *config, config_setting_t *setting
         ERROR("[CONFIG] load config for restServerConfig private_key failed.\n");
         return -1;
     }
-    (void)strncpy(restServerConfig->privateKey, strVal, PATH_LEN - 1);
+    (void)snprintf(restServerConfig->privateKey, sizeof(restServerConfig->privateKey), "%s", strVal);
 
     ret = config_setting_lookup_string(settings, "cert_file", &strVal);
     if (ret == 0) {
         ERROR("[CONFIG] load config for restServerConfig cert_file failed.\n");
         return -1;
     }
-    (void)strncpy(restServerConfig->certFile, strVal, PATH_LEN - 1);
+    (void)snprintf(restServerConfig->certFile, sizeof(restServerConfig->certFile), "%s", strVal);
 
     ret = config_setting_lookup_string(settings, "ca_file", &strVal);
     if (ret == 0) {
         ERROR("[CONFIG] load config for restServerConfig ca_file failed.\n");
         return -1;
     }
-    (void)strncpy(restServerConfig->caFile, strVal, PATH_LEN - 1);
+    (void)snprintf(restServerConfig->caFile, sizeof(restServerConfig->caFile), "%s", strVal);
 
     return 0;
 }
@@ -373,28 +373,28 @@ static int ConfigMgrLoadLogsConfig(void *config, config_setting_t *settings)
         ERROR("[CONFIG] load config for metric_dir failed.\n");
         return -1;
     }
-    (void)strncpy(logsConfig->metricDir, strVal, PATH_LEN - 1);
+    (void)snprintf(logsConfig->metricDir, sizeof(logsConfig->metricDir), "%s", strVal);
 
     ret = config_setting_lookup_string(settings, "event_dir", &strVal);
     if (ret == 0) {
         ERROR("[CONFIG] load config for event_dir failed.\n");
         return -1;
     }
-    (void)strncpy(logsConfig->eventDir, strVal, PATH_LEN - 1);
+    (void)snprintf(logsConfig->eventDir, sizeof(logsConfig->eventDir), "%s", strVal);
 
     ret = config_setting_lookup_string(settings, "meta_dir", &strVal);
     if (ret == 0) {
         ERROR("[CONFIG] load config for meta_dir failed.\n");
         return -1;
     }
-    (void)strncpy(logsConfig->metaDir, strVal, PATH_LEN - 1);
+    (void)snprintf(logsConfig->metaDir, sizeof(logsConfig->metaDir), "%s", strVal);
 
     ret = config_setting_lookup_string(settings, "debug_dir", &strVal);
     if (ret == 0) {
         ERROR("[CONFIG] load config for debug_dir failed.\n");
         return -1;
     }
-    (void)strncpy(logsConfig->debugDir, strVal, PATH_LEN - 1);
+    (void)snprintf(logsConfig->debugDir, sizeof(logsConfig->debugDir), "%s", strVal);
 
     return 0;
 }
@@ -427,7 +427,7 @@ static int ConfigMgrLoadOutConfig(void *config, config_setting_t *settings)
         ERROR("[CONFIG] load config for out kafka_topic failed.\n");
         return -1;
     }
-    (void)strncpy(outConfig->kafka_topic, strVal, MAX_KAFKA_TOPIC_LEN - 1);
+    (void)snprintf(outConfig->kafka_topic, sizeof(outConfig->kafka_topic), "%s", strVal);
 
     ret = config_setting_lookup_int(settings, "timeout", &timeout);
     if (ret > 0) {
@@ -436,7 +436,7 @@ static int ConfigMgrLoadOutConfig(void *config, config_setting_t *settings)
 
     ret = config_setting_lookup_string(settings, "desc_language", &strVal);
     if (ret > 0) {
-        (void)strncpy(outConfig->lang_type, strVal, MAX_LANGUAGE_TYPE_LEN - 1);
+        (void)snprintf(outConfig->lang_type, sizeof(outConfig->lang_type), "%s", strVal);
     }
 
     return 0;

@@ -258,7 +258,7 @@ static int add_snooper_conf_procname(struct probe_s *probe,
         return -1;
     }
 
-    (void)strncpy(snooper_conf->conf.app.comm, comm, TASK_COMM_LEN);
+    (void)snprintf(snooper_conf->conf.app.comm, sizeof(snooper_conf->conf.app.comm), "%s", comm);
     if (cmdline && !(comm[0] != 0)) {
         snooper_conf->conf.app.cmdline = strdup(cmdline);
     }
@@ -319,7 +319,7 @@ static int add_snooper_conf_container(struct probe_s *probe, const char* contain
         return -1;
     }
 
-    (void)strncpy(snooper_conf->conf.container_id, container_id, CONTAINER_ABBR_ID_LEN);
+    (void)snprintf(snooper_conf->conf.container_id, sizeof(snooper_conf->conf.container_id), "%s", container_id);
     snooper_conf->type = SNOOPER_CONF_CONTAINER_ID;
 
     if (probe->snooper_confs[probe->snooper_conf_num] != NULL) {
@@ -1281,9 +1281,9 @@ static void rcv_snooper_proc_evt(void *ctx, int cpu, void *data, __u32 size)
     comm[0] = 0;
     char *p = strrchr(evt->filename, '/');
     if (p) {
-        strncpy(comm, p + 1, TASK_COMM_LEN - 1);
+        (void)snprintf(comm, sizeof(comm), "%s", p + 1);
     } else {
-        strncpy(comm, evt->filename, TASK_COMM_LEN - 1);
+        (void)snprintf(comm, sizeof(comm), "%s", evt->filename);
     }
 
     get_probemng_lock();
@@ -1321,7 +1321,7 @@ static void __rcv_snooper_cgrp_exec(struct probe_mng_s *probe_mng, char *pod_id,
                 continue;
             }
             if (snooper_conf->type == SNOOPER_CONF_POD) {
-                strncpy(pod_name, snooper_conf->conf.pod, POD_NAME_LEN - 1);
+                (void)snprintf(pod_name, sizeof(pod_name), "%s", snooper_conf->conf.pod);
                 pod_name[POD_NAME_LEN - 1] = 0;
                 if (strstr(con_info->pod_info_ptr->pod_name, pod_name) != NULL) {
                     add_snooper_obj_con_info(probe, con_info);

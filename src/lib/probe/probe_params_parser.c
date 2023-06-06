@@ -151,8 +151,7 @@ static int parse_host_ip_fields(struct probe_s *probe, struct param_key_s *param
     char *value = key_item->valuestring;
     p = strtok(value, ",");
     while (p != NULL && index < MAX_IP_NUM) {
-        (void)strncpy(probe->probe_param.host_ip_list[index++], p, MAX_IP_LEN - 1);
-        probe->probe_param.host_ip_list[index++][MAX_IP_LEN - 1] = '\0';
+        (void)snprintf(probe->probe_param.host_ip_list[index++], MAX_IP_LEN, "%s", p);
         p = strtok(NULL, ",");
     }
     return 0;
@@ -276,7 +275,7 @@ static int parser_svg_dir(struct probe_s *probe, struct param_key_s *param_key, 
         return -1;
     }
 
-    (void)strncpy(probe->probe_param.svg_dir, value, PATH_LEN - 1);
+    (void)snprintf(probe->probe_param.svg_dir, sizeof(probe->probe_param.svg_dir), "%s", value);
     return 0;
 }
 
@@ -288,7 +287,7 @@ static int parser_flame_dir(struct probe_s *probe, struct param_key_s *param_key
         return -1;
     }
 
-    (void)strncpy(probe->probe_param.flame_dir, value, PATH_LEN - 1);
+    (void)snprintf(probe->probe_param.flame_dir, sizeof(probe->probe_param.flame_dir), "%s", value);
     return 0;
 }
 
@@ -304,7 +303,7 @@ static int parser_pyscope_server(struct probe_s *probe, struct param_key_s *para
         value = param_key->v.default_int;
     }
 
-    (void)strncpy(probe->probe_param.pyroscope_server, value, PYSCOPE_SERVER_URL_LEN - 1);
+    (void)snprintf(probe->probe_param.pyroscope_server, sizeof(probe->probe_param.pyroscope_server), "%s", value);
     return 0;
 }
 
@@ -342,7 +341,7 @@ static int parser_sysdebuging_dir(struct probe_s *probe, struct param_key_s *par
         return -1;
     }
 
-    (void)strncpy(probe->probe_param.sys_debuging_dir, value, MAX_PATH_LEN - 1);
+    (void)snprintf(probe->probe_param.sys_debuging_dir, sizeof(probe->probe_param.sys_debuging_dir), "%s", value);
     return 0;
 }
 
@@ -405,5 +404,3 @@ int parse_params(struct probe_s *probe, const cJSON *params_json)
 
     return ret;
 }
-
-

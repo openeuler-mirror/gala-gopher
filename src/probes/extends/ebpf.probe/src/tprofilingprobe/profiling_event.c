@@ -33,7 +33,7 @@
 #include "profiling_event.h"
 
 #define LEN_OF_RESOURCE 1024
-#define LEN_OF_ATTRS    8192
+#define LEN_OF_ATTRS    (8192 - LEN_OF_RESOURCE)
 
 static int get_sys_boot_time(__u64 *boot_time);
 static __u64 get_unix_time_from_uptime(__u64 uptime);

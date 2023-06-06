@@ -126,8 +126,7 @@ static void get_diskname(const char* dev_name, char *disk_name, size_t size)
     char *p;
     char last_disk_name[DISK_NAME_LEN];
 
-    cmd[0] = 0;
-    (void)strncpy(cmd, LSBLK_TREE_CMD, COMMAND_LEN);
+    strcpy(cmd, LSBLK_TREE_CMD);
     f = popen(cmd, "r");
     if (f == NULL) {
         return;
@@ -142,15 +141,15 @@ static void get_diskname(const char* dev_name, char *disk_name, size_t size)
         if (p && (p == line)) {
             // record last disk name
             last_disk_name[0] = 0;
-            (void)strncpy(last_disk_name, p, DISK_NAME_LEN);
+            (void)snprintf(last_disk_name, sizeof(last_disk_name), "%s", p);
         }
 
         if (strcmp(dev_name, last_disk_name) == 0) {
-            (void)strncpy(disk_name, dev_name, size);
+            (void)snprintf(disk_name, size, "%s", dev_name);
         }
 
         if (p && (p != line) && (strcmp(dev_name, p) == 0)) {
-            (void)strncpy(disk_name, last_disk_name, size);
+            (void)snprintf(disk_name, size, "%s", last_disk_name);
             break;
         }
     }

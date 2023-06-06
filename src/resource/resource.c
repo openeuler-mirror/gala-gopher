@@ -638,10 +638,10 @@ static int LogsMgrInit(ResourceMgr *resourceMgr)
         return -1;
     }
 
-    (void)strncpy(logsMgr->debug_path, configMgr->logsConfig->debugDir, PATH_LEN - 1);
-    (void)strncpy(logsMgr->metrics_path, configMgr->logsConfig->metricDir, PATH_LEN - 1);
-    (void)strncpy(logsMgr->event_path, configMgr->logsConfig->eventDir, PATH_LEN - 1);
-    (void)strncpy(logsMgr->meta_path, configMgr->logsConfig->metaDir, PATH_LEN - 1);
+    (void)snprintf(logsMgr->debug_path, sizeof(logsMgr->debug_path), "%s", configMgr->logsConfig->debugDir);
+    (void)snprintf(logsMgr->metrics_path, sizeof(logsMgr->metrics_path), "%s", configMgr->logsConfig->metricDir);
+    (void)snprintf(logsMgr->event_path, sizeof(logsMgr->event_path), "%s", configMgr->logsConfig->eventDir);
+    (void)snprintf(logsMgr->meta_path, sizeof(logsMgr->meta_path), "%s", configMgr->logsConfig->metaDir);
 
     if (init_log_mgr(logsMgr, is_meta_out_log) < 0) {
         return -1;

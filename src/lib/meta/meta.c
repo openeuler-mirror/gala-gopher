@@ -151,14 +151,14 @@ static int MeasurementLoad(MeasurementMgr *mgr, Measurement *mm, config_setting_
         ERROR("load measurement name failed.\n");
         return -1;
     }
-    (void)strncpy(mm->name, name, MAX_MEASUREMENT_NAME_LEN - 1);
+    (void)snprintf(mm->name, sizeof(mm->name), "%s", name);
 
     ret = config_setting_lookup_string(mmConfig, "entity_name", &entity);
     if (ret == 0) {
         ERROR("load measurement entity failed.\n");
         return -1;
     }
-    (void)strncpy(mm->entity, entity, MAX_MEASUREMENT_NAME_LEN - 1);
+    (void)snprintf(mm->entity, sizeof(mm->entity), "%s", entity);
 
 #if LIBCONFIG_VER_MAJOR == 1 && LIBCONFIG_VER_MINOR < 5
     config_setting_t *fields = config_lookup_from(mmConfig, "fields");

@@ -51,7 +51,7 @@ static void __parse_host_ip_fields(char *ip_str, struct probe_params *params)
         if (index >= MAX_IP_NUM) {
             break;
         }
-        (void)strncpy((char *)params->host_ip_list[index++], p, MAX_IP_LEN - 1);
+        (void)snprintf((char *)params->host_ip_list[index++], MAX_IP_LEN, "%s", p);
         p = strtok(NULL, ",");
     }
     return;
@@ -262,7 +262,7 @@ int params_parse(char *s, struct probe_params *params)
     for (j = start; j <= slen; j++) {
         if ((strncmp(s + j, ARGS_SPILT_STRING, split_len) == 0) || (s[j] == '\0')) {
             (void)memset(temp, 0, MAX_PARAM_LEN);
-            (void)strncpy(temp, s + start, j - start);
+            (void)snprintf(temp, j - start, "%s", s + start);
             start = j + split_len;
 
             opt = temp[0];

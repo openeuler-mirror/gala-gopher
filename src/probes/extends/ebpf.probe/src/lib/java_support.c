@@ -442,8 +442,8 @@ void *java_support(void *arg)
     int proc_obj_map_fd = args->proc_obj_map_fd;
     int loop_period = args->loop_period;
     int is_only_attach_once = args->is_only_attach_once;
-    (void)strncpy(jvm_agent_file, args->agent_file_name, FILENAME_LEN);
-    (void)strncpy(jvm_tmp_file, args->tmp_file_name, FILENAME_LEN);
+    (void)snprintf(jvm_agent_file, sizeof(jvm_agent_file), "%s", args->agent_file_name);
+    (void)snprintf(jvm_tmp_file, sizeof(jvm_tmp_file), "%s", args->tmp_file_name);
 
     (void)strcpy(attach_type, "start");
 
@@ -481,8 +481,8 @@ void java_unload(void *arg)
     struct jvm_agent_hash_t *pid_bpf_link, *tmp;
     struct java_attach_args *args = (struct java_attach_args *)arg;
 
-    (void)strncpy(jvm_agent_file, args->agent_file_name, FILENAME_LEN);
-    (void)strncpy(jvm_tmp_file, args->tmp_file_name, FILENAME_LEN);
+    (void)snprintf(jvm_agent_file, sizeof(jvm_agent_file), "%s", args->agent_file_name);
+    (void)snprintf(jvm_tmp_file, sizeof(jvm_tmp_file), "%s", args->tmp_file_name);
 
     (void)strcpy(attach_type, "stop");
 

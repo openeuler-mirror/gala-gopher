@@ -157,7 +157,7 @@ int stacktrace_create_log_mgr(struct stack_trace_s *st, const char *logDir)
         return -1;
     }
 
-    (void)strncpy(mgr->debug_path, logDir, PATH_LEN - 1);
+    (void)snprintf(mgr->debug_path, sizeof(mgr->debug_path), "%s", logDir);
 
     if (init_log_mgr(mgr, 0)) {
         return -1;
@@ -523,8 +523,7 @@ static int add_stack_histo(struct stack_trace_s *st, struct stack_symbs_s *stack
         return -1;
     }
     new_item->stack_symbs_str[0] = 0;
-    (void)strncpy(new_item->stack_symbs_str, str, STACK_SYMBS_LEN - 1);
-    new_item->stack_symbs_str[STACK_SYMBS_LEN - 1] = 0;
+    (void)snprintf(new_item->stack_symbs_str, sizeof(new_item->stack_symbs_str), "%s", str);
     new_item->count = count < 0 ? 0 : count;
     H_ADD_S(st->svg_stack_traces[en_type]->histo_tbl, stack_symbs_str, new_item);
 

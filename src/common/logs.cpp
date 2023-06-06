@@ -78,9 +78,9 @@ static int get_file_name(struct log_mgr_s* mgr, char is_metrics, int file_id, ch
 
     ftype[0] = 0;
     if (is_metrics) {
-        (void)strncpy(ftype, "metrics", COMMAND_LEN - 1);
+        strcpy(ftype, "metrics");
     } else {
-        (void)strncpy(ftype, "event", COMMAND_LEN - 1);
+        strcpy(ftype, "event");
     }
 
     if (is_metrics) {
@@ -467,7 +467,7 @@ struct log_mgr_s* create_log_mgr(const char *app_name, int is_metric_out_log, in
     }
 
     if (app_name) {
-        (void)strncpy(mgr->app_name, app_name, PATH_LEN - 1);
+        (void)snprintf(mgr->app_name, sizeof(mgr->app_name), "%s", app_name);
     }
 
     return mgr;

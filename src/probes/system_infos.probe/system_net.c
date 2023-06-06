@@ -284,7 +284,7 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
     rx_errs = new_info->rx_errs - old_info->rx_errs;
 
     if (ipc_body->probe_param.drops_count_thr > 0 && tx_drops > ipc_body->probe_param.drops_count_thr) {
-        (void)strncpy(entityid, new_info->dev_name, LINE_BUF_LEN - 1);
+        (void)snprintf(entityid, sizeof(entityid), "%s", new_info->dev_name);
         report_logs(ENTITY_NIC_NAME,
                     entityid,
                     "tx_dropped",
@@ -294,7 +294,7 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
     }
     if (ipc_body->probe_param.drops_count_thr > 0 && rx_drops > ipc_body->probe_param.drops_count_thr) {
         if (entityid[0] == 0) {
-            (void)strncpy(entityid, new_info->dev_name, LINE_BUF_LEN - 1);
+            (void)snprintf(entityid, sizeof(entityid), "%s", new_info->dev_name);
         }
         report_logs(ENTITY_NIC_NAME,
                     entityid,
@@ -305,7 +305,7 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
     }
     if (ipc_body->probe_param.drops_count_thr > 0 && tx_errs > ipc_body->probe_param.drops_count_thr) {
         if (entityid[0] == 0) {
-            (void)strncpy(entityid, new_info->dev_name, LINE_BUF_LEN - 1);
+            (void)snprintf(entityid, sizeof(entityid), "%s", new_info->dev_name);
         }
         report_logs(ENTITY_NIC_NAME,
                     entityid,
@@ -316,7 +316,7 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
     }
     if (ipc_body->probe_param.drops_count_thr > 0 && rx_errs > ipc_body->probe_param.drops_count_thr) {
         if (entityid[0] == 0) {
-            (void)strncpy(entityid, new_info->dev_name, LINE_BUF_LEN - 1);
+            (void)snprintf(entityid, sizeof(entityid), "%s", new_info->dev_name);
         }
         report_logs(ENTITY_NIC_NAME,
                     entityid,
@@ -366,7 +366,7 @@ int system_net_probe(struct ipc_body_s *ipc_body)
         if (is_physical_netdev(dev_name, g_netdev_num) != 1) {
             continue;
         }
-        (void)strncpy(g_dev_stats[index].dev_name, dev_name, NET_DEVICE_NAME_SIZE - 1);
+        (void)snprintf(g_dev_stats[index].dev_name, NET_DEVICE_NAME_SIZE, "%s", dev_name);
 
         (void)memcpy(&temp, &g_dev_stats[index], sizeof(net_dev_stat));
         if (get_netdev_fileds(line, &g_dev_stats[index]) < 0) {
@@ -423,7 +423,7 @@ static int load_physical_device(void)
         (void)snprintf(fpath, COMMAND_LEN, "/sys/devices/virtual/net/%s", entry->d_name);
         if (access((const char *)fpath, 0) < 0) {
             // this is not virtual device
-            strncpy(g_phy_netdev_list[g_netdev_num++], entry->d_name, NET_DEVICE_NAME_SIZE - 1);
+            (void)snprintf(g_phy_netdev_list[g_netdev_num++], NET_DEVICE_NAME_SIZE, "%s", entry->d_name);
         }
     }
     closedir(dir);
