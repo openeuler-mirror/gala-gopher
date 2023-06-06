@@ -951,6 +951,10 @@ static int add_snooper_obj_procid(struct probe_s *probe, u32 proc_id)
 
 static int add_snooper_obj_con_info(struct probe_s *probe, struct con_info_s *con_info)
 {
+    if (con_info == NULL) {
+        return -1;
+    }
+
     int pos = __get_snooper_obj_idle(probe, SNOOPER_MAX);
     if (pos < 0) {
         return -1;
@@ -958,9 +962,6 @@ static int add_snooper_obj_con_info(struct probe_s *probe, struct con_info_s *co
 
     struct snooper_obj_s* snooper_obj = new_snooper_obj();
     if (snooper_obj == NULL) {
-        return -1;
-    }
-    if (con_info == NULL) {
         return -1;
     }
     snooper_obj->type = SNOOPER_OBJ_CON;
@@ -1092,6 +1093,39 @@ static int gen_snooper_by_procid(struct probe_s *probe, struct snooper_conf_s *s
     return add_snooper_obj_procid(probe, snooper_conf->conf.proc_id);
 }
 
+static int __gen_snooper_by_container(struct probe_s *probe, const char *target_container_id)
+{
+    DIR *dir = NULL;
+    struct dirent *entry;
+    char container_id[CONTAINER_ABBR_ID_LEN + 1];
+
+    dir = opendir(__SYS_PROC_DIR);
+    if (dir == NULL) {
+        return -1;
+    }
+
+    do {
+        entry = readdir(dir);
+        if (entry == NULL) {
+            break;
+        }
+        if (!__is_proc_dir(entry->d_name) == -1) {
+            continue;
+        }
+
+        container_id[0] = 0;
+        (void)get_container_id_by_pid_cpuset((const char *)(entry->d_name), container_id, CONTAINER_ABBR_ID_LEN + 1);
+
+        if (strcmp((const char *)container_id, target_container_id) == 0) {
+            // Well matched
+            (void)add_snooper_obj_procid(probe, (u32)atoi(entry->d_name));
+        }
+    } while (1);
+
+    closedir(dir);
+    return 0;
+}
+
 static int gen_snooper_by_container(struct probe_s *probe, struct snooper_conf_s *snooper_conf)
 {
     if (snooper_conf->type != SNOOPER_CONF_CONTAINER_ID || snooper_conf->conf.container_id[0] == 0) {
@@ -1102,6 +1136,8 @@ static int gen_snooper_by_container(struct probe_s *probe, struct snooper_conf_s
     if (con_info == NULL) {
         return -1;
     }
+
+    (void)__gen_snooper_by_container(probe, (const char *)(con_info->con_id));
 
     return add_snooper_obj_con_info(probe, con_info);
 }
@@ -1122,10 +1158,10 @@ static int gen_snooper_by_pod(struct probe_s *probe, struct snooper_conf_s *snoo
     }
 
     struct containers_hash_t *con, *tmp;
-    struct con_info_s *con_info;
     if (H_COUNT(pod_info->con_head) > 0) {
         H_ITER(pod_info->con_head, con, tmp) {
-            add_snooper_obj_con_info(probe, &con->con_info);
+            (void)__gen_snooper_by_container(probe, (const char *)(con->con_info.con_id));
+            (void)add_snooper_obj_con_info(probe, &con->con_info);
         }
     }
 
