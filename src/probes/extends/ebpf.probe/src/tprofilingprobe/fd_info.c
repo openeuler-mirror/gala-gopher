@@ -172,7 +172,6 @@ int fill_fd_info(fd_info_t *fd_info, int tgid)
     }
 
     if (stat(fd_path, &st)) {
-        fprintf(stderr, "WARN: Failed to get stat info of fd %s.\n", fd_path);
         return -1;
     }
 

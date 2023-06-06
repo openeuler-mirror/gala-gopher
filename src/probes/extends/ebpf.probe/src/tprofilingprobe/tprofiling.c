@@ -317,6 +317,8 @@ static void clean_tprofiler()
 
 static int refresh_tprofiler(struct ipc_body_s *ipc_body)
 {
+    tprofiler.report_period = ipc_body->probe_param.period;
+
     if (init_tprofiler_map_fds(ipc_body)) {
         return -1;
     }

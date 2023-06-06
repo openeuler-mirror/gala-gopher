@@ -26,6 +26,8 @@
 #define PROFILE_EVT_TYPE_ONCPU "oncpu"
 #define PROFILE_EVT_TYPE_OTHER "other"
 
+#define ERR_TP_NO_BUFF 2
+
 int init_sys_boot_time(__u64 *sysBootTime);
 void output_profiling_event(trace_event_data_t *evt_data);
 

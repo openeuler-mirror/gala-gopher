@@ -40,7 +40,7 @@
 #define MAX_EPOLL_EVENTS_NUM  512
 
 // egress
-#define MAX_DATA_STR_LEN      4096
+#define MAX_DATA_STR_LEN      8192
 
 // kafka
 #define MAX_KAFKA_ERRSTR_SIZE 512

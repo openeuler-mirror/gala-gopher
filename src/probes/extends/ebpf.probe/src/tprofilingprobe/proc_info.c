@@ -16,6 +16,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
+#include <utlist.h>
 #include "debug_elf_reader.h"
 #include "elf_symb.h"
 #include "container.h"
@@ -70,6 +71,34 @@ proc_info_t *HASH_find_proc_info_with_LRU(proc_info_t **proc_table, int tgid)
 unsigned int HASH_count_proc_table(proc_info_t **proc_table)
 {
     return HASH_COUNT(*proc_table);
+}
+
+void HASH_add_thrd_info_with_LRU(thrd_info_t **thrd_table, thrd_info_t *thrd_info)
+{
+    thrd_info_t *ti, *tmp;
+
+    if (HASH_COUNT(*thrd_table) >= MAX_CACHE_THRD_NUM) {
+        HASH_ITER(hh, *thrd_table, ti, tmp) {
+            HASH_DEL(*thrd_table, ti);
+            free_thrd_info(ti);
+            break;
+        }
+    }
+
+    HASH_ADD_INT(*thrd_table, pid, thrd_info);
+}
+
+thrd_info_t *HASH_find_thrd_info_with_LRU(thrd_info_t **thrd_table, int pid)
+{
+    thrd_info_t *ti;
+
+    HASH_FIND_INT(*thrd_table, &pid, ti);
+    if (ti) {
+        HASH_DEL(*thrd_table, ti);
+        HASH_ADD_INT(*thrd_table, pid, ti);
+    }
+
+    return ti;
 }
 
 int set_proc_comm(int tgid, char *comm, int size)
@@ -171,6 +200,14 @@ proc_info_t *add_proc_info(proc_info_t **proc_table, int tgid)
     }
     *(pi->fd_table) = NULL;
 
+    pi->thrd_table = (thrd_info_t **)malloc(sizeof(thrd_info_t *));
+    if (pi->thrd_table == NULL) {
+        fprintf(stderr, "ERROR: Failed to allocate thread table.\n");
+        free(pi);
+        return NULL;
+    }
+    *(pi->thrd_table) = NULL;
+
     HASH_add_proc_info_with_LRU(proc_table, pi);
     return pi;
 }
@@ -185,6 +222,35 @@ proc_info_t *get_proc_info(proc_info_t **proc_table, int tgid)
     }
 
     return pi;
+}
+
+thrd_info_t *add_thrd_info(proc_info_t *proc_info, int pid)
+{
+    thrd_info_t *ti;
+
+    ti = (thrd_info_t *)calloc(1, sizeof(thrd_info_t));
+    if (ti == NULL) {
+        fprintf(stderr, "ERROR: Failed to allocate thread info.\n");
+        return NULL;
+    }
+
+    ti->pid = pid;
+    ti->proc_info = proc_info;
+
+    HASH_add_thrd_info_with_LRU(proc_info->thrd_table, ti);
+    return ti;
+}
+
+thrd_info_t *get_thrd_info(proc_info_t *proc_info, int pid)
+{
+    thrd_info_t *ti;
+
+    ti = HASH_find_thrd_info_with_LRU(proc_info->thrd_table, pid);
+    if (ti == NULL) {
+        ti = add_thrd_info(proc_info, pid);
+    }
+
+    return ti;
 }
 
 // get fd info from `/proc/<tgid>/fd/<fd>`
@@ -286,6 +352,11 @@ void free_proc_info(proc_info_t *proc_info)
         free(proc_info->fd_table);
     }
 
+    if (proc_info->thrd_table != NULL) {
+        free_thrd_table(proc_info->thrd_table);
+        free(proc_info->thrd_table);
+    }
+
     if (proc_info->symbs != NULL) {
         proc_delete_all_symbs(proc_info->symbs);
     }
@@ -307,4 +378,91 @@ void free_proc_table(proc_info_t **proc_table)
     }
 
     *proc_table = NULL;
+}
+
+static void free_cached_events(event_elem_t *cached_evts)
+{
+    event_elem_t *evt, *tmp;
+
+    if (cached_evts == NULL) {
+        return;
+    }
+
+    DL_FOREACH_SAFE(cached_evts, evt, tmp) {
+        DL_DELETE(cached_evts, evt);
+        free(evt);
+    }
+}
+
+void clean_cached_events(thrd_info_t *thrd_info)
+{
+    free_cached_events(thrd_info->cached_evts);
+    thrd_info->cached_evts = NULL;
+    thrd_info->evt_num = 0;
+}
+
+void free_thrd_info(thrd_info_t *thrd_info)
+{
+    if (thrd_info == NULL) {
+        return;
+    }
+
+    free_cached_events(thrd_info->cached_evts);
+
+    free(thrd_info);
+}
+
+void free_thrd_table(thrd_info_t **thrd_table)
+{
+    thrd_info_t *ti, *tmp;
+
+    if (*thrd_table == NULL) {
+        return;
+    }
+
+    HASH_ITER(hh, *thrd_table, ti, tmp) {
+        HASH_DEL(*thrd_table, ti);
+        free_thrd_info(ti);
+    }
+
+    *thrd_table = NULL;
+}
+
+event_elem_t *create_event_elem(unsigned int data_size)
+{
+    event_elem_t *elem;
+
+    if (data_size == 0) {
+        fprintf(stderr, "ERROR: event data size must be non-zero.\n");
+        return NULL;
+    }
+
+    elem = (event_elem_t *)calloc(1, sizeof(event_elem_t) + data_size);
+    if (elem == NULL) {
+        fprintf(stderr, "ERROR: malloc event element memory failed.\n");
+        return NULL;
+    }
+    elem->data = (void *)(elem + 1);
+
+    return elem;
+}
+
+void delete_first_k_events(thrd_info_t *thrd_info, int k)
+{
+    event_elem_t *cached_evt, *tmp;
+    int i = 0;
+
+    DL_FOREACH_SAFE(thrd_info->cached_evts, cached_evt, tmp) {
+        if (i == k) {
+            break;
+        }
+        DL_DELETE(thrd_info->cached_evts, cached_evt);
+        free(cached_evt);
+        i++;
+    }
+    thrd_info->evt_num -= k;
+
+    if (thrd_info->evt_num == 0) {
+        thrd_info->cached_evts = NULL;
+    }
 }
