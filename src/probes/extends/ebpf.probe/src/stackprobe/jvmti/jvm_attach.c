@@ -29,7 +29,7 @@
 
 #define setns(FD, NSTYPE) syscall(__NR_setns, (int)(FD), (int)(NSTYPE))
 #define MAX_PATH_LEN 512
-char tmp_path[MAX_PATH_LEN];
+char tmp_path[PATH_LEN];
 
 int get_tmp_path_r(int cur_pid, char* buf, size_t bufsize) {
     if (snprintf(buf, bufsize, "/proc/%d/root/tmp", cur_pid) >= bufsize) {
@@ -80,7 +80,7 @@ static int __ns_enter(int pid, int nspid, const char* type, int *cur_pid)
 }
 
 static int __check_attach_listener(int nspid) {
-    char path[PATH_LEN] = {0};
+    char path[MAX_PATH_LEN] = {0};
     snprintf(path, sizeof(path), "%s/.java_pid%d", tmp_path, nspid);
 
     struct stat stats;
@@ -89,7 +89,7 @@ static int __check_attach_listener(int nspid) {
 
 static int __start_attach(int pid, int nspid) {
     int result = 0;
-    char path[PATH_LEN];
+    char path[MAX_PATH_LEN];
     snprintf(path, sizeof(path), "/proc/%u/cwd/.attach_pid%d", nspid, nspid);
     int fd = creat(path, 0660);
     if (fd == -1) {

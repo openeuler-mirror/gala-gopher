@@ -104,7 +104,6 @@ int g_post_max = POST_MAX_STEP_SIZE;
 static struct probe_params params = {.period = DEFAULT_PERIOD};
 static volatile sig_atomic_t g_stop;
 static struct stack_trace_s *g_st = NULL;
-static struct bpf_link_hash_t *bpf_link_head = NULL;
 
 static void sig_int(int signo)
 {
@@ -1179,7 +1178,8 @@ cleanup:
     bpf_link__destroy(links);
     return -1;
 }
-
+#if 0
+static struct bpf_link_hash_t *bpf_link_head = NULL;
 static void set_pids_inactive()
 {
     struct bpf_link_hash_t *item, *tmp;
@@ -1375,6 +1375,7 @@ static void *__uprobe_attach_check(void *arg)
     return NULL;
 
 }
+#endif
 
 static int attach_memleak_bpf_prog(struct svg_stack_trace_s *svg_st, StackprobeConfig *conf)
 {

@@ -210,12 +210,13 @@ static int __build_url(char *url, struct post_server_s *post_server, int en_type
     post_server->last_post_ts = now;
 
     (void)snprintf(url, LINE_BUF_LEN, 
-        "http://%s/ingest?name=%s-%s&from=%ld&until=%ld",
+        "http://%s/ingest?name=%s-%s&from=%ld&until=%ld&units=%s",
         post_server->host,
         appname[en_type],
         post_server->app_suffix,
         (long)before,
-        (long)now);
+        (long)now,
+        en_type == STACK_SVG_MEMLEAK ? "bytes" : "samples");
     return 0;
 }
 
@@ -276,6 +277,7 @@ static void __curl_post(struct post_server_s *post_server, struct post_info_s *p
 end1:
     /* always cleanup */
     curl_easy_cleanup(curl);
+    post_info->curl = NULL;
 end2:
     if (post_info->buf_start != NULL) {
         free(post_info->buf_start);
@@ -290,7 +292,12 @@ static void __init_curl_handle(struct post_server_s *post_server, struct post_in
         return;
     }
 
-    post_info->curl = curl_easy_init();
+    if (post_info->curl != NULL) {
+        ERROR("[FLAMEGRAPH]: curl was not freed normally\n");
+    } else {
+        post_info->curl = curl_easy_init();
+    }
+
     if(post_info->curl) {
         post_info->buf = (char *)malloc(g_post_max);
         post_info->buf_start = post_info->buf;
