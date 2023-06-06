@@ -47,8 +47,7 @@
     MAP_SET_PIN_PATH(probe_name, conn_stats_events, L7_CONN_STATS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, conn_tbl, L7_CONN_CONN_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, filter_args_tbl, L7_FILTER_ARGS_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, proc_obj_map, L7_PROC_OBJ_PATH, load); \
-    LOAD_ATTACH(probe_name, end, load)
+    LOAD_ATTACH(l7probe, probe_name, end, load)
 
 int l7_load_probe_libssl(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog, const char *libssl_path)
 {

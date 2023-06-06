@@ -50,7 +50,7 @@ static struct ipc_body_s *__ipc_body = NULL;
     MAP_SET_PIN_PATH(probe_name, g_thread_map, THREAD_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, g_proc_map, PROC_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, args_map, ARGS_PATH, load); \
-    LOAD_ATTACH(probe_name, end, load)
+    LOAD_ATTACH(taskprobe, probe_name, end, load)
 
 static void report_thread_metrics(struct thread_data *thr)
 {

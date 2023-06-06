@@ -87,12 +87,12 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
         DEBUG("======>SHARE map(" #map_name ") set pin path \"%s\"(ret=%d).\n", map_path, ret); \
     } while (0)
 
-#define __PIN_SHARE_MAP_ALL(probe_name) \
-        do { \
-            __MAP_SET_PIN_PATH(probe_name, cgrp_obj_map, CGRP_MAP_PATH); \
-            __MAP_SET_PIN_PATH(probe_name, nm_obj_map, NM_MAP_PATH); \
-            __MAP_SET_PIN_PATH(probe_name, proc_obj_map, PROC_MAP_PATH); \
-        } while (0)
+#define PIN_OBJ_MAP(app_name, probe_name) \
+                do { \
+                    __MAP_SET_PIN_PATH(probe_name, cgrp_obj_map, CGRP_MAP_PATH#app_name); \
+                    __MAP_SET_PIN_PATH(probe_name, nm_obj_map, NM_MAP_PATH#app_name); \
+                    __MAP_SET_PIN_PATH(probe_name, proc_obj_map, PROC_MAP_PATH#app_name); \
+                } while (0)
 
 #define INIT_BPF_APP(app_name, limit) \
     static char __init = 0; \
@@ -110,7 +110,7 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
         } \
     } while (0)
 
-#define LOAD(probe_name, end) \
+#define LOAD(app_name, probe_name, end) \
     struct probe_name##_bpf *probe_name##_skel = NULL;           \
     struct bpf_link *probe_name##_link[PATH_NUM] __maybe_unused; \
     int probe_name##_link_current = 0;    \
@@ -122,6 +122,7 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
             ERROR("Failed to open BPF " #probe_name " skeleton\n"); \
             goto end; \
         } \
+        PIN_OBJ_MAP(app_name, probe_name); \
         if (probe_name##_bpf__load(probe_name##_skel)) { \
             ERROR("Failed to load BPF " #probe_name " skeleton\n"); \
             goto end; \
@@ -161,11 +162,12 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
         } \
     } while (0)
     
-#define LOAD_ATTACH(probe_name, end, load) \
+#define LOAD_ATTACH(app_name, probe_name, end, load) \
     do { \
         if (load) \
         { \
             int err; \
+            PIN_OBJ_MAP(app_name, probe_name); \
             if (probe_name##_bpf__load(probe_name##_skel)) { \
                 ERROR("Failed to load BPF " #probe_name " skeleton\n"); \
                 goto end; \
@@ -409,7 +411,6 @@ struct __bpf_skel_s {
 struct bpf_prog_s {
     struct perf_buffer* pb;
     struct perf_buffer* pbs[SKEL_MAX_NUM];  // 支持每个探针拥有各自的perf_buffer，目前tcpprobe使用
-    pthread_t resident_thd[SKEL_MAX_NUM];
     struct __bpf_skel_s skels[SKEL_MAX_NUM];
     size_t num;
 };

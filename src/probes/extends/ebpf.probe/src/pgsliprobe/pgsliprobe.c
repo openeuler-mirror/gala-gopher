@@ -58,7 +58,7 @@
     MAP_SET_PIN_PATH(probe_name, conn_map, PGSLI_CONN_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, conn_samp_map, PGSLI_CONN_SAMP_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, output, PGSLI_OUTPUT_PATH, load); \
-    LOAD_ATTACH(probe_name, end, load)
+    LOAD_ATTACH(pgsliprobe, probe_name, end, load)
 
 static volatile sig_atomic_t stop;
 static struct probe_params params = {.period = DEFAULT_PERIOD};

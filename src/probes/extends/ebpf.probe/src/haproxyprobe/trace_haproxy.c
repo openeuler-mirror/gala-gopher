@@ -192,7 +192,7 @@ int main(int argc, char **argv)
         return -1;
     }
     INIT_BPF_APP(trace_haproxy, EBPF_RLIM_LIMITED);
-    LOAD(trace_haproxy, err);
+    LOAD(trace_haproxy, trace_haproxy, err);
 
     /* Cleaner handling of Ctrl-C */
     signal(SIGINT, sig_handler);

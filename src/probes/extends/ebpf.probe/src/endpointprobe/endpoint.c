@@ -57,7 +57,7 @@
     MAP_SET_PIN_PATH(probe_name, g_ep_output, OUTPUT_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, args_map, ARGS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, g_ep_proc_map, EP_PROC_MAP_PATH, load); \
-    LOAD_ATTACH(probe_name, end, load)
+    LOAD_ATTACH(endpoint, probe_name, end, load)
 
 struct endpoint_probe_s {
     struct ipc_body_s ipc_body;

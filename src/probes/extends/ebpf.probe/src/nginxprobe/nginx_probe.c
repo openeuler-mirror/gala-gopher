@@ -162,7 +162,7 @@ int main(int argc, char **argv)
     }
 
     INIT_BPF_APP(nginx_probe, EBPF_RLIM_LIMITED);
-    LOAD(nginx_probe, err);
+    LOAD(nginx_probe, nginx_probe, err);
 
     /* Clean handling of Ctrl-C */
     signal(SIGINT, sig_handler);

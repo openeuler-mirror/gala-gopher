@@ -57,13 +57,13 @@
     MAP_SET_PIN_PATH(probe_name, stack_map, STACK_MAP_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, syscall_enter_map, SYSCALL_ENTER_MAP_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, syscall_stash_map, SYSCALL_STASH_MAP_PATH, load); \
-    LOAD_ATTACH(probe_name, end, load)
+    LOAD_ATTACH(tprofiling, probe_name, end, load)
 
 #define LOAD_ONCPU_PROBE(probe_name, end, load) \
     OPEN(probe_name, end, load); \
     MAP_SET_COMMON_PIN_PATHS(probe_name, load); \
     MAP_SET_PIN_PATH(probe_name, event_map, ONCPU_EVENT_MAP_PATH, load); \
-    LOAD_ATTACH(probe_name, end, load)
+    LOAD_ATTACH(tprofiling, probe_name, end, load)
 
 #define LOAD_SYSCALL_BPF_PROG(type) \
     static int __load_syscall_##type##_bpf_prog(struct bpf_prog_s *prog, char is_load) \

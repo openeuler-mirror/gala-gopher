@@ -61,12 +61,12 @@
     MAP_SET_PIN_PATH(probe_name, io_latency_channel_map, IO_LATENCY_CHANNEL_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, io_trace_map, IO_TRACE_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, io_latency_map, IO_LATENCY_PATH, load); \
-    LOAD_ATTACH(probe_name, end, load)
+    LOAD_ATTACH(ioprobe, probe_name, end, load)
 
 #define __LOAD_IO_PROBE(probe_name, end, load) \
     OPEN(probe_name, end, load); \
     MAP_SET_PIN_PATH(probe_name, io_args_map, IO_ARGS_PATH, load); \
-    LOAD_ATTACH(probe_name, end, load)
+    LOAD_ATTACH(ioprobe, probe_name, end, load)
 
 static volatile sig_atomic_t g_stop;
 static int io_args_fd = -1;
