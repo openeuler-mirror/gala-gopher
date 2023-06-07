@@ -106,6 +106,7 @@ enum probe_type_e {
     PROBE_KAFKA,
     PROBE_TP,
     PROBE_HW,
+    PROBE_KSLI,
 
     PROBE_TYPE_MAX
 };

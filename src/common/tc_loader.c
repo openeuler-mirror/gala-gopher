@@ -204,15 +204,18 @@ static void for_each_netcard(NetdevCallback fn, char netcard_list[])
 {
     int ret = TC_OK;
     char *ptr_end = NULL;
-    char *ptr_start = netcard_list;
+    char *ptr_start = NULL;
     char buf[MAX_CMD_LEN];
+    char netcard_list_tmp[MAX_PATH_LEN];
     FILE *fstream = NULL;
 
-    netcard_list[MAX_PATH_LEN - 1] = 0;
+    netcard_list_tmp[0] = 0;
+    (void)snprintf(netcard_list_tmp, sizeof(netcard_list_tmp), "%s", netcard_list);
+    ptr_start = netcard_list_tmp;
 
     // when there are "-n" args, enable the net card specified by -n
-    if (strlen(netcard_list) > 0) {
-        while (ptr_start < netcard_list + MAX_PATH_LEN && *ptr_start != '\0') {
+    if (strlen(netcard_list_tmp) > 0) {
+        while (ptr_start < netcard_list_tmp + MAX_PATH_LEN && *ptr_start != '\0') {
             ptr_end = strchr(ptr_start, ',');
             if (ptr_end != NULL) {
                 *ptr_end = '\0';

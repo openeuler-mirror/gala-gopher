@@ -54,6 +54,7 @@ struct probe_define_s probe_define[] = {
     {"kafka",               PROBE_KAFKA},
     {"tprofiling",          PROBE_TP},
     {"hw",                  PROBE_HW},
+    {"ksli",                PROBE_KSLI},
 };
 
 static struct probe_mng_s *g_probe_mng;
