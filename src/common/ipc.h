@@ -135,7 +135,6 @@ struct snooper_con_info_s {
     char *libssl_path;
     // pod_info
     char *pod_id;
-    char *pod_name;
     char *pod_ip_str;
 };
 

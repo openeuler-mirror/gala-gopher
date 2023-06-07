@@ -417,7 +417,7 @@ static int __stack_addrsymbs2string(struct proc_symbs_s *proc_symbs, struct addr
                 *layer = STACK_LAYER_ELSE;
             }
         } else if (*layer == STACK_LAYER_2ND) {
-            ret = __snprintf(&cur_p, len, &len, "; %s", symb); 
+            ret = __snprintf(&cur_p, len, &len, "; %s", symb);
             *layer = STACK_LAYER_3RD;
         } else {
             ret = __snprintf(&cur_p, len, &len, "; %s", symb);
@@ -1579,6 +1579,9 @@ void iter_histo_tbl(struct stack_svg_mng_s *svg_mng, int en_type, int *first_fla
 static void switch_stackmap()
 {
     struct stack_trace_s *st = g_st;
+    if (st == NULL) {
+        return;
+    }
     st->is_stackmap_a = ((st->convert_stack_count % 2) == 0);
 
     if (!is_tmout(st)) { // 30s

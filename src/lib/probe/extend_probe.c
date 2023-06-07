@@ -66,15 +66,78 @@ static int lkup_and_set_probe_pid(struct probe_s *probe)
     return (pid > 0) ? 0 : -1;
 }
 
+static void sendOutputToIngresss(struct probe_s *probe, char *buffer, uint32_t bufferSize)
+{
+    int ret = 0;
+    char *dataStr = NULL;
+    uint32_t index = 0;
+
+    for (int i = 0; i < bufferSize; i++) {
+        if (dataStr == NULL) {
+            dataStr = (char *)malloc(MAX_DATA_STR_LEN);
+            if (dataStr == NULL) {
+                break;
+            }
+            // memset(dataStr, 0, sizeof(MAX_DATA_STR_LEN));
+            index = 0;
+        }
+
+        if (buffer[i] == '\n') {
+            dataStr[index] = '\0';
+            ret = FifoPut(probe->fifo, (void *)dataStr);
+            if (ret != 0) {
+                ERROR("[E-PROBE %s] fifo full.\n", probe->name);
+                (void)free(dataStr);
+                dataStr = NULL;
+                break;
+            }
+
+            uint64_t msg = 1;
+            ret = write(probe->fifo->triggerFd, &msg, sizeof(uint64_t));
+            if (ret != sizeof(uint64_t)) {
+                ERROR("[E-PROBE %s] send trigger msg to eventfd failed.\n", probe->name);
+                break;
+            }
+
+            // reset dataStr
+            DEBUG("[E-PROBE %s] send data to ingresss succeed.(content=%s)\n", probe->name, dataStr);
+            dataStr = NULL;
+        } else {
+            dataStr[index] = buffer[i];
+            index++;
+        }
+    }
+}
+
+static void parseExtendProbeOutput(struct probe_s *probe, FILE *f)
+{
+    int ret = 0;
+    char buffer[MAX_DATA_STR_LEN];
+    uint32_t bufferSize = 0;
+
+    while (feof(f) == 0 && ferror(f) == 0) {
+        if (IS_STOPPING_PROBE(probe)) {
+            break;
+        }
+        if (fgets(buffer, sizeof(buffer), f) == NULL)
+            continue;
+
+        if (buffer[0] != '|') {
+            continue;
+        }
+
+        if ((bufferSize = strlen(buffer)) >= MAX_DATA_STR_LEN) {
+            ERROR("[E-PROBE %s] stdout buf(len:%u) is too long\n", probe->name, bufferSize);
+            continue;
+        }
+        sendOutputToIngresss(probe, buffer, bufferSize);
+    }
+}
+
 int RunExtendProbe(struct probe_s *probe)
 {
     int ret = 0, retry = 0;
     FILE *f = NULL;
-    char buffer[MAX_DATA_STR_LEN];
-    uint32_t bufferSize = 0;
-
-    char *dataStr = NULL;
-    uint32_t index = 0;
 
     f = __DoRunExtProbe(probe);
     SET_PROBE_FLAGS(probe, PROBE_FLAGS_RUNNING);
@@ -88,58 +151,7 @@ retry:
         goto retry;
     }
 
-    while (feof(f) == 0 && ferror(f) == 0) {
-        if (IS_STOPPING_PROBE(probe)) {
-            break;
-        }
-        if (fgets(buffer, sizeof(buffer), f) == NULL)
-            continue;
-
-        if (buffer[0] != '|') {
-            //INFO("[%s]: %s", probe->name, buffer);
-            continue;
-        }
-
-        if ((bufferSize = strlen(buffer)) >= MAX_DATA_STR_LEN) {
-            ERROR("[E-PROBE %s] stdout buf(len:%u) is too long\n", probe->name, bufferSize);
-            continue;
-        }
-        for (int i = 0; i < bufferSize; i++) {
-            if (dataStr == NULL) {
-                dataStr = (char *)malloc(MAX_DATA_STR_LEN);
-                if (dataStr == NULL) {
-                    break;
-                }
-                // memset(dataStr, 0, sizeof(MAX_DATA_STR_LEN));
-                index = 0;
-            }
-
-            if (buffer[i] == '\n') {
-                dataStr[index] = '\0';
-                ret = FifoPut(probe->fifo, (void *)dataStr);
-                if (ret != 0) {
-                    ERROR("[E-PROBE %s] fifo full.\n", probe->name);
-                    (void)free(dataStr);
-                    dataStr = NULL;
-                    break;
-                }
-
-                uint64_t msg = 1;
-                ret = write(probe->fifo->triggerFd, &msg, sizeof(uint64_t));
-                if (ret != sizeof(uint64_t)) {
-                    ERROR("[E-PROBE %s] send trigger msg to eventfd failed.\n", probe->name);
-                    break;
-                }
-
-                // reset dataStr
-                DEBUG("[E-PROBE %s] send data to ingresss succeed.(content=%s)\n", probe->name, dataStr);
-                dataStr = NULL;
-            } else {
-                dataStr[index] = buffer[i];
-                index++;
-            }
-        }
-    }
+    parseExtendProbeOutput(probe, f);
 
     SET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPED);
     UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_RUNNING);

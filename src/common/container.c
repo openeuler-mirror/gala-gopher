@@ -44,6 +44,8 @@
         "| /usr/bin/awk -F ']' '{print $1}'"
 #define DOCKER_MERGED_COMMAND "MergedDir | /usr/bin/awk -F '\"' '{print $4}'"
 #define PLDD_LIB_COMMAND "pldd %u 2>/dev/null | grep \"%s\""
+#define DOCKER_PODID_COMMAND "--format '{{index .Config.Labels \"io.kubernetes.pod.uid\"}}'"
+#define POD_IP_CMD "--format '{{ .NetworkSettings.IPAddress }}' 2>/dev/null"
 
 static char *current_docker_command = NULL;
 
@@ -731,3 +733,42 @@ int get_container_pod(const char *abbr_container_id, char pod[], unsigned int le
     return __get_container_pod(abbr_container_id, pod, len);
 }
 
+int get_container_pod_id(const char *abbr_container_id, char pod_id[], unsigned int len)
+{
+    char command[COMMAND_LEN];
+
+    if (!get_current_command()) {
+        return -1;
+    }
+
+    command[0] = 0;
+    (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
+        get_current_command(), abbr_container_id, DOCKER_PODID_COMMAND);
+
+    int ret = exec_cmd((const char *)command, pod_id, len);
+    if (ret) {
+        pod_id[0] = 0;
+    }
+
+    return ret;
+}
+
+int get_pod_ip(char *abbr_container_id, char *pod_ip_str, int len)
+{
+    char command[COMMAND_LEN] = {0};
+
+    if (!get_current_command()) {
+        return -1;
+    }
+
+    command[0] = 0;
+    (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
+        get_current_command(), abbr_container_id, POD_IP_CMD);
+
+    int ret = exec_cmd((const char *)command, pod_ip_str, len);
+    if (ret) {
+        pod_ip_str[0] = 0;
+    }
+
+    return ret;
+}

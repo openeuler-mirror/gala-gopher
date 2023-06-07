@@ -19,7 +19,6 @@
 
 #define MAX_CGRP_PATH 512
 
-#define POD_NAME_LEN 64
 #define FAKE_POD_ID "-no-pod" // fake pod id for host container
 
 enum id_ret_t {
@@ -47,22 +46,20 @@ struct containers_hash_t {
 
 struct pod_info_s {
     char pod_id[POD_ID_LEN + 1];
-    char pod_name[POD_NAME_LEN];
     char pod_ip_str[INET6_ADDRSTRLEN];
     struct containers_hash_t *con_head; // TODO: This field is invalid during ipc communication. Change to an array?
 };
 
 struct pod_info_s *get_pod_info_from_pod_id(char *pod_id);
-struct pod_info_s *get_pod_info_from_pod_name(char *pod_name_origin);
-void existing_pod_mk_process(char *pod_name);
+void existing_pod_mk_process(char *pod_id);
 enum id_ret_t get_pod_container_id(char *cgrp_path, char *pod_id, char *con_id);
 struct con_info_s *get_con_info(char *pod_id, char *con_id);
 struct pod_info_s *get_pod_info(char *pod_id);
 void del_pods();
-void cgrp_mk_process(char *pod_id, char *con_id, enum id_ret_t id_ret);
-void cgrp_rm_process(char *pod_id, char *con_id, enum id_ret_t id_ret);
+void add_pod_con_map(char *pod_id, char *con_id, enum id_ret_t id_ret);
+void del_pod_con_map(char *pod_id, char *con_id, enum id_ret_t id_ret);
 struct con_info_s *get_and_add_con_info(char *pod_id, char *container_id);
-struct pod_info_s *get_and_add_pod_info(char *pod_name);
+struct pod_info_s *get_and_add_pod_info(char *pod_id);
 
 enum filter_op_t {
     FILTER_OP_ADD,

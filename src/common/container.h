@@ -57,5 +57,6 @@ int get_container_mntns_id(const char *abbr_container_id, unsigned int *id);
 int get_container_pid(const char *abbr_container_id, unsigned int *pid);
 int get_container_name(const char *abbr_container_id, char name[], unsigned int len);
 int get_container_pod(const char *abbr_container_id, char pod[], unsigned int len);
-
+int get_container_pod_id(const char *abbr_container_id, char pod_id[], unsigned int len);
+int get_pod_ip(char *abbr_container_id, char *pod_ip_str, int len);
 #endif
