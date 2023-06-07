@@ -70,7 +70,7 @@ struct probe_params {
     char filter_task_probe;       // [-F <>] Filtering PID monitoring ranges by task probe, default is 0 (no filter)
     char res_percent_upper;       // [-U <>] Upper limit of resource percentage, default is 0%
     char res_percent_lower;       // [-L <>] Lower limit of resource percentage, default is 0%
-    unsigned char cport_flag;     // [-c <>] Indicates whether the probes(such as tcp) identifies the client port, default is 0 (no identify)
+    char cport_flag;              // [-c <>] Indicates whether the probes(such as tcp) identifies the client port, default is 0 (no identify)
     char continuous_sampling_flag;     // [-C <>] Enables the continuous sampling, default is 0
     char target_dev[DEV_NAME];    // [-d <>] Device name, default is null
     char elf_path[MAX_PATH_LEN];  // [-p <>] Set ELF file path of the monitored software, default is null
@@ -93,7 +93,7 @@ struct probe_params {
         0x0020  NATS
     */
     unsigned int l7_probe_proto_flags;
-    int enable_all_thrds;         // [-A] Enable all threads, default is 0
+    unsigned int enable_all_thrds; // [-A] Enable all threads, default is 0
     char sys_debuging_dir[MAX_PATH_LEN];
     unsigned int svg_period;
     unsigned int perf_sample_period;

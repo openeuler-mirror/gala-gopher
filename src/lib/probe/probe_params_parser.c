@@ -58,10 +58,12 @@ static int __get_params_flags(struct param_flags_s param_flags[], size_t size, c
     }
     return 0;
 }
+struct param_key_s;
+struct param_val_s;
+typedef int (*parser_param_key)(struct probe_s *, struct param_key_s *, const cJSON *);
+typedef void (*parser_param_default)(struct probe_params *, struct param_val_s *);
 
 #define __PROBE_PARAM_DEFAULT_STRLEN    64
-struct param_key_s;
-typedef int (*parser_param_key)(struct probe_s *, struct param_key_s *, const cJSON *);
 struct param_val_s {
     int default_int;
     int min, max;
@@ -71,6 +73,7 @@ struct param_key_s {
     const char *key;
     struct param_val_s v;
     parser_param_key parser;
+    parser_param_default defaulter;
 };
 
 static int parser_sample_peirod(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
@@ -124,7 +127,7 @@ static int parser_res_lower_thr(struct probe_s *probe, struct param_key_s *param
         return -1;
     }
 
-    probe->probe_param.res_percent_lower = (u32)value;
+    probe->probe_param.res_percent_lower = (char)value;
     return 0;
 }
 
@@ -135,7 +138,7 @@ static int parser_res_upper_thr(struct probe_s *probe, struct param_key_s *param
         return -1;
     }
 
-    probe->probe_param.res_percent_upper = (u32)value;
+    probe->probe_param.res_percent_upper = (char)value;
     return 0;
 }
 
@@ -164,7 +167,7 @@ static int parser_report_event(struct probe_s *probe, struct param_key_s *param_
         return -1;
     }
 
-    probe->probe_param.logs = (u32)value;
+    probe->probe_param.logs = (char)value;
     return 0;
 }
 
@@ -186,7 +189,7 @@ static int parser_metrics_type(struct probe_s *probe, struct param_key_s *param_
             return -1;
         }
 
-        probe->probe_param.metrics_flags |= metrics_flags;
+        probe->probe_param.metrics_flags |= (char)metrics_flags;
     }
 
 
@@ -212,7 +215,7 @@ static int parser_work_env(struct probe_s *probe, struct param_key_s *param_key,
             return -1;
         }
 
-        probe->probe_param.env_flags |= env_flags;
+        probe->probe_param.env_flags |= (char)env_flags;
     }
 
 
@@ -252,7 +255,7 @@ static int parser_report_tcpsport(struct probe_s *probe, struct param_key_s *par
         return -1;
     }
 
-    probe->probe_param.cport_flag = (u8)value;
+    probe->probe_param.cport_flag = (char)value;
     return 0;
 }
 
@@ -263,7 +266,7 @@ static int parser_support_ssl(struct probe_s *probe, struct param_key_s *param_k
         return -1;
     }
 
-    probe->probe_param.support_ssl = (u8)value;
+    probe->probe_param.support_ssl = (char)value;
     return 0;
 }
 
@@ -299,8 +302,8 @@ static int parser_pyscope_server(struct probe_s *probe, struct param_key_s *para
         return -1;
     }
 
-    if (value == 0) {
-        value = param_key->v.default_int;
+    if (value == NULL) {
+        value = param_key->v.default_string;
     }
 
     (void)snprintf(probe->probe_param.pyroscope_server, sizeof(probe->probe_param.pyroscope_server), "%s", value);
@@ -345,42 +348,152 @@ static int parser_sysdebuging_dir(struct probe_s *probe, struct param_key_s *par
     return 0;
 }
 
-struct param_key_s param_keys[] = {
-    {"sample_period",      {DEFAULT_SAMPLE_PERIOD, 100, 10000, ""}, parser_sample_peirod},
-    {"report_period",      {DEFAULT_PERIOD, 5, 600, ""},            parser_report_peirod},
-    {"latency_thr",        {0, 10, 100000, ""},                     parser_latency_thr},
-    {"drops_thr",          {0, 10, 100000, ""},                     parser_drops_thr},
-    {"res_lower_thr",      {0, 0, 100, ""},                         parser_res_lower_thr},
-    {"res_upper_thr",      {0, 0, 100, ""},                         parser_res_upper_thr},
-    {"report_event",       {0, 0, 1, ""},                           parser_report_event},
-    {"metrics_type",       {0, 0, 0, "raw"},                        parser_metrics_type},
-    {"env",                {0, 0, 0, "node"},                       parser_work_env},
-    {"report_source_port", {0, 0, 1, ""},                           parser_report_tcpsport},
-    {"l7_protocol",        {0, 0, 0, "http"},                       parser_l7pro},
-    {"support_ssl",        {0, 0, 1, ""},                           parser_support_ssl},
-    {"pyroscope_server",   {0, 0, 0, "localhost:4040"},             parser_pyscope_server},
-    {"svg_period",         {180, 30, 600, ""},                      parser_svg_period},
-    {"perf_sample_period", {10, 10, 1000, ""},                      parser_perf_sample_period},
-    {"svg_dir",            {0, 0, 0, "/var/log/gala-gopher/stacktrace"},             parser_svg_dir},
-    {"flame_dir",          {0, 0, 0, "/var/log/gala-gopher/flamegraph"},             parser_flame_dir},
-    {"debugging_dir",      {0, 0, 0, ""},                           parser_sysdebuging_dir},
-    {"host_ip_fields",     {0, 0, 0, ""},                           parse_host_ip_fields}
-};
+static int parser_dev_name(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
+{
+    const char *value = (const char*)key_item->valuestring;
 
+    if (key_item->type != cJSON_String) {
+        return -1;
+    }
+
+    (void)snprintf(probe->probe_param.target_dev, sizeof(probe->probe_param.target_dev), "%s", value);
+    (void)snprintf(probe->probe_param.netcard_list, sizeof(probe->probe_param.netcard_list), "%s", value);
+    return 0;
+}
+
+static int parser_kafka_port(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
+{
+    int value = (int)key_item->valueint;
+    if (value < param_key->v.min || value > param_key->v.max) {
+        return -1;
+    }
+
+    probe->probe_param.kafka_port = (u32)value;
+    return 0;
+}
+
+static int parser_profiling_all_threads(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
+{
+    int value = (int)key_item->valueint;
+    if (value < param_key->v.min || value > param_key->v.max) {
+        return -1;
+    }
+
+    probe->probe_param.enable_all_thrds = value;
+    return 0;
+}
+
+static int parser_continuous_sampling(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
+{
+    int value = (int)key_item->valueint;
+    if (value < param_key->v.min || value > param_key->v.max) {
+        return -1;
+    }
+
+    probe->probe_param.continuous_sampling_flag = (char)value;
+    return 0;
+}
+
+static int parser_elf_path(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
+{
+    const char *value = (const char*)key_item->valuestring;
+
+    if (key_item->type != cJSON_String) {
+        return -1;
+    }
+
+    (void)snprintf(probe->probe_param.elf_path, sizeof(probe->probe_param.elf_path), "%s", value);
+    return 0;
+}
+
+#define SET_DEFAULT_PARAMS_INTER(field) \
+    static void set_default_params_inter_##field(struct probe_params *params, struct param_val_s *value) \
+    { \
+        params->field = (u32)value->default_int; \
+    }
+
+#define SET_DEFAULT_PARAMS_CAHR(field) \
+    static void set_default_params_char_##field(struct probe_params *params, struct param_val_s *value) \
+    { \
+        params->field = (char)value->default_int; \
+    }
+
+#define SET_DEFAULT_PARAMS_STR(field) \
+    static void set_default_params_str_##field(struct probe_params *params, struct param_val_s *value) \
+    { \
+        (void)snprintf(params->field, sizeof(params->field), "%s", value->default_string); \
+    }
+
+SET_DEFAULT_PARAMS_INTER(period);
+SET_DEFAULT_PARAMS_INTER(sample_period);
+SET_DEFAULT_PARAMS_INTER(latency_thr);
+SET_DEFAULT_PARAMS_INTER(offline_thr);
+SET_DEFAULT_PARAMS_INTER(drops_count_thr);
+SET_DEFAULT_PARAMS_INTER(kafka_port);
+SET_DEFAULT_PARAMS_INTER(l7_probe_proto_flags);
+SET_DEFAULT_PARAMS_INTER(enable_all_thrds);
+SET_DEFAULT_PARAMS_INTER(svg_period);
+SET_DEFAULT_PARAMS_INTER(perf_sample_period);
+
+
+SET_DEFAULT_PARAMS_CAHR(logs);
+SET_DEFAULT_PARAMS_CAHR(metrics_flags);
+SET_DEFAULT_PARAMS_CAHR(env_flags);
+SET_DEFAULT_PARAMS_CAHR(support_ssl);
+SET_DEFAULT_PARAMS_CAHR(res_percent_upper);
+SET_DEFAULT_PARAMS_CAHR(res_percent_lower);
+SET_DEFAULT_PARAMS_CAHR(cport_flag);
+SET_DEFAULT_PARAMS_CAHR(continuous_sampling_flag);
+
+
+SET_DEFAULT_PARAMS_STR(sys_debuging_dir);
+SET_DEFAULT_PARAMS_STR(pyroscope_server);
+SET_DEFAULT_PARAMS_STR(svg_dir);
+SET_DEFAULT_PARAMS_STR(flame_dir);
+
+
+struct param_key_s param_keys[] = {
+    {"sample_period",      {DEFAULT_SAMPLE_PERIOD, 100, 10000, ""}, parser_sample_peirod, set_default_params_inter_sample_period},
+    {"report_period",      {DEFAULT_PERIOD, 5, 600, ""},            parser_report_peirod, set_default_params_inter_period},
+    {"latency_thr",        {0, 10, 100000, ""},                     parser_latency_thr, set_default_params_inter_latency_thr},
+    {"drops_thr",          {0, 10, 100000, ""},                     parser_drops_thr, set_default_params_inter_drops_count_thr},
+    {"res_lower_thr",      {0, 0, 100, ""},                         parser_res_lower_thr, set_default_params_char_res_percent_lower},
+    {"res_upper_thr",      {0, 0, 100, ""},                         parser_res_upper_thr, set_default_params_char_res_percent_upper},
+    {"report_event",       {0, 0, 1, ""},                           parser_report_event, set_default_params_char_logs},
+    {"metrics_type",       {SUPPORT_METRICS_RAW | SUPPORT_METRICS_TELEM, 0, 0, "raw"}, parser_metrics_type, set_default_params_char_metrics_flags},
+    {"env",                {SUPPORT_NODE_ENV, 0, 0, "node"},        parser_work_env, set_default_params_char_env_flags},
+    {"report_source_port", {0, 0, 1, ""},                           parser_report_tcpsport, set_default_params_char_cport_flag},
+    {"l7_protocol",        {0, 0, 0, "http"},                       parser_l7pro, set_default_params_inter_l7_probe_proto_flags},
+    {"support_ssl",        {0, 0, 1, ""},                           parser_support_ssl, set_default_params_char_support_ssl},
+    {"pyroscope_server",   {0, 0, 0, "localhost:4040"},             parser_pyscope_server, set_default_params_str_pyroscope_server},
+    {"svg_period",         {180, 30, 600, ""},                      parser_svg_period, set_default_params_inter_svg_period},
+    {"perf_sample_period", {10, 10, 1000, ""},                      parser_perf_sample_period, set_default_params_inter_perf_sample_period},
+    {"svg_dir",            {0, 0, 0, "/var/log/gala-gopher/stacktrace"}, parser_svg_dir, set_default_params_str_svg_dir},
+    {"flame_dir",          {0, 0, 0, "/var/log/gala-gopher/flamegraph"}, parser_flame_dir, set_default_params_str_flame_dir},
+    {"debugging_dir",      {0, 0, 0, ""},                           parser_sysdebuging_dir, set_default_params_str_sys_debuging_dir},
+    {"host_ip_fields",     {0, 0, 0, ""},                           parse_host_ip_fields, NULL},
+    {"dev_name",           {0, 0, 0, ""},                           parser_dev_name, NULL},
+    {"profiling_all_threads", {0, 0, 1, ""},                        parser_profiling_all_threads, set_default_params_inter_enable_all_thrds},
+    {"continuous_sampling", {0, 0, 1, ""},                          parser_continuous_sampling, set_default_params_char_continuous_sampling_flag},
+    {"elf_path",            {0, 0, 0, ""},                          parser_elf_path, NULL},
+    {"kafka_port",         {DEFAULT_KAFKA_PORT, 1, 65535, ""},      parser_kafka_port, set_default_params_inter_kafka_port}
+};
 
 void set_default_params(struct probe_s *probe)
 {
+    struct param_key_s *param_key;
     struct probe_params *params = &probe->probe_param;
 
     (void)memset(params, 0, sizeof(struct probe_params));
-    params->period = DEFAULT_PERIOD;
-    params->sample_period = DEFAULT_SAMPLE_PERIOD;
-    params->load_probe = DEFAULT_LOAD_PROBE;
-    params->kafka_port = DEFAULT_KAFKA_PORT;
-    params->metrics_flags = SUPPORT_METRICS_RAW | SUPPORT_METRICS_TELEM;
-    params->env_flags = SUPPORT_NODE_ENV;
-}
 
+    size_t size = sizeof(param_keys) / sizeof(struct param_key_s);
+    for (int i = 0; i < size; i++) {
+        param_key = &(param_keys[i]);
+        if (param_key->defaulter) {
+            param_key->defaulter(params, &(param_key->v));
+        }
+    }
+}
 
 int parse_params(struct probe_s *probe, const cJSON *params_json)
 {
