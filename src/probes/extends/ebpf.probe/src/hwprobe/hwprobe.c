@@ -49,13 +49,13 @@
     OPEN(probe_name, end, load); \
     MAP_SET_PIN_PATH(probe_name, hw_args_map, HW_ARGS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, nic_failure_channel_map, NIC_FAUILURE_CHANNEL_PTAH, load); \
-    LOAD_ATTACH(probe_name, end, load)
+    LOAD_ATTACH(hwprobe, probe_name, end, load)
 
 #define __LOAD_MEM_PROBE(probe_name, end, load) \
     OPEN(probe_name, end, load); \
     MAP_SET_PIN_PATH(probe_name, hw_args_map, HW_ARGS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, mc_event_channel_map, MC_EVENT_CHANNEL_PTAH, load); \
-    LOAD_ATTACH(probe_name, end, load)
+    LOAD_ATTACH(hwprobe, probe_name, end, load)
 
 
 static volatile sig_atomic_t g_stop = 0;
