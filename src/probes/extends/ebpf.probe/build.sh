@@ -8,6 +8,8 @@ SRC_DIR=${PRJ_DIR}/src
 VMLINUX_DIR=${SRC_DIR}/include
 LINUX_VER="${VMLINUX_VER:-$(uname -r)}"
 DEP_LIST=(elfutils-devel libbpf libbpf-devel clang llvm)
+# tailor probes
+export EBPF_TAILOR_PROBES=$(for probe in ${EXTEND_PROBES//|/ } ; do printf "./%s/ " $probe; done)
 
 function add_bpftool()
 {

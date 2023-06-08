@@ -1,8 +1,9 @@
 #!/bin/sh
 PROGRAM=$0
 PRJ_DIR=$(dirname $(readlink -f "$0"))
+SH_TAILOR_PROBES=$EXTEND_PROBES
 
-INSTALL_FILES="rabbitmq.probe/rabbitmq_probe.sh"
+INSTALL_FILES=""
 
 while getopts ":b:c:" opt
 do
@@ -13,8 +14,15 @@ do
     esac
 done
 
+cd ${PRJ_DIR}
+for probe_dir in $(ls $PRJ_DIR | grep ".probe$") ; do
+    # tailor probes
+    if ! [[ $SH_TAILOR_PROBES =~ $probe_dir ]] ; then
+        INSTALL_FILES+=" $probe_dir/*.sh"
+    fi
+done
+
 if [ ${INSTALL_PATH} ]; then
     mkdir -p ${INSTALL_PATH}
-    cd ${PRJ_DIR}
     \cp ${INSTALL_FILES} ${INSTALL_PATH}
 fi

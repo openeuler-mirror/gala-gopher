@@ -1,6 +1,7 @@
 #!/bin/bash
 PROGRAM=$0
 PRJ_DIR=$(dirname $(readlink -f "$0"))
+JAVA_TAILOR_PROBES=$EXTEND_PROBES
 
 function find_cmd_jar()
 {
@@ -56,6 +57,11 @@ then
     for app in $(find . -name Makefile -type f); do
         make -s clean -C $(dirname $app)
     done
+    exit
+fi
+
+# tailor jvmprobe
+if [[ $JAVA_TAILOR_PROBES =~ "jvm.probe" ]] ; then
     exit
 fi
 
