@@ -1,8 +1,9 @@
 #!/bin/bash
 PROGRAM=$0
 PRJ_DIR=$(dirname $(readlink -f "$0"))
-INSTALL_FILES="jvm.probe/src/jvmprobe"
-INSTALL_FILES+=" jvm.probe/JvmProbeAgent.jar"
+JAVA_TAILOR_PROBES=$EXTEND_PROBES
+
+INSTALL_FILES=""
 
 while getopts ":b:c:" opt
 do
@@ -14,10 +15,16 @@ do
 done
 
 cd ${PRJ_DIR}
-    if [ ${INSTALL_PATH} ]; then
-        mkdir -p ${INSTALL_PATH}
-        for file in ${INSTALL_FILES}; do
-            cp ${file} ${INSTALL_PATH}
-        done
-    fi
+# tailor jvmprobe
+if ! [[ $JAVA_TAILOR_PROBES =~ "jvm.probe" ]] ; then
+    INSTALL_FILES+=" jvm.probe/src/jvmprobe"
+    INSTALL_FILES+=" jvm.probe/JvmProbeAgent.jar"
+fi
+
+if [ ${INSTALL_PATH} ]; then
+    mkdir -p ${INSTALL_PATH}
+    for file in ${INSTALL_FILES}; do
+        cp ${file} ${INSTALL_PATH}
+    done
+fi
 
