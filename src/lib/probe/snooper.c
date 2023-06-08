@@ -40,7 +40,7 @@
 #define SNOOPER_OBJNAME_PROBE       "probe"
 #define SNOOPER_OBJNAME_PROCID      "proc_id"
 #define SNOOPER_OBJNAME_PROCNAME    "proc_name"
-#define SNOOPER_OBJNAME_POD         "pod"
+#define SNOOPER_OBJNAME_PODID       "pod_id"
 #define SNOOPER_OBJNAME_CONTAINERID "container_id"
 #define SNOOPER_OBJNAME_GAUSSDB     "gaussdb"
 
@@ -197,11 +197,6 @@ void free_snooper_conf(struct snooper_conf_s* snooper_conf)
         }
     }
 
-    if (snooper_conf->type == SNOOPER_CONF_POD) {
-        if (snooper_conf->conf.pod) {
-            (void)free(snooper_conf->conf.pod);
-        }
-    }
     (void)free(snooper_conf);
     snooper_conf = NULL;
 }
@@ -277,12 +272,12 @@ static int add_snooper_conf_procname(struct probe_s *probe,
     return 0;
 }
 
-static int add_snooper_conf_pod(struct probe_s *probe, const char* pod)
+static int add_snooper_conf_pod(struct probe_s *probe, const char* pod_id)
 {
     if (probe->snooper_conf_num >= SNOOPER_MAX) {
         return -1;
     }
-    if (pod[0] == 0) {
+    if (pod_id[0] == 0) {
         return 0;
     }
 
@@ -291,8 +286,8 @@ static int add_snooper_conf_pod(struct probe_s *probe, const char* pod)
         return -1;
     }
 
-    snooper_conf->conf.pod = strdup(pod);
-    snooper_conf->type = SNOOPER_CONF_POD;
+    (void)snprintf(snooper_conf->conf.pod_id, sizeof(snooper_conf->conf.pod_id), "%s", pod_id);
+    snooper_conf->type = SNOOPER_CONF_POD_ID;
 
     if (probe->snooper_confs[probe->snooper_conf_num] != NULL) {
         free_snooper_conf(probe->snooper_confs[probe->snooper_conf_num]);
@@ -511,8 +506,8 @@ static void print_snooper_pod_container(struct probe_s *probe, cJSON *json)
     cntr_item = cJSON_CreateArray();
     for (int i = 0; i < probe->snooper_conf_num; i++) {
         snooper_conf = probe->snooper_confs[i];
-        if (snooper_conf->type == SNOOPER_CONF_POD) {
-            cJSON_AddItemToArray(pod_item, cJSON_CreateString(snooper_conf->conf.pod));
+        if (snooper_conf->type == SNOOPER_CONF_POD_ID) {
+            cJSON_AddItemToArray(pod_item, cJSON_CreateString(snooper_conf->conf.pod_id));
             continue;
         }
 
@@ -521,7 +516,7 @@ static void print_snooper_pod_container(struct probe_s *probe, cJSON *json)
             continue;
         }
     }
-    cJSON_AddItemToObject(json, SNOOPER_OBJNAME_POD, pod_item);
+    cJSON_AddItemToObject(json, SNOOPER_OBJNAME_PODID, pod_item);
     cJSON_AddItemToObject(json, SNOOPER_OBJNAME_CONTAINERID, cntr_item);
 }
 
@@ -531,7 +526,7 @@ static int parse_snooper_pod_container(struct probe_s *probe, const cJSON *json,
     cJSON *item, *object;
     int pod_flag = 0;
 
-    if (!strcasecmp(item_name, SNOOPER_OBJNAME_POD)) {
+    if (!strcasecmp(item_name, SNOOPER_OBJNAME_PODID)) {
         pod_flag = 1;
     }
 
@@ -710,7 +705,7 @@ int parse_snooper(struct probe_s *probe, const cJSON *json)
         return -1;
     }
 
-    if (parse_snooper_pod_container(probe, json, SNOOPER_OBJNAME_POD)) {
+    if (parse_snooper_pod_container(probe, json, SNOOPER_OBJNAME_PODID)) {
         ERROR("[PROBEMNG] Failed to parse podname for probe(name:%s)\n", probe->name);
         return -1;
     }
@@ -765,9 +760,6 @@ void free_snooper_obj(struct snooper_obj_s* snooper_obj)
         }
         if (snooper_obj->obj.con_info.pod_id) {
             (void)free(snooper_obj->obj.con_info.pod_id);
-        }
-        if (snooper_obj->obj.con_info.pod_name) {
-            (void)free(snooper_obj->obj.con_info.pod_name);
         }
         if (snooper_obj->obj.con_info.pod_ip_str) {
             (void)free(snooper_obj->obj.con_info.pod_ip_str);
@@ -983,9 +975,6 @@ static int add_snooper_obj_con_info(struct probe_s *probe, struct con_info_s *co
         if (con_info->pod_info_ptr->pod_id) {
             snooper_obj->obj.con_info.pod_id = strdup(con_info->pod_info_ptr->pod_id);
         }
-        if (con_info->pod_info_ptr->pod_name) {
-            snooper_obj->obj.con_info.pod_name = strdup(con_info->pod_info_ptr->pod_name);
-        }
         if (con_info->pod_info_ptr->pod_ip_str) {
             snooper_obj->obj.con_info.pod_ip_str = strdup(con_info->pod_info_ptr->pod_ip_str);
         }
@@ -1144,11 +1133,11 @@ static int gen_snooper_by_container(struct probe_s *probe, struct snooper_conf_s
 
 static int gen_snooper_by_pod(struct probe_s *probe, struct snooper_conf_s *snooper_conf)
 {
-    if (snooper_conf->type != SNOOPER_CONF_POD || snooper_conf->conf.pod == NULL) {
+    if (snooper_conf->type != SNOOPER_CONF_POD_ID) {
         return 0;
     }
 
-    struct pod_info_s *pod_info = get_and_add_pod_info(snooper_conf->conf.pod);
+    struct pod_info_s *pod_info = get_and_add_pod_info(snooper_conf->conf.pod_id);
     if (pod_info == NULL) {
         return -1;
     }
@@ -1186,7 +1175,7 @@ struct snooper_generator_s snooper_generators[] = {
     {SNOOPER_CONF_APP,           gen_snooper_by_procname   },
     {SNOOPER_CONF_GAUSSDB,       gen_snooper_by_gaussdb    },
     {SNOOPER_CONF_PROC_ID,       gen_snooper_by_procid     },
-    {SNOOPER_CONF_POD,           gen_snooper_by_pod        },
+    {SNOOPER_CONF_POD_ID,        gen_snooper_by_pod        },
     {SNOOPER_CONF_CONTAINER_ID,  gen_snooper_by_container  }
 };
 
@@ -1217,25 +1206,54 @@ static void refresh_snooper_obj(struct probe_s *probe)
 
     }
 }
+static char __rcv_snooper_proc_exec_sub(struct probe_s *probe, const char *comm, u32 proc_id,
+                                        char *container_id, char *pod_id)
+{
+    char snooper_obj_added = 0;
+    struct snooper_conf_s *snooper_conf;
+
+    for (int j = 0; j < probe->snooper_conf_num && j < SNOOPER_MAX; j++) {
+        snooper_conf = probe->snooper_confs[j];
+        if (snooper_conf && snooper_conf->type == SNOOPER_CONF_APP) {
+            if (__chk_snooper_pattern((const char *)(snooper_conf->conf.app.comm), comm)) {
+                (void)add_snooper_obj_procid(probe, proc_id);
+                snooper_obj_added = 1;
+            }
+        }
+        if (snooper_conf && snooper_conf->type == SNOOPER_CONF_CONTAINER_ID) {
+            if (container_id[0] != 0 && !strcasecmp(container_id, snooper_conf->conf.container_id)) {
+                (void)add_snooper_obj_procid(probe, proc_id);
+                snooper_obj_added = 1;
+            }
+        }
+        if (snooper_conf && snooper_conf->type == SNOOPER_CONF_POD_ID) {
+            if (pod_id[0] != 0 && !strcasecmp(pod_id, snooper_conf->conf.pod_id)) {
+                (void)add_snooper_obj_procid(probe, proc_id);
+                snooper_obj_added = 1;
+            }
+        }
+    }
+    return snooper_obj_added;
+}
 
 static void __rcv_snooper_proc_exec(struct probe_mng_s *probe_mng, const char* comm, u32 proc_id)
 {
-    int i, j;
+    int i;
     char snooper_obj_added;
     struct probe_s *probe;
-    struct snooper_conf_s *snooper_conf;
+
     char container_id[CONTAINER_ABBR_ID_LEN + 1];
-    char pod_name[POD_NAME_LEN + 1];
+    char pod_id[POD_ID_LEN + 1];
     char pid_str[INT_LEN + 1];
 
     pid_str[0] = 0;
     (void)snprintf(pid_str, INT_LEN + 1, "%u", proc_id);
 
     container_id[0] = 0;
-    pod_name[0] = 0;
+    pod_id[0] = 0;
     (void)get_container_id_by_pid_cpuset(pid_str, container_id, CONTAINER_ABBR_ID_LEN + 1);
     if (container_id[0] != 0) {
-        (void)get_container_pod((const char *)container_id, pod_name, POD_NAME_LEN + 1);
+        (void)get_container_pod_id((const char *)container_id, pod_id, POD_ID_LEN + 1);
     }
 
     for (i = 0; i < PROBE_TYPE_MAX; i++) {
@@ -1244,30 +1262,7 @@ static void __rcv_snooper_proc_exec(struct probe_mng_s *probe_mng, const char* c
             continue;
         }
 
-        snooper_obj_added = 0;
-        for (j = 0; j < probe->snooper_conf_num && j < SNOOPER_MAX; j++) {
-            snooper_conf = probe->snooper_confs[j];
-            if (snooper_conf && snooper_conf->type == SNOOPER_CONF_APP) {
-                if (__chk_snooper_pattern((const char *)(snooper_conf->conf.app.comm), comm)) {
-                    (void)add_snooper_obj_procid(probe, proc_id);
-                    snooper_obj_added = 1;
-                }
-            }
-            if (snooper_conf && snooper_conf->type == SNOOPER_CONF_CONTAINER_ID) {
-                if (container_id[0] != 0 && !strcasecmp(container_id, snooper_conf->conf.container_id)) {
-                    (void)add_snooper_obj_procid(probe, proc_id);
-                    snooper_obj_added = 1;
-                }
-            }
-            if (snooper_conf && snooper_conf->type == SNOOPER_CONF_POD) {
-                if (pod_name[0] != 0
-                    && snooper_conf->conf.pod != NULL
-                    && !strcasecmp(pod_name, snooper_conf->conf.pod)) {
-                    (void)add_snooper_obj_procid(probe, proc_id);
-                    snooper_obj_added = 1;
-                }
-            }
-        }
+        snooper_obj_added = __rcv_snooper_proc_exec_sub(probe, comm, proc_id, container_id, pod_id);
 
         if (snooper_obj_added) {
             (void)send_snooper_obj(probe);
@@ -1331,12 +1326,36 @@ static void rcv_snooper_proc_evt(void *ctx, int cpu, void *data, __u32 size)
     }
     put_probemng_lock();
 }
+static char __rcv_snooper_cgrp_exec_sub(struct probe_s *probe, struct con_info_s *con_info)
+{
+    char snooper_obj_added = 0;
+    struct snooper_conf_s *snooper_conf;
+
+    for (int j = 0; j < probe->snooper_conf_num && j < SNOOPER_MAX; j++) {
+        snooper_conf = probe->snooper_confs[j];
+        if (!snooper_conf) {
+            continue;
+        }
+        if (snooper_conf->type == SNOOPER_CONF_POD_ID) {
+            if (con_info->pod_info_ptr->pod_id[0] != 0 &&
+                !strcasecmp(con_info->pod_info_ptr->pod_id, snooper_conf->conf.pod_id)) {
+                add_snooper_obj_con_info(probe, con_info);
+                snooper_obj_added = 1;
+            }
+        } else if (snooper_conf->type == SNOOPER_CONF_CONTAINER_ID) {
+            if (con_info->con_id[0] != 0 && !strcasecmp(con_info->con_id, snooper_conf->conf.container_id)) {
+                add_snooper_obj_con_info(probe, con_info);
+                snooper_obj_added = 1;
+            }
+        }
+    }
+    return snooper_obj_added;
+}
 
 static void __rcv_snooper_cgrp_exec(struct probe_mng_s *probe_mng, char *pod_id, char *con_id, enum id_ret_t id_ret)
 {
     char snooper_obj_added;
     int i, j;
-    char pod_name[POD_NAME_LEN] = {0};
     struct probe_s *probe;
     struct snooper_conf_s *snooper_conf;
     struct con_info_s *con_info = get_con_info(pod_id, con_id);
@@ -1350,26 +1369,7 @@ static void __rcv_snooper_cgrp_exec(struct probe_mng_s *probe_mng, char *pod_id,
             continue;
         }
 
-        snooper_obj_added = 0;
-        for (j = 0; j < probe->snooper_conf_num && j < SNOOPER_MAX; j++) {
-            snooper_conf = probe->snooper_confs[j];
-            if (!snooper_conf) {
-                continue;
-            }
-            if (snooper_conf->type == SNOOPER_CONF_POD) {
-                (void)snprintf(pod_name, sizeof(pod_name), "%s", snooper_conf->conf.pod);
-                pod_name[POD_NAME_LEN - 1] = 0;
-                if (strstr(con_info->pod_info_ptr->pod_name, pod_name) != NULL) {
-                    add_snooper_obj_con_info(probe, con_info);
-                    snooper_obj_added = 1;
-                }
-            } else if (snooper_conf->type == SNOOPER_CONF_CONTAINER_ID) {
-                if (strstr(con_info->con_id, snooper_conf->conf.container_id) != NULL) {
-                    add_snooper_obj_con_info(probe, con_info);
-                    snooper_obj_added = 1;
-                }
-            }
-        }
+        snooper_obj_added = __rcv_snooper_cgrp_exec_sub(probe, con_info);
 
         if (snooper_obj_added) {
             (void)send_snooper_obj(probe);
@@ -1417,7 +1417,6 @@ static void rcv_snooper_cgrp_evt(void *ctx, int cpu, void *data, __u32 size)
 
     char pod_id[POD_ID_LEN + 1] = {0};
     char con_id[CONTAINER_ABBR_ID_LEN + 1] = {0};
-    struct pods_hash_t *pod = NULL;
     enum id_ret_t id_ret = get_pod_container_id(msg_data->cgrp_path, pod_id, con_id);
 
     if (id_ret == ID_FAILED) {
@@ -1425,14 +1424,14 @@ static void rcv_snooper_cgrp_evt(void *ctx, int cpu, void *data, __u32 size)
     }
 
     if (msg_data->cgrp_event == CGRP_MK) {
-        cgrp_mk_process(pod_id, con_id, id_ret);
+        add_pod_con_map(pod_id, con_id, id_ret);
         if (id_ret == ID_CON_POD || id_ret == ID_CON_ONLY) {
             get_probemng_lock();
             __rcv_snooper_cgrp_exec(__probe_mng_snooper, pod_id, con_id, id_ret);
             put_probemng_lock();
         }
     } else {
-        cgrp_rm_process(pod_id, con_id, id_ret);
+        del_pod_con_map(pod_id, con_id, id_ret);
         if (id_ret == ID_CON_POD || id_ret == ID_CON_ONLY) {
             get_probemng_lock();
             __rcv_snooper_cgrp_exit(__probe_mng_snooper, pod_id, con_id, id_ret);

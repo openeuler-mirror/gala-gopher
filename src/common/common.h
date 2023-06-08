@@ -55,7 +55,7 @@
 #define CONTAINER_ABBR_ID_LEN   12
 #define NAMESPACE_LEN           64
 #define POD_NAME_LEN            64
-#define POD_ID_LEN              64
+#define POD_ID_LEN              36 // Pod id len may be 32 or 36
 
 #define COMMAND_LEN             256
 #define LINE_BUF_LEN            512

@@ -25,7 +25,7 @@ enum snooper_conf_e {
     SNOOPER_CONF_APP = 0,
     SNOOPER_CONF_GAUSSDB,
     SNOOPER_CONF_PROC_ID,
-    SNOOPER_CONF_POD,
+    SNOOPER_CONF_POD_ID,
     SNOOPER_CONF_CONTAINER_ID,
 
     SNOOPER_CONF_MAX
@@ -43,7 +43,7 @@ struct snooper_conf_s {
         struct snooper_gaussdb_s gaussdb;
         struct snooper_app_s app;
         u32 proc_id;
-        char *pod;
+        char pod_id[POD_ID_LEN + 1];
         char container_id[CONTAINER_ABBR_ID_LEN + 1];
     } conf;
 };

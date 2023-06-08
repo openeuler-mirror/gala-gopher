@@ -35,16 +35,12 @@
 #define DOCKER_PREFIX "/docker/"
 #define PODID_PREFIX "/pod"
 
-#define CGRP_PATH_FROM_POD_NAME_CMD "docker ps -q | xargs docker inspect --format '{{.Config.Hostname}}, {{.Id}}' | \
-    /usr/bin/grep \"%s\" | awk -F ', ' '{print $2}' | xargs find /sys/fs/cgroup/pids/ -name 2>/dev/null"
+#define CONTAINER_ID_FROM_POD_ID_CMD "docker ps -q | xargs  docker inspect --format '{{.Id}}, {{index .Config.Labels \
+    \"io.kubernetes.pod.uid\"}}' | /usr/bin/grep \"%s\" |  /usr/bin/awk -F ', ' '{print $1}' 2>/dev/null"
 #define POD_NAME_CMD "docker inspect %s --format '{{.Config.Hostname}}' 2>/dev/null"
-#define POD_IP_BY_NAME_CMD "docker exec -it %s /usr/bin/cat /etc/hosts | /usr/bin/grep \"%s\" | /usr/bin/awk 'NR==1{print $1}' 2>/dev/null"
-#define POD_IP_BY_END_CMD "docker exec -it %s /usr/bin/cat /etc/hosts | /usr/bin/awk 'END{print $1}' 2>/dev/null"
 
 #define FILTER_FLAGS_IGNORE 0x0000  // default value
 #define FILTER_FLAGS_NORMAL 0x0001
-
-
 
 struct pods_hash_t {
     H_HANDLE;
@@ -58,9 +54,8 @@ static struct pods_hash_t *pod_head = NULL;
 static void print_pod_state_metrics(struct pod_info_s *pod_info, struct containers_hash_t *con, const char *event)
 {
     fprintf(stdout,
-            "|%s|%s|%s|%s|%s|%s|%d|\n",
+            "|%s|%s|%s|%s|%s|%d|\n",
             POD_TBL_NAME,
-            pod_info->pod_name,
             event,
             pod_info->pod_ip_str,
             con->con_id,
@@ -70,32 +65,6 @@ static void print_pod_state_metrics(struct pod_info_s *pod_info, struct containe
     (void)fflush(stdout);
 }
 #endif
-
-static void get_pod_name(char *con_id, char *pod_name, int len)
-{
-    char command[COMMAND_LEN] = {0};
-
-    (void)snprintf(command, COMMAND_LEN, POD_NAME_CMD, con_id);
-
-    if (exec_cmd((const char *)command, pod_name, len)) {
-        pod_name[0] = 0;
-    }
-}
-
-static void get_pod_ip(char *con_id, char *pod_name, char *pod_ip_str, int len)
-{
-    char command[COMMAND_LEN] = {0};
-
-    if (pod_name[0] != 0) {
-        (void)snprintf(command, COMMAND_LEN, POD_IP_BY_NAME_CMD, con_id, pod_name);
-    } else {
-        (void)snprintf(command, COMMAND_LEN, POD_IP_BY_END_CMD, con_id);
-    }
-
-    if (exec_cmd((const char *)command, pod_ip_str, len)) {
-        pod_ip_str[0] = 0;
-    }
-}
 
 enum id_ret_t get_pod_container_id(char *cgrp_path, char *pod_id, char *con_id)
 {
@@ -291,25 +260,6 @@ struct pod_info_s *get_pod_info_from_pod_id(char *pod_id)
     return NULL;
 }
 
-struct pod_info_s *get_pod_info_from_pod_name(char *pod_name_origin)
-{
-    struct pods_hash_t *pod = NULL;
-    char *pod_id;
-    if (pod_name_origin == NULL || pod_name_origin[0] == 0) {
-        pod_id = FAKE_POD_ID;
-    }
-
-    char pod_name[POD_NAME_LEN];
-    pod_name[0] = 0;
-    (void)snprintf(pod_name, sizeof(pod_name), "%s", pod_name_origin);
-
-    H_FIND_S(pod_head, pod_id, pod);
-    if (pod != NULL) {
-        return &pod->pod_info;
-    }
-    return NULL;
-}
-
 static int add_pod_hash(char *pod_id)
 {
     struct pods_hash_t *new_pod = malloc(sizeof(struct pods_hash_t));
@@ -329,11 +279,8 @@ static void set_pod_info(char *pod_id, char *con_id, struct pods_hash_t *pod)
     if (pod->pod_info.pod_id[0] == 0) {
         (void)snprintf(pod->pod_info.pod_id, sizeof(pod->pod_info.pod_id), "%s", pod_id);
     }
-    if (pod->pod_info.pod_name[0] == 0) {
-        get_pod_name(con_id, pod->pod_info.pod_name, POD_NAME_LEN);
-    }
     if (pod->pod_info.pod_ip_str[0] == 0) {
-        get_pod_ip(con_id, pod->pod_info.pod_name, pod->pod_info.pod_ip_str, INET6_ADDRSTRLEN);
+        (void)get_pod_ip(con_id, pod->pod_info.pod_ip_str, INET6_ADDRSTRLEN);
     }
 
     return;
@@ -405,14 +352,14 @@ void del_pods()
     pod_head = NULL;
 }
 
-void existing_pod_mk_process(char *pod_name)
+// Add the existed pods before the program starts to the map
+void existing_pod_mk_process(char *pod_id)
 {
     FILE *f = NULL;
     char cmd[COMMAND_LEN] = {0};
     char line[LINE_BUF_LEN];
-    enum id_ret_t id_ret;
 
-    (void)snprintf(cmd, COMMAND_LEN, CGRP_PATH_FROM_POD_NAME_CMD, pod_name);
+    (void)snprintf(cmd, COMMAND_LEN, CONTAINER_ID_FROM_POD_ID_CMD, pod_id);
     f = popen(cmd, "r");
     if (f == NULL) {
         return;
@@ -424,12 +371,8 @@ void existing_pod_mk_process(char *pod_name)
         }
         SPLIT_NEWLINE_SYMBOL(line);
         char con_id[CONTAINER_ABBR_ID_LEN + 1] = {0};
-        char pod_id[POD_ID_LEN + 1] = {0};
-        id_ret = get_pod_container_id(line, pod_id, con_id);
-        if (id_ret == ID_FAILED) {
-            continue;
-        }
-        cgrp_mk_process(pod_id, con_id, id_ret);
+        (void)snprintf(con_id, CONTAINER_ABBR_ID_LEN + 1, "%s", line);
+        add_pod_con_map(pod_id, con_id, ID_CON_POD);
     }
 
     pclose(f);
@@ -437,7 +380,7 @@ void existing_pod_mk_process(char *pod_name)
     return;
 }
 
-void cgrp_mk_process(char *pod_id, char *con_id, enum id_ret_t id_ret)
+void add_pod_con_map(char *pod_id, char *con_id, enum id_ret_t id_ret)
 {
     struct pods_hash_t *pod = add_one_pod(pod_id, con_id, id_ret);
     if (pod == NULL) {
@@ -451,7 +394,7 @@ void cgrp_mk_process(char *pod_id, char *con_id, enum id_ret_t id_ret)
     return;
 }
 
-void cgrp_rm_process(char *pod_id, char *con_id, enum id_ret_t id_ret)
+void del_pod_con_map(char *pod_id, char *con_id, enum id_ret_t id_ret)
 {
     struct pods_hash_t *pod = NULL;
 
@@ -483,26 +426,26 @@ struct con_info_s *get_and_add_con_info(char *pod_id, char *container_id)
     }
 
     // add_con_info
-    cgrp_mk_process(pod_id, con_id, ID_CON_ONLY);
+    add_pod_con_map(pod_id, con_id, ID_CON_ONLY);
 
     return get_con_info(pod_id, con_id);
 }
 
 // Try to get pod_info. If can't then try to add.
-struct pod_info_s *get_and_add_pod_info(char *pod_name)
+struct pod_info_s *get_and_add_pod_info(char *pod_id)
 {
-    if (pod_name == NULL) {
+    if (pod_id == NULL) {
         return NULL;
     }
 
-    struct pod_info_s *pod_info = get_pod_info_from_pod_name(pod_name);
+    struct pod_info_s *pod_info = get_pod_info_from_pod_id(pod_id);
     if (pod_info != NULL) {
         return pod_info;
     }
 
     // add_pod_info
-    existing_pod_mk_process(pod_name);
-    return get_pod_info_from_pod_name(pod_name);
+    existing_pod_mk_process(pod_id);
+    return get_pod_info_from_pod_id(pod_id);
 }
 
 typedef enum cb_rslt_t {

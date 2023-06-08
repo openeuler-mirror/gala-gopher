@@ -114,10 +114,6 @@ static void __free_container_obj(struct snooper_con_info_s *container)
         (void)free(container->pod_id);
         container->pod_id = NULL;
     }
-    if (container->pod_name) {
-        (void)free(container->pod_name);
-        container->pod_name = NULL;
-    }
     if (container->pod_ip_str) {
         (void)free(container->pod_ip_str);
         container->pod_ip_str = NULL;
@@ -180,9 +176,6 @@ static u32 get_tlv_len_container(struct snooper_obj_s *obj)
     }
     if (container->pod_id) {
         tlv_len += sizeof(struct ipc_tlv_s) + strlen(container->pod_id) + 1;
-    }
-    if (container->pod_name) {
-        tlv_len += sizeof(struct ipc_tlv_s) + strlen(container->pod_name) + 1;
     }
     if (container->pod_ip_str) {
         tlv_len += sizeof(struct ipc_tlv_s) + strlen(container->pod_ip_str) + 1;
@@ -336,21 +329,6 @@ static int build_tlv_container(char *buf, size_t size, struct snooper_obj_s *obj
         tlv_2nd->type = IPCT_POD_ID;
         tlv_2nd->len = tlv_len_2nd - sizeof(struct ipc_tlv_s);
         (void)memcpy(tlv_2nd->value, container->pod_id, tlv_2nd->len);
-
-        tlv_len_1st += tlv_len_2nd;
-    }
-
-    if (container->pod_name) {
-        tlv_len_2nd = strlen(container->pod_name) + 1 + sizeof(struct ipc_tlv_s);
-        max_len -= tlv_len_2nd;
-        if (max_len < 0) {
-            return -1;
-        }
-        p = start + tlv_len_1st;
-        tlv_2nd = (struct ipc_tlv_s *)p;
-        tlv_2nd->type = IPCT_POD_NAME;
-        tlv_2nd->len = tlv_len_2nd - sizeof(struct ipc_tlv_s);
-        (void)memcpy(tlv_2nd->value, container->pod_name, tlv_2nd->len);
 
         tlv_len_1st += tlv_len_2nd;
     }
@@ -571,18 +549,6 @@ static int deserialize_tlv_container(char *buf, size_t size, struct snooper_obj_
                 }
 
                 (void)memcpy(container->pod_id, tlv_2nd->value, tlv_2nd->len);
-                offset += tlv_2nd->len + sizeof(struct ipc_tlv_s);
-                break;
-            }
-            case IPCT_POD_NAME:
-            {
-                container->pod_name = (char *)malloc(tlv_2nd->len);
-                if (container->pod_name == NULL) {
-                    err = 1;
-                    goto end;
-                }
-
-                (void)memcpy(container->pod_name, tlv_2nd->value, tlv_2nd->len);
                 offset += tlv_2nd->len + sizeof(struct ipc_tlv_s);
                 break;
             }
