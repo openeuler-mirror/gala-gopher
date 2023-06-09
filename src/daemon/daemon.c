@@ -243,7 +243,7 @@ err:
     return ret;
 }
 #endif
-int DaemonRun(const ResourceMgr *mgr)
+int DaemonRun(ResourceMgr *mgr)
 {
     int ret;
 

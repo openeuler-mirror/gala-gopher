@@ -20,7 +20,7 @@
 
 #include "resource.h"
 
-int DaemonRun(const ResourceMgr *mgr);
+int DaemonRun(ResourceMgr *mgr);
 int DaemonWaitDone(const ResourceMgr *mgr);
 
 #endif
