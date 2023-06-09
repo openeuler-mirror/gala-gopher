@@ -171,10 +171,10 @@ static __always_inline void submit_perf_buf(void* ctx, char *buf, size_t bytes_c
 
 static __always_inline __maybe_unused struct conn_data_s* store_conn_data_buf(enum l7_direction_t direction, struct sock_conn_s* sock_conn)
 {
-    int key = 0;
 #ifdef __USE_RING_BUF
     struct conn_data_s *conn_data = bpf_ringbuf_reserve(&conn_data_events, sizeof(struct conn_data_s), 0);
 #else
+    int key = 0;
     struct conn_data_s* conn_data = bpf_map_lookup_elem(&conn_data_buffer, &key);
 #endif
 
