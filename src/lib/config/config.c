@@ -160,6 +160,13 @@ static int ConfigMgrLoadGlobalConfig(void *config, config_setting_t *settings)
 
     (void)snprintf(globalConfig->logFileName, sizeof(globalConfig->logFileName), "%s", strVal);
 
+    ret = config_setting_lookup_string(settings, "log_level", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for log_level failed.\n");
+        return -1;
+    }
+    (void)snprintf(globalConfig->logLevel, sizeof(globalConfig->logLevel), "%s", strVal);
+
     ret = config_setting_lookup_string(settings, "pin_path", &strVal);
     if (ret == 0) {
         ERROR("[CONFIG] load config for pin path failed.\n");

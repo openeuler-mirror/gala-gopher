@@ -119,10 +119,12 @@ static void parseExtendProbeOutput(struct probe_s *probe, FILE *f)
         if (IS_STOPPING_PROBE(probe)) {
             break;
         }
-        if (fgets(buffer, sizeof(buffer), f) == NULL)
+        if (fgets(buffer, sizeof(buffer), f) == NULL) {
             continue;
+        }
 
         if (buffer[0] != '|') {
+            convert_output_to_log(buffer, MAX_DATA_STR_LEN);
             continue;
         }
 
