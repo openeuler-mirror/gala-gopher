@@ -143,8 +143,10 @@ static int set_evt_resource(trace_event_data_t *evt_data, char *evt_resource, in
 
     expect_size = snprintf(evt_resource, resource_size,
                            "{\"thread.pid\":\"%d\",\"thread.tgid\":\"%d\",\"thread.comm\":\"%s\""
-                           ",\"process.comm\":\"%s\",\"container.id\":\"%s\",\"container.name\":\"%s\"}",
-                           evt_data->pid, evt_data->tgid, evt_data->comm, pi->comm, ci->id, ci->name);
+                           ",\"process.comm\":\"%s\",\"process.name\":\"%s\""
+                           ",\"container.id\":\"%s\",\"container.name\":\"%s\"}",
+                           evt_data->pid, evt_data->tgid, evt_data->comm,
+                           pi->comm, pi->proc_name, ci->id, ci->name);
     if (expect_size >= resource_size) {
         fprintf(stderr, "ERROR: resource size not large enough\n");
         return -1;

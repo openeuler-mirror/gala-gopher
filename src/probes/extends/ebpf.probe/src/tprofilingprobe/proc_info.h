@@ -36,6 +36,7 @@ typedef struct {
 typedef struct {
     int tgid;
     char comm[PROC_COMM_LEN];
+    char proc_name[PROC_CMDLINE_LEN];
     container_info_t container_info;
     fd_info_t **fd_table;
     struct proc_symbs_s *symbs;

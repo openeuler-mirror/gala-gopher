@@ -39,6 +39,7 @@ Tprofiler tprofiler;
 
 static struct probe_params g_params;
 static volatile sig_atomic_t stop = 0;
+static struct java_attach_args g_args = {0};
 
 static syscall_meta_t g_syscall_metas[] = {
     // file
@@ -319,15 +320,14 @@ static void init_java_symb_mgmt(int proc_filter_map_fd)
 {
     int ret;
     pthread_t thd;
-    struct java_attach_args args = {0};
 
-    args.proc_obj_map_fd = proc_filter_map_fd;
-    args.is_only_attach_once = 1;
-    args.loop_period = DEFAULT_PERIOD;
-    (void)snprintf(args.agent_file_name, FILENAME_LEN, JAVA_SYM_AGENT_FILE);
-    (void)snprintf(args.tmp_file_name, FILENAME_LEN, JAVA_SYM_FILE);
+    g_args.proc_obj_map_fd = proc_filter_map_fd;
+    g_args.is_only_attach_once = 1;
+    g_args.loop_period = DEFAULT_PERIOD;
+    (void)snprintf(g_args.agent_file_name, FILENAME_LEN, JAVA_SYM_AGENT_FILE);
+    (void)snprintf(g_args.tmp_file_name, FILENAME_LEN, JAVA_SYM_FILE);
 
-    ret = pthread_create(&thd, NULL, java_support, (void *)&args);
+    ret = pthread_create(&thd, NULL, java_support, (void *)&g_args);
     if (ret) {
         fprintf(stderr, "ERROR: Failed to create java support thread.\n");
         return;
