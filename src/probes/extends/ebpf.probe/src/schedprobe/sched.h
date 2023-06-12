@@ -17,12 +17,6 @@
 
 #pragma once
 
-#define SCHED_PROBE_SYSTIME     (u32)(1)
-#define SCHED_PROBE_SYSCALL     (u32)(1 << 1)
-#define SCHED_PROBE_ALL         (u32)(SCHED_PROBE_SYSTIME | SCHED_PROBE_SYSCALL)
-
-#define IS_LOAD_PROBE(LOAD_TYPE, PROG_TYPE) (LOAD_TYPE & PROG_TYPE)
-
 enum sched_evt_t {
     SCHED_LAT_START = 0,
     SCHED_LAT_CONT,
@@ -33,7 +27,6 @@ enum sched_evt_t {
 struct sched_args_s {
     char is_target_wl;
     char pad[3];
-    char target_comm[TASK_COMM_LEN];
     u64 latency_thr;        // unit: nanosecond
 };
 

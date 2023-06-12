@@ -94,6 +94,8 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
                     __MAP_SET_PIN_PATH(probe_name, proc_obj_map, PROC_MAP_PATH#app_name); \
                 } while (0)
 
+#define GET_PROC_MAP_PIN_PATH(app_name) (PROC_MAP_PATH#app_name)
+
 #define INIT_BPF_APP(app_name, limit) \
     static char __init = 0; \
     do { \

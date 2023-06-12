@@ -55,6 +55,7 @@ struct probe_define_s probe_define[] = {
     {"tprofiling",          PROBE_TP},
     {"hw",                  PROBE_HW},
     {"ksli",                PROBE_KSLI},
+    {"sched",               PROBE_SCHED},
 };
 
 static struct probe_mng_s *g_probe_mng;

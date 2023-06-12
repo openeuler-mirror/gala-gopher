@@ -147,6 +147,9 @@ struct probe_range_define_s probe_range_define[] = {
 
     {PROBE_HW,     "hw_nic",              PROBE_RANGE_HW_NIC},
     {PROBE_HW,     "hw_mem",              PROBE_RANGE_HW_MEM},
+
+    {PROBE_SCHED,  "sched_systime",       PROBE_RANGE_SCHED_SYSTIME},
+    {PROBE_SCHED,  "sched_syscall",       PROBE_RANGE_SCHED_SYSCALL},
 };
 
 static void refresh_snooper_obj(struct probe_s *probe);
