@@ -289,7 +289,7 @@ static int _do_attach(u32 pid, struct jvm_process_info *v)
     return _exe_attach_cmd(cmd);
 }
 
-int java_load(u32 pid, struct java_attach_args *arg)
+int java_load(u32 pid, struct java_attach_args *args)
 {
     struct jvm_process_info v = {0};
 
@@ -346,3 +346,15 @@ void java_msg_handler(u32 pid, struct java_attach_args *args)
 
     return;
 }
+
+#if 1   // TODO：打桩部分，各个涉及java_support的探针调试完后请删除！！
+void *java_support(void *arg)
+{
+    return NULL;
+}
+
+void java_msg_handler(void *arg)
+{
+    return;
+}
+#endif
