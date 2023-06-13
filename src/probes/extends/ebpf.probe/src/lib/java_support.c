@@ -353,7 +353,7 @@ void *java_support(void *arg)
     return NULL;
 }
 
-void java_msg_handler(void *arg)
+void java_unload(void *arg)
 {
     return;
 }

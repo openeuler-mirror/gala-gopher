@@ -45,7 +45,7 @@ struct java_attach_args {
     char action[ATTACH_TYPE_LEN];
 };
 void *java_support(void *arg);
-void java_msg_handler(void *arg);
+void java_unload(void *arg);
 #endif
 
 int get_host_java_tmp_file(u32 pid, const char *file_name, char *file_path, int path_len);
