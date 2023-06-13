@@ -18,28 +18,29 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <errno.h>
+#include "common.h"
 #include "nprobe_fprintf.h"
 #include "system_procs.h"
 
 #define METRICS_PROC_NAME   "system_proc"
 #define PROC_PATH           "/proc"
-#define PROC_COMM           "/proc/%s/comm"
-#define PROC_COMM_CMD       "/usr/bin/cat /proc/%s/comm 2> /dev/null"
-#define PROC_STAT           "/proc/%s/stat"
-#define PROC_START_TIME_CMD "/usr/bin/cat /proc/%s/stat | awk '{print $22}'"
-#define PROC_CMDLINE_CMD    "/proc/%s/cmdline"
-#define PROC_FD             "/proc/%s/fd"
-#define PROC_FD_CNT_CMD     "/usr/bin/ls /proc/%s/fd 2>/dev/null | wc -l 2>/dev/null"
-#define PROC_IO             "/proc/%s/io"
-#define PROC_IO_CMD         "/usr/bin/cat /proc/%s/io"
-#define PROC_SMAPS          "/proc/%s/smaps_rollup"
-#define PROC_SMAPS_CMD      "/usr/bin/cat /proc/%s/smaps_rollup 2> /dev/null"
-#define PROC_STAT_CMD       "/usr/bin/cat /proc/%s/stat | awk '{print $10\":\"$12\":\"$14\":\"$15\":\"$23\":\"$24}'"
-#define PROC_ID_CMD         "ps -eo pid,ppid,pgid,comm | /usr/bin/awk '{if($1==\"%s\"){print $2 \"|\" $3}}'"
-#define PROC_CPUSET         "/proc/%s/cpuset"
-#define PROC_CPUSET_CMD     "/usr/bin/cat /proc/%s/cpuset 2>/dev/null | awk -F '/' '{print $NF}'"
-#define PROC_LIMIT          "/proc/%s/limits"
-#define PROC_LIMIT_CMD      "/usr/bin/cat /proc/%s/limits | grep \"open files\" | awk '{print $4}'"
+#define PROC_COMM           "/proc/%u/comm"
+#define PROC_COMM_CMD       "/usr/bin/cat /proc/%u/comm 2> /dev/null"
+#define PROC_STAT           "/proc/%u/stat"
+#define PROC_START_TIME_CMD "/usr/bin/cat /proc/%u/stat | awk '{print $22}'"
+#define PROC_CMDLINE_CMD    "/proc/%u/cmdline"
+#define PROC_FD             "/proc/%u/fd"
+#define PROC_FD_CNT_CMD     "/usr/bin/ls /proc/%u/fd 2>/dev/null | wc -l 2>/dev/null"
+#define PROC_IO             "/proc/%u/io"
+#define PROC_IO_CMD         "/usr/bin/cat /proc/%u/io"
+#define PROC_SMAPS          "/proc/%u/smaps_rollup"
+#define PROC_SMAPS_CMD      "/usr/bin/cat /proc/%u/smaps_rollup 2> /dev/null"
+#define PROC_STAT_CMD       "/usr/bin/cat /proc/%u/stat | awk '{print $10\":\"$12\":\"$14\":\"$15\":\"$23\":\"$24}'"
+#define PROC_ID_CMD         "ps -eo pid,ppid,pgid,comm | /usr/bin/awk '{if($1==\"%u\"){print $2 \"|\" $3}}'"
+#define PROC_CPUSET         "/proc/%u/cpuset"
+#define PROC_CPUSET_CMD     "/usr/bin/cat /proc/%u/cpuset 2>/dev/null | awk -F '/' '{print $NF}'"
+#define PROC_LIMIT          "/proc/%u/limits"
+#define PROC_LIMIT_CMD      "/usr/bin/cat /proc/%u/limits | grep \"open files\" | awk '{print $4}'"
 
 static proc_hash_t *g_procmap = NULL;
 static proc_info_t g_pre_proc_info;
@@ -50,12 +51,12 @@ static void hash_add_proc(proc_hash_t *one_proc)
     return;
 }
 
-static proc_hash_t *hash_find_proc(const char *pid, const char *stime)
+static proc_hash_t *hash_find_proc(u32 pid, const char *stime)
 {
     proc_hash_t *p = NULL;
     proc_hash_t temp = {0};
 
-    temp.key.pid = (u32)atoi(pid);
+    temp.key.pid = pid;
     temp.key.start_time = (u64)atoll(stime);
     HASH_FIND(hh, g_procmap, &temp.key, sizeof(proc_key_t), p);
 
@@ -106,57 +107,15 @@ static void hash_clear_all_proc(void)
     }
 }
 
-static inline int is_proc_subdir(const char *pid)
+static inline int is_proc_subdir(const char *d_name)
 {
-    if (*pid >= '1' && *pid <= '9') {
+    if (*d_name >= '1' && *d_name <= '9') {
         return 0;
     }
     return -1;
 }
 
-static int do_read_line(const char* pid, const char *command, const char *fname, char *buf, u32 buf_len)
-{
-    FILE *f = NULL;
-    char fname_or_cmd[LINE_BUF_LEN];
-    char line[LINE_BUF_LEN];
-
-    fname_or_cmd[0] = 0;
-    (void)snprintf(fname_or_cmd, LINE_BUF_LEN, fname, pid);
-    if (access((const char *)fname_or_cmd, 0) != 0) {
-        return -1;
-    }
-
-    fname_or_cmd[0] = 0;
-    line[0] = 0;
-    (void)snprintf(fname_or_cmd, LINE_BUF_LEN, command, pid);
-    f = popen(fname_or_cmd, "r");
-    if (f == NULL) {
-        ERROR("[SYSTEM_PROBE] proc cat fail, popen error.\n");
-        return -1;
-    }
-    if (fgets(line, LINE_BUF_LEN, f) == NULL) {
-        (void)pclose(f);
-        ERROR("[SYSTEM_PROBE] proc get_info fail, line is null.\n");
-        return -1;
-    }
-    
-    SPLIT_NEWLINE_SYMBOL(line);
-    (void)snprintf(buf, buf_len, "%s", line);
-    (void)pclose(f);
-    return 0;
-}
-
-static int get_proc_comm(const char* pid, char *buf)
-{
-    return do_read_line(pid, PROC_COMM_CMD, PROC_COMM, buf, PROC_NAME_MAX);
-}
-
-static int get_proc_start_time(const char* pid, char *buf)
-{
-    return do_read_line(pid, PROC_START_TIME_CMD, PROC_STAT, buf, PROC_NAME_MAX);
-}
-
-static void get_proc_id(const char* pid, proc_info_t *proc_info)
+static void get_proc_id(u32 pid, proc_info_t *proc_info)
 {
     FILE *f = NULL;
     char cmd[LINE_BUF_LEN];
@@ -220,7 +179,7 @@ out:
 }
 
 #define TASK_PROBE_JAVA_COMMAND "sun.java.command"
-static void get_java_proc_cmd(const char* pid, proc_info_t *proc_info)
+static void get_java_proc_cmd(u32 pid, proc_info_t *proc_info)
 {
     FILE *f = NULL;
     char cmd[LINE_BUF_LEN];
@@ -230,7 +189,7 @@ static void get_java_proc_cmd(const char* pid, proc_info_t *proc_info)
         return;
     }
     cmd[0] = 0;
-    (void)snprintf(cmd, LINE_BUF_LEN, "jinfo %s | grep %s | awk '{print $3}'", pid, TASK_PROBE_JAVA_COMMAND);
+    (void)snprintf(cmd, LINE_BUF_LEN, "jinfo %d | grep %s | awk '{print $3}'", pid, TASK_PROBE_JAVA_COMMAND);
     f = popen(cmd, "r");
     if (f == NULL) {
         goto out;
@@ -249,7 +208,7 @@ out:
     return;
 }
 
-int get_proc_cmdline(const char *pid, char *buf, u32 buf_len)
+int get_proc_cmdline(u32 pid, char *buf, u32 buf_len)
 {
     FILE *f = NULL;
     char path[LINE_BUF_LEN];
@@ -312,11 +271,11 @@ static int __is_valid_container_id(char *str)
     return 1;
 }
 
-static int get_proc_container_id(const char* pid, proc_info_t *proc_info)
+static int get_proc_container_id(u32 pid, proc_info_t *proc_info)
 {
     char buffer[LINE_BUF_LEN];
     buffer[0] = 0;
-    int ret = do_read_line(pid, PROC_CPUSET_CMD, PROC_CPUSET, buffer, LINE_BUF_LEN);
+    int ret = access_check_read_line(pid, PROC_CPUSET_CMD, PROC_CPUSET, buffer, LINE_BUF_LEN);
     if (ret < 0) {
         return -1;
     }
@@ -328,11 +287,11 @@ static int get_proc_container_id(const char* pid, proc_info_t *proc_info)
     return 0;
 }
 
-static int get_proc_max_fdnum(const char* pid, proc_info_t *proc_info)
+static int get_proc_max_fdnum(u32 pid, proc_info_t *proc_info)
 {
     char buffer[LINE_BUF_LEN];
     buffer[0] = 0;
-    int ret = do_read_line(pid, PROC_LIMIT_CMD, PROC_LIMIT, buffer, LINE_BUF_LEN);
+    int ret = access_check_read_line(pid, PROC_LIMIT_CMD, PROC_LIMIT, buffer, LINE_BUF_LEN);
     if (ret < 0) {
         return -1;
     }
@@ -340,11 +299,11 @@ static int get_proc_max_fdnum(const char* pid, proc_info_t *proc_info)
     return 0;
 }
 
-static int get_proc_fdcnt(const char *pid, proc_info_t *proc_info)
+static int get_proc_fdcnt(u32 pid, proc_info_t *proc_info)
 {
     char buffer[LINE_BUF_LEN];
     buffer[0] = 0;
-    int ret = do_read_line(pid, PROC_FD_CNT_CMD, PROC_FD, buffer, LINE_BUF_LEN);
+    int ret = access_check_read_line(pid, PROC_FD_CNT_CMD, PROC_FD, buffer, LINE_BUF_LEN);
     if (ret < 0) {
         return -1;
     }
@@ -380,13 +339,13 @@ static void do_set_proc_stat(proc_info_t *proc_info, char *buf, int index)
     }
 }
 
-static int get_proc_stat(const char *pid, proc_info_t *proc_info)
+static int get_proc_stat(u32 pid, proc_info_t *proc_info)
 {
     char buffer[LINE_BUF_LEN];
     char *p = NULL;
     int index = 0;
     buffer[0] = 0;
-    int ret = do_read_line(pid, PROC_STAT_CMD, PROC_STAT, buffer, LINE_BUF_LEN);
+    int ret = access_check_read_line(pid, PROC_STAT_CMD, PROC_STAT, buffer, LINE_BUF_LEN);
 
     if (ret < 0) {
         return -1;
@@ -431,7 +390,7 @@ static void do_set_proc_io(proc_info_t *proc_info, u64 value, int index)
     }
 }
 
-static int get_proc_io(const char *pid, proc_info_t *proc_info)
+static int get_proc_io(u32 pid, proc_info_t *proc_info)
 {
     FILE *f = NULL;
     int index = 0;
@@ -502,7 +461,7 @@ static void do_set_proc_mss(proc_info_t *proc_info, u32 value, int index)
     }
 }
 
-static int get_proc_mss(const char *pid, proc_info_t *proc_info)
+static int get_proc_mss(u32 pid, proc_info_t *proc_info)
 {
     FILE *f = NULL;
     int index = 0;
@@ -553,7 +512,7 @@ out:
     return 0;
 }
 
-static int update_proc_infos(const char *pid, proc_info_t *proc_info)
+static int update_proc_infos(u32 pid, proc_info_t *proc_info)
 {
     int ret = 0;
 
@@ -622,14 +581,14 @@ static void output_proc_infos(proc_hash_t *one_proc)
     return;
 }
 
-static proc_hash_t* init_one_proc(char *pid, char *stime, char *comm)
+static proc_hash_t* init_one_proc(u32 pid, char *stime, char *comm)
 {
     proc_hash_t *item;
 
     item = (proc_hash_t *)malloc(sizeof(proc_hash_t));
     (void)memset(item, 0, sizeof(proc_hash_t));
 
-    item->key.pid = (u32)atoi(pid);
+    item->key.pid = pid;
     item->key.start_time = (u64)atoll(stime);
 
     (void)snprintf(item->info.comm, sizeof(item->info.comm), "%s", comm);
@@ -637,7 +596,7 @@ static proc_hash_t* init_one_proc(char *pid, char *stime, char *comm)
     if (strcmp(comm, "java") == 0) {
         get_java_proc_cmd(pid, &item->info);
     } else {
-        (void)get_proc_cmdline((const char *)pid, item->info.cmdline, sizeof(item->info.cmdline));
+        (void)get_proc_cmdline(pid, item->info.cmdline, sizeof(item->info.cmdline));
     }
     (void)get_proc_container_id(pid, &item->info);
 
@@ -656,7 +615,7 @@ int system_proc_probe(struct ipc_body_s *ipc_body)
     struct dirent *entry;
     char comm[PROC_NAME_MAX];
     char stime[PROC_NAME_MAX];
-    char pid_str[PROC_NAME_MAX];
+    u32 pid;
     proc_hash_t *l, *p = NULL;
 
     dir = opendir(PROC_PATH);
@@ -667,16 +626,16 @@ int system_proc_probe(struct ipc_body_s *ipc_body)
         if (is_proc_subdir(entry->d_name) == -1) {
             continue;
         }
-        snprintf(pid_str, PROC_NAME_MAX, "%s", entry->d_name);
+        pid = (u32)atoi(entry->d_name);
         /* proc start time(avoid repetition of pid) */
         stime[0] = 0;
-        (void)get_proc_start_time(pid_str, stime);
+        (void)get_proc_start_time(pid, stime, PROC_NAME_MAX);
 
         /* if the proc(pid+start_time) is finded in g_procmap, it means
            the proc was probed before and output proc_infos directly */
-        p = hash_find_proc(pid_str, stime);
+        p = hash_find_proc(pid, stime);
         if (p != NULL && p->flag == PROC_IN_PROBE_RANGE) {
-            (void)update_proc_infos(pid_str, &p->info);
+            (void)update_proc_infos(pid, &p->info);
             output_proc_infos(p);
             continue;
         }
@@ -689,7 +648,7 @@ int system_proc_probe(struct ipc_body_s *ipc_body)
 
 int refresh_proc_filter_map(struct ipc_body_s *ipc_body)
 {
-    char pid_str[PROC_NAME_MAX];
+    u32 pid;
     char comm[PROC_NAME_MAX];
     char stime[PROC_NAME_MAX];
     proc_hash_t *item, *p;
@@ -700,16 +659,15 @@ int refresh_proc_filter_map(struct ipc_body_s *ipc_body)
         if (ipc_body->snooper_objs[i].type != SNOOPER_OBJ_PROC) {
             continue;
         }
-        pid_str[0] = 0;
-        (void)snprintf(pid_str, PROC_NAME_MAX, "%u", ipc_body->snooper_objs[i].obj.proc.proc_id);
         comm[0] = 0;
-        (void)get_proc_comm(pid_str, comm);
+        pid = ipc_body->snooper_objs[i].obj.proc.proc_id;
+        (void)get_proc_comm(pid, comm, PROC_NAME_MAX);
         stime[0] = 0;
-        (void)get_proc_start_time(pid_str, stime);
+        (void)get_proc_start_time(pid, stime, PROC_NAME_MAX);
 
-        p = hash_find_proc(pid_str, stime);
+        p = hash_find_proc(pid, stime);
         if (p == NULL) {
-            item = init_one_proc(pid_str, stime, comm);
+            item = init_one_proc(pid, stime, comm);
             hash_add_proc(item);
         }
     }

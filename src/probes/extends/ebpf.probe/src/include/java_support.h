@@ -18,23 +18,26 @@
 #pragma once
 
 #define FILENAME_LEN    128
+#define ATTACH_TYPE_LEN 64
 
 #define JAVA_SYM_AGENT_FILE     "jvm_agent.so"
 #define JAVA_SYM_FILE           "java-symbols.bin"
 
-struct java_attach_args {
-    int proc_obj_map_fd;
-    int loop_period;
-    int is_only_attach_once;    // 1 - attach only once, eg: jvmtiagent
-                                // 0 - attach every loop, eg: jvmprobeagent
-    char agent_file_name[FILENAME_LEN];
-    char tmp_file_name[FILENAME_LEN];
+enum java_pid_state_t {
+    PID_NOT_JAVA,
+    PID_NEED_TO_ATTACH,
+    PID_NO_NEED_ATTACH
 };
 
-int get_host_java_tmp_file(int pid, const char *file_name, char *file_path, int path_len);
-int detect_proc_is_java(int pid, char *comm, int comm_len);
-void *java_support(void *arg);
-void java_unload(void *arg);
-void java_msg_handler(void *arg);
+struct java_attach_args {
+    char agent_file_name[FILENAME_LEN];
+    char tmp_file_name[FILENAME_LEN];
+    char action[ATTACH_TYPE_LEN];
+};
+
+int get_host_java_tmp_file(u32 pid, const char *file_name, char *file_path, int path_len);
+int detect_proc_is_java(u32 pid, char *comm, int comm_len);
+int java_load(u32 pid, void *arg);
+void java_msg_handler(u32 pid, void *arg);
 
 #endif

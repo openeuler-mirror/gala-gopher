@@ -15,7 +15,20 @@
 #ifndef __JVMPROBE__H
 #define __JVMPROBE__H
 
+#include <uthash.h>
+
 #define JVMPROBE_AGENT_FILE "JvmProbeAgent.jar"
 #define JVMPROBE_TMP_FILE   "jvm-metrics.txt"
+
+
+struct proc_key_t {
+    u32 pid;         // process id
+    u64 start_time;  // time the process started
+};
+
+struct proc_hash_t {
+    struct proc_key_t key;
+    UT_hash_handle hh;
+};
 
 #endif

@@ -22,6 +22,11 @@
 #include <stdarg.h>
 #include "common.h"
 
+#define PROC_COMM           "/proc/%u/comm"
+#define PROC_COMM_CMD       "/usr/bin/cat /proc/%u/comm 2> /dev/null"
+#define PROC_STAT           "/proc/%u/stat"
+#define PROC_START_TIME_CMD "/usr/bin/cat /proc/%u/stat | awk '{print $22}'"
+
 char *get_cur_date(void)
 {
     /* return date str, ex: 2021/05/17 */
@@ -234,11 +239,45 @@ int copy_file(const char *dst_file, const char *src_file) {
         if(!op) {
             break;
         }
-        fwrite(buffer, 1, 1, fp1);
+        (void)fwrite(buffer, 1, 1, fp1);
     }
 
     free(buffer);
     fclose(fp1);
     fclose(fp2);
     return 0;
+}
+
+int access_check_read_line(u32 pid, const char *command, const char *fname, char *buf, u32 buf_len)
+{
+    char fname_cmd[LINE_BUF_LEN];
+    char cmd[LINE_BUF_LEN];
+    char line[LINE_BUF_LEN];
+
+    fname_cmd[0] = 0;
+    (void)snprintf(fname_cmd, LINE_BUF_LEN, fname, pid);
+    if (access((const char *)fname_cmd, 0) != 0) {
+        return -1;
+    }
+
+    cmd[0] = 0;
+    line[0] = 0;
+    (void)snprintf(cmd, LINE_BUF_LEN, command, pid);
+    if (exec_cmd(cmd, line, LINE_BUF_LEN) != 0) {
+        ERROR("[SYSTEM_PROBE] proc get_info fail, line is null.\n");
+        return -1;
+    }
+
+    (void)snprintf(buf, buf_len, "%s", line);
+    return 0;
+}
+
+int get_proc_start_time(u32 pid, char *buf, int buf_len)
+{
+    return access_check_read_line(pid, PROC_START_TIME_CMD, PROC_STAT, buf, buf_len);
+}
+
+int get_proc_comm(u32 pid, char *buf, int buf_len)
+{
+    return access_check_read_line(pid, PROC_COMM_CMD, PROC_COMM, buf, buf_len);
 }

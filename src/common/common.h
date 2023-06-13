@@ -204,4 +204,8 @@ char is_digit_str(const char *s);
 int get_system_uuid(char *buffer, unsigned int size);
 int copy_file(const char *dst_file, const char *src_file);
 
+int access_check_read_line(u32 pid, const char *command, const char *fname, char *buf, u32 buf_len);
+int get_proc_start_time(u32 pid, char *buf, int buf_len);
+int get_proc_comm(u32 pid, char *buf, int buf_len);
+
 #endif
