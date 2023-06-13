@@ -145,7 +145,7 @@ KPROBE(bio_endio, pt_regs)
     end_bio(ctx, bio);
     return 0;
 }
-
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(sched_process_hang, bpf_raw_tracepoint_args)
 {
     struct proc_data_s *proc;
@@ -159,7 +159,23 @@ KRAWTRACE(sched_process_hang, bpf_raw_tracepoint_args)
     report_proc(ctx, proc, TASK_PROBE_IO);
     return 0;
 }
+#else
+SEC("tracepoint/sched/sched_process_hang")
+int bpf_trace_sched_process_hang_func(struct trace_event_raw_sched_process_hang *ctx)
+{
+    struct proc_data_s *proc;
+    u32 proc_id = (u32)ctx->pid;
+    proc = get_proc_entry(proc_id);
+    if (proc == NULL) {
+        return 0;
+    }
+    __sync_fetch_and_add(&(proc->proc_io.hang_count), 1);
+    report_proc(ctx, proc, TASK_PROBE_IO);
+    return 0;
+}
+#endif
 
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(sched_stat_iowait, bpf_raw_tracepoint_args)
 {
     struct proc_data_s *proc;
@@ -176,4 +192,22 @@ KRAWTRACE(sched_stat_iowait, bpf_raw_tracepoint_args)
     report_proc(ctx, proc, TASK_PROBE_IO);
     return 0;
 }
+#else
+SEC("tracepoint/sched/sched_stat_iowait")
+int bpf_trace_sched_stat_iowait_func(struct trace_event_raw_sched_stat_template *ctx)
+{
+    struct proc_data_s *proc;
+    u32 proc_id = (u32)ctx->pid;
+    u64 delta = (u64)ctx->delay;
 
+    proc = get_proc_entry(proc_id);
+    if (proc == NULL) {
+        return 0;
+    }
+
+    __sync_fetch_and_add(&(proc->proc_io.iowait_us), delta);
+    report_proc(ctx, proc, TASK_PROBE_IO);
+    return 0;
+}
+
+#endif
