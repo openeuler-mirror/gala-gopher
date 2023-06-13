@@ -84,6 +84,10 @@
 #define PROBE_RANGE_HW_NIC          0x00000001
 #define PROBE_RANGE_HW_MEM          0x00000002
 
+/* sched subprobe define */
+#define PROBE_RANGE_SCHED_SYSTIME   0x00000001
+#define PROBE_RANGE_SCHED_SYSCALL   0x00000002
+
 enum probe_type_e {
     PROBE_BASEINFO = 1,
     PROBE_VIRT,
@@ -107,6 +111,7 @@ enum probe_type_e {
     PROBE_TP,
     PROBE_HW,
     PROBE_KSLI,
+    PROBE_SCHED,
 
     PROBE_TYPE_MAX
 };
