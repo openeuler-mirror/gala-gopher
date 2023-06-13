@@ -23,6 +23,7 @@
 
 char g_linsence[] SEC("license") = "GPL";
 
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(sched_process_exit, bpf_raw_tracepoint_args)
 {
     struct task_struct* task = (struct task_struct*)ctx->args[0];
@@ -36,4 +37,18 @@ KRAWTRACE(sched_process_exit, bpf_raw_tracepoint_args)
     (void)thread_put(pid);
     return 0;
 }
+#else
+SEC("tracepoint/sched/sched_process_exit")
+int bpf_trace_sched_process_exit_func(struct trace_event_raw_sched_process_template *ctx)
+{
+    int pid = bpf_get_current_pid_tgid();
+    int tgid = bpf_get_current_pid_tgid() >> 32;
 
+    if (pid == tgid) {
+        proc_put_entry((u32)tgid);
+    }
+
+    (void)thread_put(pid);
+    return 0;
+}
+#endif

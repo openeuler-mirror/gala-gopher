@@ -61,7 +61,7 @@ static __always_inline void update_reclaim_ns(void *ctx)
         report_proc(ctx, proc, TASK_PROBE_PAGE_OP);
     }
 }
-
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(mm_vmscan_direct_reclaim_begin, bpf_raw_tracepoint_args)
 {
     store_reclaim_start_ts();
@@ -73,6 +73,21 @@ KRAWTRACE(mm_vmscan_direct_reclaim_end, bpf_raw_tracepoint_args)
     update_reclaim_ns(ctx);
     return 0;
 }
+#else
+SEC("tracepoint/vmscan/mm_vmscan_direct_reclaim_begin")
+bpf_trace_mm_vmscan_direct_reclaim_begin_func(struct trace_event_raw_mm_vmscan_direct_reclaim_begin_template *ctx)
+{
+    store_reclaim_start_ts();
+    return 0;
+}
+
+SEC("tracepoint/vmscan/mm_vmscan_direct_reclaim_end")
+bpf_trace_mm_vmscan_direct_reclaim_end_func(struct trace_event_raw_mm_vmscan_direct_reclaim_end_template *ctx)
+{
+    update_reclaim_ns(ctx);
+    return 0;
+}
+#endif
 
 #define KPROBE_PAGE_CACHE(func, field) \
     KPROBE(func, pt_regs) \

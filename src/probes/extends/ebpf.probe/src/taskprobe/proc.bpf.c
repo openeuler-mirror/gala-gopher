@@ -37,7 +37,7 @@ struct {
     __uint(max_entries, __PERF_OUT_MAX);
 } proc_exec_channel_map SEC(".maps");
 
-
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(sched_process_exec, bpf_raw_tracepoint_args)
 {
     struct proc_exec_evt event = {0};
@@ -53,5 +53,17 @@ KRAWTRACE(sched_process_exec, bpf_raw_tracepoint_args)
                           &event, sizeof(event));
     return 0;
 }
+#else
+SEC("tracepoint/sched/sched_process_exec")
+int bpf_trace_sched_process_exec_func(struct trace_event_raw_sched_process_exec *ctx)
+{
+    struct proc_exec_evt event = {0};
+    unsigned fname_off = ctx->__data_loc_filename & 0xFFFF;
 
+    event.pid = bpf_get_current_pid_tgid() >> 32;
+    bpf_probe_read_str(&event.filename, sizeof(event.filename), (void *)ctx + fname_off);
 
+    bpf_perf_event_output(ctx, &proc_exec_channel_map, BPF_F_ALL_CPU,
+                          &event, sizeof(event));
+}
+#endif
