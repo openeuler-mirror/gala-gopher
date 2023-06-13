@@ -46,7 +46,7 @@ static void* l7_jsse_msg_handler(void *args)
     struct java_attach_args *attach_args = (struct java_attach_args *)args;
 
     while (1) {
-        java_msg_handler(attach_args);
+        java_msg_handler(1, attach_args);  // TODO: 先打桩，待适配最新java_support
         sleep(attach_args->loop_period);
     }
     return NULL;
