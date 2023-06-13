@@ -19,6 +19,7 @@
 #include "debug_elf_reader.h"
 #include "elf_symb.h"
 #include "container.h"
+#include "java_support.h"
 #include "proc_info.h"
 
 void HASH_add_proc_info(proc_info_t **proc_table, proc_info_t *proc_info)
@@ -112,12 +113,39 @@ int set_thrd_comm(int pid, int tgid, char *comm, int size)
     return 0;
 }
 
+static int is_java_proc(const char *comm)
+{
+    if (strcmp(comm, "java") == 0) {
+        return 1;
+    }
+    return 0;
+}
+
+static void fill_proc_name(proc_info_t *proc_info)
+{
+    struct java_property_s java_prop = {0};
+    int ret;
+
+    // default use comm value
+    (void)snprintf(proc_info->proc_name, sizeof(proc_info->proc_name), "%s", proc_info->comm);
+
+    if (is_java_proc(proc_info->comm)) {
+        ret = get_java_property(proc_info->tgid, &java_prop);
+        if (ret == 0) {
+            (void)snprintf(proc_info->proc_name, sizeof(proc_info->proc_name), "%s", java_prop.mainClassName);
+        }
+    }
+}
+
 static int fill_container_info(proc_info_t *proc_info)
 {
     container_info_t *ci = &proc_info->container_info;
+    char tgid_str[INT_LEN];
     int ret;
 
-    ret = get_container_id_by_pid(proc_info->tgid, ci->id, sizeof(ci->id));
+    tgid_str[0] = 0;
+    (void)snprintf(tgid_str, sizeof(tgid_str), "%d", proc_info->tgid);
+    ret = get_container_id_by_pid_cpuset(tgid_str, ci->id, sizeof(ci->id));
     if (ret || ci->id[0] == '\0') {
         return -1;
     }
@@ -139,6 +167,7 @@ static int fill_proc_info(proc_info_t *proc_info)
         return -1;
     }
 
+    fill_proc_name(proc_info);
     // process may be not a container, so failure is allowed.
     (void)fill_container_info(proc_info);
 

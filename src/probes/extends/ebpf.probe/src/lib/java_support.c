@@ -495,3 +495,61 @@ void java_msg_handler(void *arg)
 
     return;
 }
+
+#define KW_MAIN_CLASS_NAME "sun.java.command="
+
+void resolve_main_class_name(struct java_property_s *prop, char *buf, int buf_size)
+{
+    char *start = NULL;
+    char *first_space = NULL;
+
+    if (sizeof(KW_MAIN_CLASS_NAME) >= buf_size) {
+        return;
+    }
+    start = buf + sizeof(KW_MAIN_CLASS_NAME) - 1;
+
+    (void)snprintf(prop->mainClassName, sizeof(prop->mainClassName), "%s", start);
+    first_space = strchr(prop->mainClassName, ' ');
+    if (first_space != NULL) {
+        *first_space = '\0';
+    }
+}
+
+// execute `jvm_attach <pid> <nspid> properties`
+int get_java_property(int pid, struct java_property_s *prop)
+{
+    struct jvm_agent_hash_t attach_info;
+    int nspid;
+    char cmd[COMMAND_LEN];
+    char output[LINE_BUF_LEN];
+    FILE *fp = NULL;
+    int ret = -1;
+
+    attach_info.pid = pid;
+    attach_info.v.nspid = 0;
+    (void)__set_effective_id(&attach_info);
+    nspid = attach_info.v.nspid;
+
+    cmd[0] = 0;
+    (void)snprintf(cmd, sizeof(cmd), "%s %d %d properties", ATTACH_BIN_PATH, pid, nspid);
+
+    fp = popen(cmd, "r");
+    if (fp == NULL) {
+        ERROR("[JAVA_SUPPORT]: failed to execute: %s\n", cmd);
+        return ret;
+    }
+
+    prop->mainClassName[0] = 0;
+    while (fgets(output, sizeof(output), fp) != NULL) {
+        if (strncmp(output, KW_MAIN_CLASS_NAME, sizeof(KW_MAIN_CLASS_NAME) - 1) != 0) {
+            continue;
+        }
+        SPLIT_NEWLINE_SYMBOL(output);
+        resolve_main_class_name(prop, output, sizeof(output));
+        ret = 0;
+        break;
+    }
+
+    pclose(fp);
+    return ret;
+}
