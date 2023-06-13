@@ -20,13 +20,14 @@
 #include <errno.h>
 #include "ipc.h"
 
-#define IPC_TLV_LEN_DEFAULT ((2 * (sizeof(struct ipc_tlv_s) + sizeof(u32))) \
+#define IPC_TLV_LEN_DEFAULT ((3 * (sizeof(struct ipc_tlv_s) + sizeof(u32))) \
     + (sizeof(struct ipc_tlv_s) + sizeof(struct probe_params)))
 
 enum ipct_type_e {
     IPCT_PROBE_RANGE = 100,
     IPCT_PROBE_PARAMS = 101,
-    IPCT_SNOOPER_NUM = 102
+    IPCT_PROBE_FLAGS = 102,
+    IPCT_SNOOPER_NUM = 103
 };
 
 enum ipct_subtype_e {
@@ -716,6 +717,18 @@ static int __build_probe_range_tlv(char *buf, size_t size, struct ipc_body_s* ip
     return (sizeof(struct ipc_tlv_s) + sizeof(u32));
 }
 
+static int __build_probe_flags_tlv(char *buf, size_t size, struct ipc_body_s* ipc_body)
+{
+    u32 *value;
+    struct ipc_tlv_s *tlv = (struct ipc_tlv_s *)buf;
+
+    tlv->type = IPCT_PROBE_FLAGS;
+    tlv->len = sizeof(u32);
+    value = (u32 *)(buf + sizeof(struct ipc_tlv_s));
+    *value = ipc_body->probe_flags;
+    return (sizeof(struct ipc_tlv_s) + sizeof(u32));
+}
+
 static int __build_snooper_num_tlv(char *buf, size_t size, struct ipc_body_s* ipc_body)
 {
     u32 *value;
@@ -778,6 +791,14 @@ static int __build_ipc_msg(char *buf, size_t size, struct ipc_body_s* ipc_body)
     fill_len += build_len;
 
     build_len = __build_probe_params_tlv(cur, (size_t)max_len, ipc_body);
+    max_len = max_len - build_len;
+    if (max_len <= 0) {
+        return -1;
+    }
+    cur += build_len;
+    fill_len += build_len;
+
+    build_len = __build_probe_flags_tlv(cur, (size_t)max_len, ipc_body);
     max_len = max_len - build_len;
     if (max_len <= 0) {
         return -1;
@@ -891,6 +912,18 @@ static int __deserialize_probe_params_tlv(char *buf, size_t size, struct ipc_bod
     return (tlv->len + sizeof(struct ipc_tlv_s));
 }
 
+static int __deserialize_probe_flags_tlv(char *buf, size_t size, struct ipc_body_s* ipc_body)
+{
+    struct ipc_tlv_s *tlv = (struct ipc_tlv_s *)buf;
+
+    if ((tlv->type != IPCT_PROBE_FLAGS) || (tlv->len != sizeof(u32))) {
+        return -1;
+    }
+
+    ipc_body->probe_flags = *(u32 *)tlv->value;
+    return (tlv->len + sizeof(struct ipc_tlv_s));
+}
+
 static int __deserialize_snooper_num_tlv(char *buf, size_t size, struct ipc_body_s* ipc_body)
 {
     struct ipc_tlv_s *tlv = (struct ipc_tlv_s *)buf;
@@ -959,6 +992,17 @@ static int __deserialize_ipc_msg(struct ipc_msg_s* ipc_msg, struct ipc_body_s* i
 
     cur = start + offset;
     deserialize_len = __deserialize_probe_params_tlv(cur, (size_t)max_len, ipc_body);
+    if (deserialize_len < 0) {
+        return -1;
+    }
+    offset += deserialize_len;
+    max_len -= deserialize_len;
+    if (max_len < 0) {
+        return -1;
+    }
+
+    cur = start + offset;
+    deserialize_len = __deserialize_probe_flags_tlv(cur, (size_t)max_len, ipc_body);
     if (deserialize_len < 0) {
         return -1;
     }
@@ -1117,6 +1161,7 @@ void destroy_ipc_body(struct ipc_body_s *ipc_body)
     }
     ipc_body->snooper_obj_num = 0;
     ipc_body->probe_range_flags = 0;
+    ipc_body->probe_flags = 0;
     return;
 }
 

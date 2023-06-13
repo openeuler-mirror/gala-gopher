@@ -309,7 +309,7 @@ static MHD_Result RestRequestCallback(void *cls,
         (void)memset(request, 0, sizeof(RestRequest));
 
         *ptr = request;
-        if (strcmp(method, MHD_HTTP_METHOD_POST) == 0) {
+        if (strcmp(method, MHD_HTTP_METHOD_PUT) == 0) {
             request->postprocessor = MHD_create_post_processor(connection, POST_BUFFER_SIZE,
                                                 &RestPostIterator, request);
             if (request->postprocessor == NULL) {
@@ -321,7 +321,7 @@ static MHD_Result RestRequestCallback(void *cls,
     }
 
     url++;
-    if (strcmp(method, MHD_HTTP_METHOD_POST) == 0) {
+    if (strcmp(method, MHD_HTTP_METHOD_PUT) == 0) {
         return RestHandlePostRequest(connection, url, upload_data, upload_data_size, ptr);
     }
 
