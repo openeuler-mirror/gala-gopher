@@ -22,6 +22,7 @@
 #include "nprobe_fprintf.h"
 #include "whitelist_config.h"
 #include "system_procs.h"
+#include "java_support.h"
 
 #define METRICS_PROC_NAME   "system_proc"
 #define PROC_STAT           "/proc/%s/stat"
@@ -136,7 +137,7 @@ static int do_read_line(const char* pid, const char *command, const char *fname,
         ERROR("[SYSTEM_PROBE] proc get_info fail, line is null.\n");
         return -1;
     }
-    
+
     SPLIT_NEWLINE_SYMBOL(line);
     (void)strncpy(buf, line, buf_len - 1);
     (void)pclose(f);
@@ -209,36 +210,6 @@ out:
         (void)pclose(f);
     }
     return is_installed;
-}
-
-#define TASK_PROBE_JAVA_COMMAND "sun.java.command"
-static void get_java_proc_cmd(const char* pid, proc_info_t *proc_info)
-{
-    FILE *f = NULL;
-    char cmd[LINE_BUF_LEN];
-    char line[LINE_BUF_LEN];
-    if (is_jinfo_installed() == JINFO_NOT_INSTALLED) {
-        ERROR("[SYSTEM_PROBE] jinfo not installed, please check.\n");
-        return;
-    }
-    cmd[0] = 0;
-    (void)snprintf(cmd, LINE_BUF_LEN, "jinfo %s | grep %s | awk '{print $3}'", pid, TASK_PROBE_JAVA_COMMAND);
-    f = popen(cmd, "r");
-    if (f == NULL) {
-        goto out;
-    }
-    line[0] = 0;
-    if (fgets(line, LINE_BUF_LEN, f) == NULL) {
-        goto out;
-    }
-    SPLIT_NEWLINE_SYMBOL(line);
-    (void)memset(proc_info->cmdline, 0, PROC_CMDLINE_LEN);
-    (void)strncpy(proc_info->cmdline, line, PROC_CMDLINE_LEN - 1);
-out:
-    if (f != NULL) {
-        (void)pclose(f);
-    }
-    return;
 }
 
 static int __is_valid_container_id(char *str)
@@ -556,7 +527,9 @@ static void output_proc_infos(proc_hash_t *one_proc)
 
 static proc_hash_t* init_one_proc(char *pid, char *stime, char *comm)
 {
+    int ret;
     proc_hash_t *item;
+    struct java_property_s java_prop = {0};
 
     item = (proc_hash_t *)malloc(sizeof(proc_hash_t));
     (void)memset(item, 0, sizeof(proc_hash_t));
@@ -567,7 +540,10 @@ static proc_hash_t* init_one_proc(char *pid, char *stime, char *comm)
     (void)strncpy(item->info.comm, comm, PROC_NAME_MAX - 1);
     item->flag = PROC_IN_PROBE_RANGE;
     if (strcmp(comm, "java") == 0) {
-        get_java_proc_cmd(pid, &item->info);
+        ret = get_java_property((int)item->key.pid, &java_prop);
+        if (ret == 0) {
+            (void)snprintf(item->info.cmdline, sizeof(item->info.cmdline), "%s", java_prop.mainClassName);
+        }
     } else {
         (void)get_proc_cmdline((const char *)pid, item->info.cmdline, sizeof(item->info.cmdline));
     }
@@ -591,7 +567,7 @@ int system_proc_probe(void)
     proc_hash_t *l, *p = NULL;
 
     u32 proc_whitelist[PROC_LIST_LEN_MAX] = {0};
-    
+
     get_probe_proc_whitelist(g_appsConfig, g_appsConfig_len, proc_whitelist, PROC_LIST_LEN_MAX);
 
     for (int i = 0; i < PROC_LIST_LEN_MAX; i++) {

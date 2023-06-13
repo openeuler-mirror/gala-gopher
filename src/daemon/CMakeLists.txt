@@ -26,6 +26,7 @@ SET(PROBE_DIR       ${SRC_DIR}/lib/probe)
 SET(IMDB_DIR        ${SRC_DIR}/lib/imdb)
 SET(CMD_DIR         ${SRC_DIR}/cmd)
 SET(COMMON_DIR      ${SRC_DIR}/common)
+SET(EBPF_PROBE_DIR  ${SRC_DIR}/probes/extends/ebpf.probe)
 
 SET(LIBRDKAFKA_DIR /usr/include/librdkafka)
 SET(LIBELF_DIR /usr/include/libelf)
@@ -67,6 +68,7 @@ SET(SOURCES main.c daemon.c
     ${COMMON_DIR}/whitelist_config.c
     ${COMMON_DIR}/event_config.c
     ${COMMON_DIR}/kern_symb.c
+    ${EBPF_PROBE_DIR}/src/lib/java_support.c
 )
 
 SET(SOURCE_CMD ${CMD_DIR}/client.c)
@@ -102,6 +104,7 @@ TARGET_INCLUDE_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE
 
     ${CMD_DIR}
     ${COMMON_DIR}
+    ${EBPF_PROBE_DIR}/src/include
 )
 
 TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE config pthread rt dl bpf rdkafka microhttpd elf log4cplus)
