@@ -91,7 +91,7 @@ static void TestLogsMgrInit(void)
     (void)strncpy(test_local->event_path, TEST_EVENT_PATH, PATH_LEN - 1);
     (void)strncpy(test_local->meta_path, TEST_META_PATH, PATH_LEN - 1);
 
-    ret = init_log_mgr(test_local, 1);
+    ret = init_log_mgr(test_local, 1, NULL);
     CU_ASSERT(ret == 0);
     CU_ASSERT(test_local->is_meta_out_log == 1);
     return;

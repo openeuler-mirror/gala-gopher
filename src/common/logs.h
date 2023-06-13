@@ -67,7 +67,7 @@ int read_event_logs(char logs_file_name[], size_t size);
 void rm_log_file(char full_path[]);
 
 void destroy_log_mgr(struct log_mgr_s* mgr);
-int init_log_mgr(struct log_mgr_s* mgr, int is_meta_out_log);
+int init_log_mgr(struct log_mgr_s* mgr, int is_meta_out_log, char *logLevel);
 struct log_mgr_s* create_log_mgr(const char *app_name, int is_metric_out_log, int is_event_out_log);
 
 #ifdef __cplusplus

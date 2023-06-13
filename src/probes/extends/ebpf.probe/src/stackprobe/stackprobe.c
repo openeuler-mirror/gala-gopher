@@ -159,7 +159,7 @@ int stacktrace_create_log_mgr(struct stack_trace_s *st, const char *logDir)
 
     (void)snprintf(mgr->debug_path, sizeof(mgr->debug_path), "%s", logDir);
 
-    if (init_log_mgr(mgr, 0)) {
+    if (init_log_mgr(mgr, 0, NULL)) {
         return -1;
     }
 

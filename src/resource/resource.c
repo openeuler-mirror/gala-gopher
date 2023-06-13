@@ -643,7 +643,7 @@ static int LogsMgrInit(ResourceMgr *resourceMgr)
     (void)snprintf(logsMgr->event_path, sizeof(logsMgr->event_path), "%s", configMgr->logsConfig->eventDir);
     (void)snprintf(logsMgr->meta_path, sizeof(logsMgr->meta_path), "%s", configMgr->logsConfig->metaDir);
 
-    if (init_log_mgr(logsMgr, is_meta_out_log) < 0) {
+    if (init_log_mgr(logsMgr, is_meta_out_log, configMgr->globalConfig->logLevel) < 0) {
         return -1;
     }
 
