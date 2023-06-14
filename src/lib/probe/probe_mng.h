@@ -30,6 +30,9 @@
 #define PROBE_FLAGS_STOPPING        0x00000004    // probe has been tried to stop by user
 #define PROBE_FLAGS_RUNNING         0x00000008    // probe is in running state
 
+#define PARSE_JSON_ERR_STR_LEN 200
+extern char g_parse_json_err[PARSE_JSON_ERR_STR_LEN];
+
 struct probe_define_s {
     char *desc;
     enum probe_type_e type;
@@ -112,5 +115,8 @@ void unset_probe_status_flags(struct probe_s* probe, u32 flags);
 
 #define SET_PROBE_FLAGS(probe, flags)       set_probe_status_flags(probe, flags)
 #define UNSET_PROBE_FLAGS(probe, flags)     unset_probe_status_flags(probe, flags)
+
+#define PARSE_ERR(fmt, ...) \
+    (void)snprintf(g_parse_json_err, sizeof(g_parse_json_err), (fmt), ##__VA_ARGS__)
 
 #endif

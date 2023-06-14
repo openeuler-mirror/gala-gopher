@@ -136,6 +136,8 @@ static int get_probe_range(enum probe_type_e probe_type, const char *range)
 
 static struct probe_mng_s *g_probe_mng;
 
+char g_parse_json_err[PARSE_JSON_ERR_STR_LEN];
+
 void get_probemng_lock(void)
 {
     (void)pthread_rwlock_wrlock(&g_probe_mng->rwlock);
@@ -946,6 +948,8 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
         goto end;
     }
     (void)memset(probe_backup, 0, sizeof(struct probe_s));
+
+    PARSE_ERR("Bad request");
 
     size_t size = sizeof(probe_parsers) / sizeof(struct probe_parser_s);
     for (int i = 0; i < size; i++) {
