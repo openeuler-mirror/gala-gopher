@@ -35,10 +35,6 @@
 #define DOCKER_PREFIX "/docker/"
 #define PODID_PREFIX "/pod"
 
-#define CONTAINER_ID_FROM_POD_ID_CMD "docker ps -q | xargs  docker inspect --format '{{.Id}}, {{index .Config.Labels \
-    \"io.kubernetes.pod.uid\"}}' | /usr/bin/grep \"%s\" |  /usr/bin/awk -F ', ' '{print $1}' 2>/dev/null"
-#define POD_NAME_CMD "docker inspect %s --format '{{.Config.Hostname}}' 2>/dev/null"
-
 #define FILTER_FLAGS_IGNORE 0x0000  // default value
 #define FILTER_FLAGS_NORMAL 0x0001
 
@@ -280,7 +276,7 @@ static void set_pod_info(char *pod_id, char *con_id, struct pods_hash_t *pod)
         (void)snprintf(pod->pod_info.pod_id, sizeof(pod->pod_info.pod_id), "%s", pod_id);
     }
     if (pod->pod_info.pod_ip_str[0] == 0) {
-        (void)get_pod_ip(con_id, pod->pod_info.pod_ip_str, INET6_ADDRSTRLEN);
+        (void)get_pod_ip((const char *)con_id, pod->pod_info.pod_ip_str, INET6_ADDRSTRLEN);
     }
 
     return;
@@ -355,28 +351,18 @@ void del_pods()
 // Add the existed pods before the program starts to the map
 void existing_pod_mk_process(char *pod_id)
 {
-    FILE *f = NULL;
-    char cmd[COMMAND_LEN] = {0};
-    char line[LINE_BUF_LEN];
-
-    (void)snprintf(cmd, COMMAND_LEN, CONTAINER_ID_FROM_POD_ID_CMD, pod_id);
-    f = popen(cmd, "r");
-    if (f == NULL) {
+    container_info *cs = NULL;
+    container_tbl* cstbl = list_containers_by_pod_id((const char *)pod_id);
+    if (cstbl == NULL) {
         return;
     }
-    while (!feof(f)) {
-        line[0] = 0;
-        if (fgets(line, LINE_BUF_LEN, f) == NULL) {
-            break;
-        }
-        SPLIT_NEWLINE_SYMBOL(line);
-        char con_id[CONTAINER_ABBR_ID_LEN + 1] = {0};
-        (void)snprintf(con_id, CONTAINER_ABBR_ID_LEN + 1, "%s", line);
-        add_pod_con_map(pod_id, con_id, ID_CON_POD);
+
+    for (int i = 0; i < cstbl->num; i++) {
+        cs = cstbl->cs + i;
+        add_pod_con_map(pod_id, cs->abbrContainerId, ID_CON_POD);
     }
 
-    pclose(f);
-
+    free_container_tbl(&cstbl);
     return;
 }
 
