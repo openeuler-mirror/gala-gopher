@@ -37,7 +37,6 @@
 #include "snooper_bpf.h"
 
 // Snooper obj name define
-#define SNOOPER_OBJNAME_PROBE       "probe"
 #define SNOOPER_OBJNAME_PROCID      "proc_id"
 #define SNOOPER_OBJNAME_PROCNAME    "proc_name"
 #define SNOOPER_OBJNAME_PODID       "pod_id"
@@ -90,85 +89,11 @@
 
 static struct probe_mng_s *__probe_mng_snooper = NULL;
 
-struct probe_range_define_s {
-    enum probe_type_e probe_type;
-    char *desc;
-    u32 flags;                      /* Refer to [PROBE] subprobe define. */
-};
-
-struct probe_range_define_s probe_range_define[] = {
-    {PROBE_FG,     "oncpu",               PROBE_RANGE_ONCPU},
-    {PROBE_FG,     "offcpu",              PROBE_RANGE_OFFCPU},
-    {PROBE_FG,     "mem",                 PROBE_RANGE_MEM},
-    {PROBE_FG,     "io",                  PROBE_RANGE_IO},
-
-    {PROBE_L7,     "l7_bytes_metrics",    PROBE_RANGE_L7BYTES_METRICS},
-    {PROBE_L7,     "l7_rpc_metrics",      PROBE_RANGE_L7RPC_METRICS},
-    {PROBE_L7,     "l7_rpc_trace",        PROBE_RANGE_L7RPC_TRACE},
-
-    {PROBE_TCP,    "tcp_abnormal",        PROBE_RANGE_TCP_ABNORMAL},
-    {PROBE_TCP,    "tcp_rtt",             PROBE_RANGE_TCP_RTT},
-    {PROBE_TCP,    "tcp_windows",         PROBE_RANGE_TCP_WINDOWS},
-    {PROBE_TCP,    "tcp_srtt",            PROBE_RANGE_TCP_SRTT},
-    {PROBE_TCP,    "tcp_rate",            PROBE_RANGE_TCP_RATE},
-    {PROBE_TCP,    "tcp_sockbuf",         PROBE_RANGE_TCP_SOCKBUF},
-    {PROBE_TCP,    "tcp_stats",           PROBE_RANGE_TCP_STATS},
-
-    {PROBE_SOCKET, "tcp_socket",          PROBE_RANGE_SOCKET_TCP},
-    {PROBE_SOCKET, "udp_socket",          PROBE_RANGE_SOCKET_UDP},
-
-    {PROBE_IO,     "io_trace",            PROBE_RANGE_IO_TRACE},
-    {PROBE_IO,     "io_err",              PROBE_RANGE_IO_ERR},
-    {PROBE_IO,     "io_count",            PROBE_RANGE_IO_COUNT},
-    {PROBE_IO,     "page_cache",          PROBE_RANGE_IO_PAGECACHE},
-
-    {PROBE_PROC,   "proc_syscall",        PROBE_RANGE_PROC_SYSCALL},
-    {PROBE_PROC,   "proc_fs",             PROBE_RANGE_PROC_FS},
-    {PROBE_PROC,   "proc_dns",            PROBE_RANGE_PROC_DNS},
-    {PROBE_PROC,   "proc_io",             PROBE_RANGE_PROC_IO},
-    {PROBE_PROC,   "proc_pagecache",      PROBE_RANGE_PROC_PAGECACHE},
-    {PROBE_PROC,   "proc_net",            PROBE_RANGE_PROC_NET},
-    {PROBE_PROC,   "proc_offcpu",         PROBE_RANGE_PROC_OFFCPU},
-
-    {PROBE_BASEINFO,  "cpu",              PROBE_RANGE_SYS_CPU},
-    {PROBE_BASEINFO,  "mem",              PROBE_RANGE_SYS_MEM},
-    {PROBE_BASEINFO,  "nic",              PROBE_RANGE_SYS_NIC},
-    {PROBE_BASEINFO,  "net",              PROBE_RANGE_SYS_NET},
-    {PROBE_BASEINFO,  "disk",             PROBE_RANGE_SYS_DISK},
-    {PROBE_BASEINFO,  "fs",               PROBE_RANGE_SYS_FS},
-    {PROBE_BASEINFO,  "proc",             PROBE_RANGE_SYS_PROC},
-    {PROBE_BASEINFO,  "host",             PROBE_RANGE_SYS_HOST},
-
-    {PROBE_TP,     "oncpu",               PROBE_RANGE_TPROFILING_ONCPU},
-    {PROBE_TP,     "syscall_file",        PROBE_RANGE_TPROFILING_SYSCALL_FILE},
-    {PROBE_TP,     "syscall_net",        PROBE_RANGE_TPROFILING_SYSCALL_NET},
-    {PROBE_TP,     "syscall_lock",        PROBE_RANGE_TPROFILING_SYSCALL_LOCK},
-    {PROBE_TP,     "syscall_sched",        PROBE_RANGE_TPROFILING_SYSCALL_SCHED},
-
-    {PROBE_HW,     "hw_nic",              PROBE_RANGE_HW_NIC},
-    {PROBE_HW,     "hw_mem",              PROBE_RANGE_HW_MEM},
-
-    {PROBE_SCHED,  "sched_systime",       PROBE_RANGE_SCHED_SYSTIME},
-    {PROBE_SCHED,  "sched_syscall",       PROBE_RANGE_SCHED_SYSCALL},
-};
 
 static void refresh_snooper_obj(struct probe_s *probe);
 
 void get_probemng_lock(void);
 void put_probemng_lock(void);
-static int get_probe_range(enum probe_type_e probe_type, const char *range)
-{
-
-    size_t size = sizeof(probe_range_define) / sizeof(struct probe_range_define_s);
-
-    for (int i = 0; i < size; i++) {
-        if (probe_range_define[i].probe_type == probe_type && !strcasecmp(probe_range_define[i].desc, range)) {
-            return probe_range_define[i].flags;
-        }
-    }
-
-    return 0;
-}
 
 void free_snooper_conf(struct snooper_conf_s* snooper_conf)
 {
@@ -410,32 +335,6 @@ static int parse_snooper_procid(struct probe_s *probe, const cJSON *json)
     return 0;
 }
 
-/* {"probe":["XX","YY"]} , XX must be string but unsupported probe range will be ignored */
-static int parse_snooper_probe(struct probe_s *probe, const cJSON *json)
-{
-    int ret;
-    int range;
-    cJSON *probe_item, *object;
-
-    probe_item = cJSON_GetObjectItem(json, SNOOPER_OBJNAME_PROBE);
-    if (probe_item == NULL) {
-        return 0;
-    }
-
-    size_t size = cJSON_GetArraySize(probe_item);
-    for (int i = 0; i < size; i++) {
-        object = cJSON_GetArrayItem(probe_item, i);
-        if (object->type != cJSON_String) {
-            return -1;
-        }
-
-        range = get_probe_range(probe->probe_type, (const char*)object->valuestring);
-        probe->probe_range_flags |= range;
-    }
-
-    return 0;
-}
-
 static void print_snooper_procname(struct probe_s *probe, cJSON *json)
 {
     cJSON *procname_item, *object;
@@ -632,19 +531,6 @@ static int parse_snooper_gaussdb(struct probe_s *probe, const cJSON *json)
 
 void print_snooper(struct probe_s *probe, cJSON *json)
 {
-    cJSON *range;
-    size_t size = sizeof(probe_range_define) / sizeof(struct probe_range_define_s);
-
-    range = cJSON_CreateArray();
-    for (int i = 0; i < size; i++) {
-        if (probe->probe_type == probe_range_define[i].probe_type) {
-            if (probe->probe_range_flags & probe_range_define[i].flags) {
-                cJSON_AddItemToArray(range, cJSON_CreateString(probe_range_define[i].desc));
-            }
-        }
-    }
-    cJSON_AddItemToObject(json, SNOOPER_OBJNAME_PROBE, range);
-
     print_snooper_procid(probe, json);
     print_snooper_procname(probe, json);
     print_snooper_pod_container(probe, json);
@@ -667,7 +553,14 @@ static void __build_ipc_body(struct probe_s *probe, struct ipc_body_s* ipc_body)
     }
 
     ipc_body->probe_range_flags = probe->probe_range_flags;
+    if (probe->is_params_chg) {
+        ipc_body->probe_flags |= IPC_FLAGS_PARAMS_CHG;
+    }
+    if (probe->is_snooper_chg) {
+        ipc_body->probe_flags |= IPC_FLAGS_SNOOPER_CHG;
+    }
     memcpy(&(ipc_body->probe_param), &probe->probe_param, sizeof(struct probe_params));
+    return;
 }
 
 int send_snooper_obj(struct probe_s *probe)
@@ -692,12 +585,6 @@ int parse_snooper(struct probe_s *probe, const cJSON *json)
         probe->snooper_confs[i] = NULL;
     }
     probe->snooper_conf_num = 0;
-    probe->probe_range_flags = 0;
-    if (parse_snooper_probe(probe, json)) {
-        ERROR("[PROBEMNG] Failed to parse range for probe(%s)\n", probe->name);
-        return -1;
-    }
-
     if (parse_snooper_procid(probe, json)) {
         ERROR("[PROBEMNG] Failed to parse proc id for probe(name:%s)\n", probe->name);
         return -1;
@@ -790,7 +677,6 @@ void backup_snooper(struct probe_s *probe, struct probe_s *probe_backup)
     u32 snooper_conf_num = probe->snooper_conf_num;
 
     probe_backup->snooper_conf_num = snooper_conf_num;
-    probe_backup->probe_range_flags = probe->probe_range_flags;
 
     (void)memcpy(&probe_backup->snooper_confs, &probe->snooper_confs,
                     SNOOPER_MAX * (sizeof(struct snooper_conf_s *)));
@@ -804,8 +690,6 @@ void backup_snooper(struct probe_s *probe, struct probe_s *probe_backup)
 void rollback_snooper(struct probe_s *probe, struct probe_s *probe_backup)
 {
     int i;
-
-    probe->probe_range_flags = probe_backup->probe_range_flags;
 
     for (i = 0 ; i < SNOOPER_MAX; i++) {
         free_snooper_conf(probe->snooper_confs[i]);
@@ -1268,6 +1152,8 @@ static void __rcv_snooper_proc_exec(struct probe_mng_s *probe_mng, const char* c
         snooper_obj_added = __rcv_snooper_proc_exec_sub(probe, comm, proc_id, container_id, pod_id);
 
         if (snooper_obj_added) {
+            probe->is_params_chg = 0;
+            probe->is_snooper_chg = 1;
             (void)send_snooper_obj(probe);
         }
     }
@@ -1302,6 +1188,8 @@ static void __rcv_snooper_proc_exit(struct probe_mng_s *probe_mng, u32 proc_id)
         }
 
         if (snooper_obj_removed) {
+            probe->is_params_chg = 0;
+            probe->is_snooper_chg = 1;
             (void)send_snooper_obj(probe);
         }
     }
@@ -1375,6 +1263,8 @@ static void __rcv_snooper_cgrp_exec(struct probe_mng_s *probe_mng, char *pod_id,
         snooper_obj_added = __rcv_snooper_cgrp_exec_sub(probe, con_info);
 
         if (snooper_obj_added) {
+            probe->is_params_chg = 0;
+            probe->is_snooper_chg = 1;
             (void)send_snooper_obj(probe);
         }
     }
@@ -1409,6 +1299,8 @@ static void __rcv_snooper_cgrp_exit(struct probe_mng_s *probe_mng, char *pod_id,
         }
 
         if (snooper_obj_removed) {
+            probe->is_params_chg = 0;
+            probe->is_snooper_chg = 1;
             (void)send_snooper_obj(probe);
         }
     }

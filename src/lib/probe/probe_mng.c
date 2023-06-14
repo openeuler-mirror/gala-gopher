@@ -58,6 +58,82 @@ struct probe_define_s probe_define[] = {
     {"sched",               PROBE_SCHED},
 };
 
+struct probe_range_define_s {
+    enum probe_type_e probe_type;
+    char *desc;
+    u32 flags;                      /* Refer to [PROBE] subprobe define. */
+};
+
+struct probe_range_define_s probe_range_define[] = {
+    {PROBE_FG,     "oncpu",               PROBE_RANGE_ONCPU},
+    {PROBE_FG,     "offcpu",              PROBE_RANGE_OFFCPU},
+    {PROBE_FG,     "mem",                 PROBE_RANGE_MEM},
+    {PROBE_FG,     "io",                  PROBE_RANGE_IO},
+
+    {PROBE_L7,     "l7_bytes_metrics",    PROBE_RANGE_L7BYTES_METRICS},
+    {PROBE_L7,     "l7_rpc_metrics",      PROBE_RANGE_L7RPC_METRICS},
+    {PROBE_L7,     "l7_rpc_trace",        PROBE_RANGE_L7RPC_TRACE},
+
+    {PROBE_TCP,    "tcp_abnormal",        PROBE_RANGE_TCP_ABNORMAL},
+    {PROBE_TCP,    "tcp_rtt",             PROBE_RANGE_TCP_RTT},
+    {PROBE_TCP,    "tcp_windows",         PROBE_RANGE_TCP_WINDOWS},
+    {PROBE_TCP,    "tcp_srtt",            PROBE_RANGE_TCP_SRTT},
+    {PROBE_TCP,    "tcp_rate",            PROBE_RANGE_TCP_RATE},
+    {PROBE_TCP,    "tcp_sockbuf",         PROBE_RANGE_TCP_SOCKBUF},
+    {PROBE_TCP,    "tcp_stats",           PROBE_RANGE_TCP_STATS},
+
+    {PROBE_SOCKET, "tcp_socket",          PROBE_RANGE_SOCKET_TCP},
+    {PROBE_SOCKET, "udp_socket",          PROBE_RANGE_SOCKET_UDP},
+
+    {PROBE_IO,     "io_trace",            PROBE_RANGE_IO_TRACE},
+    {PROBE_IO,     "io_err",              PROBE_RANGE_IO_ERR},
+    {PROBE_IO,     "io_count",            PROBE_RANGE_IO_COUNT},
+    {PROBE_IO,     "page_cache",          PROBE_RANGE_IO_PAGECACHE},
+
+    {PROBE_PROC,   "proc_syscall",        PROBE_RANGE_PROC_SYSCALL},
+    {PROBE_PROC,   "proc_fs",             PROBE_RANGE_PROC_FS},
+    {PROBE_PROC,   "proc_dns",            PROBE_RANGE_PROC_DNS},
+    {PROBE_PROC,   "proc_io",             PROBE_RANGE_PROC_IO},
+    {PROBE_PROC,   "proc_pagecache",      PROBE_RANGE_PROC_PAGECACHE},
+    {PROBE_PROC,   "proc_net",            PROBE_RANGE_PROC_NET},
+    {PROBE_PROC,   "proc_offcpu",         PROBE_RANGE_PROC_OFFCPU},
+
+    {PROBE_BASEINFO,  "cpu",              PROBE_RANGE_SYS_CPU},
+    {PROBE_BASEINFO,  "mem",              PROBE_RANGE_SYS_MEM},
+    {PROBE_BASEINFO,  "nic",              PROBE_RANGE_SYS_NIC},
+    {PROBE_BASEINFO,  "net",              PROBE_RANGE_SYS_NET},
+    {PROBE_BASEINFO,  "disk",             PROBE_RANGE_SYS_DISK},
+    {PROBE_BASEINFO,  "fs",               PROBE_RANGE_SYS_FS},
+    {PROBE_BASEINFO,  "proc",             PROBE_RANGE_SYS_PROC},
+    {PROBE_BASEINFO,  "host",             PROBE_RANGE_SYS_HOST},
+
+    {PROBE_TP,     "oncpu",               PROBE_RANGE_TPROFILING_ONCPU},
+    {PROBE_TP,     "syscall_file",        PROBE_RANGE_TPROFILING_SYSCALL_FILE},
+    {PROBE_TP,     "syscall_net",        PROBE_RANGE_TPROFILING_SYSCALL_NET},
+    {PROBE_TP,     "syscall_lock",        PROBE_RANGE_TPROFILING_SYSCALL_LOCK},
+    {PROBE_TP,     "syscall_sched",        PROBE_RANGE_TPROFILING_SYSCALL_SCHED},
+
+    {PROBE_HW,     "hw_nic",              PROBE_RANGE_HW_NIC},
+    {PROBE_HW,     "hw_mem",              PROBE_RANGE_HW_MEM},
+
+    {PROBE_SCHED,  "sched_systime",       PROBE_RANGE_SCHED_SYSTIME},
+    {PROBE_SCHED,  "sched_syscall",       PROBE_RANGE_SCHED_SYSCALL},
+};
+
+static int get_probe_range(enum probe_type_e probe_type, const char *range)
+{
+
+    size_t size = sizeof(probe_range_define) / sizeof(struct probe_range_define_s);
+
+    for (int i = 0; i < size; i++) {
+        if (probe_range_define[i].probe_type == probe_type && !strcasecmp(probe_range_define[i].desc, range)) {
+            return probe_range_define[i].flags;
+        }
+    }
+
+    return 0;
+}
+
 static struct probe_mng_s *g_probe_mng;
 
 void get_probemng_lock(void)
@@ -427,6 +503,11 @@ static int start_probe(struct probe_s *probe)
         return 0;
     }
 
+    probe->is_restart = 0;
+    if (IS_STOPPED_PROBE(probe) || IS_STOPPING_PROBE(probe)) {
+        probe->is_restart = 1;
+    }
+
     SET_PROBE_FLAGS(probe, PROBE_FLAGS_STARTED);
     UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPING);
 
@@ -451,8 +532,7 @@ static int stop_probe(struct probe_s *probe)
 {
     int pid;
     if (!IS_RUNNING_PROBE(probe)) {
-        ERROR("[PROBEMNG] Fail to stop probe(name:%s) which is not running\n", probe->name);
-        return -1;
+        return 0;
     }
 
     SET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPING);
@@ -510,19 +590,47 @@ static struct probe_s *get_probe_by_name(const char *probe_name)
 
 static void probe_printer_cmd(struct probe_s *probe, cJSON *json)
 {
+    cJSON *range;
     cJSON_AddStringToObject(json, "bin", probe->bin ? :"");
     cJSON_AddStringToObject(json, "check_cmd", probe->chk_cmd ? :"");
+
+    size_t size = sizeof(probe_range_define) / sizeof(struct probe_range_define_s);
+
+    range = cJSON_CreateArray();
+    for (int i = 0; i < size; i++) {
+        if (probe->probe_type == probe_range_define[i].probe_type) {
+            if (probe->probe_range_flags & probe_range_define[i].flags) {
+                cJSON_AddItemToArray(range, cJSON_CreateString(probe_range_define[i].desc));
+            }
+        }
+    }
+    cJSON_AddItemToObject(json, "probe", range);
+}
+
+/* {"probe":["XX","YY"]} , XX must be string but unsupported probe range will be ignored */
+static int probe_parser_range(struct probe_s *probe, const cJSON *probe_item)
+{
+    int range;
+    cJSON *object;
+
+    size_t size = cJSON_GetArraySize(probe_item);
+    for (int i = 0; i < size; i++) {
+        object = cJSON_GetArrayItem(probe_item, i);
+        if (object->type != cJSON_String) {
+            return -1;
+        }
+
+        range = get_probe_range(probe->probe_type, (const char*)object->valuestring);
+        probe->probe_range_flags |= (u32)range;
+    }
+
+    return 0;
 }
 
 static int probe_parser_cmd(struct probe_s *probe, const cJSON *item)
 {
-    int ret;
-    cJSON *bin_object, *chkcmd_object;
-
-    if (IS_RUNNING_PROBE(probe)) {
-        ERROR("[PROBEMNG] Fail to modify cmd of probe(name:%s) which is running\n", probe->name);
-        return -1;
-    }
+    int ret = 0;
+    cJSON *bin_object, *chkcmd_object, *probe_object;
 
     bin_object = cJSON_GetObjectItem(item, "bin");
     if (bin_object == NULL || bin_object->type != cJSON_String) {
@@ -544,7 +652,12 @@ static int probe_parser_cmd(struct probe_s *probe, const cJSON *item)
         probe->cb = native_probe_thread_cb;
     }
 
-    return 0;
+    probe_object = cJSON_GetObjectItem(item, "probe");
+    if (probe_object != NULL) {
+        ret = probe_parser_range(probe, probe_object);
+    }
+
+    return ret;
 }
 
 static void probe_backup_cmd(struct probe_s *probe, struct probe_s *probe_backup)
@@ -554,6 +667,7 @@ static void probe_backup_cmd(struct probe_s *probe, struct probe_s *probe_backup
     probe_backup->is_extend_probe = probe->is_extend_probe;
     probe_backup->probe_entry = probe->probe_entry;
     probe_backup->cb = probe->cb;
+    probe_backup->probe_range_flags = probe->probe_range_flags;
 }
 
 static void probe_rollback_cmd(struct probe_s *probe, struct probe_s *probe_backup)
@@ -573,50 +687,28 @@ static void probe_rollback_cmd(struct probe_s *probe, struct probe_s *probe_back
     probe->is_extend_probe = probe_backup->is_extend_probe;
     probe->probe_entry = probe_backup->probe_entry;
     probe->cb = probe_backup->cb;
+
+    probe->probe_range_flags = probe_backup->probe_range_flags;
 }
 
 
-static int probe_parser_operate(struct probe_s *probe, const cJSON *item)
+static int probe_parser_state(struct probe_s *probe, const cJSON *item)
 {
     if (item->type != cJSON_String) {
         ERROR("[PROBEMNG] Operation must be string, probe(name:%s)\n", probe->name);
         return -1;
     }
 
-    if (!strcasecmp("start", (const char *)item->valuestring)) {
+    if (!strcasecmp("running", (const char *)item->valuestring)) {
         return start_probe(probe);
     }
 
-    if (!strcasecmp("stop", (const char *)item->valuestring)) {
+    if (!strcasecmp("stoped", (const char *)item->valuestring)) {
         return stop_probe(probe);
-    }
-
-    if (!strcasecmp("delete", (const char *)item->valuestring)) {
-        return delete_probe(probe);
     }
 
     ERROR("[PROBEMNG] Unsupported operation %s to probe(name:%s)\n", (const char *)item->valuestring, probe->name);
     return -1;
-}
-
-static void probe_printer_probes(struct probe_s *probe, cJSON *json)
-{
-    return print_snooper(probe, json);
-}
-
-static int probe_parser_probes(struct probe_s *probe, const cJSON *item)
-{
-    return parse_snooper(probe, item);
-}
-
-static void probe_backup_probes(struct probe_s *probe, struct probe_s *probe_backup)
-{
-    return backup_snooper(probe, probe_backup);
-}
-
-static void probe_rollback_probes(struct probe_s *probe, struct probe_s *probe_backup)
-{
-    return rollback_snooper(probe, probe_backup);
 }
 
 static int probe_parser_params(struct probe_s *probe, const cJSON *item)
@@ -648,10 +740,10 @@ struct probe_parser_s {
 
 // !!!NOTICE:The function sequence cannot be changed.
 struct probe_parser_s probe_parsers[] = {
-    {"cmd",     probe_parser_cmd,     probe_printer_cmd,    probe_backup_cmd,    probe_rollback_cmd},
-    {"probes",  probe_parser_probes,  probe_printer_probes, probe_backup_probes, probe_rollback_probes},
-    {"params",  probe_parser_params,  NULL,                 probe_backup_params, probe_rollback_params},
-    {"operate", probe_parser_operate, NULL, NULL, NULL}
+    {"cmd", probe_parser_cmd, probe_printer_cmd, probe_backup_cmd, probe_rollback_cmd},
+    {"snoopers", parse_snooper, print_snooper, backup_snooper, rollback_snooper},
+    {"params", probe_parser_params, NULL, probe_backup_params, probe_rollback_params},
+    {"state", probe_parser_state, NULL, NULL, NULL}
 };
 
 static void rollback_probe(struct probe_s *probe, struct probe_s *probe_backup, u32 flag)
@@ -672,6 +764,159 @@ static void rollback_probe(struct probe_s *probe, struct probe_s *probe_backup, 
             }
         }
     }
+}
+
+#define __COMP_STR_P(a, b, is_modify) \
+    do \
+    {\
+        is_modify = 0; \
+        if (((a) != NULL) && ((b) != NULL)) { \
+            if (strcmp((a), (b))) { \
+                is_modify = 1; \
+            } \
+        } \
+        \
+        if ((((a) != NULL) && ((b) == NULL)) || (((b) != NULL) && ((a) == NULL))) { \
+            is_modify = 1; \
+        } \
+    } while (0)
+
+static char __snooper_app_is_modify(struct snooper_conf_s* conf, struct snooper_conf_s *backup_conf)
+{
+    char is_modify = 0;
+
+    if (strcmp(conf->conf.app.comm, backup_conf->conf.app.comm)) {
+        return 1;
+    }
+
+    __COMP_STR_P(conf->conf.app.cmdline, backup_conf->conf.app.cmdline, is_modify);
+    if (is_modify) {
+        return 1;
+    }
+
+    __COMP_STR_P(conf->conf.app.debuging_dir, backup_conf->conf.app.debuging_dir, is_modify);
+    if (is_modify) {
+        return 1;
+    }
+
+    return 0;
+
+}
+static char __snooper_gaussdb_is_modify(struct snooper_conf_s* conf, struct snooper_conf_s *backup_conf)
+{
+    char is_modify = 0;
+
+    if (conf->conf.gaussdb.port != backup_conf->conf.gaussdb.port) {
+        return 1;
+    }
+
+    __COMP_STR_P(conf->conf.gaussdb.ip, backup_conf->conf.gaussdb.ip, is_modify);
+    if (is_modify) {
+        return 1;
+    }
+
+    __COMP_STR_P(conf->conf.gaussdb.dbname, backup_conf->conf.gaussdb.dbname, is_modify);
+    if (is_modify) {
+        return 1;
+    }
+
+    __COMP_STR_P(conf->conf.gaussdb.usr, backup_conf->conf.gaussdb.usr, is_modify);
+    if (is_modify) {
+        return 1;
+    }
+
+    __COMP_STR_P(conf->conf.gaussdb.pass, backup_conf->conf.gaussdb.pass, is_modify);
+    if (is_modify) {
+        return 1;
+    }
+    return 0;
+}
+static char __snooper_proc_is_modify(struct snooper_conf_s* conf, struct snooper_conf_s *backup_conf)
+{
+    if (conf->conf.proc_id != backup_conf->conf.proc_id) {
+        return 1;
+    }
+    return 0;
+}
+static char __snooper_pod_is_modify(struct snooper_conf_s* conf, struct snooper_conf_s *backup_conf)
+{
+    if (strcmp(conf->conf.pod_id, backup_conf->conf.pod_id)) {
+        return 1;
+    }
+    return 0;
+}
+static char __snooper_container_is_modify(struct snooper_conf_s* conf, struct snooper_conf_s *backup_conf)
+{
+    if (strcmp(conf->conf.container_id, backup_conf->conf.container_id)) {
+        return 1;
+    }
+    return 0;
+}
+
+typedef char (*snooper_is_modify_cb)(struct snooper_conf_s *, struct snooper_conf_s *);
+struct snooper_modify_s {
+    enum snooper_conf_e type;
+    snooper_is_modify_cb is_modify;
+};
+
+struct snooper_modify_s snooper_modifys[] = {
+    {SNOOPER_CONF_APP, __snooper_app_is_modify},
+    {SNOOPER_CONF_GAUSSDB, __snooper_gaussdb_is_modify},
+    {SNOOPER_CONF_PROC_ID, __snooper_proc_is_modify},
+    {SNOOPER_CONF_POD_ID, __snooper_pod_is_modify},
+    {SNOOPER_CONF_CONTAINER_ID, __snooper_container_is_modify}
+};
+
+
+static char snooper_is_modify(struct snooper_conf_s* conf, struct snooper_conf_s *backup_conf)
+{
+    if (conf->type != backup_conf->type) {
+        return 1;
+    }
+
+    if (snooper_modifys[conf->type].is_modify == NULL) {
+        return 1;
+    }
+
+    return snooper_modifys[conf->type].is_modify(conf, backup_conf);
+}
+
+static void set_probe_modify(struct probe_s *probe, struct probe_s *backup_probe)
+{
+    char is_modify;
+
+    // reset
+    probe->is_params_chg = 0;
+    probe->is_snooper_chg = 0;
+
+    if (probe->probe_range_flags != backup_probe->probe_range_flags) {
+        probe->is_params_chg = 1;
+    }
+
+    if (memcmp(&(probe->probe_param), &(backup_probe->probe_param), sizeof(struct probe_params))) {
+        probe->is_params_chg = 1;
+    }
+
+    if (probe->snooper_conf_num != backup_probe->snooper_conf_num) {
+        probe->is_snooper_chg = 1;
+        return;
+    }
+
+    is_modify = 0;
+    for (int i = 0; i < probe->snooper_conf_num && i < SNOOPER_MAX; i++) {
+        if ((probe->snooper_confs[i] == NULL) || (backup_probe->snooper_confs[i] == NULL)) {
+            is_modify = 1;
+            break;
+        }
+        if (snooper_is_modify(probe->snooper_confs[i], backup_probe->snooper_confs[i])) {
+            is_modify = 1;
+            break;
+        }
+    }
+    if (is_modify) {
+        probe->is_snooper_chg = 1;
+    }
+    return;
 }
 
 int parse_probe_json(const char *probe_name, const char *probe_content)
@@ -721,8 +966,13 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
         }
     }
 
+    if (ret == 0) {
+        set_probe_modify(probe, probe_backup);
+    }
+
     /* Send snooper obj after parsing successfully, except when the probe was deleted */
-    if (ret == 0 && g_probe_mng->probes[probe_type]) {
+    if (ret == 0 && (IS_STARTED_PROBE(probe) || IS_RUNNING_PROBE(probe))
+        && (probe->is_params_chg || probe->is_snooper_chg || probe->is_restart)) {
         ret = send_snooper_obj(probe);
     }
 

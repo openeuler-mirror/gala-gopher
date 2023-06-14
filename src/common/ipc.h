@@ -153,9 +153,12 @@ struct snooper_obj_s {
     } obj;
 };
 
+#define IPC_FLAGS_SNOOPER_CHG   0x00000001
+#define IPC_FLAGS_PARAMS_CHG    0x00000002
 struct ipc_body_s {
     u32 probe_range_flags;                              // Refer to flags defined [PROBE_RANGE_XX_XX]
     u32 snooper_obj_num;
+    u32 probe_flags;
     struct probe_params probe_param;
     struct snooper_obj_s snooper_objs[SNOOPER_MAX];
 };

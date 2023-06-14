@@ -302,6 +302,10 @@ static int parser_pyscope_server(struct probe_s *probe, struct param_key_s *para
         return -1;
     }
 
+    if (value == NULL) {
+        value = param_key->v.default_string;
+    }
+
     (void)snprintf(probe->probe_param.pyroscope_server, sizeof(probe->probe_param.pyroscope_server), "%s", value);
     return 0;
 }
