@@ -24,28 +24,51 @@
 #define DOCKER_STATS_RUNNING "running"
 #define DOCKER_STATS_RESTARTING "restarting"
 
-#define DOCKER "/usr/bin/docker"
-#define ISULAD "/usr/bin/isulad"
+#define DOCKER "docker"
+#define ISULAD "isulad"
+#define CONTAINERD "crictl"
+
+
+#define CONTAINERD_NAME_COMMAND "--output go-template --template='{{.status.metadata.name}}'"
+#define CONTAINERD_PID_COMMAND "--output go-template --template='{{.info.pid}}'"
+#define CONTAINERD_STATUS_COMMAND "--output go-template --template='{{.status.state}}'"
+#define CONTAINERD_ID_COMMAND "%s ps -q | xargs %s inspect --output go-template --template='{{.info.pid}}, {{.status.id}}'"\
+        "| /usr/bin/grep -w %u | /usr/bin/awk -F ', ' '{print $2}'"
+#define CONTAINERD_POD_COMMAND "--output go-template --template='{{index .status.labels \"io.kubernetes.pod.name\"}}''"
+#define CONTAINERD_PODID_COMMAND "--output go-template --template='{{index .status.labels \"io.kubernetes.pod.uid\"}}''"
+#define CONTAINERD_MERGED_COMMAND "mount | grep %s | grep rootfs | awk '{print $3}'"
+#define CONTAINERD_IP_CMD "%s ps | grep %s | awk '{print $NF}' | xargs %s inspectp --output go-template --template='{{.status.network.ip}}'"
+#define CONTAINERD_LIST_CONTAINER_COMMAND "%s ps -q | xargs  %s inspect --output go-template "\
+    "--template='{{.status.id}}, {{index .status.labels \"io.kubernetes.pod.uid\"}}' | /usr/bin/grep %s |  /usr/bin/awk -F ', ' '{print $1}' 2>/dev/null"
+#define CONTAINERD_LIST_COUNT_COMMAND "%s ps -q | xargs  %s inspect --output go-template "\
+        "--template='{{.status.id}}, {{index .status.labels \"io.kubernetes.pod.uid\"}}' | /usr/bin/grep %s |  /usr/bin/awk -F ', ' '{print $1}' | wc -l"
+
+#define DOCKER_NAME_COMMAND "--format '{{.Name}}'"
+#define DOCKER_PID_COMMAND "--format '{{.State.Pid}}'"
+#define DOCKER_STATUS_COMMAND "--format '{{.State.Status}}'"
+#define DOCKER_ID_COMMAND "%s ps -q | xargs %s inspect --format '{{.State.Pid}}, {{.Id}}' "\
+        "| /usr/bin/grep -w %u | /usr/bin/awk -F ', ' '{print $2}'"
+#define DOCKER_POD_COMMAND "--format '{{index .Config.Labels \"io.kubernetes.pod.name\"}}'"
+#define DOCKER_PODID_COMMAND "--format '{{index .Config.Labels \"io.kubernetes.pod.uid\"}}'"
+#define DOCKER_MERGED_COMMAND "--format '{{.GraphDriver.Data.MergedDir}}'"
+#define DOCKER_IP_CMD "--format '{{ .NetworkSettings.IPAddress }}' 2>/dev/null"
+#define DOCKER_LIST_CONTAINER_COMMAND "%s ps -q | xargs  %s inspect --format "\
+    "'{{.Id}}, {{index .Config.Labels \"io.kubernetes.pod.uid\"}}' | /usr/bin/grep %s |  /usr/bin/awk -F ', ' '{print $1}' 2>/dev/null"
+#define DOCKER_LIST_COUNT_COMMAND "%s ps -q | xargs  %s inspect --format "\
+        "'{{.Id}}, {{index .Config.Labels \"io.kubernetes.pod.uid\"}}' | /usr/bin/grep %s |  /usr/bin/awk -F ', ' '{print $1}' | wc -l"
 
 #define DOCKER_COUNT_COMMAND "ps | /usr/bin/awk 'NR > 1 {print $1}' | /usr/bin/wc -l"
 #define DOCKER_PS_COMMAND "ps | /usr/bin/awk 'NR > 1 {print $1}'"
-#define DOCKER_PID_COMMAND "--format '{{.State.Pid}}'"
-#define DOCKER_NAME_COMMAND "--format '{{.Name}}'"
-#define DOCKER_STATUS_COMMAND "--format '{{.State.Status}}'"
-#define DOCKER_COMM_COMMAND "/usr/bin/cat /proc/%u/comm"
-#define DOCKER_ID_COMMAND "%s ps -q | xargs %s inspect --format '{{.State.Pid}}, {{.Id}}' "\
-        "| /usr/bin/grep -w %u | /usr/bin/awk -F ', ' '{print $2}'"
-#define DOCKER_POD_COMMAND "--format '{{.Config.Hostname}}'"
+
+
 #define DOCKER_NETNS_COMMAND "/usr/bin/ls -l /proc/%u/ns/net | /usr/bin/awk -F '[' '{print $2}' "\
         "| /usr/bin/awk -F ']' '{print $1}'"
 #define DOCKER_CGP_COMMAND "/usr/bin/ls -l /proc/%u/ns/cgroup | /usr/bin/awk -F '[' '{print $2}' "\
         "| /usr/bin/awk -F ']' '{print $1}'"
 #define DOCKER_MNTNS_COMMAND "/usr/bin/ls -l /proc/%u/ns/mnt | /usr/bin/awk -F '[' '{print $2}' "\
         "| /usr/bin/awk -F ']' '{print $1}'"
-#define DOCKER_MERGED_COMMAND "MergedDir | /usr/bin/awk -F '\"' '{print $4}'"
+
 #define PLDD_LIB_COMMAND "pldd %u 2>/dev/null | grep \"%s\""
-#define DOCKER_PODID_COMMAND "--format '{{index .Config.Labels \"io.kubernetes.pod.uid\"}}'"
-#define POD_IP_CMD "--format '{{ .NetworkSettings.IPAddress }}' 2>/dev/null"
 
 static char *current_docker_command = NULL;
 
@@ -128,6 +151,18 @@ static bool __is_isulad()
     return false;
 }
 
+static bool __is_containerd()
+{
+    if (__is_install_rpm("/bin/rpm -ql containerd")) {
+        if (__is_service_running("/usr/bin/systemctl status containerd")) {
+            current_docker_command = CONTAINERD;
+            return true;
+        }
+    }
+
+    return false;
+}
+
 static const char *get_current_command()
 {
     if (current_docker_command) {
@@ -136,6 +171,7 @@ static const char *get_current_command()
 
     (void)__is_dockerd();
     (void)__is_isulad();
+    (void)__is_containerd();
 
     return (const char *)current_docker_command;
 }
@@ -222,8 +258,15 @@ static int __get_containers_status(container_tbl* cstbl, const char *command_s)
     for (index = 0; index < cstbl->num; index++) {
         command[0] = 0;
         line[0] = 0;
-        (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
-                command_s, p->abbrContainerId, DOCKER_STATUS_COMMAND);
+
+        if (__is_containerd()) {
+            (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
+                    get_current_command(), CONTAINERD_STATUS_COMMAND, p->abbrContainerId);
+        } else {
+            (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
+                    command_s, p->abbrContainerId, DOCKER_STATUS_COMMAND);
+        }
+
         if (!exec_cmd((const char *)command, line, LINE_BUF_LEN)) {
             __containers_status(p, line);
             p++;
@@ -241,12 +284,16 @@ static int __get_container_name(const char *abbr_container_id, char name[], unsi
     }
 
     command[0] = 0;
-    (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
-            get_current_command(), abbr_container_id, DOCKER_NAME_COMMAND);
+    if (__is_containerd()) {
+        (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
+                get_current_command(), CONTAINERD_NAME_COMMAND, abbr_container_id);
+    } else {
+        (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
+                get_current_command(), abbr_container_id, DOCKER_NAME_COMMAND);
+    }
 
     return exec_cmd((const char *)command, name, len);
 }
-
 
 static int __get_container_pid(const char *abbr_container_id, unsigned int *pid)
 {
@@ -259,8 +306,14 @@ static int __get_container_pid(const char *abbr_container_id, unsigned int *pid)
 
     command[0] = 0;
     line[0] = 0;
-    (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
-            get_current_command(), abbr_container_id, DOCKER_PID_COMMAND);
+
+    if (__is_containerd()) {
+        (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
+                get_current_command(), CONTAINERD_PID_COMMAND, abbr_container_id);
+    } else {
+        (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
+                get_current_command(), abbr_container_id, DOCKER_PID_COMMAND);
+    }
 
     if (exec_cmd((const char *)command, line, LINE_BUF_LEN) < 0) {
         return -1;
@@ -278,8 +331,13 @@ static int __get_container_pod(const char *abbr_container_id, char pod[], unsign
         return -1;
     }
     command[0] = 0;
-    (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
-            get_current_command(), abbr_container_id, DOCKER_POD_COMMAND);
+    if (__is_containerd()) {
+        (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
+                get_current_command(), CONTAINERD_POD_COMMAND, abbr_container_id);
+    } else {
+        (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
+                get_current_command(), abbr_container_id, DOCKER_POD_COMMAND);
+    }
 
     if (exec_cmd((const char *)command, pod, len) < 0) {
         return -1;
@@ -370,10 +428,20 @@ int get_container_merged_path(const char *abbr_container_id, char *path, unsigne
         return -1;
     }
 
+    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+        return -1;
+    }
+
     command[0] = 0;
     path[0] = 0;
-    (void)snprintf(command, COMMAND_LEN, "%s inspect %s | grep %s", \
-        get_current_command(), abbr_container_id, DOCKER_MERGED_COMMAND);
+
+    if (__is_containerd()) {
+        (void)snprintf(command, COMMAND_LEN, "%s %s", \
+            CONTAINERD_MERGED_COMMAND, abbr_container_id);
+    } else {
+        (void)snprintf(command, COMMAND_LEN, "%s inspect %s | grep %s", \
+            get_current_command(), abbr_container_id, DOCKER_MERGED_COMMAND);
+    }
 
     return exec_cmd((const char *)command, path, len);
 }
@@ -385,6 +453,10 @@ int exec_container_command(const char *abbr_container_id, const char *exec, char
 
     command[0] = 0;
     buf[0] = 0;
+
+    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+        return -1;
+    }
 
     if (!get_current_command()) {
         return -1;
@@ -417,7 +489,11 @@ int get_container_id_by_pid(unsigned int pid, char *container_id, unsigned int b
 
     command[0] = 0;
     line[0] = 0;
-    (void)snprintf(command, COMMAND_LEN, DOCKER_ID_COMMAND, get_current_command(), get_current_command(), pid);
+    if (__is_containerd()) {
+        (void)snprintf(command, COMMAND_LEN, CONTAINERD_ID_COMMAND, get_current_command(), get_current_command(), pid);
+    } else {
+        (void)snprintf(command, COMMAND_LEN, DOCKER_ID_COMMAND, get_current_command(), get_current_command(), pid);
+    }
 
     ret = exec_cmd((const char *)command, line, LINE_BUF_LEN);
     if (ret < 0) {
@@ -434,7 +510,7 @@ int get_container_id_by_pid(unsigned int pid, char *container_id, unsigned int b
 static int __is_container_id(char *container_id)
 {
     int len = strlen(container_id);
-    if (len > CONTAINER_ID_LEN) {
+    if (len == 0 || len > CONTAINER_ID_LEN) {
         return 0;
     }
 
@@ -624,27 +700,43 @@ static int __get_fullpath_inode(const char *full_path, unsigned int *inode)
 #define CGROUP_SUBSYS_NETCLS    "net_cls,net_prio"
 int get_container_cpucg_dir(const char *abbr_container_id, char dir[], unsigned int dir_len)
 {
+    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+        return -1;
+    }
     return __get_container_cgpdir(abbr_container_id, CGROUP_SUBSYS_CPUACCT, dir, dir_len);
 }
 
 int get_container_memcg_dir(const char *abbr_container_id, char dir[], unsigned int dir_len)
 {
+    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+        return -1;
+    }
     return __get_container_cgpdir(abbr_container_id, CGROUP_SUBSYS_MEMORY, dir, dir_len);
 }
 
 int get_container_pidcg_dir(const char *abbr_container_id, char dir[], unsigned int dir_len)
 {
+    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+        return -1;
+    }
     return __get_container_cgpdir(abbr_container_id, CGROUP_SUBSYS_PIDS, dir, dir_len);
 }
 
 int get_container_netcg_dir(const char *abbr_container_id, char dir[], unsigned int dir_len)
 {
+    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+        return -1;
+    }
     return __get_container_cgpdir(abbr_container_id, CGROUP_SUBSYS_NETCLS, dir, dir_len);
 }
 
 int get_container_cpucg_inode(const char *abbr_container_id, unsigned int *inode)
 {
     char cpucg_dir[PATH_LEN];
+
+    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+        return -1;
+    }
 
     cpucg_dir[0] = 0;
     if (get_container_cpucg_dir(abbr_container_id, cpucg_dir, PATH_LEN) < 0) {
@@ -658,6 +750,10 @@ int get_container_memcg_inode(const char *abbr_container_id, unsigned int *inode
 {
     char memcg_dir[PATH_LEN];
 
+    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+        return -1;
+    }
+
     memcg_dir[0] = 0;
     if (get_container_memcg_dir(abbr_container_id, memcg_dir, PATH_LEN) < 0) {
         return -1;
@@ -669,6 +765,10 @@ int get_container_memcg_inode(const char *abbr_container_id, unsigned int *inode
 int get_container_pidcg_inode(const char *abbr_container_id, unsigned int *inode)
 {
     char pidcg_dir[PATH_LEN];
+
+    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+        return -1;
+    }
 
     pidcg_dir[0] = 0;
     if (get_container_pidcg_dir(abbr_container_id, pidcg_dir, PATH_LEN) < 0) {
@@ -684,6 +784,10 @@ int get_container_netns_id(const char *abbr_container_id, unsigned int *id)
 {
     unsigned int pid;
     char proc[PATH_LEN];
+
+    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+        return -1;
+    }
 
     if (__get_container_pid(abbr_container_id, &pid) < 0) {
         return -1;
@@ -704,6 +808,10 @@ int get_container_mntns_id(const char *abbr_container_id, unsigned int *id)
     unsigned int pid;
     char proc[PATH_LEN];
 
+    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+        return -1;
+    }
+
     if (__get_container_pid(abbr_container_id, &pid) < 0) {
         return -1;
     }
@@ -720,16 +828,25 @@ int get_container_mntns_id(const char *abbr_container_id, unsigned int *id)
 
 int get_container_pid(const char *abbr_container_id, unsigned int *pid)
 {
+    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+        return -1;
+    }
     return __get_container_pid(abbr_container_id, pid);
 }
 
 int get_container_name(const char *abbr_container_id, char name[], unsigned int len)
 {
+    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+        return -1;
+    }
     return __get_container_name(abbr_container_id, name, len);
 }
 
 int get_container_pod(const char *abbr_container_id, char pod[], unsigned int len)
 {
+    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+        return -1;
+    }
     return __get_container_pod(abbr_container_id, pod, len);
 }
 
@@ -741,9 +858,18 @@ int get_container_pod_id(const char *abbr_container_id, char pod_id[], unsigned 
         return -1;
     }
 
+    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+        return -1;
+    }
+
     command[0] = 0;
-    (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
-        get_current_command(), abbr_container_id, DOCKER_PODID_COMMAND);
+    if (__is_containerd()) {
+        (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
+            get_current_command(), CONTAINERD_PODID_COMMAND, abbr_container_id);
+    } else {
+        (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
+            get_current_command(), abbr_container_id, DOCKER_PODID_COMMAND);
+    }
 
     int ret = exec_cmd((const char *)command, pod_id, len);
     if (ret) {
@@ -753,7 +879,7 @@ int get_container_pod_id(const char *abbr_container_id, char pod_id[], unsigned 
     return ret;
 }
 
-int get_pod_ip(char *abbr_container_id, char *pod_ip_str, int len)
+int get_pod_ip(const char *abbr_container_id, char *pod_ip_str, int len)
 {
     char command[COMMAND_LEN] = {0};
 
@@ -761,9 +887,18 @@ int get_pod_ip(char *abbr_container_id, char *pod_ip_str, int len)
         return -1;
     }
 
+    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+        return -1;
+    }
+
     command[0] = 0;
-    (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
-        get_current_command(), abbr_container_id, POD_IP_CMD);
+    if (__is_containerd()) {
+        (void)snprintf(command, COMMAND_LEN, CONTAINERD_IP_CMD,
+            get_current_command(), abbr_container_id, get_current_command());
+    } else {
+        (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
+            get_current_command(), abbr_container_id, DOCKER_IP_CMD);
+    }
 
     int ret = exec_cmd((const char *)command, pod_ip_str, len);
     if (ret) {
@@ -772,3 +907,96 @@ int get_pod_ip(char *abbr_container_id, char *pod_ip_str, int len)
 
     return ret;
 }
+
+static int __list_containers_count_by_pod_id(const char *pod_id)
+{
+    char command[COMMAND_LEN];
+    char line[INT_LEN];
+
+    command[0] = 0;
+    if (__is_containerd()) {
+        (void)snprintf(command, COMMAND_LEN, CONTAINERD_LIST_COUNT_COMMAND,
+            get_current_command(), get_current_command(), pod_id);
+    } else {
+        (void)snprintf(command, COMMAND_LEN, DOCKER_LIST_COUNT_COMMAND,
+            get_current_command(), get_current_command(), pod_id);
+    }
+
+    line[0] = 0;
+    int ret = exec_cmd((const char *)command, line, INT_LEN);
+    if (ret) {
+        return 0;
+    }
+    return atoi(line);
+}
+
+static int __list_containers_by_pod_id(const char *pod_id, container_tbl *cstbl)
+{
+    int index = 0;
+    char command[COMMAND_LEN];
+    char line[LINE_BUF_LEN];
+    FILE *f = NULL;
+    container_info *p;
+
+    command[0] = 0;
+    if (__is_containerd()) {
+        (void)snprintf(command, COMMAND_LEN, CONTAINERD_LIST_CONTAINER_COMMAND,
+            get_current_command(), get_current_command(), pod_id);
+    } else {
+        (void)snprintf(command, COMMAND_LEN, DOCKER_LIST_CONTAINER_COMMAND,
+            get_current_command(), get_current_command(), pod_id);
+    }
+
+    f = popen(command, "r");
+    if (f == NULL) {
+        return -1;
+    }
+    while (!feof(f) && (index < cstbl->num)) {
+        p = cstbl->cs + index;
+        line[0] = 0;
+        if (fgets(line, LINE_BUF_LEN, f) == NULL) {
+            break;
+        }
+        SPLIT_NEWLINE_SYMBOL(line);
+        (void)snprintf(p->abbrContainerId, CONTAINER_ABBR_ID_LEN + 1, "%s", line);
+        index++;
+    }
+
+    pclose(f);
+    return 0;
+}
+
+container_tbl* list_containers_by_pod_id(const char *pod_id)
+{
+    int container_num;
+    size_t size;
+    container_tbl *cstbl;
+
+    if (!get_current_command()) {
+        return NULL;
+    }
+
+    if (pod_id == NULL || pod_id[0] == 0) {
+        return NULL;
+    }
+
+    container_num = __list_containers_count_by_pod_id(pod_id);
+    if (container_num <= 0) {
+        return NULL;
+    }
+
+    size = sizeof(container_tbl) + container_num * sizeof(container_info);
+    cstbl = (container_tbl *)malloc(size);
+    if (cstbl == NULL) {
+        return NULL;
+    }
+
+    (void)memset(cstbl, 0, size);
+    cstbl->num = (unsigned int)container_num;
+    cstbl->cs = (container_info *)(cstbl + 1);
+
+    (void)__list_containers_by_pod_id(pod_id, cstbl);
+
+    return cstbl;
+}
+
