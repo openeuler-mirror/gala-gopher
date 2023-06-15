@@ -254,7 +254,7 @@ static MHD_Result RestHandlePostRequest(struct MHD_Connection *connection,
         }
     }
 
-    return RestResponseMessage(connection, MHD_HTTP_BAD_REQUEST, "Bad request");
+    return RestResponseMessage(connection, MHD_HTTP_BAD_REQUEST, g_parse_json_err);
 }
 
 static MHD_Result RestHandleGetRequest(struct MHD_Connection *connection,
