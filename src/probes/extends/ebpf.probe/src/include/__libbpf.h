@@ -89,9 +89,9 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
 
 #define PIN_OBJ_MAP(app_name, probe_name) \
                 do { \
-                    __MAP_SET_PIN_PATH(probe_name, cgrp_obj_map, CGRP_MAP_PATH#app_name); \
-                    __MAP_SET_PIN_PATH(probe_name, nm_obj_map, NM_MAP_PATH#app_name); \
-                    __MAP_SET_PIN_PATH(probe_name, proc_obj_map, PROC_MAP_PATH#app_name); \
+                    __MAP_SET_PIN_PATH(probe_name, cgrp_obj_map, "/sys/fs/bpf/gala-gopher/__"#app_name"_cgroup_map"); \
+                    __MAP_SET_PIN_PATH(probe_name, nm_obj_map, "/sys/fs/bpf/gala-gopher/__"#app_name"_nm_map"); \
+                    __MAP_SET_PIN_PATH(probe_name, proc_obj_map, "/sys/fs/bpf/gala-gopher/__"#app_name"_proc_map"); \
                 } while (0)
 
 #define GET_PROC_MAP_PIN_PATH(app_name) (PROC_MAP_PATH#app_name)
