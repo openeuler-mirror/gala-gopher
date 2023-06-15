@@ -81,6 +81,8 @@ static int parser_sample_peirod(struct probe_s *probe, struct param_key_s *param
 {
     int value = (int)key_item->valueint;
     if (value < param_key->v.min || value > param_key->v.max) {
+        PARSE_ERR("params.%s invalid value, must be in [%d, %d]",
+                  param_key->key, param_key->v.min, param_key->v.max);
         return -1;
     }
 
@@ -92,6 +94,8 @@ static int parser_report_peirod(struct probe_s *probe, struct param_key_s *param
 {
     int value = (int)key_item->valueint;
     if (value < param_key->v.min || value > param_key->v.max) {
+        PARSE_ERR("params.%s invalid value, must be in [%d, %d]",
+                  param_key->key, param_key->v.min, param_key->v.max);
         return -1;
     }
 
@@ -103,6 +107,8 @@ static int parser_latency_thr(struct probe_s *probe, struct param_key_s *param_k
 {
     int value = (int)key_item->valueint;
     if (value < param_key->v.min || value > param_key->v.max) {
+        PARSE_ERR("params.%s invalid value, must be in [%d, %d]",
+                  param_key->key, param_key->v.min, param_key->v.max);
         return -1;
     }
 
@@ -114,6 +120,8 @@ static int parser_drops_thr(struct probe_s *probe, struct param_key_s *param_key
 {
     int value = (int)key_item->valueint;
     if (value < param_key->v.min || value > param_key->v.max) {
+        PARSE_ERR("params.%s invalid value, must be in [%d, %d]",
+                  param_key->key, param_key->v.min, param_key->v.max);
         return -1;
     }
 
@@ -125,6 +133,8 @@ static int parser_res_lower_thr(struct probe_s *probe, struct param_key_s *param
 {
     int value = (int)key_item->valueint;
     if (value < param_key->v.min || value > param_key->v.max) {
+        PARSE_ERR("params.%s invalid value, must be in [%d, %d]",
+                  param_key->key, param_key->v.min, param_key->v.max);
         return -1;
     }
 
@@ -136,6 +146,8 @@ static int parser_res_upper_thr(struct probe_s *probe, struct param_key_s *param
 {
     int value = (int)key_item->valueint;
     if (value < param_key->v.min || value > param_key->v.max) {
+        PARSE_ERR("params.%s invalid value, must be in [%d, %d]",
+                  param_key->key, param_key->v.min, param_key->v.max);
         return -1;
     }
 
@@ -165,6 +177,8 @@ static int parser_report_event(struct probe_s *probe, struct param_key_s *param_
 {
     int value = (int)key_item->valueint;
     if (value < param_key->v.min || value > param_key->v.max) {
+        PARSE_ERR("params.%s invalid value, must be in [%d, %d]",
+                  param_key->key, param_key->v.min, param_key->v.max);
         return -1;
     }
 
@@ -187,6 +201,7 @@ static int parser_metrics_type(struct probe_s *probe, struct param_key_s *param_
         metrics_flags = __get_params_flags(param_metrics_flags,
                         sizeof(param_metrics_flags)/sizeof(struct param_flags_s), value);
         if (metrics_flags == 0) {
+            PARSE_ERR("params.%s invalid value: %s", param_key->key, value);
             return -1;
         }
 
@@ -213,6 +228,7 @@ static int parser_work_env(struct probe_s *probe, struct param_key_s *param_key,
         env_flags = __get_params_flags(param_env_flags,
                     sizeof(param_env_flags)/sizeof(struct param_flags_s), value);
         if (env_flags == 0) {
+            PARSE_ERR("params.%s invalid value: %s", param_key->key, value);
             return -1;
         }
 
@@ -239,6 +255,7 @@ static int parser_l7pro(struct probe_s *probe, struct param_key_s *param_key, co
         l7pro_flags = __get_params_flags(param_l7pro_flags,
                     sizeof(param_l7pro_flags)/sizeof(struct param_flags_s), value);
         if (l7pro_flags == 0) {
+            PARSE_ERR("params.%s invalid value: %s", param_key->key, value);
             return -1;
         }
 
@@ -253,6 +270,8 @@ static int parser_report_tcpsport(struct probe_s *probe, struct param_key_s *par
 {
     int value = (int)key_item->valueint;
     if (value < param_key->v.min || value > param_key->v.max) {
+        PARSE_ERR("params.%s invalid value, must be in [%d, %d]",
+                  param_key->key, param_key->v.min, param_key->v.max);
         return -1;
     }
 
@@ -264,6 +283,8 @@ static int parser_support_ssl(struct probe_s *probe, struct param_key_s *param_k
 {
     int value = (int)key_item->valueint;
     if (value < param_key->v.min || value > param_key->v.max) {
+        PARSE_ERR("params.%s invalid value, must be in [%d, %d]",
+                  param_key->key, param_key->v.min, param_key->v.max);
         return -1;
     }
 
@@ -317,6 +338,8 @@ static int parser_svg_period(struct probe_s *probe, struct param_key_s *param_ke
     if (value == 0) {
         value = param_key->v.default_int;
     } else if (value < param_key->v.min || value > param_key->v.max) {
+        PARSE_ERR("params.%s invalid value, must be in [%d, %d]",
+                  param_key->key, param_key->v.min, param_key->v.max);
         return -1;
     }
 
@@ -330,6 +353,8 @@ static int parser_perf_sample_period(struct probe_s *probe, struct param_key_s *
     if (value == 0) {
         value = param_key->v.default_int;
     } else if (value < param_key->v.min || value > param_key->v.max) {
+        PARSE_ERR("params.%s invalid value, must be in [%d, %d]",
+                  param_key->key, param_key->v.min, param_key->v.max);
         return -1;
     }
 
@@ -366,6 +391,8 @@ static int parser_kafka_port(struct probe_s *probe, struct param_key_s *param_ke
 {
     int value = (int)key_item->valueint;
     if (value < param_key->v.min || value > param_key->v.max) {
+        PARSE_ERR("params.%s invalid value, must be in [%d, %d]",
+                  param_key->key, param_key->v.min, param_key->v.max);
         return -1;
     }
 
@@ -377,6 +404,8 @@ static int parser_profiling_all_threads(struct probe_s *probe, struct param_key_
 {
     int value = (int)key_item->valueint;
     if (value < param_key->v.min || value > param_key->v.max) {
+        PARSE_ERR("params.%s invalid value, must be in [%d, %d]",
+                  param_key->key, param_key->v.min, param_key->v.max);
         return -1;
     }
 
@@ -388,6 +417,8 @@ static int parser_continuous_sampling(struct probe_s *probe, struct param_key_s 
 {
     int value = (int)key_item->valueint;
     if (value < param_key->v.min || value > param_key->v.max) {
+        PARSE_ERR("params.%s invalid value, must be in [%d, %d]",
+                  param_key->key, param_key->v.min, param_key->v.max);
         return -1;
     }
 

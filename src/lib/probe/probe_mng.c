@@ -327,7 +327,7 @@ static int set_probe_entry(struct probe_s *probe)
     (void)snprintf(entry_str, MAX_PROBE_NAME_LEN - 1, "probe_main_%s", probe->bin);
     probe->probe_entry = dlsym(hdl, (char *)entry_str);
     if (probe->probe_entry == NULL) {
-        ERROR("[PROBEMNG] Fail to set entry for probe(name: %s) ,unknown func: %s\n", probe->name, entry_str);
+        PARSE_ERR("failed to set entry for probe, unknown func: %s", entry_str);
         ret = -1;
         goto end;
     }
@@ -372,6 +372,7 @@ static int set_probe_bin(struct probe_s *probe, const char *bin)
                 probe->bin = strdup(install_dir);
             }
         } else {
+            PARSE_ERR("invalid binfile");
             return -1;
         }
     } else {
@@ -513,7 +514,12 @@ static int start_probe(struct probe_s *probe)
     SET_PROBE_FLAGS(probe, PROBE_FLAGS_STARTED);
     UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPING);
 
-    return try_start_probe(probe);
+    if (try_start_probe(probe)) {
+        PARSE_ERR("failed to start probe");
+        return -1;
+    }
+
+    return 0;
 }
 
 static int delete_probe(struct probe_s *probe)
@@ -542,13 +548,13 @@ static int stop_probe(struct probe_s *probe)
 
     if (IS_NATIVE_PROBE(probe)) {
         if (pthread_cancel(probe->tid) != 0) {
-            ERROR("[PROBEMNG] Fail to cancel native probe(name:%s)\n", probe->name);
+            PARSE_ERR("failed to cancel native probe");
             return -1;
         }
     } else {
         pid = get_probe_pid(probe);
         if (pid < 0) {
-            ERROR("[PROBEMNG] Fail to find process of extend probe(name:%s)\n", probe->name);
+            PARSE_ERR("failed to find process of extend probe");
             return -1;
         }
         kill(pid, SIGINT);
@@ -619,6 +625,7 @@ static int probe_parser_range(struct probe_s *probe, const cJSON *probe_item)
     for (int i = 0; i < size; i++) {
         object = cJSON_GetArrayItem(probe_item, i);
         if (object->type != cJSON_String) {
+            PARSE_ERR("invalid probe range: must be string");
             return -1;
         }
 
@@ -636,6 +643,7 @@ static int probe_parser_cmd(struct probe_s *probe, const cJSON *item)
 
     bin_object = cJSON_GetObjectItem(item, "bin");
     if (bin_object == NULL || bin_object->type != cJSON_String) {
+        PARSE_ERR("binfile is essential and must be string");
         return -1;
     }
 
@@ -697,7 +705,7 @@ static void probe_rollback_cmd(struct probe_s *probe, struct probe_s *probe_back
 static int probe_parser_state(struct probe_s *probe, const cJSON *item)
 {
     if (item->type != cJSON_String) {
-        ERROR("[PROBEMNG] Operation must be string, probe(name:%s)\n", probe->name);
+        PARSE_ERR("invalid state: must be string");
         return -1;
     }
 
@@ -709,7 +717,7 @@ static int probe_parser_state(struct probe_s *probe, const cJSON *item)
         return stop_probe(probe);
     }
 
-    ERROR("[PROBEMNG] Unsupported operation %s to probe(name:%s)\n", (const char *)item->valuestring, probe->name);
+    PARSE_ERR("invalid state %s: must be running or stoped", (const char *)item->valuestring);
     return -1;
 }
 
@@ -927,7 +935,6 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
     u32 parse_flag = 0;
     struct probe_parser_s *parser;
     struct probe_s *probe_backup = NULL;
-    enum probe_type_e probe_type;
     cJSON *json = NULL, *item;
 
     get_probemng_lock();
@@ -936,10 +943,11 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
     if (probe == NULL) {
         goto end;
     }
-    probe_type = probe->probe_type;
 
+    PARSE_ERR("Bad request");
     json = cJSON_Parse(probe_content);
     if (json == NULL) {
+        PARSE_ERR("invalid json format");
         goto end;
     }
 
@@ -949,7 +957,7 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
     }
     (void)memset(probe_backup, 0, sizeof(struct probe_s));
 
-    PARSE_ERR("Bad request");
+
 
     size_t size = sizeof(probe_parsers) / sizeof(struct probe_parser_s);
     for (int i = 0; i < size; i++) {
@@ -978,6 +986,9 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
     if (ret == 0 && (IS_STARTED_PROBE(probe) || IS_RUNNING_PROBE(probe))
         && (probe->is_params_chg || probe->is_snooper_chg || probe->is_restart)) {
         ret = send_snooper_obj(probe);
+        if (ret) {
+            PARSE_ERR("failed to send ipc msg to probe");
+        }
     }
 
     destroy_probe(probe_backup);

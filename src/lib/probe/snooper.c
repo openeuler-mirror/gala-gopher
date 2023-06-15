@@ -586,27 +586,27 @@ int parse_snooper(struct probe_s *probe, const cJSON *json)
     }
     probe->snooper_conf_num = 0;
     if (parse_snooper_procid(probe, json)) {
-        ERROR("[PROBEMNG] Failed to parse proc id for probe(name:%s)\n", probe->name);
+        PARSE_ERR("Error occurs when parsing snooper %s", SNOOPER_OBJNAME_PROCID);
         return -1;
     }
 
     if (parse_snooper_procname(probe, json)) {
-        ERROR("[PROBEMNG] Failed to parse proc id for probe(name:%s)\n", probe->name);
+        PARSE_ERR("Error occurs when parsing snooper %s", SNOOPER_OBJNAME_PROCNAME);
         return -1;
     }
 
     if (parse_snooper_pod_container(probe, json, SNOOPER_OBJNAME_PODID)) {
-        ERROR("[PROBEMNG] Failed to parse podname for probe(name:%s)\n", probe->name);
+        PARSE_ERR("Error occurs when parsing snooper %s", SNOOPER_OBJNAME_PODID);
         return -1;
     }
 
     if (parse_snooper_pod_container(probe, json, SNOOPER_OBJNAME_CONTAINERID)) {
-        ERROR("[PROBEMNG] Failed to parse container id for probe(name:%s)\n", probe->name);
+        PARSE_ERR("Error occurs when parsing snooper %s", SNOOPER_OBJNAME_CONTAINERID);
         return -1;
     }
 
     if (parse_snooper_gaussdb(probe, json)) {
-        ERROR("[PROBEMNG] Failed to parse gaussdb info for probe(name:%s)\n", probe->name);
+        PARSE_ERR("Error occurs when parsing snooper %s", SNOOPER_OBJNAME_GAUSSDB);
         return -1;
     }
 
