@@ -31,7 +31,7 @@ class Proc(Structure):
 class ContainerInfo(Structure):
     _fields_ = [
         ("status", c_uint),
-        ("abbrContainerId", c_char * CONTAINER_NAME_LEN)
+        ("abbrContainerId", c_char * (CONTAINER_NAME_LEN + 1))
     ]
 
 class ContainerTbl(Structure):
