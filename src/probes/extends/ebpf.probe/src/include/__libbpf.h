@@ -56,6 +56,9 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
 #define GET_MAP_FD(probe_name, map_name) bpf_map__fd(probe_name##_skel->maps.map_name)
 #define GET_PROG_FD(prog_name) bpf_program__fd(probe_name##_skel->progs.prog_name)
 
+#define GET_MAP_FD_BY_SKEL(skel, probe_name, map_name) \
+    bpf_map__fd(((struct probe_name##_bpf *)(skel))->maps.map_name)
+
 #define BPF_OBJ_GET_MAP_FD(obj, map_name)   \
             ({ \
                 int __fd = -1; \
