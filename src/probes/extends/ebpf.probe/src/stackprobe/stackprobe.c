@@ -119,8 +119,8 @@ static void load_stackprobe_snoopers(struct ipc_body_s *ipc_body)
 {
     struct proc_s proc = {0};
     struct obj_ref_s ref = {.count = 1};
-
     if (!g_st || (g_st->proc_obj_map_fd <= 0)) {
+        ERROR("[STACKPROBE]: Load stackprobe snoopers failed!\n");
         return;
     }
 
@@ -133,16 +133,16 @@ static void load_stackprobe_snoopers(struct ipc_body_s *ipc_body)
     }
 }
 
-static void unload_stackprobe_snoopers(struct ipc_body_s *ipc_body)
+static void unload_stackprobe_snoopers()
 {
     struct proc_s proc = {0};
     if (!g_st || (g_st->proc_obj_map_fd <= 0)) {
         return;
     }
 
-    for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
-        if (ipc_body->snooper_objs[i].type == SNOOPER_OBJ_PROC) {
-            proc.proc_id = ipc_body->snooper_objs[i].obj.proc.proc_id;
+    for (int i = 0; i < g_ipc_body.snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (g_ipc_body.snooper_objs[i].type == SNOOPER_OBJ_PROC) {
+            proc.proc_id = g_ipc_body.snooper_objs[i].obj.proc.proc_id;
             (void)bpf_map_delete_elem(g_st->proc_obj_map_fd, &proc);
         }
     }
@@ -1038,6 +1038,10 @@ static void update_convert_counter()
 static void init_convert_counter()
 {
     u32 key = 0;
+    if (!g_st || (g_st->convert_map_fd <= 0)) {
+        ERROR("[STACKPROBE]: Init convert counter failed!\n");
+        return;
+    }
     struct convert_data_t convert_data = {
         .whitelist_enable = g_st->whitelist_enable,
         .convert_counter = g_st->convert_stack_count};
@@ -1094,7 +1098,6 @@ static int load_bpf_prog(struct svg_stack_trace_s *svg_st, const char *prog_name
         g_st->proc_obj_map_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "proc_obj_map");
         g_st->stackmap_a_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "stackmap_a");
         g_st->stackmap_b_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "stackmap_b");
-        init_convert_counter();
     }
     svg_st->stackmap_perf_a_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "stackmap_perf_a");
     svg_st->stackmap_perf_b_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "stackmap_perf_b");
@@ -1668,49 +1671,85 @@ static int init_enabled_svg_stack_traces(struct ipc_body_s *ipc_body)
     return 0;
 }
 
-static int init_java_support_proc(struct ipc_body_s *ipc_body, pthread_t *attach_thd)
+static void load_jvm_agent()
 {
-    int err;
-    struct java_attach_args args = {0};
-
-    if (attach_thd == NULL) {
-        return 0;
+    if (!g_st || (g_st->proc_obj_map_fd <= 0)) {
+        ERROR("[STACKPROBE]: Load jvm agent failed!\n");
+        return;
     }
-    args.proc_obj_map_fd = g_st->whitelist_enable ? g_st->proc_obj_map_fd : 0;
-    args.loop_period = DEFAULT_PERIOD;
-    args.is_only_attach_once = 1;
-    (void)snprintf(args.agent_file_name, FILENAME_LEN, JAVA_SYM_AGENT_FILE);
-    (void)snprintf(args.tmp_file_name, FILENAME_LEN, JAVA_SYM_FILE);
 
-    err = pthread_create(attach_thd, NULL, java_support, (void *)&args);
-    if (err != 0) {
-        ERROR("[STACKPROBE]: Failed to create java_support_pthread.\n");
-        return 0;
+    int ret = 0;
+    unsigned int pid;
+    int proc_obj_map_fd = g_st->proc_obj_map_fd;
+    struct proc_s key = {0};
+    struct proc_s next_key = {0};
+    struct obj_ref_s value = {0};
+    struct java_attach_args attach_args = {0};
+    char comm[TASK_COMM_LEN];
+    (void)snprintf(attach_args.agent_file_name, FILENAME_LEN, "%s", JAVA_SYM_AGENT_FILE);
+    (void)snprintf(attach_args.tmp_file_name, FILENAME_LEN, "%s", JAVA_SYM_FILE);
+    while (bpf_map_get_next_key(proc_obj_map_fd, &key, &next_key) == 0) {
+        ret = bpf_map_lookup_elem(proc_obj_map_fd, &next_key, &value);
+        key = next_key;
+        if (ret < 0) {
+            continue;
+        }
+        pid = key.proc_id;
+        comm[0] = 0;
+        ret = detect_proc_is_java(pid, comm, TASK_COMM_LEN);
+        if (ret == 0) {
+            continue;
+        }
+        ret = java_load(pid, (void *)&attach_args);
+        if (ret == 0) {
+            INFO("[STACKPROBE]: Attach to proc %d succeed\n", pid);
+        }
     }
-    (void)pthread_detach(*attach_thd);
-    INFO("[STACKPROBE]: java_support_pthread successfully started!\n");
-
-    return 1;
 }
 
-static void unload_java_agent(int java_supported, pthread_t java_support_thd)
+static void reload_observation_range(struct ipc_body_s *ipc_body)
 {
-    struct java_attach_args args = {0};
-
-    if (java_supported > 0) {
-        pthread_cancel(java_support_thd);
+    if (ipc_body == NULL) {
+        ERROR("[STACKPROBE]: ipc body is NULL when reload observation ranges\n");
+        return;
     }
-    
-    if (g_st != NULL && g_st->whitelist_enable) {
-        args.proc_obj_map_fd = g_st->proc_obj_map_fd;
-    } else {
-        args.proc_obj_map_fd = 0;
-    }
-    (void)snprintf(args.agent_file_name, FILENAME_LEN, JAVA_SYM_AGENT_FILE);
-    (void)snprintf(args.tmp_file_name, FILENAME_LEN, JAVA_SYM_FILE);
 
-    java_unload(&args);
-    INFO("[STACKPROBE]: java_agent_unload successfully!\n");
+    if (ipc_body->probe_flags & IPC_FLAGS_SNOOPER_CHG) {
+        unload_stackprobe_snoopers();
+        load_stackprobe_snoopers(ipc_body);
+        init_convert_counter();
+        load_jvm_agent();
+    }
+}
+
+static int reload_probe_params(struct ipc_body_s *ipc_body)
+{
+    int err;
+
+    if (ipc_body == NULL) {
+        ERROR("[STACKPROBE]: ipc body is NULL when reload probe params\n");
+        return -1;
+    }
+
+    if (ipc_body->probe_flags & IPC_FLAGS_PARAMS_CHG) {
+        if (g_st != NULL) {
+            destroy_stack_trace(&g_st);
+        }
+        g_st = create_stack_trace(ipc_body);
+        if (!g_st) {
+            ERROR("[STACKPROBE]: can't create stack trace\n");
+            return -1;
+        }
+        err = init_enabled_svg_stack_traces(ipc_body);
+        if (err != 0) {
+            ERROR("[STACKPROBE]: can't create svg stack trace\n");
+            return -1;
+        }
+
+        INFO("[STACKPROBE]: Successfully started from new parameters!\n");
+    }
+
+    return 0;
 }
 
 #ifdef EBPF_RLIM_LIMITED
@@ -1720,10 +1759,7 @@ static void unload_java_agent(int java_supported, pthread_t java_support_thd)
 int main(int argc, char **argv)
 {
     int err = -1;
-    int init = 0;
     struct ipc_body_s ipc_body;
-    pthread_t java_support_thd;
-    int java_supported = 0;
 
     if (signal(SIGINT, sig_int) == SIG_ERR) {
         ERROR("[STACKPROBE]: can't set signal handler: %d\n", errno);
@@ -1751,38 +1787,20 @@ int main(int argc, char **argv)
         err = recv_ipc_msg(msq_id, (long)PROBE_FG, &ipc_body);
         if (err == 0) {
             INFO("[STACKPROBE]: recv new ipc\n");
-            if (!init) { // execute once
-                g_st = create_stack_trace(&ipc_body);
-                if (!g_st) {
-                    ERROR("[STACKPROBE]: can't create stack trace\n");
-                    goto out;
-                }
+            if (reload_probe_params(&ipc_body) != 0) {
+                goto out;
             }
-
-            unload_stackprobe_snoopers(&g_ipc_body);
+            reload_observation_range(&ipc_body);
             destroy_ipc_body(&g_ipc_body);
             (void)memcpy(&g_ipc_body, &ipc_body, sizeof(g_ipc_body));
-            load_stackprobe_snoopers(&g_ipc_body);
-
-            if (!init) { // execute once
-                err = init_enabled_svg_stack_traces(&g_ipc_body);
-                if (err != 0) {
-                    goto out;
-                }
-
-                java_supported = init_java_support_proc(&g_ipc_body, &java_support_thd);
-
-                init = 1;
-                INFO("[STACKPROBE]: Init successfully!\n");
-            } 
         }
+
         switch_stackmap();
         sleep(1);
     }
 
 out:
     g_stop = 1;
-    unload_java_agent(java_supported, java_support_thd);
     if (g_st != NULL) {
         destroy_stack_trace(&g_st);
     }

@@ -25,13 +25,15 @@
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <errno.h>
+#include "syscall.h"
 #include "common.h"
 
-#define setns(FD, NSTYPE) syscall(__NR_setns, (int)(FD), (int)(NSTYPE))
 #define MAX_PATH_LEN 512
+#define ARGS_NUM 4
 char tmp_path[MAX_PATH_LEN];
 
-int get_tmp_path_r(int cur_pid, char* buf, size_t bufsize) {
+int get_tmp_path_r(int cur_pid, char* buf, size_t bufsize)
+{
     if (snprintf(buf, bufsize, "/proc/%d/root/tmp", cur_pid) >= bufsize) {
         return -1;
     }
@@ -53,8 +55,8 @@ static int __ns_enter(int pid, int nspid, const char* type, int *cur_pid)
     int fd = -1;
 
     char path[64], selfpath[64];
-    snprintf(path, sizeof(path), "/proc/%d/ns/%s", pid, type);
-    snprintf(selfpath, sizeof(selfpath), "/proc/self/ns/%s", type);
+    (void)snprintf(path, sizeof(path), "/proc/%d/ns/%s", pid, type);
+    (void)snprintf(selfpath, sizeof(selfpath), "/proc/self/ns/%s", type);
 
     struct stat oldns_stat, newns_stat;
     if (stat(selfpath, &oldns_stat) == 0 && stat(path, &newns_stat) == 0) {
@@ -79,18 +81,20 @@ static int __ns_enter(int pid, int nspid, const char* type, int *cur_pid)
     return 0;
 }
 
-static int __check_attach_listener(int nspid) {
+static int __check_attach_listener(int nspid)
+{
     char path[PATH_LEN] = {0};
-    snprintf(path, sizeof(path), "%s/.java_pid%d", tmp_path, nspid);
+    (void)snprintf(path, sizeof(path), "%s/.java_pid%d", tmp_path, nspid);
 
     struct stat stats;
     return stat(path, &stats) == 0 && S_ISSOCK(stats.st_mode) ? 0 : -1;
 }
 
-static int __start_attach(int pid, int nspid) {
+static int __start_attach(int pid, int nspid)
+{
     int result = 0;
     char path[PATH_LEN];
-    snprintf(path, sizeof(path), "/proc/%u/cwd/.attach_pid%d", nspid, nspid);
+    (void)snprintf(path, sizeof(path), "/proc/%d/cwd/.attach_pid%d", nspid, nspid);
     int fd = creat(path, 0660);
     if (fd == -1) {
         result = -1;
@@ -99,13 +103,12 @@ static int __start_attach(int pid, int nspid) {
     }
 
     kill(pid, SIGQUIT);
-    sleep(60);
     struct timespec ts = {0, 20000000}; // 20 ms
 
     do {
         nanosleep(&ts, NULL);
         result = __check_attach_listener(nspid);
-    } while (result != 0 && (ts.tv_nsec += 20000000) < 5000000000);
+    } while (result != 0 && (ts.tv_nsec += 20000000) < 5000000000); // 20000000 ns 检查一次直至 5000000000 ns
 
 out:
     unlink(path);
@@ -113,14 +116,15 @@ out:
     return result;
 }
 
-static int __write_cmd(int fd, int argc, char** argv) {
+static int __write_cmd(int fd, int argc, char** argv)
+{
     // Protocol version
-    if (write(fd, "1", 2) <= 0) {
+    if (write(fd, "1", 2) <= 0) { // 2 = strlen + 1
         return -1;
     }
 
     int i;
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < ARGS_NUM; i++) {
         const char* arg = i < argc ? argv[i] : "";
         if (write(fd, arg, strlen(arg) + 1) <= 0) {
             return -1;
@@ -129,7 +133,8 @@ static int __write_cmd(int fd, int argc, char** argv) {
     return 0;
 }
 
-static void __read_rsp(int fd, int argc, char** argv) {
+static void __read_rsp(int fd, int argc, char** argv)
+{
     char buf[MAX_PATH_LEN];
     ssize_t bytes = read(fd, buf, sizeof(buf) - 1);
     if (bytes <= 0) {
@@ -141,14 +146,15 @@ static void __read_rsp(int fd, int argc, char** argv) {
 
     printf("[JVM_ATTACH]: JVM response code = ");
     do {
-        fwrite(buf, 1, bytes, stdout);
+        (void)fwrite(buf, 1, bytes, stdout);
         bytes = read(fd, buf, sizeof(buf));
     } while (bytes > 0);
 
     return;
 }
 
-static int __connect_jvm(int nspid) {
+static int __connect_jvm(int nspid)
+{
     struct sockaddr_un addr = {.sun_family = AF_UNIX};
     int fd = socket(PF_UNIX, SOCK_STREAM, 0);
     if (fd == -1) {
@@ -167,7 +173,8 @@ static int __connect_jvm(int nspid) {
     return fd;
 }
 
-int __jattach(int pid, int nspid, int argc, char** argv) {
+int __jattach(int pid, int nspid, int argc, char** argv)
+{
     if (__check_attach_listener(nspid) != 0 && __start_attach(pid, nspid) != 0) {
         fprintf(stderr, "[JVM_ATTACH]: Could not start attach to JVM of pid %d\n", pid);
         return -1;
@@ -193,10 +200,10 @@ int __jattach(int pid, int nspid, int argc, char** argv) {
     return 0;
 }
 
-int main(int argc, char** argv) {
-
+int main(int argc, char** argv)
+{
     int ret;
-    if (argc < 4) {
+    if (argc < ARGS_NUM) {
         fprintf(stderr, "[JVM_ATTACH]: wrong argv\n");
         return -1;
     }
@@ -210,7 +217,7 @@ int main(int argc, char** argv) {
 
     int nspid = atoi(argv[2]);
     if (nspid <= 0) {
-        fprintf(stderr, "[JVM_ATTACH]: %s is not a valid ns process ID\n", argv[2]);
+        fprintf(stderr, "[JVM_ATTACH]: %s is not a valid ns process ID\n", argv[2]); // argv 2 is pid
         return 1;
     }
 
@@ -226,7 +233,7 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    signal(SIGPIPE, SIG_IGN);
+    (void)signal(SIGPIPE, SIG_IGN);
 
-    return __jattach(pid, nspid, argc - 3, argv + 3);
+    return __jattach(pid, nspid, argc - 3, argv + 3); // argv 3 is cmd str
 }

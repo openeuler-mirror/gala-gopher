@@ -34,7 +34,7 @@ $(DEPS): $(SRC_CPLUS)
 $(OUTPUT_LIB1): $(SRC_C1)
 	$(CC) $(CFLAGS) $(DEPS) $(INCLUDES) $^ $(LINK_TARGET)  -o $@
 
-$(OUTPUT_LIB2): $(SRC_C2) $(DEPS2)
+$(OUTPUT_LIB2): $(SRC_C2)
 	$(CC) $(CFLAGS) $(DEPS) $(INCLUDES) $^ $(LINK_TARGET)  -o $@
 
 clean:

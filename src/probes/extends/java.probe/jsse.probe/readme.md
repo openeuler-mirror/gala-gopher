@@ -37,7 +37,7 @@ JSSE为基于SSL和TLS协议的Java网络应用提供了Java API，JSSEProbe基�
 
 - 加载JavaAgent
 
-  利用 jvm_attach （该工具实现源码对应 `../ebpf.probe/src/stackprobe/jvmti/jvm_attach.c`），将 agent.jar 加载到目标JVM进程上。
+  利用 jvm_attach （该工具实现源码对应 `../../../../../src/common/jvm_attach.c`），将 agent.jar 加载到目标JVM进程上。
 
   ```shell
   jvm_attach <pid> <nspid> load instrument false "/tmp/JSSEProbeAgent.jar=<pid>,java-data-<pid>"
