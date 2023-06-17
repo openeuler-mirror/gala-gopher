@@ -588,7 +588,7 @@ static int LogsMgrInit(ResourceMgr *resourceMgr)
     (void)strncpy(logsMgr->event_path, configMgr->logsConfig->eventDir, PATH_LEN - 1);
     (void)strncpy(logsMgr->meta_path, configMgr->logsConfig->metaDir, PATH_LEN - 1);
 
-    if (init_log_mgr(logsMgr, is_meta_out_log) < 0) {
+    if (init_log_mgr(logsMgr, is_meta_out_log, configMgr->globalConfig->logLevel) < 0) {
         return -1;
     }
 

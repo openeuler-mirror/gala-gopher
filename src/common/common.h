@@ -77,6 +77,7 @@
 #define PERF_MAX_STACK_DEPTH    127
 #endif
 
+void convert_output_to_log(char *buffer, int bufferSize);
 void debug_logs(const char* format, ...);
 void info_logs(const char* format, ...);
 void warn_logs(const char* format, ...);
@@ -94,6 +95,11 @@ static inline int __debug_printf(const char *format, ...)
 #define INFO info_logs
 #define WARN warn_logs
 #define ERROR error_logs
+
+#define DEBUG_STR "[DEBUG]"
+#define INFO_STR  "[INFO]"
+#define WARN_STR  "[WARN]"
+#define ERROR_STR "[ERROR]"
 
 #define max(x, y) ((x) > (y) ? (x) : (y))
 #define min(x, y) ((x) < (y) ? (x) : (y))
