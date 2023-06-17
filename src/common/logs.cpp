@@ -473,7 +473,28 @@ struct log_mgr_s* create_log_mgr(const char *app_name, int is_metric_out_log, in
     return mgr;
 }
 
-int init_log_mgr(struct log_mgr_s* mgr, int is_meta_out_log)
+static void set_debug_log_level(char *logLevel)
+{
+    g_debug_logger.setLogLevel(log4cplus::DEBUG_LOG_LEVEL);
+
+    if (logLevel == NULL) {
+        return;
+    }
+
+    if (strcmp(logLevel, "debug") == 0) {
+        g_debug_logger.setLogLevel(log4cplus::DEBUG_LOG_LEVEL);
+    } else if (strcmp(logLevel, "info") == 0) {
+        g_debug_logger.setLogLevel(log4cplus::INFO_LOG_LEVEL);
+    } else if (strcmp(logLevel, "warn") == 0) {
+        g_debug_logger.setLogLevel(log4cplus::WARN_LOG_LEVEL);
+    } else if (strcmp(logLevel, "error") == 0) {
+        g_debug_logger.setLogLevel(log4cplus::ERROR_LOG_LEVEL);
+    } else if (strcmp(logLevel, "fatal") == 0) {
+        g_debug_logger.setLogLevel(log4cplus::FATAL_LOG_LEVEL);
+    }
+}
+
+int init_log_mgr(struct log_mgr_s* mgr, int is_meta_out_log, char *logLevel)
 {
     init_all_logger();
 
@@ -495,6 +516,7 @@ int init_log_mgr(struct log_mgr_s* mgr, int is_meta_out_log)
         return -1;
     }
 
+    set_debug_log_level(logLevel);
     local = mgr;
     return 0;
 }
@@ -645,13 +667,39 @@ static void reappend_debug_logger(struct log_mgr_s *mgr)
     }
 }
 
+void convert_output_to_log(char *buffer, int bufferSize)
+{
+    if (buffer == NULL || bufferSize < 1) {
+        return;
+    }
+
+    buffer[bufferSize - 1] = 0;
+    if (strncmp(buffer, DEBUG_STR, sizeof(DEBUG_STR) - 1) == 0) {
+        reappend_debug_logger(local);
+        LOG4CPLUS_DEBUG(g_debug_logger, buffer);
+    } else if (strncmp(buffer, INFO_STR, sizeof(INFO_STR) - 1) == 0) {
+        reappend_debug_logger(local);
+        LOG4CPLUS_INFO(g_debug_logger, buffer);
+    } else if (strncmp(buffer, WARN_STR, sizeof(WARN_STR) - 1) == 0) {
+        reappend_debug_logger(local);
+        LOG4CPLUS_WARN(g_debug_logger, buffer);
+    } else if (strncmp(buffer, ERROR_STR, sizeof(ERROR_STR) - 1) == 0) {
+        reappend_debug_logger(local);
+        LOG4CPLUS_ERROR(g_debug_logger, buffer);
+    } else {
+        reappend_debug_logger(local);
+        LOG4CPLUS_DEBUG(g_debug_logger, buffer);
+    }
+}
+
 void debug_logs(const char* format, ...)
 {
     char buf[__DEBUG_LEN];
 
     __FMT_LOGS(buf, __DEBUG_LEN);
     if (!local) {
-        printf("DEBUG: %s", buf);
+        printf("%s: %s", DEBUG_STR, buf);
+        (void)fflush(stdout);
     } else {
         reappend_debug_logger(local);
         LOG4CPLUS_DEBUG(g_debug_logger, buf);
@@ -664,7 +712,8 @@ void info_logs(const char* format, ...)
 
     __FMT_LOGS(buf, __DEBUG_LEN);
     if (!local) {
-        printf("INFO: %s", buf);
+        printf("%s: %s", INFO_STR, buf);
+        (void)fflush(stdout);
     } else {
         reappend_debug_logger(local);
         LOG4CPLUS_INFO(g_debug_logger, buf);
@@ -677,7 +726,8 @@ void warn_logs(const char* format, ...)
 
     __FMT_LOGS(buf, __DEBUG_LEN);
     if (!local) {
-        printf("WARN: %s", buf);
+        printf("%s: %s", WARN_STR, buf);
+        (void)fflush(stdout);
     } else {
         reappend_debug_logger(local);
         LOG4CPLUS_WARN(g_debug_logger, buf);
@@ -690,11 +740,13 @@ void error_logs(const char* format, ...)
 
     __FMT_LOGS(buf, __DEBUG_LEN);
     if (!local) {
-        printf("ERROR: %s", buf);
+        printf("%s: %s", ERROR_STR, buf);
+        (void)fflush(stdout);
     } else {
         reappend_debug_logger(local);
         LOG4CPLUS_ERROR(g_debug_logger, buf);
     }
+    (void)fprintf(stderr, "%s", buf);
 }
 
 #endif

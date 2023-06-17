@@ -81,11 +81,12 @@ int RunExtendProbe(ExtendProbe *probe)
     probe->is_exist = 1;
 
     while (feof(f) == 0 && ferror(f) == 0) {
-        if (fgets(buffer, sizeof(buffer), f) == NULL)
+        if (fgets(buffer, sizeof(buffer), f) == NULL) {
             continue;
+        }
 
         if (buffer[0] != '|') {
-            //INFO("[%s]: %s", probe->name, buffer);
+            convert_output_to_log(buffer, MAX_DATA_STR_LEN);
             continue;
         }
 

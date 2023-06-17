@@ -144,7 +144,6 @@ static void __read_rsp(int fd, int argc, char** argv) {
         fwrite(buf, 1, bytes, stdout);
         bytes = read(fd, buf, sizeof(buf));
     } while (bytes > 0);
-    printf("\n");
 
     return;
 }
