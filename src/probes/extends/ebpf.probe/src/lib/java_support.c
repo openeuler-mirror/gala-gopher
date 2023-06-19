@@ -41,7 +41,7 @@ static char jvm_agent_file[FILENAME_LEN];
 static char jvm_tmp_file[FILENAME_LEN];
 static char attach_type[ATTACH_TYPE_LEN];   // start | stop
 
-#define ATTACH_BIN_PATH "/opt/gala-gopher/extend_probes/jvm_attach"
+#define ATTACH_BIN_PATH "/opt/gala-gopher/lib/jvm_attach"
 #define HOST_SO_DIR "/opt/gala-gopher/extend_probes"
 #define HOST_JAVA_TMP_PATH "/proc/%u/root/tmp/java-data-%u/%s"  // eg: /proc/<pid>/root/tmp/java-data-<pid>/java-symbols.bin
 #define NS_TMP_DIR "/tmp"
@@ -203,7 +203,6 @@ int get_host_java_tmp_file(u32 pid, const char *file_name, char *file_path, int 
 
 int detect_proc_is_java(u32 pid, char *comm, int comm_len)
 {
-    char cmd[LINE_BUF_LEN];
     int is_java = 0;
 
     if (get_proc_comm(pid, comm, comm_len) != 0) {

@@ -6,7 +6,7 @@ EXT_PROBE_FOLDER=${PROJECT_FOLDER}/src/probes/extends
 SHARED_LIB_FOLDER=${PROJECT_FOLDER}/src/common
 EXT_PROBE_INSTALL_LIST=`find ${EXT_PROBE_FOLDER} -maxdepth 2 | grep "\<install.sh\>"`
 SHARED_LIB_LIST=`find ${SHARED_LIB_FOLDER} -name "*.so"`
-
+JVM_ATTACH_BIN=${PROJECT_FOLDER}/src/lib/jvm/jvm_attach
 TAILOR_PATH=${PROJECT_FOLDER}/tailor.conf
 TAILOR_PATH_TMP=${TAILOR_PATH}.tmp
 
@@ -139,6 +139,9 @@ function install_shared_lib()
         echo "install lib:" ${SHARED_LIB}
         cp ${SHARED_LIB} ${GOPHER_SHARED_LIB_DIR}
     done
+
+    echo "install lib:" ${JVM_ATTACH_BIN}
+    cp ${JVM_ATTACH_BIN} ${GOPHER_SHARED_LIB_DIR}
 }
 
 function install_extend_probes()

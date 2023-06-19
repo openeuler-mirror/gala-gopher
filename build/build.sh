@@ -7,6 +7,7 @@ PROBES_FOLDER=${PROJECT_FOLDER}/src/probes
 PROBES_PATH_LIST=`find ${PROJECT_FOLDER}/src/probes -maxdepth 1 | grep ".probe\>"`
 EXT_PROBE_FOLDER=${PROJECT_FOLDER}/src/probes/extends
 PROBE_MNG_FOLDER=${PROJECT_FOLDER}/src/lib/probe
+JVM_FOLDER=${PROJECT_FOLDER}/src/lib/jvm
 BPFTOOL_FOLDER=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/tools
 VMLINUX_DIR=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/src/include
 EXT_PROBE_BUILD_LIST=`find ${EXT_PROBE_FOLDER} -maxdepth 2 | grep "\<build.sh\>"`
@@ -103,6 +104,18 @@ function __rm_bpf()
     make clean
 }
 
+function __build_jvm_attach()
+{
+    cd ${JVM_FOLDER}
+    make
+}
+
+function __rm_jvm_attach()
+{
+    cd ${JVM_FOLDER}
+    make clean
+}
+
 function prepare_probes()
 {
 	__build_bpf
@@ -151,6 +164,7 @@ function prepare_probes()
 
 function compile_lib()
 {
+    __build_jvm_attach
     cd ${COMMON_FOLDER}
     rm -rf *.so
     make
@@ -158,6 +172,7 @@ function compile_lib()
 
 function compile_lib_clean()
 {
+    __rm_jvm_attach
     cd ${COMMON_FOLDER}
     rm -rf *.so
 }

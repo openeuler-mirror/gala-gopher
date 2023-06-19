@@ -4,12 +4,12 @@ Q = @
 
 CLANG ?= clang
 LLVM_STRIP ?= llvm-strip
-BPFTOOL ?= $(ROOT_DIR)/../../probes/extends/ebpf.probe/tools/bpftool
-TOOL_DIR ?= $(ROOT_DIR)/../../probes/extends/ebpf.probe/tools
-VMLINUX ?= $(ROOT_DIR)/../../probes/extends/ebpf.probe/src/include/vmlinux.h
+BPFTOOL ?= $(ROOT_DIR)/../probes/extends/ebpf.probe/tools/bpftool
+TOOL_DIR ?= $(ROOT_DIR)/../probes/extends/ebpf.probe/tools
+VMLINUX ?= $(ROOT_DIR)/../probes/extends/ebpf.probe/src/include/vmlinux.h
 LIBBPF_DIR = $(ROOT_DIR)/.output
 LIBELF_DIR = /usr/include/libelf
-VMLINUX_DIR ?= $(ROOT_DIR)/../../probes/extends/ebpf.probe/src/include
+VMLINUX_DIR ?= $(ROOT_DIR)/../probes/extends/ebpf.probe/src/include
 
 ARCH = $(shell uname -m)
 ifeq ($(ARCH), x86_64)
@@ -30,13 +30,6 @@ LIBBPF_VER = $(shell rpm -q libbpf | awk -F'-' '{print $$2}')
 LIBBPF_VER_MAJOR = $(shell echo $(LIBBPF_VER) | awk -F'.' '{print $$1}')
 LIBBPF_VER_MINOR = $(shell echo $(LIBBPF_VER) | awk -F'.' '{print $$2}')
 
-ifeq ($(wildcard $(BPFTOOL)), )
-    $(shell cd $(TOOL_DIR); \
-    if [ $(LIBBPF_VER_MAJOR) -gt 0 ]; then ln -s bpftool_v6.8.0/bpftool_${ARCH} bpftool; \
-    elif [ $(LIBBPF_VER_MINOR) -ge 8 ]; then ln -s bpftool_v6.8.0/bpftool_${ARCH} bpftool; \
-    else ln -s bpftool_${ARCH} bpftool; fi; )
-endif
-
 BTF_ENABLE = $(shell if [ -f /sys/kernel/btf/vmlinux ]; then echo "ON" ; else echo "OFF"; fi)
 
 EXTRA_CFLAGS ?= -g -O2 -Wall -fPIC -std=gnu11
@@ -48,8 +41,8 @@ CFLAGS += -DKER_RELEASE=$(KER_RELEASE)
 CFLAGS += -DLIBBPF_VER_MAJOR=$(LIBBPF_VER_MAJOR) -DLIBBPF_VER_MINOR=$(LIBBPF_VER_MINOR)
 
 BASE_INC := -I/usr/include \
-            -I$(ROOT_DIR)/../../common \
-            -I$(ROOT_DIR)/../lib \
+            -I$(ROOT_DIR)/../common \
+            -I$(ROOT_DIR)/lib \
             -I$(VMLINUX_DIR) \
             -I$(LIBBPF_DIR) \
             -I$(LIBELF_DIR)

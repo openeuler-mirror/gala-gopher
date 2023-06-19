@@ -3,7 +3,6 @@ INCLUDES = $(BASE_INC)
 
 APP := stackprobe
 AGENT := jvm_agent.so
-ATTACH := jvm_attach
 SRC_CPLUS := $(wildcard *.cpp)
 SRC_CPLUS += $(CPLUSFILES)
 
@@ -14,7 +13,7 @@ DEPS = $(BPF_PROG) $(patsubst %.cpp, %.o, $(SRC_CPLUS))
 SRC_C := $(wildcard *.c)
 SRC_C += $(CFILES)
 
-ALL := pre deps app agent attach
+ALL := pre deps app agent
 
 ifndef JAVA_HOME
 	JAVA_HOME := $(abspath $(dir $(realpath $(shell which javac)))/..)
@@ -45,21 +44,14 @@ $(AGENT): jvmti/jvm_agent.c
 	$(CC) $(CFLAGS) -shared $(INCLUDES) $(JNI_INC) $^ $(LDFLAGS) -o $@
 	@echo $@ "compiling completed."
 
-attach: $(ATTACH)
-$(ATTACH): jvmti/jvm_attach.c
-	$(CC) $(CFLAGS) $(INCLUDES) $^ $(LDFLAGS) -o $@
-	@echo $@ "compiling completed."
-
 clean:
 	rm -rf $(DEPS)
 	rm -rf $(APP)
 	rm -rf $(AGENT)
-	rm -rf $(ATTACH)
 
 install:
 	mkdir -p $(INSTALL_DIR)/stack_bpf
 	cp $(APP) $(INSTALL_DIR)
 	cp $(BPF_PROG) $(INSTALL_DIR)/stack_bpf
 	cp $(AGENT) $(INSTALL_DIR)
-	cp $(ATTACH) $(INSTALL_DIR)
 
