@@ -27,13 +27,21 @@
 #endif
 
 #include "bpf.h"
-#include "args.h"
+#include "ipc.h"
 #include "nginx_probe.skel.h"
 #include "nginx_probe.h"
 
-static struct probe_params params = {.period = DEFAULT_PERIOD,
-                                     .elf_path = {0}};
+#define LOG_NGINX_PREFIX "[NGINXPROBE]"
+
+struct nginx_probe_s {
+    struct ipc_body_s ipc_body;
+    struct bpf_prog_s *prog;
+    int stats_map_fd;
+};
+
+static struct nginx_probe_s g_nginx_probe = {0};
 static volatile bool stop = false;
+
 static void sig_handler(int sig)
 {
     stop = true;
@@ -75,7 +83,8 @@ static void pull_probe_data(int map_fd, int statistic_map_fd)
             ip_str(data.src_ip.family, (unsigned char *)&data.src_ip, c_ip_str, INET6_ADDRSTRLEN);
             ip_str(data.ngx_ip.family, (unsigned char *)&data.ngx_ip, c_local_ip_str, INET6_ADDRSTRLEN);
 
-            DEBUG("===ngx[%s]: %s:%d --> %s:%d --> %s\n",
+            DEBUG("%s nginx[%s]: %s:%d --> %s:%d --> %s\n",
+                LOG_NGINX_PREFIX,
                 (data.is_l7 == 1 ? "7 LB" : "4 LB"),
                 c_ip_str,
                 ntohs(data.src_ip.port),
@@ -140,73 +149,177 @@ static void print_statistic_map(int fd)
     return;
 }
 
-int main(int argc, char **argv)
+int load_bpf_prog_each_elf(struct bpf_prog_s *prog, const char *elf_path)
 {
-    int err = -1;
-    int map_fd = -1;
-    char *elf[PATH_NUM] = {0};
-    int elf_num = -1;
-    int attach_flag = 0;
+    int succeed;
+    int link_num = 0;
 
-    err = args_parse(argc, argv, &params);
-    if (err != 0)
-        return -1;
-
-    printf("arg parse interval time:%us  \n", params.period);
-
-    /* Find elf's abs_path */
-    ELF_REAL_PATH(nginx, params.elf_path, NULL, elf, elf_num);
-    if (elf_num <= 0) {
-        printf("get proc:nginx abs_path error \n");
+    if (prog->num >= SKEL_MAX_NUM) {
+        WARN("[NGINXPROBE] Failed to load %s: exceed the maximum number of skeletons\n", elf_path);
         return -1;
     }
 
-    INIT_BPF_APP(nginx_probe, EBPF_RLIM_LIMITED);
     LOAD(nginx_probe, nginx_probe, err);
+
+    UBPF_ATTACH(nginx_probe, ngx_stream_proxy_init_upstream, elf_path, ngx_stream_proxy_init_upstream, succeed);
+    if (!succeed) {
+        goto err;
+    }
+    UBPF_RET_ATTACH(nginx_probe, ngx_stream_proxy_init_upstream, elf_path, ngx_stream_proxy_init_upstream, succeed);
+    if (!succeed) {
+        goto err;
+    }
+    UBPF_ATTACH(nginx_probe, ngx_http_upstream_handler, elf_path, ngx_http_upstream_handler, succeed);
+    if (!succeed) {
+        goto err;
+    }
+    UBPF_ATTACH(nginx_probe, ngx_close_connection, elf_path, ngx_close_connection, succeed);
+    if (!succeed) {
+        goto err;
+    }
+
+    prog->skels[prog->num].skel = (void *)nginx_probe_skel;
+    prog->skels[prog->num].fn = (skel_destroy_fn)nginx_probe_bpf__destroy;
+    for (int i = 0; i < nginx_probe_link_current; i++) {
+        prog->skels[prog->num]._link[link_num++] = (void *)nginx_probe_link[i];
+    }
+    prog->num++;
+
+    return 0;
+err:
+    UNLOAD(nginx_probe);
+    return -1;
+}
+
+int load_bpf_prog(struct ipc_body_s *ipc_body)
+{
+    struct bpf_prog_s *prog;
+    char *elfs[PATH_NUM] = {0};
+    int elf_num = -1;
+    int ret;
+
+    prog = alloc_bpf_prog();
+    if (prog == NULL) {
+        ERROR("%s Failed to allocate bpf prog\n", LOG_NGINX_PREFIX);
+        return -1;
+    }
+
+    /* Find elf's abs_path */
+    elf_num = get_exec_file_path("nginx", (const char *)ipc_body->probe_param.elf_path, NULL, elfs, PATH_NUM);
+    if (elf_num <= 0) {
+        ERROR("%s Failed to get execute path of nginx program.\n", LOG_NGINX_PREFIX);
+        free_exec_path_buf(elfs, elf_num);
+        return -1;
+    }
+
+    for (int i = 0; i < elf_num; i++) {
+        ret = load_bpf_prog_each_elf(prog, elfs[i]);
+        if (ret) {
+            ERROR("%s Failed to load bpf program from path: %s\n", LOG_NGINX_PREFIX, elfs[i]);
+            continue;
+        }
+        INFO("%s Succeed to load bpf program from path: %s\n", LOG_NGINX_PREFIX, elfs[i]);
+    }
+    free_exec_path_buf(elfs, elf_num);
+
+    if (prog->num == 0) {
+        ERROR("%s No available bpf program loaded successfully.\n", LOG_NGINX_PREFIX);
+        free_bpf_prog(prog);
+        return -1;
+    }
+
+    g_nginx_probe.prog = prog;
+
+    return 0;
+}
+
+static int reload_bpf_prog(struct ipc_body_s *ipc_body)
+{
+    int ret;
+
+    if (strcmp(ipc_body->probe_param.elf_path, g_nginx_probe.ipc_body.probe_param.elf_path)) {
+        unload_bpf_prog(&g_nginx_probe.prog);
+        ret = load_bpf_prog(ipc_body);
+        if (ret) {
+            return -1;
+        }
+    }
+
+    destroy_ipc_body(&g_nginx_probe.ipc_body);
+    (void)memcpy(&g_nginx_probe.ipc_body, ipc_body, sizeof(struct ipc_body_s));
+
+    return 0;
+}
+
+static void pull_all_probe_data(void)
+{
+    int i;
+    struct bpf_prog_s *prog = g_nginx_probe.prog;
+
+    for (i = 0; i < prog->num; i++) {
+        pull_probe_data(GET_MAP_FD_BY_SKEL(prog->skels[i].skel, nginx_probe, hs), g_nginx_probe.stats_map_fd);
+    }
+}
+
+static void clean_nginx_probe(void)
+{
+    unload_bpf_prog(&g_nginx_probe.prog);
+
+    if (g_nginx_probe.stats_map_fd > 0) {
+        close(g_nginx_probe.stats_map_fd);
+    }
+
+    destroy_ipc_body(&g_nginx_probe.ipc_body);
+}
+
+int main(int argc, char **argv)
+{
+    int err = -1;
+    int msq_id;
+    struct ipc_body_s ipc_body;
 
     /* Clean handling of Ctrl-C */
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
-    /* Attach tracepoint handler for each elf_path */
-    for (int i = 0; i < elf_num; i++) {
-        int ret = 0;
-        int ret1 = 0;
-        UBPF_ATTACH(nginx_probe, ngx_stream_proxy_init_upstream, elf[i], ngx_stream_proxy_init_upstream, ret1);
-        UBPF_RET_ATTACH(nginx_probe, ngx_stream_proxy_init_upstream, elf[i], ngx_stream_proxy_init_upstream, ret1);
-        UBPF_ATTACH(nginx_probe, ngx_http_upstream_handler, elf[i], ngx_http_upstream_handler, ret);
-        if (ret <= 0 && ret1 <= 0)
-            continue;
-
-        UBPF_ATTACH(nginx_probe, ngx_close_connection, elf[i], ngx_close_connection, ret);
-        if (ret <= 0)
-            continue;
-
-        attach_flag = 1;
+    msq_id = create_ipc_msg_queue(IPC_EXCL);
+    if (msq_id < 0) {
+        return -1;
     }
-    free_exec_path_buf(elf, elf_num);
-    if (attach_flag == 0)
-        goto err;
+
+    INIT_BPF_APP(nginx_probe, EBPF_RLIM_LIMITED);
 
     /* create ngx statistic map_fd */
-    map_fd = bpf_create_map(
+    g_nginx_probe.stats_map_fd = bpf_create_map(
         BPF_MAP_TYPE_HASH, sizeof(struct ngx_statistic_key), sizeof(struct ngx_statistic), STATISTIC_MAX_ENTRIES, 0);
-    if (map_fd < 0) {
-        printf("Failed to create statistic map fd.\n");
+    if (g_nginx_probe.stats_map_fd < 0) {
+        ERROR("%s Failed to create statistic map fd.\n", LOG_NGINX_PREFIX);
         goto err;
     }
-    printf("Successfully started!\n");
+    INFO("%s Nginx probe started Successfully.\n", LOG_NGINX_PREFIX);
 
     /* try to hit probe info */
     while (!stop) {
-        pull_probe_data(GET_MAP_FD(nginx_probe, hs), map_fd);
-        print_statistic_map(map_fd);
-        sleep(params.period);
-    }
-err:
-    if (map_fd > 0)
-        close(map_fd);
+        err = recv_ipc_msg(msq_id, (long)PROBE_NGINX, &ipc_body);
+        if (err == 0) {
+            err = reload_bpf_prog(&ipc_body);
+            if (err) {
+                goto err;
+            }
+        }
 
-    UNLOAD(nginx_probe);
-    return 0;
+        if (g_nginx_probe.prog != NULL) {
+            pull_all_probe_data();
+            print_statistic_map(g_nginx_probe.stats_map_fd);
+            sleep(g_nginx_probe.ipc_body.probe_param.period);
+        } else {
+            sleep(DEFAULT_PERIOD);
+        }
+    }
+
+    err = 0;
+err:
+    clean_nginx_probe();
+    destroy_ipc_body(&ipc_body);
+    return err;
 }
