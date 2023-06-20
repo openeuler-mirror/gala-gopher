@@ -439,7 +439,7 @@ int get_container_merged_path(const char *abbr_container_id, char *path, unsigne
         (void)snprintf(command, COMMAND_LEN, "%s %s", \
             CONTAINERD_MERGED_COMMAND, abbr_container_id);
     } else {
-        (void)snprintf(command, COMMAND_LEN, "%s inspect %s | grep %s", \
+        (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s", \
             get_current_command(), abbr_container_id, DOCKER_MERGED_COMMAND);
     }
 
