@@ -33,10 +33,15 @@ struct l7_ebpf_prog_s {
     struct libssl_prog_s libssl_progs[LIBSSL_EBPF_PROG_MAX];
 };
 
+struct l7_java_prog_s {
+    pthread_t jss_msg_hd_thd;     // jsse消息处理线程ID
+};
+
 struct l7_mng_s {
     struct ipc_body_s ipc_body;
     struct filter_args_s filter_args;
     struct l7_ebpf_prog_s bpf_progs;
+    struct l7_java_prog_s java_progs;
 };
 
 #endif

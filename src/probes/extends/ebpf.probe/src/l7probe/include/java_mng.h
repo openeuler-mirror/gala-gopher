@@ -15,7 +15,7 @@
 #ifndef __JAVA_MNG_H__
 #define __JAVA_MNG_H__
 
-int init_java_progs(struct probe_params *args);
-void unload_java_progs(struct probe_params *args);
+int l7_load_probe_jsse(struct l7_mng_s *l7_mng);
+void l7_unload_probe_jsse(struct l7_mng_s *l7_mng);
 
 #endif
