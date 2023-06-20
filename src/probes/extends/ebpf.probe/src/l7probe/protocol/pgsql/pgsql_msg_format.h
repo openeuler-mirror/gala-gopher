@@ -147,6 +147,20 @@ struct pgsql_startup_msg_s {
 };
 
 /**
+ * Malloc初始化struct pgsql_startup_msg_s指针
+ *
+ * @return struct pgsql_startup_msg_s*
+ */
+struct pgsql_startup_msg_s *init_pgsql_startup_msg(void);
+
+/**
+ * 释放struct pgsql_startup_msg_s*
+ *
+ * @param msg struct pgsql_startup_msg_s指针
+ */
+void free_pgsql_startup_msg(struct pgsql_startup_msg_s *msg);
+
+/**
  * Cancel request's format:
  * -----------------------------------------------------------------------------------
  * | int32 len (including this field) | int32 cancel code | int32 pid | int32 secret |
@@ -175,11 +189,22 @@ struct pgsql_regular_msg_s {
     char tag;
     int32_t len;
     char *payload;
+    size_t payload_len; // todo 需要补充该字段更新机制
     bool consumed;
 };
 
+/**
+ * Malloc初始化struct pgsql_regular_msg_s*
+ *
+ * @return struct pgsql_regular_msg_s*
+ */
 struct pgsql_regular_msg_s *init_pgsql_regular_msg();
 
+/**
+ * 释放struct pgsql_regular_msg_s*
+ *
+ * @param msg struct pgsql_regular_msg_s指针
+ */
 void free_pgsql_regular_msg(struct pgsql_regular_msg_s *msg);
 
 
@@ -189,7 +214,7 @@ void free_pgsql_regular_msg(struct pgsql_regular_msg_s *msg);
  */
 enum format_code_s {
     TEXT = 0,
-    BINARY = 1;
+    BINARY = 1
 };
 
 struct pgsql_row_desc_field_s {
@@ -236,6 +261,20 @@ struct pgsql_row_description_s {
 };
 
 /**
+ * Malloc初始化struct pgsql_row_description_s*
+ *
+ * @return struct pgsql_row_description_s*
+ */
+struct pgsql_row_description_s *init_pgsql_row_description(void);
+
+/**
+ * 释放struct pgsql_row_description_s*
+ *
+ * @param msg struct pgsql_row_description_s指针
+ */
+void free_pgsql_row_description(struct pgsql_row_description_s *row_desc);
+
+/**
  * DataRow.
  */
 #define __PGSQL_DATA_ROW_SIZE (1024)
@@ -256,15 +295,42 @@ struct pgsql_cmd_complete_s {
 };
 
 /**
+ * Malloc初始化struct pgsql_cmd_complete_s*
+ *
+ * @return struct pgsql_cmd_complete_s*
+ */
+struct pgsql_cmd_complete_s *init_pgsql_cmd_complete(void);
+
+/**
+ * 释放struct pgsql_cmd_complete_s*
+ *
+ * @param msg struct pgsql_cmd_complete_s指针
+ */
+void free_pgsql_cmd_complete(struct pgsql_cmd_complete_s *cmd_cmpl);
+
+/**
  * ErrorResponse.
  */
 struct pgsql_err_resp_s {
     uint64_t timestamp_ns;
 
-    // default: '\0'
-    char failed_code;
-    char *field_value;
+    // 当前只解析错误码，错误信息、错误代码位置未来可按需扩展
+    char *pgsql_err_code;
 };
+
+/**
+ * Malloc初始化struct pgsql_err_resp_s*
+ *
+ * @return struct pgsql_err_resp_s*
+ */
+struct pgsql_err_resp_s *init_pgsql_err_resp(void);
+
+/**
+ * 释放struct pgsql_err_resp_s*
+ *
+ * @param msg struct pgsql_err_resp_s指针
+ */
+void free_pgsql_err_resp(struct pgsql_err_resp_s *err_rsp);
 
 /**
  * Simple query request.
@@ -278,6 +344,20 @@ struct pgsql_query_req_s {
 };
 
 /**
+ * Malloc初始化struct pgsql_query_req_s*
+ *
+ * @return struct pgsql_query_req_s*
+ */
+struct pgsql_query_req_s *init_pgsql_query_req(void);
+
+/**
+ * 释放struct pgsql_query_req_s*
+ *
+ * @param msg struct pgsql_query_req_s指针
+ */
+void free_pgsql_query_req(struct pgsql_query_req_s *query_req);
+
+/**
  * Simple query response.
  */
 #define __PGSQL_ROW_DATA_SIZE (1024)
@@ -287,9 +367,23 @@ struct pgsql_query_resp_s {
     struct pgsql_data_row_s *data_rows[__PGSQL_ROW_DATA_SIZE];
     size_t data_row_len;
     struct pgsql_cmd_complete_s *cmd_cmpl;
-    bool is_err_resp = false;
+    bool is_err_resp;
     struct pgsql_err_resp_s *err_resp;
 };
+
+/**
+ * Malloc初始化struct pgsql_query_resp_s*
+ *
+ * @return struct pgsql_query_resp_s*
+ */
+struct pgsql_query_resp_s *init_pgsql_query_resp(void);
+
+/**
+ * 释放struct pgsql_query_resp_s*
+ *
+ * @param msg struct pgsql_query_resp_s指针
+ */
+void free_pgsql_query_resp(struct pgsql_query_resp_s *query_rsp);
 
 /**
  * Simple query request and response struct.
@@ -298,6 +392,20 @@ struct pgsql_query_req_resp_s {
     struct pgsql_query_req_s *req;
     struct pgsql_query_resp_s *resp;
 };
+
+/**
+ * Malloc初始化struct pgsql_query_req_resp_s*
+ *
+ * @return struct pgsql_query_req_resp_s*
+ */
+struct pgsql_query_req_resp_s *init_pgsql_query_req_resp(void);
+
+/**
+ * 释放struct pgsql_query_req_resp_s*
+ *
+ * @param msg struct pgsql_query_req_resp_s指针
+ */
+void free_pgsql_query_req_resp(struct pgsql_query_req_resp_s *query_req_rsp);
 
 /**
  * Extended query parse request.
@@ -314,6 +422,20 @@ struct pgsql_parse_req_s {
     size_t param_type_oid_len;
 };
 
+/**
+ * Malloc初始化struct pgsql_parse_req_s*
+ *
+ * @return struct pgsql_parse_req_s*
+ */
+struct pgsql_parse_req_s *init_pgsql_parse_req(void);
+
+/**
+ * 释放struct pgsql_parse_req_s*
+ *
+ * @param msg struct pgsql_parse_req_s指针
+ */
+void free_pgsql_parse_req(struct pgsql_parse_req_s *parse_req);
+
 enum pgsql_combo_msg_type_t {
     CMD_CMPL_MSG,
     ERR_RESP_MSG
@@ -329,12 +451,40 @@ struct pgsql_combo_resp_s {
 };
 
 /**
+ * Malloc初始化struct pgsql_combo_resp_s*
+ *
+ * @return struct pgsql_combo_resp_s*
+ */
+struct pgsql_combo_resp_s *init_pgsql_combo_resp(void);
+
+/**
+ * 释放struct pgsql_combo_resp_s*
+ *
+ * @param msg struct pgsql_combo_resp_s指针
+ */
+void free_pgsql_combo_resp(struct pgsql_combo_resp_s *combo_resp);
+
+/**
  * Parse request and response struct.
  */
 struct pgsql_parse_req_resp_s {
     struct pgsql_parse_req_s *req;
     struct pgsql_combo_resp_s *resp;
 };
+
+/**
+ * Malloc初始化struct pgsql_parse_req_resp_s*
+ *
+ * @return struct pgsql_parse_req_resp_s*
+ */
+struct pgsql_parse_req_resp_s *init_pgsql_parse_req_resp(void);
+
+/**
+ * 释放struct pgsql_parse_req_resp_s*
+ *
+ * @param msg struct pgsql_parse_req_resp_s指针
+ */
+void free_pgsql_parse_req_resp(struct pgsql_parse_req_resp_s *parse_req_resp);
 
 struct pgsql_param_s {
     enum format_code_s format_code;
@@ -356,12 +506,40 @@ struct pgsql_bind_req_s {
 };
 
 /**
+ * Malloc初始化struct pgsql_bind_req_s*
+ *
+ * @return struct pgsql_bind_req_s*
+ */
+struct pgsql_bind_req_s *init_pgsql_bind_req(void);
+
+/**
+ * 释放struct pgsql_bind_req_s*
+ *
+ * @param msg struct pgsql_bind_req_s指针
+ */
+void free_pgsql_bind_req(struct pgsql_bind_req_s *bind_req);
+
+/**
  * Bind request and response struct.
  */
 struct pgsql_bind_req_resp_s {
     struct pgsql_bind_req_s *req;
     struct pgsql_combo_resp_s *resp;
 };
+
+/**
+ * Malloc初始化struct pgsql_bind_req_resp_s*
+ *
+ * @return struct pgsql_bind_req_resp_s*
+ */
+struct pgsql_bind_req_resp_s *init_pgsql_bind_req_resp(void);
+
+/**
+ * 释放struct pgsql_bind_req_resp_s*
+ *
+ * @param msg struct pgsql_bind_req_resp_s指针
+ */
+void free_pgsql_bind_req_resp(struct pgsql_bind_req_resp_s *bind_req_rsp);
 
 /**
  * Extended query describe request.
@@ -376,10 +554,38 @@ struct pgsql_describe_req_s {
     char *name;
 };
 
+/**
+ * Malloc初始化struct pgsql_describe_req_s*
+ *
+ * @return struct pgsql_describe_req_s*
+ */
+struct pgsql_describe_req_s *init_pgsql_describe_req(void);
+
+/**
+ * 释放struct pgsql_describe_req_s*
+ *
+ * @param msg struct pgsql_describe_req_s指针
+ */
+void free_pgsql_describe_req(struct pgsql_describe_req_s *desc_req);
+
 struct pgsql_param_description_s {
     uint64_t timestamp_ns;
     int32_t type_oids[0];
 };
+
+/**
+ * Malloc初始化struct pgsql_param_description_s*
+ *
+ * @return struct pgsql_param_description_s*
+ */
+struct pgsql_param_description_s *init_pgsql_param_description(void);
+
+/**
+ * 释放struct pgsql_param_description_s*
+ *
+ * @param msg struct pgsql_param_description_s指针
+ */
+void free_pgsql_param_description(struct pgsql_param_description_s *param_desc);
 
 /**
  * Extended query describe response.
@@ -398,12 +604,40 @@ struct pgsql_describe_resp_s {
 };
 
 /**
+ * Malloc初始化struct pgsql_describe_resp_s*
+ *
+ * @return struct pgsql_describe_resp_s*
+ */
+struct pgsql_describe_resp_s *init_pgsql_describe_resp(void);
+
+/**
+ * 释放struct pgsql_describe_resp_s*
+ *
+ * @param msg struct pgsql_describe_resp_s指针
+ */
+void free_pgsql_describe_resp(struct pgsql_describe_resp_s *desc_rsp);
+
+/**
  * Describe request and response struct.
  */
 struct pgsql_describe_req_resp_s {
     struct pgsql_describe_req_s *req;
     struct pgsql_describe_resp_s *resp;
 };
+
+/**
+ * Malloc初始化struct pgsql_describe_req_resp_s*
+ *
+ * @return struct pgsql_describe_req_resp_s*
+ */
+struct pgsql_describe_req_resp_s *init_pgsql_describe_req_resp(void);
+
+/**
+ * 释放struct pgsql_describe_req_resp_s*
+ *
+ * @param msg struct pgsql_describe_req_resp_s指针
+ */
+void free_pgsql_describe_req_resp(struct pgsql_describe_req_resp_s *desc_req_rsp);
 
 /**
  * Extended query execute response.
@@ -415,12 +649,40 @@ struct pgsql_execute_req_s {
 };
 
 /**
+ * Malloc初始化struct pgsql_execute_req_s*
+ *
+ * @return struct pgsql_execute_req_s*
+ */
+struct pgsql_execute_req_s *init_pgsql_execute_req(void);
+
+/**
+ * 释放struct pgsql_execute_req_s*
+ *
+ * @param msg struct pgsql_execute_req_s指针
+ */
+void free_pgsql_execute_req_s(struct pgsql_execute_req_s *exec_req);
+
+/**
  * Execute request and response struct.
  */
 struct pgsql_execute_req_resp_s {
     struct pgsql_execute_req_s *req;
     struct pgsql_query_resp_s *resp;
 };
+
+/**
+ * Malloc初始化struct pgsql_execute_req_resp_s*
+ *
+ * @return struct pgsql_execute_req_resp_s*
+ */
+struct pgsql_execute_req_resp_s *init_pgsql_execute_req_resp(void);
+
+/**
+ * 释放struct pgsql_execute_req_resp_s*
+ *
+ * @param msg struct pgsql_execute_req_resp_s指针
+ */
+void free_pgsql_execute_req_resp(struct pgsql_execute_req_resp_s *exec_req_rsp);
 
 struct pgsql_state_s {
     // todo convert prepared_statements to hashmap: map<string, string> key name, value statement
@@ -443,8 +705,8 @@ struct pgsql_protocol_traits_s {
 };
 
 struct pgsql_record_s {
-    pgsql_regular_msg_s *req_msg;
-    pgsql_regular_msg_s *resp_msg;
+    struct pgsql_regular_msg_s *req_msg;
+    struct pgsql_regular_msg_s *resp_msg;
 };
 
 #endif
