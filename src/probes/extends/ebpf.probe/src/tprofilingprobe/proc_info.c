@@ -20,6 +20,7 @@
 #include "debug_elf_reader.h"
 #include "elf_symb.h"
 #include "container.h"
+#include "tprofiling.h"
 #include "proc_info.h"
 
 void HASH_add_proc_info(proc_info_t **proc_table, proc_info_t *proc_info)
@@ -108,13 +109,13 @@ int set_proc_comm(int tgid, char *comm, int size)
 
     ret = snprintf(cmd, sizeof(cmd), CMD_CAT_PROC_COMM, tgid);
     if (ret < 0 || ret >= sizeof(cmd)) {
-        fprintf(stderr, "ERROR: Failed to set command.\n");
+        TP_ERROR("Failed to set command.\n");
         return -1;
     }
 
     ret = exec_cmd(cmd, comm, size);
     if (ret) {
-        fprintf(stderr, "ERROR: Failed to execute command:%s.\n", cmd);
+        TP_ERROR("Failed to execute command: %s.\n", cmd);
         return -1;
     }
 
@@ -128,13 +129,13 @@ int set_thrd_comm(int pid, int tgid, char *comm, int size)
 
     ret = snprintf(cmd, sizeof(cmd), CMD_CAT_THRD_COMM, tgid, pid);
     if (ret < 0 || ret >= sizeof(cmd)) {
-        fprintf(stderr, "ERROR: Failed to set command.\n");
+        TP_ERROR("Failed to set command.\n");
         return -1;
     }
 
     ret = exec_cmd(cmd, comm, size);
     if (ret) {
-        fprintf(stderr, "ERROR: Failed to execute command:%s.\n", cmd);
+        TP_ERROR("Failed to execute command: %s.\n", cmd);
         return -1;
     }
 
@@ -181,7 +182,7 @@ proc_info_t *add_proc_info(proc_info_t **proc_table, int tgid)
 
     pi = (proc_info_t *)calloc(1, sizeof(proc_info_t));
     if (pi == NULL) {
-        fprintf(stderr, "ERROR: Failed to allocate process info.\n");
+        TP_ERROR("Failed to allocate process info.\n");
         return NULL;
     }
 
@@ -194,7 +195,7 @@ proc_info_t *add_proc_info(proc_info_t **proc_table, int tgid)
 
     pi->fd_table = (fd_info_t **)malloc(sizeof(fd_info_t *));
     if (pi->fd_table == NULL) {
-        fprintf(stderr, "ERROR: Failed to allocate fd table.\n");
+        TP_ERROR("Failed to allocate fd table.\n");
         free(pi);
         return NULL;
     }
@@ -202,7 +203,7 @@ proc_info_t *add_proc_info(proc_info_t **proc_table, int tgid)
 
     pi->thrd_table = (thrd_info_t **)malloc(sizeof(thrd_info_t *));
     if (pi->thrd_table == NULL) {
-        fprintf(stderr, "ERROR: Failed to allocate thread table.\n");
+        TP_ERROR("Failed to allocate thread table.\n");
         free(pi);
         return NULL;
     }
@@ -230,7 +231,7 @@ thrd_info_t *add_thrd_info(proc_info_t *proc_info, int pid)
 
     ti = (thrd_info_t *)calloc(1, sizeof(thrd_info_t));
     if (ti == NULL) {
-        fprintf(stderr, "ERROR: Failed to allocate thread info.\n");
+        TP_ERROR("Failed to allocate thread info.\n");
         return NULL;
     }
 
@@ -261,7 +262,7 @@ fd_info_t *add_fd_info(proc_info_t *proc_info, int fd)
 
     fi = (fd_info_t *)malloc(sizeof(fd_info_t));
     if (fi == NULL) {
-        fprintf(stderr, "ERROR: Failed to allocate fd info.\n");
+        TP_ERROR("Failed to allocate fd info.\n");
         return NULL;
     }
     memset(fi, 0, sizeof(fd_info_t));
@@ -433,13 +434,13 @@ event_elem_t *create_event_elem(unsigned int data_size)
     event_elem_t *elem;
 
     if (data_size == 0) {
-        fprintf(stderr, "ERROR: event data size must be non-zero.\n");
+        TP_ERROR("Event data size must be non-zero.\n");
         return NULL;
     }
 
     elem = (event_elem_t *)calloc(1, sizeof(event_elem_t) + data_size);
     if (elem == NULL) {
-        fprintf(stderr, "ERROR: malloc event element memory failed.\n");
+        TP_ERROR("Failed to malloc event element memory.\n");
         return NULL;
     }
     elem->data = (void *)(elem + 1);

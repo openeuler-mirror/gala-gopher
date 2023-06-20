@@ -57,11 +57,11 @@ static int load_syscall_create_pb(struct bpf_prog_s *prog, int fd)
     if (prog->pb == NULL) {
         pb = create_pref_buffer(fd, perf_event_handler);
         if (pb == NULL) {
-            fprintf(stderr, "ERROR: create perf buffer failed\n");
+            TP_ERROR("Failed tocreate perf buffer\n");
             return -1;
         }
         prog->pb = pb;
-        printf("INFO: Success to create syscall pb buffer.\n");
+        TP_INFO("Success to create syscall pb buffer.\n");
     }
 
     return 0;
@@ -121,11 +121,11 @@ static int load_oncpu_create_pb(struct bpf_prog_s *prog, int fd)
     if (prog->pb == NULL) {
         pb = create_pref_buffer(fd, perf_event_handler);
         if (pb == NULL) {
-            fprintf(stderr, "ERROR: create perf buffer failed\n");
+            TP_ERROR("Failed to create perf buffer\n");
             return -1;
         }
         prog->pb = pb;
-        printf("INFO: Success to create oncpu pb buffer.\n");
+        TP_INFO("Success to create oncpu pb buffer.\n");
     }
 
     return 0;

@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "tprofiling.h"
 #include "thrd_bl.h"
 
 struct thrdBl {
@@ -125,7 +126,7 @@ int initThreadBlacklist(ThrdBlacklist *thrdBl)
     blNum = sizeof(thrdBlLocal) / sizeof(struct thrdBl);
     blItems = (BlacklistItem *)calloc(blNum, sizeof(BlacklistItem));
     if (blItems == NULL) {
-        fprintf(stderr, "ERROR: create blacklist items failed: malloc memory failed\n");
+        TP_ERROR("Failed to create blacklist items: malloc memory failed\n");
         return -1;
     }
 

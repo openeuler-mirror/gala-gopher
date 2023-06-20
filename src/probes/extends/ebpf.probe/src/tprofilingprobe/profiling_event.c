@@ -102,7 +102,7 @@ static syscall_meta_t *get_syscall_meta(unsigned long nr)
 
     HASH_FIND(hh, tprofiler.scmTable, &nr, sizeof(unsigned long), scm);
     if (scm == NULL) {
-        fprintf(stderr, "WARN: cannot find syscall metadata of syscall number:%lu.\n", nr);
+        TP_WARN("Cannot find syscall metadata of syscall number:%lu.\n", nr);
     }
 
     return scm;
@@ -136,7 +136,7 @@ static int set_evt_resource(thrd_info_t *thrd_info, char *evt_resource, int reso
                            ",\"process.comm\":\"%s\",\"container.id\":\"%s\",\"container.name\":\"%s\"}",
                            thrd_info->pid, pi->tgid, thrd_info->comm, pi->comm, ci->id, ci->name);
     if (expect_size >= resource_size) {
-        fprintf(stderr, "ERROR: resource size not large enough\n");
+        TP_ERROR("Resource size not large enough\n");
         return -1;
     }
 
@@ -249,7 +249,7 @@ static void try_report_thrd_events(thrd_info_t *thrd_info)
 int get_addr_stack(__u64 *addr_stack, int uid)
 {
     if (tprofiler.stackMapFd <= 0) {
-        fprintf(stderr, "ERROR: cannot get stack map fd:%d.\n", tprofiler.stackMapFd);
+        TP_ERROR("Can not get stack map fd: %d.\n", tprofiler.stackMapFd);
         return -1;
     }
 
@@ -294,7 +294,7 @@ static void stack_transfer_addrs2symbs(__u64 *addrs, int addr_num,
         ret = snprintf(symbs_buf.buf, symbs_buf.size, "%s;", symb_name);
         if (ret < 0 || ret >= symbs_buf.size) {
             // it is allowed that stack may be truncated
-            fprintf(stderr, "WARN: stack buffer not large enough.\n");
+            TP_WARN("Stack buffer not large enough.\n");
             return;
         }
         strbuf_update_offset(&symbs_buf, ret);
@@ -526,7 +526,7 @@ static int append_syscall_common_attrs(strbuf_t *attrs_buf, event_elem_t *cached
     start_time = get_unix_time_from_uptime(syscall_d->start_time) / NSEC_PER_MSEC;
     end_time = get_unix_time_from_uptime(syscall_d->start_time + syscall_d->duration) / NSEC_PER_MSEC;
     if (start_time > end_time) {
-        fprintf(stderr, "ERROR: Event start time large than end time\n");
+        TP_ERROR("Event start time large than end time\n");
         return -1;
     }
     duration = (double)syscall_d->duration / NSEC_PER_MSEC;
@@ -568,7 +568,7 @@ static int set_oncpu_evt_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
     start_time = get_unix_time_from_uptime(oncpu_d->start_time) / NSEC_PER_MSEC;
     end_time = get_unix_time_from_uptime(oncpu_d->start_time + oncpu_d->duration) / NSEC_PER_MSEC;
     if (start_time > end_time) {
-        fprintf(stderr, "ERROR: Event start time large than end time.\n");
+        TP_ERROR("Event start time large than end time.\n");
         return -1;
     }
     duration = (double)oncpu_d->duration / NSEC_PER_MSEC;
@@ -595,7 +595,7 @@ static int set_typed_evt_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
         case EVT_TYPE_ONCPU:
             return set_oncpu_evt_attrs(attrs_buf, cached_evt);
         default:
-            fprintf(stderr, "ERROR: unknown event type %d.\n", type);
+            TP_ERROR("Unknown event type %d.\n", type);
             return -1;
     }
 }
@@ -692,12 +692,12 @@ static int set_evt_attrs_batch(thrd_info_t *thrd_info, char *evt_attrs, int attr
 
     ret = strbuf_append_str_with_check(&sbuf, prefix, strlen(prefix));
     if (ret) {
-        fprintf(stderr, "ERROR: attributes size not large enough.\n");
+        TP_ERROR("Attributes size not large enough.\n");
         return -1;
     }
     // reserve space for the suffix
     if (sbuf.size < suffix_size) {
-        fprintf(stderr, "ERROR: attributes size not large enough.\n");
+        TP_ERROR("Attributes size not large enough.\n");
         return -1;
     }
     sbuf.size -= suffix_size;
@@ -705,7 +705,7 @@ static int set_evt_attrs_batch(thrd_info_t *thrd_info, char *evt_attrs, int attr
     ret = append_evt_attrs_batch(&sbuf, thrd_info);
     if (ret) {
         if (ret == -ERR_TP_NO_BUFF) {
-            fprintf(stderr, "ERROR: attributes size not large enough.\n");
+            TP_ERROR("Attributes size not large enough.\n");
         }
         return -1;
     }
