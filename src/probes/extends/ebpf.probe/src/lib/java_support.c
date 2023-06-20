@@ -107,6 +107,18 @@ out:
     return ret;
 }
 
+static int is_valid_proc(int pid)
+{
+    char fname[LINE_BUF_LEN];
+    fname[0] = 0;
+
+    (void)snprintf(fname, LINE_BUF_LEN, "/proc/%d", pid);
+    if (access((const char *)fname, 0) == 0) {
+        return 1;
+    }
+    return 0;
+}
+
 static int __mkdir(char dst_dir[])
 {
     if (access(dst_dir, F_OK) == 0) {
@@ -229,6 +241,7 @@ static int _exe_attach_cmd(char *cmd)
         ERROR("[JAVA_SUPPORT]: attach fail, popen error.\n");
         return -1;
     }
+    INFO("[JAVA_SUPPORT]: __do_attach %s\n", cmd);
     while(fgets(result_buf, sizeof(result_buf), f) != NULL) {
         INFO("%s", result_buf);
         /* 判断load指令执行返回结果，非0表示失败 */
@@ -298,6 +311,10 @@ int java_load(u32 pid, struct java_attach_args *args)
         (void)snprintf(attach_type, ATTACH_TYPE_LEN, "%s", args->action);
     }
 
+    if (!is_valid_proc(pid)) {
+        WARN("[JAVA_SUPPORT] java_load to proc: %d break because proc is invalid.\n", pid);
+        return 0;
+    }
     (void)_set_effective_id(pid, &v);
     if (_set_attach_argv(pid, &v) != 0) {
         return -1;
@@ -315,7 +332,9 @@ void java_msg_handler(u32 pid, struct java_attach_args *args)
     char tmp_file_path[PATH_LEN];
 
     tmp_file_path[0] = 0;
-    (void)get_host_java_tmp_file(pid, args->tmp_file_name, tmp_file_path, PATH_LEN);
+    if (get_host_java_tmp_file(pid, args->tmp_file_name, tmp_file_path, PATH_LEN) < 0) {
+        return;
+    }
 
     int fd = open(tmp_file_path, O_RDWR);
     if (fd < 0) {

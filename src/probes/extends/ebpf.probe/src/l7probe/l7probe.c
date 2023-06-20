@@ -251,6 +251,11 @@ int main(int argc, char **argv)
             (void)memcpy(&(l7_mng->ipc_body), &ipc_body, sizeof(ipc_body));
             load_l7_snoopers(l7_mng->bpf_progs.proc_obj_map_fd, &(l7_mng->ipc_body));
 
+            l7_unload_probe_jsse(l7_mng);
+            if (l7_load_probe_jsse(l7_mng) < 0) {
+                break;
+            }
+
             is_load_prog = 1;
         }
 
@@ -266,8 +271,8 @@ int main(int argc, char **argv)
     }
 
 err:
+    l7_unload_probe_jsse(l7_mng);
     unload_l7_prog(l7_mng);
     destroy_ipc_body(&(l7_mng->ipc_body));
-    //unload_java_progs(&params);
     return 0;
 }
