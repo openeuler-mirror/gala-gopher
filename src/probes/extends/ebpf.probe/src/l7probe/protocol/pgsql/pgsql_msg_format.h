@@ -25,6 +25,11 @@
 
 #include "hash.h"
 
+#define PGSQL_MSG_HEADER_SIZE (2 * sizeof(int32_t))
+
+// regular msg最小长度
+#define REGULAR_MSG_MIN_LEN 4
+
 // Tag: The first field of the regular message.
 // References pgsql spec:
 // https://www.postgresql.org/docs/15/protocol-message-formats.html
@@ -208,6 +213,20 @@ struct pgsql_row_desc_field_s {
     int32_t type_modifier;
     enum format_code_s fmt_code;
 };
+
+/**
+ * Malloc初始化struct pgsql_row_desc_field_s*
+ *
+ * @return struct pgsql_row_desc_field_s*
+ */
+struct pgsql_row_desc_field_s *init_pgsql_row_desc_field(void);
+
+/**
+ * 释放struct pgsql_row_desc_field_s*
+ *
+ * @param msg struct pgsql_row_desc_field_s指针
+ */
+void free_pgsql_row_desc_field(struct pgsql_row_desc_field_s *field);
 
 #define __PGSQL_ROW_DESC_SIZE (1024)
 struct pgsql_row_description_s {

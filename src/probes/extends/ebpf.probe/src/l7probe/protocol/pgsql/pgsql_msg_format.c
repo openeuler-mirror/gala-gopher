@@ -74,8 +74,34 @@ struct pgsql_regular_msg_s *init_pgsql_regular_msg()
 
 void free_pgsql_regular_msg(struct pgsql_regular_msg_s *msg)
 {
+    if (msg == NULL) {
+        return;
+    }
     if (msg->payload != NULL) {
         free(msg->payload);
     }
     free(msg);
+}
+
+
+struct pgsql_row_desc_field_s *init_pgsql_row_desc_field(void)
+{
+    struct pgsql_row_desc_field_s *field = (struct pgsql_row_desc_field_s *) malloc(
+        sizeof(struct pgsql_row_desc_field_s));
+    if (field == NULL) {
+        return NULL;
+    }
+    field->name = NULL;
+    return field;
+}
+
+void free_pgsql_row_desc_field(struct pgsql_row_desc_field_s *field)
+{
+    if (field == NULL) {
+        return;
+    }
+    if (field->name != NULL) {
+        free(field->name);
+    }
+    free(field);
 }
