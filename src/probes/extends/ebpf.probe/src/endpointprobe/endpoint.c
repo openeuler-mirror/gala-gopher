@@ -48,7 +48,6 @@
 #define ENDPOINT_PATH "/sys/fs/bpf/gala-gopher/__endpoint_sock"
 #define OUTPUT_PATH "/sys/fs/bpf/gala-gopher/__endpoint_output"
 #define ARGS_PATH "/sys/fs/bpf/gala-gopher/__endpoint_args"
-#define EP_PROC_MAP_PATH "/sys/fs/bpf/gala-gopher/__endpoint_proc_map"
 #define RM_BPF_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__endpoint*"
 
 #define __LOAD_ENDPOINT_PROBE(probe_name, end, load) \
@@ -56,7 +55,6 @@
     MAP_SET_PIN_PATH(probe_name, g_endpoint_map, ENDPOINT_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, g_ep_output, OUTPUT_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, args_map, ARGS_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, g_ep_proc_map, EP_PROC_MAP_PATH, load); \
     LOAD_ATTACH(endpoint, probe_name, end, load)
 
 struct endpoint_probe_s {
@@ -401,7 +399,7 @@ static int endpoint_load_probe_tcp(struct bpf_prog_s *prog, char is_load)
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_bpf__destroy;
         prog->num++;
         g_ep_probe.output_fd = GET_MAP_FD(tcp, g_ep_output);
-        g_ep_probe.proc_map_fd = GET_MAP_FD(tcp, g_ep_proc_map);
+        g_ep_probe.proc_map_fd = GET_MAP_FD(tcp, proc_obj_map);
         g_ep_probe.args_fd = GET_MAP_FD(tcp, args_map);
         load_listen_fd(GET_MAP_FD(tcp, listen_sockfd_map));
     }
@@ -420,7 +418,7 @@ static int endpoint_load_probe_udp(struct bpf_prog_s *prog, char is_load)
         prog->skels[prog->num].fn = (skel_destroy_fn)udp_bpf__destroy;
         prog->num++;
         g_ep_probe.output_fd = GET_MAP_FD(udp, g_ep_output);
-        g_ep_probe.proc_map_fd = GET_MAP_FD(udp, g_ep_proc_map);
+        g_ep_probe.proc_map_fd = GET_MAP_FD(udp, proc_obj_map);
         g_ep_probe.args_fd = GET_MAP_FD(udp, args_map);
     }
 
