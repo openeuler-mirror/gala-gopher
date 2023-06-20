@@ -79,9 +79,7 @@ static void sig_handling(int signal);
 static int init_tprofiler();
 static int init_tprofiler_map_fds(struct ipc_body_s *ipc_body);
 static int init_syscall_metas();
-static void init_java_symb_mgmt(int proc_filter_map_fd);
-static void unload_java_symb_mgmt(int proc_filter_map_fd);
-static void clean_java_symb_mgmt();
+static void java_symb_mgmt(int proc_filter_map_fd);
 static void clean_map_files();
 static void clean_tprofiler();
 static int refresh_tprofiler(struct ipc_body_s *ipc_body);
@@ -96,11 +94,11 @@ int main(int argc, char **argv)
     int msq_id;
 
     if (signal(SIGINT, sig_handling) == SIG_ERR) {
-        fprintf(stderr, "can't set signal handler: %s\n", strerror(errno));
+        TP_ERROR("Can't set signal handler: %s\n", strerror(errno));
         return -1;
     }
     if (signal(SIGTERM, sig_handling) == SIG_ERR) {
-        fprintf(stderr, "can't set signal handler: %s\n", strerror(errno));
+        TP_ERROR("Can't set signal handler: %s\n", strerror(errno));
         return -1;
     }
 
@@ -117,10 +115,11 @@ int main(int argc, char **argv)
 
     INIT_BPF_APP(tprofiling, EBPF_RLIM_LIMITED);
 
+    TP_INFO("Tprofiling probe start successfully.\n");
+
     while (!stop) {
         err = recv_ipc_msg(msq_id, (long)PROBE_TP, &ipc_body);
         if (err == 0) {
-            clean_java_symb_mgmt();
             unload_bpf_prog(&syscall_bpf_progs);
             unload_bpf_prog(&oncpu_bpf_progs);
 
@@ -158,8 +157,8 @@ int main(int argc, char **argv)
         }
     }
 
+    TP_INFO("Tprofiling probe closed.\n");
 cleanup:
-    clean_java_symb_mgmt();
     unload_bpf_prog(&syscall_bpf_progs);
     unload_bpf_prog(&oncpu_bpf_progs);
     clean_tprofiler();
@@ -176,17 +175,17 @@ static void sig_handling(int signal)
 static int init_tprofiler()
 {
     if (initThreadBlacklist(&tprofiler.thrdBl)) {
-        fprintf(stderr, "ERROR: init thread blacklist failed.\n");
+        TP_ERROR("Failed to init thread blacklist.\n");
         return -1;
     }
 
     if (init_sys_boot_time(&tprofiler.sysBootTime)) {
-        fprintf(stderr, "ERROR: get system boot time failed.\n");
+        TP_ERROR("Failed to get system boot time.\n");
         return -1;
     }
 
     if (init_syscall_metas()) {
-        fprintf(stderr, "ERROR: init syscall meta info failed.\n");
+        TP_ERROR("Failed to init syscall meta info.\n");
         return -1;
     }
 
@@ -198,7 +197,7 @@ static int init_tprofiler_map_fds(struct ipc_body_s *ipc_body)
     if (tprofiler.procFilterMapFd <= 0) {
         tprofiler.procFilterMapFd = bpf_obj_get(PROC_FILTER_MAP_PATH);
         if (tprofiler.procFilterMapFd < 0) {
-            fprintf(stderr, "ERROR: get bpf prog process filter map failed.\n");
+            TP_ERROR("Failed to get bpf prog process filter map.\n");
             return -1;
         }
     }
@@ -206,7 +205,7 @@ static int init_tprofiler_map_fds(struct ipc_body_s *ipc_body)
     if (tprofiler.threadBlMapFd <= 0) {
         tprofiler.threadBlMapFd = bpf_obj_get(THRD_BL_MAP_PATH);
         if (tprofiler.threadBlMapFd < 0) {
-            fprintf(stderr, "ERROR: get bpf prog thread blacklist map failed.\n");
+            TP_ERROR("Failed to get bpf prog thread blacklist map.\n");
             return -1;
         }
     }
@@ -215,7 +214,7 @@ static int init_tprofiler_map_fds(struct ipc_body_s *ipc_body)
         if (tprofiler.stackMapFd <= 0) {
             tprofiler.stackMapFd = bpf_obj_get(STACK_MAP_PATH);
             if (tprofiler.stackMapFd < 0) {
-                fprintf(stderr, "ERROR: get bpf prog stack map failed.\n");
+                TP_ERROR("Failed to get bpf prog stack map.\n");
                 return -1;
             }
         }
@@ -246,37 +245,35 @@ static int init_syscall_metas()
     return 0;
 }
 
-// 创建一个子线程，针对 Java 程序，定期更新它的符号表
-static void init_java_symb_mgmt(int proc_filter_map_fd)
+// 针对 Java 程序，加载一个 java agent 用于获取它的符号表
+static void java_symb_mgmt(int proc_filter_map_fd)
 {
-    int ret;
-    pthread_t thd;
     struct java_attach_args args = {0};
+    struct proc_s key = {0};
+    struct proc_s next_key = {0};
+    char comm[TASK_COMM_LEN];
 
-    args.proc_obj_map_fd = proc_filter_map_fd;
-    args.is_only_attach_once = 1;
-    args.loop_period = DEFAULT_PERIOD;
-    (void)snprintf(args.agent_file_name, FILENAME_LEN, JAVA_SYM_AGENT_FILE);
-    (void)snprintf(args.tmp_file_name, FILENAME_LEN, JAVA_SYM_FILE);
-
-    ret = pthread_create(&thd, NULL, java_support, (void *)&args);
-    if (ret) {
-        fprintf(stderr, "ERROR: Failed to create java support thread.\n");
+    if (tprofiler.stackMapFd <= 0) {
         return;
     }
-    tprofiler.javaSymbThrd = thd;
-    printf("INFO: java support thread sucessfully started.\n");
-}
 
-static void unload_java_symb_mgmt(int proc_filter_map_fd)
-{
-    struct java_attach_args args = {0};
-    args.proc_obj_map_fd = proc_filter_map_fd;
     (void)snprintf(args.agent_file_name, FILENAME_LEN, JAVA_SYM_AGENT_FILE);
     (void)snprintf(args.tmp_file_name, FILENAME_LEN, JAVA_SYM_FILE);
 
-    java_unload(&args);
-    printf("INFO: unload java agent sucessfully!\n");
+    while (bpf_map_get_next_key(proc_filter_map_fd, &key, &next_key) != -1) {
+        comm[0] = 0;
+        if (!detect_proc_is_java(next_key.proc_id, comm, TASK_COMM_LEN)) {
+            key = next_key;
+            continue;
+        }
+
+        if (java_load(next_key.proc_id, &args)) {
+            TP_WARN("Failed to load java agent to proc %u\n", next_key.proc_id);
+        }
+        TP_INFO("Succeed to load java agent to proc %u\n", next_key.proc_id);
+
+        key = next_key;
+    }
 }
 
 static void clean_map_files()
@@ -325,25 +322,9 @@ static int refresh_tprofiler(struct ipc_body_s *ipc_body)
 
     refresh_proc_filter_map(ipc_body);
 
-    if (tprofiler.stackMapFd > 0) {
-        init_java_symb_mgmt(tprofiler.procFilterMapFd);
-    }
+    java_symb_mgmt(tprofiler.procFilterMapFd);
 
     return 0;
-}
-
-static void clean_java_symb_mgmt()
-{
-    if (tprofiler.javaSymbThrd > 0) {
-        unload_java_symb_mgmt(tprofiler.procFilterMapFd);
-        if (pthread_cancel(tprofiler.javaSymbThrd)) {
-            fprintf(stderr, "ERROR: failed to cancel java symbol management thread\n");
-        } else {
-            pthread_join(tprofiler.javaSymbThrd, NULL);
-            printf("INFO: succeed to close java symbol management thread\n");
-        }
-        tprofiler.javaSymbThrd = 0;
-    }
 }
 
 static void refresh_proc_filter_map(struct ipc_body_s *ipc_body)

@@ -17,6 +17,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "common.h"
+#include "tprofiling.h"
 #include "fd_info.h"
 
 void HASH_add_fd_info(fd_info_t **fd_table, fd_info_t *fd_info)
@@ -77,7 +78,7 @@ static int fill_reg_file_info(fd_info_t *fd_info, const char *fd_path)
     fd_info->type = FD_TYPE_REG;
     ret = readlink(fd_path, fd_info->reg_info.name, sizeof(fd_info->reg_info.name));
     if (ret < 0 || ret >= sizeof(fd_info->reg_info.name)) {
-        fprintf(stderr, "ERROR: read link of fd %s failed.\n", fd_path);
+        TP_ERROR("Failed to read link of fd %s\n", fd_path);
         return -1;
     }
     fd_info->reg_info.name[ret] = '\0';
@@ -126,13 +127,13 @@ static int fill_sock_info(fd_info_t *fd_info, int tgid)
 
     ret = snprintf(cmd, sizeof(cmd), CMD_LSOF_SOCK_INFO, fd_info->fd, tgid);
     if (ret < 0 || ret >= sizeof(cmd)) {
-        fprintf(stderr, "ERROR: Failed to set lsof command.\n");
+        TP_ERROR("Failed to set lsof command.\n");
         return -1;
     }
 
     file = popen(cmd, "r");
     if (file == NULL) {
-        fprintf(stderr, "ERROR: Failed to execute lsof command:%s\n", cmd);
+        TP_ERROR("Failed to execute lsof command: %s\n", cmd);
         return -1;
     }
 
@@ -171,7 +172,7 @@ int fill_fd_info(fd_info_t *fd_info, int tgid)
 
     ret = snprintf(fd_path, sizeof(fd_path), "/proc/%d/fd/%d", tgid, fd_info->fd);
     if (ret < 0 || ret >= sizeof(fd_path)) {
-        fprintf(stderr, "ERROR: Failed to get fd path.\n");
+        TP_ERROR("Failed to get fd path.\n");
         return -1;
     }
 
@@ -185,7 +186,7 @@ int fill_fd_info(fd_info_t *fd_info, int tgid)
         case S_IFSOCK:
             return fill_sock_info(fd_info, tgid);
         default:
-            fprintf(stderr, "WARN: Unsupported file type of fd %s.\n", fd_path);
+            TP_WARN("Unsupported file type of fd %s.\n", fd_path);
             fd_info->type = FD_TYPE_UNSUPPORTED;
             return 0;
     }

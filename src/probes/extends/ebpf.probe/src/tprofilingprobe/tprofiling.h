@@ -118,6 +118,9 @@ typedef struct {
 #include "proc_info.h"
 #include "thrd_bl.h"
 
+#define TP_INFO(fmt, ...) INFO("[TPROFILING] " fmt, ##__VA_ARGS__)
+#define TP_WARN(fmt, ...) WARN("[TPROFILING] " fmt, ##__VA_ARGS__)
+#define TP_ERROR(fmt, ...) ERROR("[TPROFILING] " fmt, ##__VA_ARGS__)
 
 typedef struct {
     trace_event_type_t type;
@@ -140,7 +143,6 @@ typedef struct {
     __u64 sysBootTime;          /* 系统启动时间，单位：纳秒（ns） */
     proc_info_t *procTable;     /* 缓存的进程信息表，是一个 hash 表 */
     ThrdBlacklist thrdBl;       /* 线程黑名单 */
-    pthread_t javaSymbThrd;     /* Java符号表管理线程ID */
     int report_period;          /* 线程 profiling 事件上报周期 */
 } Tprofiler;
 
