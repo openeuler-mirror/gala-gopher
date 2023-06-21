@@ -9,16 +9,16 @@
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
  * Author: zhaoguolin
- * Create: 2023-05-31
+ * Create: 2023-06-16
  * Description:
  ******************************************************************************/
 
-#include "include/data_stream.h"
+#include "data_stream.h"
 
 struct raw_data_s *parser_copy_raw_data(struct raw_data_s *raw_data)
 {
     struct raw_data_s *copied_raw_data = (struct raw_data_s *) malloc(
-        sizeof(struct raw_data_s) + raw_data->data_len + 1);
+            sizeof(struct raw_data_s) + raw_data->data_len + 1);
     if (copied_raw_data == NULL) {
         return NULL;
     }
@@ -32,9 +32,8 @@ struct raw_data_s *parser_copy_raw_data(struct raw_data_s *raw_data)
     return copied_raw_data;
 }
 
-struct raw_data_s *init_raw_data_with_str(char *str)
+struct raw_data_s *init_raw_data_with_str(char *str, size_t str_len)
 {
-    size_t str_len = strlen(str);
     struct raw_data_s *raw_data = (struct raw_data_s *) malloc(sizeof(struct raw_data_s) + str_len + 1);
     if (raw_data == NULL) {
         return NULL;
@@ -48,10 +47,9 @@ struct raw_data_s *init_raw_data_with_str(char *str)
 
 void parser_raw_data_offset(struct raw_data_s *raw_data, size_t offset)
 {
-    size_t real_offset = offset;
-    if (real_offset > raw_data->unconsumed_len) {
-        real_offset = raw_data->unconsumed_len;
+    if (offset > raw_data->unconsumed_len) {
+        offset = raw_data->unconsumed_len;
     }
-    raw_data->unconsumed_len -= real_offset;
-    raw_data->current_pos += real_offset;
+    raw_data->unconsumed_len -= offset;
+    raw_data->current_pos += offset;
 }

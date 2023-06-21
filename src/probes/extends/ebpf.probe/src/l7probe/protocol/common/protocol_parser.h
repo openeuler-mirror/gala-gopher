@@ -77,37 +77,4 @@ struct parse_res_s {
     size_t invalid_frame_count;
 };
 
-/**
- * Protocol parser.
- */
-//struct protocol_parser_s {
-//    /**
-//     *
-//     * @param msg_type
-//     * @param raw_data
-//     * @param start_pos
-//     * @return
-//     */
-//    size_t *(find_frame_boundary)(message_type_t msg_type, struct raw_data_s *raw_data, size_t start_pos);
-//
-//    /**
-//     *
-//     * @param msg_type
-//     * @param raw_data
-//     * @param state_type
-//     * @return
-//     */
-//    parse_state_t *(parse_frame)(message_type_t msg_type, struct raw_data_s *raw_data, void *state_type);
-//
-//    /**
-//     *
-//     * @param req_frames
-//     * @param rsp_frames
-//     * @return
-//     */
-//    record_buf_s *(match_frames)(frame_buf_s *req_frames, struct frame_buf_s *rsp_frames, void *state_type);
-//};
-
-//parse_res_s parse_frames();
-
 #endif
