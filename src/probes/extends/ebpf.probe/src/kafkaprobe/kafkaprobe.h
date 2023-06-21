@@ -9,6 +9,10 @@
 // 用户态中存储kafka client的最大数目
 #define CLIENT_MAX_ITEM 256
 
+#define KFK_INFO(fmt, ...) INFO("[KFKPROBE] " fmt, ##__VA_ARGS__)
+#define KFK_WARN(fmt, ...) WARN("[KFKPROBE] " fmt, ##__VA_ARGS__)
+#define KFK_ERROR(fmt, ...) ERROR("[KFKPROBE] " fmt, ##__VA_ARGS__)
+
 struct KafkaConfig {
     char ifname[MIDDLE_BUF_SIZE];
     __u32 ifindex;

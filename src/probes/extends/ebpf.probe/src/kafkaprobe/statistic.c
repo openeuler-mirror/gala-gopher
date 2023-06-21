@@ -24,21 +24,21 @@ int collect(int ctrl_map_fd, int data_map_fd, struct KafkaData *data){
         ctrl = 0;
         ret = bpf_map_lookup_elem(ctrl_map_fd, &i, &ctrl);
         if (ret){
-            fprintf(stderr,"WARN: read %d xdp_ctrl_map fail\n", i);
+            KFK_WARN("read %d xdp_ctrl_map fail\n", i);
             continue;
         }
             
         if (ctrl==2){
             ret = bpf_map_lookup_elem(data_map_fd, &i, data);
             if(ret){
-                fprintf(stderr, "WARN: read %d xdp_data_map fail\n", i);
+                KFK_WARN("read %d xdp_data_map fail\n", i);
                 continue;
             }
                 
             ctrl = 0;
             ret = bpf_map_update_elem(ctrl_map_fd, &i, &ctrl, BPF_ANY);
             if(ret){
-                fprintf(stderr, "WARN: write %d xdp_ctrl_map fail\n", i);
+                KFK_WARN("write %d xdp_ctrl_map fail\n", i);
                 continue;                
             }
             break;
@@ -123,7 +123,7 @@ int output_array_terminal(struct KafkaData *client_array, __u32* topic_num){
         if(topic_num[i] == 0)
             break;
 
-        fprintf(stderr, "|%s|%s|%s|%d|%d|%s|%s|%d|\n", 
+        fprintf(stdout, "|%s|%s|%s|%d|%d|%s|%s|%d|\n", 
             "kafkaprobe",
             get_msg_type(client_array[i].type),
             IP_ntoh(client_array[i].src_ip),
@@ -158,7 +158,7 @@ __u64 gettime(){
 
     ret = clock_gettime(CLOCK_MONOTONIC, &t);
     if (ret < 0) {
-        fprintf(stderr, "Error with get time of day\n");
+        KFK_ERROR("with get time of day\n");
         return 0;
     }
     return (__u64) t.tv_sec * NANOSEC_PER_SEC + t.tv_nsec;

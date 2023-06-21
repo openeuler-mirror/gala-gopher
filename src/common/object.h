@@ -15,6 +15,7 @@
 #ifndef __GOPHER_OBJ_H__
 #define __GOPHER_OBJ_H__
 
+#define GOPHER_MAP_DIR              "/sys/fs/bpf/gala-gopher"
 #define CGRP_MAP_PATH               "/sys/fs/bpf/gala-gopher/cgroup_map"
 #define NM_MAP_PATH                 "/sys/fs/bpf/gala-gopher/nm_map"
 #define PROC_MAP_PATH               "/sys/fs/bpf/gala-gopher/proc_map"
