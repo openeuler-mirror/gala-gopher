@@ -28,6 +28,8 @@
 #include "syscall.h"
 #include "common.h"
 
+#define CONNECT_TIMEOUT 10  // unit: second
+
 #define MAX_PATH_LEN 512
 #define ARGS_NUM 4
 char tmp_path[MAX_PATH_LEN];
@@ -153,6 +155,8 @@ static void __read_rsp(int fd, int argc, char** argv)
     return;
 }
 
+static void alarm_handler(void) {}
+
 static int __connect_jvm(int nspid)
 {
     struct sockaddr_un addr = {.sun_family = AF_UNIX};
@@ -166,15 +170,23 @@ static int __connect_jvm(int nspid)
         addr.sun_path[sizeof(addr.sun_path) - 1] = 0;
     }
 
+    sigset(SIGALRM, alarm_handler);
+    alarm(CONNECT_TIMEOUT);
     if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+        alarm(0);
+        sigrelse(SIGALRM);
         close(fd);
         return -1;
     }
+    alarm(0);
+    sigrelse(SIGALRM);
     return fd;
 }
 
 int __jattach(int pid, int nspid, int argc, char** argv)
 {
+    struct timeval timeout;
+
     if (__check_attach_listener(nspid) != 0 && __start_attach(pid, nspid) != 0) {
         fprintf(stderr, "[JVM_ATTACH]: Could not start attach to JVM of pid %d\n", pid);
         return -1;
@@ -190,6 +202,14 @@ int __jattach(int pid, int nspid, int argc, char** argv)
 
     if (__write_cmd(fd, argc, argv) != 0) {
         fprintf(stderr, "[JVM_ATTACH]: Error writing to socket of pid %d\n", pid);
+        close(fd);
+        return -1;
+    }
+
+    timeout.tv_sec = CONNECT_TIMEOUT;
+    timeout.tv_usec = 0;
+    if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
+        fprintf(stderr, "[JVM_ATTACH]: Failed to set timeout to socket of pid %d\n", pid);
         close(fd);
         return -1;
     }
