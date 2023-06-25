@@ -123,6 +123,7 @@ static bool __is_docker_running(const char *docker_command)
         /* "docker/isula ps" has stdout means docker/isulad is running */
         if (fgets(line, LINE_BUF_LEN, f) != NULL) {
             is_running = true;
+            current_docker_command = (char *)docker_command;
             goto out;
         }
     }
