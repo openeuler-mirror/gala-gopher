@@ -25,7 +25,7 @@
 #define DOCKER_STATS_RESTARTING "restarting"
 
 #define DOCKER "/usr/bin/docker"
-#define ISULAD "/usr/bin/isulad"
+#define ISULAD "/usr/bin/isula"
 
 #define DOCKER_COUNT_COMMAND "ps | /usr/bin/awk 'NR > 1 {print $1}' | /usr/bin/wc -l"
 #define DOCKER_PS_COMMAND "ps | /usr/bin/awk 'NR > 1 {print $1}'"
@@ -47,6 +47,7 @@
 
 static char *current_docker_command = NULL;
 
+#if 0
 static bool __is_install_rpm(const char* command)
 {
     char line[LINE_BUF_LEN];
@@ -101,29 +102,44 @@ out:
     (void)pclose(f);
     return is_running;
 }
+#endif
 
-static bool __is_dockerd()
+static bool __is_docker_running(const char *docker_command)
 {
-    if (__is_install_rpm("/bin/rpm -ql docker-engine")) {
-        if (__is_service_running("/usr/bin/systemctl status docker")) {
-            current_docker_command = DOCKER;
-            return true;
+    char command[COMMAND_LEN];
+    char line[LINE_BUF_LEN];
+    FILE *f;
+    bool is_running;
+
+    is_running = false;
+    (void)snprintf(command, COMMAND_LEN, "%s ps 2>/dev/null", docker_command);
+    f = popen(command, "r");
+    if (f == NULL) {
+        return false;
+    }
+
+    while (!feof(f)) {
+        (void)memset(line, 0, LINE_BUF_LEN);
+        /* "docker/isula ps" has stdout means docker/isulad is running */
+        if (fgets(line, LINE_BUF_LEN, f) != NULL) {
+            is_running = true;
+            goto out;
         }
     }
 
-    return false;
+out:
+    (void)pclose(f);
+    return is_running;
+}
+
+static bool __is_dockerd()
+{
+    return __is_docker_running(DOCKER);
 }
 
 static bool __is_isulad()
 {
-    if (__is_install_rpm("/bin/rpm -ql iSulad")) {
-        return __is_service_running("/usr/bin/systemctl status isulad"); {
-            current_docker_command = ISULAD;
-            return true;
-        }
-    }
-
-    return false;
+    return __is_docker_running(ISULAD);
 }
 
 static const char *get_current_command()
@@ -395,7 +411,7 @@ int exec_container_command(const char *abbr_container_id, const char *exec, char
 }
 
 /*
-[root@localhost /]# docker ps -q | xargs docker inspect --format '{{.State.Pid}}, {{.Id}}' | grep -w 3013984 | awk -F ', ' '{print $2}' 
+[root@localhost /]# docker ps -q | xargs docker inspect --format '{{.State.Pid}}, {{.Id}}' | grep -w 3013984 | awk -F ', ' '{print $2}'
 f2e933da43a7e2cff0e36e1726cb91eb45a0959b02fd9b39e2dbc67022f4a88c
 
 */
