@@ -65,7 +65,7 @@ parse_state_t pgsql_parse_regular_msg(struct raw_data_s *raw_data, struct pgsql_
 
 parse_state_t pgsql_parse_startup_name_value(struct raw_data_s *raw_data_buf)
 {
-    while (raw_data_buf->unconsumed_len != 0) {
+    while (raw_data_buf->current_pos < raw_data_buf->data_len) {
         char *name = NULL;
         char *value = NULL;
         parse_state_t parse_state;
@@ -123,7 +123,7 @@ parse_state_t pgsql_parse_startup_msg(struct raw_data_s *raw_data, struct pgsql_
     }
 
     // 校验缓存区剩余容量是否足够获取payload
-    if (raw_data_buf->unconsumed_len < msg->len - PGSQL_MSG_HEADER_SIZE) {
+    if ((raw_data_buf->data_len - raw_data_buf->current_pos) < (msg->len - PGSQL_MSG_HEADER_SIZE)) {
         ERROR("[Pgsql parser] Failed to parse startup msg, not enough data.");
         free(raw_data_buf);
         return STATE_INVALID;
@@ -422,7 +422,7 @@ parse_state_t pgsql_parse_err_resp(struct pgsql_regular_msg_s *msg, struct pgsql
     }
 
     // 解析payload所有字节
-    while (raw_data_buf->unconsumed_len != 0) {
+    while (raw_data_buf->current_pos < raw_data_buf->data_len) {
         char code;
         parse_state_t extract_code_state;
         parse_state_t parse_state;
@@ -490,10 +490,9 @@ parse_state_t pgsql_parse_describe(struct pgsql_regular_msg_s *msg, struct pgsql
     return STATE_SUCCESS;
 }
 
-size_t pgsql_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s *raw_data, size_t start_pos)
+size_t pgsql_find_frame_boundary(struct raw_data_s *raw_data)
 {
-    PARSER_UNUSED(msg_type);
-    for (size_t i = start_pos; i < raw_data->data_len; ++i) {
+    for (size_t i = raw_data->current_pos; i < raw_data->data_len; ++i) {
         if (contains_pgsql_tag(raw_data->data[i])) {
             return i;
         }
@@ -501,16 +500,14 @@ size_t pgsql_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s
     return PARSER_INVALID_BOUNDARY_INDEX;
 }
 
-parse_state_t pgsql_parse_frame(enum message_type_t msg_type, struct raw_data_s *raw_data,
-                                struct frame_data_s *frame_data, void *state_type)
+parse_state_t pgsql_parse_frame(struct raw_data_s *raw_data, struct frame_data_s **frame_data)
 {
     struct raw_data_s *raw_data_buf;
     struct pgsql_startup_msg_s *start_msg;
     struct raw_data_s *raw_data_ignore_startup;
     struct pgsql_regular_msg_s *regular_msg;
     parse_state_t parse_msg_state;
-    PARSER_UNUSED(msg_type);
-    PARSER_UNUSED(state_type);
+    struct frame_data_s *frame = *frame_data;
 
     // 拷贝raw_data缓存
     raw_data_buf = parser_copy_raw_data(raw_data);
@@ -537,7 +534,7 @@ parse_state_t pgsql_parse_frame(enum message_type_t msg_type, struct raw_data_s 
     if (regular_msg == NULL) {
         return STATE_INVALID;
     }
-    frame_data->frame = regular_msg;
+    frame->frame = regular_msg;
     parse_msg_state = pgsql_parse_regular_msg(raw_data_ignore_startup, regular_msg);
     free(raw_data_ignore_startup);
     return parse_msg_state;
