@@ -45,7 +45,6 @@ struct frame_buf_s {
 struct raw_data_s {
     u64 timestamp_ns;
     size_t data_len;
-    size_t unconsumed_len;
     size_t current_pos;
     char data[0];
 };

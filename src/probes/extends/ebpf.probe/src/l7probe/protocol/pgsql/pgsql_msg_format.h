@@ -709,4 +709,11 @@ struct pgsql_record_s {
     struct pgsql_regular_msg_s *resp_msg;
 };
 
+/**
+ * Free pgsql record structure
+ *
+ * @param record pgsql structure
+ */
+void free_pgsql_record(struct pgsql_record_s *record);
+
 #endif
