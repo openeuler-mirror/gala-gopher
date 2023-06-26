@@ -17,7 +17,7 @@
 
 parse_state_t decoder_extract_char(struct raw_data_s *raw_data, char *res)
 {
-    if (raw_data->unconsumed_len < sizeof(char)) {
+    if ((raw_data->data_len - raw_data->current_pos) < sizeof(char)) {
         ERROR("[Binary Decoder] Buffer bytes are insufficient.\n");
         return STATE_NEEDS_MORE_DATA;
     }
@@ -65,16 +65,16 @@ BIG_ENDIAN_BYTES_TO_INT(uint32_t)
  * @param raw_data 字符串缓存
  * @return 状态码
  */
-#define DECODER_EXTRACT_INT(INT_TYPE)                                       \
+#define DECODER_EXTRACT_INT(INT_TYPE)                                                \
 parse_state_t decoder_extract_##INT_TYPE(struct raw_data_s *raw_data, INT_TYPE *res) \
-{                                                                           \
-    if (raw_data->unconsumed_len < sizeof(INT_TYPE)) {                             \
-        ERROR("[Binary Decoder] Buffer bytes are insufficient.\n");         \
-        return STATE_NEEDS_MORE_DATA;                                       \
-    }                                                                       \
-    *res = big_endian_bytes_to_##INT_TYPE(&raw_data->data[raw_data->current_pos]);                    \
+{                                                                                    \
+    if ((raw_data->data_len - raw_data->current_pos) < sizeof(INT_TYPE)) {           \
+        ERROR("[Binary Decoder] Buffer bytes are insufficient.\n");                  \
+        return STATE_NEEDS_MORE_DATA;                                                \
+    }                                                                                \
+    *res = big_endian_bytes_to_##INT_TYPE(&raw_data->data[raw_data->current_pos]);   \
     parser_raw_data_offset(raw_data, sizeof(INT_TYPE));                              \
-    return STATE_SUCCESS;                                                   \
+    return STATE_SUCCESS;                                                            \
 }
 
 DECODER_EXTRACT_INT(int8_t)
@@ -117,7 +117,7 @@ bool extract_prefix_bytes_string(struct raw_data_s *raw_data, char **res, size_t
 
 parse_state_t decoder_extract_string(struct raw_data_s *raw_data, char **res, size_t decode_len)
 {
-    if (raw_data->unconsumed_len < decode_len) {
+    if ((raw_data->data_len - raw_data->current_pos) < decode_len) {
         ERROR("[Binary Decoder] Buffer bytes are insufficient.\n");
         return STATE_NEEDS_MORE_DATA;
     }
@@ -155,7 +155,8 @@ parse_state_t decoder_extract_str_until_char(struct raw_data_s *raw_data, char *
 parse_state_t decoder_extract_str_until_str(struct raw_data_s *raw_data, char **res, char *search_str)
 {
     char *start_search_ptr = &raw_data->data[raw_data->current_pos];
-    char *search_str_ptr = memmem(start_search_ptr, raw_data->unconsumed_len, search_str, strlen(search_str));
+    size_t unconsumed_len = raw_data->data_len - raw_data->current_pos;
+    char *search_str_ptr = memmem(start_search_ptr, unconsumed_len, search_str, strlen(search_str));
     if (search_str_ptr == NULL) {
         ERROR("[Binary Decoder] Could not find search_str: %s in raw_data.\n", search_str);
         return STATE_NOT_FOUND;
@@ -174,7 +175,7 @@ parse_state_t decoder_extract_str_until_str(struct raw_data_s *raw_data, char **
 
 parse_state_t decoder_extract_prefix_ignore(struct raw_data_s *raw_data, size_t prefix_len)
 {
-    if (raw_data->unconsumed_len < prefix_len) {
+    if ((raw_data->data_len - raw_data->current_pos) < prefix_len) {
         ERROR("[Binary Decoder] Buffer bytes are insufficient for decoder_extract_prefix_ignore.\n");
         return STATE_NEEDS_MORE_DATA;
     }

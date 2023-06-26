@@ -23,7 +23,6 @@ struct raw_data_s *parser_copy_raw_data(struct raw_data_s *raw_data)
         return NULL;
     }
     copied_raw_data->timestamp_ns = raw_data->timestamp_ns;
-    copied_raw_data->unconsumed_len = raw_data->unconsumed_len;
     copied_raw_data->current_pos = raw_data->current_pos;
 
     size_t raw_data_len = raw_data->data_len;
@@ -32,15 +31,13 @@ struct raw_data_s *parser_copy_raw_data(struct raw_data_s *raw_data)
     return copied_raw_data;
 }
 
-struct raw_data_s *init_raw_data_with_str(char *str)
+struct raw_data_s *init_raw_data_with_str(char *str, size_t str_len)
 {
-    size_t str_len = strlen(str);
     struct raw_data_s *raw_data = (struct raw_data_s *) malloc(sizeof(struct raw_data_s) + str_len + 1);
     if (raw_data == NULL) {
         return NULL;
     }
     raw_data->data_len = str_len;
-    raw_data->unconsumed_len = str_len;
     raw_data->current_pos = 0;
     memcpy(raw_data->data, str, str_len);
     return raw_data;
@@ -49,9 +46,9 @@ struct raw_data_s *init_raw_data_with_str(char *str)
 void parser_raw_data_offset(struct raw_data_s *raw_data, size_t offset)
 {
     size_t real_offset = offset;
-    if (real_offset > raw_data->unconsumed_len) {
-        real_offset = raw_data->unconsumed_len;
+    size_t unconsumed_len = raw_data->data_len - raw_data->current_pos;
+    if (real_offset > unconsumed_len) {
+        real_offset = unconsumed_len;
     }
-    raw_data->unconsumed_len -= real_offset;
     raw_data->current_pos += real_offset;
 }

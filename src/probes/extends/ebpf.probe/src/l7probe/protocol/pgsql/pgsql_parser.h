@@ -23,10 +23,9 @@
 #include "../utils/binary_decoder.h"
 #include "../utils/parser_state.h"
 
-size_t pgsql_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s *raw_data, size_t start_pos);
+size_t pgsql_find_frame_boundary(struct raw_data_s *raw_data);
 
-parse_state_t pgsql_parse_frame(enum message_type_t msg_type, struct raw_data_s *raw_data,
-                                struct frame_data_s *frame_data, void *state_type);
+parse_state_t pgsql_parse_frame(struct raw_data_s *raw_data, struct frame_data_s **frame_data);
 
 parse_state_t pgsql_parse_regular_msg(struct raw_data_s *raw_data, struct pgsql_regular_msg_s *msg);
 
