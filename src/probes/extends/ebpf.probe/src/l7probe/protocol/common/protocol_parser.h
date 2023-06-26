@@ -44,7 +44,7 @@ struct protocol_traits_s {
  * Record of matching request and response frames.
  */
 struct record_data_s {
-    void *record;
+    void *record;   // protocol_record
 };
 
 /**
