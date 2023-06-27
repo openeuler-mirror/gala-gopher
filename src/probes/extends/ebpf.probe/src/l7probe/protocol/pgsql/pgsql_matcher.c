@@ -440,7 +440,7 @@ void pgsql_matcher_add_record(struct pgsql_regular_msg_s *req, uint64_t resp_tim
     struct pgsql_regular_msg_s *resp;
     struct pgsql_record_s *pgsql_record;
     struct record_data_s *record_data;
-    if (record_buf->current_pos >= __RECORD_BUF_SIZE) {
+    if (record_buf->current_pos >= RECORD_BUF_SIZE) {
         INFO("[PGSQL MATCHER] The record buffer is full.\n");
         ++record_buf->err_count;
         return;
@@ -553,14 +553,13 @@ void handle_execute_req(struct pgsql_regular_msg_s *req, struct frame_buf_s *req
 }
 
 void pgsql_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *rsp_frames,
-                        struct record_buf_s **record_buf)
+                        struct record_buf_s *record_buf)
 {
     size_t req_index, resp_index;
     size_t unconsumed_index;
-    struct record_buf_s *records = *record_buf;
-    records->err_count = 0;
-    records->current_pos = 0;
-    records->record_buf_size = 0;
+    record_buf->err_count = 0;
+    record_buf->current_pos = 0;
+    record_buf->record_buf_size = 0;
     req_index = req_frames->current_pos;
     resp_index = rsp_frames->current_pos;
     while (req_index < req_frames->frame_buf_size && resp_index < rsp_frames->frame_buf_size) {
@@ -578,19 +577,19 @@ void pgsql_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *rsp_
                 INFO("[PGSQL MATCHER] Ignore tag: %c.\n", req_msg->tag);
                 break;
             case PGSQL_SIMPLE_QUERY:
-                handle_simple_query(req_msg, req_frames, rsp_frames, records);
+                handle_simple_query(req_msg, req_frames, rsp_frames, record_buf);
                 break;
             case PGSQL_EXTENDED_QUERY_PARSE:
-                handle_parse_req(req_msg, req_frames, rsp_frames, records);
+                handle_parse_req(req_msg, req_frames, rsp_frames, record_buf);
                 break;
             case PGSQL_EXTENDED_QUERY_BIND:
-                handle_bind_req(req_msg, req_frames, rsp_frames, records);
+                handle_bind_req(req_msg, req_frames, rsp_frames, record_buf);
                 break;
             case PGSQL_EXTENDED_QUERY_DESCRIBE:
-                handle_describe_req(req_msg, req_frames, rsp_frames, records);
+                handle_describe_req(req_msg, req_frames, rsp_frames, record_buf);
                 break;
             case PGSQL_EXTENDED_QUERY_EXECUTE:
-                handle_execute_req(req_msg, req_frames, rsp_frames, records);
+                handle_execute_req(req_msg, req_frames, rsp_frames, record_buf);
                 break;
             default:
                 ERROR("[PGSQL MATCHER] Unresolvable or invalid tag: %c.\n", req_msg->tag);

@@ -18,10 +18,8 @@
 
 #pragma once
 
-#include "../common/protocol_parser.h"
+#include "../../include/data_stream.h"
 #include "pgsql_msg_format.h"
-#include "../utils/binary_decoder.h"
-#include "../utils/parser_state.h"
 
 size_t pgsql_find_frame_boundary(struct raw_data_s *raw_data);
 

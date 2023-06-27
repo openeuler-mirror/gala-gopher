@@ -13,7 +13,10 @@
  * Description:
  ******************************************************************************/
 
-#include "protocol_common_parser.h"
+#include "protocol_parser.h"
+#include "../pgsql/pgsql_msg_format.h"
+#include "../pgsql/pgsql_parser.h"
+#include "../pgsql/pgsql_matcher.h"
 
 /**
  * Free record data

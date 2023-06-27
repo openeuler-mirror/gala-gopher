@@ -25,7 +25,6 @@
 #include <string.h>
 
 #include "common.h"
-#include "parser_state.h"
 #include "../../include/data_stream.h"
 
 /**

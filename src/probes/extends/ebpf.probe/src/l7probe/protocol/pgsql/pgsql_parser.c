@@ -15,6 +15,8 @@
 
 #include "pgsql_parser.h"
 #include "../utils/macros.h"
+#include "../utils/binary_decoder.h"
+#include "../common/protocol_common.h"
 
 parse_state_t pgsql_parse_regular_msg(struct raw_data_s *raw_data, struct pgsql_regular_msg_s *msg)
 {
@@ -507,7 +509,10 @@ parse_state_t pgsql_parse_frame(struct raw_data_s *raw_data, struct frame_data_s
     struct raw_data_s *raw_data_ignore_startup;
     struct pgsql_regular_msg_s *regular_msg;
     parse_state_t parse_msg_state;
-    struct frame_data_s *frame = *frame_data;
+    *frame_data = (struct frame_data_s *) malloc(sizeof(struct frame_data_s));
+    if ((*frame_data) == NULL) {
+        return STATE_INVALID;
+    }
 
     // 拷贝raw_data缓存
     raw_data_buf = parser_copy_raw_data(raw_data);
@@ -534,7 +539,7 @@ parse_state_t pgsql_parse_frame(struct raw_data_s *raw_data, struct frame_data_s
     if (regular_msg == NULL) {
         return STATE_INVALID;
     }
-    frame->frame = regular_msg;
+    (*frame_data)->frame = regular_msg;
     parse_msg_state = pgsql_parse_regular_msg(raw_data_ignore_startup, regular_msg);
     free(raw_data_ignore_startup);
     return parse_msg_state;

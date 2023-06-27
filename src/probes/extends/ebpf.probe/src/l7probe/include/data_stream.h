@@ -22,12 +22,37 @@
 
 #include "include/l7.h"
 
+/**
+ * The status of a single parse.
+ */
+typedef enum parse_state_t {
+    // Parse succeeded. Raw data of buffer is consumed.
+    STATE_SUCCESS = 0,
+
+    // Parse failed. Raw data of buffer is not consumed. Output is invalid.
+    STATE_INVALID,
+
+    // Parse is partial. Raw data of buffer is partially consumed. The parsed output is not fully.
+    STATE_NEEDS_MORE_DATA,
+
+    // Parse succeeded. Raw data of buffer is consumed, but the output is ignored.
+    STATE_IGNORE,
+
+    // End of stream.
+    // Parse succeeded. Row data of buffer is consumed, and output is valid.
+    // Parser should stop parsing.
+    STATE_EOS,
+
+    STATE_NOT_FOUND,
+
+    STATE_UNKNOWN
+} parse_state_t;
+
 struct frame_data_s {
     enum message_type_t msg_type;
     void *frame;
     u64 timestamp_ns;
 };
-
 
 /*
   Used to cache L7 message frame from protocol parser
@@ -47,6 +72,24 @@ struct raw_data_s {
     size_t data_len;
     size_t current_pos;
     char data[0];
+};
+
+/**
+ * Record of matching request and response frames.
+ */
+struct record_data_s {
+    void *record;   // protocol_record
+};
+
+/**
+ * Records of matching request and response frames.
+ */
+#define RECORD_BUF_SIZE 1024
+struct record_buf_s {
+    struct record_data_s *records[RECORD_BUF_SIZE];
+    size_t current_pos;
+    size_t record_buf_size;
+    size_t err_count;
 };
 
 /**
