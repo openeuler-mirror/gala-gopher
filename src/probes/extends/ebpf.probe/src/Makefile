@@ -1,6 +1,7 @@
 include mk/var.mk
 
-APPS = $(filter ./%/, $(dir $(shell find . -name Makefile)))
+APPS_ALL = $(filter ./%/, $(dir $(shell find . -name Makefile)))
+APPS = $(filter-out $(EBPF_TAILOR_PROBES) , $(APPS_ALL))
 
 .PHONY: all clean install
 all: apps
