@@ -18,11 +18,11 @@
 
 #pragma once
 
-#include "../common/protocol_parser.h"
+#include "../common/protocol_common.h"
 #include "pgsql_msg_format.h"
 
 void pgsql_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *rsp_frames,
-                        struct record_buf_s **record_buf);
+                        struct record_buf_s *record_buf);
 
 parse_state_t pgsql_handle_query(struct pgsql_regular_msg_s *msg, struct frame_buf_s *req_frames,
                                  struct frame_buf_s *rsp_frames, struct pgsql_query_req_resp_s *req_rsp);

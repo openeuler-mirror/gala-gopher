@@ -13,36 +13,36 @@
  * Description:
  ******************************************************************************/
 
-#ifndef __PARSER_STATE_H__
-#define __PARSER_STATE_H__
+#ifndef __PROTOCOL_COMMON_H__
+#define __PROTOCOL_COMMON_H__
 
 #pragma once
 
+#include "../../include/data_stream.h"
+
 /**
- * The status of a single parse.
+ * 拷贝raw_data_s。
+ *
+ * @param raw_data 字符串缓存
+ * @return raw_data_s *
  */
-typedef enum parse_state_t {
-    // Parse succeeded. Raw data of buffer is consumed.
-    STATE_SUCCESS = 0,
+struct raw_data_s *parser_copy_raw_data(struct raw_data_s *raw_data);
 
-    // Parse failed. Raw data of buffer is not consumed. Output is invalid.
-    STATE_INVALID,
+/**
+ * 根据字符串初始化raw_data_s
+ *
+ * @param str 字符串首地址
+ * @param str_len 字符串长度
+ * @return struct raw_data_s *
+ */
+struct raw_data_s *init_raw_data_with_str(char *str, size_t str_len);
 
-    // Parse is partial. Raw data of buffer is partially consumed. The parsed output is not fully.
-    STATE_NEEDS_MORE_DATA,
-
-    // Parse succeeded. Raw data of buffer is consumed, but the output is ignored.
-    STATE_IGNORE,
-
-    // End of stream.
-    // Parse succeeded. Row data of buffer is consumed, and output is valid.
-    // Parser should stop parsing.
-    STATE_EOS,
-
-    STATE_NOT_FOUND,
-
-    STATE_UNKNOWN
-} parse_state_t;
+/**
+ * 偏移字符串缓存raw_data当前首地址
+ *
+ * @param raw_data 字符串缓存
+ * @param offset 偏移量
+ */
+void parser_raw_data_offset(struct raw_data_s *raw_data, size_t offset);
 
 #endif
-
