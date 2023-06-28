@@ -336,7 +336,7 @@ class CadvisorProbe(Probe):
                     g_metric[table_name][hashed_metric_str]['container_id'] = container_id
 
                 metric_name = line[line.index("_") + 1:line.index("{")]
-                value_start_index = line.index("}") + 1
+                value_start_index = line.rfind("}") + 1
                 value_end_index = value_start_index + self.find_2nd_index(line[value_start_index:], " ")
                 value = line[value_start_index:value_end_index]
                 try:
