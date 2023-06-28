@@ -24,6 +24,11 @@
 #define F_SERVER    (1u<<18)
 #define F_QUERY     (1u<<19)
 
+#define DNS_DEBUG(fmt, ...) DEBUG("[DNSPROBE] " fmt, ##__VA_ARGS__)
+#define DNS_INFO(fmt, ...) INFO("[DNSPROBE] " fmt, ##__VA_ARGS__)
+#define DNS_WARN(fmt, ...) WARN("[DNSPROBE] " fmt, ##__VA_ARGS__)
+#define DNS_ERROR(fmt, ...) ERROR("[DNSPROBE] " fmt, ##__VA_ARGS__)
+
 struct sockaddr {
     unsigned short  sa_family;
     char            sa_data[14];

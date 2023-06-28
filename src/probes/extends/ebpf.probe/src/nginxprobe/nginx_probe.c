@@ -209,6 +209,7 @@ int load_bpf_prog(struct ipc_body_s *ipc_body)
     if (elf_num <= 0) {
         ERROR("%s Failed to get execute path of nginx program.\n", LOG_NGINX_PREFIX);
         free_exec_path_buf(elfs, elf_num);
+        free_bpf_prog(prog);
         return -1;
     }
 
@@ -304,6 +305,7 @@ int main(int argc, char **argv)
         if (err == 0) {
             err = reload_bpf_prog(&ipc_body);
             if (err) {
+                destroy_ipc_body(&ipc_body);
                 goto err;
             }
         }
@@ -320,6 +322,5 @@ int main(int argc, char **argv)
     err = 0;
 err:
     clean_nginx_probe();
-    destroy_ipc_body(&ipc_body);
     return err;
 }

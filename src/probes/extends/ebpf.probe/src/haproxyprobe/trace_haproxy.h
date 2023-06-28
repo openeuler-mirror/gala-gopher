@@ -27,6 +27,11 @@
 #define SS_PADSIZE \
   (128 - sizeof(unsigned short int) - sizeof (unsigned long int))
 
+#define HAP_DEBUG(fmt, ...) DEBUG("[HAPPROBE] " fmt, ##__VA_ARGS__)
+#define HAP_INFO(fmt, ...) INFO("[HAPPROBE] " fmt, ##__VA_ARGS__)
+#define HAP_WARN(fmt, ...) WARN("[HAPPROBE] " fmt, ##__VA_ARGS__)
+#define HAP_ERROR(fmt, ...) ERROR("[HAPPROBE] " fmt, ##__VA_ARGS__)
+
 struct sockaddr_in {
     unsigned short  sin_family;
     unsigned short  sin_port;
