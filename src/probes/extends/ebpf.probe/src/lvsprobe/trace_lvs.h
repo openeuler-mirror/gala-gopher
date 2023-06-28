@@ -34,6 +34,11 @@
 #define IP_VS_CONN_F_LOCALNODE  0x0001  /* local node */
 #define IP_VS_CONN_FULLNAT      0x0005  /* full nat */
 
+#define LVS_DEBUG(fmt, ...) DEBUG("[LVSPROBE] " fmt, ##__VA_ARGS__)
+#define LVS_INFO(fmt, ...) INFO("[LVSPROBE] " fmt, ##__VA_ARGS__)
+#define LVS_WARN(fmt, ...) WARN("[LVSPROBE] " fmt, ##__VA_ARGS__)
+#define LVS_ERROR(fmt, ...) ERROR("[LVSPROBE] " fmt, ##__VA_ARGS__)
+
 struct ip {
     union {
         __u32 in;

@@ -27,7 +27,7 @@
 #endif
 
 #include "bpf.h"
-#include "args.h"
+#include "ipc.h"
 #include "trace_lvs.h"
 
 #ifdef KERNEL_SUPPORT_LVS
@@ -35,8 +35,15 @@
 
 #define METRIC_NAME_LVS_LINK "ipvs_link"
 
+struct lvs_probe_s {
+    struct ipc_body_s ipc_body;
+    struct bpf_prog_s *prog;
+    int collect_map_fd;
+    int link_map_fd;
+};
+
 static volatile sig_atomic_t stop;
-static struct probe_params params = {.period = DEFAULT_PERIOD};
+static struct lvs_probe_s g_lvs_probe = {0};
 
 static void sig_int(int signo)
 {
@@ -112,7 +119,7 @@ static void pull_probe_data(int fd, int collect_fd)
             ip_str(next_key.family, (unsigned char *)&(next_key.v_addr), vir_ip_str, INET6_ADDRSTRLEN);
             ip_str(next_key.family, (unsigned char *)&(value.l_addr), loc_ip_str, INET6_ADDRSTRLEN);
             ip_str(next_key.family, (unsigned char *)&(next_key.s_addr), src_ip_str, INET6_ADDRSTRLEN);
-            printf("LVS new connect protocol[%s] type[%s] c[%s:%d]--v[%s:%d]--l[%s:%d]--s[%s:%d] state[%d]. \n",
+            LVS_INFO("LVS new connect protocol[%s] type[%s] c[%s:%d]--v[%s:%d]--l[%s:%d]--s[%s:%d] state[%d]. \n",
                 ip_pro_str,
                 (next_key.family == AF_INET) ? "IPv4" : "IPv6",
                 cli_ip_str,
@@ -167,7 +174,7 @@ static void print_ipvs_collect(int map_fd)
                 value.protocol,
                 value.link_count);
 
-            DEBUG("collect c_ip[%s], v_ip[%s:%d] l_ip[%s] s_ip[%s:%d] link_count[%lld]. \n",
+            LVS_DEBUG("collect c_ip[%s], v_ip[%s:%d] l_ip[%s] s_ip[%s:%d] link_count[%lld]. \n",
                 cli_ip_str,
                 vir_ip_str,
                 ntohs(next_key.v_port),
@@ -181,45 +188,111 @@ static void print_ipvs_collect(int map_fd)
     (void)fflush(stdout);
     return;
 }
-#endif
-int main(int argc, char **argv)
+
+static int is_first_load = 1;
+
+static int load_lvs_bpf_prog()
 {
-#ifdef KERNEL_SUPPORT_LVS
-    int err = args_parse(argc, argv, &params);
-    if (err != 0)
+    struct bpf_prog_s *prog;
+
+    if (!is_first_load) {
+        return 0;
+    }
+
+    prog = alloc_bpf_prog();
+    if (prog == NULL) {
         return -1;
+    }
 
-    printf("arg parse interval time:%us\n", params.period);
-
-    INIT_BPF_APP(trace_lvs, EBPF_RLIM_LIMITED);
     LOAD(trace_lvs, trace_lvs, err);
+    prog->skels[prog->num].skel = trace_lvs_skel;
+    prog->skels[prog->num].fn = (skel_destroy_fn)trace_lvs_bpf__destroy;
+    prog->num++;
 
-    if (signal(SIGINT, sig_int) == SIG_ERR) {
-        fprintf(stderr, "can't set signal handler: %s\n", strerror(errno));
+    g_lvs_probe.link_map_fd = GET_MAP_FD(trace_lvs, lvs_link_map);
+    if (g_lvs_probe.link_map_fd <= 0) {
+        LVS_ERROR("ERROR: Failed to get link map fd.\n");
         goto err;
     }
+    g_lvs_probe.prog = prog;
 
-    /* create collect hash map */
-    int collect_map_fd =
-        bpf_create_map(BPF_MAP_TYPE_HASH, sizeof(struct collect_key),
-                        sizeof(struct collect_value), IPVS_MAX_ENTRIES, 0);
-    if (collect_map_fd < 0) {
-        fprintf(stderr, "bpf_create_map collect map fd failed.\n");
-        goto err;
-    }
-
-    printf("Successfully started! \n");
-
-    while (stop == 0) {
-        pull_probe_data(GET_MAP_FD(trace_lvs, lvs_link_map), collect_map_fd);
-        print_ipvs_collect(collect_map_fd);
-        sleep(params.period);
-    }
-
+    is_first_load = 0;
+    return 0;
 err:
     UNLOAD(trace_lvs);
-#else
-    printf("Kernel not support lvs.\n");
+    unload_bpf_prog(&prog);
+    return -1;
+}
+
+static void clean_lvs_probe(void)
+{
+    unload_bpf_prog(&g_lvs_probe.prog);
+
+    if (g_lvs_probe.collect_map_fd > 0) {
+        close(g_lvs_probe.collect_map_fd);
+    }
+
+    destroy_ipc_body(&g_lvs_probe.ipc_body);
+}
 #endif
-    return 0;
+
+int main(int argc, char **argv)
+{
+    int err = -1;
+#ifdef KERNEL_SUPPORT_LVS
+    int msq_id;
+    struct ipc_body_s ipc_body;
+
+    if (signal(SIGINT, sig_int) == SIG_ERR) {
+        LVS_ERROR("can't set signal handler: %s\n", strerror(errno));
+        return -1;
+    }
+
+    msq_id = create_ipc_msg_queue(IPC_EXCL);
+    if (msq_id < 0) {
+        return -1;
+    }
+
+    INIT_BPF_APP(trace_lvs, EBPF_RLIM_LIMITED);
+
+    /* create collect hash map */
+    g_lvs_probe.collect_map_fd = bpf_create_map(BPF_MAP_TYPE_HASH, sizeof(struct collect_key),
+                                                sizeof(struct collect_value), IPVS_MAX_ENTRIES, 0);
+    if (g_lvs_probe.collect_map_fd < 0) {
+        LVS_ERROR("bpf_create_map collect map fd failed.\n");
+        goto err;
+    }
+
+    LVS_INFO("Successfully started! \n");
+
+    while (!stop) {
+        err = recv_ipc_msg(msq_id, (long)PROBE_LVS, &ipc_body);
+        if (err == 0) {
+            err = load_lvs_bpf_prog();
+            if (err) {
+                destroy_ipc_body(&ipc_body);
+                goto err;
+            }
+
+            destroy_ipc_body(&g_lvs_probe.ipc_body);
+            (void)memcpy(&g_lvs_probe.ipc_body, &ipc_body, sizeof(struct ipc_body_s));
+        }
+
+        if (g_lvs_probe.prog == NULL) {
+            sleep(DEFAULT_PERIOD);
+            continue;
+        }
+
+        pull_probe_data(g_lvs_probe.link_map_fd, g_lvs_probe.collect_map_fd);
+        print_ipvs_collect(g_lvs_probe.collect_map_fd);
+        sleep(g_lvs_probe.ipc_body.probe_param.period);
+    }
+
+    err = 0;
+err:
+    clean_lvs_probe();
+#else
+    LVS_INFO("Kernel not support lvs.\n");
+#endif
+    return err;
 }
