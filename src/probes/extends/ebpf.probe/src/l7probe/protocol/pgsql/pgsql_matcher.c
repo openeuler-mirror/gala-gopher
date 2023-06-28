@@ -467,6 +467,7 @@ void pgsql_matcher_add_record(struct pgsql_regular_msg_s *req, uint64_t resp_tim
         return;
     }
     record_data->record = pgsql_record;
+    record_data->latency = resp_timestamp_ns - req->timestamp_ns;
     record_buf->records[record_buf->current_pos] = record_data;
     ++record_buf->current_pos;
     ++record_buf->record_buf_size;
@@ -562,6 +563,8 @@ void pgsql_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *rsp_
     record_buf->record_buf_size = 0;
     req_index = req_frames->current_pos;
     resp_index = rsp_frames->current_pos;
+    record_buf->req_count = req_frames->frame_buf_size;
+    record_buf->resp_count = rsp_frames->frame_buf_size;
     while (req_index < req_frames->frame_buf_size && resp_index < rsp_frames->frame_buf_size) {
         struct frame_data_s *req_frame;
         struct pgsql_regular_msg_s *req_msg;
