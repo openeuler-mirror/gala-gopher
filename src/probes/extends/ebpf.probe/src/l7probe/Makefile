@@ -13,6 +13,8 @@ DEPS += $(patsubst %.bpf.c, %.skel.h, $(BPF_C))
 DEPS += $(patsubst %.cpp, %.o, $(SRC_CPLUS))
 
 SRC_C := $(filter-out $(BPF_C), $(wildcard *.c))
+PROTOCOL_DIR = $(shell find ./protocol -maxdepth 3 -type d)
+SRC_C += $(foreach dir, $(PROTOCOL_DIR), $(wildcard $(dir)/*.c))
 SRC_C += $(CFILES)
 
 .PHONY: all clean install
