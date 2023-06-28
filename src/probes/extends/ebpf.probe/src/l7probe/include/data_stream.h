@@ -18,9 +18,8 @@
 #pragma once
 
 #include <stdlib.h>
-#include <string.h>
 
-#include "include/l7.h"
+#include "l7.h"
 
 /**
  * The status of a single parse.
@@ -79,6 +78,7 @@ struct raw_data_s {
  */
 struct record_data_s {
     void *record;   // protocol_record
+    u64 latency;    // latency of record: resp.timestamp_ns - req.timestamp_ns
 };
 
 /**
@@ -87,9 +87,10 @@ struct record_data_s {
 #define RECORD_BUF_SIZE 1024
 struct record_buf_s {
     struct record_data_s *records[RECORD_BUF_SIZE];
-    size_t current_pos;
     size_t record_buf_size;
-    size_t err_count;
+    size_t err_count;   // error-matched frame-pair count
+    size_t req_count;   // raw request frame count
+    size_t resp_count;  // raw response frame count
 };
 
 /**
