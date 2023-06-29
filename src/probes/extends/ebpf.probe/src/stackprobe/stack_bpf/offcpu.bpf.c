@@ -26,6 +26,12 @@ char g_linsence[] SEC("license") = "GPL";
 #define MINBLOCK_US 1000 // 1000us
 #define MAX_START_ENTRIES 1024
 
+struct start_info_t {
+    u32 tgid;
+    u64 ts; // offcpu start time(ns)
+    struct raw_trace_s raw_trace;
+};
+
 struct {
     __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
     __uint(key_size, sizeof(u32));
@@ -43,7 +49,7 @@ struct {
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(key_size, sizeof(u32));   // pid
-    __uint(value_size, sizeof(u64)); // offcpu start time(ns)
+    __uint(value_size, sizeof(struct start_info_t));
     __uint(max_entries, MAX_START_ENTRIES);
 } start SEC(".maps");
 
@@ -63,25 +69,46 @@ static __always_inline u64 get_real_start_time()
     return 0;
 }
 
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(sched_switch, bpf_raw_tracepoint_args)
 {
-    const u32 zero = 0;
-    struct convert_data_t *convert_data = (struct convert_data_t *)bpf_map_lookup_elem(&convert_map, &zero);
-    if (!convert_data) {
-        return -1;
-    }
-
     struct task_struct *prev = (struct task_struct *)ctx->args[1];
     struct task_struct *next = (struct task_struct *)ctx->args[2];
     if (!prev || !next) {
         return 0;
     }
 
-    u32 prev_tgid = _(prev->tgid);
-    u32 curr_pid = _(next->pid);
-    if (prev_tgid <= 1 || curr_pid <= 1) {
+    u32 prev_pid = _(prev->pid);
+    u32 next_pid = _(next->pid);
+    if (next_pid <= 1 || prev_pid <= 1) {
         return 0;
     }
+
+    const u32 zero = 0;
+    struct convert_data_t *convert_data = (struct convert_data_t *)bpf_map_lookup_elem(&convert_map, &zero);
+    if (!convert_data) {
+        return -1;
+    }
+
+    u32 prev_tgid = _(prev->tgid);
+#else
+SEC("tracepoint/sched/sched_switch")
+int bpf_trace_sched_switch_func(struct trace_event_raw_sched_switch *ctx)
+{
+    u32 prev_pid = (u32)ctx->prev_pid;
+    u32 next_pid = (u32)ctx->next_pid;
+    if (next_pid <= 1 || prev_pid <= 1) {
+        return 0;
+    }
+
+    const u32 zero = 0;
+    struct convert_data_t *convert_data = (struct convert_data_t *)bpf_map_lookup_elem(&convert_map, &zero);
+    if (!convert_data) {
+        return -1;
+    }
+
+    u32 prev_tgid = bpf_get_current_pid_tgid() >> INT_LEN;
+#endif
 
     int filter = 0;
     if (!convert_data->whitelist_enable) {
@@ -92,53 +119,55 @@ KRAWTRACE(sched_switch, bpf_raw_tracepoint_args)
             filter = 1;
         }
     }
-
-    if (filter) {
-        u64 prev_ts = bpf_ktime_get_ns();
-        u32 prev_pid = _(prev->pid);
-        bpf_map_update_elem(&start, &prev_pid, &prev_ts, BPF_ANY);
-    }
-
-    u64 *t_start = (u64 *)bpf_map_lookup_elem(&start, &curr_pid);
-    if (!t_start) {
-        return 0;
-    }
-    bpf_map_delete_elem(&start, &curr_pid);
-
     u64 t_end = bpf_ktime_get_ns();
-    if (*t_start > t_end) {
+    if (filter) {
+        struct start_info_t prev_info = {0};
+        prev_info.tgid = prev_tgid;
+        prev_info.ts = t_end;
+        struct stack_id_s *stack_id = &prev_info.raw_trace.stack_id;
+        stack_id->pid.proc_id = prev_tgid;
+        stack_id->pid.real_start_time = get_real_start_time();
+        (void)bpf_get_current_comm(&stack_id->comm, sizeof(stack_id->comm));
+        if (((convert_data->convert_counter % 2) == 0)) { // % 2 代表对stackmap_a和stackmap_b的选择
+            stack_id->kern_stack_id = bpf_get_stackid(ctx, &stackmap_a, KERN_STACKID_FLAGS);
+            stack_id->user_stack_id = bpf_get_stackid(ctx, &stackmap_a, USER_STACKID_FLAGS);
+        } else {
+            stack_id->kern_stack_id = bpf_get_stackid(ctx, &stackmap_b, KERN_STACKID_FLAGS);
+            stack_id->user_stack_id = bpf_get_stackid(ctx, &stackmap_b, USER_STACKID_FLAGS);
+        }
+        if (stack_id->kern_stack_id < 0 && stack_id->user_stack_id < 0) {
+            return -1;
+        }
+        bpf_map_update_elem(&start, &prev_pid, &prev_info, BPF_ANY);
+    }
+
+    struct start_info_t *next_info = (struct start_info_t *)bpf_map_lookup_elem(&start, &next_pid);
+    if (!next_info) {
         return 0;
     }
 
-    u64 delta_us = (t_end - *t_start) / 1000;
+    u64 t_start = next_info->ts;
+    if (t_start > t_end) {
+        goto out;
+    }
+
+    u64 delta_us = (t_end - t_start) / 1000;
     // TODO: MINBLOCK_US and MAXBLOCK_US configurable
     if ((delta_us < MINBLOCK_US) || (delta_us > MAXBLOCK_US)) { 
-        return 0;
+        goto out;
     }
 
-    struct raw_trace_s raw_trace = {.count = delta_us};
-    raw_trace.stack_id.pid.proc_id = _(next->tgid);
-    raw_trace.stack_id.pid.real_start_time = get_real_start_time();
-    (void)bpf_get_current_comm(&raw_trace.stack_id.comm, sizeof(raw_trace.stack_id.comm));
-    char is_stackmap_a = ((convert_data->convert_counter % 2) == 0);
-    if (is_stackmap_a) {
-        raw_trace.stack_id.kern_stack_id = bpf_get_stackid(ctx, &stackmap_a, KERN_STACKID_FLAGS);
-        raw_trace.stack_id.user_stack_id = bpf_get_stackid(ctx, &stackmap_a, USER_STACKID_FLAGS);
+    struct raw_trace_s *next_raw_trace = &next_info->raw_trace;
+    next_raw_trace->count = delta_us;
+    if (((convert_data->convert_counter % 2) == 0)) { // % 2 代表对stackmap_a和stackmap_b的选择
+        (void)bpf_perf_event_output(ctx, &stackmap_perf_a, BPF_F_CURRENT_CPU, next_raw_trace,
+            sizeof(struct raw_trace_s));
     } else {
-        raw_trace.stack_id.kern_stack_id = bpf_get_stackid(ctx, &stackmap_b, KERN_STACKID_FLAGS);
-        raw_trace.stack_id.user_stack_id = bpf_get_stackid(ctx, &stackmap_b, USER_STACKID_FLAGS);
-    }
-    if (raw_trace.stack_id.kern_stack_id < 0 && raw_trace.stack_id.user_stack_id < 0) {
-        return -1;
+        (void)bpf_perf_event_output(ctx, &stackmap_perf_b, BPF_F_CURRENT_CPU, next_raw_trace,
+            sizeof(struct raw_trace_s));
     }
 
-    if (is_stackmap_a) {
-        (void)bpf_perf_event_output(ctx, &stackmap_perf_a, BPF_F_CURRENT_CPU, &raw_trace, sizeof(raw_trace));
-    } else {
-        (void)bpf_perf_event_output(ctx, &stackmap_perf_b, BPF_F_CURRENT_CPU, &raw_trace, sizeof(raw_trace));
-    }
-
+out:
+    bpf_map_delete_elem(&start, &next_pid);
     return 0;
-
 }
-

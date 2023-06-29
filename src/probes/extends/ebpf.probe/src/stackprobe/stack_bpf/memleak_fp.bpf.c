@@ -10,8 +10,8 @@
  * See the Mulan PSL v2 for more details.
  * Author: wo_cow
  * Create: 2022-11-3
- * Description: fp-based memleak stack tracing
- *     If user lib does not contain fp pointer, this program cannot track it.
+ * Description: stack tracing based on syscall(brk/mmap)
+ *     WARN: If user state lib does not contain fp pointer, this program cannot track it.
  ******************************************************************************/
 #ifdef BPF_PROG_USER
 #undef BPF_PROG_USER
