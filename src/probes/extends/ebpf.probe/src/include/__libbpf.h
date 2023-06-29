@@ -356,6 +356,33 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
     } while (0)
 
 
+static __always_inline __maybe_unused struct perf_buffer* __do_create_pref_buffer2(int map_fd,
+                perf_buffer_sample_fn cb, perf_buffer_lost_fn lost_cb, void *ctx)
+{
+    struct perf_buffer *pb;
+    int ret;
+
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+    pb = perf_buffer__new(map_fd, 8, cb, lost_cb, ctx, NULL);
+#else
+    struct perf_buffer_opts pb_opts = {};
+    pb_opts.sample_cb = cb;
+    pb_opts.lost_cb = lost_cb;
+    pb = perf_buffer__new(map_fd, 8, &pb_opts);
+#endif
+    if (pb == NULL){
+        fprintf(stderr, "ERROR: perf buffer new failed\n");
+        return NULL;
+    }
+    ret = libbpf_get_error(pb);
+    if (ret) {
+        fprintf(stderr, "ERROR: failed to setup perf_buffer: %d\n", ret);
+        perf_buffer__free(pb);
+        return NULL;
+    }
+    return pb;
+}
+
 static __always_inline __maybe_unused struct perf_buffer* __do_create_pref_buffer(int map_fd,
                 perf_buffer_sample_fn cb, perf_buffer_lost_fn lost_cb)
 {
@@ -383,6 +410,12 @@ static __always_inline __maybe_unused struct perf_buffer* __do_create_pref_buffe
     return pb;
 }
 
+static __always_inline __maybe_unused struct perf_buffer* create_pref_buffer3(int map_fd,
+                perf_buffer_sample_fn cb, perf_buffer_lost_fn lost_cb, void *ctx)
+{
+    return __do_create_pref_buffer2(map_fd, cb, lost_cb, ctx);
+}
+
 static __always_inline __maybe_unused struct perf_buffer* create_pref_buffer2(int map_fd,
                 perf_buffer_sample_fn cb, perf_buffer_lost_fn lost_cb)
 {
@@ -393,6 +426,14 @@ static __always_inline __maybe_unused struct perf_buffer* create_pref_buffer(int
 {
     return __do_create_pref_buffer(map_fd, cb, NULL);
 }
+
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+static __always_inline __maybe_unused struct ring_buffer* create_rb(int map_fd, ring_buffer_sample_fn cb, void *ctx,
+                                                                            const struct ring_buffer_opts *opts)
+{
+    return ring_buffer__new(map_fd, cb, ctx, opts);
+}
+#endif
 
 static __always_inline __maybe_unused void poll_pb(struct perf_buffer *pb, int timeout_ms)
 {
@@ -415,7 +456,9 @@ struct __bpf_skel_s {
 };
 struct bpf_prog_s {
     struct perf_buffer* pb;
-    struct perf_buffer* pbs[SKEL_MAX_NUM];  // 支持每个探针拥有各自的perf_buffer，目前tcpprobe使用
+    struct perf_buffer* rb;
+    struct perf_buffer* pbs[SKEL_MAX_NUM];
+    struct ring_buffer* rbs[SKEL_MAX_NUM];
     struct __bpf_skel_s skels[SKEL_MAX_NUM];
     size_t num;
 };
@@ -459,11 +502,24 @@ static __always_inline __maybe_unused void unload_bpf_prog(struct bpf_prog_s **u
         if (prog->pbs[i]) {
             perf_buffer__free(prog->pbs[i]);
         }
+
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+        if (prog->rbs[i]) {
+            ring_buffer__free(prog->rbs[i]);
+        }
+#endif
     }
 
     if (prog->pb) {
         perf_buffer__free(prog->pb);
     }
+
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+    if (prog->rb) {
+        ring_buffer__free(prog->rb);
+    }
+#endif
+
     free_bpf_prog(prog);
     return;
 }
