@@ -1,6 +1,7 @@
 #!/bin/bash
 PROGRAM=$0
 PRJ_DIR=$(dirname $(readlink -f "$0"))
+JAVA_TAILOR_PROBES=$EXTEND_PROBES
 
 function find_cmd_jar()
 {
@@ -36,7 +37,7 @@ function compile_jvmprobe()
     cd ${PRJ_DIR}/jvm.probe
     echo "Compile jvmProbeAgent...."
     make_jvmprobe_agent_jar
-    
+
     echo "Compile jvmProbe...."
     make_jvmprobe_bin
 
@@ -58,7 +59,6 @@ function make_jsseprobe_agent_jar()
 
 function compile_jsseprobe()
 {
-    # ½ö°üº¬agent
     cd ${PRJ_DIR}/jsse.probe
     echo "Compile jsseProbeAgent...."
     make_jsseprobe_agent_jar
@@ -82,9 +82,14 @@ then
     exit
 fi
 
+# tailor jvmprobe
+if [[ $JAVA_TAILOR_PROBES =~ "jvm.probe" ]] && [[ $JAVA_TAILOR_PROBES =~ "l7probe" ]]; then
+    exit
+fi
+
 java_link=$(which java 2>/dev/null)
 javac_link=$(which javac 2>/dev/null)
-    
+
 if [ -z $java_link ] || [ -z $javac_link ];
 then
     echo "Error: java and javac : command not found"
@@ -95,8 +100,13 @@ else
     then
         exit 1
     fi
-    compile_jvmprobe
-    compile_jsseprobe
+    if ! [[ $JAVA_TAILOR_PROBES =~ "jvm.probe" ]] ; then
+        compile_jvmprobe
+    fi
+
+    if ! [[ $JAVA_TAILOR_PROBES =~ "l7probe" ]] ; then
+        compile_jsseprobe
+    fi
     compile_clean
     exit
 fi
