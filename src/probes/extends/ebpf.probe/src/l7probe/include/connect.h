@@ -19,7 +19,7 @@
 
 #include "include/l7.h"
 
-#if (CURRENT_KERNEL_VERSION  >= KERNEL_VERSION(5, 10, 0))
+#if ((CURRENT_KERNEL_VERSION  >= KERNEL_VERSION(5, 10, 0)) && (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8)))
 #define __USE_RING_BUF
 #endif
 
@@ -31,38 +31,10 @@
 
 #define L7_CONN_BPF_PATH          "/sys/fs/bpf/gala-gopher/__l7_connect"
 
-
-#ifndef BPF_PROG_KERN
-struct sockaddr {
-    unsigned short  sa_family;
-    char            sa_data[14];
-};
-
-struct sockaddr_in {
-    unsigned short  sin_family;
-    unsigned short  sin_port;
-    unsigned int    sin4_addr;
-    unsigned char   pad[8];
-};
-
-struct sockaddr_in6 {
-    unsigned short  sin_family;
-    unsigned short  sin_port;
-    unsigned int    sin_flowinfo;
-    unsigned char   sin6_addr[IP6_LEN];
-    unsigned int    sin6_scope_id;
-};
-#endif
-
-union sockaddr_t {
-    struct sockaddr sa;
-    struct sockaddr_in in4;
-    struct sockaddr_in6 in6;
-};
-
 enum l7_direction_t {
     L7_EGRESS,
     L7_INGRESS,
+    L7_DIRECT_UNKNOW
 };
 
 enum l4_role_t {
@@ -75,6 +47,8 @@ enum l7_role_t {
     L7_UNKNOW = 0,
     L7_CLIENT,
     L7_SERVER,
+
+    L7_ROLE_MAX
 };
 
 struct conn_id_s {
@@ -82,15 +56,25 @@ struct conn_id_s {
     int fd;
 };
 
+struct conn_addr_s {
+    u16 family;
+    u16 port;                   // TCP server port or client connect port
+    union {
+        u32 ip;
+        char ip6[IP6_LEN];
+    };
+};
+
 struct conn_info_s {
     struct conn_id_s id;
     char is_ssl;
     char is_reported;
-    char pad[2];
+    u16 pad;
     enum l4_role_t l4_role;     // TCP client or server; udp unknow
     enum l7_role_t l7_role;     // RPC client or server
     enum proto_type_t protocol; // L7 protocol type
-    union sockaddr_t remote_addr; // TCP remote address; UDP datagram address
+
+    struct conn_addr_s remote_addr; // TCP remote address; UDP datagram address
 };
 
 typedef u64 conn_ctx_t;         // pid & tgid
@@ -110,7 +94,7 @@ enum conn_evt_e {
 };
 
 struct conn_open_s {
-    union sockaddr_t addr;
+    struct conn_addr_s addr;
     enum l4_role_t l4_role;     // TCP client or server; udp unknow
     char is_ssl;
     char pad[3];
@@ -155,16 +139,41 @@ struct conn_data_s {
 
     enum proto_type_t proto;
     enum l7_role_t l7_role;     // RPC client or server
-    enum l7_direction_t direction;  // Only for tcp connection
+    enum l7_direction_t direction;
 
     u64 offset_pos;     // The position is for the first data of this message.
     size_t data_size;   // The actually data size, maybe less than msg_size.
     char data[CONN_DATA_MAX_SIZE];
 };
 
-// struct conns_hash_t {
-//     H_HANDLE;
-//     struct conn_id_s conn_id; // key
-//     struct conn_data_s conn_data; // TODO
-// };
+enum message_type_t  get_message_type(enum l7_role_t l7_role, enum l7_direction_t direction)
+{
+    // ROLE_CLIENT: message(MESSAGE_REQUEST) -> direct(L7_EGRESS)
+    // ROLE_CLIENT: message(MESSAGE_RESPONSE) -> direct(L7_INGRESS)
+    // ROLE_SERVER: message(MESSAGE_REQUEST) -> direct(L7_INGRESS)
+    // ROLE_SERVER: message(MESSAGE_RESPONSE) -> direct(L7_EGRESS)
+    if (l7_role == L7_CLIENT) {
+        if (direction == L7_INGRESS) {
+            return MESSAGE_RESPONSE;
+        } else {
+            return MESSAGE_REQUEST;
+        }
+    } else {
+        if (direction == L7_INGRESS) {
+            return MESSAGE_REQUEST;
+        } else {
+            return MESSAGE_RESPONSE;
+        }
+    }
+}
+
+enum l7_role_t  get_l7_role(enum message_type_t msg_type, enum l7_direction_t direction)
+{
+    // ROLE_CLIENT: message(MESSAGE_REQUEST) -> direct(L7_EGRESS)
+    // ROLE_CLIENT: message(MESSAGE_RESPONSE) -> direct(L7_INGRESS)
+    // ROLE_SERVER: message(MESSAGE_REQUEST) -> direct(L7_INGRESS)
+    // ROLE_SERVER: message(MESSAGE_RESPONSE) -> direct(L7_EGRESS)
+    return ((direction == L7_EGRESS) ^ (msg_type == MESSAGE_RESPONSE)) ? L7_CLIENT : L7_SERVER;
+}
+
 #endif

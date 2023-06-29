@@ -45,38 +45,48 @@ static __always_inline char is_tracing_udp(void)
     return proto & L7PROBE_TRACING_DNS;
 }
 
-static __always_inline __maybe_unused void get_sockaddr(struct conn_info_s* conn_info, const struct socket* socket)
+static __always_inline __maybe_unused void get_sockaddr(struct conn_info_s* conn_info, enum l4_role_t l4_role, const struct socket* socket)
 {
     u16 family, port;
 
 #if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
     family = BPF_CORE_READ(socket, sk, __sk_common.skc_family);
-    port = BPF_CORE_READ(socket, sk, __sk_common.skc_dport);
+    if (l4_role == L4_CLIENT) {
+        port = BPF_CORE_READ(socket, sk, __sk_common.skc_dport);
+        port = bpf_ntohs(port);
+    } else if (l4_role == L4_SERVER){
+        port = BPF_CORE_READ(socket, sk, __sk_common.skc_num);
+    } else {
+        port = 0;
+    }
 
-    conn_info->remote_addr.sa.sa_family = family;
+    conn_info->remote_addr.family = family;
+    conn_info->remote_addr.port = port;
+
     if (family == AF_INET) {
-        conn_info->remote_addr.in4.sin_port = port;
-        BPF_CORE_READ_INTO(conn_info->remote_addr.in4.sin_addr.s_addr,
-            socket, sk, __sk_common.skc_daddr);
+        conn_info->remote_addr.ip = BPF_CORE_READ(socket, sk, __sk_common.skc_daddr);
     } else if (family == AF_INET6) {
-        conn_info->remote_addr.in6.sin6_port = port;
-        BPF_CORE_READ_INTO(conn_info->remote_addr.in6.sin6_addr,
-            sk, __sk_common.skc_v6_daddr);
+        BPF_CORE_READ_INTO(&(conn_info->remote_addr.ip6), socket, sk, __sk_common.skc_v6_daddr);
     }
 #else
     struct sock* sk = NULL;
     sk = _(socket->sk);
     family = _(sk->__sk_common.skc_family);
-    port = _(sk->__sk_common.skc_dport);
+    if (l4_role == L4_CLIENT) {
+        port = bpf_ntohs(_(sk->sk_dport));
+    } else if (l4_role == L4_SERVER){
+        port = _(sk->sk_num);
+    } else {
+        port = 0;
+    }
 
-    conn_info->remote_addr.sa.sa_family = family;
+    conn_info->remote_addr.family = family;
+    conn_info->remote_addr.port = port;
 
     if (family == AF_INET) {
-        conn_info->remote_addr.in4.sin_port = port;
-        conn_info->remote_addr.in4.sin_addr.s_addr = _(sk->__sk_common.skc_daddr);
+        conn_info->remote_addr.ip = BPF_CORE_READ(socket, sk, __sk_common.skc_daddr);
     } else if (family == AF_INET6) {
-      conn_info->remote_addr.in6.sin6_port = port;
-      (void)bpf_probe_read(&conn_info->remote_addr.in6.sin6_addr, IP6_LEN, &sk->__sk_common.skc_v6_daddr);
+      (void)bpf_probe_read(&(conn_info->remote_addr.ip6), IP6_LEN, &(sk->__sk_common.skc_v6_daddr));
     }
 #endif
 }
@@ -96,9 +106,23 @@ static __always_inline __maybe_unused struct sock_conn_s* new_sock_conn(void *ct
     sock_conn.info.protocol = PROTO_UNKNOW;
     sock_conn.info.l4_role = l4_role;
     if (addr != NULL) {
-        bpf_probe_read((unsigned char *)&sock_conn.info.remote_addr, sizeof(union sockaddr_t), (const void *)&addr);
+        const struct sockaddr_in *addr_in = (const struct sockaddr_in *)addr;
+        const struct sockaddr_in6 *addr_in6 = (const struct sockaddr_in6 *)addr;
+
+        sock_conn.info.remote_addr.family = _(addr->sa_family);
+        if (sock_conn.info.remote_addr.family == AF_INET) {
+            sock_conn.info.remote_addr.ip = _(addr_in->sin_addr.s_addr);
+            sock_conn.info.remote_addr.port = bpf_ntohs(_(addr_in->sin_port));
+        } else {
+            bpf_probe_read((unsigned char *)&sock_conn.info.remote_addr.ip6, IP6_LEN, &(addr_in6->sin6_addr));
+            sock_conn.info.remote_addr.port = bpf_ntohs(_(addr_in6->sin6_port));
+        }
+
+        if (l4_role == L4_UNKNOW) {
+            sock_conn.info.remote_addr.port = 0; // UDP fix port 0
+        }
     } else if (socket != NULL) {
-        get_sockaddr(&sock_conn.info, socket);
+        get_sockaddr(&sock_conn.info, l4_role, socket);
     }
 
     // new conn obj
@@ -137,9 +161,10 @@ static __always_inline __maybe_unused int submit_conn_open(void *ctx, int tgid, 
         e->type = CONN_EVT_OPEN;
         e->timestamp_ns = bpf_ktime_get_ns();
         e->conn_id = sock_conn->info.id;
-        e->open.addr = sock_conn->info.remote_addr;
         e->open.l4_role = sock_conn->info.l4_role;
         e->open.is_ssl = sock_conn->info.is_ssl;
+
+        __builtin_memcpy(&(e->open.addr), &(sock_conn->info.remote_addr), sizeof(struct conn_addr_s));
 
         // submit conn open event.
     #ifdef __USE_RING_BUF

@@ -15,8 +15,10 @@
 #ifndef __L7_COMMON_H__
 #define __L7_COMMON_H__
 
+#include "ipc.h"
 #include "include/filter.h"
 #include "include/connect.h"
+#include "include/conn_tracker.h"
 
 
 #define LIBSSL_EBPF_PROG_MAX 256
@@ -38,10 +40,13 @@ struct l7_java_prog_s {
 };
 
 struct l7_mng_s {
+    time_t last_report;
     struct ipc_body_s ipc_body;
     struct filter_args_s filter_args;
     struct l7_ebpf_prog_s bpf_progs;
     struct l7_java_prog_s java_progs;
+    struct conn_tracker_s *trackers;
+    struct l7_link_s *l7_links;
 };
 
 #endif

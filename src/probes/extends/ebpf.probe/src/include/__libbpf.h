@@ -456,7 +456,7 @@ struct __bpf_skel_s {
 };
 struct bpf_prog_s {
     struct perf_buffer* pb;
-    struct perf_buffer* rb;
+    struct ring_buffer* rb;
     struct perf_buffer* pbs[SKEL_MAX_NUM];
     struct ring_buffer* rbs[SKEL_MAX_NUM];
     struct __bpf_skel_s skels[SKEL_MAX_NUM];

@@ -49,11 +49,62 @@
     MAP_SET_PIN_PATH(probe_name, filter_args_tbl, L7_FILTER_ARGS_PATH, load); \
     LOAD_ATTACH(l7probe, probe_name, end, load)
 
+static int l7_prog_create_pb(struct bpf_prog_s *prog, int fd, void* cb, void *ctx)
+{
+#ifdef __USE_RING_BUF
+    struct ring_buffer *rb = NULL;
+
+    rb = create_rb(fd, (ring_buffer_sample_fn)cb, ctx, NULL);
+    if (rb == NULL) {
+        return -1;
+    }
+    prog->rbs[prog->num] = rb;
+    prog->num++;
+    return 0;
+#else
+    struct perf_buffer *pb = NULL;
+
+    pb = create_pref_buffer3(fd, (perf_buffer_sample_fn)cb, NULL, ctx);
+    if (pb == NULL) {
+        return -1;
+    }
+    prog->pbs[prog->num] = pb;
+    prog->num++;
+    return 0;
+#endif
+}
+
+static void* get_ctrl_msg_cb(void)
+{
+#ifdef __USE_RING_BUF
+    return (void *)trakcer_ctrl_msg_rb;
+#else
+    return (void *)trakcer_ctrl_msg_pb;
+#endif
+}
+
+static void* get_data_msg_cb(void)
+{
+#ifdef __USE_RING_BUF
+    return (void *)trakcer_data_msg_rb;
+#else
+    return (void *)trakcer_data_msg_pb;
+#endif
+}
+
+static void* get_stats_msg_cb(void)
+{
+#ifdef __USE_RING_BUF
+    return (void *)trakcer_stats_msg_rb;
+#else
+    return (void *)trakcer_stats_msg_pb;
+#endif
+}
+
 int l7_load_probe_libssl(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog, const char *libssl_path)
 {
     int fd, succeed;
     int link_num = 0;
-    struct perf_buffer *pb = NULL;
 
     __LOAD_PROBE(libssl, err, 1);
     prog->skels[prog->num].skel = libssl_skel;
@@ -87,33 +138,24 @@ int l7_load_probe_libssl(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog, const
 
     // libssl bpf prog create pb for 'conn_control_events'
     fd = GET_MAP_FD(libssl, conn_control_events);
-    pb = create_pref_buffer(fd, l7_conn_control_msg_handler);
-    if (pb == NULL) {
-        ERROR("[L7PROBE]: Create perf buffer failed.\n");
+    if (l7_prog_create_pb(prog, fd, get_ctrl_msg_cb(), l7_mng)) {
+        ERROR("[L7PROBE]: Create 'conn_control_events' perf buf failed.\n");
         return -1;
     }
-    prog->pbs[prog->num] = pb;
-    prog->num++;
 
     // libssl bpf prog create pb for 'conn_stats_events'
     fd = GET_MAP_FD(libssl, conn_stats_events);
-    pb = create_pref_buffer(fd, l7_conn_stats_msg_handler);
-    if (pb == NULL) {
-        ERROR("[L7PROBE]: Create perf buffer failed.\n");
+    if (l7_prog_create_pb(prog, fd, get_stats_msg_cb(), l7_mng)) {
+        ERROR("[L7PROBE]: Create 'conn_stats_events' perf buf failed.\n");
         return -1;
     }
-    prog->pbs[prog->num] = pb;
-    prog->num++;
 
     // libssl bpf prog create pb for 'conn_data_events'
     fd = GET_MAP_FD(libssl, conn_data_events);
-    pb = create_pref_buffer(fd, l7_sock_data_msg_handler);
-    if (pb == NULL) {
-        ERROR("[L7PROBE]: Create perf buffer failed.\n");
+    if (l7_prog_create_pb(prog, fd, get_data_msg_cb(), l7_mng)) {
+        ERROR("[L7PROBE]: Create 'conn_data_events' perf buf failed.\n");
         return -1;
     }
-    prog->pbs[prog->num] = pb;
-    prog->num++;
 
     if (l7_mng->bpf_progs.conn_tbl_fd == 0) {
         l7_mng->bpf_progs.conn_tbl_fd = GET_MAP_FD(libssl, conn_tbl);
@@ -137,7 +179,6 @@ err:
 int l7_load_probe_kern_sock(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog)
 {
     int fd;
-    struct perf_buffer *pb = NULL;
 
     __LOAD_PROBE(kern_sock, err, 1);
     prog->skels[prog->num].skel = kern_sock_skel;
@@ -145,33 +186,24 @@ int l7_load_probe_kern_sock(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog)
 
     // kern_sock bpf prog create pb for 'conn_control_events'
     fd = GET_MAP_FD(kern_sock, conn_control_events);
-    pb = create_pref_buffer(fd, l7_conn_control_msg_handler);
-    if (pb == NULL) {
-        ERROR("[L7PROBE]: Create perf buffer failed.\n");
+    if (l7_prog_create_pb(prog, fd, get_ctrl_msg_cb(), l7_mng)) {
+        ERROR("[L7PROBE]: Create 'conn_control_events' perf buf failed.\n");
         return -1;
     }
-    prog->pbs[prog->num] = pb;
-    prog->num++;
 
     // kern_sock bpf prog create pb for 'conn_stats_events'
     fd = GET_MAP_FD(kern_sock, conn_stats_events);
-    pb = create_pref_buffer(fd, l7_conn_stats_msg_handler);
-    if (pb == NULL) {
-        ERROR("[L7PROBE]: Create perf buffer failed.\n");
+    if (l7_prog_create_pb(prog, fd, get_stats_msg_cb(), l7_mng)) {
+        ERROR("[L7PROBE]: Create 'conn_stats_events' perf buf failed.\n");
         return -1;
     }
-    prog->pbs[prog->num] = pb;
-    prog->num++;
 
     // kern_sock bpf prog create pb for 'conn_data_events'
     fd = GET_MAP_FD(kern_sock, conn_data_events);
-    pb = create_pref_buffer(fd, l7_sock_data_msg_handler);
-    if (pb == NULL) {
-        ERROR("[L7PROBE]: Create perf buffer failed.\n");
+    if (l7_prog_create_pb(prog, fd, get_data_msg_cb(), l7_mng)) {
+        ERROR("[L7PROBE]: Create 'conn_data_events' perf buf failed.\n");
         return -1;
     }
-    prog->pbs[prog->num] = pb;
-    prog->num++;
 
     if (l7_mng->bpf_progs.conn_tbl_fd == 0) {
         l7_mng->bpf_progs.conn_tbl_fd = GET_MAP_FD(kern_sock, conn_tbl);

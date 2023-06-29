@@ -178,6 +178,16 @@ static int __poll_l7_pb(struct bpf_prog_s* prog)
 {
     int ret;
 
+#ifdef __USE_RING_BUF
+    for (int i = 0; i < prog->num && i < SKEL_MAX_NUM; i++) {
+        if (prog->rbs[i]) {
+            ret = ring_buffer__poll(prog->rbs[i], THOUSAND);
+            if (ret) {
+                return ret;
+            }
+        }
+    }
+#else
     for (int i = 0; i < prog->num && i < SKEL_MAX_NUM; i++) {
         if (prog->pbs[i]) {
             ret = perf_buffer__poll(prog->pbs[i], THOUSAND);
@@ -186,6 +196,8 @@ static int __poll_l7_pb(struct bpf_prog_s* prog)
             }
         }
     }
+#endif
+
     return 0;
 }
 
@@ -256,6 +268,8 @@ int main(int argc, char **argv)
                 break;
             }
 
+            l7_mng->last_report = (time_t)time(NULL);
+
             is_load_prog = 1;
         }
 
@@ -265,12 +279,16 @@ int main(int argc, char **argv)
                 ERROR("[L7Probe]: perf poll failed(%d).\n", ret);
                 break;
             }
+            l7_parser(l7_mng);
+            report_l7(l7_mng);
         } else {
             sleep(1);
         }
     }
 
 err:
+    destroy_trackers(l7_mng);
+    destroy_links(l7_mng);
     l7_unload_probe_jsse(l7_mng);
     unload_l7_prog(l7_mng);
     destroy_ipc_body(&(l7_mng->ipc_body));

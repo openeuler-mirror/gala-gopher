@@ -528,7 +528,6 @@ static __inline enum message_type_t get_mysql_type(const char* buf, size_t count
 
 static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, struct l7_proto_s* l7pro)
 {
-/* TODO: to resolve
     enum message_type_t type;
 
     if (l7pro == NULL || count >= L7_DATA_BUFFER_MAXSIZE || buf == NULL) {
@@ -589,7 +588,6 @@ static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, st
             return 0;
         }
     }
-*/
     return -1;
 }
 #endif
