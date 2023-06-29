@@ -83,9 +83,9 @@ measurements:
                 name: "tc_backlog",
             },
             {
-                description: "enc mark",
+                description: "ecn mark",
                 type: "gauge",
-                name: "tc_enc_mark",
+                name: "tc_ecn_mark",
             }
         )
     },
