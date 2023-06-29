@@ -31,7 +31,7 @@ class Proc(Structure):
 class ContainerInfo(Structure):
     _fields_ = [
         ("status", c_uint),
-        ("abbrContainerId", c_char * CONTAINER_NAME_LEN)
+        ("abbrContainerId", c_char * (CONTAINER_NAME_LEN + 1))
     ]
 
 class ContainerTbl(Structure):
@@ -220,15 +220,17 @@ class BasicLabelProbe(Probe):
 
         self.get_all_containers()
         for container_id in self.container_ids:
+            # ctype c_char_p is bytes in python3, convert str to bytes
+            container_id_bytes = str.encode(container_id)
             g_metric[table_name][container_id] = dict()
             g_metric[table_name][container_id]['container_id'] = container_id
-            g_metric[table_name][container_id]['proc_id'] = self.get_container_pid(container_id)
-            g_metric[table_name][container_id]['name'] = self.get_container_name(container_id)
-            g_metric[table_name][container_id]['cpucg_inode'] = self.get_container_cpucg_inode(container_id)
-            g_metric[table_name][container_id]['memcg_inode'] = self.get_container_memcg_inode(container_id)
-            g_metric[table_name][container_id]['pidcg_inode'] = self.get_container_pidcg_inode(container_id)
-            g_metric[table_name][container_id]['mnt_ns_id'] = self.get_container_mntns_id(container_id)
-            g_metric[table_name][container_id]['net_ns_id'] = self.get_container_netns_id(container_id)
+            g_metric[table_name][container_id]['proc_id'] = self.get_container_pid(container_id_bytes)
+            g_metric[table_name][container_id]['name'] = self.get_container_name(container_id_bytes)
+            g_metric[table_name][container_id]['cpucg_inode'] = self.get_container_cpucg_inode(container_id_bytes)
+            g_metric[table_name][container_id]['memcg_inode'] = self.get_container_memcg_inode(container_id_bytes)
+            g_metric[table_name][container_id]['pidcg_inode'] = self.get_container_pidcg_inode(container_id_bytes)
+            g_metric[table_name][container_id]['mnt_ns_id'] = self.get_container_mntns_id(container_id_bytes)
+            g_metric[table_name][container_id]['net_ns_id'] = self.get_container_netns_id(container_id_bytes)
             g_metric[table_name][container_id]['value'] = '0'
 
 
@@ -334,7 +336,9 @@ class CadvisorProbe(Probe):
                     g_metric[table_name][hashed_metric_str]['container_id'] = container_id
 
                 metric_name = line[line.index("_") + 1:line.index("{")]
-                value = line[(line.index(" ") + 1):self.find_2nd_index(line, " ")]
+                value_start_index = line.rfind("}") + 1
+                value_end_index = value_start_index + self.find_2nd_index(line[value_start_index:], " ")
+                value = line[value_start_index:value_end_index]
                 try:
                     if g_meta[table_name][metric_name] == COUNTER:
                         if metric_name in g_metric[table_name][hashed_metric_str]:
