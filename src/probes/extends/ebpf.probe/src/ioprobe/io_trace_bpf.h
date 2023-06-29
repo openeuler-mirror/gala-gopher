@@ -312,14 +312,9 @@ static __always_inline struct io_latency_s* get_io_latency(struct io_trace_s* io
     return (struct io_latency_s *)bpf_map_lookup_elem(&io_latency_map, &io_entity);
 }
 
-KRAWTRACE(block_rq_issue, bpf_raw_tracepoint_args)
+static int bpf_trace_block_rq_issue_func(void *ctx, struct request* req)
 {
     struct io_trace_s *io_trace = NULL;
-#if (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(5, 10, 0))
-    struct request* req = (struct request *)ctx->args[0];
-#else
-    struct request* req = (struct request *)ctx->args[1];
-#endif
 
     io_trace = get_io_trace(req);
     if (io_trace == NULL) {
@@ -335,6 +330,52 @@ KRAWTRACE(block_rq_issue, bpf_raw_tracepoint_args)
     io_trace->ts[IO_ISSUE_DEVICE] = ts; // virtblk/NVME
     return 0;
 }
+
+#if (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(5, 10, 0))
+KRAWTRACE(block_rq_issue, bpf_raw_tracepoint_args)
+{
+    struct request* req = (struct request *)ctx->args[0];
+    return bpf_trace_block_rq_issue_func(ctx, req);
+}
+#elif (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
+KRAWTRACE(block_rq_issue, bpf_raw_tracepoint_args)
+{
+    struct request* req = (struct request *)ctx->args[1];
+    return bpf_trace_block_rq_issue_func(ctx, req);
+}
+#else
+KPROBE(blk_mq_start_request, pt_regs)
+{
+    struct request* req = (struct request *)PT_REGS_PARM1(ctx);
+    return bpf_trace_block_rq_issue_func(ctx, req);
+}
+#define list_first_entry(ptr, type, member) \
+	container_of((ptr)->next, type, member)
+
+#define list_next_entry(pos, member) \
+	container_of((pos)->member.next, typeof(*(pos)), member)
+
+#define list_for_each_entry(pos, head, member)				\
+	for (pos = list_first_entry(head, typeof(*pos), member);	\
+	     &pos->member != (head);					\
+	     pos = list_next_entry(pos, member))
+
+# define __force
+#define RQF_STARTED		((__force req_flags_t)(1 << 1))
+KPROBE(blk_peek_request, pt_regs)
+{
+    struct request_queue* req_queue = (struct request_queue *)PT_REGS_PARM1(ctx);
+    struct request* req;
+
+    list_for_each_entry(req, &req_queue->queue_head, queuelist) {
+        if ((req != NULL) && !(req->rq_flags & RQF_STARTED)) {
+            bpf_trace_block_rq_issue_func(ctx, req);
+        }
+    }
+
+    return 0;
+}
+#endif
 
 KPROBE(blk_mq_complete_request, pt_regs)
 {
@@ -353,12 +394,10 @@ KPROBE(blk_mq_complete_request, pt_regs)
     return 0;
 }
 
-KRAWTRACE(block_rq_complete, bpf_raw_tracepoint_args)
+static int bpf_trace_block_rq_completet_func(void *ctx, struct request* req, int error)
 {
     struct io_trace_s *io_trace = NULL;
     struct io_req_s io_req = {0};
-    struct request* req = (struct request *)ctx->args[0];
-    int error = (int)ctx->args[1];
     struct io_latency_s* io_latency;
 
     io_trace = lkup_io_trace(req);
@@ -382,6 +421,23 @@ KRAWTRACE(block_rq_complete, bpf_raw_tracepoint_args)
     return 0;
 }
 
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
+KRAWTRACE(block_rq_complete, bpf_raw_tracepoint_args)
+{
+    struct request* req = (struct request *)ctx->args[0];
+    int error = (int)ctx->args[1];
+
+    return bpf_trace_block_rq_completet_func(ctx, req, error);
+}
+#else
+KPROBE(blk_update_request, pt_regs)
+{
+    struct request* req = (struct request *)PT_REGS_PARM1(ctx);
+    int error = (int)PT_REGS_PARM2(ctx);
+
+    return bpf_trace_block_rq_completet_func(ctx, req, error);
+}
+#endif
 
 #endif
 

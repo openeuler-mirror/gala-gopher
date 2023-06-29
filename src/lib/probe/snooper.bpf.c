@@ -42,7 +42,7 @@ struct {
     __uint(max_entries, __PERF_OUT_MAX);
 } snooper_proc_channel SEC(".maps");
 
-
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(sched_process_exec, bpf_raw_tracepoint_args)
 {
     struct snooper_proc_evt_s event = {0};
@@ -59,7 +59,24 @@ KRAWTRACE(sched_process_exec, bpf_raw_tracepoint_args)
                           &event, sizeof(event));
     return 0;
 }
+#else
+SEC("tracepoint/sched/sched_process_exec")
+int bpf_trace_sched_process_exec_func(struct trace_event_raw_sched_process_exec *ctx)
+{
+    struct snooper_proc_evt_s event = {0};
+    unsigned fname_off = ctx->__data_loc_filename & 0xFFFF;
 
+    event.pid = bpf_get_current_pid_tgid() >> 32;
+    event.proc_event = PROC_EXEC;
+    bpf_probe_read_str(&event.filename, sizeof(event.filename), (void *)ctx + fname_off);
+
+    bpf_perf_event_output(ctx, &snooper_proc_channel, BPF_F_ALL_CPU,
+                          &event, sizeof(event));
+    return 0;
+}
+#endif
+
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(sched_process_exit, bpf_raw_tracepoint_args)
 {
     struct snooper_proc_evt_s event = {0};
@@ -79,7 +96,20 @@ KRAWTRACE(sched_process_exit, bpf_raw_tracepoint_args)
                           &event, sizeof(event));
     return 0;
 }
+#else
+SEC("tracepoint/sched/sched_process_exit")
+int bpf_trace_sched_process_exit_func(struct trace_event_raw_sched_process_template *ctx)
+{
+    struct snooper_proc_evt_s event = {0};
 
+    event.pid = bpf_get_current_pid_tgid() >> 32;
+    event.proc_event = PROC_EXIT;
+
+    bpf_perf_event_output(ctx, &snooper_proc_channel, BPF_F_ALL_CPU,
+                          &event, sizeof(event));
+    return 0;
+}
+#endif
 
 struct {
     __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
@@ -122,6 +152,7 @@ static __always_inline void report_cgrp_change(void *ctx, enum cgrp_event_t cgrp
     (void)bpf_perf_event_output(ctx, &snooper_cgrp_channel, BPF_F_ALL_CPU, msg_data, sizeof(struct snooper_cgrp_evt_s));
 }
 
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(cgroup_mkdir, bpf_raw_tracepoint_args)
 {
     struct cgroup *cgrp = (struct cgroup *)ctx->args[0];
@@ -133,7 +164,22 @@ KRAWTRACE(cgroup_mkdir, bpf_raw_tracepoint_args)
     report_cgrp_change(ctx, CGRP_MK, path);
     return 0;
 }
+#else
+SEC("tracepoint/cgroup/cgroup_mkdir")
+int bpf_trace_cgroup_mkdir_func(struct trace_event_raw_cgroup *ctx)
+{
+    int root_id = (int)ctx->root; // cgrp->root->hierarchy_id
 
+    if (root_id != 1)
+        return 0;
+
+    const char *path = (const char *)ctx->__data_loc_path;
+    report_cgrp_change(ctx, CGRP_MK, path);
+    return 0;
+}
+#endif
+
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(cgroup_rmdir, bpf_raw_tracepoint_args)
 {
     struct cgroup *cgrp = (struct cgroup *)ctx->args[0];
@@ -144,4 +190,15 @@ KRAWTRACE(cgroup_rmdir, bpf_raw_tracepoint_args)
     report_cgrp_change(ctx, CGRP_RM, path);
     return 0;
 }
+#else
+SEC("tracepoint/cgroup/cgroup_rmdir")
+int bpf_trace_cgroup_rmdir_func(struct trace_event_raw_cgroup *ctx)
+{
+    int root_id = (int)ctx->root; // cgrp->root->hierarchy_id
+
+    const char *path = (const char *)ctx->__data_loc_path;
+    report_cgrp_change(ctx, CGRP_RM, path);
+    return 0;
+}
+#endif
 

@@ -346,6 +346,7 @@ KPROBE_RET(tcp_check_req, pt_regs, CTX_KERNEL)
     return 0;
 }
 
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(tcp_retransmit_synack, bpf_raw_tracepoint_args)
 {
     int new_entry;
@@ -360,6 +361,23 @@ KRAWTRACE(tcp_retransmit_synack, bpf_raw_tracepoint_args)
 
     return 0;
 }
+#else
+SEC("tracepoint/tcp/tcp_retransmit_synack")
+int bpf_trace_tcp_retransmit_synack_func(struct trace_event_raw_tcp_retransmit_synack *ctx)
+{
+    int new_entry;
+    struct endpoint_val_t* value;
+    struct sock *sk = (struct sock *)ctx->skaddr;
+    
+    value = get_tcp_val(sk, &new_entry);
+    if (value) {
+        ATOMIC_INC_EP_STATS(value, EP_STATS_RETRANS_SYNACK, 1);
+        report(ctx, value, new_entry);
+    }
+
+    return 0;
+}
+#endif
 
 KPROBE(inet_csk_reqsk_queue_drop_and_put, pt_regs)
 {

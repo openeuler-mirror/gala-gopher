@@ -135,7 +135,7 @@ int tracepoint_block_rq_complete(struct block_rq_complete_args *ctx)
     return 0;
 }
 
-#if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(4, 13, 0))
+#if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(4, 18, 0))
 /*
  * Raw tracepoint defined in modules is not supported in this version, so use kprobe as hook instead.
  *    scsi_dispatch_cmd_timeout --> scsi_times_out()

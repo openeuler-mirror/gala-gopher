@@ -49,6 +49,7 @@ static __always_inline bool is_ia32_task(void)
 #endif
 }
 
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 static __always_inline long get_syscall_id(void *ctx)
 {
     struct sys_exit_args *args = (struct sys_exit_args *)ctx;
@@ -103,5 +104,38 @@ KRAWTRACE(sys_exit, sys_exit_args)
     report_proc(ctx, proc, TASK_PROBE_SYSCALL);
     return 0;
 }
+#else
+SEC("tracepoint/raw_syscalls/sys_exit")
+int bpf_trace_sys_exit_func(struct trace_event_raw_sys_exit *ctx)
+{
+    struct proc_data_s *proc;
+    u32 proc_id = bpf_get_current_pid_tgid() >> INT_LEN;
+
+    proc = get_proc_entry(proc_id);
+    if (proc == NULL) {
+        return 0;
+    }
+
+    if (is_ia32_task()) {
+        return 0;
+    }
+
+    long id = (long)ctx->id;
+    if (id < SYSCALL_ID_MIN || id > SYSCALL_ID_MAX) {
+        return 0;
+    }
+
+    long ret = (long)ctx->ret;
+    if (ret >= 0) {
+        return 0;
+    }
+
+    __sync_fetch_and_add(&(proc->syscall.failed), 1);
+    proc->syscall.last_ret_code = ret;
+    proc->syscall.last_syscall_id = id;
+    report_proc(ctx, proc, TASK_PROBE_SYSCALL);
+    return 0;
+}
+#endif
 #endif
 

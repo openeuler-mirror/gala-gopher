@@ -58,11 +58,10 @@ static __always_inline int get_task_pgid(const struct task_struct *cur_task)
     return pgid;
 }
 
-KRAWTRACE(sched_wakeup_new, bpf_raw_tracepoint_args)
+static int bpf_trace_sched_wakeup_new_func(void *ctx, struct task_struct* task)
 {
     u32 tgid, pid;
     struct task_struct* parent;
-    struct task_struct* task = (struct task_struct*)ctx->args[0];
 
     tgid = _(task->tgid);
     pid = _(task->pid);
@@ -82,3 +81,17 @@ KRAWTRACE(sched_wakeup_new, bpf_raw_tracepoint_args)
     }
     return 0;
 }
+
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
+KRAWTRACE(sched_wakeup_new, bpf_raw_tracepoint_args)
+{
+    struct task_struct* task = (struct task_struct*)ctx->args[0];
+    return bpf_trace_sched_wakeup_new_func(ctx, task);
+}
+#else
+KPROBE(wake_up_new_task, pt_regs)
+{
+    struct task_struct *task = (struct task_struct *)PT_REGS_PARM1(ctx);
+    return bpf_trace_sched_wakeup_new_func(ctx, task);
+}
+#endif

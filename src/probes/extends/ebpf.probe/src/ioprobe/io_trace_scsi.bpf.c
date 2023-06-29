@@ -21,7 +21,7 @@
 
 char g_linsence[] SEC("license") = "GPL";
 
-#if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(4, 13, 0))
+#if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(4, 18, 0))
 /*
  * Raw tracepoint defined in modules is not supported in this version, so use kprobe as hook instead.
  *    scsi_dispatch_cmd_start --> scsi_dispatch_cmd()

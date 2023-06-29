@@ -183,7 +183,7 @@ KPROBE(udp_recvmsg, pt_regs)
     }
     return 0;
 }
-
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(udp_fail_queue_rcv_skb, bpf_raw_tracepoint_args)
 {
     int new_entry;
@@ -198,6 +198,33 @@ KRAWTRACE(udp_fail_queue_rcv_skb, bpf_raw_tracepoint_args)
     }
     return 0;
 }
+#else
+KPROBE_RET(__udp_enqueue_schedule_skb, pt_regs, CTX_KERNEL)
+{
+    int ret = PT_REGS_RC(ctx);
+    struct probe_val val;
+
+    if (PROBE_GET_PARMS(__udp_enqueue_schedule_skb, ctx, val, CTX_KERNEL) < 0) {
+        return 0;
+    }
+
+    if (ret >= 0) {
+        return 0;
+    }
+
+    int new_entry;
+    int rc = (int)PT_REGS_RC(ctx);
+    struct sock *sk = (struct sock *)PROBE_PARM1(val);
+    struct endpoint_val_t* endpoint_val;
+
+    endpoint_val = get_udp_val(sk, &new_entry);
+    if (endpoint_val) {
+        ATOMIC_INC_EP_STATS(endpoint_val, EP_STATS_QUE_RCV_FAILED, 1);
+        endpoint_val->udp_err_code = rc;
+    }
+    return 0;
+}
+#endif
 
 KPROBE(udp_init_sock, pt_regs)
 {
