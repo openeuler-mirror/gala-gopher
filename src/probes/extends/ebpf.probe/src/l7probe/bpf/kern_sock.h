@@ -154,12 +154,14 @@ struct {
 
 static __always_inline void submit_perf_buf(void* ctx, char *buf, size_t bytes_count, struct conn_data_s* conn_data)
 {
+    size_t copied_size;
     if (buf == NULL || bytes_count == 0) {
         return;
     }
 
-    bpf_probe_read(&conn_data->data, CONN_DATA_MAX_SIZE, buf);
-    conn_data->data_size = bytes_count;
+    copied_size = (bytes_count > CONN_DATA_MAX_SIZE) ? CONN_DATA_MAX_SIZE : bytes_count;
+    bpf_probe_read(&conn_data->data, copied_size, buf);
+    conn_data->data_size = copied_size;
 
 #ifdef __USE_RING_BUF
     bpf_ringbuf_submit(conn_data, 0);

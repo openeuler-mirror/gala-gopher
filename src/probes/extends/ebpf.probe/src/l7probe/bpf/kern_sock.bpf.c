@@ -233,6 +233,8 @@ static __always_inline __maybe_unused u64 get_cur_cpuacct_cgrp_id(void)
 
 static __always_inline char is_tracing(int tgid)
 {
+    return is_filter_id(FILTER_TGID, tgid);
+#if 0
     if (is_filter_by_cgrp()) {
         u64 cgrp_id = get_cur_cpuacct_cgrp_id();
         if (is_filter_id(FILTER_CGRPID, cgrp_id)) {
@@ -247,6 +249,7 @@ static __always_inline char is_tracing(int tgid)
             return 0;
         }
     }
+#endif
 }
 
 
@@ -682,9 +685,8 @@ KRETPROBE_SYSCALL(recvfrom)
         if (args && bytes_count > 0) {
             submit_conn_open(ctx, (int)(id >> INT_LEN), args->fd, L4_UNKNOW, args->addr, /*socket*/ NULL);
         }
+        bpf_map_delete_elem(&sys_connect_args, &id);
     }
-
-    bpf_map_delete_elem(&sys_connect_args, &id);
 
     // Unstash arguments, and process syscall.
     struct sock_data_args_s* data_args = bpf_map_lookup_elem(&sock_data_args, &id);
