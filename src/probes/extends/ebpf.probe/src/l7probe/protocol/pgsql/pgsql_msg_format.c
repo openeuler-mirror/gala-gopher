@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include "pgsql_msg_format.h"
 
-struct pgsql_tag_enum_value_s pgsql_tag_enum_values[] = {
+struct pgsql_tag_enum_value_s pgsql_tag_enum_values[64] = {
     PGSQL_TAG_ENUM_VALUE(true, PGSQL_COPY_DATA),
     PGSQL_TAG_ENUM_VALUE(true, PGSQL_COPY_DONE),
     PGSQL_TAG_ENUM_VALUE(true, PGSQL_SIMPLE_QUERY),
@@ -600,4 +600,19 @@ void free_pgsql_query_req_resp(struct pgsql_query_req_resp_s *query_req_rsp)
         free_pgsql_query_resp(query_req_rsp->resp);
     }
     free(query_req_rsp);
+}
+
+void free_pgsql_record(struct pgsql_record_s *record)
+{
+    if (record == NULL) {
+        return;
+    }
+    if (record->req_msg != NULL) {
+        free_pgsql_regular_msg(record->req_msg);
+    }
+    if (record->resp_msg != NULL) {
+        free_pgsql_regular_msg(record->resp_msg);
+    }
+
+    free(record);
 }

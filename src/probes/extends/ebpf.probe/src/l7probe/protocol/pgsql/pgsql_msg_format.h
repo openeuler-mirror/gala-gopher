@@ -80,9 +80,9 @@ struct pgsql_tag_enum_value_s {
 
 #define PGSQL_TAG_ENUM_VALUE(x, y) {x, y}
 
-struct pgsql_tag_enum_value_s pgsql_tag_enum_values[];
+extern struct pgsql_tag_enum_value_s pgsql_tag_enum_values[64];
 
-const int pgsql_tag_enum_values_count;
+extern const int pgsql_tag_enum_values_count;
 
 bool contains_pgsql_tag(char tag);
 

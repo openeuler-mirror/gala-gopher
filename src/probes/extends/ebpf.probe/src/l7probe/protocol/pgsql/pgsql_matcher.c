@@ -440,7 +440,7 @@ void pgsql_matcher_add_record(struct pgsql_regular_msg_s *req, uint64_t resp_tim
     struct pgsql_regular_msg_s *resp;
     struct pgsql_record_s *pgsql_record;
     struct record_data_s *record_data;
-    if (record_buf->current_pos >= RECORD_BUF_SIZE) {
+    if (record_buf->record_buf_size > RECORD_BUF_SIZE) {
         INFO("[PGSQL MATCHER] The record buffer is full.\n");
         ++record_buf->err_count;
         return;
@@ -468,8 +468,7 @@ void pgsql_matcher_add_record(struct pgsql_regular_msg_s *req, uint64_t resp_tim
     }
     record_data->record = pgsql_record;
     record_data->latency = resp_timestamp_ns - req->timestamp_ns;
-    record_buf->records[record_buf->current_pos] = record_data;
-    ++record_buf->current_pos;
+    record_buf->records[record_buf->record_buf_size] = record_data;
     ++record_buf->record_buf_size;
 }
 
@@ -559,7 +558,6 @@ void pgsql_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *rsp_
     size_t req_index, resp_index;
     size_t unconsumed_index;
     record_buf->err_count = 0;
-    record_buf->current_pos = 0;
     record_buf->record_buf_size = 0;
     req_index = req_frames->current_pos;
     resp_index = rsp_frames->current_pos;
