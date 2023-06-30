@@ -135,6 +135,8 @@ static int load_l7_prog(struct l7_mng_s *l7_mng)
         }
     }
 
+    l7_mng->last_report = (time_t)time(NULL);
+
     return 0;
 err:
     unload_bpf_prog(&prog);
@@ -267,8 +269,6 @@ int main(int argc, char **argv)
             if (l7_load_probe_jsse(l7_mng) < 0) {
                 break;
             }
-
-            l7_mng->last_report = (time_t)time(NULL);
 
             is_load_prog = 1;
         }

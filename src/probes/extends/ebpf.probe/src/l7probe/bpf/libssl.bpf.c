@@ -77,6 +77,10 @@ UPROBE(SSL_read, pt_regs)
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
 
+    if (!is_filter_id(FILTER_TGID, proc_id)) {
+        return 0;
+    }
+
     int fd = get_fd_from_ssl((struct ssl_st*)PT_REGS_PARM1(ctx), L7_INGRESS);
     if (fd < 0) {
         return 0;
@@ -116,6 +120,10 @@ UPROBE(SSL_write, pt_regs)
 {
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
+
+    if (!is_filter_id(FILTER_TGID, proc_id)) {
+        return 0;
+    }
 
     int fd = get_fd_from_ssl((struct ssl_st*)PT_REGS_PARM1(ctx), L7_EGRESS);
     if (fd < 0) {
