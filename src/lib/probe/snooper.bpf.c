@@ -64,7 +64,13 @@ KRAWTRACE(sched_process_exit, bpf_raw_tracepoint_args)
 {
     struct snooper_proc_evt_s event = {0};
     struct task_struct* task = (struct task_struct *)ctx->args[0];
-    pid_t pid = _(task->tgid);
+    pid_t pid = _(task->pid);
+    pid_t tgid = _(task->tgid);
+
+    /* ignore thread exit */
+    if (pid != tgid) {
+        return 0;
+    }
 
     event.pid = (u32)pid;
     event.proc_event = PROC_EXIT;
