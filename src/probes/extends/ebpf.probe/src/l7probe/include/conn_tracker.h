@@ -19,24 +19,31 @@
 
 #include "include/connect.h"
 #include "include/data_stream.h"
+#include "histogram.h"
+#include "hash.h"
 
 #define MAX_MSG_LEN_SSL 1024
 
-enum tracker_stats_t {
+enum l7_stats_t {
     BYTES_SENT,
     BYTES_RECV,
+
+    LAST_BYTES_SENT,
+    LAST_BYTES_RECV,
 
     DATA_EVT_SENT,
     DATA_EVT_RECV,
 
-    INVALID_RECORDS,
-    VALID_RECORDS,
+    OPEN_EVT,
+    CLOSE_EVT,
 
-    LAST_REPORTED_BYTES_SENT,
-    LAST_REPORTED_BYTES_RECV,
+    REQ_COUNT,
+    RSP_COUNT,
+    ERR_COUNT,
 
-    __MAX_TRACKER_STATS
+    __MAX_STATS
 };
+
 
 enum tracker_state_t {
     TRACK_METRICS,
@@ -52,12 +59,11 @@ enum msg_event_rw_t {
 struct tracker_id_s {
     int tgid;
     int fd;
-    u64 timestamp_ns;
 };
 
 struct tracker_open_s {
     u64 timestamp_ns;
-    union sockaddr_t remote_addr;
+    struct conn_addr_s remote_addr;
 };
 
 struct tracker_close_s {
@@ -67,7 +73,39 @@ struct tracker_close_s {
     u64 bytes_recv;
 };
 
+
+enum latency_range_t {
+    LT_RANGE_1 = 0,         // (0 ~ 1]ms
+    LT_RANGE_2,             // (1 ~ 3]ms
+    LT_RANGE_3,             // (3 ~ 10]ms
+    LT_RANGE_4,             // (10 ~ 20]ms
+    LT_RANGE_5,             // (20 ~ 50]ms
+    LT_RANGE_6,             // (50 ~ 100]ms
+    LT_RANGE_7,             // (100 ~ 300]ms
+    LT_RANGE_8,             // (300 ~ 500]ms
+    LT_RANGE_9,             // (500 ~ 1000]ms
+    LT_RANGE_10,            // (1000 ~ 10000]ms
+
+    __MAX_LT_RANGE
+};
+
+enum latency_t {
+    LATENCY_P50 = 0,
+    LATENCY_P90,
+    LATENCY_P99,
+
+    __MAX_LATENCY
+};
+
+enum throughput_t {
+    THROUGHPUT_REQ = 0,
+    THROUGHPUT_RESP,
+
+    __MAX_THROUGHPUT
+};
+
 struct conn_tracker_s {
+    H_HANDLE;
     struct tracker_id_s id;
     char is_ssl;
     char pad[3];
@@ -81,40 +119,60 @@ struct conn_tracker_s {
     enum tracker_state_t tacker_state;
     struct tracker_open_s open_info;
     struct tracker_close_s close_info;
-    u64 tracker_stats[__MAX_TRACKER_STATS];
+    u64 stats[__MAX_STATS];
+
+    struct histo_bucket_s latency_buckets[__MAX_LT_RANGE];
+    u64 latency_sum;
+
+    float throughput[__MAX_THROUGHPUT];
+    float latency[__MAX_LATENCY];
+    float err_ratio;
 
     struct data_stream_s send_stream;
     struct data_stream_s recv_stream;
+
+    struct record_buf_s records;
 };
 
-enum parse_rslt_e {
-    PARSE_RSLT_UNKNOW,
-    PARSE_RSLT_INVALID,
-    PARSE_RSLT_INCOMPLETE,
-    PARSE_RSLT_IGNORED,
-    PARSE_RSLT_EOS,
-    PARSE_RSLT_SUCCESS
+struct l7_info_s {
+    char comm[TASK_COMM_LEN];
+    char container_id[CONTAINER_ABBR_ID_LEN + 1];
+    char pod_id[POD_ID_LEN + 1];
+    char pod_ip[INET6_ADDRSTRLEN];
+    char is_ssl;
+    char pad[3];
 };
 
-struct parse_rslt_s {
-    enum parse_rslt_e rslt;
-};
-struct ssl_msg_t {
-    enum msg_event_rw_t msg_type;
-    int fd;
+struct l7_link_id_s {
     int tgid;
-    int count;
-    u64 ts_nsec;
-    char msg[MAX_MSG_LEN_SSL];
+    struct conn_addr_s remote_addr;
+    enum l4_role_t l4_role;     // TCP client or server; udp unknow
+    enum l7_role_t l7_role;     // RPC client or server
+    enum proto_type_t protocol; // L7 protocol type
 };
 
-void tracker_rcv_raw_evt(struct conn_tracker_s *tracker, struct conn_data_s *evt);
-void tracker_rcv_stats_evt(struct conn_tracker_s *tracker, struct conn_stats_s *evt);
-void tracker_rcv_ctrl_evt(struct conn_tracker_s *tracker, struct conn_ctl_s *evt);
+struct l7_link_s {
+    H_HANDLE;
+    struct l7_link_id_s id;
+    struct l7_info_s l7_info;
+    u64 stats[__MAX_STATS];
+    struct histo_bucket_s latency_buckets[__MAX_LT_RANGE];
+    float throughput[__MAX_THROUGHPUT];
+    float latency[__MAX_LATENCY];
+    float err_ratio;
+    u64 latency_sum;
+};
 
-void l7_sock_data_msg_handler(void *ctx, int cpu, void *data, unsigned int size);
-void l7_conn_control_msg_handler(void *ctx, int cpu, void *data, unsigned int size);
-void l7_conn_stats_msg_handler(void *ctx, int cpu, void *data, unsigned int size);
+void destroy_trackers(void *ctx);
+void destroy_links(void *ctx);
+void l7_parser(void *ctx);
+void report_l7(void *ctx);
+void trakcer_data_msg_pb(void *ctx, int cpu, void *data, unsigned int size);
+void trakcer_ctrl_msg_pb(void *ctx, int cpu, void *data, unsigned int size);
+void trakcer_stats_msg_pb(void *ctx, int cpu, void *data, unsigned int size);
+int trakcer_data_msg_rb(void *ctx, void *data, unsigned int size);
+int trakcer_ctrl_msg_rb(void *ctx, void *data, unsigned int size);
+int trakcer_stats_msg_rb(void *ctx, void *data, unsigned int size);
 
 #endif
 

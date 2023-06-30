@@ -211,7 +211,7 @@ static __always_inline __maybe_unused int update_sock_conn_proto(struct sock_con
     // ROLE_CLIENT: message(MESSAGE_RESPONSE) -> direct(L7_INGRESS)
     // ROLE_SERVER: message(MESSAGE_REQUEST) -> direct(L7_INGRESS)
     // ROLE_SERVER: message(MESSAGE_RESPONSE) -> direct(L7_EGRESS)
-    sock_conn->info.l7_role  = ((direction == L7_EGRESS) ^ (l7pro.type == MESSAGE_RESPONSE)) ? L7_CLIENT : L7_SERVER;
+    sock_conn->info.l7_role  = get_l7_role(l7pro.type, direction);
     return 0;
 }
 
