@@ -182,10 +182,10 @@ static int add_snooper_conf_procname(struct probe_s *probe,
     }
 
     (void)snprintf(snooper_conf->conf.app.comm, sizeof(snooper_conf->conf.app.comm), "%s", comm);
-    if (cmdline && !(comm[0] != 0)) {
+    if (cmdline && comm[0] != 0) {
         snooper_conf->conf.app.cmdline = strdup(cmdline);
     }
-    if (dbgdir && !(dbgdir[0] != 0)) {
+    if (dbgdir && dbgdir[0] != 0) {
         snooper_conf->conf.app.debuging_dir = strdup(dbgdir);
     }
     snooper_conf->type = SNOOPER_CONF_APP;
@@ -387,7 +387,7 @@ static int parse_snooper_procname(struct probe_s *probe, const cJSON *json)
             return -1;
         }
         comm = (char *)comm_item->valuestring;
-        cmdline = (cmdline_item != NULL) ? (char *)comm_item->valuestring : NULL;
+        cmdline = (cmdline_item != NULL) ? (char *)cmdline_item->valuestring : NULL;
         dbgdir = (dbgdir_item != NULL) ? (char *)dbgdir_item->valuestring : NULL;
         ret = add_snooper_conf_procname(probe, (const char *)comm, (const char *)cmdline, (const char *)dbgdir);
         if (ret != 0) {
