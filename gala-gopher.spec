@@ -43,7 +43,7 @@ BuildRequires: cjson-devel java-1.8.0-openjdk-devel
 
 Requires:      bash glibc elfutils bpftool dmidecode libbpf >= 2:0.3
 Requires:      log4cplus librdkafka libmicrohttpd libconfig
-Requires:      iproute cjson guntls
+Requires:      iproute cjson gnutls
 %if 0%{?without_systeminfo}?0:1
 Requires:      ethtool systemd iproute
 %endif
