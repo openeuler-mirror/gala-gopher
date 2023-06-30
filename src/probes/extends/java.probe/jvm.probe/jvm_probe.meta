@@ -40,7 +40,7 @@ measurements:
         )
     },
     {
-        table_name: "jvm_process",
+        table_name: "jvm_proc",
         entity_name: "jvm",
         fields:
         (
@@ -57,12 +57,12 @@ measurements:
             {
                 description: "Start time of the process since unix epoch in seconds.",
                 type: "gauge",
-                name: "process_start_time_seconds",
+                name: "proc_start_time_secs",
             },
             {
                 description: "Total user and system CPU time spent in seconds.",
                 type: "counter",
-                name: "process_cpu_seconds_total",
+                name: "proc_cpu_secs_total",
             },
         )
     },
@@ -84,12 +84,12 @@ measurements:
             {
                 description: "Start time of the process since unix epoch in seconds.",
                 type: "gauge",
-                name: "classes_currently_loaded",
+                name: "class_current_loaded",
             },
             {
                 description: "Total user and system CPU time spent in seconds.",
                 type: "counter",
-                name: "classes_loaded_total",
+                name: "class_loaded_total",
             },
         )
     },
@@ -158,22 +158,22 @@ measurements:
             {
                 description: "Used bytes of a given JVM memory area.",
                 type: "gauge",
-                name: "memory_bytes_used",
+                name: "mem_bytes_used",
             },
             {
                 description: "Committed (bytes) of a given JVM memory area.",
                 type: "gauge",
-                name: "memory_bytes_committed",
+                name: "mem_bytes_commit",
             },
             {
                 description: "Max (bytes) of a given JVM memory area.",
                 type: "gauge",
-                name: "memory_bytes_max",
+                name: "mem_bytes_max",
             },
             {
                 description: "Initial bytes of a given JVM memory area.",
                 type: "gauge",
-                name: "memory_bytes_init",
+                name: "mem_bytes_init",
             },
         )
     },
@@ -200,32 +200,32 @@ measurements:
             {
                 description: "Used bytes of a given JVM memory pool.",
                 type: "gauge",
-                name: "memory_pool_bytes_used",
+                name: "mem_pool_bytes_used",
             },
             {
                 description: "Committed bytes of a given JVM memory pool.",
                 type: "gauge",
-                name: "memory_pool_bytes_committed",
+                name: "mem_pool_bytes_commit",
             },
             {
                 description: "Max bytes of a given JVM memory pool.",
                 type: "gauge",
-                name: "memory_pool_bytes_max",
+                name: "mem_pool_bytes_max",
             },
             {
                 description: "Used bytes after last collection of a given JVM memory pool.",
                 type: "gauge",
-                name: "memory_pool_collection_used_bytes",
+                name: "mem_pool_coll_used_bytes",
             },
             {
                 description: "Committed after last collection bytes of a given JVM memory pool.",
                 type: "gauge",
-                name: "memory_pool_collection_committed_bytes",
+                name: "mem_pool_coll_commit_bytes",
             },
             {
                 description: "Max bytes after last collection of a given JVM memory pool.",
                 type: "gauge",
-                name: "memory_pool_collection_max_bytes",
+                name: "mem_pool_coll_max_bytes",
             },
         )
     },
@@ -289,12 +289,12 @@ measurements:
             {
                 description: "Collection count of a given JVM garbage collector.",
                 type: "summary",
-                name: "gc_collection_seconds_count",
+                name: "gc_coll_secs_count",
             },
             {
                 description: "Time spent in a given JVM garbage collector in seconds.",
                 type: "summary",
-                name: "gc_collection_seconds_sum",
+                name: "gc_coll_secs_sum",
             },
         )
     }

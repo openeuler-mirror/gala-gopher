@@ -101,7 +101,6 @@ static int __start_attach(int pid, int nspid) {
     }
 
     kill(pid, SIGQUIT);
-    sleep(60);
     struct timespec ts = {0, 20000000}; // 20 ms
 
     do {
