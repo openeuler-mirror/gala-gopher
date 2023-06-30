@@ -60,6 +60,7 @@ struct _thrd_info {
 struct _proc_info {
     int tgid;
     char comm[TASK_COMM_LEN];
+    char proc_name[PROC_CMDLINE_LEN];
     container_info_t container_info;
     fd_info_t **fd_table;
     thrd_info_t **thrd_table;
