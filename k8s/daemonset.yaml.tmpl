@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: gala-gopher
+  namespace: {{NAMESPACE}}
+  labels:
+    app: gala-gopher
+spec:
+  selector:
+    matchLabels:
+      name: gala-gopher
+  template:
+    metadata:
+      labels:
+        name: gala-gopher
+    spec:
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      imagePullSecrets:
+      - name: image-pull-secret
+      containers:
+      - name: gala-gopher
+        image: hub.oepkgs.net/a-ops/gala-gopher-{{ARCH}}:{{TAG}}
+        args: []
+        imagePullPolicy: Always
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: host-root
+          mountPath: /host
+          readOnly: true
+        - name: sys
+          mountPath: /sys
+          readOnly: false
+        - name: os-release
+          mountPath: /etc/os-release
+          readOnly: true
+        - name: localtime
+          mountPath: /etc/localtime
+          readOnly: true
+        - name: boot
+          mountPath: /boot
+          readOnly: true
+        - name: debugdir
+          mountPath: /usr/lib/debug
+          readOnly: true
+        - name: docker-sock
+          mountPath: /var/run/docker.sock
+          readOnly: false
+        - name: docker-fs
+          mountPath: /var/lib/docker
+          readOnly: true
+        env:
+        - name: GOPHER_HOST_PATH
+          value: "/host"
+        - name: GOPHER_EVENT_CHANNEL
+          value: "kafka"
+        - name: GOPHER_KAKFA_SERVER
+          value: "{{KAFKA_SERVER}}"
+        - name: GOPHER_REST_AUTH
+          value: "no"
+        - name: GOPHER_REST_PRIVATE_KEY
+          value: ""
+        - name: GOPHER_REST_CERT
+          value: ""
+        - name: GOPHER_REST_CAFILE
+          value: ""
+      hostNetwork: true
+      hostPID: true
+      dnsPolicy: ClusterFirstWithHostNet
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: host-root
+        hostPath:
+            path: /
+            type: Directory
+      - name: sys
+        hostPath:
+            path: /sys
+            type: Directory
+      - name: os-release
+        hostPath:
+            path: /etc/os-release
+            type: FileOrCreate
+      - name: localtime
+        hostPath:
+            path: /etc/localtime
+            type: File
+      - name: boot
+        hostPath:
+            path: /boot
+            type: Directory
+      - name: debugdir
+        hostPath:
+            path: /usr/lib/debug
+            type: Directory
+      - name: docker-sock
+        hostPath:
+            path: /var/run/docker.sock
+            type: Socket
+      - name: docker-fs
+        hostPath:
+            path: /var/lib/docker
+            type: DirectoryOrCreate
