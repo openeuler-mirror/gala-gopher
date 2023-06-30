@@ -611,38 +611,24 @@ static proc_hash_t* init_one_proc(u32 pid, char *stime, char *comm)
 
 int system_proc_probe(struct ipc_body_s *ipc_body)
 {
-    DIR *dir = NULL;
-    struct dirent *entry;
-    char comm[PROC_NAME_MAX];
     char stime[PROC_NAME_MAX];
-    u32 pid;
-    proc_hash_t *l, *p = NULL;
+    proc_hash_t *r, *tmp;
+    int ret;
 
-    dir = opendir(PROC_PATH);
-    if (dir == NULL) {
-        return -1;
-    }
-    while(entry = readdir(dir)) {
-        if (is_proc_subdir(entry->d_name) == -1) {
-            continue;
-        }
-        pid = (u32)atoi(entry->d_name);
-        /* proc start time(avoid repetition of pid) */
+    HASH_ITER(hh, g_procmap, r, tmp) {
         stime[0] = 0;
-        (void)get_proc_start_time(pid, stime, PROC_NAME_MAX);
-
-        /* if the proc(pid+start_time) is finded in g_procmap, it means
-           the proc was probed before and output proc_infos directly */
-        p = hash_find_proc(pid, stime);
-        if (p != NULL && p->flag == PROC_IN_PROBE_RANGE) {
-            (void)update_proc_infos(pid, &p->info);
-            output_proc_infos(p);
+        ret = get_proc_start_time(r->key.pid, stime, PROC_NAME_MAX);
+        if (ret || atoll(stime) != r->key.start_time) {
+            HASH_DEL(g_procmap, r);
+            free(r);
             continue;
         }
-
+        if (r->flag == PROC_IN_PROBE_RANGE) {
+            (void)update_proc_infos(r->key.pid, &r->info);
+            output_proc_infos(r);
+        }
     }
-    closedir(dir);
-    hash_clear_invalid_proc();
+
     return 0;
 }
 
