@@ -28,30 +28,19 @@ enum java_pid_state_t {
     PID_NEED_TO_ATTACH,
     PID_NO_NEED_ATTACH
 };
-#if 0   // TODO: 打桩部分删除后放开！
 struct java_attach_args {
     char agent_file_name[FILENAME_LEN];
     char tmp_file_name[FILENAME_LEN];
     char action[ATTACH_TYPE_LEN];
 };
-#endif
-#if 1   // TODO：打桩部分，各个涉及java_support的探针调试完后请删除！！
-struct java_attach_args {
-    int proc_obj_map_fd;
-    int loop_period;
-    int is_only_attach_once;
-    char agent_file_name[FILENAME_LEN];
-    char tmp_file_name[FILENAME_LEN];
-    char action[ATTACH_TYPE_LEN];
+struct java_property_s {
+    char mainClassName[PROC_CMDLINE_LEN];
 };
-void *java_support(void *arg);
-void java_unload(void *arg);
-#endif
 
 int get_host_java_tmp_file(u32 pid, const char *file_name, char *file_path, int path_len);
 int detect_proc_is_java(u32 pid, char *comm, int comm_len);
 int java_load(u32 pid, struct java_attach_args *args);
 void java_msg_handler(u32 pid, struct java_attach_args *args);
-
+int get_java_property(int pid, struct java_property_s *prop);
 
 #endif

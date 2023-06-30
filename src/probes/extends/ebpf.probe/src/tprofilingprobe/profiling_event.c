@@ -133,8 +133,10 @@ static int set_evt_resource(thrd_info_t *thrd_info, char *evt_resource, int reso
 
     expect_size = snprintf(evt_resource, resource_size,
                            "{\"thread.pid\":\"%d\",\"thread.tgid\":\"%d\",\"thread.comm\":\"%s\""
-                           ",\"process.comm\":\"%s\",\"container.id\":\"%s\",\"container.name\":\"%s\"}",
-                           thrd_info->pid, pi->tgid, thrd_info->comm, pi->comm, ci->id, ci->name);
+                           ",\"process.comm\":\"%s\",\"process.name\":\"%s\""
+                           ",\"container.id\":\"%s\",\"container.name\":\"%s\"}",
+                           thrd_info->pid, pi->tgid, thrd_info->comm,
+                           pi->comm, pi->proc_name, ci->id, ci->name);
     if (expect_size >= resource_size) {
         TP_ERROR("Resource size not large enough\n");
         return -1;

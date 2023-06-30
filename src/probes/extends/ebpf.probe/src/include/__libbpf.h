@@ -212,16 +212,6 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
         } \
     } while (0)
 
-#define ELF_REAL_PATH(binary_file, elf_abs_path, container_id, elf_path, path_num) \
-    do { \
-        path_num = get_exec_file_path( #binary_file, (const char *)elf_abs_path, #container_id, elf_path, PATH_NUM); \
-        if ((path_num) <= 0) { \
-            ERROR("Failed to get proc(" #binary_file ") abs_path.\n"); \
-            free_exec_path_buf(elf_path, path_num); \
-            break; \
-        } \
-    } while (0)
-
 #define UBPF_ATTACH(probe_name, sec, elf_path, func_name, succeed) \
     do { \
         int err; \
