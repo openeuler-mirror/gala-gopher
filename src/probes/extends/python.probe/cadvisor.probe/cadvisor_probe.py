@@ -264,7 +264,7 @@ class CadvisorProbe(Probe):
                 return
             else:
                 raise Exception('[cadvisor_probe]cAdvisor running but get info failed')
-        ps = subprocess.Popen(["/usr/bin/cadvisor", "-port", str(self.port)], stdout=subprocess.PIPE, shell=False)
+        ps = subprocess.Popen(["/usr/bin/cadvisor", "-port", str(self.port)], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=False)
         self.pid = ps.pid
         print("[cadvisor_probe]cAdvisor started at port %s." % self.port)
 
