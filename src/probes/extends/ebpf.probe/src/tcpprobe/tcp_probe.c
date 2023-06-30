@@ -560,7 +560,7 @@ err:
     return -1;
 }
 
-struct bpf_prog_s* tcp_load_probe(struct ipc_body_s *ipc_body)
+int tcp_load_probe(struct ipc_body_s *ipc_body, struct bpf_prog_s **new_prog)
 {
     char is_load = 0;
     struct bpf_prog_s *prog;
@@ -577,12 +577,12 @@ struct bpf_prog_s* tcp_load_probe(struct ipc_body_s *ipc_body)
 
     is_load = is_load_txrx | is_load_abn | is_load_rate | is_load_win | is_load_rtt | is_load_sockbuf;
     if (!is_load) {
-        return NULL;
+        return 0;
     }
 
     prog = alloc_bpf_prog();
     if (prog == NULL) {
-        return NULL;
+        return -1;
     }
 
     if (tcp_load_probe_link(&(ipc_body->probe_param), prog)) {
@@ -613,10 +613,11 @@ struct bpf_prog_s* tcp_load_probe(struct ipc_body_s *ipc_body)
         goto err;
     }
 
-    return prog;
+    *new_prog = prog;
+    return 0;
 
 err:
     unload_bpf_prog(&prog);
-    return NULL;
+    return -1;
 }
 

@@ -540,6 +540,7 @@ void print_snooper(struct probe_s *probe, cJSON *json)
 static void __build_ipc_body(struct probe_s *probe, struct ipc_body_s* ipc_body)
 {
     ipc_body->snooper_obj_num = 0;
+    ipc_body->probe_flags = 0;
 
     for (int i = 0; i < SNOOPER_MAX; i++) {
         if (probe->snooper_objs[i] == NULL) {
