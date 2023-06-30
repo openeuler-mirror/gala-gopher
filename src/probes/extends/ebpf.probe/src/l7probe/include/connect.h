@@ -146,7 +146,7 @@ struct conn_data_s {
     char data[CONN_DATA_MAX_SIZE];
 };
 
-enum message_type_t  get_message_type(enum l7_role_t l7_role, enum l7_direction_t direction)
+static inline enum message_type_t  get_message_type(enum l7_role_t l7_role, enum l7_direction_t direction)
 {
     // ROLE_CLIENT: message(MESSAGE_REQUEST) -> direct(L7_EGRESS)
     // ROLE_CLIENT: message(MESSAGE_RESPONSE) -> direct(L7_INGRESS)
@@ -167,7 +167,7 @@ enum message_type_t  get_message_type(enum l7_role_t l7_role, enum l7_direction_
     }
 }
 
-enum l7_role_t  get_l7_role(enum message_type_t msg_type, enum l7_direction_t direction)
+static inline enum l7_role_t  get_l7_role(enum message_type_t msg_type, enum l7_direction_t direction)
 {
     // ROLE_CLIENT: message(MESSAGE_REQUEST) -> direct(L7_EGRESS)
     // ROLE_CLIENT: message(MESSAGE_RESPONSE) -> direct(L7_INGRESS)

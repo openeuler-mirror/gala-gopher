@@ -130,7 +130,7 @@ parse_state_t proto_parse_frame(enum proto_type_t type, enum message_type_t msg_
 }
 
 void proto_match_frames(enum proto_type_t type, struct frame_buf_s *req_frame, struct frame_buf_s *resp_frame,
-                        struct record_buf_s **record_buf)
+                        struct record_buf_s *record_buf)
 {
     switch (type) {
         case PROTO_PGSQL:
