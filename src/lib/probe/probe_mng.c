@@ -551,6 +551,8 @@ static int stop_probe(struct probe_s *probe)
             PARSE_ERR("failed to cancel native probe");
             return -1;
         }
+        SET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPED);
+        UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_RUNNING);
     } else {
         pid = get_probe_pid(probe);
         if (pid < 0) {

@@ -39,9 +39,9 @@ static MHD_Result RestResponseMessage(struct MHD_Connection *connection,
     char buf[REST_RESPONSE_LEN_MAX] = {0};
 
     if (status_code == MHD_HTTP_OK) {
-        (void)snprintf(buf, sizeof(buf), "{ \"result\": \"success\", \"message\":\"%s\" }", message);
+        (void)snprintf(buf, sizeof(buf), "{ \"result\": \"success\", \"message\":\"%s\" }\n", message);
     } else {
-        (void)snprintf(buf, sizeof(buf), "{ \"result\": \"failed\", \"message\":\"%s\" }", message);
+        (void)snprintf(buf, sizeof(buf), "{ \"result\": \"failed\", \"message\":\"%s\" }\n", message);
     }
 
     response = MHD_create_response_from_buffer(strlen(buf), (void *)buf,

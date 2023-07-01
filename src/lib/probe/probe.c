@@ -47,9 +47,6 @@ void *native_probe_thread_cb(void *arg)
     UNSET_PROBE_FLAGS(g_probe, PROBE_FLAGS_STOPPED);
 
     g_probe->probe_entry(&(g_probe->probe_param));
-
-    SET_PROBE_FLAGS(g_probe, PROBE_FLAGS_STOPPED);
-    UNSET_PROBE_FLAGS(g_probe, PROBE_FLAGS_RUNNING);
 }
 static inline int __isdigit(int ch)
 {
