@@ -45,7 +45,7 @@ static struct ipc_body_s g_ipc_body;
 #define RM_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__tcplink_*"
 
 void load_established_tcps(struct ipc_body_s *ipc_body, int map_fd);
-struct bpf_prog_s* tcp_load_probe(struct ipc_body_s *ipc_body);
+int tcp_load_probe(struct ipc_body_s *ipc_body, struct bpf_prog_s **tcp_progs);
 
 static void sig_int(int signo)
 {
@@ -125,18 +125,21 @@ int main(int argc, char **argv)
     while (!g_stop) {
         ret = recv_ipc_msg(msq_id, (long)PROBE_TCP, &ipc_body);
         if (ret == 0) {
-            unload_bpf_prog(&tcp_progs);
-            tcp_progs = tcp_load_probe(&ipc_body);
-            if (!tcp_progs) {
-                destroy_ipc_body(&ipc_body);
-                break;
+            /* zero probe_flag means probe is restarted, so reload bpf prog */
+            if (ipc_body.probe_flags & IPC_FLAGS_PARAMS_CHG || ipc_body.probe_flags == 0) {
+                unload_bpf_prog(&tcp_progs);
+                if (tcp_load_probe(&ipc_body, &tcp_progs)) {
+                    destroy_ipc_body(&ipc_body);
+                    break;
+                }
             }
 
-            unload_tcp_snoopers(proc_obj_map_fd, &g_ipc_body);
-
+            if (ipc_body.probe_flags & IPC_FLAGS_SNOOPER_CHG || ipc_body.probe_flags == 0) {
+                unload_tcp_snoopers(proc_obj_map_fd, &g_ipc_body);
+                load_tcp_snoopers(proc_obj_map_fd, &ipc_body);
+            }
             destroy_ipc_body(&g_ipc_body);
             (void)memcpy(&g_ipc_body, &ipc_body, sizeof(g_ipc_body));
-            load_tcp_snoopers(proc_obj_map_fd, &g_ipc_body);
         }
 
         if (tcp_progs) {
