@@ -54,12 +54,12 @@ static void load_jvm_probe(struct java_attach_args *args)
     HASH_ITER(hh, g_procmap, r, tmp) {
         ret = get_proc_start_time(r->key.pid, stime, TIME_STRING_LEN);
         if (ret != 0) {
-            WARN("[JVMPROBE] Gets proc %u start time failed", r->key.pid);
+            WARN("[JVMPROBE] Gets proc %u start time failed\n", r->key.pid);
             continue;
         }
 
-        if (r->key.start_time != stime) {
-            INFO("[JVMPROBE] Proc %u start time changed", r->key.pid);
+        if (r->key.start_time != (u64)atoll(stime)) {
+            INFO("[JVMPROBE] Proc %u start time changed\n", r->key.pid);
             continue;
         }
 
@@ -130,7 +130,7 @@ static int refresh_proc_hash_t(struct ipc_body_s *ipc_body)
 
         ret = get_proc_start_time(pid, stime, TIME_STRING_LEN);
         if (ret != 0) {
-            WARN("[JVMPROBE] Gets proc %u start time failed!", pid);
+            WARN("[JVMPROBE] Gets proc %u start time failed!\n", pid);
             continue;
         }
 
