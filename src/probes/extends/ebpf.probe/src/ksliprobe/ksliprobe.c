@@ -266,14 +266,14 @@ int main(int argc, char **argv)
     INIT_BPF_APP(ksliprobe, EBPF_RLIM_LIMITED);
     
     if (signal(SIGINT, sig_int) == SIG_ERR) {
-        fprintf(stderr, "Can't set signal handler: %d\n", errno);
+        ERROR("[KSLIPROBE]: Can't set signal handler: %d\n", errno);
         return -1;
     }
 
 #ifndef KERNEL_SUPPORT_TSTAMP
-    printf("The kernel version does not support loading the tc tstamp program\n");
+    INFO("[KSLIPROBE]: The kernel version does not support loading the tc tstamp program\n");
 #endif
-    printf("SLI probe successfully started!\n");
+    INFO("[KSLIPROBE]: SLI probe successfully started!\n");
 
     while (!stop) {
         err = recv_ipc_msg(msq_id, (long)PROBE_KSLI, &ipc_body);
