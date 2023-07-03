@@ -24,6 +24,11 @@
 #define KERNEL_SUPPORT_TSTAMP
 #endif
 
+#define PGSLI_DEBUG(fmt, ...) DEBUG("[PGSLIPROBE] " fmt, ##__VA_ARGS__)
+#define PGSLI_INFO(fmt, ...) INFO("[PGSLIPROBE] " fmt, ##__VA_ARGS__)
+#define PGSLI_WARN(fmt, ...) WARN("[HPGSLIROBE] " fmt, ##__VA_ARGS__)
+#define PGSLI_ERROR(fmt, ...) ERROR("[PGSLIPROBE] " fmt, ##__VA_ARGS__)
+
 struct ogsli_args_s {
     __u64 period; // Sampling period, unit ns
 };
