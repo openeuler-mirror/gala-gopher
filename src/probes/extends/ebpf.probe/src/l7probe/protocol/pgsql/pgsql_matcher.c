@@ -14,7 +14,7 @@
  ******************************************************************************/
 
 #include <stdbool.h>
-#include <stdarg.h>
+#include <string.h>
 #include "common.h"
 #include "pgsql_matcher.h"
 #include "pgsql_parser.h"

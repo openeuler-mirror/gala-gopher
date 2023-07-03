@@ -13,12 +13,13 @@
  * Description:
  ******************************************************************************/
 
+#include "string.h"
 #include "protocol_common.h"
 
 struct raw_data_s *parser_copy_raw_data(struct raw_data_s *raw_data)
 {
     struct raw_data_s *copied_raw_data = (struct raw_data_s *) malloc(
-        sizeof(struct raw_data_s) + raw_data->data_len + 1);
+        sizeof(struct raw_data_s) + raw_data->data_len);
     if (copied_raw_data == NULL) {
         return NULL;
     }
@@ -33,7 +34,7 @@ struct raw_data_s *parser_copy_raw_data(struct raw_data_s *raw_data)
 
 struct raw_data_s *init_raw_data_with_str(char *str, size_t str_len)
 {
-    struct raw_data_s *raw_data = (struct raw_data_s *) malloc(sizeof(struct raw_data_s) + str_len + 1);
+    struct raw_data_s *raw_data = (struct raw_data_s *) malloc(sizeof(struct raw_data_s) + str_len);
     if (raw_data == NULL) {
         return NULL;
     }

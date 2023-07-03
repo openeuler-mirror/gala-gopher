@@ -18,12 +18,6 @@
 
 #pragma once
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "common.h"
 #include "../../include/data_stream.h"
 

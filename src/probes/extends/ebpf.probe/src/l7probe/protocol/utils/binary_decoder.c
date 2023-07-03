@@ -13,7 +13,13 @@
  * Description:
  ******************************************************************************/
 
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include "binary_decoder.h"
+#include "../common/protocol_common.h"
 
 parse_state_t decoder_extract_char(struct raw_data_s *raw_data, char *res)
 {
@@ -113,6 +119,30 @@ bool extract_prefix_bytes_string(struct raw_data_s *raw_data, char **res, size_t
     }
     *res = new_res;
     return true;
+}
+
+parse_state_t decoder_extract_raw_data_with_len(struct raw_data_s *src_raw_data, size_t decode_len,
+                                                struct raw_data_s **dst_raw_data)
+{
+    if ((src_raw_data->data_len - src_raw_data->current_pos) < decode_len) {
+        ERROR("[Binary Decoder] Buffer bytes are insufficient.\n");
+        return STATE_NEEDS_MORE_DATA;
+    }
+
+    struct raw_data_s *raw_data = (struct raw_data_s *) malloc(sizeof(struct raw_data_s) + decode_len);
+    if (raw_data == NULL) {
+        ERROR("[Binary Decoder] Failed to malloc raw_data.\n");
+        return STATE_INVALID;
+    }
+    raw_data->data_len = decode_len;
+    raw_data->current_pos = 0;
+    memcpy(raw_data->data, &src_raw_data->data[src_raw_data->current_pos], decode_len);
+
+    *dst_raw_data = raw_data;
+
+    // 偏移缓存区指针
+    parser_raw_data_offset(src_raw_data, decode_len);
+    return STATE_SUCCESS;
 }
 
 parse_state_t decoder_extract_string(struct raw_data_s *raw_data, char **res, size_t decode_len)

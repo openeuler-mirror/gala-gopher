@@ -72,6 +72,8 @@ struct raw_data_s {
     int flags;
     u64 timestamp_ns;
     size_t data_len;
+
+    // current_pos有效值：[0, data_len - 1]，current_pos = data_len时，证明已解析完当前data[]
     size_t current_pos;
     char data[0];
 };
