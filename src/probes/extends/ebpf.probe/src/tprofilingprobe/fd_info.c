@@ -125,7 +125,7 @@ static int fill_sock_info(fd_info_t *fd_info, int tgid)
 
     fd_info->type = FD_TYPE_SOCK;
 
-    ret = snprintf(cmd, sizeof(cmd), CMD_LSOF_SOCK_INFO, fd_info->fd, tgid);
+    ret = snprintf(cmd, sizeof(cmd), CMD_LSOF_SOCK_INFO, tgid, fd_info->fd, tgid);
     if (ret < 0 || ret >= sizeof(cmd)) {
         TP_ERROR("Failed to set lsof command.\n");
         return -1;
