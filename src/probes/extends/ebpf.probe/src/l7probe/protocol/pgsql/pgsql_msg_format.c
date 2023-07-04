@@ -77,8 +77,8 @@ void free_pgsql_regular_msg(struct pgsql_regular_msg_s *msg)
     if (msg == NULL) {
         return;
     }
-    if (msg->payload != NULL) {
-        free(msg->payload);
+    if (msg->payload_data != NULL) {
+        free(msg->payload_data);
     }
     free(msg);
 }
