@@ -1,6 +1,6 @@
 # Rest API设计
 
- WEB server端口可配置（缺省9999），URL组织方式 http://gala-gopher + [端口号] + function（采集特性），比如火焰图的URL：http://gala-gopher:9999/flamegraph
+ WEB server端口可配置（缺省9999），URL组织方式 http://[gala-gopher所在节点ip] + [端口号] + function（采集特性），比如火焰图的URL：http://localhost:9999/flamegraph
 
 
 
@@ -11,61 +11,62 @@
 下面是火焰图同时开启oncpu, offcpu采集特性的API举例：
 
 ```
-curl -X POST http://gala-gopher:9999/flamegraph -d json='
+curl -X PUT http://localhost:9999/flamegraph -d json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/stackprobe",
-        "check_cmd": ""
+        "check_cmd": "",
+        "probe": [
+            "oncpu",
+            "offcpu"
+        ]
     },
-    "probes": {
-            "probe": [
-                "oncpu",
-                "offcpu"
-            ],
-            "proc_id": [
-                101,
-                102
-            ],
-            "proc_name": [
-                {
-                    "comm": "app1",
-                    "cmdline": "",
-                    "debugging_dir": ""
-                },
-                {
-                    "comm": "app2",
-                    "cmdline": "",
-                    "debugging_dir": ""
-                }
-            ],
-            "pod_id": [
-                "pod1",
-                "pod2"
-            ],
-            "container_id": [
-                "container1",
-                "container2"
-            ]
+    "snoopers": {
+        "proc_id": [
+            101,
+            102
+        ],
+        "proc_name": [
+            {
+                "comm": "app1",
+                "cmdline": "",
+                "debugging_dir": ""
+            },
+            {
+                "comm": "app2",
+                "cmdline": "",
+                "debugging_dir": ""
+            }
+        ],
+        "pod_id": [
+            "pod1",
+            "pod2"
+        ],
+        "container_id": [
+            "container1",
+            "container2"
+        ]
     }
 }'
 ```
 
-通过REST关闭火焰图的采集能力
+通过REST开启、关闭火焰图的采集能力
 
 ```
-curl -X POST http://gala-gopher:9999/flamegraph -d json='
+curl -X PUT http://localhost:9999/flamegraph -d json='
 {
-    "operate": "start" // optional: start, stop, delete
+    "state": "running" // optional: running,stoped
 }'
 ```
 
 详细采集能力REST接口定义如下：
 
 ```
-1. 监控对象可以任意组合，监控范围取合集。
-2. 启动文件必须真实有效。
-3. 采集特性可以按需开启全部/部分能力，关闭时只能整体关闭某个采集特性。
-4. opengauss监控对象是DB实例（IP/Port/dbname/user/password）
+1. 接口为无状态形式，每次上传的设置为该探针的最终运行结果，包括状态、参数、监控范围。
+2. 监控对象可以任意组合，监控范围取合集。
+3. 启动文件必须真实有效。
+4. 采集特性可以按需开启全部/部分能力，关闭时只能整体关闭某个采集特性。
+5. opengauss监控对象是DB实例（IP/Port/dbname/user/password）
 ```
 
 | 采集特性      | 采集特性说明                                             | 采集子项范围                                                 | 监控对象                              | 启动文件                           | 启动条件                  |
@@ -93,7 +94,7 @@ curl -X POST http://gala-gopher:9999/flamegraph -d json='
 探针在运行期间还需要设置一些参数设置，例如：设置火焰图的采样周期、上报周期
 
 ```
-curl -X POST http://gala-gopher:9999/flamegraph -d json='
+curl -X PUT http://localhost:9999/flamegraph -d json='
 {
     "params": {
         "report_period": 180,
@@ -130,44 +131,42 @@ curl -X POST http://gala-gopher:9999/flamegraph -d json='
 ## 探针运行状态
 
 ```
-curl -X GET http://gala-gopher:9999/flamegraph
+curl -X GET http://localhost:9999/flamegraph
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/stackprobe",
         "check_cmd": ""
+        "probe": [
+            "oncpu",
+            "offcpu"
+        ]
     },
-    "probes": [
-        {
-            "probe": [
-                "oncpu",
-                "offcpu"
-            ],
-            "proc_id": [
-                101,
-                102
-            ],
-            "proc_name": [
-                {
-                    "comm": "app1",
-                    "cmdline": "",
-                    "debugging_dir": ""
-                },
-                {
-                    "comm": "app2",
-                    "cmdline": "",
-                    "debugging_dir": ""
-                }
-            ],
-            "pod_id": [
-                "pod1",
-                "pod2"
-            ],
-            "container_id": [
-                "container1",
-                "container2"
-            ]
-        }
-    ]
+    "snoopers": {
+        "proc_id": [
+            101,
+            102
+        ],
+        "proc_name": [
+            {
+                "comm": "app1",
+                "cmdline": "",
+                "debugging_dir": ""
+            },
+            {
+                "comm": "app2",
+                "cmdline": "",
+                "debugging_dir": ""
+            }
+        ],
+        "pod_id": [
+            "pod1",
+            "pod2"
+        ],
+        "container_id": [
+            "container1",
+            "container2"
+        ]
+    }
 }
 ```
 
