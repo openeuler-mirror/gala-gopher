@@ -211,7 +211,7 @@ static void report_ep(struct endpoint_val_t *ep)
     }
 
     if (ep->ep_stats.stats[EP_STATS_ACCEPT_OVERFLOW] != 0) {
-        if (entityId[0] != 0)
+        if (entityId[0] == 0)
             build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
 
         report_logs(OO_NAME,
@@ -223,7 +223,7 @@ static void report_ep(struct endpoint_val_t *ep)
     }
 
     if (ep->ep_stats.stats[EP_STATS_SYN_OVERFLOW] != 0) {
-        if (entityId[0] != 0)
+        if (entityId[0] == 0)
             build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
 
         report_logs(OO_NAME,
@@ -235,7 +235,7 @@ static void report_ep(struct endpoint_val_t *ep)
     }
 
     if (ep->ep_stats.stats[EP_STATS_PASSIVE_FAILS] != 0) {
-        if (entityId[0] != 0)
+        if (entityId[0] == 0)
             build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
 
         report_logs(OO_NAME,

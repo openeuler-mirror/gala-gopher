@@ -77,7 +77,7 @@ void report_tcp_win_evt(struct probe_params *args, struct tcp_metrics_s *metrics
     }
 
     if (win_stats->tcpi_snd_wnd == 0) {
-        if (entityId[0] != 0) {
+        if (entityId[0] == 0) {
             build_entity_id(&metrics->link, entityId, __ENTITY_ID_LEN);
         }
         report_logs(OO_NAME,
@@ -88,7 +88,7 @@ void report_tcp_win_evt(struct probe_params *args, struct tcp_metrics_s *metrics
     }
 
     if (win_stats->tcpi_avl_snd_wnd == 0 && win_stats->tcpi_snd_wnd != 0) {
-        if (entityId[0] != 0) {
+        if (entityId[0] == 0) {
             build_entity_id(&metrics->link, entityId, __ENTITY_ID_LEN);
         }
         report_logs(OO_NAME,
@@ -122,7 +122,7 @@ void report_tcp_abn_evt(struct probe_params *args, struct tcp_metrics_s *metrics
     }
 
     if ((args->drops_count_thr != 0) && (abn_stats->backlog_drops > args->drops_count_thr)) {
-        if (entityId[0] != 0) {
+        if (entityId[0] == 0) {
             build_entity_id(&metrics->link, entityId, __ENTITY_ID_LEN);
         }
         report_logs(OO_NAME,
@@ -134,7 +134,7 @@ void report_tcp_abn_evt(struct probe_params *args, struct tcp_metrics_s *metrics
     }
 
     if ((args->drops_count_thr != 0) && (abn_stats->filter_drops > args->drops_count_thr)) {
-        if (entityId[0] != 0) {
+        if (entityId[0] == 0) {
             build_entity_id(&metrics->link, entityId, __ENTITY_ID_LEN);
         }
         report_logs(OO_NAME,
@@ -149,7 +149,7 @@ void report_tcp_abn_evt(struct probe_params *args, struct tcp_metrics_s *metrics
         (abn_stats->sk_drops - abn_stats->last_time_sk_drops) : abn_stats->sk_drops;
 
     if ((args->drops_count_thr != 0) && (sk_drops_delta > args->drops_count_thr)) {
-        if (entityId[0] != 0) {
+        if (entityId[0] == 0) {
             build_entity_id(&metrics->link, entityId, __ENTITY_ID_LEN);
         }
         report_logs(OO_NAME,
@@ -163,7 +163,7 @@ void report_tcp_abn_evt(struct probe_params *args, struct tcp_metrics_s *metrics
     u32 lost_out_delta = (abn_stats->lost_out >= abn_stats->last_time_lost_out) ?
         (abn_stats->lost_out - abn_stats->last_time_lost_out) : abn_stats->lost_out;
     if ((args->drops_count_thr != 0) && (lost_out_delta > args->drops_count_thr)) {
-        if (entityId[0] != 0) {
+        if (entityId[0] == 0) {
             build_entity_id(&metrics->link, entityId, __ENTITY_ID_LEN);
         }
         report_logs(OO_NAME,
@@ -179,7 +179,7 @@ void report_tcp_abn_evt(struct probe_params *args, struct tcp_metrics_s *metrics
         (abn_stats->sacked_out - abn_stats->last_time_sacked_out) : abn_stats->sacked_out;
 
     if ((args->drops_count_thr != 0) && (sacked_out_delta > args->drops_count_thr)) {
-        if (entityId[0] != 0) {
+        if (entityId[0] == 0) {
             build_entity_id(&metrics->link, entityId, __ENTITY_ID_LEN);
         }
         report_logs(OO_NAME,
