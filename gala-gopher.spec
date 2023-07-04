@@ -101,11 +101,14 @@ popd
 install -d %{buildroot}/etc/gala-gopher
 install -d %{buildroot}/opt/gala-gopher
 install -d %{buildroot}%{_bindir}
+install -d -m 700 %{buildroot}/usr/libexec/gala-gopher/
 mkdir -p  %{buildroot}/usr/lib/systemd/system
 install -m 0600 service/gala-gopher.service %{buildroot}/usr/lib/systemd/system/gala-gopher.service
+install -m 0700 script/init_probes.sh %{buildroot}/usr/libexec/gala-gopher/
 pushd build
 sh install.sh %{buildroot}%{_bindir} %{buildroot}/opt/gala-gopher %{buildroot}/etc/gala-gopher
 popd
+install -m 0600 config/probes.init %{buildroot}/etc/gala-gopher
 
 %post
 %systemd_post gala-gopher.service
@@ -130,11 +133,13 @@ fi
 /opt/gala-gopher/meta/*
 /opt/gala-gopher/lib/*
 /etc/gala-gopher/res/event_multy_language.rc
+/etc/gala-gopher/probes.init
 %config(noreplace) /etc/gala-gopher/*.conf
 %config(noreplace) /etc/gala-gopher/extend_probes/*.conf
 %exclude /opt/gala-gopher/extend_probes/*.pyc
 %exclude /opt/gala-gopher/extend_probes/*.pyo
 /usr/lib/systemd/system/gala-gopher.service
+%attr(0700,root,root) /usr/libexec/gala-gopher/init_probes.sh
 
 %changelog
 
