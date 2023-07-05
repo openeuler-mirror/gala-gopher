@@ -1,55 +1,37 @@
 #
-# Dockerfile for building openEuler aops gala-gopher_2003_sp1_aarch64 docker image.
-# 
+# Dockerfile for building A-Ops gala-gopher docker image for openEuler 20.03 lts sp1.
+#
 # Usage:
-# docker build -f Dockerfile_2003_sp1_aarch64 -t gala-gopher:0.0.1 .
-# docker run -it gala-gopher:0.0.1
+# docker build -f Dockerfile_2003_sp1_aarch64 -t gala-gopher:1.0.2 .
 #
 
 # base image
-FROM openeuler/openeuler:20.03-lts-sp1
+FROM hub.oepkgs.net/openeuler/openeuler_aarch64:20.03-lts-sp1
 
-MAINTAINER dowzyx
+MAINTAINER GALA
 
 # container work directory
 WORKDIR /gala-gopher
 
-# copy current directory files to container work directory 
+# copy current directory files to container work directory
 ADD . /gala-gopher
 
-# update yum repofile
 # agent configuration is needed for intranet users
-# ENV http_proxy=http://z00xxxxxx:xxx@proxy.huawei.com:8080
-# ENV https_proxy=http://z00xxxxxx:xxx@proxy.huawei.com:8080
+# ENV http_proxy=http://user:pass@proxy.com:8080
+# ENV https_proxy=http://user:pass@proxy.com:8080
 
-# install library dependencies 
-# RUN yum install -y librdkafka librdkafka-devel libmicrohttpd libmicrohttpd-devel libconfig libconfig-devel uthash-devel elfutils elfutils-devel zlib zlib-devel
-RUN yum update -y \
-    && yum install -y gettext \
-    && yum install -y librdkafka \
-    && yum install -y librdkafka-devel \
-    && yum install -y libmicrohttpd \
-    && yum install -y libmicrohttpd-devel \
-    && yum install -y libconfig \
-    && yum install -y libconfig-devel \
-    && yum install -y uthash-devel \
-    && yum install -y zlib \
-    && yum install -y zlib-devel \
-    && yum install -y elfutils \
-    && yum install -y elfutils-devel \
-    && yum install -y libbpf-0.3-1.h0.oe1.aarch64.rpm \
-    && yum install -y libbpf-devel-0.3-1.h0.oe1.aarch64.rpm \
-    && yum install -y kmod \
+COPY ./entrypoint.sh /
+RUN chmod +x /entrypoint.sh
+
+# install gala-gopher
+RUN yum install -y libbpf-0.3-1.oe1.aarch64.rpm \
+    && yum install -y gala-gopher-1.0.2-2.aarch64.rpm \
     && yum install -y docker \
-    && yum install -y iproute \
-    && yum install -y gala-gopher-v1.1.0-52.aarch64.rpm
+    && yum install -y java-1.8.0-openjdk \
+    && yum clean all \
+    && rm -rf /var/cache/yum/*
 
-# expose port
-EXPOSE 8888
+# start gala-gopher
+ENTRYPOINT [ "/entrypoint.sh" ]
 
-# start gala-gopher service
-# method 1
-# CMD envsubst < /gala-gopher/gala-gopher.conf.template > /opt/gala-gopher/gala-gopher.conf && /usr/bin/gala-gopher
-# method 2
-# CMD cp -f /gala-gopher/user_conf/*.conf /opt/gala-gopher && cp -f /gala-gopher/user_conf/machine-id /etc/machine-id && /usr/bin/gala-gopher
-CMD cp -f /gala-gopher/user_conf/*.conf /opt/gala-gopher && /usr/bin/gala-gopher
+CMD [ "/usr/bin/gala-gopher" ]
