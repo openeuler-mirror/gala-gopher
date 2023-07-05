@@ -12,8 +12,8 @@
  * Create: 2023-04-20
  * Description: Implementation of MultipleMap using utHash.
  ******************************************************************************/
-#ifndef GALA_GOPHER_MULTIPLE_MAP_H
-#define GALA_GOPHER_MULTIPLE_MAP_H
+#ifndef __MULTIPLE_MAP_H__
+#define __MULTIPLE_MAP_H__
 
 #include <stddef.h>
 #include <utlist.h>
@@ -29,9 +29,9 @@
 /**
  * multiple map value link node
  */
-typedef struct value_node {
+typedef struct value_node_t {
     char value[MAX_VALUE_LEN];
-    struct value_node *next;
+    struct value_node_t *next;
 } value_node;
 
 value_node *init_value_node();
@@ -45,7 +45,7 @@ void free_value_node(value_node *node);
  * HTTP1.x headers can have multiple values for the same name, and filed names ard case-insensitive.
  */
 typedef struct key_values_pair {
-    char key[MAX_KEY_LEN];
+    char key_l[MAX_KEY_LEN];    // key_l represents lower case of key
     value_node *values;
     UT_hash_handle hh;
 } multiple_map_pair, http_headers_map;
@@ -81,12 +81,4 @@ http_headers_map *get_values_by_key(http_headers_map *map, const char *key);
  */
 char *get_1st_value_by_key(http_headers_map *map, const char *key);
 
-/**
- * k-v pair map to string
- *
- * @param map
- * @return
- */
-char *to_string(http_headers_map *map);
-
-#endif // GALA_GOPHER_MULTIPLE_MAP_H
+#endif // __MULTIPLE_MAP_H__

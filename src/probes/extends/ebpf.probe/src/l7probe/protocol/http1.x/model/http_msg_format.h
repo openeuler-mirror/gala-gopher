@@ -12,29 +12,30 @@
  * Create: 2023-04-20
  * Description:
  ******************************************************************************/
-#ifndef GALA_GOPHER_HTTP_MSG_FORMAT_H
-#define GALA_GOPHER_HTTP_MSG_FORMAT_H
+#ifndef __HTTP_MSG_FORMAT_H__
+#define __HTTP_MSG_FORMAT_H__
+
 
 #pragma once
 
 #include "multiple_map.h"
 #include "../../../include/l7.h"
 
-inline constexpr char kContentEncoding[] = "Content-Encoding";
-inline constexpr char kContentLength[] = "Content-Length";
-inline constexpr char kContentType[] = "Content-Type";
-inline constexpr char kTransferEncoding[] = "Transfer-Encoding";
-inline constexpr char kUpgrade[] = "Upgrade";
+extern const char kContentEncoding[17];
+extern const char kContentLength[15];
+extern const char kContentType[13];
+extern const char kTransferEncoding[18];
+extern const char kUpgrade[8];
 
 /**
  * Define Message type structure
  */
 typedef struct http_message {
-    message_type_t type;
+    enum message_type_t type;
     uint64_t timestamp_ns;
 
     int minor_version;
-    http_headers_map headers;
+    http_headers_map *headers;
 
     char *req_method;
     char *req_path;
@@ -58,10 +59,8 @@ void free_http_msg(http_message *http_msg);
  * Http Record structure, contains request and response
  */
 typedef struct http_record {
-    http_message req;
-    http_message resp;
-
-    char *dbg_info;
+    http_message *req;
+    http_message *resp;
 } http_record;
 
 http_record *init_http_record(void);
@@ -76,20 +75,4 @@ void free_http_record(http_record *http_record);
  */
 size_t byte_size(struct http_message *message);
 
-/**
- * ToString function of Message structure
- *
- * @param message
- * @return
- */
-char *to_string(http_message *message);
-
-/**
- * ToString function of HttpRecord structure
- *
- * @param httpRecord
- * @return string
- */
-char *to_string(http_record *http_record);
-
-#endif // GALA_GOPHER_HTTP_MSG_FORMAT_H
+#endif // __HTTP_MSG_FORMAT_H__

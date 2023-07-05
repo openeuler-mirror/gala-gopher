@@ -12,18 +12,22 @@
  * Create: 2023-04-25
  * Description:
  ******************************************************************************/
-#ifndef GALA_GOPHER_STRING_UTILS_H
-#define GALA_GOPHER_STRING_UTILS_H
+#ifndef __STRING_UTILS_H__
+#define __STRING_UTILS_H__
+
+#include <stdbool.h>
+#include <string.h>
+#include <stdlib.h>
 
 /**
  * get sub-string(start, end) of src_str
  *
  * @param src_str
  * @param start_pos
- * @param end_pos
+ * @param len
  * @return sub-string from start_pos to end_pos
  */
-char *substr(char *src_str, int start_pos, int end_pos);
+char *substr(char *src_str, size_t start_pos, size_t len);
 
 /**
  * string to UPPER
@@ -31,7 +35,7 @@ char *substr(char *src_str, int start_pos, int end_pos);
  * @param src_char
  * @return
  */
-char* to_upper(char *src_char);
+char* to_upper(const char *src_char);
 
 /**
  * string to LOWER
@@ -39,7 +43,7 @@ char* to_upper(char *src_char);
  * @param src_char
  * @return
  */
-char* to_lower(char *src_char);
+char* to_lower(const char *src_char);
 
 /**
  * find char from string
@@ -58,6 +62,33 @@ int find(char *str, char ch);
  * @return
  */
 int rfind(char *str, char ch);
+
+/**
+ * find sub-string from string
+ *
+ * @param str
+ * @param sub
+ * @param start_pos
+ * @return
+ */
+size_t find_str(const char *str, const char *sub, const size_t start_pos);
+
+/**
+ * rfind sub-string from string
+ *
+ * @param str
+ * @param sub
+ * @return
+ */
+size_t rfind_str(const char *str, const char *sub);
+
+/**
+ * get char* array len
+ *
+ * @param arr
+ * @return
+ */
+size_t get_array_len(char *arr[]);
 
 /**
  * judge str is contained substr
@@ -86,7 +117,7 @@ char** str_split(const char* str, const char* delim, int skip_empty);
  * @param max_splits
  * @return
  */
-char** max_split(const char *str, const char *delim, int max_count)
+char** max_split(const char *str, const char *delim, int max_count);
 
 /**
  * start_with for string
@@ -114,4 +145,4 @@ int simple_atoi(const char *str, int *result);
  */
 void remove_prefix(char *str, const char *prefix);
 
-#endif // GALA_GOPHER_STRING_UTILS_H
+#endif // __STRING_UTILS_H__

@@ -12,8 +12,8 @@
  * Create: 2023-04-20
  * Description:
  ******************************************************************************/
-#ifndef GALA_GOPHER_HTTP_BODY_DECODER_H
-#define GALA_GOPHER_HTTP_BODY_DECODER_H
+#ifndef __HTTP_BODY_DECODER_H__
+#define __HTTP_BODY_DECODER_H__
 
 #include "../../../include/data_stream.h"
 
@@ -38,7 +38,7 @@ parse_state_t parse_chunked(char** buf, size_t body_size_limit_bytes, char** res
   * @param body_size body size
   * @return
   */
-parse_state_t parse_content(char* content_len_str, char** data,
-                            size_t body_size_limit_bytes, char** result, size_t* body_size);
+parse_state_t parse_content(char* content_len_str, char** data, size_t body_size_limit_bytes,
+                            char** result, size_t* body_size);
 
-#endif // GALA_GOPHER_HTTP_BODY_DECODER_H
+#endif // __HTTP_BODY_DECODER_H__

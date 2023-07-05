@@ -9,28 +9,17 @@
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
  * Author: eank
- * Create: 2023-06-01
+ * Create: 2023-04-20
  * Description:
  ******************************************************************************/
-#ifndef __DECIMAL_UTILS_H__
-#define __DECIMAL_UTILS_H__
+#include "http_matcher.h"
 
-/**
- * min function of int-type
- *
- * @param a
- * @param b
- * @return
- */
-int min(int a, int b);
+#define FLAGS_http_response_header_filters = "Content-Type:json,Content-Type:text/Comma-separated strings to specify the substrings should be included for a header. The format looks like <header-1>:<substr-1>,...,<header-n>:<substr-n>. The substrings cannot include comma(s). The filters are conjunctive, therefore the headers can be duplicate. For example, 'Content-Type:json,Content-Type:text' will select a HTTP response with a Content-Type header whose value contains 'json' *or* 'text'."
 
-/**
- * max function of int-type
- *
- * @param a
- * @param b
- * @return
- */
-int max(int a, int b);
+void pre_process_message(http_message* message)
+{
+}
 
-#endif // GALA_GOPHER_DECIMAL_UTILS_H
+void http_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *resp_frames, struct record_buf_s *record_buf)
+{
+}

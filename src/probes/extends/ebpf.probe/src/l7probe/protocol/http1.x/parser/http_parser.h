@@ -12,33 +12,21 @@
  * Create: 2023-04-20
  * Description:
  ******************************************************************************/
-#ifndef GALA_GOPHER_HTTP_PARSER_H
-#define GALA_GOPHER_HTTP_PARSER_H
+#ifndef __HTTP_PARSER_H__
+#define __HTTP_PARSER_H__
 
 #pragma once
 
 #include "../../common/protocol_common.h"
 #include "../model/http_msg_format.h"
-#include "../model/multiple_map.h"
-#include "../../utils/binary_decoder.h"
-#include "../../utils/parser_state.h"
-
-#include <algorithm>
-#include <string>
-
-#include "../decoder/http_body_decoder.h"
-#include "../matcher/http_matcher.h"
-#include "../../utils/message_type.h"
-#include "../util/string_utils.h"
 #include "../../../include/l7.h"
 
-// const size_t kMaxNumHeaders = 50;
-#define K_MAX_NUM_HEADERS 50;
+#define K_MAX_NUM_HEADERS 50
 
 /**
  * HTTP Request
  */
-struct http_request {
+typedef struct http_request {
     const char* method;
     size_t method_len;
     const char* path;
@@ -48,12 +36,12 @@ struct http_request {
     // Set header number to maximum we can accept.
     // Pico will change it to the number of headers parsed for us.
     size_t num_headers;
-};
+} http_request;
 
 /**
  * HTTP Response
  */
-struct http_response {
+typedef struct http_response {
     const char* msg;
     size_t msg_len;
     int status;
@@ -62,25 +50,25 @@ struct http_response {
     // Set header number to maximum we can accept.
     // Pico will change it to the number of headers parsed for us.
     size_t num_headers;
-};
+} http_response;
 
 /**
  * Parse Request
  *
  * @param buf
- * @param result
+ * @param request
  * @return
  */
-int parse_request(struct raw_data_s *raw_data, http_request* result);
+int parse_request(struct raw_data_s *raw_data, http_request *request);
 
 /**
  * Parse Response
  *
  * @param buf
- * @param result
+ * @param response
  * @return
  */
-int parse_response(struct raw_data_s *raw_data, http_response* result);
+int parse_response(struct raw_data_s *raw_data, http_response* response);
 
 /**
  * Get HTTP Headers Map
@@ -89,7 +77,7 @@ int parse_response(struct raw_data_s *raw_data, http_response* result);
  * @param num_headers
  * @return
  */
-http_headers_map get_http_headers_map(const http_header* headers, size_t num_headers);
+http_headers_map *get_http_headers_map(http_headers_map *headers, size_t num_headers);
 
 /**
  * Parses a single HTTP message from the input string.
@@ -110,4 +98,4 @@ parse_state_t http_parse_frame(enum message_type_t msg_type, struct raw_data_s *
  */
 size_t http_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s *raw_data);
 
-#endif // GALA_GOPHER_HTTP_PARSER_H
+#endif // __HTTP_PARSER_H__

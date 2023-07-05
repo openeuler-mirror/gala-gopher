@@ -26,25 +26,22 @@
  * @param end_pos
  * @return
  */
-char *substr(char *src_str, int start_pos, int end_pos)
+char *substr(char *src_str, size_t start_pos, size_t len)
 {
-    // 计算子字符串的长度
-    int sub_len = end_pos - start_pos + 1;
-
     // 分配存储子字符串的内存空间
-    char *sub_str = (char *) malloc(sizeof(char) * (sub_len + 1));
+    char *sub_str = (char *) malloc(sizeof(char) * (len + 1));
     if (sub_str == NULL) {
         return NULL;
     }
 
     // 将子字符串复制到新分配的内存空间中
-    strncpy(sub_str, src_str + start_pos, sub_len);
-    sub_str[sub_len] = '\0';
+    strncpy(sub_str, src_str + start_pos, len);
+    sub_str[len] = '\0';
 
     return sub_str;
 }
 
-char *to_upper(char *src_char)
+char *to_upper(const char *src_char)
 {
     char *upper_str = (char *) malloc(sizeof(char *));
     for (int i = 0; src_char[i] != '\0'; i++) {
@@ -53,7 +50,7 @@ char *to_upper(char *src_char)
     return upper_str;
 }
 
-char *to_lower(char *src_char)
+char *to_lower(const char *src_char)
 {
     char *lower_str = (char *) malloc(sizeof(char *));
     for (int i = 0; src_char[i] != '\0'; i++) {
@@ -82,6 +79,56 @@ int rfind(char *str, char ch)
         }
     }
     return -1;
+}
+
+size_t find_str(const char *str, const char *sub, const size_t start_pos)
+{
+    size_t str_len = strlen(str);
+    size_t sub_len = strlen(sub);
+
+    if (str_len < sub_len) {
+        return -1;
+    }
+
+    for (int i = start_pos; i <= str_len - sub_len; i++) {
+        int j;
+        for (j = 0; j < sub_len; j++) {
+            if (str[i + j] != sub[j]) {
+                break;
+            }
+        }
+        if (j == sub_len) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+size_t rfind_str(const char *str, const char *sub)
+{
+    size_t str_len = strlen(str);
+    size_t sub_len = strlen(sub);
+
+    if (str_len < sub_len) {
+        return -1;
+    }
+
+    for (int i = str_len - sub_len; i >= 0; i++) {
+        if (strncmp(str + i, sub, sub_len) == 0) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+size_t get_array_len(char *arr[])
+{
+    size_t len = 0;
+    while(arr[len] != NULL) {
+        len++;
+    }
+    return len;
 }
 
 bool contains(char *str, char *substr)

@@ -189,8 +189,7 @@ struct pgsql_regular_msg_s {
     // default: '\0'
     char tag;
     int32_t len;
-    char *payload;
-    size_t payload_len; // todo 需要补充该字段更新机制
+    struct raw_data_s *payload_data;
     bool consumed;
 };
 

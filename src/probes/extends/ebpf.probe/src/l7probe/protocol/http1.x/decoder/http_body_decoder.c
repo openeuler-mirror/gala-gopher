@@ -9,28 +9,18 @@
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
  * Author: eank
- * Create: 2023-06-01
+ * Create: 2023-04-20
  * Description:
  ******************************************************************************/
-#ifndef __DECIMAL_UTILS_H__
-#define __DECIMAL_UTILS_H__
 
-/**
- * min function of int-type
- *
- * @param a
- * @param b
- * @return
- */
-int min(int a, int b);
+#include "http_body_decoder.h"
 
-/**
- * max function of int-type
- *
- * @param a
- * @param b
- * @return
- */
-int max(int a, int b);
+parse_state_t parse_chunked(char** buf, size_t body_size_limit_bytes, char** result, size_t* body_size)
+{
+    return STATE_UNKNOWN;
+}
 
-#endif // GALA_GOPHER_DECIMAL_UTILS_H
+parse_state_t parse_content(char* content_len_str, char** data, size_t body_size_limit_bytes, char** result, size_t* body_size)
+{
+    return STATE_UNKNOWN;
+}
