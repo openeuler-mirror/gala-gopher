@@ -281,3 +281,23 @@ int get_proc_comm(u32 pid, char *buf, int buf_len)
 {
     return access_check_read_line(pid, PROC_COMM_CMD, PROC_COMM, buf, buf_len);
 }
+
+int get_kern_version(char *major, char *minor)
+{
+    char version[INT_LEN];
+    const char *major_cmd = "uname -r | awk -F '.' '{print $1}' 2>/dev/null";
+    const char *minor_cmd = "uname -r | awk -F '.' '{print $2}' 2>/dev/null";
+
+    version[0] = 0;
+    if (exec_cmd(major_cmd, version, INT_LEN)) {
+        return -1;
+    }
+    *major = (char)atoi(version);
+
+    version[0] = 0;
+    if (exec_cmd(minor_cmd, version, INT_LEN)) {
+        return -1;
+    }
+    *minor = (char)atoi(version);
+    return 0;
+}

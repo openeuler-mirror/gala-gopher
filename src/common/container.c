@@ -12,10 +12,17 @@
  * Create: 2021-07-26
  * Description: container module
  ******************************************************************************/
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <bpf/libbpf.h>
 #include <unistd.h>
+#include <sys/resource.h>
+#include <sys/syscall.h>
+#include <sys/stat.h>
+#include <sched.h>
+#include <fcntl.h>
+#include "syscall.h"
 #include "container.h"
 
 #define ERR_MSG2 "not installe"
@@ -1008,5 +1015,69 @@ container_tbl* list_containers_by_pod_id(const char *pod_id)
     (void)__list_containers_by_pod_id(pod_id, cstbl);
 
     return cstbl;
+}
+
+static int __get_netns_fd(pid_t pid)
+{
+    const char *fmt = "/proc/%u/ns/net";
+    char path[PATH_LEN];
+
+    path[0] = 0;
+    (void)snprintf(path, PATH_LEN, fmt, pid);
+    return open(path, O_RDONLY);
+}
+
+static int __pidfd_open(pid_t pid, unsigned int flags)
+{
+#ifndef __NR_pidfd_open
+#define __NR_pidfd_open 434     // System call # on most architectures
+#endif
+    return syscall(__NR_pidfd_open, pid, flags);
+}
+
+static int __set_netns_by_pid(pid_t pid)
+{
+    int fd = -1;
+
+    char kern_major, kern_minor;
+
+    (void)get_kern_version(&kern_major, &kern_minor);
+    (void)kern_minor;
+
+    if (kern_major < 5) {
+        fd = __get_netns_fd(pid);
+    } else {
+        fd = __pidfd_open(pid, 0);
+    }
+
+    if (fd == -1) {
+        ERROR("[TCPPROBE] Get tgid(%d)'s pidfd failed.\n", pid);
+        return -1;
+    }
+    return setns(fd, CLONE_NEWNET);
+}
+
+static int __set_netns_by_fd(int fd)
+{
+    return setns(fd, CLONE_NEWNET);
+}
+
+int enter_container_netns(const char *container_id)
+{
+    int ret;
+    u32 pid;
+
+    ret = get_container_pid(container_id, &pid);
+    if (ret) {
+        ERROR("[TCPPROBE]: Get container pid failed.(%s, ret = %d)\n", container_id, ret);
+        return ret;
+    }
+
+    return __set_netns_by_pid((pid_t)pid);
+}
+
+int exit_container_netns(int netns_fd)
+{
+    return __set_netns_by_fd(netns_fd);
 }
 
