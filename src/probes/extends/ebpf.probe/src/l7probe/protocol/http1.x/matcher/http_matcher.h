@@ -12,8 +12,8 @@
  * Create: 2023-04-20
  * Description:
  ******************************************************************************/
-#ifndef GALA_GOPHER_HTTP_MATCHER_H
-#define GALA_GOPHER_HTTP_MATCHER_H
+#ifndef __HTTP_MATCHER_H__
+#define __HTTP_MATCHER_H__
 
 #include "../model/http_msg_format.h"
 #include "../../../include/data_stream.h"
@@ -35,4 +35,4 @@ void pre_process_message(http_message* message);
  */
 void http_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *resp_frames, struct record_buf_s *record_buf);
 
-#endif // GALA_GOPHER_HTTP_MATCHER_H
+#endif // __HTTP_MATCHER_H__

@@ -17,7 +17,6 @@
 #include "../pgsql/pgsql_msg_format.h"
 #include "../pgsql/pgsql_parser.h"
 #include "../pgsql/pgsql_matcher.h"
-#include "../http1.x/model/http_msg_format.h"
 #include "../http1.x/parser/http_parser.h"
 #include "../http1.x/matcher/http_matcher.h"
 
@@ -74,7 +73,7 @@ void free_frame_data_s(enum proto_type_t type, struct frame_data_s *frame)
             free_pgsql_regular_msg((struct pgsql_regular_msg_s *) frame->frame);
             break;
         case PROTO_HTTP:
-            free_http_msg((http_message) frame->frame);
+            free_http_msg((http_message *) frame->frame);
             break;
         // todo: add protocols:
         case PROTO_HTTP2:
@@ -118,7 +117,7 @@ size_t proto_find_frame_boundary(enum proto_type_t type, enum message_type_t msg
 parse_state_t proto_parse_frame(enum proto_type_t type, enum message_type_t msg_type, struct raw_data_s *raw_data,
                                 struct frame_data_s **frame_data)
 {
-    parse_state_t state;
+    parse_state_t state = STATE_UNKNOWN;
     switch (type) {
         case PROTO_PGSQL:
             state = pgsql_parse_frame(raw_data, frame_data);

@@ -39,7 +39,7 @@ void free_value_node(value_node *node)
 }
 
 // 从value_node链表中递归寻找value
-static bool find_value_in_node(value_node *node, char *value)
+static bool find_value_in_node(value_node *node, const char *value)
 {
     if (strcmp(node->value, value)) {
         return true;
@@ -63,7 +63,7 @@ static value_node *remove_value_from_node(value_node *node, char *value)
 }
 
 // value_node中添加value，如果链表中没有才插入，新插入的value放在链表头部（头插法）
-static value_node *add_value_into_node(value_node *node, char *value)
+static value_node *add_value_into_node(value_node *node, const char *value)
 {
     value_node *new_node;
     if (node == NULL) {
@@ -99,14 +99,14 @@ void free_http_headers_map(http_headers_map* map)
     free(map);
 }
 
-void insert_into_multiple_map(http_headers_map *map, const char *key, char *value)
+void insert_into_multiple_map(http_headers_map *map, const char *key, const char *value)
 {
     http_headers_map *pair;
-    char *key_l = to_lower(*key);
+    char *key_l = to_lower(key);
     HASH_FIND_STR(map, key_l, pair);
     if (pair == NULL) {
-        pair = (key_values_pair *) malloc(sizeof(key_values_pair));
-        strncpy(pair->key, key_l, MAX_KEY_LEN);
+        pair = (http_headers_map *) malloc(sizeof(http_headers_map *));
+        strncpy(pair->key_l, key_l, MAX_KEY_LEN);
         pair->values = NULL;
         HASH_ADD_STR(map, key_l, pair);
     }
@@ -116,23 +116,17 @@ void insert_into_multiple_map(http_headers_map *map, const char *key, char *valu
 http_headers_map *get_values_by_key(http_headers_map *map, const char *key)
 {
     http_headers_map *pair;
-    char *key_l = to_lower(*key);
-    HASH_FIND_STR(map, key, pair);
+    char *key_l = to_lower(key);
+    HASH_FIND_STR(map, key_l, pair);
     return pair;
 }
 
 char *get_1st_value_by_key(http_headers_map *map, const char *key)
 {
-    char *key_l = to_lower(*key);
+    char *key_l = to_lower(key);
     http_headers_map *pair = get_values_by_key(map, key_l);
     if (pair == NULL) {
         return NULL;
     }
-    return pair->values[0];
-}
-
-char *to_string(http_headers_map *map)
-{
-    // todo: map数据转string
-    return NULL;
+    return pair->values[0].value;
 }

@@ -13,15 +13,18 @@
  * Description:
  ******************************************************************************/
 
-#ifndef GALA_GOPHER_HTTP_PARSER_UTILS_H
-#define GALA_GOPHER_HTTP_PARSER_UTILS_H
+#ifndef __HTTP_PARSER_UTILS_H__
+#define __HTTP_PARSER_UTILS_H__
 
+#include <assert.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdbool.h>
 #include <sys/types.h>
 #include <uthash.h>
-#include <stdbool.h>
 #include "hash.h"
 #include "../model/http_msg_format.h"
-#include "../model/multiple_map.h"
 
 /**
  * htt header structure
@@ -31,37 +34,37 @@ typedef struct http_header_t {
     size_t name_len;
     const char *value;
     size_t value_len;
-} http_header_t;
+} http_header;
 
 /**
  * http header filters
  * inclusions means the selected http message should matches all of the rules in inclusions
  * exclusions means the selected http message should not match any of the rules in exclusions
  */
-struct http_header_filter {
-    struct key_values_pair *inclusions;
-    struct key_values_pair *exclusions;
-};
+typedef struct http_header_filter {
+    multiple_map_pair *inclusions;
+    multiple_map_pair *exclusions;
+} http_header_filter;
 
 /**
  * http chunked decoder structure
  */
-struct http_chunked_decoder {
+typedef struct http_chunked_decoder {
     size_t bytes_left_in_chunk; /* number of bytes left in current chunk */
     char consume_trailer;       /* if trailing headers should be consumed */
     char _hex_count;
     char _state;
-};
+} http_chunked_decoder;
 
 /**
  * http_parse_request parameters
  */
 typedef struct http_parse_req_param_t {
-    const char *buf;
+    char *buf;
     size_t len;
-    const char **method;
+    char **method;
     size_t *method_len;
-    const char **path;
+    char **path;
     size_t *path_len;
     int *minor_version;
     struct http_header_t *headers;
@@ -69,7 +72,7 @@ typedef struct http_parse_req_param_t {
     size_t last_len;
 } http_parse_req_param;
 
-http_parse_req_param *init_http_parse_req_param();
+http_parse_req_param *init_http_parse_req_param(void);
 
 void free_http_parse_req_param(http_parse_req_param * param);
 
@@ -81,9 +84,6 @@ void free_http_parse_req_param(http_parse_req_param * param);
  * @return
  */
 int http_parse_request(http_parse_req_param *param);
-
-//int http_parse_request(const char *buf, size_t len, const char **method, size_t *method_len, const char **path, size_t *path_len,
-//                       int *minor_version, struct http_header_t *headers, size_t *num_headers, size_t last_len);
 
 /**
  * http_parse_response parameters
@@ -109,9 +109,6 @@ typedef struct http_parse_resp_param_t {
  */
 int http_parse_response(http_parse_resp_param *param);
 
-//int http_parse_response(const char *_buf, size_t len, int *minor_version, int *status, const char **msg, size_t *msg_len,
-//                       struct http_header_t *headers, size_t *num_headers, size_t last_len);
-
 /**
  * parse http headers
  * returns number of bytes consumed if successful, -2 if headers is partial,
@@ -124,7 +121,7 @@ int http_parse_response(http_parse_resp_param *param);
  * @param last_len
  * @return
  */
-int http_parse_headers(const char *buf, size_t len, http_header_t *headers, size_t *num_headers, size_t last_len);
+int http_parse_headers(const char *buf, size_t len, http_header *headers, size_t *num_headers, size_t last_len);
 
 /**
  * decode chunked-encoding headers
@@ -139,7 +136,7 @@ int http_parse_headers(const char *buf, size_t len, http_header_t *headers, size
  * @param buf_size
  * @return
  */
-ssize_t http_decode_chunked(struct http_chunked_decoder *decoder, char *buf, size_t *buf_size);
+ssize_t http_decode_chunked(http_chunked_decoder *decoder, char *buf, size_t *buf_size);
 
 /**
  * judge if chunked decoder is in middle of data
@@ -147,7 +144,7 @@ ssize_t http_decode_chunked(struct http_chunked_decoder *decoder, char *buf, siz
  * @param decoder
  * @return
  */
-int http_decode_chunked_is_in_data(struct http_chunked_decoder *decoder);
+int http_decode_chunked_is_in_data(http_chunked_decoder *decoder);
 
 /**
   * parse http header filters
@@ -155,7 +152,7 @@ int http_decode_chunked_is_in_data(struct http_chunked_decoder *decoder);
   * @param filters
   * @return
   */
-struct http_header_filter parse_http_header_filters(char* filters);
+http_header_filter *parse_http_header_filters(char* filters);
 
 /**
   * judge if the header is matched with the filter
@@ -165,7 +162,7 @@ struct http_header_filter parse_http_header_filters(char* filters);
   * @param filter
   * @return
   */
-bool matches_http_headers(const http_headers_map http_headers, const http_header_filter filter);
+bool matches_http_headers(http_headers_map http_headers, http_header_filter filter);
 
 /**
  * judge if the content-type of http message is JSON
@@ -173,6 +170,6 @@ bool matches_http_headers(const http_headers_map http_headers, const http_header
  * @param message
  * @return
  */
-bool is_json_content(http_header_t headers);
+bool is_json_content(http_header headers);
 
-#endif // GALA_GOPHER_HTTP_PARSER_UTILS_H
+#endif // __HTTP_PARSER_UTILS_H__
