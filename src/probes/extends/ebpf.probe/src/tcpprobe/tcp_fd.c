@@ -40,9 +40,6 @@
 #include "container.h"
 #include "tcpprobe.h"
 
-#ifndef __NR_pidfd_open
-#define __NR_pidfd_open 434     // System call # on most architectures
-#endif
 
 #define MAX_TRY_LOAD    (120)   // 2 min
 
@@ -121,60 +118,6 @@ static int add_estab_tcp_fd(const struct estab_tcp_key *k,
 
 #if 1
 
-static int get_netns_fd(pid_t pid)
-{
-    const char *fmt = "/proc/%u/ns/net";
-    char path[PATH_LEN];
-
-    path[0] = 0;
-    (void)snprintf(path, PATH_LEN, fmt, pid);
-    return open(path, O_RDONLY);
-}
-
-static __maybe_unused int pidfd_open(pid_t pid, unsigned int flags)
-{
-    return syscall(__NR_pidfd_open, pid, flags);
-}
-
-static int set_netns_by_pid(pid_t pid)
-{
-    int fd = -1;
-#if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(5, 3, 0))
-    fd = get_netns_fd(pid);
-#else
-    fd = pidfd_open(pid, 0);
-#endif
-    if (fd == -1) {
-        ERROR("[TCPPROBE] Get tgid(%d)'s pidfd failed.\n", pid);
-        return -1;
-    }
-    return setns(fd, CLONE_NEWNET);
-}
-
-static int set_netns_by_fd(int fd)
-{
-    return setns(fd, CLONE_NEWNET);
-}
-
-static int enter_container_netns(const char *container_id)
-{
-    int ret;
-    u32 pid;
-
-    ret = get_container_pid(container_id, &pid);
-    if (ret) {
-        ERROR("[TCPPROBE]: Get container pid failed.(%s, ret = %d)\n", container_id, ret);
-        return ret;
-    }
-
-    return set_netns_by_pid((pid_t)pid);
-}
-
-static int exit_container_netns(int current_netns)
-{
-    return set_netns_by_fd(current_netns);
-}
-
 static void do_lkup_established_tcp_info(void)
 {
     int i, j;
@@ -215,7 +158,17 @@ err:
     return;
 }
 
-static int do_lkup_established_tcp(const char *container_id, int current_netns)
+static int get_netns_fd(pid_t pid)
+{
+    const char *fmt = "/proc/%u/ns/net";
+    char path[PATH_LEN];
+
+    path[0] = 0;
+    (void)snprintf(path, PATH_LEN, fmt, pid);
+    return open(path, O_RDONLY);
+}
+
+static int do_lkup_established_tcp(const char *container_id, int netns_fd)
 {
     int ret;
 
@@ -231,7 +184,7 @@ static int do_lkup_established_tcp(const char *container_id, int current_netns)
     do_lkup_established_tcp_info();
 
     if (container_id) {
-        (void)exit_container_netns(current_netns);
+        (void)exit_container_netns(netns_fd);
     }
     return 0;
 }
