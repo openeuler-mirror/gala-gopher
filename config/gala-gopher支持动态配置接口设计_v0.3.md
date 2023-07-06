@@ -69,25 +69,26 @@ curl -X PUT http://localhost:9999/flamegraph -d json='
 5. opengauss监控对象是DB实例（IP/Port/dbname/user/password）
 ```
 
-| 采集特性      | 采集特性说明                                             | 采集子项范围                                                 | 监控对象                              | 启动文件                           | 启动条件                  |
-| ------------- | -------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------- | ---------------------------------- | ------------------------- |
-| flamegraph    | 在线性能火焰图观测能力                                   | oncpu, offcpu, mem                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/stackprobe        |                           |
-| l7            | 应用7层协议观测能力                                      | l7_bytes_metrics、l7_rpc_metrics、l7_rpc_trace               | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/l7probe           |                           |
-| tcp           | TCP异常、状态观测能力                                    | tcp_abnormal, tcp_rtt, tcp_windows, tcp_rate, tcp_srtt, tcp_sockbuf, tcp_stats | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/tcpprobe          |                           |
-| socket        | Socket(TCP/UDP)异常观测能力                              | tcp_socket, udp_socket                                       | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/endpoint          |                           |
-| io            | Block层I/O观测能力                                       | io_trace, io_err, io_count, page_cache                       | NA                                    | $gala-gopher-dir/ioprobe           |                           |
-| proc          | 进程系统调用、I/O、DNS、VFS等观测能力                    | base_metrics, proc_syscall, proc_fs, proc_io, proc_dns,proc_pagecache | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/taskprobe         |                           |
-| jvm           | JVM层GC, 线程, 内存, 缓存等观测能力                      | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/JvmProbe.jar      |                           |
-| ksli          | Redis性能SLI（访问时延）观测能力                         | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/ksliprobe         |                           |
-| postgre_sli   | PG DB性能SLI（访问时延）观测能力                         | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/pgsliprobe        |                           |
-| opengauss_sli | openGauss访问吞吐量观测能力                              | NA                                                           | [ip, port, dbname, user,password]     | $gala-gopher-dir/pg_stat_probe.py  |                           |
-| dnsmasq       | DNS会话观测能力                                          | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/rabbitmq_probe.sh |                           |
-| lvs           | lvs会话观测能力                                          | NA                                                           | NA                                    | $gala-gopher-dir/trace_lvs         | lsmod\|grep ip_vs\| wc -l |
-| nginx         | Nginx L4/L7层会话观测能力                                | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/nginx_probe       |                           |
-| haproxy       | Haproxy L4/7层会话观测能力                               | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/trace_haproxy     |                           |
-| kafka         | kafka 生产者/消费者topic观测能力                         | NA                                                           | dev, port                             | $gala-gopher-dir/kafkaprobe        |                           |
-| baseinfo      | 系统基础信息（包括cpu, mem, nic, disk, net, fs, host等） | NA                                                           | NA                                    | system_infos                       | NA                        |
-| virt          | 虚拟化管理信息                                           | NA                                                           | NA                                    | virtualized_infos                  | NA                        |
+| 采集特性      | 采集特性说明                          | 采集子项范围                                                 | 监控对象                                 | 启动文件                           | 启动条件                  |
+| ------------- | ------------------------------------- | ------------------------------------------------------------ | ---------------------------------------- | ---------------------------------- | ------------------------- |
+| flamegraph    | 在线性能火焰图观测能力                | oncpu, offcpu, mem                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/stackprobe        |                           |
+| l7            | 应用7层协议观测能力                   | l7_bytes_metrics、l7_rpc_metrics、l7_rpc_trace               | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/l7probe           |                           |
+| tcp           | TCP异常、状态观测能力                 | tcp_abnormal, tcp_rtt, tcp_windows, tcp_rate, tcp_srtt, tcp_sockbuf, tcp_stats | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/tcpprobe          |                           |
+| socket        | Socket(TCP/UDP)异常观测能力           | tcp_socket, udp_socket                                       | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/endpoint          |                           |
+| io            | Block层I/O观测能力                    | io_trace, io_err, io_count, page_cache                       | NA                                       | $gala-gopher-dir/ioprobe           |                           |
+| proc          | 进程系统调用、I/O、DNS、VFS等观测能力 | base_metrics, proc_syscall, proc_fs, proc_io, proc_dns,proc_pagecache | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/taskprobe         |                           |
+| jvm           | JVM层GC, 线程, 内存, 缓存等观测能力   | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/jvmprobe          |                           |
+| ksli          | Redis性能SLI（访问时延）观测能力      | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/ksliprobe         |                           |
+| postgre_sli   | PG DB性能SLI（访问时延）观测能力      | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/pgsliprobe        |                           |
+| opengauss_sli | openGauss访问吞吐量观测能力           | NA                                                           | [ip, port, dbname, user,password]        | $gala-gopher-dir/pg_stat_probe.py  |                           |
+| dnsmasq       | DNS会话观测能力                       | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/rabbitmq_probe.sh |                           |
+| lvs           | lvs会话观测能力                       | NA                                                           | NA                                       | $gala-gopher-dir/trace_lvs         | lsmod\|grep ip_vs\| wc -l |
+| nginx         | Nginx L4/L7层会话观测能力             | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/nginx_probe       |                           |
+| haproxy       | Haproxy L4/7层会话观测能力            | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/trace_haproxy     |                           |
+| kafka         | kafka 生产者/消费者topic观测能力      | NA                                                           | dev, port                                | $gala-gopher-dir/kafkaprobe        |                           |
+| baseinfo      | 系统基础信息                          | cpu, mem, nic, disk, net, fs, proc,host                      | NA                                       | system_infos                       | NA                        |
+| virt          | 虚拟化管理信息                        | NA                                                           | NA                                       | virtualized_infos                  | NA                        |
+| tprofiling    | 线程级性能profiling观测能力           | oncpu, syscall_file, syscall_net, syscall_lock, syscall_sched | proc_id, proc_name                       | $gala-gopher-dir/tprofiling        | NA                        |
 
 ## 探针运行参数
 
@@ -124,7 +125,16 @@ curl -X PUT http://localhost:9999/flamegraph -d json='
 | l7_protocol        | L7层协议范围                                           | http, [http, postgresql, mysql, redis, kafka,  mongodb, rocketmq, dns] |         | l7                       | Y                   |
 | support_ssl        | 支持SSL加密协议观测                                    | 0, [0, 1]                                                    |         | l7                       | Y                   |
 | pyroscope_server   | 设置火焰图UI服务端地址                                 | localhost:4040                                               |         | flamegraph               | Y                   |
-| debugging_dir       | 设置系统debugging文件目录（用于查找火焰图内的函数符号） |                                                              |         | flamegraph               | Y                   |
+| debugging_dir       | 设置系统debugging文件目录（用于查找火焰图内的函数符号） | "" |         | flamegraph               | Y                   |
+| svg_period | 火焰图svg文件生成周期 | 180, [30, 600] | s | flamegraph | Y |
+| perf_sample_period | oncpu火焰图采集堆栈信息的周期 | 10, [10, 1000] | ms | flamegraph | Y |
+| svg_dir | 火焰图svg文件存储目录 | "/var/log/gala-gopher/stacktrace" | | flamegraph | Y |
+| flame_dir | 火焰图原始堆栈信息存储目录 | "/var/log/gala-gopher/flamegraph" | | flamegraph | Y |
+| host_ip_fields | 主机IP地址列表，多个IP间逗号隔开 | "" |  |  | Y |
+| dev_name | 观测的网卡设备名 | "" |  | io, kafka, ksli, postgre_sli | Y |
+| continuous_sampling | 是否持续采样 | 0, [0, 1] | | ksli | Y |
+| elf_path | 要观测的可执行文件的路径 | "" | | nginx, haproxy, dnsmasq | Y |
+| kafka_port | 要观测的kafka端口号 | 9092, [1, 65535] | | kafka | Y |
 
 
 
