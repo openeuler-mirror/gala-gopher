@@ -1038,13 +1038,10 @@ static int __pidfd_open(pid_t pid, unsigned int flags)
 static int __set_netns_by_pid(pid_t pid)
 {
     int fd = -1;
+    u32 kern_version = 0;
 
-    char kern_major, kern_minor;
-
-    (void)get_kern_version(&kern_major, &kern_minor);
-    (void)kern_minor;
-
-    if (kern_major < 5) {
+    (void)get_kern_version(&kern_version);
+    if (kern_version < KERNEL_VERSION(5, 3, 0)) {
         fd = __get_netns_fd(pid);
     } else {
         fd = __pidfd_open(pid, 0);

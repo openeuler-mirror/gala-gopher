@@ -169,6 +169,7 @@ typedef long long unsigned int __u64;
 typedef __u64 u64;
 #endif
 
+#define KERNEL_VERSION(a, b, c) (((a) << 16) + ((b) << 8) + (c))
 
 void split_newline_symbol(char *s);
 #define SPLIT_NEWLINE_SYMBOL(s)     split_newline_symbol(s)
@@ -207,6 +208,6 @@ int copy_file(const char *dst_file, const char *src_file);
 int access_check_read_line(u32 pid, const char *command, const char *fname, char *buf, u32 buf_len);
 int get_proc_start_time(u32 pid, char *buf, int buf_len);
 int get_proc_comm(u32 pid, char *buf, int buf_len);
-int get_kern_version(char *major, char *minor);
+int get_kern_version(u32 *kern_version);
 
 #endif
