@@ -332,14 +332,17 @@ void TestSystemProcProbe(void)
     snprintf(cmd, COMMAND_LEN - 1, "touch /tmp/gala-gopher-app.conf");
     f = popen(cmd, "r");
     CU_ASSERT(f != NULL);
+    (void)pclose(f);
 
     snprintf(cmd, COMMAND_LEN - 1, "echo \'application = ({ comm = \"sleep\", cmdline = \"\"})\'  >/tmp/gala-gopher-app.conf");
     f = popen(cmd, "r");
     CU_ASSERT(f != NULL);
+    (void)pclose(f);
 
     snprintf(cmd, COMMAND_LEN - 1, "sleep 60 &");
     f = popen(cmd, "r");
     CU_ASSERT(f != NULL);
+    (void)pclose(f);
 
     system_proc_init();
 
@@ -352,10 +355,12 @@ void TestSystemProcProbe(void)
     snprintf(cmd, COMMAND_LEN - 1, "rm -rf /tmp/gala-gopher-app.conf");
     f = popen(cmd, "r");
     CU_ASSERT(f != NULL);
+    (void)pclose(f);
 
     snprintf(cmd, COMMAND_LEN - 1, "rm -rf /sys/fs/bpf/gala-gopher");
     f = popen(cmd, "r");
     CU_ASSERT(f != NULL);
+    (void)pclose(f);
 
     ProbeDestroy(g_probe);
     system_proc_destroy();
@@ -387,6 +392,7 @@ void TestEventProbe(void)
     snprintf(cmd, COMMAND_LEN - 1, "echo \"%s\" >> /var/log/messages", EVENT_ERR_CODE);
     f = popen(cmd, "r");
     CU_ASSERT(f != NULL);
+    (void)pclose(f);
 
     g_probe = ProbeCreate();
     CU_ASSERT(g_probe != NULL);

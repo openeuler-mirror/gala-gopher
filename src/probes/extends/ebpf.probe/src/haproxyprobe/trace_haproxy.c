@@ -61,16 +61,20 @@ static void get_host_ip(const unsigned char *value, unsigned short family)
     }
 
     fp = popen(cmd, "r");
+    if (fp == NULL) {
+        return;
+    }
     if (fgets(buffer, INET6_ADDRSTRLEN, fp) == NULL) {
         HAP_ERROR("Fail get_host_ip.\n");
-        return ;
+        (void)pclose(fp);
+        return;
     }
     (void)pclose(fp);
     num = sscanf(buffer, "%47s", (char *)value);
     if (num < 1)
         HAP_ERROR("failed get hostip [%d]", errno);
 
-    return ;
+    return;
 }
 
 static void update_collect_count(struct collect_value *dd)
