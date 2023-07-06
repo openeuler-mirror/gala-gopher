@@ -15,7 +15,6 @@
 #ifndef __HTTP_MSG_FORMAT_H__
 #define __HTTP_MSG_FORMAT_H__
 
-
 #pragma once
 
 #include "multiple_map.h"
