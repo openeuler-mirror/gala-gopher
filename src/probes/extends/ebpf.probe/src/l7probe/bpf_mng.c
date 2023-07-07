@@ -37,6 +37,7 @@
 #define L7_CONN_CONTROL_PATH     "/sys/fs/bpf/gala-gopher/__l7_conn_control"
 #define L7_CONN_STATS_PATH       "/sys/fs/bpf/gala-gopher/__l7_conn_stats"
 #define L7_CONN_CONN_PATH        "/sys/fs/bpf/gala-gopher/__l7_conn_tbl"
+#define L7_TCP_PATH              "/sys/fs/bpf/gala-gopher/__l7_tcp_tbl"
 #define L7_FILTER_ARGS_PATH      "/sys/fs/bpf/gala-gopher/__l7_filter_args"
 #define L7_PROC_OBJ_PATH         "/sys/fs/bpf/gala-gopher/__l7_proc_obj_map"
 
@@ -46,6 +47,7 @@
     MAP_SET_PIN_PATH(probe_name, conn_control_events, L7_CONN_CONTROL_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, conn_stats_events, L7_CONN_STATS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, conn_tbl, L7_CONN_CONN_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, l7_tcp, L7_TCP_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, filter_args_tbl, L7_FILTER_ARGS_PATH, load); \
     LOAD_ATTACH(l7probe, probe_name, end, load)
 
@@ -161,6 +163,10 @@ int l7_load_probe_libssl(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog, const
         l7_mng->bpf_progs.conn_tbl_fd = GET_MAP_FD(libssl, conn_tbl);
     }
 
+    if (l7_mng->bpf_progs.l7_tcp_fd == 0) {
+        l7_mng->bpf_progs.l7_tcp_fd = GET_MAP_FD(libssl, l7_tcp);
+    }
+
     if (l7_mng->bpf_progs.filter_args_fd == 0) {
         l7_mng->bpf_progs.filter_args_fd = GET_MAP_FD(libssl, filter_args_tbl);
     }
@@ -207,6 +213,10 @@ int l7_load_probe_kern_sock(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog)
 
     if (l7_mng->bpf_progs.conn_tbl_fd == 0) {
         l7_mng->bpf_progs.conn_tbl_fd = GET_MAP_FD(kern_sock, conn_tbl);
+    }
+
+    if (l7_mng->bpf_progs.l7_tcp_fd == 0) {
+        l7_mng->bpf_progs.l7_tcp_fd = GET_MAP_FD(kern_sock, l7_tcp);
     }
 
     if (l7_mng->bpf_progs.filter_args_fd == 0) {

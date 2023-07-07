@@ -108,7 +108,11 @@ URETPROBE(SSL_read, pt_regs)
         if (bytes_count <= 0) {
             goto end;
         }
-        submit_sock_data(ctx, id, L7_INGRESS, args, (size_t)bytes_count);
+
+        struct sock_conn_s* sock_conn = lkup_sock_conn(args->conn_id.tgid, args->conn_id.fd);
+        if (sock_conn) {
+            submit_sock_data(ctx, sock_conn, id, L7_INGRESS, args, (size_t)bytes_count);
+        }
     }
 
 end:
@@ -152,7 +156,11 @@ URETPROBE(SSL_write, pt_regs)
         if (bytes_count <= 0) {
             goto end;
         }
-        submit_sock_data(ctx, id, L7_EGRESS, args, (size_t)bytes_count);
+
+        struct sock_conn_s* sock_conn = lkup_sock_conn(args->conn_id.tgid, args->conn_id.fd);
+        if (sock_conn) {
+            submit_sock_data(ctx, sock_conn, id, L7_EGRESS, args, (size_t)bytes_count);
+        }
     }
 
 end:

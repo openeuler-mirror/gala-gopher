@@ -23,6 +23,12 @@
 #include "bpf/filter_bpf.h"
 #include "bpf/kern_sock_conn.h"
 
+#ifdef BPF_PROG_USER
+struct iovec {
+    void *iov_base;
+    size_t iov_len;
+};
+#endif
 
 #define BPF_F_INDEX_MASK        0xffffffffULL
 #define BPF_F_CURRENT_CPU       BPF_F_INDEX_MASK
@@ -302,14 +308,9 @@ static __always_inline __maybe_unused char *read_from_buf_ptr(char* buf)
     return buffer;
 }
 
-static __always_inline __maybe_unused void submit_sock_data(void *ctx, conn_ctx_t id,
+static __always_inline __maybe_unused void submit_sock_data(void *ctx, struct sock_conn_s* sock_conn, conn_ctx_t id,
             enum l7_direction_t direction, struct sock_data_args_s* args, size_t bytes_count)
 {
-    struct sock_conn_s* sock_conn = get_sock_conn(args->conn_id.tgid, args->conn_id.fd);
-    if (sock_conn == NULL) {
-        return;
-    }
-
     if (sock_conn->info.is_ssl != args->is_ssl) {
         return;
     }
