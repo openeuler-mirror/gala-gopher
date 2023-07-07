@@ -38,7 +38,7 @@ int system_meminfo_init(void)
     (void)memset(meminfo_fields, 0, TOTAL_DATA_INDEX * sizeof(struct system_meminfo_field));
     // assign key to indicators.
     char key_[TOTAL_DATA_INDEX][KEY_BUF_LEN] = {"MemTotal", "MemFree", "MemAvailable", "Buffers", "Cached",
-        "Active", "Inactive", "SwapTotal", "SwapFree"};
+        "Active", "Inactive", "SwapTotal", "SwapFree", "Slab"};
     for (int i = MEM_TOTAL; i < TOTAL_DATA_INDEX; i++) {
         strcpy(meminfo_fields[i].key, key_[i]);
         meminfo_fields[i].value = 0;
@@ -125,7 +125,7 @@ static void output_meminfo(struct ipc_body_s *ipc_body)
     }
     report_meminfo_status(ipc_body, mem_usage, swap_usage);
     // report data
-    (void)nprobe_fprintf(stdout, "|%s|%s|%llu|%llu|%llu|%.2f|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|\n",
+    (void)nprobe_fprintf(stdout, "|%s|%s|%llu|%llu|%llu|%.2f|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|\n",
         METRICS_MEMINFO_NAME,
         METRICS_MEMINFO_PATH,
         meminfo_fields[MEM_TOTAL].value,
@@ -138,6 +138,7 @@ static void output_meminfo(struct ipc_body_s *ipc_body)
         meminfo_fields[INACTIVE].value,
         meminfo_fields[SWAP_TOTAL].value,
         meminfo_fields[SWAP_FREE].value,
+        meminfo_fields[SLAB].value,
         swap_usage);
 }
 

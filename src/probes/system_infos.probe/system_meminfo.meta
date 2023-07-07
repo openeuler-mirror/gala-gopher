@@ -62,6 +62,11 @@ measurements:
                 type:"gauge",
                 name: "swap_free_kB",
             },
+	    {
+                description: "Total size of slab space (KB)",
+                type:"gauge",
+                name: "slab_kB",
+            },
             {
                 description: "Usage of swap memory (%)",
                 type:"gauge",
