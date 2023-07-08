@@ -265,6 +265,20 @@ static int ConfigMgrLoadKafkaConfig(void *config, config_setting_t *settings)
     }
     kafkaConfig->queueBufferingMaxMs = intVal;
 
+    ret = config_setting_lookup_string(settings, "username", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for kafka userame failed.\n");
+        return -1;
+    }
+    (void)snprintf(kafkaConfig->username, sizeof(kafkaConfig->username), "%s", strVal);
+
+    ret = config_setting_lookup_string(settings, "password", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for kafka password failed.\n");
+        return -1;
+    }
+    (void)snprintf(kafkaConfig->password, sizeof(kafkaConfig->password), "%s", strVal);
+
     return 0;
 }
 

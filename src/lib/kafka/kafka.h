@@ -28,6 +28,8 @@ typedef struct {
     uint32_t queueBufferingMaxMessages;
     uint32_t queueBufferingMaxKbytes;
     uint32_t queueBufferingMaxMs;
+    char kafkaUsername[KAFKA_USERNAME_LEN];
+    char kafkaPassword[KAFKA_PASSWORD_LEN];
 
     rd_kafka_t *rk;
     rd_kafka_topic_t *rkt;

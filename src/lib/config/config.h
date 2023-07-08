@@ -50,6 +50,8 @@ typedef struct {
     uint32_t queueBufferingMaxMessages;
     uint32_t queueBufferingMaxKbytes;
     uint32_t queueBufferingMaxMs;
+    char username[KAFKA_USERNAME_LEN];
+    char password[KAFKA_PASSWORD_LEN];
 } KafkaConfig;
 
 typedef struct  {
