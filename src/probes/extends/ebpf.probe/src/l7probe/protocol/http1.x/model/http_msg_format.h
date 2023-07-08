@@ -15,11 +15,10 @@
 #ifndef __HTTP_MSG_FORMAT_H__
 #define __HTTP_MSG_FORMAT_H__
 
-
 #pragma once
 
 #include "multiple_map.h"
-#include "../../../include/l7.h"
+#include "../../../include/data_stream.h"
 
 extern const char kContentEncoding[17];
 extern const char kContentLength[15];

@@ -20,64 +20,14 @@
 #include "../../common/protocol_common.h"
 #include "../model/http_msg_format.h"
 #include "../../../include/l7.h"
+#include "http_parse_wrapper.h"
 
-#define K_MAX_NUM_HEADERS 50
-
-/**
- * HTTP Request
- */
-typedef struct http_request {
-    const char* method;
-    size_t method_len;
-    const char* path;
-    size_t path_len;
-    int minor_version;
-    http_headers_map headers[K_MAX_NUM_HEADERS];
-    // Set header number to maximum we can accept.
-    // Pico will change it to the number of headers parsed for us.
-    size_t num_headers;
-} http_request;
-
-/**
- * HTTP Response
- */
-typedef struct http_response {
-    const char* msg;
-    size_t msg_len;
-    int status;
-    int minor_version;
-    http_headers_map headers[K_MAX_NUM_HEADERS];
-    // Set header number to maximum we can accept.
-    // Pico will change it to the number of headers parsed for us.
-    size_t num_headers;
-} http_response;
-
-/**
- * Parse Request
- *
- * @param buf
- * @param request
- * @return
- */
-int parse_request(struct raw_data_s *raw_data, http_request *request);
-
-/**
- * Parse Response
- *
- * @param buf
- * @param response
- * @return
- */
-int parse_response(struct raw_data_s *raw_data, http_response* response);
-
-/**
- * Get HTTP Headers Map
- *
- * @param headers
- * @param num_headers
- * @return
- */
-http_headers_map *get_http_headers_map(http_headers_map *headers, size_t num_headers);
+// 定义DCHECK_LE函数，用于检查x<=y，下面EQ和GE同理
+#define DCHECK_LE(x, y) assert((x) <= (y))
+#define DCHECK_EQ(x, y) assert((x) == (y))
+#define DCHECK_GE(x, y) assert((x) >= (y))
+// note: pixie中定义这个宏从环境变量中获取值，默认使用1024，PX_STIRLING_HTTP_BODY_LIMIT_BYTES
+#define FLAGS_http_body_limit_bytes 1024
 
 /**
  * Parses a single HTTP message from the input string.

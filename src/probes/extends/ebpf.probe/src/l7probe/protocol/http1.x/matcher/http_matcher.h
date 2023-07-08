@@ -18,12 +18,12 @@
 #include "../model/http_msg_format.h"
 #include "../../../include/data_stream.h"
 
-/**
- * pre process message
- *
- * @param message
- */
-void pre_process_message(http_message* message);
+///**
+// * pre-process message
+// *
+// * @param message
+// */
+//void pre_process_message(http_message* message);
 
 /**
  * http match frames
