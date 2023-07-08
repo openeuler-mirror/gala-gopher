@@ -60,7 +60,7 @@ static void add_http_record_into_buf(http_record *record, struct record_buf_s *r
         return;
     }
     record_data->record = record;
-    record_data->latency = record->resp->timestamp_ns - record.req->timestamp_ns;
+    record_data->latency = record->resp->timestamp_ns - record->req->timestamp_ns;
     record_buf->records[record_buf->record_buf_size] = record_data;
     ++record_buf->record_buf_size;
 }
@@ -68,7 +68,6 @@ static void add_http_record_into_buf(http_record *record, struct record_buf_s *r
 // Note: http消息队列若中间丢失req或resp，导致不能match正确到record，则结果不准确，影响较大
 void http_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *resp_frames, struct record_buf_s *record_buf)
 {
-    size_t unconsumed_index;
     record_buf->err_count = 0;
     record_buf->record_buf_size = 0;
     record_buf->req_count = req_frames->frame_buf_size;
@@ -85,10 +84,10 @@ void http_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *resp_
     placeholder_msg.timestamp_ns = INT64_MAX;
 
     // 循环处理，resp的buf中还有frame则继续循环匹配
-    while (resp_frames->current_pos < resp_size) {
-        http_message *req_msg = (req_frames->current_pos == req_size) ? &placeholder_msg
+    while (resp_frames->current_pos < resp_frames->frame_buf_size) {
+        http_message *req_msg = (req_frames->current_pos == req_frames->frame_buf_size) ? &placeholder_msg
                                                                       : (http_message *) ((req_frames->frames)[req_frames->current_pos]->frame);
-        http_message *resp_msg = (resp_frames->current_pos == resp_size) ? &placeholder_msg
+        http_message *resp_msg = (resp_frames->current_pos == resp_frames->frame_buf_size) ? &placeholder_msg
                                                                          : (http_message *) ((resp_frames->frames)[resp_frames->current_pos]->frame);
 
         // 处理req，添加到record中

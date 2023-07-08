@@ -491,6 +491,7 @@ parse_state_t pgsql_parse_frame(struct raw_data_s *raw_data, struct frame_data_s
     if (regular_msg == NULL) {
         return STATE_INVALID;
     }
+    regular_msg->timestamp_ns = raw_data->timestamp_ns;
     (*frame_data)->frame = regular_msg;
     parse_msg_state = pgsql_parse_regular_msg(raw_data, regular_msg);
     return parse_msg_state;
