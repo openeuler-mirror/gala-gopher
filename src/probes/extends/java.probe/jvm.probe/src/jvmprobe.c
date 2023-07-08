@@ -49,7 +49,7 @@ static void load_jvm_probe(struct java_attach_args *args)
 {
     int ret;
     char stime[TIME_STRING_LEN];
-    struct proc_hash_t *r, *tmp, *p;
+    struct proc_hash_t *r, *tmp;
 
     HASH_ITER(hh, g_procmap, r, tmp) {
         ret = get_proc_start_time(r->key.pid, stime, TIME_STRING_LEN);

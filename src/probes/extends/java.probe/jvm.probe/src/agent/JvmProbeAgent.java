@@ -109,7 +109,7 @@ public class JvmProbeAgent {
         long processStartTime = runtimeBean.getStartTime(); // ms
         try {
             Long processCpuTime = callLongGetter(osBean.getClass().getMethod("getProcessCpuTime"), osBean); // ns
-            writeMetricRecords(String.format("|jvm_process|%s|%s|%f|%f|\n",
+            writeMetricRecords(String.format("|jvm_proc|%s|%s|%f|%f|\n",
                 pid, mainClassName, ((double)processStartTime / MSEC_PER_SEC), ((double)processCpuTime / NSEC_PER_SEC)));
         } catch (Exception e) {
             //System.out.println("error");
