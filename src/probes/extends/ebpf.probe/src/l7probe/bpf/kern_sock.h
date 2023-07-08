@@ -96,7 +96,6 @@ struct sock_data_args_s {
     char pad[3];
 };
 
-
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(key_size, sizeof(conn_ctx_t));
@@ -199,30 +198,6 @@ static __always_inline __maybe_unused struct conn_data_s* store_conn_data_buf(en
     return conn_data;
 }
 
-static __always_inline __maybe_unused int update_sock_conn_proto(struct sock_conn_s* sock_conn, enum l7_direction_t direction,
-                                                            const char* buf, size_t count)
-{
-    if (sock_conn->info.protocol != PROTO_UNKNOW) {
-        return 0;
-    }
-
-    struct l7_proto_s l7pro = {0};
-    if (get_l7_protocol(buf, count, PROTO_ALL_ENABLE, &l7pro)) {
-        return -1;
-    }
-
-    if (l7pro.proto == PROTO_UNKNOW) {
-        return -1;
-    }
-    sock_conn->info.protocol = l7pro.proto;
-    // ROLE_CLIENT: message(MESSAGE_REQUEST) -> direct(L7_EGRESS)
-    // ROLE_CLIENT: message(MESSAGE_RESPONSE) -> direct(L7_INGRESS)
-    // ROLE_SERVER: message(MESSAGE_REQUEST) -> direct(L7_INGRESS)
-    // ROLE_SERVER: message(MESSAGE_RESPONSE) -> direct(L7_EGRESS)
-    sock_conn->info.l7_role  = get_l7_role(l7pro.type, direction);
-    return 0;
-}
-
 static __always_inline __maybe_unused void submit_sock_conn_stats(void *ctx, struct sock_conn_s* sock_conn,
                                                                 enum l7_direction_t direction, size_t bytes_count)
 {
@@ -314,7 +289,7 @@ static __always_inline __maybe_unused void submit_sock_data(void *ctx, struct so
     if (sock_conn->info.is_ssl != args->is_ssl) {
         return;
     }
-
+    return;// TODO
     if (args->buf) {
         char *buffer = read_from_buf_ptr(args->buf);
         update_sock_conn_proto(sock_conn, direction, buffer, bytes_count);

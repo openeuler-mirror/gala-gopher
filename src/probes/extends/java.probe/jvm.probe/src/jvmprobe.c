@@ -147,7 +147,7 @@ static void output_java_msg(struct java_attach_args * args)
 {
     struct proc_hash_t *r, *tmp;
     HASH_ITER(hh, g_procmap, r, tmp) {
-        java_msg_handler(r->key.pid, (void *)args);
+        java_msg_handler(r->key.pid, (void *)args, NULL, NULL);
     }
 }
 

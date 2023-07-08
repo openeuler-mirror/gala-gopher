@@ -46,10 +46,11 @@ L7Probe
 
    | --- conn_tracker.c   // L7 流量跟踪（跟踪BPF观测数据，比如send/write、read/recv等系统事件产生的数据）
 
-​   | --- bpf_mng.c   // BPF程序生命周期管理（按需、实时open、load、attach、unload BPF程序，包括uprobe BPF程序）
+   | --- bpf_mng.c   // BPF程序生命周期管理（按需、实时open、load、attach、unload BPF程序，包括uprobe BPF程序）
 
-​   | --- L7Probe.c   // 探针主程序
+   | --- session_conn.c   // 管理jsse Session（记录jsse Session和sock连接的对应关系，上报jsse连接信息）
 
+   | --- L7Probe.c   // 探针主程序
 
 
 ## 探针输出
@@ -232,4 +233,50 @@ SSL_read
 
 ### Go SSL API
 
- 
+### JSSE API
+
+sun/security/ssl/SSLSocketImpl$AppInputStream
+
+sun/security/ssl/SSLSocketImpl$AppOutputStream
+
+## JSSE观测方案
+
+### 加载JSSEProbe探针
+
+main函数中通过l7_load_jsse_agent加载JSSEProbe探针。
+
+轮询观测白名单(g_proc_obj_map_fd)中的进程，若为java进程，则通过jvm_attach将JSSEProbeAgent.jar加载到此观测进程上。加载成功后，该java进程会在指定观测点（参见[JSSE API](###JSSE-API)）将观测信息输出到jsse-metrics输出文件（/tmp/java-data-<pid>/jsse-metrics.txt）中。
+
+### 处理JSSEProbe消息
+
+l7_jsse_msg_handler线程中处理JSSEProbe消息。
+
+轮询观测白名单(g_proc_obj_map_fd)中的进程，若该进程有对应的jsse-metrics输出文件，则按行读取此文件并解析、转换、上报jsse读写信息。
+
+#### 1. 解析jsse读写信息
+
+jsse-metrics.txt的输出格式如下，从中解析出一次jsse请求的pid, sessionId, time, read/write操作, IP, port, payload信息：
+```|jsse_msg|662220|Session(1688648699909|TLS_AES_256_GCM_SHA384)|1688648699989|Write|127.0.0.1|58302|This is test message|```
+
+解析出的原始信息存储于session_data_args_s中。
+
+#### 2. 转换jsse读写信息
+
+将session_data_args_s中的信息转换为sock_conn和conn_data。
+
+转化时需要查询如下两个hash map：
+
+session_head：记录jsse连接的session Id和sock connection Id的对应关系。若进程id和四元组信息一致，则认为session和sock connection对应。
+
+file_conn_head：记录java进程的最后一个sessionId，以备L7probe读jsseProbe输出时，没有从请求开头开始读取，找不到sessionId信息。
+
+#### 3. 上报jsse读写信息
+
+将sock_conn和conn_data上报到map中。
+
+
+
+
+
+
+

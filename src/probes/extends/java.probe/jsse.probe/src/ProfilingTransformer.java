@@ -91,6 +91,7 @@ public class ProfilingTransformer implements ClassFileTransformer {
         private int slotOfoff;
         private int slotOflen;
         private String rwType;
+        private String className;
 
         protected ProfilingMethodVisitor(int access, String methodName, String descriptor, MethodVisitor methodVisitor) {
             super(ASM5, methodVisitor, access, methodName, descriptor);
@@ -103,17 +104,19 @@ public class ProfilingTransformer implements ClassFileTransformer {
                 this.slotOflen = 3; // write, the input parameter len is the real buffer length
                 this.maxLocalSlot = 6;
                 this.rwType = "Write";
+                this.className = "sun/security/ssl/SSLSocketImpl$AppOutputStream";
             } else if ("read".equals(methodName)) {
                 this.slotOflen = 7; // read, the return value(local var "volume") is the real buffer length
                 this.maxLocalSlot = 9;
                 this.rwType = "Read";
+                this.className = "sun/security/ssl/SSLSocketImpl$AppInputStream";
             }
 
             this.metricTmpFile = ArgsParse.getArgMetricTmpFile();
             this.Pid = ArgsParse.getArgPid();
-
         }
 
+        // eg. |jsse_msg|662220|Session(1688648699909|TLS_AES_256_GCM_SHA384)|1688648699989|Write|127.0.0.1|58302|This is test message|
         @Override
         protected void onMethodExit(int opcode) {
             // create labels
@@ -149,24 +152,53 @@ public class ProfilingTransformer implements ClassFileTransformer {
             mv.visitVarInsn(ALOAD, maxLocalSlot + 1);
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/RandomAccessFile", "length", "()J", false);
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/RandomAccessFile", "seek", "(J)V", false);
-            // raf.write(String.format("|jsse_msg|%s|%d|%s|", this.Pid, System.currentTimeMillis(), "Read").getBytes());
+
+            // raf.write(String.format("|jsse_msg|%s|%s|%d|%s|%s|%d|", this.Pid, getSession(), System.currentTimeMillis(), "Read", getInetAddress().getHostAddress(), getPeerPort()).getBytes());
             mv.visitVarInsn(ALOAD, this.maxLocalSlot + 1);
-            mv.visitLdcInsn("|jsse_msg|%s|%d|%s|");
-            mv.visitInsn(ICONST_3);
+            mv.visitLdcInsn("|jsse_msg|%s|%s|%d|%s|%s|%d|");
+            mv.visitIntInsn(BIPUSH, 6);
             mv.visitTypeInsn(ANEWARRAY, "java/lang/Object");
+
             mv.visitInsn(DUP);
             mv.visitInsn(ICONST_0);
             mv.visitLdcInsn(this.Pid);
             mv.visitInsn(AASTORE);
+
+            // 这里本应上报socket fd来标识一个连接，但因为socket fd是私有属性所以较难获取。因此这里使用SSLSession。
             mv.visitInsn(DUP);
             mv.visitInsn(ICONST_1);
+            mv.visitVarInsn(ALOAD, 0);
+            mv.visitFieldInsn(GETFIELD, this.className, "this$0", "Lsun/security/ssl/SSLSocketImpl;");
+            mv.visitMethodInsn(INVOKEVIRTUAL, "sun/security/ssl/SSLSocketImpl",  "getSession", "()Ljavax/net/ssl/SSLSession;", false);
+            mv.visitInsn(AASTORE);
+
+            mv.visitInsn(DUP);
+            mv.visitInsn(ICONST_2);
             mv.visitMethodInsn(INVOKESTATIC, "java/lang/System", "currentTimeMillis", "()J", false);
             mv.visitMethodInsn(INVOKESTATIC, "java/lang/Long", "valueOf", "(J)Ljava/lang/Long;", false);
             mv.visitInsn(AASTORE);
+
             mv.visitInsn(DUP);
-            mv.visitInsn(ICONST_2);
+            mv.visitInsn(ICONST_3);
             mv.visitLdcInsn(this.rwType);
             mv.visitInsn(AASTORE);
+
+            mv.visitInsn(DUP);
+            mv.visitInsn(ICONST_4);
+            mv.visitVarInsn(ALOAD, 0);
+            mv.visitFieldInsn(GETFIELD, this.className, "this$0", "Lsun/security/ssl/SSLSocketImpl;");
+            mv.visitMethodInsn(INVOKEVIRTUAL, "sun/security/ssl/SSLSocketImpl", "getInetAddress", "()Ljava/net/InetAddress;", false);
+            mv.visitMethodInsn(INVOKEVIRTUAL, "java/net/InetAddress", "getHostAddress", "()Ljava/lang/String;", false);
+            mv.visitInsn(AASTORE);
+
+            mv.visitInsn(DUP);
+            mv.visitInsn(ICONST_5);
+            mv.visitVarInsn(ALOAD, 0);
+            mv.visitFieldInsn(GETFIELD, this.className, "this$0", "Lsun/security/ssl/SSLSocketImpl;");
+            mv.visitMethodInsn(INVOKEVIRTUAL, "sun/security/ssl/SSLSocketImpl", "getPeerPort", "()I", false);
+            mv.visitMethodInsn(INVOKESTATIC, "java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;", false);
+            mv.visitInsn(AASTORE);
+
             mv.visitMethodInsn(INVOKESTATIC, "java/lang/String", "format", "(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;", false);
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "getBytes", "()[B", false);
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/RandomAccessFile", "write", "([B)V", false);

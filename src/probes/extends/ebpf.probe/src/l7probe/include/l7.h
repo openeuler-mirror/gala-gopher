@@ -120,6 +120,7 @@ static __inline enum message_type_t __get_redis_type(const char* buf, size_t cou
         return MESSAGE_UNKNOW;
     }
 
+/*  // TODO: bpf validator error: math between map_value pointer and register with unbounded min value is not allowed
     // The last two chars are \r\n.
     if (buf[count - 2] != '\r') {
         return MESSAGE_UNKNOW;
@@ -127,7 +128,7 @@ static __inline enum message_type_t __get_redis_type(const char* buf, size_t cou
     if (buf[count - 1] != '\n') {
         return MESSAGE_UNKNOW;
     }
-
+*/
     // The Redis request and response formats are the same.
     return MESSAGE_REQUEST;
 }
@@ -298,12 +299,12 @@ static __inline enum message_type_t __get_nats_type(const char* buf, size_t coun
     if (count < __NATS_MINSIZE) {
         return MESSAGE_UNKNOW;
     }
-
+/*  // TODO: bpf validator error: math between map_value pointer and register with unbounded min value is not allowed
     // Check whether the characters at the end are valid.
     if ((buf[count - 2] != '\r') || (buf[count - 1] != '\n')) {
         return MESSAGE_UNKNOW;
     }
-
+*/
     enum message_type_t type;
     type = __NATS_CONNECT(buf, count);
     if (type != MESSAGE_UNKNOW) {
