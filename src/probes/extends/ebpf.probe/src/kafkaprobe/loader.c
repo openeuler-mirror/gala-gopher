@@ -81,7 +81,11 @@ int link_xdp(struct KafkaConfig *cfg, struct bpf_object *obj){
     int prog_fd = -1;
     int ret;
 
+#if (CURRENT_LIBBPF_VERSION  < LIBBPF_VERSION(0, 7)) 
     prog = bpf_program__next(NULL, obj);
+#else
+    prog = bpf_object__next_program(obj, NULL);
+#endif
     if(!prog){
         KFK_ERROR("can't find prog in bpf object\n");
         return 1;             
