@@ -30,7 +30,6 @@ KafkaMgr *KafkaMgrCreate(const ConfigMgr *configMgr, const char *topic_type)
     rd_kafka_conf_res_t ret;
     KafkaMgr *mgr = NULL;
     char errstr[MAX_KAFKA_ERRSTR_SIZE];
-    char jassConfigStr[JASS_CONFIG_STR_LEN] = {0};
 
     mgr = (KafkaMgr *)malloc(sizeof(KafkaMgr));
     if (mgr == NULL) {
@@ -126,7 +125,6 @@ KafkaMgr *KafkaMgrCreate(const ConfigMgr *configMgr, const char *topic_type)
     }
     rd_kafka_conf_set_dr_msg_cb(mgr->conf, dr_msg_cb);
 
-    INFO("user/pass %s/%s\n", mgr->kafkaUsername, mgr->kafkaPassword);
     if (mgr->kafkaUsername[0] != 0 && mgr->kafkaPassword[0] != 0) {
         ret = rd_kafka_conf_set(mgr->conf, "sasl.username", mgr->kafkaUsername, errstr, sizeof(errstr));
         if (ret != RD_KAFKA_CONF_OK) {
