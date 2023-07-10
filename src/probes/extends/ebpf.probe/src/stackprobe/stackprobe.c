@@ -864,6 +864,10 @@ static void destroy_svg_stack_trace(struct svg_stack_trace_s **ptr_svg_st)
 {
     struct svg_stack_trace_s *svg_st = *ptr_svg_st;
 
+    if (svg_st->wr_flame_thd > 0) {
+        (void)pthread_cancel(svg_st->wr_flame_thd);
+    }
+
     *ptr_svg_st = NULL;
     if (!svg_st) {
         return;
@@ -1538,7 +1542,7 @@ static void *__running(void *arg)
     struct perf_buffer *pb = get_pb(g_st, svg_st);
 
     // Read raw stack-trace data from current data channel.
-    while ((ret = perf_buffer__poll(pb, 0)) >= 0) {
+    while ((pb != NULL) && (ret = perf_buffer__poll(pb, 0)) >= 0) {
         if (g_stop) {
             break;
         }
@@ -1653,6 +1657,7 @@ static void init_wr_flame_pthreads(struct svg_stack_trace_s *svg_st, const char 
         g_stop = 1;
         return;
     }
+    svg_st->wr_flame_thd = wr_flame_thd;
     (void)pthread_detach(wr_flame_thd);
     INFO("[STACKPROBE]: %s wr_flame_pthread successfully started!\n", flame_name);
 
