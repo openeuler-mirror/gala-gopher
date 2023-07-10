@@ -799,6 +799,28 @@ static int __read_proc_cmdline(const char *dir_name, char *cmdline, u32 size)
     return 0;
 }
 
+static int __chk_cmdline_matched(const char *cmdline, const char *pid)
+{
+    int ret;
+    char buf[__PROC_CMDLINE_MAX];
+
+    if (cmdline == NULL) {
+        return 0;
+    }
+
+    buf[0] = 0;
+    ret = __read_proc_cmdline(pid, buf, __PROC_CMDLINE_MAX);
+    if (ret) {
+        return -1;
+    }
+
+    if (strstr(buf, cmdline) == NULL) {
+        return -1;
+    }
+
+    return 0;
+}
+
 static int __get_snooper_obj_idle(struct probe_s *probe, size_t size)
 {
     int pos = -1;
@@ -940,17 +962,9 @@ static int gen_snooper_by_procname(struct probe_s *probe, struct snooper_conf_s 
             continue;
         }
 
-        if (snooper_conf->conf.app.cmdline != NULL) {
-            cmdline[0] = 0;
-            ret = __read_proc_cmdline(entry->d_name, cmdline, __PROC_CMDLINE_MAX);
-            if (ret) {
-                continue;
-            }
-
-            if (strstr(cmdline, snooper_conf->conf.app.cmdline) == NULL) {
-                // 'cmdline' Unmatched
-                continue;
-            }
+        if (__chk_cmdline_matched((const char *)snooper_conf->conf.app.cmdline, entry->d_name) < 0) {
+            // 'cmdline' Unmatched
+            continue;
         }
 
         // Well matched
@@ -1094,18 +1108,24 @@ static void refresh_snooper_obj(struct probe_s *probe)
 
     }
 }
+
 static char __rcv_snooper_proc_exec_sub(struct probe_s *probe, const char *comm, u32 proc_id,
                                         char *container_id, char *pod_id)
 {
     char snooper_obj_added = 0;
     struct snooper_conf_s *snooper_conf;
+    char pid_str[INT_LEN];
 
     for (int j = 0; j < probe->snooper_conf_num && j < SNOOPER_MAX; j++) {
         snooper_conf = probe->snooper_confs[j];
         if (snooper_conf && snooper_conf->type == SNOOPER_CONF_APP) {
             if (__chk_snooper_pattern((const char *)(snooper_conf->conf.app.comm), comm)) {
-                (void)add_snooper_obj_procid(probe, proc_id);
-                snooper_obj_added = 1;
+                pid_str[0] = 0;
+                (void)snprintf(pid_str, sizeof(pid_str), "%d", proc_id);
+                if (__chk_cmdline_matched((const char *)(snooper_conf->conf.app.cmdline), (const char *)pid_str) == 0) {
+                    (void)add_snooper_obj_procid(probe, proc_id);
+                    snooper_obj_added = 1;
+                }
             }
         }
         if (snooper_conf && snooper_conf->type == SNOOPER_CONF_CONTAINER_ID) {
