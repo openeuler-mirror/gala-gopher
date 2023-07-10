@@ -256,10 +256,15 @@ int main(int argc, char **argv)
     INIT_BPF_APP(trace_lvs, EBPF_RLIM_LIMITED);
 
     /* create collect hash map */
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+    g_lvs_probe.collect_map_fd = bpf_map_create(BPF_MAP_TYPE_HASH, NULL, sizeof(struct collect_key),
+                                                sizeof(struct collect_value), IPVS_MAX_ENTRIES, NULL);
+#else
     g_lvs_probe.collect_map_fd = bpf_create_map(BPF_MAP_TYPE_HASH, sizeof(struct collect_key),
                                                 sizeof(struct collect_value), IPVS_MAX_ENTRIES, 0);
+#endif
     if (g_lvs_probe.collect_map_fd < 0) {
-        LVS_ERROR("bpf_create_map collect map fd failed.\n");
+        LVS_ERROR("create collect map fd failed.\n");
         goto err;
     }
 

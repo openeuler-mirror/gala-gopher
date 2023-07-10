@@ -24,7 +24,7 @@ pre: $(OUTPUT)
 deps: $(DEPS)
 # build bpf code
 %.bpf.o: %.bpf.c
-	$(CLANG) $(CFLAGS) -target bpf $(INCLUDES) -c $(filter %.c,$^) -o $@
+	$(CLANG) $(CLANGFLAGS) -target bpf $(INCLUDES) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@
 
 # build skel.h

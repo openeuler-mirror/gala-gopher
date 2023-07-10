@@ -67,6 +67,9 @@ CXXFLAGS += -std=c++11 -g -O2 -Wall -fPIC
 C++ = g++
 CC = gcc
 
+CLANGFLAGS := $(CFLAGS)
+CFLAGS += -Wno-format-truncation
+
 BASE_INC := -I/usr/include \
             -I$(ROOT_DIR)../include \
             -I$(GOPHER_COMMON_DIR) \
