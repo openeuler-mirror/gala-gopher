@@ -31,6 +31,8 @@
 #define OS_RELEASE_ID           "/usr/bin/cat %s | grep -w ID | awk -F'\"' \'{print $2}\'"
 #define OS_RELEASE_PRETTY_NAME  "/usr/bin/cat %s | grep -w PRETTY_NAME | awk -F'\"' \'{print $2}\'"
 #define OS_LATEST_VERSION       "/usr/bin/cat %s | grep -e %s.*version | awk -F'=' \'{print $2}\'"
+#define SYS_STAT                "/proc/stat"
+#define OS_BTIME_CMD            "/usr/bin/cat /proc/stat | awk '{if($1==\"btime\")print $2}'"
 #define OS_KVERSION             "/usr/bin/uname -r"
 #define OS_DETECT_VIRT_ENV      "systemd-detect-virt -v"
 #define LEN_1MB                 (1024 * 1024)     // 1 MB
@@ -258,13 +260,45 @@ static int get_ip_addr(struct node_infos *infos, struct ipc_body_s * ipc_body)
     return 0;
 }
 
+static int get_system_btime(char *buf)
+{
+    FILE *f = NULL;
+    char line[LINE_BUF_LEN];
+
+    if (access((const char *)SYS_STAT, 0) != 0) {
+        return -1;
+    }
+
+    line[0] = 0;
+    f = popen(OS_BTIME_CMD, "r");
+    if (f == NULL) {
+        ERROR("[SYSTEM_PROBE] get OS btime failed, popen error.\n");
+        return -1;
+    }
+    if (fgets(line, LINE_BUF_LEN, f) == NULL) {
+        (void)pclose(f);
+        ERROR("[SYSTEM_PROBE] OS get_info failed, line is null.\n");
+        return -1;
+    }
+
+    SPLIT_NEWLINE_SYMBOL(line);
+    (void)snprintf(buf, MAX_FIELD_LEN, "%s", line);
+    (void)pclose(f);
+    return 0;
+}
+
 static int get_resource_info(struct node_infos *infos)
 {
+    char sys_btime[MAX_FIELD_LEN];
     if (infos == NULL) {
         return -1;
     }
     infos->cpu_num = (u64)sysconf(_SC_NPROCESSORS_CONF);
     infos->total_memory = (u64)sysconf(_SC_PAGESIZE) * (u64)sysconf(_SC_PHYS_PAGES) / LEN_1MB;
+    infos->clock_ticks = (u64)sysconf(_SC_CLK_TCK);
+    sys_btime[0] = 0;
+    (void)get_system_btime(sys_btime);
+    infos->os_btime = (u64)atoll(sys_btime);
     return 0;
 }
 
@@ -313,7 +347,7 @@ int system_os_probe(struct ipc_body_s * ipc_body)
     (void)get_ip_addr(&g_nodeinfos, ipc_body);
     (void)get_host_name(&g_nodeinfos);
 
-    nprobe_fprintf(stdout, "|%s|%s|%s|%s|%llu|%llu|%s|%s|%d|\n",
+    nprobe_fprintf(stdout, "|%s|%s|%s|%s|%llu|%llu|%s|%s|%llu|%llu|%d|\n",
         METRICS_OS_NAME,
         g_nodeinfos.os_version,
         g_nodeinfos.host_name,
@@ -322,6 +356,8 @@ int system_os_probe(struct ipc_body_s * ipc_body)
         g_nodeinfos.total_memory,
         g_nodeinfos.ip_addr,
         g_nodeinfos.is_host_vm == 0 ? "pm" : "vm",
+        g_nodeinfos.clock_ticks,
+        g_nodeinfos.os_btime,
         1); // metric is a fixed number
     return 0;
 }

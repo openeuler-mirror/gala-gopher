@@ -27,6 +27,7 @@
 #define PROC_COMM           "/proc/%u/comm"
 #define PROC_COMM_CMD       "/usr/bin/cat /proc/%u/comm 2> /dev/null"
 #define PROC_STAT           "/proc/%u/stat"
+#define FULL_PER            100
 #define PROC_START_TIME_CMD "/usr/bin/cat /proc/%u/stat | awk '{print $22}'"
 #define PROC_CMDLINE_CMD    "/proc/%u/cmdline"
 #define PROC_FD             "/proc/%u/fd"
@@ -35,7 +36,7 @@
 #define PROC_IO_CMD         "/usr/bin/cat /proc/%u/io"
 #define PROC_SMAPS          "/proc/%u/smaps_rollup"
 #define PROC_SMAPS_CMD      "/usr/bin/cat /proc/%u/smaps_rollup 2> /dev/null"
-#define PROC_STAT_CMD       "/usr/bin/cat /proc/%u/stat | awk '{print $10\":\"$12\":\"$14\":\"$15\":\"$23\":\"$24}'"
+#define PROC_STAT_CMD       "/usr/bin/cat /proc/%u/stat | awk '{print $10\":\"$12\":\"$14\":\"$15\":\"$16\":\"$17\":\"$18\":\"$19\":\"$20\":\"$23\":\"$24\":\"$39}'"
 #define PROC_ID_CMD         "ps -eo pid,ppid,pgid,comm | /usr/bin/awk '{if($1==\"%u\"){print $2 \"|\" $3}}'"
 #define PROC_CPUSET         "/proc/%u/cpuset"
 #define PROC_CPUSET_CMD     "/usr/bin/cat /proc/%u/cpuset 2>/dev/null | awk -F '/' '{print $NF}'"
@@ -328,11 +329,29 @@ static void do_set_proc_stat(proc_info_t *proc_info, char *buf, int index)
         case PROC_STAT_STIME:
             proc_info->proc_stat_stime = value;
             break;
+        case PROC_STAT_CUTIME:
+            proc_info->proc_stat_cutime = value;
+            break;
+        case PROC_STAT_CSTIME:
+            proc_info->proc_stat_cstime = value;
+            break;
+        case PROC_STAT_PRIORITY:
+            proc_info->proc_stat_priority = value;
+            break;
+        case PROC_STAT_NICE:
+            proc_info->proc_stat_nice = value;
+            break;
+        case PROC_STAT_NUM_THREADS:
+            proc_info->proc_stat_num_threads = value;
+            break;
         case PROC_STAT_VSIZE:
             proc_info->proc_stat_vsize = value;
             break;
         case PROC_STAT_RSS:
             proc_info->proc_stat_rss = value;
+            break;
+        case PROC_STAT_CPU:
+            proc_info->proc_stat_cpu = value;
             break;
         default:
             break;
@@ -547,9 +566,10 @@ static void output_proc_infos(proc_hash_t *one_proc)
     float fd_free_per = fd_free / (float)one_proc->info.max_fd_limit * 100;
 
     nprobe_fprintf(stdout,
-        "|%s|%lu|%d|%d|%s|%s|%s|%u|%.2f|%llu|%llu|%u|%u|%llu|%llu|%llu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%llu|%llu|%llu|%llu|%llu|%llu|\n",
+        "|%s|%lu|%llu|%d|%d|%s|%s|%s|%u|%.2f|%llu|%llu|%u|%u|%llu|%llu|%llu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|%d|\n",
         METRICS_PROC_NAME,
         one_proc->key.pid,
+        one_proc->key.start_time,
         one_proc->info.pgid,
         one_proc->info.ppid,
         one_proc->info.comm,
@@ -576,8 +596,15 @@ static void output_proc_infos(proc_hash_t *one_proc)
         one_proc->info.proc_stat_maj_flt - g_pre_proc_info.proc_stat_maj_flt,
         one_proc->info.proc_stat_utime - g_pre_proc_info.proc_stat_utime,
         one_proc->info.proc_stat_stime - g_pre_proc_info.proc_stat_stime,
+        one_proc->info.proc_stat_cutime - g_pre_proc_info.proc_stat_cutime,
+        one_proc->info.proc_stat_cstime - g_pre_proc_info.proc_stat_cstime,
+        one_proc->info.proc_stat_priority,
+        one_proc->info.proc_stat_nice,
+        one_proc->info.proc_stat_num_threads,
         one_proc->info.proc_stat_vsize,
-        one_proc->info.proc_stat_rss);
+        one_proc->info.proc_stat_rss * (u64)sysconf(_SC_PAGESIZE),
+        one_proc->info.proc_stat_rss * 1.0 * FULL_PER / (u64)sysconf(_SC_PHYS_PAGES),
+        one_proc->info.proc_stat_cpu);
     return;
 }
 
