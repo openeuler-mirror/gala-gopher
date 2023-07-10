@@ -90,6 +90,7 @@ struct stack_param_s {
 struct svg_stack_trace_s {
     int bpf_prog_fd;
     struct bpf_object *obj;
+    pthread_t wr_flame_thd;
 
     int stackmap_perf_a_fd;
     int stackmap_perf_b_fd;
