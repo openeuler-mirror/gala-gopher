@@ -21,6 +21,11 @@ DAEMON_FOLDER=${PROJECT_FOLDER}/src/daemon
 TAILOR_PATH=${PROJECT_FOLDER}/tailor.conf
 TAILOR_PATH_TMP=${TAILOR_PATH}.tmp
 
+# libbpf version
+LIBBPF_VER=$(rpm -q libbpf | awk -F'-' '{print $2}')
+LIBBPF_VER_MAJOR=$(echo ${LIBBPF_VER} | awk -F'.' '{print $1}')
+LIBBPF_VER_MINOR=$(echo ${LIBBPF_VER} | awk -F'.' '{print $2}')
+
 export VMLINUX_VER="${2:-$(uname -r)}"
 
 function load_tailor()
@@ -159,6 +164,8 @@ function prepare_probes()
     echo ${PROBES_C_LIST}
     echo "PROBES_META_LIST:"
     echo ${PROBES_META_LIST}
+    echo "LIBBPF_VER:"
+    echo ${LIBBPF_VER}
     cd -
 }
 
@@ -184,7 +191,8 @@ function compile_daemon_release()
     mkdir build
     cd build
 
-    cmake -DGOPHER_DEBUG="0" -DPROBES_C_LIST="${PROBES_C_LIST}" -DPROBES_LIST="${PROBES_LIST}" -DPROBES_META_LIST="${PROBES_META_LIST}" ..
+    cmake -DGOPHER_DEBUG="0" -DPROBES_C_LIST="${PROBES_C_LIST}" -DPROBES_LIST="${PROBES_LIST}" -DPROBES_META_LIST="${PROBES_META_LIST}" \
+        -DLIBBPF_VER_MAJOR="${LIBBPF_VER_MAJOR}" -DLIBBPF_VER_MINOR="${LIBBPF_VER_MINOR}" ..
     make
 }
 
@@ -195,7 +203,8 @@ function compile_daemon_debug()
     mkdir build
     cd build
 
-    cmake -DGOPHER_DEBUG="1" -DPROBES_C_LIST="${PROBES_C_LIST}" -DPROBES_LIST="${PROBES_LIST}" -DPROBES_META_LIST="${PROBES_META_LIST}" ..
+    cmake -DGOPHER_DEBUG="1" -DPROBES_C_LIST="${PROBES_C_LIST}" -DPROBES_LIST="${PROBES_LIST}" -DPROBES_META_LIST="${PROBES_META_LIST}" \
+        -DLIBBPF_VER_MAJOR="${LIBBPF_VER_MAJOR}" -DLIBBPF_VER_MINOR="${LIBBPF_VER_MINOR}" ..
     make
 }
 
