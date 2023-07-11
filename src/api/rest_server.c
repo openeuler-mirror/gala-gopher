@@ -23,8 +23,10 @@
 #include "rest_server.h"
 #include "probe_mng.h"
 
-#define REST_RESPONSE_LEN_MAX 128
-#define POST_BUFFER_SIZE 2048
+#define POST_DATA_KEY          "json"
+#define REST_RESPONSE_LEN_MAX  128
+#define ITER_BUFFER_SIZE       512
+#define POST_BUFFER_SIZE       2048   // max post data size
 
 static char *keyPem;
 static char *certPem;
@@ -212,24 +214,31 @@ static MHD_Result RestPostIterator(void *cls, enum MHD_ValueKind kind, const cha
 
     /*
      * libmicrohttpd now not support application/json post request, use application/x-www-form-urlencoded
-     * instead, curl command example: curl -X POST -d json='{"XYZ":"ABC"}' http://ip:port/url
+     * instead, curl command example: curl -X PUT -d json='{"XYZ":"ABC"}' http://ip:port/url
      */
-    if (strcmp(key,"json") == 0) {
-        if((size > 0) && (size <= POST_BUFFER_SIZE - 1)) {
-            post_data = malloc(POST_BUFFER_SIZE);
+    if (strcmp(key, POST_DATA_KEY) == 0) {
+        if (request->post_data == NULL) {
+            post_data = malloc(POST_BUFFER_SIZE + 1);
             if (!post_data){
                 return MHD_NO;
             }
-
-            snprintf(post_data, POST_BUFFER_SIZE - 1, "%s", data);
+            memset(post_data, 0, POST_BUFFER_SIZE + 1);
             request->post_data = post_data;
-        } else {
-            WARN("[RESTSERVER] Post data size exceeds %d, ignore\n", POST_BUFFER_SIZE);
-            request->post_data = NULL;
+        }
+
+        if (strlen(request->post_data) + size > POST_BUFFER_SIZE) {
+            request->data_broken = 1;
+            PARSE_ERR("post data size exceeds %d", POST_BUFFER_SIZE);
             return MHD_NO;
         }
+        strcat(request->post_data, data);
+    } else {
+        request->data_broken = 1;
+        PARSE_ERR("post data must start with %s=", POST_DATA_KEY);
+        return MHD_NO;
     }
-    return MHD_NO;
+
+    return MHD_YES;
 }
 
 static MHD_Result RestHandlePostRequest(struct MHD_Connection *connection,
@@ -242,13 +251,13 @@ static MHD_Result RestHandlePostRequest(struct MHD_Connection *connection,
     struct MHD_Response *response;
     struct json_object *data_json = NULL;
 
-    MHD_post_process(request->postprocessor, upload_data, *upload_data_size);
     if (*upload_data_size != 0 ) {
+        MHD_post_process(request->postprocessor, upload_data, *upload_data_size);
         *upload_data_size = 0;
         return MHD_YES;
     }
 
-    if (request->post_data != NULL && strlen(request->post_data) != 0) {
+    if (request->post_data != NULL && strlen(request->post_data) != 0 && !request->data_broken) {
         if (parse_probe_json(url, request->post_data) == 0) {
             return RestResponseMessage(connection, MHD_HTTP_OK, "New config takes effect");
         }
@@ -310,7 +319,7 @@ static MHD_Result RestRequestCallback(void *cls,
 
         *ptr = request;
         if (strcmp(method, MHD_HTTP_METHOD_PUT) == 0) {
-            request->postprocessor = MHD_create_post_processor(connection, POST_BUFFER_SIZE,
+            request->postprocessor = MHD_create_post_processor(connection, ITER_BUFFER_SIZE,
                                                 &RestPostIterator, request);
             if (request->postprocessor == NULL) {
                 ERROR("[RESTSERVER] Failed to setup post processor\n");

@@ -33,6 +33,7 @@ typedef struct {
 } RestServer;
 
 typedef struct {
+    char data_broken;
     char *post_data;
     struct MHD_PostProcessor *postprocessor;
 } RestRequest;

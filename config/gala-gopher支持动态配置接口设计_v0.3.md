@@ -11,7 +11,7 @@
 下面是火焰图同时开启oncpu, offcpu采集特性的API举例：
 
 ```
-curl -X PUT http://localhost:9999/flamegraph -d json='
+curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/stackprobe",
@@ -53,7 +53,7 @@ curl -X PUT http://localhost:9999/flamegraph -d json='
 通过REST开启、关闭火焰图的采集能力
 
 ```
-curl -X PUT http://localhost:9999/flamegraph -d json='
+curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 {
     "state": "running" // optional: running,stoped
 }'
@@ -67,6 +67,7 @@ curl -X PUT http://localhost:9999/flamegraph -d json='
 3. 启动文件必须真实有效。
 4. 采集特性可以按需开启全部/部分能力，关闭时只能整体关闭某个采集特性。
 5. opengauss监控对象是DB实例（IP/Port/dbname/user/password）
+6. 接口每次最多接收2048长度的数据
 ```
 
 | 采集特性      | 采集特性说明                          | 采集子项范围                                                 | 监控对象                                 | 启动文件                           | 启动条件                  |
@@ -95,7 +96,7 @@ curl -X PUT http://localhost:9999/flamegraph -d json='
 探针在运行期间还需要设置一些参数设置，例如：设置火焰图的采样周期、上报周期
 
 ```
-curl -X PUT http://localhost:9999/flamegraph -d json='
+curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 {
     "params": {
         "report_period": 180,
