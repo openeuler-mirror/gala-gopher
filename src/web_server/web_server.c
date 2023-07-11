@@ -33,6 +33,27 @@ static int WebRequestCallback(void *cls,
                               void **ptr);
 #endif
 
+static int WebResponseEmptyMetric(struct MHD_Connection *connection)
+{
+    int ret;
+    struct MHD_Response *response;
+
+    response = MHD_create_response_from_buffer(0, "", MHD_RESPMEM_PERSISTENT);
+    if (response == NULL) {
+        return MHD_NO;
+    }
+
+    ret = MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, "text/plain");
+    if (ret == MHD_NO) {
+        MHD_destroy_response(response);
+        return ret;
+    }
+
+    ret = MHD_queue_response(connection, MHD_HTTP_NO_CONTENT, response);
+    MHD_destroy_response(response);
+    return ret;
+}
+
 static int WebRequestCallback(void *cls,
                               struct MHD_Connection *connection,
                               const char *url,
@@ -63,17 +84,17 @@ static int WebRequestCallback(void *cls,
     }
 
     if (ReadMetricsLogs(log_file_name) < 0) {
-        return MHD_NO;
+        return WebResponseEmptyMetric(connection);
     }
 
     fd = open(log_file_name, O_RDONLY);
     if (fd < 0) {
         ERROR("Failed to open '%s': %s\n", log_file_name, strerror(errno));
-        return MHD_NO;
+        return WebResponseEmptyMetric(connection);
     }
     if ((fstat(fd, &buf) == -1) || !S_ISREG(buf.st_mode)) {
         (void)close(fd);
-        return MHD_NO;
+        return WebResponseEmptyMetric(connection);
     }
 
     response = MHD_create_response_from_fd((u64)buf.st_size, fd);

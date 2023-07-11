@@ -46,6 +46,10 @@ static MHD_Result RestResponseMessage(struct MHD_Connection *connection,
 
     response = MHD_create_response_from_buffer(strlen(buf), (void *)buf,
                                                MHD_RESPMEM_MUST_COPY);
+    if (response == NULL) {
+        return MHD_NO;
+    }
+
     MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, "applicaton/json");
     ret = MHD_queue_response(connection, status_code, response);
     MHD_destroy_response(response);
@@ -267,6 +271,11 @@ static MHD_Result RestHandleGetRequest(struct MHD_Connection *connection,
     if (buf) {
         response = MHD_create_response_from_buffer(strlen(buf), (void *)buf,
                                                 MHD_RESPMEM_MUST_COPY);
+        if (response == NULL) {
+            free(buf);
+            return MHD_NO;
+        }
+
         MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, "applicaton/json");
         ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
         MHD_destroy_response(response);
