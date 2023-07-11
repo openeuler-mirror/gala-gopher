@@ -1055,6 +1055,7 @@ void destroy_probe_mng(void)
     (void)pthread_rwlock_destroy(&g_probe_mng->rwlock);
 
     for (int i = 0; i < PROBE_TYPE_MAX; i++) {
+        stop_probe(g_probe_mng->probes[i]);
         destroy_probe(g_probe_mng->probes[i]);
         g_probe_mng->probes[i] = NULL;
     }
