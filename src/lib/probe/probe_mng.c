@@ -35,27 +35,27 @@
 #include "probe_params_parser.h"
 
 struct probe_define_s probe_define[] = {
-    {"baseinfo",            PROBE_BASEINFO},
-    {"virt",                PROBE_VIRT},
-    {"flamegraph",          PROBE_FG},
-    {"l7",                  PROBE_L7},
-    {"tcp",                 PROBE_TCP},
-    {"socket",              PROBE_SOCKET},
-    {"io",                  PROBE_IO},
-    {"proc",                PROBE_PROC},
-    {"jvm",                 PROBE_JVM},
-    {"redis_sli",           PROBE_REDIS_SLI},
-    {"postgre_sli",         PROBE_POSTGRE_SLI},
-    {"opengauss_sli",       PROBE_GAUSS_SLI},
-    {"dnsmasq",             PROBE_DNSMASQ},
-    {"lvs",                 PROBE_LVS},
-    {"nginx",               PROBE_NGINX},
-    {"haproxy",             PROBE_HAPROXY},
-    {"kafka",               PROBE_KAFKA},
-    {"tprofiling",          PROBE_TP},
-    {"hw",                  PROBE_HW},
-    {"ksli",                PROBE_KSLI},
-    {"sched",               PROBE_SCHED},
+    {"baseinfo",            "system_infos",                         PROBE_BASEINFO},
+    {"virt",                "virtualized_infos",                    PROBE_VIRT},
+    {"flamegraph",          "$gala-gopher-dir/stackprobe",          PROBE_FG},
+    {"l7",                  "$gala-gopher-dir/l7probe",             PROBE_L7},
+    {"tcp",                 "$gala-gopher-dir/tcpprobe",            PROBE_TCP},
+    {"socket",              "$gala-gopher-dir/endpoint",            PROBE_SOCKET},
+    {"io",                  "$gala-gopher-dir/ioprobe",             PROBE_IO},
+    {"proc",                "$gala-gopher-dir/taskprobe",           PROBE_PROC},
+    {"jvm",                 "$gala-gopher-dir/jvmprobe",            PROBE_JVM},
+    {"redis_sli",           "$gala-gopher-dir/redissli",            PROBE_REDIS_SLI},
+    {"postgre_sli",         "$gala-gopher-dir/pgsliprobe",          PROBE_POSTGRE_SLI},
+    {"opengauss_sli",       "$gala-gopher-dir/pg_stat_probe.py",    PROBE_GAUSS_SLI},
+    {"dnsmasq",             "$gala-gopher-dir/rabbitmq_probe.sh",   PROBE_DNSMASQ},
+    {"lvs",                 "$gala-gopher-dir/trace_lvs",           PROBE_LVS},
+    {"nginx",               "$gala-gopher-dir/nginx_probe",         PROBE_NGINX},
+    {"haproxy",             "$gala-gopher-dir/trace_haproxy",       PROBE_HAPROXY},
+    {"kafka",               "$gala-gopher-dir/kafkaprobe",          PROBE_KAFKA},
+    {"tprofiling",          "$gala-gopher-dir/tprofiling",          PROBE_TP},
+    {"hw",                  "$gala-gopher-dir/hwprobe",             PROBE_HW},
+    {"ksli",                "$gala-gopher-dir/ksliprobe",           PROBE_KSLI},
+    {"sched",               "$gala-gopher-dir/schedprobe",          PROBE_SCHED}
 };
 
 struct probe_range_define_s {
@@ -337,6 +337,7 @@ end:
 }
 
 #define INSTALL_DIR_CMD "/usr/bin/rpm -ql gala-gopher | grep -v conf | grep %s | head -n1 2>/dev/null"
+#define DEFAULT_INSTALL_DIR_CMD "ls /opt/gala-gopher/extend_probes/%s | head -n1 2>/dev/null"
 static int __get_install_dir(const char *bin_name, char install_dir[], size_t size)
 {
     char cmd[COMMAND_LEN];
@@ -344,7 +345,12 @@ static int __get_install_dir(const char *bin_name, char install_dir[], size_t si
     cmd[0] = 0;
     (void)snprintf(cmd, COMMAND_LEN, INSTALL_DIR_CMD, bin_name);
     if (exec_cmd((const char *)cmd, install_dir, size) < 0) {
-        return -1;
+        install_dir[0] = 0;
+        cmd[0] = 0;
+        (void)snprintf(cmd, COMMAND_LEN, DEFAULT_INSTALL_DIR_CMD, bin_name);
+        if (exec_cmd((const char *)cmd, install_dir, size) < 0) {
+            return -1;
+        } 
     }
 
     return 0;
@@ -354,6 +360,11 @@ static int set_probe_bin(struct probe_s *probe, const char *bin)
 {
     char install_dir[PATH_LEN];
     char bin_name[PATH_LEN];
+
+    if (bin == NULL) {
+        PARSE_ERR("null binpath");
+        return -1;
+    }
 
     if (probe->bin) {
         free(probe->bin);
@@ -642,14 +653,16 @@ static int probe_parser_cmd(struct probe_s *probe, const cJSON *item)
 {
     int ret = 0;
     cJSON *bin_object, *chkcmd_object, *probe_object;
+    const char *bin_string = NULL;
 
     bin_object = cJSON_GetObjectItem(item, "bin");
-    if (bin_object == NULL || bin_object->type != cJSON_String) {
-        PARSE_ERR("binfile is essential and must be string");
-        return -1;
+    if ((bin_object != NULL) && (bin_object->type == cJSON_String) && (bin_object->valuestring[0] != 0)) {
+        bin_string = (const char *)bin_object->valuestring;
+    } else {
+        bin_string = probe_define[probe->probe_type - 1].bin;
     }
-
-    if (set_probe_bin(probe, (const char *)bin_object->valuestring)) {
+    
+    if (set_probe_bin(probe, bin_string)) {
         return -1;
     }
 

@@ -10,7 +10,7 @@ RDS_VER_PATCH = $(shell echo $(REDIS_VERSION) | awk -F'.' '{print $$3}')
 CFLAGS += -DRDS_VER_MAJOR=$(RDS_VER_MAJOR) -DRDS_VER_MINOR=$(RDS_VER_MINOR) -DRDS_VER_PATCH=$(RDS_VER_PATCH)
 CLANGFLAGS += -DRDS_VER_MAJOR=$(RDS_VER_MAJOR) -DRDS_VER_MINOR=$(RDS_VER_MINOR) -DRDS_VER_PATCH=$(RDS_VER_PATCH)
 
-APP := redissli_$(REDIS_VERSION)
+APP := redissli
 SRC_CPLUS := $(wildcard *.cpp)
 SRC_CPLUS += $(CPLUSFILES)
 
@@ -41,7 +41,7 @@ deps: $(DEPS)
 	$(C++) -c $^ $(CXXFLAGS) $(INCLUDES) -o $@
 
 app: $(APP)
-%_$(REDIS_VERSION): %.c $(SRC_C)
+%: %.c $(SRC_C)
 	$(CC) $(CFLAGS) $(patsubst %.cpp, %.o, $(SRC_CPLUS))  $(INCLUDES) $^ $(LDFLAGS) $(LINK_TARGET) -o $@
 	@echo $@ "compiling completed."
 clean:
