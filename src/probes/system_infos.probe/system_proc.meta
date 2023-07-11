@@ -13,6 +13,11 @@ measurements:
                 name: "tgid",
             },
             {
+                description: "process startup time",
+                type: "label",
+                name: "start_time",
+            },
+            {
                 description: "process group id",
                 type: "label",
                 name: "pgid",
@@ -143,14 +148,49 @@ measurements:
                 name: "stime_jiffies",
             },
             {
+                description: "time of proc waited-for children in userspace",
+                type: "gauge",
+                name: "cutime_jiffies",
+            },
+            {
+                description: "time of proc waited-for children in kernelspace",
+                type: "gauge",
+                name: "cstime_jiffies",
+            },
+            {
+                description: "Dynamic priority of proc",
+                type: "gauge",
+                name: "priority",
+            },
+            {
+                description: "Static priority of proc",
+                type: "gauge",
+                name: "nice",
+            },
+            {
+                description: "Number of threads in the group",
+                type: "gauge",
+                name: "num_threads",
+            },
+            {
                 description: "byte of proc's virtual address space(B)",
                 type: "gauge",
                 name: "vm_size",
             },
             {
-                description: "size of proc's physical address space(page)",
+                description: "byte of proc's physical address space(B)",
                 type: "gauge",
                 name: "pm_size",
+            },
+            {
+                description: "util of proc's physical address used(%)",
+                type: "gauge",
+                name: "pm_util",
+            },
+            {
+                description: "ID of the CPU where proc last run",
+                type: "gauge",
+                name: "cpu",
             }
         )
     }

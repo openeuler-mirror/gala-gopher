@@ -182,7 +182,7 @@ static void DaemonKeeplive(int sig)
             (void)pthread_detach(probe->tid);
 
             INFO("[DAEMON] keeplive create probe(%s) thread.\n", probe->name);
-            break;
+            continue;
         }
     }
     return;

@@ -1,6 +1,6 @@
 /******************************************************************************
  * Copyright (c) Huawei Technologies Co., Ltd. 2021. All rights reserved.
- * iSulad licensed under the Mulan PSL v2.
+ * gala-gopher licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
  *     http://license.coscl.org.cn/MulanPSL2
@@ -65,6 +65,8 @@ KafkaMgr *KafkaMgrCreate(const ConfigMgr *configMgr, const char *topic_type)
     mgr->queueBufferingMaxKbytes = configMgr->kafkaConfig->queueBufferingMaxKbytes;
     mgr->queueBufferingMaxMessages = configMgr->kafkaConfig->queueBufferingMaxMessages;
     mgr->queueBufferingMaxMs = configMgr->kafkaConfig->queueBufferingMaxMs;
+    (void)snprintf(mgr->kafkaUsername, sizeof(mgr->kafkaUsername), "%s", configMgr->kafkaConfig->username);
+    (void)snprintf(mgr->kafkaPassword, sizeof(mgr->kafkaPassword), "%s", configMgr->kafkaConfig->password);
 
     mgr->conf = rd_kafka_conf_new();
     ret = rd_kafka_conf_set(mgr->conf, "bootstrap.servers", mgr->kafkaBroker, errstr, sizeof(errstr));
@@ -123,10 +125,39 @@ KafkaMgr *KafkaMgrCreate(const ConfigMgr *configMgr, const char *topic_type)
     }
     rd_kafka_conf_set_dr_msg_cb(mgr->conf, dr_msg_cb);
 
+    if (mgr->kafkaUsername[0] != 0 && mgr->kafkaPassword[0] != 0) {
+        ret = rd_kafka_conf_set(mgr->conf, "sasl.username", mgr->kafkaUsername, errstr, sizeof(errstr));
+        if (ret != RD_KAFKA_CONF_OK) {
+            ERROR("set rdkafka sasl.username failed(%s).\n", errstr);
+            free(mgr);
+            return NULL;
+        }
+
+        ret = rd_kafka_conf_set(mgr->conf, "sasl.password", mgr->kafkaPassword, errstr, sizeof(errstr));
+        if (ret != RD_KAFKA_CONF_OK) {
+            ERROR("set rdkafka sasl.password failed(%s).\n", errstr);
+            free(mgr);
+            return NULL;
+        }
+
+        ret = rd_kafka_conf_set(mgr->conf, "sasl.mechanism", "PLAIN", errstr, sizeof(errstr));
+        if (ret != RD_KAFKA_CONF_OK) {
+            ERROR("set rdkafka sasl.mechanism failed(%s).\n", errstr);
+            free(mgr);
+            return NULL;
+        }
+
+        ret = rd_kafka_conf_set(mgr->conf, "security.protocol", "SASL_PLAINTEXT", errstr, sizeof(errstr));
+        if (ret != RD_KAFKA_CONF_OK) {
+            ERROR("set rdkafka sasl.protocol failed(%s).\n", errstr);
+            free(mgr);
+            return NULL;
+        }
+    }
+
     mgr->rk = rd_kafka_new(RD_KAFKA_PRODUCER, mgr->conf, errstr, sizeof(errstr));
     if (mgr->rk == NULL) {
         ERROR("failed to create new kafka_producer, errstr(%s).\n", errstr);
-        rd_kafka_conf_destroy(mgr->conf);
         free(mgr);
         return NULL;
     }
@@ -135,7 +166,6 @@ KafkaMgr *KafkaMgrCreate(const ConfigMgr *configMgr, const char *topic_type)
     if (mgr->rkt == NULL) {
         ERROR("failed to create new kafka topic object.\n");
         rd_kafka_destroy(mgr->rk);
-        rd_kafka_conf_destroy(mgr->conf);
         free(mgr);
         return NULL;
     }
@@ -153,9 +183,6 @@ void KafkaMgrDestroy(KafkaMgr *mgr)
 
     if (mgr->rk != NULL)
         rd_kafka_destroy(mgr->rk);
-
-    if (mgr->conf != NULL)
-        rd_kafka_conf_destroy(mgr->conf);
 
     free(mgr);
     return;

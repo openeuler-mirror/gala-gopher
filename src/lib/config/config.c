@@ -1,6 +1,6 @@
 /******************************************************************************
  * Copyright (c) Huawei Technologies Co., Ltd. 2021. All rights reserved.
- * iSulad licensed under the Mulan PSL v2.
+ * gala-gopher licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
  *     http://license.coscl.org.cn/MulanPSL2
@@ -264,6 +264,20 @@ static int ConfigMgrLoadKafkaConfig(void *config, config_setting_t *settings)
         return -1;
     }
     kafkaConfig->queueBufferingMaxMs = intVal;
+
+    ret = config_setting_lookup_string(settings, "username", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for kafka userame failed.\n");
+        return -1;
+    }
+    (void)snprintf(kafkaConfig->username, sizeof(kafkaConfig->username), "%s", strVal);
+
+    ret = config_setting_lookup_string(settings, "password", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for kafka password failed.\n");
+        return -1;
+    }
+    (void)snprintf(kafkaConfig->password, sizeof(kafkaConfig->password), "%s", strVal);
 
     return 0;
 }

@@ -21,6 +21,11 @@ DAEMON_FOLDER=${PROJECT_FOLDER}/src/daemon
 TAILOR_PATH=${PROJECT_FOLDER}/tailor.conf
 TAILOR_PATH_TMP=${TAILOR_PATH}.tmp
 
+# libbpf version
+LIBBPF_VER=$(rpm -q libbpf | awk -F'-' '{print $2}')
+LIBBPF_VER_MAJOR=$(echo ${LIBBPF_VER} | awk -F'.' '{print $1}')
+LIBBPF_VER_MINOR=$(echo ${LIBBPF_VER} | awk -F'.' '{print $2}')
+
 export VMLINUX_VER="${2:-$(uname -r)}"
 
 function load_tailor()
@@ -159,6 +164,8 @@ function prepare_probes()
     echo ${PROBES_C_LIST}
     echo "PROBES_META_LIST:"
     echo ${PROBES_META_LIST}
+    echo "LIBBPF_VER:"
+    echo ${LIBBPF_VER}
     cd -
 }
 
@@ -184,7 +191,8 @@ function compile_daemon_release()
     mkdir build
     cd build
 
-    cmake -DGOPHER_DEBUG="0" -DPROBES_C_LIST="${PROBES_C_LIST}" -DPROBES_LIST="${PROBES_LIST}" -DPROBES_META_LIST="${PROBES_META_LIST}" ..
+    cmake -DGOPHER_DEBUG="0" -DPROBES_C_LIST="${PROBES_C_LIST}" -DPROBES_LIST="${PROBES_LIST}" -DPROBES_META_LIST="${PROBES_META_LIST}" \
+        -DLIBBPF_VER_MAJOR="${LIBBPF_VER_MAJOR}" -DLIBBPF_VER_MINOR="${LIBBPF_VER_MINOR}" ..
     make
 }
 
@@ -195,7 +203,8 @@ function compile_daemon_debug()
     mkdir build
     cd build
 
-    cmake -DGOPHER_DEBUG="1" -DPROBES_C_LIST="${PROBES_C_LIST}" -DPROBES_LIST="${PROBES_LIST}" -DPROBES_META_LIST="${PROBES_META_LIST}" ..
+    cmake -DGOPHER_DEBUG="1" -DPROBES_C_LIST="${PROBES_C_LIST}" -DPROBES_LIST="${PROBES_LIST}" -DPROBES_META_LIST="${PROBES_META_LIST}" \
+        -DLIBBPF_VER_MAJOR="${LIBBPF_VER_MAJOR}" -DLIBBPF_VER_MINOR="${LIBBPF_VER_MINOR}" ..
     make
 }
 
@@ -298,6 +307,30 @@ function prepare_dependence()
     yum install -y log4cplus-devel
     if [ $? -ne 0 ];then
         echo "Error: Failed to install log4cplus-devel."
+        return 1
+    fi
+
+    yum install -y libbpf-devel
+    if [ $? -ne 0 ];then
+        echo "Error: Failed to install libbpf-devel."
+        return 1
+    fi
+
+    yum install -y clang
+    if [ $? -ne 0 ];then
+        echo "Error: Failed to install clang."
+        return 1
+    fi
+
+    yum install -y llvm
+    if [ $? -ne 0 ];then
+        echo "Error: Failed to install llvm."
+        return 1
+    fi
+
+    yum install -y java-1.8.0-openjdk-devel
+    if [ $? -ne 0 ];then
+        echo "Error: Failed to install java-1.8.0-openjdk-devel"
         return 1
     fi
 

@@ -29,6 +29,7 @@ struct libssl_prog_s {
 
 struct l7_ebpf_prog_s {
     int conn_tbl_fd;
+    int l7_tcp_fd;
     int filter_args_fd;
     int proc_obj_map_fd;
     struct bpf_prog_s* kern_sock_prog;

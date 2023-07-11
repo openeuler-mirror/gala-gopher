@@ -211,17 +211,16 @@ static struct containers_hash_t *add_one_con(struct pod_info_s *pod_info, char *
 
 static void del_one_con(struct pod_info_s *pod_info, char *con_id)
 {
-    struct containers_hash_t *con_head = pod_info->con_head;
     struct containers_hash_t *con;
 
-    if (con_head == NULL) {
+    if (pod_info->con_head == NULL) {
         return;
     }
 
-    H_FIND_S(con_head, con_id, con);
+    H_FIND_S(pod_info->con_head, con_id, con);
     if (con != NULL) {
         //print_pod_state_metrics(pod_info, con, "destroy_container");
-        H_DEL(con_head, con);
+        H_DEL(pod_info->con_head, con);
         (void)free(con);
     }
 }

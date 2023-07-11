@@ -19,7 +19,6 @@
 
 #ifndef BPF_PROG_KERN
 #include <stddef.h>
-#include <linux/uio.h>
 #endif
 #include "common.h"
 

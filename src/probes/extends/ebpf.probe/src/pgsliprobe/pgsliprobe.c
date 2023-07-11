@@ -558,7 +558,7 @@ int main(int argc, char **argv)
     PGSLI_INFO("pgsliprobe probe successfully started!\n");
 
     while (!stop) {
-        err = recv_ipc_msg(msq_id, (long)PROBE_GAUSS_SLI, &ipc_body);
+        err = recv_ipc_msg(msq_id, (long)PROBE_POSTGRE_SLI, &ipc_body);
         if (err == 0) {
             reload_tc_bpf(&ipc_body);
 

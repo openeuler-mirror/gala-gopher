@@ -13,6 +13,11 @@ measurements:
                 name: "tgid",
             },
             {
+                description: "Name of JVM Main Class.",
+                type: "label",
+                name: "name",
+            },
+            {
                 description: "JVM runtime Environment.",
                 type: "label",
                 name: "runtime",
@@ -35,7 +40,7 @@ measurements:
         )
     },
     {
-        table_name: "jvm_process",
+        table_name: "jvm_proc",
         entity_name: "jvm",
         fields:
         (
@@ -45,14 +50,19 @@ measurements:
                 name: "tgid",
             },
             {
+                description: "Name of JVM Main Class.",
+                type: "label",
+                name: "name",
+            },
+            {
                 description: "Start time of the process since unix epoch in seconds.",
                 type: "gauge",
-                name: "process_start_time_seconds",
+                name: "proc_start_time_secs",
             },
             {
                 description: "Total user and system CPU time spent in seconds.",
-                type: "gauge",
-                name: "process_cpu_seconds_total",
+                type: "counter",
+                name: "proc_cpu_secs_total",
             },
         )
     },
@@ -67,14 +77,19 @@ measurements:
                 name: "tgid",
             },
             {
+                description: "Name of JVM Main Class.",
+                type: "label",
+                name: "name",
+            },
+            {
                 description: "Start time of the process since unix epoch in seconds.",
                 type: "gauge",
-                name: "classes_currently_loaded",
+                name: "class_current_loaded",
             },
             {
                 description: "Total user and system CPU time spent in seconds.",
-                type: "gauge",
-                name: "classes_loaded_total",
+                type: "counter",
+                name: "class_loaded_total",
             },
         )
     },
@@ -87,6 +102,11 @@ measurements:
                 description: "ID of current java process.",
                 type: "key",
                 name: "tgid",
+            },
+            {
+                description: "Name of JVM Main Class.",
+                type: "label",
+                name: "name",
             },
             {
                 description: "Current thread count of a JVM.",
@@ -105,7 +125,7 @@ measurements:
             },
             {
                 description: "Started thread count of a JVM.",
-                type: "gauge",
+                type: "counter",
                 name: "threads_started_total",
             },
             {
@@ -126,6 +146,11 @@ measurements:
                 name: "tgid",
             },
             {
+                description: "Name of JVM Main Class.",
+                type: "label",
+                name: "name",
+            },
+            {
                 description: "type of JVM memory type: heap or noheap.",
                 type: "key",
                 name: "area",
@@ -133,22 +158,22 @@ measurements:
             {
                 description: "Used bytes of a given JVM memory area.",
                 type: "gauge",
-                name: "memory_bytes_used",
+                name: "mem_bytes_used",
             },
             {
                 description: "Committed (bytes) of a given JVM memory area.",
                 type: "gauge",
-                name: "memory_bytes_committed",
+                name: "mem_bytes_commit",
             },
             {
                 description: "Max (bytes) of a given JVM memory area.",
                 type: "gauge",
-                name: "memory_bytes_max",
+                name: "mem_bytes_max",
             },
             {
                 description: "Initial bytes of a given JVM memory area.",
                 type: "gauge",
-                name: "memory_bytes_init",
+                name: "mem_bytes_init",
             },
         )
     },
@@ -163,6 +188,11 @@ measurements:
                 name: "tgid",
             },
             {
+                description: "Name of JVM Main Class.",
+                type: "label",
+                name: "name",
+            },
+            {
                 description: "name representing a memory pool.",
                 type: "key",
                 name: "pool",
@@ -170,32 +200,32 @@ measurements:
             {
                 description: "Used bytes of a given JVM memory pool.",
                 type: "gauge",
-                name: "memory_pool_bytes_used",
+                name: "mem_pool_bytes_used",
             },
             {
                 description: "Committed bytes of a given JVM memory pool.",
                 type: "gauge",
-                name: "memory_pool_bytes_committed",
+                name: "mem_pool_bytes_commit",
             },
             {
                 description: "Max bytes of a given JVM memory pool.",
                 type: "gauge",
-                name: "memory_pool_bytes_max",
+                name: "mem_pool_bytes_max",
             },
             {
                 description: "Used bytes after last collection of a given JVM memory pool.",
                 type: "gauge",
-                name: "memory_pool_collection_used_bytes",
+                name: "mem_pool_coll_used_bytes",
             },
             {
                 description: "Committed after last collection bytes of a given JVM memory pool.",
                 type: "gauge",
-                name: "memory_pool_collection_committed_bytes",
+                name: "mem_pool_coll_commit_bytes",
             },
             {
                 description: "Max bytes after last collection of a given JVM memory pool.",
                 type: "gauge",
-                name: "memory_pool_collection_max_bytes",
+                name: "mem_pool_coll_max_bytes",
             },
         )
     },
@@ -208,6 +238,11 @@ measurements:
                 description: "ID of current java process.",
                 type: "key",
                 name: "tgid",
+            },
+            {
+                description: "Name of JVM Main Class.",
+                type: "label",
+                name: "name",
             },
             {
                 description: "name representing a buffer pool.",
@@ -242,19 +277,24 @@ measurements:
                 name: "tgid",
             },
             {
+                description: "Name of JVM Main Class.",
+                type: "label",
+                name: "name",
+            },
+            {
                 description: "name representing a GC.",
                 type: "key",
                 name: "gc",
             },
             {
                 description: "Collection count of a given JVM garbage collector.",
-                type: "gauge",
-                name: "gc_collection_seconds_count",
+                type: "summary",
+                name: "gc_coll_secs_count",
             },
             {
                 description: "Time spent in a given JVM garbage collector in seconds.",
-                type: "gauge",
-                name: "gc_collection_seconds_sum",
+                type: "summary",
+                name: "gc_coll_secs_sum",
             },
         )
     }

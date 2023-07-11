@@ -36,6 +36,7 @@ enum mem_infos {
     INACTIVE,
     SWAP_TOTAL,
     SWAP_FREE,
+    SLAB,
 
     TOTAL_DATA_INDEX,
 };

@@ -37,7 +37,9 @@ function install_daemon_bin()
         echo "${GOPHER_BIN_FILE} not exist. please check if build success."
         exit 1
     fi
-
+    if [ ! -d ${GOPHER_BIN_TARGET_DIR} ]; then
+        mkdir -p ${GOPHER_BIN_TARGET_DIR}
+    fi
     # install gala-gopher bin
     cp -f ${GOPHER_BIN_FILE} ${GOPHER_BIN_TARGET_DIR}
     echo "install ${GOPHER_BIN_FILE} success."
@@ -65,7 +67,7 @@ function install_conf()
 
     # install gala-gopher.conf
     if [ ! -d ${GOPHER_CONF_TARGET_DIR} ]; then
-        mkdir ${GOPHER_CONF_TARGET_DIR}
+        mkdir -p ${GOPHER_CONF_TARGET_DIR}
     fi
     cp -f ${GOPHER_CONF_FILE} ${GOPHER_CONF_TARGET_DIR}
     echo "install ${GOPHER_CONF_FILE} success."

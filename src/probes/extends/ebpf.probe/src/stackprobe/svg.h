@@ -35,8 +35,8 @@ struct post_info_s {
 enum stack_svg_type_e {
     STACK_SVG_ONCPU = 0,
     STACK_SVG_OFFCPU = 1,
-    STACK_SVG_IO,
     STACK_SVG_MEMLEAK,
+    STACK_SVG_IO,
     STACK_SVG_MAX
 };
 

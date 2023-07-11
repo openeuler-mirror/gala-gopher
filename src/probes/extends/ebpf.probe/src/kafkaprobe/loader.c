@@ -63,16 +63,16 @@ struct bpf_object *load(struct KafkaConfig *cfg){
     return obj;
 }
 
-int unload(struct bpf_object *obj){
-    int ret;
-
-    ret = bpf_object__unload(obj);
-    if (ret){
-        KFK_ERROR("unloading BPF-OBJ file fail\n");
-        return 1;        
+void unload(struct bpf_object *obj){
+    if (!obj) {
+        return;
     }
 
-    return 0;
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+    bpf_object__close(obj);
+#else
+    (void)bpf_object__unload(obj);
+#endif
 }
 
 int link_xdp(struct KafkaConfig *cfg, struct bpf_object *obj){
@@ -81,7 +81,11 @@ int link_xdp(struct KafkaConfig *cfg, struct bpf_object *obj){
     int prog_fd = -1;
     int ret;
 
+#if (CURRENT_LIBBPF_VERSION  < LIBBPF_VERSION(0, 7)) 
     prog = bpf_program__next(NULL, obj);
+#else
+    prog = bpf_object__next_program(obj, NULL);
+#endif
     if(!prog){
         KFK_ERROR("can't find prog in bpf object\n");
         return 1;             
@@ -89,7 +93,11 @@ int link_xdp(struct KafkaConfig *cfg, struct bpf_object *obj){
 
     prog_fd = bpf_program__fd(prog);
 
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+    ret = bpf_xdp_attach(cfg->ifindex, prog_fd, cfg->xdp_flag, NULL);
+#else
     ret = bpf_set_link_xdp_fd(cfg->ifindex, prog_fd, cfg->xdp_flag);
+#endif
     if(ret){
         switch(ret){
             case -EBUSY:
@@ -112,7 +120,11 @@ int unlink_xdp(struct KafkaConfig *cfg){
     int ret;
     __u32 prog_fd;
 
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+    ret = bpf_xdp_query_id(cfg->ifindex, cfg->xdp_flag, &prog_fd);
+#else
     ret = bpf_get_link_xdp_id(cfg->ifindex, &prog_fd, cfg->xdp_flag);
+#endif
     if (ret) {
         KFK_ERROR("get link xdp prog fd failed \n");
         return 1;
@@ -123,7 +135,11 @@ int unlink_xdp(struct KafkaConfig *cfg){
         return 0;
     }
 
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+    ret = bpf_xdp_detach(cfg->ifindex, cfg->xdp_flag, NULL);
+#else
     ret = bpf_set_link_xdp_fd(cfg->ifindex, -1, cfg->xdp_flag);
+#endif
     if (ret < 0) {
         KFK_ERROR("unlink xdp prog from net interface %s fail\n", cfg->ifname);
         return 3;
@@ -242,11 +258,7 @@ int unpin_unlink_unload(struct KafkaConfig *cfg, struct bpf_object *obj){
         return 1;            
     }   
 
-    ret = unload(obj);
-    if(ret){
-        KFK_ERROR("unload bpf object fail!\n");
-        return 1;            
-    }        
+    unload(obj);
 
     KFK_INFO("unpin, unlink, unload kafka probe prog success\n");
     return 0;

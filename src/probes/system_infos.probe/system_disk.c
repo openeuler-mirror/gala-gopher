@@ -26,6 +26,7 @@
 #define ENTITY_DISK_NAME        "disk"
 #define SYSTEM_INODE_COMMAND    "/usr/bin/df -T -i | /usr/bin/awk 'NR>1 {print $0}'"
 #define SYSTEM_BLOCK_CMD        "/usr/bin/df -T | /usr/bin/awk '{if($7==\"%s\"){print $0}}'"
+#define SYSTEM_MOUNT_STAT_CMD   "/usr/bin/awk '{if($2==\"%s\"){print $4}}' /proc/mounts | /usr/bin/awk -F',' '{print $1}'"
 #define SYSTEM_DISKSTATS_CMD    "/usr/bin/cat /proc/diskstats"
 #define SYSTEM_DISK_DEV_NUM     "/usr/bin/cat /proc/diskstats | wc -l"
 
@@ -105,6 +106,27 @@ static int get_mnt_block_info(const char *mounted_on, df_stats *blk_stats)
     return 0;
 }
 
+static int get_mnt_status(const char *mounted_on, char *status)
+{
+    FILE *f = NULL;
+    char cmd[LINE_BUF_LEN];
+
+    cmd[0] = 0;
+    (void)snprintf(cmd, LINE_BUF_LEN, SYSTEM_MOUNT_STAT_CMD, mounted_on);
+    f = popen(cmd, "r");
+    if (f == NULL) {
+        return -1;
+    }
+    if (fgets(status, LINE_BUF_LEN, f) == NULL) {
+        pclose(f);
+        return -1;
+    }
+    SPLIT_NEWLINE_SYMBOL(status);
+
+    pclose(f);
+    return 0;
+}
+
 /*
  [root@localhost ~]# df -i | awk 'NR>1 {print $1"%"$2"%"$3"%"$4"%"$5"%"$6}'
  devtmpfs%949375%377%948998%1%%/dev
@@ -117,6 +139,7 @@ int system_disk_probe(struct ipc_body_s *ipc_body)
 {
     FILE *f = NULL;
     char line[LINE_BUF_LEN];
+    char mnt_status[LINE_BUF_LEN];
     df_stats inode_stats;
     df_stats block_stats;
 
@@ -127,6 +150,7 @@ int system_disk_probe(struct ipc_body_s *ipc_body)
     }
     while (!feof(f)) {
         line[0] = 0;
+        mnt_status[0] = 0;
         if (fgets(line, LINE_BUF_LEN, f) == NULL) {
             break;
         }
@@ -137,10 +161,14 @@ int system_disk_probe(struct ipc_body_s *ipc_body)
         if (get_mnt_block_info(inode_stats.mount_on, &block_stats) < 0) {
             continue;
         }
+        if (get_mnt_status(inode_stats.mount_on, mnt_status) < 0) {
+            continue;
+        }
         /* output */
-        (void)nprobe_fprintf(stdout, "|%s|%s|%s|%s|%ld|%ld|%ld|%ld|%ld|%ld|%ld|%ld|\n",
+        (void)nprobe_fprintf(stdout, "|%s|%s|%s|%s|%s|%ld|%ld|%ld|%ld|%ld|%ld|%ld|%ld|\n",
             METRICS_DF_NAME,
             inode_stats.mount_on,
+            mnt_status,
             inode_stats.fsname,
             inode_stats.fstype,
             inode_stats.inode_or_blk_sum,

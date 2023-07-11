@@ -8,6 +8,7 @@ RDS_VER_MAJOR = $(shell echo $(REDIS_VERSION) | awk -F'.' '{print $$1}')
 RDS_VER_MINOR = $(shell echo $(REDIS_VERSION) | awk -F'.' '{print $$2}')
 RDS_VER_PATCH = $(shell echo $(REDIS_VERSION) | awk -F'.' '{print $$3}')
 CFLAGS += -DRDS_VER_MAJOR=$(RDS_VER_MAJOR) -DRDS_VER_MINOR=$(RDS_VER_MINOR) -DRDS_VER_PATCH=$(RDS_VER_PATCH)
+CLANGFLAGS += -DRDS_VER_MAJOR=$(RDS_VER_MAJOR) -DRDS_VER_MINOR=$(RDS_VER_MINOR) -DRDS_VER_PATCH=$(RDS_VER_PATCH)
 
 APP := redissli_$(REDIS_VERSION)
 SRC_CPLUS := $(wildcard *.cpp)
@@ -28,7 +29,7 @@ pre: $(OUTPUT)
 deps: $(DEPS)
 # build bpf code
 %.bpf.o: %.bpf.c
-	$(CLANG) $(CFLAGS) -target bpf $(INCLUDES) -c $(filter %.c,$^) -o $@
+	$(CLANG) $(CLANGFLAGS) -target bpf $(INCLUDES) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@
 
 # build skel.h

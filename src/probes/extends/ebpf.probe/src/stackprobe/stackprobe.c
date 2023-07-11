@@ -74,12 +74,6 @@
 typedef int (*AttachFunc)(struct ipc_body_s *ipc_body, struct svg_stack_trace_s *svg_st);
 typedef int (*PerfProcessFunc)(void *ctx, int cpu, void *data, u32 size);
 
-enum pid_state_t {
-    PID_NOEXIST,
-    PID_ELF_TOBE_ATTACHED,
-    PID_ELF_ATTACHED
-};
-
 typedef struct {
     u32 sw;
     enum stack_svg_type_e en_type;
@@ -88,7 +82,14 @@ typedef struct {
     AttachFunc func;
     perf_buffer_sample_fn cb;
 } FlameProc;
+#if 0
+static struct bpf_link_hash_t *bpf_link_head = NULL;
 
+enum pid_state_t {
+    PID_NOEXIST,
+    PID_ELF_TOBE_ATTACHED,
+    PID_ELF_ATTACHED
+};
 struct bpf_link_hash_value {
     enum pid_state_t pid_state;
     char elf_path[MAX_PATH_LEN];
@@ -101,14 +102,13 @@ struct bpf_link_hash_t {
     unsigned int pid; // key
     struct bpf_link_hash_value v; // value
 };
-
+#endif
 
 static char __histo_tmp_str[HISTO_TMP_LEN];
 int g_post_max = POST_MAX_STEP_SIZE;
 static struct ipc_body_s g_ipc_body;
 static volatile sig_atomic_t g_stop;
 static struct stack_trace_s *g_st = NULL;
-static struct bpf_link_hash_t *bpf_link_head = NULL;
 
 static void sig_int(int signo)
 {
@@ -128,7 +128,6 @@ static void load_stackprobe_snoopers(struct ipc_body_s *ipc_body)
         if (ipc_body->snooper_objs[i].type == SNOOPER_OBJ_PROC) {
             proc.proc_id = ipc_body->snooper_objs[i].obj.proc.proc_id;
             (void)bpf_map_update_elem(g_st->proc_obj_map_fd, &proc, &ref, BPF_ANY);
-            g_st->whitelist_enable = 1;
         }
     }
 }
@@ -544,7 +543,9 @@ static int add_stack_histo(struct stack_trace_s *st, struct stack_symbs_s *stack
     new_item->stack_symbs_str[0] = 0;
     (void)snprintf(new_item->stack_symbs_str, sizeof(new_item->stack_symbs_str), "%s", str);
     new_item->count = count < 0 ? 0 : count;
-    H_ADD_S(st->svg_stack_traces[en_type]->histo_tbl, stack_symbs_str, new_item);
+    if (new_item->count != 0) {
+        H_ADD_S(st->svg_stack_traces[en_type]->histo_tbl, stack_symbs_str, new_item);
+    }
 
     return 0;
 }
@@ -783,7 +784,7 @@ static void process_loss_data(void *ctx, int cpu, u64 cnt)
 static void process_oncpu_raw_stack_trace(void *ctx, int cpu, void *data, u32 size)
 {
     struct raw_stack_trace_s *raw_st;
-    if (!g_st || !data) {
+    if (!g_st || !g_st->svg_stack_traces[STACK_SVG_ONCPU] || !data) {
         return;
     }
 
@@ -809,7 +810,7 @@ static void process_oncpu_raw_stack_trace(void *ctx, int cpu, void *data, u32 si
 static void process_offcpu_raw_stack_trace(void *ctx, int cpu, void *data, u32 size)
 {
     struct raw_stack_trace_s *raw_st;
-    if (!g_st || !data) {
+    if (!g_st || !g_st->svg_stack_traces[STACK_SVG_OFFCPU] || !data) {
         return;
     }
 
@@ -836,7 +837,7 @@ static void process_offcpu_raw_stack_trace(void *ctx, int cpu, void *data, u32 s
 static void process_memleak_raw_stack_trace(void *ctx, int cpu, void *data, u32 size)
 {
     struct raw_stack_trace_s *raw_st;
-    if (!g_st || !data) {
+    if (!g_st || !g_st->svg_stack_traces[STACK_SVG_MEMLEAK] || !data) {
         return;
     }
 
@@ -862,6 +863,10 @@ static void process_memleak_raw_stack_trace(void *ctx, int cpu, void *data, u32 
 static void destroy_svg_stack_trace(struct svg_stack_trace_s **ptr_svg_st)
 {
     struct svg_stack_trace_s *svg_st = *ptr_svg_st;
+
+    if (svg_st->wr_flame_thd > 0) {
+        (void)pthread_cancel(svg_st->wr_flame_thd);
+    }
 
     *ptr_svg_st = NULL;
     if (!svg_st) {
@@ -994,6 +999,7 @@ static struct stack_trace_s *create_stack_trace(struct ipc_body_s *ipc_body)
 
     (void)memset(st, 0, size);
     st->cpus_num = cpus_num;
+    st->whitelist_enable = 1; // Only the flame graph of the specified process is collected
 
 #if 0
     if (stacktrace_create_log_mgr(st, conf->generalConfig->logDir)) {
@@ -1106,7 +1112,11 @@ static int load_bpf_prog(struct svg_stack_trace_s *svg_st, const char *prog_name
         goto err;
     }
 
+#if (CURRENT_LIBBPF_VERSION  < LIBBPF_VERSION(0, 7)) 
     prog = bpf_program__next(NULL, svg_st->obj);
+#else
+    prog = bpf_object__next_program(svg_st->obj, NULL);
+#endif
     if (prog == NULL) {
         ERROR("[STACKPROBE]: Cannot find bpf_prog.\n");
         goto err;
@@ -1217,7 +1227,7 @@ cleanup:
     bpf_link__destroy(links);
     return -1;
 }
-
+#if 0
 static void set_pids_inactive()
 {
     struct bpf_link_hash_t *item, *tmp;
@@ -1413,7 +1423,7 @@ static void *__uprobe_attach_check(void *arg)
     return NULL;
 
 }
-
+#endif
 static int attach_memleak_bpf_prog(struct ipc_body_s *ipc_body, struct svg_stack_trace_s *svg_st)
 {
     int err;
@@ -1532,7 +1542,7 @@ static void *__running(void *arg)
     struct perf_buffer *pb = get_pb(g_st, svg_st);
 
     // Read raw stack-trace data from current data channel.
-    while ((ret = perf_buffer__poll(pb, 0)) >= 0) {
+    while ((pb != NULL) && (ret = perf_buffer__poll(pb, 0)) >= 0) {
         if (g_stop) {
             break;
         }
@@ -1625,7 +1635,9 @@ static void switch_stackmap()
         if (stack_id2histogram(st, i, st->is_stackmap_a) != 0) {
             continue;
         }
-        wr_flamegraph(st->svg_stack_traces[i]->svg_mng , i, &st->post_server);
+        if (H_COUNT(st->svg_stack_traces[i]->histo_tbl) != 0) {
+            wr_flamegraph(st->svg_stack_traces[i]->svg_mng, i, &st->post_server);
+        }
         clear_raw_stack_trace(st->svg_stack_traces[i], st->is_stackmap_a);
     }
     record_running_ctx(st);
@@ -1645,6 +1657,7 @@ static void init_wr_flame_pthreads(struct svg_stack_trace_s *svg_st, const char 
         g_stop = 1;
         return;
     }
+    svg_st->wr_flame_thd = wr_flame_thd;
     (void)pthread_detach(wr_flame_thd);
     INFO("[STACKPROBE]: %s wr_flame_pthread successfully started!\n", flame_name);
 
@@ -1737,7 +1750,7 @@ static void reload_observation_range(struct ipc_body_s *ipc_body)
         return;
     }
 
-    if (ipc_body->probe_flags & IPC_FLAGS_SNOOPER_CHG) {
+    if (ipc_body->probe_flags & IPC_FLAGS_SNOOPER_CHG || ipc_body->probe_flags == 0) {
         unload_stackprobe_snoopers();
         load_stackprobe_snoopers(ipc_body);
         init_convert_counter();
@@ -1754,7 +1767,7 @@ static int reload_probe_params(struct ipc_body_s *ipc_body)
         return -1;
     }
 
-    if (ipc_body->probe_flags & IPC_FLAGS_PARAMS_CHG) {
+    if (ipc_body->probe_flags & IPC_FLAGS_PARAMS_CHG || ipc_body->probe_flags == 0) {
         if (g_st != NULL) {
             destroy_stack_trace(&g_st);
         }

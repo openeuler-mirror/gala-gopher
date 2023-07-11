@@ -155,12 +155,14 @@ static void __read_rsp(int fd, int argc, char** argv)
     return;
 }
 
-static void alarm_handler(void) {}
+static void alarm_handler(int signo) {}
 
 static int __connect_jvm(int nspid)
 {
     struct sockaddr_un addr = {.sun_family = AF_UNIX};
     int fd = socket(PF_UNIX, SOCK_STREAM, 0);
+    struct sigaction sa;
+
     if (fd == -1) {
         return -1;
     }
@@ -170,16 +172,20 @@ static int __connect_jvm(int nspid)
         addr.sun_path[sizeof(addr.sun_path) - 1] = 0;
     }
 
-    sigset(SIGALRM, alarm_handler);
+    sa.sa_handler = alarm_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_INTERRUPT;
+    if (sigaction(SIGALRM, &sa, NULL) < 0) {
+        return -1;
+    }
+
     alarm(CONNECT_TIMEOUT);
     if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
         alarm(0);
-        sigrelse(SIGALRM);
         close(fd);
         return -1;
     }
     alarm(0);
-    sigrelse(SIGALRM);
     return fd;
 }
 

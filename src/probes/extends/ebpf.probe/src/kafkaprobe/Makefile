@@ -27,7 +27,7 @@ $(APP): $(SRC_C) $(OBJ_CPLUS)
 	$(CC) $(CFLAGS) $(BASE_INC) $(LDFLAGS) $(LINK_TARGET) -o $@ $^
 
 $(OBJ_KERN): $(BPF_C) 
-	$(CLANG) $(CFLAGS) $(BPF_CFLAGS) $(BASE_INC) -c $(filter %.c,$^) -o $@
+	$(CLANG) $(CLANGFLAGS) $(BPF_CFLAGS) $(BASE_INC) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@
 
 clean:

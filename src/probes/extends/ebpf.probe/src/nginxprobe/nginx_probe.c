@@ -291,8 +291,13 @@ int main(int argc, char **argv)
     INIT_BPF_APP(nginx_probe, EBPF_RLIM_LIMITED);
 
     /* create ngx statistic map_fd */
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
+    g_nginx_probe.stats_map_fd = bpf_map_create(BPF_MAP_TYPE_HASH, NULL, sizeof(struct ngx_statistic_key),
+        sizeof(struct ngx_statistic), STATISTIC_MAX_ENTRIES, NULL);
+#else
     g_nginx_probe.stats_map_fd = bpf_create_map(
         BPF_MAP_TYPE_HASH, sizeof(struct ngx_statistic_key), sizeof(struct ngx_statistic), STATISTIC_MAX_ENTRIES, 0);
+#endif
     if (g_nginx_probe.stats_map_fd < 0) {
         ERROR("%s Failed to create statistic map fd.\n", LOG_NGINX_PREFIX);
         goto err;

@@ -282,8 +282,10 @@ int get_proc_comm(u32 pid, char *buf, int buf_len)
     return access_check_read_line(pid, PROC_COMM_CMD, PROC_COMM, buf, buf_len);
 }
 
-int get_kern_version(char *major, char *minor)
+int get_kern_version(u32 *kern_version)
 {
+    char major, minor, patch = 0;
+
     char version[INT_LEN];
     const char *major_cmd = "uname -r | awk -F '.' '{print $1}' 2>/dev/null";
     const char *minor_cmd = "uname -r | awk -F '.' '{print $2}' 2>/dev/null";
@@ -292,12 +294,14 @@ int get_kern_version(char *major, char *minor)
     if (exec_cmd(major_cmd, version, INT_LEN)) {
         return -1;
     }
-    *major = (char)atoi(version);
+    major = (char)atoi(version);
 
     version[0] = 0;
     if (exec_cmd(minor_cmd, version, INT_LEN)) {
         return -1;
     }
-    *minor = (char)atoi(version);
+    minor = (char)atoi(version);
+
+    *kern_version = (u32)KERNEL_VERSION(major, minor, patch);
     return 0;
 }

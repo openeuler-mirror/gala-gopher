@@ -17,6 +17,11 @@
 #include <signal.h>
 #include <errno.h>
 #include <pthread.h>
+#include <sys/resource.h>
+#include <sys/syscall.h>
+#include <sys/stat.h>
+#include <sched.h>
+#include <fcntl.h>
 
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
@@ -28,6 +33,8 @@
 
 #include "bpf.h"
 #include "ipc.h"
+#include "syscall.h"
+#include "tcp.h"
 
 #include "container.h"
 #include "l7_common.h"
@@ -40,6 +47,114 @@ static struct l7_mng_s g_l7_mng;
 static void sig_int(int signo)
 {
     g_stop = 1;
+}
+
+static void __do_l7_load_tcp_fd(int fd)
+{
+    int i, j;
+    int role;
+    struct tcp_listen_ports* tlps;
+    struct tcp_estabs* tes = NULL;
+    struct conn_id_s k;
+
+    tlps = get_listen_ports();
+    if (tlps == NULL) {
+        goto err;
+    }
+
+    tes = get_estab_tcps(tlps);
+    if (tes == NULL) {
+        goto err;
+    }
+
+    /* create established tcp item */
+    for (i = 0; i < tes->te_num; i++) {
+        role = tes->te[i]->is_client == 1 ? 0 : 1;
+        for (j = 0; j < tes->te[i]->te_comm_num; j++) {
+            k.tgid = (u32)tes->te[i]->te_comm[j]->pid;
+            k.fd = (u32)tes->te[i]->te_comm[j]->fd;
+            (void)bpf_map_update_elem(fd, &k, &role, BPF_ANY);
+        }
+    }
+
+err:
+    if (tlps) {
+        free_listen_ports(&tlps);
+    }
+
+    if (tes) {
+        free_estab_tcps(&tes);
+    }
+
+    return;
+}
+
+static int do_l7_load_tcp_fd(int fd, const char *container_id, int netns_fd)
+{
+    int ret;
+
+    if (container_id) {
+        ret = enter_container_netns(container_id);
+        if (ret) {
+            ERROR("[L7PROBE]: Enter container netns failed.(%s, ret = %d)\n",
+                container_id, ret);
+            return ret;
+        }
+    }
+
+    __do_l7_load_tcp_fd(fd);
+
+    if (container_id) {
+        (void)exit_container_netns(netns_fd);
+    }
+    return 0;
+}
+
+static int get_netns_fd(pid_t pid)
+{
+    const char *fmt = "/proc/%u/ns/net";
+    char path[PATH_LEN];
+
+    path[0] = 0;
+    (void)snprintf(path, PATH_LEN, fmt, pid);
+    return open(path, O_RDONLY);
+}
+
+static void l7_unload_tcp_fd(struct l7_mng_s *l7_mng)
+{
+    struct conn_id_s connect_id = {0}, next_connect_id = {0};
+    while (bpf_map_get_next_key(l7_mng->bpf_progs.l7_tcp_fd, &connect_id, &next_connect_id) == 0) {
+        bpf_map_delete_elem(l7_mng->bpf_progs.l7_tcp_fd, &next_connect_id);
+        connect_id = next_connect_id;
+    }
+}
+
+static int l7_load_tcp_fd(struct l7_mng_s *l7_mng)
+{
+    char *container_id;
+    int netns_fd = 0;
+    struct ipc_body_s *ipc_body = &(l7_mng->ipc_body);
+
+    netns_fd = get_netns_fd(getpid());
+    if (netns_fd <= 0) {
+        ERROR("[L7PROBE]: Get netns fd failed.\n");
+        return -1;
+    }
+
+    for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_body->snooper_objs[i].type == SNOOPER_OBJ_CON) {
+            container_id = ipc_body->snooper_objs[i].obj.con_info.con_id;
+            if (!container_id) {
+                continue;
+            }
+
+            do_l7_load_tcp_fd(l7_mng->bpf_progs.l7_tcp_fd, container_id, netns_fd);
+        }
+    }
+
+    (void)do_l7_load_tcp_fd(l7_mng->bpf_progs.l7_tcp_fd, NULL, netns_fd);
+    (void)close(netns_fd);
+    return 0;
 }
 
 static int __add_libssl_prog(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog, const char *libssl)
@@ -136,7 +251,6 @@ static int load_l7_prog(struct l7_mng_s *l7_mng)
     }
 
     l7_mng->last_report = (time_t)time(NULL);
-
     return 0;
 err:
     unload_bpf_prog(&prog);
@@ -263,6 +377,8 @@ int main(int argc, char **argv)
             destroy_ipc_body(&(l7_mng->ipc_body));
 
             (void)memcpy(&(l7_mng->ipc_body), &ipc_body, sizeof(ipc_body));
+            l7_unload_tcp_fd(l7_mng);
+            (void)l7_load_tcp_fd(l7_mng);
             load_l7_snoopers(l7_mng->bpf_progs.proc_obj_map_fd, &(l7_mng->ipc_body));
 
             l7_unload_probe_jsse(l7_mng);
