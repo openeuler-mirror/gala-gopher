@@ -158,7 +158,6 @@ KafkaMgr *KafkaMgrCreate(const ConfigMgr *configMgr, const char *topic_type)
     mgr->rk = rd_kafka_new(RD_KAFKA_PRODUCER, mgr->conf, errstr, sizeof(errstr));
     if (mgr->rk == NULL) {
         ERROR("failed to create new kafka_producer, errstr(%s).\n", errstr);
-        rd_kafka_conf_destroy(mgr->conf);
         free(mgr);
         return NULL;
     }
@@ -167,7 +166,6 @@ KafkaMgr *KafkaMgrCreate(const ConfigMgr *configMgr, const char *topic_type)
     if (mgr->rkt == NULL) {
         ERROR("failed to create new kafka topic object.\n");
         rd_kafka_destroy(mgr->rk);
-        rd_kafka_conf_destroy(mgr->conf);
         free(mgr);
         return NULL;
     }
@@ -185,9 +183,6 @@ void KafkaMgrDestroy(KafkaMgr *mgr)
 
     if (mgr->rk != NULL)
         rd_kafka_destroy(mgr->rk);
-
-    if (mgr->conf != NULL)
-        rd_kafka_conf_destroy(mgr->conf);
 
     free(mgr);
     return;
