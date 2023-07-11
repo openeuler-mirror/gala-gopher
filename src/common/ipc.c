@@ -1040,13 +1040,32 @@ static int __deserialize_ipc_msg(struct ipc_msg_s* ipc_msg, struct ipc_body_s* i
     return offset;
 }
 
-#define __GOPHER_IPC_MSG_KEY  0x20230501
+#define __GOPHER_BIN_FILE     "/usr/bin/gala-gopher"
+#define __GOPHER_PROJECT_ID   'g'     // used by ftok to generate unique msg queue key
+#define __GOPHER_MSQ_PERM     0600
 int create_ipc_msg_queue(int ipc_flag)
 {
     int msqid;
+    key_t key;
 
-    if ((msqid = msgget((key_t)__GOPHER_IPC_MSG_KEY, 0600 | ipc_flag)) == -1) {
-        ERROR("[IPC] Create IPC message queue(ipc_flags = %d) failed.\n", ipc_flag);
+    if ((key = ftok(__GOPHER_BIN_FILE, __GOPHER_PROJECT_ID)) < 0) {
+        ERROR("[IPC] ftok to generate IPC message key failed\n");
+        return -1;
+    }
+
+    msqid = msgget(key, __GOPHER_MSQ_PERM | IPC_EXCL);
+    if (ipc_flag & IPC_CREAT) {
+        /* In case of main process aborted abnormally, clean up old msg queue */
+        destroy_ipc_msg_queue(msqid);
+        if ((msqid = msgget(key, __GOPHER_MSQ_PERM | ipc_flag)) == -1) {
+            ERROR("[IPC] Create IPC message queue(ipc_flags = %d) failed.\n", ipc_flag);
+            return -1;
+        }
+        return msqid;
+    }
+
+    if (msqid < 0) {
+        ERROR("[IPC] Get IPC message queue(ipc_flags = %d) failed.\n", ipc_flag);
         return -1;
     }
 
