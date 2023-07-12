@@ -317,8 +317,10 @@ int main(int argc, char **argv)
         }
 
         for (int i = 0; i < g_bpf_prog->num; i++) {
-            if (g_bpf_prog->pbs[i] && (ret = perf_buffer__poll(g_bpf_prog->pbs[i], THOUSAND) < 0)) {
-                ERROR("[HWPROBE]: perf poll prog_%d failed.\n", i);
+            if (g_bpf_prog->pbs[i] && ((ret = perf_buffer__poll(g_bpf_prog->pbs[i], THOUSAND)) < 0)) {
+                if (ret != -EINTR) {
+                    ERROR("[HWPROBE]: perf poll prog_%d failed.\n", i);
+                }
                 break;
             }
         }
