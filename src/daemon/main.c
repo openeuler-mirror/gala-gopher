@@ -67,7 +67,7 @@ static int CmdProcessing(int argc, char *argv[])
     static struct option long_options[] = {
         {"help",        no_argument,       0, 'h'},
         {"config_path", required_argument, 0, 'c'},
-        {NULL,          0,                 0, NULL}
+        {0,             0,                 0, 0}
     };
 
     char short_options[] = {

@@ -100,11 +100,11 @@ public class ProfilingTransformer implements ClassFileTransformer {
             this.slotOfb = 1;
             this.slotOfoff = 2;
             if ("write".equals(methodName)) {
-                this.slotOflen = 3; // write，入参len即是真实buffer长度
+                this.slotOflen = 3; // write, the input parameter len is the real buffer length
                 this.maxLocalSlot = 6;
                 this.rwType = "Write";
             } else if ("read".equals(methodName)) {
-                this.slotOflen = 7; // read，返回值(对应局部变量volume)才是真实buffer长度
+                this.slotOflen = 7; // read, the return value(local var "volume") is the real buffer length
                 this.maxLocalSlot = 9;
                 this.rwType = "Read";
             }
@@ -116,22 +116,18 @@ public class ProfilingTransformer implements ClassFileTransformer {
 
         @Override
         protected void onMethodExit(int opcode) {
-
-            // if (判断语句的值 != 0) {
-            //     enhance process: write message to tmpFile
-            // }
             // create labels
             Label labelIf = new Label();
             Label labelEnd = new Label();
-            // if判断语句：new File(this.metricTmpFile).exists()
+            // if new File(this.metricTmpFile).exists()
             mv.visitTypeInsn(NEW, "java/io/File");
             mv.visitInsn(DUP);
             mv.visitLdcInsn(this.metricTmpFile);
             mv.visitMethodInsn(INVOKESPECIAL, "java/io/File", "<init>", "(Ljava/lang/String;)V", false);
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/File", "exists", "()Z", false);
-            // if File.exists == 0 jump to labelEnd (反转判断，这样能保证if块在前)
+            // if File.exists == 0 jump to labelEnd (make sure the "If block" comes first)
             mv.visitJumpInsn(IFEQ, labelEnd);
-            // if块内容
+            // If block
             mv.visitLabel(labelIf);
             // RandomAccessFile raf = new RandomAccessFile(this.metricTmpFile, "rw");
             mv.visitTypeInsn(NEW, "java/io/RandomAccessFile");
@@ -144,7 +140,7 @@ public class ProfilingTransformer implements ClassFileTransformer {
             mv.visitVarInsn(ALOAD, maxLocalSlot + 1);
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/RandomAccessFile", "getChannel", "()Ljava/nio/channels/FileChannel;", false);
             mv.visitVarInsn(ASTORE, maxLocalSlot + 2);
-            // FileLock lock = fileChannel.lock();  // 获取独占锁，无法获取会一直等待
+            // FileLock lock = fileChannel.lock(); (will block until holding the lock)
             mv.visitVarInsn(ALOAD, maxLocalSlot + 2);
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/nio/channels/FileChannel", "lock", "()Ljava/nio/channels/FileLock;", false);
             mv.visitVarInsn(ASTORE, maxLocalSlot + 3);
@@ -180,7 +176,7 @@ public class ProfilingTransformer implements ClassFileTransformer {
             mv.visitVarInsn(ILOAD, this.slotOfoff);
             mv.visitVarInsn(ILOAD, this.slotOflen);
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/RandomAccessFile", "write", "([BII)V", false);
-            // 如果有新增的metric，建议在这里补充
+            // New Metrics can be added here if exist
 
             // raf.write("|\r\n".getBytes());
             mv.visitVarInsn(ALOAD, this.maxLocalSlot + 1);
@@ -194,7 +190,7 @@ public class ProfilingTransformer implements ClassFileTransformer {
             mv.visitVarInsn(ALOAD, this.maxLocalSlot + 1);
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/RandomAccessFile", "close", "()V", false);
 
-            // 条件块之外的内容
+            // End
             mv.visitLabel(labelEnd);
             mv.visitFrame(Opcodes.F_SAME1, 0, null, 1, new Object[] { "java/lang/String" });
         }
