@@ -35,6 +35,7 @@ extern char g_parse_json_err[PARSE_JSON_ERR_STR_LEN];
 
 struct probe_define_s {
     char *desc;
+    char *bin;
     enum probe_type_e type;
 };
 
