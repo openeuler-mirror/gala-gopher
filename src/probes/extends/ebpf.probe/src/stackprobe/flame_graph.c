@@ -47,8 +47,8 @@ struct MemoryStruct {
 static char *appname[STACK_SVG_MAX] = {
     "gala-gopher-oncpu",
     "gala-gopher-offcpu",
-    "gala-gopher-io",
-    "gala-gopher-memleak"
+    "gala-gopher-memleak",
+    "gala-gopher-io"
 };
 
 #if 1
