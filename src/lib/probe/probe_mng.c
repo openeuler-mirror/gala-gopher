@@ -634,6 +634,7 @@ static int probe_parser_range(struct probe_s *probe, const cJSON *probe_item)
     int range;
     cJSON *object;
 
+    probe->probe_range_flags = 0;
     size_t size = cJSON_GetArraySize(probe_item);
     for (int i = 0; i < size; i++) {
         object = cJSON_GetArrayItem(probe_item, i);
