@@ -517,8 +517,10 @@ int main(int argc, char **argv)
         }
 
         if (g_ep_probe.prog) {
-            if (g_ep_probe.prog->pb && (ret = perf_buffer__poll(g_ep_probe.prog->pb, THOUSAND) < 0)) {
-                ERROR("[ENDPOINTPROBE]: perf poll failed.\n");
+            if (g_ep_probe.prog->pb && ((ret = perf_buffer__poll(g_ep_probe.prog->pb, THOUSAND)) < 0)) {
+                if (ret != -EINTR) {
+                    ERROR("[ENDPOINTPROBE]: perf poll failed.\n");
+                }
                 break;
             }
         } else {
