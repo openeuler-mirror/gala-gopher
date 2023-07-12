@@ -22,13 +22,6 @@
 #include "../../../include/l7.h"
 #include "http_parse_wrapper.h"
 
-// 定义DCHECK_LE函数，用于检查x<=y，下面EQ和GE同理
-#define DCHECK_LE(x, y) assert((x) <= (y))
-#define DCHECK_EQ(x, y) assert((x) == (y))
-#define DCHECK_GE(x, y) assert((x) >= (y))
-// note: pixie中定义这个宏从环境变量中获取值，默认使用1024，PX_STIRLING_HTTP_BODY_LIMIT_BYTES
-#define FLAGS_http_body_limit_bytes 1024
-
 /**
  * Parses a single HTTP message from the input string.
  *

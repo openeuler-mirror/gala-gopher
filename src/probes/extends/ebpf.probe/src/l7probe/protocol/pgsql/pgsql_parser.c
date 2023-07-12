@@ -166,7 +166,7 @@ parse_state_t pgsql_extract_row_desc_field(struct raw_data_s *raw_data_buf, stru
     if (parse_state != STATE_SUCCESS) {
         return parse_state;
     }
-    parse_state = decoder_extract_int16_t(raw_data_buf, &field->fmt_code);
+    parse_state = decoder_extract_int16_t(raw_data_buf, (int16_t *) &field->fmt_code);
     if (parse_state != STATE_SUCCESS) {
         return parse_state;
     }

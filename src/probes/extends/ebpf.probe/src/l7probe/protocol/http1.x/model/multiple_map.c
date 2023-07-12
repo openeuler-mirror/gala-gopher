@@ -20,7 +20,7 @@
 
 value_node *init_value_node()
 {
-    value_node *node = (value_node *) malloc(sizeof(value_node *));
+    value_node *node = (value_node *) malloc(sizeof(value_node));
     if (node == NULL) {
         return NULL;
     }
@@ -48,18 +48,6 @@ static bool find_value_in_node(value_node *node, const char *value)
         return find_value_in_node(node->next, value);
     }
     return false;
-}
-
-// 从value_node中删除一个value
-static value_node *remove_value_from_node(value_node *node, char *value)
-{
-    if (strcpy(node->value, value)) {
-        return node->next;
-    }
-    if (node->next != NULL) {
-        node->next = remove_value_from_node(node->next, value);
-    }
-    return node;
 }
 
 // value_node中添加value，如果链表中没有才插入，新插入的value放在链表头部（头插法）
@@ -105,8 +93,8 @@ void insert_into_multiple_map(http_headers_map *map, const char *key, const char
     char *key_l = to_lower(key);
     HASH_FIND_STR(map, key_l, pair);
     if (pair == NULL) {
-        pair = (http_headers_map *) malloc(sizeof(http_headers_map *));
-        strncpy(pair->key_l, key_l, MAX_KEY_LEN);
+        pair = init_http_headers_map();
+        memcpy(pair->key_l, key_l, strlen(key_l));
         pair->values = NULL;
         HASH_ADD_STR(map, key_l, pair);
     }

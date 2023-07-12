@@ -27,7 +27,7 @@ extern const char kTransferEncoding[18];
 extern const char kUpgrade[8];
 
 /**
- * Define Message type structure
+ * Http message structure, req or resp use the same
  */
 typedef struct http_message {
     enum message_type_t type;
@@ -65,13 +65,5 @@ typedef struct http_record {
 http_record *init_http_record(void);
 
 void free_http_record(http_record *http_record);
-
-/**
- * byte size
- *
- * @param message
- * @return
- */
-size_t byte_size(struct http_message *message);
 
 #endif // __HTTP_MSG_FORMAT_H__

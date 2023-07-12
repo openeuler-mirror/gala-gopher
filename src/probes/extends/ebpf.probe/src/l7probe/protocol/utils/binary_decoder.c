@@ -183,11 +183,28 @@ parse_state_t decoder_extract_str_until_char(struct raw_data_s *raw_data, char *
     return STATE_SUCCESS;
 }
 
+static void* memmem_custom(const void* haystack, size_t haystack_len, const void* needle, size_t needle_len) {
+    if (needle_len == 0) {
+        // 如果 needle 长度为 0，则直接返回 haystack 的起始地址
+        return (void*)haystack;
+    }
+
+    for (size_t i = 0; i <= haystack_len - needle_len; i++) {
+        if (memcmp((char*)haystack + i, needle, needle_len) == 0) {
+            // 找到匹配的子字符串，返回位置
+            return (void*)((char*)haystack + i);
+        }
+    }
+
+    // 未找到匹配的子字符串
+    return NULL;
+}
+
 parse_state_t decoder_extract_str_until_str(struct raw_data_s *raw_data, char **res, char *search_str)
 {
     char *start_search_ptr = &raw_data->data[raw_data->current_pos];
     size_t unconsumed_len = raw_data->data_len - raw_data->current_pos;
-    char *search_str_ptr = memmem(start_search_ptr, unconsumed_len, search_str, strlen(search_str));
+    char *search_str_ptr = memmem_custom(start_search_ptr, unconsumed_len, search_str, strlen(search_str));
     if (search_str_ptr == NULL) {
         ERROR("[Binary Decoder] Could not find search_str: %s in raw_data.\n", search_str);
         return STATE_NOT_FOUND;

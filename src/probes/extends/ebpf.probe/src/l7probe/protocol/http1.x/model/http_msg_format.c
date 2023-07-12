@@ -24,7 +24,7 @@ const char kUpgrade[8] = "Upgrade";
 
 http_message *init_http_msg(void)
 {
-    http_message *http_msg = (http_message *) malloc(sizeof(struct http_message *));
+    http_message *http_msg = (http_message *) malloc(sizeof(struct http_message));
     if (http_msg == NULL) {
         return NULL;
     }
@@ -63,7 +63,7 @@ void free_http_msg(http_message *http_msg)
 
 http_record *init_http_record(void)
 {
-    http_record *record = (http_record *) malloc(sizeof(http_record *));
+    http_record *record = (http_record *) malloc(sizeof(http_record));
     if (record == NULL) {
         return NULL;
     }
@@ -82,9 +82,4 @@ void free_http_record(http_record *http_record)
         free_http_msg(http_record->resp);
     }
     free(http_record);
-}
-
-size_t byte_size(struct http_message *message)
-{
-    return sizeof(http_message) + message->headers_byte_size + message->body_size + strlen(message->resp_message);
 }

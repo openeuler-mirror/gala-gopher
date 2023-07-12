@@ -41,8 +41,6 @@ typedef struct http_request {
     size_t path_len;
     int minor_version;
     http_header *headers;
-    // Set header number to maximum we can accept.
-    // Pico will change it to the number of headers parsed for us.
     size_t num_headers;
 } http_request;
 
@@ -59,8 +57,6 @@ typedef struct http_response {
     int status;
     int minor_version;
     http_header *headers;
-    // Set header number to maximum we can accept.
-    // Pico will change it to the number of headers parsed for us.
     size_t num_headers;
 } http_response;
 

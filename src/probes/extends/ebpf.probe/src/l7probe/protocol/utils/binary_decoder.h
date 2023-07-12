@@ -94,6 +94,17 @@ DECODER_EXTRACT_INT_FUNC(uint32_t);
 bool extract_prefix_bytes_string(struct raw_data_s *raw_data, char **res, size_t decode_len, size_t data_stream_offset);
 
 /**
+ * 从raw_data中提取decode_len长度子串，置于**dst_raw_data，并偏移raw_data指针。
+ *
+ * @param src_raw_data 字符缓存
+ * @param decode_len 提取字符串的长度
+ * @param dst_raw_data 目的raw_data
+ * @return parse_state_t
+ */
+parse_state_t decoder_extract_raw_data_with_len(struct raw_data_s *src_raw_data, size_t decode_len,
+                                                struct raw_data_s **dst_raw_data);
+
+/**
  * 从raw_data中提取decode_len长度子串，置于*res。
  * NOTE：入参*res需要在堆上分配内存。
  *

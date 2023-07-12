@@ -15,43 +15,6 @@
 #include "http_matcher.h"
 #include "../model/http_msg_format.h"
 
-#define FLAGS_http_response_header_filters = "Content-Type:json,Content-Type:text/Comma-separated strings to specify the substrings should be included for a header. The format looks like <header-1>:<substr-1>,...,<header-n>:<substr-n>. The substrings cannot include comma(s). The filters are conjunctive, therefore the headers can be duplicate. For example, 'Content-Type:json,Content-Type:text' will select a HTTP response with a Content-Type header whose value contains 'json' *or* 'text'.";
-
-//// 过滤掉无content-type的、content-type不在filters列表中的，直接丢弃
-//// 并且将content-encoding为gzip的报文的body进行压缩，// todo：body相关的操作先忽略不做，不考虑body
-//void pre_process_message(http_message_t* message) {
-//    // Parse the flags on the first time only.
-//
-//    // todo(fixed)：定义 FLAGS_http_response_header_filters
-//    static const http_header_filter kHTTPResponseHeaderFilter =
-//            parse_http_header_filters(FLAGS_http_response_header_filters);
-//
-//    // Rule: Exclude anything that doesn't specify its Content-Type.
-//    char *content_type_value = find_first_value(message->headers, kContentType);
-//    if (content_type_value == NULL) {
-//        if (message->body_size > ) {
-//            // Don't rewrite if the body is empty.
-//            message->body = "<Removed: Unknown Content-Type>";
-//        }
-//        return;
-//    }
-//
-//    // Rule: Exclude anything that doesn't match the filter, if filter is active.
-//    if (message->type == MESSAGE_RESPONSE &&
-//        (kHTTPResponseHeaderFilter.inclusions != NULL ||
-//         kHTTPResponseHeaderFilter.exclusions != NULL)) {
-//        if (!matches_http_headers(message->headers, kHTTPResponseHeaderFilter)) {
-//            message->body = "<Removed: NON-Text Content-Type>";
-//            return;
-//        }
-//    }
-//
-//    char *content_encoding_value = find_first_value(message->headers, kContentEncoding);
-//    if (content_encoding_value != NULL && strcmp(content_encoding_value, "gzip") == 1) {
-////        todo：暂不处理body内容
-//    }
-//}
-
 static void add_http_record_into_buf(http_record *record, struct record_buf_s *record_buf)
 {
     struct record_data_s *record_data = (struct record_data_s *) malloc(sizeof(struct record_data_s));
@@ -61,6 +24,11 @@ static void add_http_record_into_buf(http_record *record, struct record_buf_s *r
     }
     record_data->record = record;
     record_data->latency = record->resp->timestamp_ns - record->req->timestamp_ns;
+
+    // 计数错误个数，大于等于400均为错误，4xx为客户端错误，5xx为服务端错误
+    if (record->resp->resp_status >= 400) {
+        ++record_buf->err_count;
+    }
     record_buf->records[record_buf->record_buf_size] = record_data;
     ++record_buf->record_buf_size;
 }
