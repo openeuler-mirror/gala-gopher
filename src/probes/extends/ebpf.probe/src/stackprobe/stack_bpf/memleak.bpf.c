@@ -72,11 +72,9 @@ static __always_inline int report_stack(struct page_fault_args *ctx)
     char is_stackmap_a = ((convert_data->convert_counter % 2) == 0);
 
     raw_trace.stack_id.pid.proc_id = bpf_get_current_pid_tgid() >> INT_LEN;
-    if (convert_data->whitelist_enable && raw_trace.stack_id.pid.proc_id > 1) {
-        struct proc_s obj = {.proc_id = raw_trace.stack_id.pid.proc_id};
-        if (!is_proc_exist(&obj)) {
-            return 0;
-        }
+    struct proc_s obj = {.proc_id = raw_trace.stack_id.pid.proc_id};
+    if (!is_proc_exist(&obj)) {
+        return 0;
     }
     raw_trace.stack_id.pid.real_start_time = get_real_start_time();
 

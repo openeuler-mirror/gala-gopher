@@ -111,13 +111,9 @@ int bpf_trace_sched_switch_func(struct trace_event_raw_sched_switch *ctx)
 #endif
 
     int filter = 0;
-    if (!convert_data->whitelist_enable) {
+    struct proc_s obj = {.proc_id = prev_tgid};
+    if (is_proc_exist(&obj)) {
         filter = 1;
-    } else {
-        struct proc_s obj = {.proc_id = prev_tgid};
-        if (is_proc_exist(&obj)) {
-            filter = 1;
-        }
     }
     u64 t_end = bpf_ktime_get_ns();
     if (filter) {
