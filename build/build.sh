@@ -11,6 +11,8 @@ JVM_FOLDER=${PROJECT_FOLDER}/src/lib/jvm
 BPFTOOL_FOLDER=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/tools
 VMLINUX_DIR=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/src/include
 EXT_PROBE_BUILD_LIST=`find ${EXT_PROBE_FOLDER} -maxdepth 2 | grep "\<build.sh\>"`
+DEP_LIST=(cmake librdkafka-devel libmicrohttpd-devel libconfig-devel uthash-devel log4cplus-devel\
+          libbpf-devel clang llvm java-1.8.0-openjdk-devel cjson-devel gnutls-devel)
 PROBES_LIST=""
 PROBES_C_LIST=""
 PROBES_META_LIST=""
@@ -269,70 +271,13 @@ function compile_extend_probes_release()
 # Check dependent packages and install automatically
 function prepare_dependence()
 {
-
-    # for build framework
-    yum install -y cmake
-    if [ $? -ne 0 ];then
-        echo "Error: Failed to install cmake."
-        return 1
-    fi
-
-    # for gala-gopher framework sending message to kafka
-    yum install -y librdkafka-devel
-    if [ $? -ne 0 ];then
-        echo "Error: Failed to install librdkafka-devel."
-        return 1
-    fi
-
-    # for gala-gopher framework http server
-    yum install -y libmicrohttpd-devel
-    if [ $? -ne 0 ];then
-        echo "Error: Failed to install libmicrohttpd-devel."
-        return 1
-    fi
-
-    # for gala-gopher configrations
-    yum install -y libconfig-devel
-    if [ $? -ne 0 ];then
-        echo "Error: Failed to install libconfig-devel."
-        return 1
-    fi
-
-    yum install -y uthash-devel
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to install uthash-devel."
-        return 1
-    fi
-
-    yum install -y log4cplus-devel
-    if [ $? -ne 0 ];then
-        echo "Error: Failed to install log4cplus-devel."
-        return 1
-    fi
-
-    yum install -y libbpf-devel
-    if [ $? -ne 0 ];then
-        echo "Error: Failed to install libbpf-devel."
-        return 1
-    fi
-
-    yum install -y clang
-    if [ $? -ne 0 ];then
-        echo "Error: Failed to install clang."
-        return 1
-    fi
-
-    yum install -y llvm
-    if [ $? -ne 0 ];then
-        echo "Error: Failed to install llvm."
-        return 1
-    fi
-
-    yum install -y java-1.8.0-openjdk-devel
-    if [ $? -ne 0 ];then
-        echo "Error: Failed to install java-1.8.0-openjdk-devel"
-        return 1
-    fi
+    for dep in "${DEP_LIST[@]}" ; do
+        yum install -y $dep
+        if [ $? -ne 0 ];then
+            echo "Error: Failed to install $dep"
+            return 1
+        fi
+    done
 
     return 0
 }

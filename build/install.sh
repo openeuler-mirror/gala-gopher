@@ -50,6 +50,7 @@ function install_conf()
 {
     GOPHER_CONF_FILE=${PROJECT_FOLDER}/config/gala-gopher.conf
     TASKPROBE_WHITELIST_FILE=${PROJECT_FOLDER}/config/gala-gopher-app.conf
+    GOPHER_PROBES_INIT_FILE=${PROJECT_FOLDER}/config/probes.init
     GOPHER_CONF_TARGET_DIR=/etc/gala-gopher
 
     if [ $# -eq 1 ]; then
@@ -64,6 +65,9 @@ function install_conf()
     if [ ! -f ${TASKPROBE_WHITELIST_FILE} ]; then
         echo "${TASKPROBE_WHITELIST_FILE} not exist. please check ./config dir."
     fi
+    if [ ! -f ${GOPHER_PROBES_INIT_FILE} ]; then
+        echo "${GOPHER_PROBES_INIT_FILE} not exist. please check ./config dir."
+    fi
 
     # install gala-gopher.conf
     if [ ! -d ${GOPHER_CONF_TARGET_DIR} ]; then
@@ -73,7 +77,8 @@ function install_conf()
     echo "install ${GOPHER_CONF_FILE} success."
     cp -f ${TASKPROBE_WHITELIST_FILE} ${GOPHER_CONF_TARGET_DIR}
     echo "install ${TASKPROBE_WHITELIST_FILE} success."
-
+    cp -f ${GOPHER_PROBES_INIT_FILE} ${GOPHER_CONF_TARGET_DIR}
+    echo "install ${GOPHER_PROBES_INIT_FILE} success."
 }
 
 function install_res()
@@ -189,7 +194,25 @@ function install_client_bin()
     # install gopher-cli bin
     cp -f ${CLI_BIN_FILE} ${CLI_BIN_TARGET_DIR}
     echo "install ${CLI_BIN_FILE} success."
+}
 
+function install_script()
+{
+    INIT_PROBES_SCRIPT=${PROJECT_FOLDER}/script/init_probes.sh
+    SCRIPT_TARGET_DIR=/usr/libexec/gala-gopher
+
+    if [ $# -eq 1 ]; then
+        SCRIPT_TARGET_DIR=$1
+    fi
+
+    cd ${PROJECT_FOLDER}
+    if [ ! -f ${INIT_PROBES_SCRIPT} ]; then
+        echo "${INIT_PROBES_SCRIPT} does not exist. Please check ./script dir"
+        exit 1
+    fi
+
+    cp -f ${INIT_PROBES_SCRIPT} ${SCRIPT_TARGET_DIR}
+    echo "install ${INIT_PROBES_SCRIPT} success."
 }
 
 # main process
@@ -201,3 +224,4 @@ install_meta $2
 install_shared_lib $2
 install_extend_probes $2 $3
 install_client_bin $1
+install_script $4
