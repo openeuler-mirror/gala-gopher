@@ -21,6 +21,7 @@
 #include "common.h"
 #include "nprobe_fprintf.h"
 #include "system_procs.h"
+#include "java_support.h"
 
 #define METRICS_PROC_NAME   "system_proc"
 #define PROC_PATH           "/proc"
@@ -177,36 +178,6 @@ out:
         (void)pclose(f);
     }
     return is_installed;
-}
-
-#define TASK_PROBE_JAVA_COMMAND "sun.java.command"
-static void get_java_proc_cmd(u32 pid, proc_info_t *proc_info)
-{
-    FILE *f = NULL;
-    char cmd[LINE_BUF_LEN];
-    char line[LINE_BUF_LEN];
-    if (is_jinfo_installed() == JINFO_NOT_INSTALLED) {
-        ERROR("[SYSTEM_PROBE] jinfo not installed, please check.\n");
-        return;
-    }
-    cmd[0] = 0;
-    (void)snprintf(cmd, LINE_BUF_LEN, "jinfo %d | grep %s | awk '{print $3}'", pid, TASK_PROBE_JAVA_COMMAND);
-    f = popen(cmd, "r");
-    if (f == NULL) {
-        goto out;
-    }
-    line[0] = 0;
-    if (fgets(line, LINE_BUF_LEN, f) == NULL) {
-        goto out;
-    }
-    SPLIT_NEWLINE_SYMBOL(line);
-    (void)memset(proc_info->cmdline, 0, PROC_CMDLINE_LEN);
-    (void)snprintf(proc_info->cmdline, sizeof(proc_info->cmdline), "%s", line);
-out:
-    if (f != NULL) {
-        (void)pclose(f);
-    }
-    return;
 }
 
 int get_proc_cmdline(u32 pid, char *buf, u32 buf_len)
@@ -610,7 +581,9 @@ static void output_proc_infos(proc_hash_t *one_proc)
 
 static proc_hash_t* init_one_proc(u32 pid, char *stime, char *comm)
 {
+    int ret;
     proc_hash_t *item;
+    struct java_property_s java_prop = {0};
 
     item = (proc_hash_t *)malloc(sizeof(proc_hash_t));
     (void)memset(item, 0, sizeof(proc_hash_t));
@@ -621,7 +594,10 @@ static proc_hash_t* init_one_proc(u32 pid, char *stime, char *comm)
     (void)snprintf(item->info.comm, sizeof(item->info.comm), "%s", comm);
     item->flag = PROC_IN_PROBE_RANGE;
     if (strcmp(comm, "java") == 0) {
-        get_java_proc_cmd(pid, &item->info);
+        ret = get_java_property((int)item->key.pid, &java_prop);
+        if (ret == 0) {
+            (void)snprintf(item->info.cmdline, sizeof(item->info.cmdline), "%s", java_prop.mainClassName);
+        }
     } else {
         (void)get_proc_cmdline(pid, item->info.cmdline, sizeof(item->info.cmdline));
     }

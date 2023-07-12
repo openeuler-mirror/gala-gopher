@@ -1,6 +1,6 @@
 [Unit]
 Description=a-ops gala gopher service
-After=network.target
+After=network-online.target
 
 [Service]
 Type=exec

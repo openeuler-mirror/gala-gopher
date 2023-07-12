@@ -76,6 +76,7 @@ SET(SOURCES main.c daemon.c
     ${COMMON_DIR}/ipc.c
 
     ${RESTAPI_DIR}/rest_server.c
+    ${EBPF_PROBE_DIR}/src/lib/java_support.c
 )
 
 SET(SOURCE_CMD ${CMD_DIR}/client.c)
@@ -115,7 +116,7 @@ TARGET_INCLUDE_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE
     ${EBPF_PROBE_DIR}/src/include
 )
 
-TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE config pthread rt dl bpf rdkafka microhttpd elf log4cplus gnutls 
+TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE config pthread rt dl bpf rdkafka microhttpd elf log4cplus gnutls
 cjson)
 
 
