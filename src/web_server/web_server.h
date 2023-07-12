@@ -24,6 +24,12 @@
 #include "imdb.h"
 #include "base.h"
 
+#if MHD_VERSION < 0x00097002
+#define MHD_Result   int
+#else
+#define MHD_Result   enum MHD_Result
+#endif
+
 typedef struct {
     uint16_t port;
 

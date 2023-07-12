@@ -9,7 +9,7 @@ public class JSSEProbeAgent {
     private static final String ACTION_START = "start";
     private static final String ACTION_STOP = "stop";
 
-    // 该方法仅在premain使用，获取当前进程PID
+    // only used in premain() to get self pid
     private static String getPid() throws IOException {
         byte[] bo = new byte[256];
         InputStream is = new FileInputStream("/proc/self/stat");
@@ -45,8 +45,8 @@ public class JSSEProbeAgent {
     private static void start(Instrumentation instrumentation) {
 
         instrumentation.addTransformer(new ProfilingTransformer(), true);
-        // agentmain运行时，由于堆里已经存在Class文件。所以添加Transformer后
-        // 还要再调用一个 retransformClasses(clazz) 方法来更新Class文件
+        // When agentmain is running, the Class file already exists in the heap, So it is needed to
+        // call retransformClasses(clazz) to update the Class file after addTransformer().
         for (Class clazz:instrumentation.getAllLoadedClasses()) {
             if (clazz.getName().equals("sun.security.ssl.SSLSocketImpl$AppOutputStream") ||
                 clazz.getName().equals("sun.security.ssl.SSLSocketImpl$AppInputStream")) {

@@ -154,14 +154,13 @@ static char* __number(char *str, unsigned long long num, int base, int size, int
     return str;
 }
 
-int nprobe_fprintf(FILE *stream, const char *format, ...)
+int nprobe_fprintf(FILE *stream, const char *curFormat, ...)
 {
     int len;
     unsigned long long num;
     int i, base;
     char *str;
     const char *s;
-    char *curFormat = (char *)format;
 
     int flags;          /* flags to number */
     int field_width;    /* width of output field */

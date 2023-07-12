@@ -158,6 +158,7 @@ static void get_diskname(const char* dev_name, char *disk_name, size_t size)
     return;
 }
 
+#if 0
 static int get_devt(char *dev_name, int *major, int *minor)
 {
     char sys_file[PATH_LEN];
@@ -193,6 +194,7 @@ static int get_devt(char *dev_name, int *major, int *minor)
     pclose(fp);
     return 0;
 }
+#endif
 
 #define __ENTITY_ID_LEN 32
 static void __build_entity_id(int major, int minor, char *buf, int buf_len)
