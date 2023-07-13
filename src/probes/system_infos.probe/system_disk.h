@@ -16,6 +16,7 @@
 #define SYSTEM_DISK_RPOBE__H
 
 #pragma once
+#include <uthash.h>
 
 #include "ipc.h"
 #include "common.h"
@@ -25,14 +26,22 @@
 
 #define FSTYPE_LEN  64
 #define MOUNTON_LEN 128
+#define MOUNTSTATUS_LEN 8
 typedef struct {
     char fsname[FSTYPE_LEN];
     char fstype[FSTYPE_LEN];
     char mount_on[MOUNTON_LEN];
-    long inode_or_blk_sum;
-    long inode_or_blk_used;
-    long inode_or_blk_free;
-    long inode_or_blk_used_per;
+    char mount_status[MOUNTSTATUS_LEN];
+    long inode_sum;
+    long inode_used;
+    long inode_free;
+    long inode_used_per;
+    long blk_sum;
+    long blk_used;
+    long blk_free;
+    long blk_used_per;
+    char valid;
+    UT_hash_handle hh;
 } df_stats;
 
 typedef struct {
@@ -72,6 +81,7 @@ typedef struct {
 int system_disk_probe(struct ipc_body_s *ipc_body);
 int system_iostat_probe(struct ipc_body_s *ipc_body);
 int system_iostat_init(void);
+void system_disk_destroy(void);
 void system_iostat_destroy(void);
 
 #endif

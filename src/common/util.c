@@ -305,3 +305,15 @@ int get_kern_version(u32 *kern_version)
     *kern_version = (u32)KERNEL_VERSION(major, minor, patch);
     return 0;
 }
+
+int is_valid_proc(int pid)
+{
+    char fname[LINE_BUF_LEN];
+    fname[0] = 0;
+
+    (void)snprintf(fname, LINE_BUF_LEN, "/proc/%d", pid);
+    if (access((const char *)fname, 0) == 0) {
+        return 1;
+    }
+    return 0;
+}
