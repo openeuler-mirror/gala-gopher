@@ -157,6 +157,8 @@ retry:
 
     SET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPED);
     UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_RUNNING);
+
+    clear_ipc_msg((long)probe->probe_type);
     pclose(f);
     return 0;
 }

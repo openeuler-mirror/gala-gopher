@@ -55,7 +55,7 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 ```
 curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 {
-    "state": "running" // optional: running,stoped
+    "state": "running" // optional: running,stopped
 }'
 ```
 

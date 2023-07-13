@@ -167,5 +167,6 @@ int create_ipc_msg_queue(int ipc_flag);
 void destroy_ipc_msg_queue(int msqid);
 int send_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body);
 int recv_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body);
+void clear_ipc_msg(long msg_type);
 void destroy_ipc_body(struct ipc_body_s *ipc_body);
 #endif
