@@ -125,9 +125,9 @@ static int __mkdir(char dst_dir[])
         return 0;
     }
     FILE *fp;
-    char command[COMMAND_LEN];
+    char command[LINE_BUF_LEN];
     command[0] = 0;
-    (void)snprintf(command, COMMAND_LEN, "/usr/bin/mkdir -p %s", dst_dir);
+    (void)snprintf(command, LINE_BUF_LEN, "/usr/bin/mkdir -p %s", dst_dir);
     fp = popen(command, "r");
     if (fp == NULL) {
         return -1;
