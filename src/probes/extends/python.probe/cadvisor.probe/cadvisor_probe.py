@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 from ctypes import cdll, c_uint, c_char, Structure, POINTER, pointer, create_string_buffer
 import sys
 import time
