@@ -507,7 +507,6 @@ static int try_start_probe(struct probe_s *probe)
         return -1;
     }
 
-    (void)pthread_detach(probe->tid);
     return 0;
 }
 
@@ -565,6 +564,9 @@ static int stop_probe(struct probe_s *probe)
         SET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPED);
         UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_RUNNING);
     } else {
+        if (pthread_cancel(probe->tid) != 0) {
+            PARSE_ERR("failed to cancel extend probe");
+        }
         pid = get_probe_pid(probe);
         if (pid < 0) {
             PARSE_ERR("failed to find process of extend probe");
@@ -572,7 +574,7 @@ static int stop_probe(struct probe_s *probe)
         }
         kill(pid, SIGINT);
     }
-
+    pthread_join(probe->tid, NULL);
     set_probe_pid(probe, -1);
     return 0;
 }
@@ -1055,6 +1057,20 @@ end:
     return buf;
 }
 
+void destroy_probe_threads(void)
+{
+    if (g_probe_mng == NULL) {
+        return;
+    }
+
+    for (int i = 0; i < PROBE_TYPE_MAX; i++) {
+        if (g_probe_mng->probes[i] != NULL && g_probe_mng->probes[i]->tid != 0) {
+            pthread_cancel(g_probe_mng->probes[i]->tid);
+            pthread_join(g_probe_mng->probes[i]->tid, NULL);
+        }
+    }
+}
+
 void destroy_probe_mng(void)
 {
     struct probe_s *probe;
@@ -1067,9 +1083,8 @@ void destroy_probe_mng(void)
     g_probe_mng->msq_id = -1;
 
     (void)pthread_rwlock_destroy(&g_probe_mng->rwlock);
-
+    destroy_probe_threads();
     for (int i = 0; i < PROBE_TYPE_MAX; i++) {
-        stop_probe(g_probe_mng->probes[i]);
         destroy_probe(g_probe_mng->probes[i]);
         g_probe_mng->probes[i] = NULL;
     }

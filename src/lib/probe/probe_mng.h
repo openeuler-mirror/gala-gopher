@@ -104,7 +104,7 @@ int parse_probe_json(const char *probe_name, const char *probe_content);
 char *get_probe_json(const char *probe_name);
 struct probe_mng_s *create_probe_mng(void);
 void destroy_probe_mng(void);
-
+void destroy_probe_threads(void);
 u32 get_probe_status_flags(struct probe_s* probe);
 void set_probe_status_flags(struct probe_s* probe, u32 flags);
 void unset_probe_status_flags(struct probe_s* probe, u32 flags);

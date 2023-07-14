@@ -111,6 +111,7 @@ static int g_probe_mng_ipc_msgid = -1;
 
 static void quit_handler(int signo)
 {
+    destroy_probe_threads();
     // probe_mng创建的ipc消息队列是跟随内核的，进程结束消息队列还会存在，需要显示调用函数销毁
     destroy_ipc_msg_queue(g_probe_mng_ipc_msgid);
 
