@@ -105,7 +105,7 @@ static int get_os_release_info(struct node_infos *infos)
         return -1;
     }
     (void)snprintf(infos->os_pretty_name, sizeof(infos->os_pretty_name), "%s", line);
-    
+
     if (do_read_line(OS_KVERSION, line) < 0) {
         ERROR("[SYSTEM_OS] get os kernelversion failed.\n");
         return -1;
@@ -167,10 +167,16 @@ static int check_ip_in_net_segment(char *ip_str, char *net_str)
     return true;
 }
 
-static int check_skip_ifa(struct ifaddrs *ifa)
+static int check_skip_ifa(struct ifaddrs *ifa, struct ipc_body_s * ipc_body)
 {
     int family;
     struct sockaddr_in6 *sin6;
+
+    if (ipc_body->probe_param.target_dev[0] != 0) {
+        if (strcasecmp(ifa->ifa_name, ipc_body->probe_param.target_dev) != 0) {
+            return 1;
+        }
+    }
 
     if (ifa->ifa_addr == NULL) {
         return 1;
@@ -210,13 +216,8 @@ static int get_ip_addr(struct node_infos *infos, struct ipc_body_s * ipc_body)
         return -1;
     }
 
-    if (ipc_body->probe_param.host_ip_list[0][0] == 0) {
-        // 不需要过滤业务IP
-        filter_flag = 0;
-    }
-
     for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
-        if (check_skip_ifa(ifa)) {
+        if (check_skip_ifa(ifa, ipc_body)) {
             continue;
         }
 
@@ -229,31 +230,13 @@ static int get_ip_addr(struct node_infos *infos, struct ipc_body_s * ipc_body)
             return -1;
         }
 
-        if (filter_flag == 0) {
-            if (first_flag == 0) {
-                (void)__snprintf(&ip_addr_str, ip_addr_len, &ip_addr_len, "%s", buf);
-                first_flag = 1;
-            } else {
-                (void)__snprintf(&ip_addr_str, ip_addr_len, &ip_addr_len, " %s", buf);
-            }
-            continue;
-        }
 
-        for (int i = 0; i < MAX_IP_NUM; i++) {
-            if (ipc_body->probe_param.host_ip_list[i][0] == 0) {
-                break;
-            }
-            if (check_ip_in_net_segment(buf, ipc_body->probe_param.host_ip_list[i]) == true) {
-                if (first_flag == 0) {
-                    (void)__snprintf(&ip_addr_str, ip_addr_len, &ip_addr_len, "%s", buf);
-                    first_flag = 1;
-                } else {
-                    (void)__snprintf(&ip_addr_str, ip_addr_len, &ip_addr_len, " %s", buf);
-                }
-                break;
-            }
+        if (first_flag == 0) {
+            (void)__snprintf(&ip_addr_str, ip_addr_len, &ip_addr_len, "%s", buf);
+            first_flag = 1;
+        } else {
+            (void)__snprintf(&ip_addr_str, ip_addr_len, &ip_addr_len, " %s", buf);
         }
-
     }
 
     freeifaddrs(ifaddr);

@@ -126,13 +126,11 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 | l7_protocol        | L7层协议范围                                           | http, [http, postgresql, mysql, redis, kafka,  mongodb, rocketmq, dns] |         | l7                       | Y                   |
 | support_ssl        | 支持SSL加密协议观测                                    | 0, [0, 1]                                                    |         | l7                       | Y                   |
 | pyroscope_server   | 设置火焰图UI服务端地址                                 | localhost:4040                                               |         | flamegraph               | Y                   |
-| debugging_dir       | 设置系统debugging文件目录（用于查找火焰图内的函数符号） | "" |         | flamegraph               | Y                   |
 | svg_period | 火焰图svg文件生成周期 | 180, [30, 600] | s | flamegraph | Y |
 | perf_sample_period | oncpu火焰图采集堆栈信息的周期 | 10, [10, 1000] | ms | flamegraph | Y |
 | svg_dir | 火焰图svg文件存储目录 | "/var/log/gala-gopher/stacktrace" | | flamegraph | Y |
 | flame_dir | 火焰图原始堆栈信息存储目录 | "/var/log/gala-gopher/flamegraph" | | flamegraph | Y |
-| host_ip_fields | 主机IP地址列表，多个IP间逗号隔开 | "" |  |  | Y |
-| dev_name | 观测的网卡设备名 | "" |  | io, kafka, ksli, postgre_sli | Y |
+| dev_name | 观测的网卡/磁盘设备名 | "" |  | io, kafka, ksli, postgre_sli，baseinfo | Y |
 | continuous_sampling | 是否持续采样 | 0, [0, 1] | | ksli | Y |
 | elf_path | 要观测的可执行文件的路径 | "" | | nginx, haproxy, dnsmasq | Y |
 | kafka_port | 要观测的kafka端口号 | 9092, [1, 65535] | | kafka | Y |

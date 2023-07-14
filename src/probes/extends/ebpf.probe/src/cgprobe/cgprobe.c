@@ -44,7 +44,7 @@
     MAP_SET_PIN_PATH(probe_name, args_map, ARGS_PATH, load); \
     LOAD_ATTACH(cgprobe, probe_name, end, load)
 
-static struct probe_params params = {.period = DEFAULT_PERIOD};
+static struct probe_params_deprecated params = {.period = DEFAULT_PERIOD};
 
 
 static void print_cg_metrics(void *ctx, int cpu, void *data, __u32 size)
@@ -60,7 +60,7 @@ static void print_cg_metrics(void *ctx, int cpu, void *data, __u32 size)
     (void)fflush(stdout);
 }
 
-static void load_args(int args_fd, struct probe_params* params)
+static void load_args(int args_fd, struct probe_params_deprecated* params)
 {
     __u32 key = 0;
     struct ns_args_s args = {0};

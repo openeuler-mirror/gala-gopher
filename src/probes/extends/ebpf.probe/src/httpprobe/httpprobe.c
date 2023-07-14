@@ -64,7 +64,7 @@
     }
 
 static char *methods[HTTP_NUMS] = {"GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"};
-static struct probe_params params = { .period = DEFAULT_PERIOD };
+static struct probe_params_deprecated params = { .period = DEFAULT_PERIOD };
 
 static void get_libssl_path(char *nginx_sslpath, char *apache_sslpath)
 {
@@ -135,7 +135,7 @@ static void print_http_sli(void *ctx, int cpu, void *data, __u32 size)
     (void)fflush(stdout);
 }
 
-static void load_args(int args_fd, const struct probe_params* params)
+static void load_args(int args_fd, const struct probe_params_deprecated* params)
 {
     __u32 key = 0;
     struct http_args_s args = {0};

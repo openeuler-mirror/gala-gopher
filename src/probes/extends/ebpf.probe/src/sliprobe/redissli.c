@@ -35,7 +35,7 @@
 #define OO_NAME "redissli"
 
 static volatile sig_atomic_t stop;
-static struct probe_params params = {.period = DEFAULT_PERIOD, .elf_path = {0}};
+static struct probe_params_deprecated params = {.period = DEFAULT_PERIOD, .elf_path = {0}};
 
 #define MAX_RDS_SEARCH_NUMS 1
 #define MAX_RDS_VER_LEN 10

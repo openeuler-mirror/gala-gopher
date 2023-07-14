@@ -197,9 +197,9 @@ static void load_args(int args_fd, struct ipc_body_s* ipc_body)
 static void reload_tc_bpf(struct ipc_body_s* ipc_body)
 {
 #ifdef KERNEL_SUPPORT_TSTAMP
-    if (strcmp(g_ksli_probe.ipc_body.probe_param.netcard_list, ipc_body->probe_param.netcard_list) != 0) {
+    if (strcmp(g_ksli_probe.ipc_body.probe_param.target_dev, ipc_body->probe_param.target_dev) != 0) {
         offload_tc_bpf(TC_TYPE_INGRESS);
-        load_tc_bpf(ipc_body->probe_param.netcard_list, TC_PROG, TC_TYPE_INGRESS);
+        load_tc_bpf(ipc_body->probe_param.target_dev, TC_PROG, TC_TYPE_INGRESS);
     }
 #endif
     return;
@@ -273,7 +273,7 @@ int main(int argc, char **argv)
     }
 
     INIT_BPF_APP(ksliprobe, EBPF_RLIM_LIMITED);
-    
+
     if (signal(SIGINT, sig_int) == SIG_ERR) {
         ERROR("[KSLIPROBE]: Can't set signal handler: %d\n", errno);
         return -1;
