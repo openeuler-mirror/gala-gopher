@@ -40,18 +40,19 @@ enum proc_io_e {
 };
 
 enum proc_stat_e {
-    PROC_STAT_MIN_FLT = 0,
-    PROC_STAT_MAJ_FLT,
-    PROC_STAT_UTIME,
+    PROC_STAT_MIN_FLT = 10,
+    PROC_STAT_MAJ_FLT = 12,
+    PROC_STAT_UTIME = 14,
     PROC_STAT_STIME,
     PROC_STAT_CUTIME,
     PROC_STAT_CSTIME,
     PROC_STAT_PRIORITY,
     PROC_STAT_NICE,
     PROC_STAT_NUM_THREADS,
+    PROC_STAT_STARTTIME = 22,
     PROC_STAT_VSIZE,
     PROC_STAT_RSS,
-    PROC_STAT_CPU,
+    PROC_STAT_CPU = 39,
 
     PROC_STAT_MAX
 };
@@ -79,6 +80,7 @@ typedef struct {
     int ppid;
     char cmdline[PROC_CMDLINE_LEN];
     char container_id[CONTAINER_ID_BUF_LEN];
+    u64 proc_start_time;                // FROM same as proc_stat_min_flt
     u32 fd_count;                       // FROM '/usr/bin/ls -l /proc/[PID]/fd | wc -l'
     u32 max_fd_limit;                   // FROM 'cat /proc/[PID]/limits | grep -w "MAX open files"'
     u32 proc_syscr_count;               // FROM same as 'task_rchar_bytes'

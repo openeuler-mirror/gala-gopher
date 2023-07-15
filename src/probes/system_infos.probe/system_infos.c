@@ -64,6 +64,9 @@ static void system_probe_destroy(void)
     /* system net destroy */
     system_net_destroy();
 
+    /* system disk destroy */
+    system_disk_destroy();
+
     /* system iostat destroy */
     system_iostat_destroy();
 }

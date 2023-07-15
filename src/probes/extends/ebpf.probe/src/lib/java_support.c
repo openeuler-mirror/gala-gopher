@@ -107,18 +107,6 @@ out:
     return ret;
 }
 
-static int is_valid_proc(int pid)
-{
-    char fname[LINE_BUF_LEN];
-    fname[0] = 0;
-
-    (void)snprintf(fname, LINE_BUF_LEN, "/proc/%d", pid);
-    if (access((const char *)fname, 0) == 0) {
-        return 1;
-    }
-    return 0;
-}
-
 static int __mkdir(char dst_dir[])
 {
     if (access(dst_dir, F_OK) == 0) {
