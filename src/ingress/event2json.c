@@ -10,8 +10,11 @@
 #define VAL_WITH_QUOTE 1
 #define VAL_WITHOUT_QUOTE 0
 
-#define ENTITY_ID_LEN 128
-#define EVENT_ID_LEN  128
+// data format as machine_uuid(40)-entityName-entityid(128)
+#define ENTITY_ID_LEN 256
+// event_id data format as timestamp-entity_id
+#define TIMESTAMP_LEN_MAX  128
+#define EVENT_ID_LEN  (ENTITY_ID_LEN + TIMESTAMP_LEN_MAX)
 #define METRIC_ID_LEN 64
 
 #define COMM_FIELD_TIMESTAMP "Timestamp"
