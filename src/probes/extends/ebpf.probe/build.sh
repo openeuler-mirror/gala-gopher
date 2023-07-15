@@ -54,13 +54,13 @@ function check_dep()
 }
 
 function compile_probe_prev()
-{   
+{
     echo "ADD GOPHER_DEBUG CFLAGS."
     sed -i '$a CFLAGS+=-DGOPHER_DEBUG' ${SRC_DIR}/mk/var.mk
 }
 
 function compile_probe_end()
-{   
+{
     echo "DEL GOPHER_DEBUG CFLAGS."
     sed -i '$d' ${SRC_DIR}/mk/var.mk
 }
@@ -132,7 +132,7 @@ then
     then
         compile_probe_prev
     fi
-    compile_probe
+    compile_probe || exit 1
     if [ "$2" == "-d"  -o  "$2" == "--debug" ];
     then
         compile_probe_end
