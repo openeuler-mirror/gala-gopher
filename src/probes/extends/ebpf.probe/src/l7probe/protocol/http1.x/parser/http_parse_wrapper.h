@@ -17,10 +17,8 @@
 
 #include "../model/http_msg_format.h"
 
-#define K_MAX_NUM_HEADERS 50
-
 /**
- * http header structure
+ * HTTP header
  */
 typedef struct http_header_t {
     const char *name;
@@ -29,18 +27,20 @@ typedef struct http_header_t {
     size_t value_len;
 } http_header;
 
+http_header *init_http_header();
+
+void free_http_header(http_header *header);
+
 /**
  * HTTP Request
  */
 typedef struct http_request {
-    char *method;
+    const char *method;
     size_t method_len;
-    char *path;
+    const char *path;
     size_t path_len;
     int minor_version;
-    http_headers_map headers[K_MAX_NUM_HEADERS];
-    // Set header number to maximum we can accept.
-    // Pico will change it to the number of headers parsed for us.
+    http_header *headers;
     size_t num_headers;
 } http_request;
 
@@ -52,13 +52,11 @@ void free_http_request(http_request *req);
  * HTTP Response
  */
 typedef struct http_response {
-    char* msg;
+    const char* msg;
     size_t msg_len;
     int status;
     int minor_version;
-    http_headers_map headers[K_MAX_NUM_HEADERS];
-    // Set header number to maximum we can accept.
-    // Pico will change it to the number of headers parsed for us.
+    http_header *headers;
     size_t num_headers;
 } http_response;
 

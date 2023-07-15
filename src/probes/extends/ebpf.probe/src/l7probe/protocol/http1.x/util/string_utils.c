@@ -122,7 +122,7 @@ size_t rfind_str(const char *str, const char *sub)
     return -1;
 }
 
-size_t get_array_len(char *arr[])
+size_t get_array_len(const char *arr[])
 {
     size_t len = 0;
     while(arr[len] != NULL) {
@@ -248,4 +248,34 @@ void remove_prefix(char *str, const char *prefix)
     if (strncmp(str, prefix, len) == 0) {
         memmove(str, str + len, strlen(str) - len + 1);
     }
+}
+
+int simple_hex_atoi(const char* hex_str) {
+    int result = 0;
+    int i = 0;
+
+    // 跳过前导空格
+    while (isspace(hex_str[i])) {
+        i++;
+    }
+
+    // 检查是否有可选的"0x"前缀
+    if (hex_str[i] == '0' && tolower(hex_str[i + 1]) == 'x') {
+        i += 2;
+    }
+
+    // 转换每个十六进制字符并计算结果
+    while (hex_str[i] != '\0') {
+        char c = tolower(hex_str[i]);
+        if (isdigit(c)) {
+            result = result * 16 + (c - '0');
+        } else if (c >= 'a' && c <= 'f') {
+            result = result * 16 + (c - 'a' + 10);
+        } else {
+            break;  // 遇到无效字符，停止转换
+        }
+        i++;
+    }
+
+    return result;
 }

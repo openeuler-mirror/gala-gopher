@@ -15,6 +15,8 @@
 
 #include "http_parse_wrapper.h"
 
+#define K_MAX_NUM_HEADERS 50
+
 #ifdef _MSC_VER
 #define ALIGNED(n) _declspec(align(n))
 #else
@@ -23,24 +25,26 @@
 
 #define IS_PRINTABLE_ASCII(c) ((unsigned char)(c)-040u < 0137u)
 
-// Check the buf is at the end, if end then return -2
+// Check the buf is at the end, if end then return -2，NEEDS_MORE_DATA
 #define CHECK_EOF()                                                                                                                \
     if (buf == buf_end) {                                                                                                          \
         *ret = -2;                                                                                                                 \
         return NULL;                                                                                                               \
     }
 
+// Check the next char of buf is ch
 #define EXPECT_CHAR_NO_CHECK(ch)                                                                                                   \
     if (*buf++ != ch) {                                                                                                            \
         *ret = -1;                                                                                                                 \
         return NULL;                                                                                                               \
     }
 
-// Check if the char is expected
+// Check if the char is expected 'ch', if not then return -1, Failed to parse
 #define EXPECT_CHAR(ch)                                                                                                            \
     CHECK_EOF();                                                                                                                   \
     EXPECT_CHAR_NO_CHECK(ch);
 
+// 解析uri使用
 #define ADVANCE_TOKEN(tok, len)                                                                                                 \
     do {                                                                                                                           \
         const char *tok_start = buf;                                                                                               \
@@ -66,61 +70,24 @@
         len = buf - tok_start;                                                                                                  \
     } while (0);
 
-#define PARSE_INT(valp_, mul_)                                                                                                     \
+#define PARSE_INT(val, mul)                                                                                                     \
     if (*buf < '0' || '9' < *buf) {                                                                                                \
         buf++;                                                                                                                     \
         *ret = -1;                                                                                                                 \
         return NULL;                                                                                                               \
     }                                                                                                                              \
-    *(valp_) = (mul_) * (*buf++ - '0');
+    *(val) = (mul) * (*buf++ - '0');
 
-#define PARSE_INT_3(valp_)                                                                                                         \
+#define PARSE_INT_3(val)                                                                                                         \
     do {                                                                                                                           \
-        int res_ = 0;                                                                                                              \
-        PARSE_INT(&res_, 100)                                                                                                      \
-        *valp_ = res_;                                                                                                             \
-        PARSE_INT(&res_, 10)                                                                                                       \
-        *valp_ += res_;                                                                                                            \
-        PARSE_INT(&res_, 1)                                                                                                        \
-        *valp_ += res_;                                                                                                            \
+        int res = 0;                                                                                                              \
+        PARSE_INT(&res, 100)                                                                                                      \
+        *val = res;                                                                                                             \
+        PARSE_INT(&res, 10)                                                                                                       \
+        *val += res;                                                                                                            \
+        PARSE_INT(&res, 1)                                                                                                        \
+        *val += res;                                                                                                            \
     } while (0)
-
-/**
- * Judge if the buf is complete
- *
- * @param buf
- * @param buf_end
- * @param last_len
- * @param ret
- * @return
- */
-static const char *is_complete(const char *buf, const char *buf_end, size_t last_len, size_t *ret)
-{
-    int ret_cnt = 0;
-    buf = last_len < 3 ? buf : buf + last_len - 3;
-
-    while (1) {
-        CHECK_EOF()
-        if (*buf == '\015') {
-            ++buf;
-            CHECK_EOF()
-            EXPECT_CHAR('\012')
-            ++ret_cnt;
-        } else if (*buf == '\012') {
-            ++buf;
-            ++ret_cnt;
-        } else {
-            ++buf;
-            ret_cnt = 0;
-        }
-        if (ret_cnt == 2) {
-            return buf;
-        }
-    }
-
-//    *ret = -2;
-//    return NULL;
-}
 
 static const char *token_char_map = "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
                                     "\0\1\0\1\1\1\1\1\0\0\1\1\0\1\1\0\1\1\1\1\1\1\1\1\1\1\0\0\0\0\0\0"
@@ -131,6 +98,7 @@ static const char *token_char_map = "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\
                                     "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
                                     "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
 
+// 快速找到字符
 static const char *find_char_fast(const char *buf, const char *buf_end, const char *ranges, size_t ranges_size, int *found)
 {
     *found = 0;
@@ -160,6 +128,7 @@ static const char *find_char_fast(const char *buf, const char *buf_end, const ch
     return buf;
 }
 
+// 解析到行末，eol：end of line，用于解析header.value和response.Reason-Phrase时使用
 static const char *get_token_to_eol(const char *buf, const char *buf_end, const char **token, size_t *token_len, size_t *ret)
 {
     const char *token_start = buf;
@@ -206,7 +175,7 @@ static const char *get_token_to_eol(const char *buf, const char *buf_end, const 
             }
         }
     }
-    FOUND_CTL:
+    FOUND_CTL:  // 找到控制字符
     if (*buf == '\015') {
         ++buf;
         EXPECT_CHAR('\012')
@@ -223,10 +192,11 @@ static const char *get_token_to_eol(const char *buf, const char *buf_end, const 
     return buf;
 }
 
-/* returned pointer is always within [buf, buf_end), or null */
+// 解析token，返回已处理到的buf指针，范围在[buf, buf_end)之间
 static const char *parse_token(const char *buf, const char *buf_end, const char **token, size_t *token_len, char next_char,
                                size_t *ret)
 {
+    // 使用pcmpestri算法检测非token字符。这个指令能在不超过8字符长度的范围内工作，性能高。
     /* We use pcmpestri to detect non-token characters. This instruction can take no more than eight character ranges (8*2*8=128
      * bits that is the size of an SSE register). Due to this restriction, characters `|` and `~` are handled in the slow loop. */
     static const char ALIGNED(16) ranges[] = "\x00 "  /* control chars and up to SP */
@@ -240,13 +210,19 @@ static const char *parse_token(const char *buf, const char *buf_end, const char 
     const char *buf_start = buf;
     int found;
     buf = find_char_fast(buf, buf_end, ranges, sizeof(ranges) - 1, &found);
+
+    // 如果没找到，检查buf是否移动到了buf_end，如果是则返回-2，NEEDS_MORE_DATA
     if (!found) {
         CHECK_EOF()
     }
+
+    // 循环移动buf指针，直到找到next_char。解析req.method时为空格，解析header.key时为‘:'
     while (1) {
         if (*buf == next_char) {
+            // 如果循环到next_char则跳出循环
             break;
         } else if (!token_char_map[(unsigned char)*buf]) {
+            // 如果当前字符不在token_char_map中，则解析失败，返回-1
             *ret = -1;
             return NULL;
         }
@@ -258,10 +234,10 @@ static const char *parse_token(const char *buf, const char *buf_end, const char 
     return buf;
 }
 
-/* returned pointer is always within [buf, buf_end), or null */
+// 解析HTTP协议版本
 static const char *parse_http_version(const char *buf, const char *buf_end, int *minor_version, size_t *ret)
 {
-    /* we want at least [HTTP/1.<two chars>] to try to parse */
+    // 协议号有9个字符 [HTTP/1.<two chars>]
     if (buf_end - buf < 9) {
         *ret = -2;
         return NULL;
@@ -277,11 +253,16 @@ static const char *parse_http_version(const char *buf, const char *buf_end, int 
     return buf;
 }
 
-// parse headers
-static const char *parse_headers(const char *buf, const char *buf_end, struct http_header_t *headers, size_t *num_headers,
-                                 size_t max_headers, size_t *ret)
+// 解析请求头，格式:
+// field-name | : | [field-value] | CRLF
+// field-name | : | [field-value] | CRLF
+static const char *parse_headers(const char *buf, const char *buf_end, http_header *headers, size_t *num_headers,
+                                 size_t *ret)
 {
+    // 循环解析每个header
+    const size_t max_headers = K_MAX_NUM_HEADERS;
     for (;; ++*num_headers) {
+        // 检查是否循环到了buf末尾
         CHECK_EOF()
         if (*buf == '\015') {
             ++buf;
@@ -291,10 +272,14 @@ static const char *parse_headers(const char *buf, const char *buf_end, struct ht
             ++buf;
             break;
         }
+
+        // 解析的header数量达到最大值时，直接退出
         if (*num_headers == max_headers) {
             *ret = -1;
             return NULL;
         }
+
+        // 解析name
         if (!(*num_headers != 0 && (*buf == ' ' || *buf == '\t'))) {
             /* parsing name, but do not discard SP before colon, see
              * http://www.mozilla.org/security/announce/2006/mfsa2006-33.html */
@@ -316,12 +301,15 @@ static const char *parse_headers(const char *buf, const char *buf_end, struct ht
             headers[*num_headers].name = NULL;
             headers[*num_headers].name_len = 0;
         }
+
+        // 解析value
         const char *value;
         size_t value_len;
         if ((buf = get_token_to_eol(buf, buf_end, &value, &value_len, ret)) == NULL) {
             return NULL;
         }
-        /* remove trailing SPs and HTABs */
+
+        // 去除 空格 和 \t
         const char *value_end = value + value_len;
         for (; value_end != value; --value_end) {
             const char c = *(value_end - 1);
@@ -329,18 +317,18 @@ static const char *parse_headers(const char *buf, const char *buf_end, struct ht
                 break;
             }
         }
+
+        // 解析出来的name：value放入headers数组中
         headers[*num_headers].value = value;
         headers[*num_headers].value_len = value_end - value;
     }
     return buf;
 }
 
-// Parse http request line
-static const char *parse_request_line(const char *buf, const char *buf_end, const char **method, size_t *method_len, const char **path,
-                                 size_t *path_len, int *minor_version, struct http_header_t *headers, size_t *num_headers,
-                                 size_t max_headers, size_t *ret)
+// 解析请求行，格式：Method | SP | Request-URI | SP | HTTP-Version | CRLF
+static const char *parse_request_line(const char *buf, const char *buf_end, http_request *req, size_t *ret)
 {
-    /* skip first empty line (some clients add CRLF after POST content) */
+    // 跳过空行，有些http客户端会在POST之后添加CRLF
     CHECK_EOF()
     if (*buf == '\015') {
         ++buf;
@@ -349,29 +337,43 @@ static const char *parse_request_line(const char *buf, const char *buf_end, cons
         ++buf;
     }
 
-    /* parse request line */
-    if ((buf = parse_token(buf, buf_end, method, method_len, ' ', ret)) == NULL) {
+    // 解析请求method
+    buf = parse_token(buf, buf_end, &req->method, &req->method_len, ' ', ret);
+    if (buf == NULL) {
         return NULL;
     }
+
+    // 跳过空格
     do {
         ++buf;
         CHECK_EOF()
     } while (*buf == ' ');
-    ADVANCE_TOKEN(*path, *path_len);
+
+    // 解析uri，即path
+    ADVANCE_TOKEN(req->path, req->path_len);
+
+    // 跳过空格
     do {
         ++buf;
         CHECK_EOF()
     } while (*buf == ' ');
-    if (*method_len == 0 || *path_len == 0) {
+
+    // 解析method或path失败时，返回-1报错
+    if (req->method_len == 0 || req->path_len == 0) {
         *ret = -1;
         return NULL;
     }
-    if ((buf = parse_http_version(buf, buf_end, minor_version, ret)) == NULL) {
+
+    // 解析http版本号
+    buf = parse_http_version(buf, buf_end, &req->minor_version, ret);
+    if (buf == NULL) {
         return NULL;
     }
-    if (*buf == '\015') {   // SI
+
+    // 跳过行末终结符CRLF
+    if (*buf == '\015') {
         ++buf;
-        EXPECT_CHAR('\012') // FF
+        EXPECT_CHAR('\012')
     } else if (*buf == '\012') {
         ++buf;
     } else {
@@ -379,134 +381,128 @@ static const char *parse_request_line(const char *buf, const char *buf_end, cons
         return NULL;
     }
 
-    return parse_headers(buf, buf_end, headers, num_headers, max_headers, ret);
+    // 解析请求行
+    return parse_headers(buf, buf_end, req->headers, &req->num_headers, ret);
 }
 
-// Parse response line
-static const char *parse_response_line(const char *buf, const char *buf_end, int *minor_version, int *status, const char **msg,
-                                  size_t *msg_len, struct http_header_t *headers, size_t *num_headers, size_t max_headers, size_t *ret)
+// 解析响应行，格式：Http-Version | SP | Status-Code | SP | Reason-Phrase | CRLF
+static const char *parse_response_line(const char *buf, const char *buf_end, http_response * resp, size_t *ret)
 {
-    /* parse "HTTP/1.x" */
-    if ((buf = parse_http_version(buf, buf_end, minor_version, ret)) == NULL) {
+    // 解析版本号 HTTP/1.x
+    buf = parse_http_version(buf, buf_end, &resp->minor_version, ret);
+    if ((buf) == NULL) {
         return NULL;
     }
-    /* skip space */
     if (*buf != ' ') {
         *ret = -1;
         return NULL;
     }
+
+    // 跳过空格SP
     do {
         ++buf;
         CHECK_EOF()
     } while (*buf == ' ');
-    /* parse status code, we want at least [:digit:][:digit:][:digit:]<other char> to try to parse */
+
+    // 如果行末字符数小于4，则返回-2（needs more data），状态码3位 + CRLF 1位
     if (buf_end - buf < 4) {
         *ret = -2;
         return NULL;
     }
-    PARSE_INT_3(status);
 
-    /* get message including preceding space */
-    if ((buf = get_token_to_eol(buf, buf_end, msg, msg_len, ret)) == NULL) {
+    // 解析状态码（3位数）
+    PARSE_INT_3(&resp->status);
+
+    // 解析Reason-Phrase，放入resp->msg中
+    buf = get_token_to_eol(buf, buf_end, &resp->msg, &resp->msg_len, ret);
+    if (buf == NULL) {
         return NULL;
     }
-    if (*msg_len == 0) {
-        /* ok */
-    } else if (**msg == ' ') {
-        /* Remove preceding space. Successful return from `get_token_to_eol` guarantees that we would hit something other than SP
-         * before running past the end of the given buffer. */
+
+    // msg为空时（即msg_len为0时）为正确场景，直接下一步解析响应头
+    if (resp->msg_len == 0) {
+        // 解析响应行
+        return parse_headers(buf, buf_end, resp->headers, &resp->num_headers, ret);
+    }
+
+    // msg首字符为空格时，去除开头的所有空格
+    if (*resp->msg == ' ') {
         do {
-            ++*msg;
-            --*msg_len;
-        } while (**msg == ' ');
-    } else {
-        /* garbage found after status code */
-        *ret = -1;
-        return NULL;
+            ++resp->msg;
+            --resp->msg_len;
+        } while (*resp->msg == ' ');
+
+        // 解析响应头
+        return parse_headers(buf, buf_end, resp->headers, &resp->num_headers, ret);
     }
 
-    return parse_headers(buf, buf_end, headers, num_headers, max_headers, ret);
-}
-
-// Parse http request header
-static int parse_request_header(const char *buf_start, size_t len, const char **method, size_t *method_len, const char **path,
-                              size_t *path_len, int *minor_version, struct http_header_t *headers, size_t *num_headers, size_t last_len)
-{
-    const char *buf = buf_start, *buf_end = buf_start + len;
-    size_t max_headers = *num_headers;
-    size_t r;
-
-    *method = NULL;
-    *method_len = 0;
-    *path = NULL;
-    *path_len = 0;
-    *minor_version = -1;
-    *num_headers = 0;
-
-    /* if last_len != 0, check if the request is complete (a fast countermeasure
-       againt slowloris */
-    if (last_len != 0 && is_complete(buf, buf_end, last_len, &r) == NULL) {
-        return r;
-    }
-
-    if ((buf = parse_request_line(buf, buf_end, method, method_len, path, path_len, minor_version, headers, num_headers, max_headers,
-                             &r)) == NULL) {
-        return r;
-    }
-
-    return (int)(buf - buf_start);
-}
-
-// Parse http response header
-static int parse_response_header(const char *buf_start, size_t len, int *minor_version, int *status, const char **msg, size_t *msg_len,
-                        struct http_header_t *headers, size_t *num_headers, size_t last_len)
-{
-    const char *buf = buf_start, *buf_end = buf + len;
-    size_t max_headers = *num_headers;
-    size_t r;
-
-    *minor_version = -1;
-    *status = 0;
-    *msg = NULL;
-    *msg_len = 0;
-    *num_headers = 0;
-
-    /* if last_len != 0, check if the response is complete (a fast countermeasure
-       against slowloris */
-    if (last_len != 0 && is_complete(buf, buf_end, last_len, &r) == NULL) {
-        return r;
-    }
-
-    if ((buf = parse_response_line(buf, buf_end, minor_version, status, msg, msg_len, headers, num_headers, max_headers, &r)) == NULL) {
-        return r;
-    }
-
-    return (int)(buf - buf_start);
+    // 如果不为以上两种情况，解析错误，返回-1
+    *ret = -1;
+    return NULL;
 }
 
 size_t http_parse_request_headers(struct raw_data_s *raw_data, http_request *req)
 {
-    return parse_request_header(raw_data->data, raw_data->data_len, &req->method, &req->method_len,
-                              &req->path, &req->path_len, &req->minor_version,
-                              req->headers, &req->num_headers, /*last_len*/ 0);
+    size_t ret;
+    const char *buf_start = raw_data->data + raw_data->current_pos;
+    const char *buf_end = raw_data->data + raw_data->data_len;
+    const char *buf = raw_data->data + raw_data->current_pos;
+
+    // 解析请求行与请求头
+    buf = parse_request_line(buf, buf_end, req, &ret);
+    if (buf == NULL) {
+        return ret;
+    }
+    return (int)(buf - buf_start);
 }
 
 size_t http_parse_response_headers(struct raw_data_s *raw_data, http_response *resp)
 {
-    return parse_response_header(raw_data->data, raw_data->data_len, &resp->minor_version, &resp->status,
-                               &resp->msg, &resp->msg_len, resp->headers, &resp->num_headers, /*last_len*/ 0);
+    size_t ret;
+    const char *buf_start = raw_data->data + raw_data->current_pos;
+    const char *buf_end = raw_data->data + raw_data->data_len;
+    const char *buf = raw_data->data + raw_data->current_pos;
+
+    // 解析响应行和响应头
+    buf = parse_response_line(buf, buf_end, resp, &ret);
+    if (buf == NULL) {
+        return ret;
+    }
+    return (int)(buf - buf_start);
 }
 
 http_headers_map *get_http_headers_map(http_header *headers, size_t num_headers)
 {
     http_headers_map *headers_map = init_http_headers_map();
     for (size_t i = 0; i < num_headers; i++) {
-        char *name, *value;
+        char *name = "", *value = "";
         strcpy(name, headers[i].name);
         strcpy(value, headers[i].value);
         insert_into_multiple_map(headers_map, name, value);
     }
     return headers_map;
+}
+
+http_header *init_http_header()
+{
+    http_header *header = (http_header *) malloc(sizeof(http_header));
+    if (header == NULL) {
+        ERROR("[Http Parse] Failed to malloc http_header.");
+        return NULL;
+    }
+    header->name = "";
+    header->name_len = 0;
+    header->value = "";
+    header->value_len = 0;
+    return header;
+}
+
+void free_http_header(http_header *header)
+{
+    if (header == NULL) {
+        return;
+    }
+    free(header);
 }
 
 http_request *init_http_request(void)
@@ -516,6 +512,13 @@ http_request *init_http_request(void)
         ERROR("[HTTP PARSER] Failed to malloc http_request.");
         return NULL;
     }
+    req->method = "";
+    req->method_len = 0;
+    req->path = "";
+    req->path_len = 0;
+    req->minor_version = -1;
+    req->num_headers = 0;
+    req->headers = init_http_header();
     return req;
 }
 
@@ -524,14 +527,8 @@ void free_http_request(http_request *req)
     if (req == NULL) {
         return;
     }
-    if (req->method != NULL) {
-        free(req->method);
-    }
-    if (req->path != NULL) {
-        free(req->path);
-    }
     if (req->headers != NULL) {
-        free_http_headers_map(req->headers);
+        free_http_header(req->headers);
     }
     free(req);
 }
@@ -543,6 +540,12 @@ http_response *init_http_response(void)
         ERROR("[HTTP1.x PARSER] Failed to malloc http_response.");
         return NULL;
     }
+    resp->minor_version = -1;
+    resp->status = 0;
+    resp->msg = NULL;
+    resp->msg_len = 0;
+    resp->num_headers = 0;
+    resp->headers = init_http_header();
     return resp;
 }
 
@@ -551,11 +554,12 @@ void free_http_response(http_response *resp)
     if (resp == NULL) {
         return;
     }
-    if (resp->msg !=NULL) {
-        free(resp->msg);
-    }
     if (resp->headers != NULL) {
-        free_http_headers_map(resp->headers);
+        free_http_header(resp->headers);
     }
     free(resp);
 }
+
+#undef CHECK_EOF
+#undef EXPECT_CHAR
+#undef ADVANCE_TOKEN

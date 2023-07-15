@@ -16,8 +16,6 @@
 #define __MULTIPLE_MAP_H__
 
 #include <stddef.h>
-#include <utlist.h>
-#include <utarray.h>
 #include <uthash.h>
 #include <ctype.h>
 #include "hash.h"
@@ -30,7 +28,7 @@
  * multiple map value link node
  */
 typedef struct value_node_t {
-    char value[MAX_VALUE_LEN];
+    char *value;
     struct value_node_t *next;
 } value_node;
 
@@ -41,11 +39,12 @@ void free_value_node(value_node *node);
 /**
  * multiple map key-value pair
  *
- * http headers map, using utHash ability
- * HTTP1.x headers can have multiple values for the same name, and filed names ard case-insensitive.
+ * http headers map, using UTHash
+ * HTTP1.x headers can have multiple values for the same name, and filed names are case-insensitive.
+ * key_l represents lower case of key
  */
 typedef struct key_values_pair {
-    char key_l[MAX_KEY_LEN];    // key_l represents lower case of key
+    char *key_l;
     value_node *values;
     UT_hash_handle hh;
 } multiple_map_pair, http_headers_map;

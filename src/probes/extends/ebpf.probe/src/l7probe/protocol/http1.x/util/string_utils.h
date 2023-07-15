@@ -88,7 +88,7 @@ size_t rfind_str(const char *str, const char *sub);
  * @param arr
  * @return
  */
-size_t get_array_len(char *arr[]);
+size_t get_array_len(const char *arr[]);
 
 /**
  * judge str is contained substr
@@ -144,5 +144,13 @@ int simple_atoi(const char *str, int *result);
  * @param prefix
  */
 void remove_prefix(char *str, const char *prefix);
+
+/**
+ * simple hex atoi function
+ *
+ * @param hex_str
+ * @return
+ */
+int simple_hex_atoi(const char* hex_str);
 
 #endif // __STRING_UTILS_H__
