@@ -55,7 +55,7 @@ static struct ipc_body_s *__ipc_body = NULL;
 static void report_thread_metrics(struct thread_data *thr)
 {
     char entityId[INT_LEN];
-
+    struct event_info_s evt = {0};
     if (__ipc_body->probe_param.logs == 0) {
         return;
     }
@@ -63,9 +63,12 @@ static void report_thread_metrics(struct thread_data *thr)
     entityId[0] = 0;
     (void)snprintf(entityId, INT_LEN, "%d", thr->id.pid);
 
-    report_logs(OO_NAME,
-                entityId,
-                "off_cpu_ns",
+    evt.entityName = OO_NAME;
+    evt.entityId = entityId;
+    evt.metrics = "off_cpu_ns";
+    evt.pid = (int)thr->id.tgid;
+
+    report_logs((const struct event_info_s *)&evt,
                 EVT_SEC_WARN,
                 "Process(COMM:%s TID:%d) is preempted(COMM:%s PID:%d) and off-CPU %llu ns.",
                 thr->id.comm,

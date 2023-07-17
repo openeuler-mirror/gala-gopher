@@ -267,6 +267,7 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
     u64 rx_drops;
     u64 tx_errs;
     u64 rx_errs;
+    struct event_info_s evt = {0};
 
     if (ipc_body->probe_param.logs == 0) {
         return;
@@ -278,11 +279,13 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
     tx_errs = new_info->tx_errs - old_info->tx_errs;
     rx_errs = new_info->rx_errs - old_info->rx_errs;
 
+    evt.entityName = ENTITY_NIC_NAME;
+    evt.dev = new_info->dev_name;
     if (ipc_body->probe_param.drops_count_thr > 0 && tx_drops > ipc_body->probe_param.drops_count_thr) {
         (void)snprintf(entityid, sizeof(entityid), "%s", new_info->dev_name);
-        report_logs(ENTITY_NIC_NAME,
-                    entityid,
-                    "tx_dropped",
+        evt.metrics = "tx_dropped";
+        evt.entityId = entityid;
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "net device tx queue drops(%llu).",
                     tx_drops);
@@ -291,9 +294,9 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
         if (entityid[0] == 0) {
             (void)snprintf(entityid, sizeof(entityid), "%s", new_info->dev_name);
         }
-        report_logs(ENTITY_NIC_NAME,
-                    entityid,
-                    "rx_dropped",
+        evt.metrics = "rx_dropped";
+        evt.entityId = entityid;
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "net device rx queue drops(%llu).",
                     rx_drops);
@@ -302,9 +305,9 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
         if (entityid[0] == 0) {
             (void)snprintf(entityid, sizeof(entityid), "%s", new_info->dev_name);
         }
-        report_logs(ENTITY_NIC_NAME,
-                    entityid,
-                    "tx_errs",
+        evt.metrics = "tx_errs";
+        evt.entityId = entityid;
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "net device tx queue errors(%llu).",
                     tx_errs);
@@ -313,9 +316,9 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
         if (entityid[0] == 0) {
             (void)snprintf(entityid, sizeof(entityid), "%s", new_info->dev_name);
         }
-        report_logs(ENTITY_NIC_NAME,
-                    entityid,
-                    "rx_errs",
+        evt.metrics = "rx_errs";
+        evt.entityId = entityid;
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "net device rx queue errors(%llu).",
                     rx_errs);

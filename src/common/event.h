@@ -45,11 +45,17 @@ struct otel_log {
     char *body;
 };
 
-void report_logs(const char* entityName,
-                 const char* entityId,
-                 const char* metrics,
-                 enum evt_sec_e sec,
-                 const char * fmt, ...);
+#define EVT_IP_LEN      128
+struct event_info_s {
+    const char *entityName;
+    const char *entityId;
+    const char *metrics;
+    const char *dev;
+    char ip[EVT_IP_LEN];
+    int pid;
+};
+
+void report_logs(const struct event_info_s* evt, enum evt_sec_e sec, const char * fmt, ...);
 void emit_otel_log(struct otel_log *ol);
 
 void init_event_mgr(unsigned int time_out, char *lang_type);

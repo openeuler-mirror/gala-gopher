@@ -80,6 +80,7 @@ static void report_meminfo_status(struct ipc_body_s *ipc_body, double mem_util, 
 {
     char entityId[INT_LEN];
     char entityName[INT_LEN];
+    struct event_info_s evt = {0};
     if (ipc_body->probe_param.logs == 0) {
         return;
     }
@@ -88,20 +89,21 @@ static void report_meminfo_status(struct ipc_body_s *ipc_body, double mem_util, 
     entityName[0] = 0;
     (void)strcpy(entityId, "/proc/meminfo");
     (void)strcpy(entityName, "mem");
+
+    evt.entityName = entityName;
+    evt.entityId = entityId;
     // mem util
     if (ipc_body->probe_param.res_percent_upper > 0 && mem_util > ipc_body->probe_param.res_percent_upper) {
-        report_logs(entityName,
-                    entityId,
-                    "util",
+        evt.metrics = "util";
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "Too high mem utilization(%.2f%%).",
                     mem_util);
     }
     // swap util
     if (ipc_body->probe_param.res_percent_upper > 0 && swap_util > ipc_body->probe_param.res_percent_upper) {
-        report_logs(entityName,
-                    entityId,
-                    "swap_util",
+        evt.metrics = "swap_util";
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "Too high swap utilization(%.2f%%).",
                     swap_util);

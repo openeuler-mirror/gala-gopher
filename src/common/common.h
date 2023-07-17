@@ -203,6 +203,7 @@ char is_exist_mod(const char *mod);
 int __snprintf(char **buf, const int bufLen, int *remainLen, const char *format, ...);
 char is_digit_str(const char *s);
 int get_system_uuid(char *buffer, unsigned int size);
+int get_system_ip(char ip_str[], unsigned int size);
 int copy_file(const char *dst_file, const char *src_file);
 
 int access_check_read_line(u32 pid, const char *command, const char *fname, char *buf, u32 buf_len);
