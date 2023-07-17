@@ -215,12 +215,10 @@ static void report_sched_metrics(struct event *sched_evt)
         }
     }
 
-    (void)fprintf(stdout, "|%s|%u|%s"
+    (void)fprintf(stdout, "|%s|%u"
         "|%llu|\n",
-
         tbl[sched_evt->e],
         sched_evt->proc_id,
-        sched_evt->comm,
 
         metrcis);
     (void)fflush(stdout);

@@ -283,6 +283,20 @@ int get_proc_start_time(u32 pid, char *buf, int buf_len)
     return access_check_read_line(pid, PROC_START_TIME_CMD, PROC_STAT, buf, buf_len);
 }
 
+int get_proc_startup_ts(int pid)
+{
+    int ret;
+    char startup_ts[INT_LEN];
+
+    startup_ts[0] = 0;
+    ret = get_proc_start_time(pid, startup_ts, INT_LEN);
+    if (ret) {
+        return -1;
+    }
+
+    return atoi(startup_ts);
+}
+
 int get_proc_comm(u32 pid, char *buf, int buf_len)
 {
     return access_check_read_line(pid, PROC_COMM_CMD, PROC_COMM, buf, buf_len);

@@ -81,12 +81,11 @@ static void report_thread_metrics(struct thread_data *thr)
 static void output_thread_metrics_cpu(struct thread_data *thr)
 {
     (void)fprintf(stdout,
-        "|%s|%d|%d|%s|"
+        "|%s|%d|%d|"
         "%llu|%u|\n",
         THREAD_TBL_CPU,
         thr->id.pid,
         thr->id.tgid,
-        thr->id.comm,
 
         thr->cpu.off_cpu_ns,
         thr->cpu.migration_count);

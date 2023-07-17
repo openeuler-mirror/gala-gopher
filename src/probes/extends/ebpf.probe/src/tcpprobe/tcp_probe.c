@@ -78,7 +78,7 @@ static void output_tcp_abn(void *ctx, int cpu, void *data, __u32 size)
         (metrics->abn_stats.sacked_out - metrics->abn_stats.last_time_sacked_out) : metrics->abn_stats.sacked_out;
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
+        "|%s|%u|%u|%s|%s|%u|%u|%u"
         "|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%d|%d|\n",
         TCP_TBL_ABN,
         link->tgid,
@@ -88,7 +88,6 @@ static void output_tcp_abn(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
-        link->comm,
 
         metrics->abn_stats.total_retrans,
         metrics->abn_stats.backlog_drops,
@@ -124,7 +123,7 @@ static void output_tcp_syn_rtt(void *ctx, int cpu, void *data, __u32 size)
     ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
+        "|%s|%u|%u|%s|%s|%u|%u|%u"
         "|%u|\n",
         TCP_TBL_SYNRTT,
         link->tgid,
@@ -134,7 +133,6 @@ static void output_tcp_syn_rtt(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
-        link->comm,
 
         metrics->srtt_stats.syn_srtt);
     (void)fflush(stdout);
@@ -153,7 +151,7 @@ static void output_tcp_rtt(void *ctx, int cpu, void *data, __u32 size)
     ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
+        "|%s|%u|%u|%s|%s|%u|%u|%u"
         "|%u|%u|\n",
         TCP_TBL_RTT,
         link->tgid,
@@ -163,7 +161,6 @@ static void output_tcp_rtt(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
-        link->comm,
 
         metrics->rtt_stats.tcpi_srtt,
         metrics->rtt_stats.tcpi_rcv_rtt);
@@ -189,7 +186,7 @@ static void output_tcp_txrx(void *ctx, int cpu, void *data, __u32 size)
         (metrics->tx_rx_stats.segs_out - metrics->tx_rx_stats.last_time_segs_out) : metrics->tx_rx_stats.segs_out;
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
+        "|%s|%u|%u|%s|%s|%u|%u|%u"
         "|%llu|%llu|%u|%u|\n",
         TCP_TBL_TXRX,
         link->tgid,
@@ -199,7 +196,6 @@ static void output_tcp_txrx(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
-        link->comm,
 
         metrics->tx_rx_stats.rx,
         metrics->tx_rx_stats.tx,
@@ -223,7 +219,7 @@ static void output_tcp_win(void *ctx, int cpu, void *data, __u32 size)
     ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
+        "|%s|%u|%u|%s|%s|%u|%u|%u"
         "|%u|%u|%u|%u|%u|%u|%u|\n",
         TCP_TBL_WIN,
         link->tgid,
@@ -233,7 +229,6 @@ static void output_tcp_win(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
-        link->comm,
 
         metrics->win_stats.tcpi_snd_cwnd,
         metrics->win_stats.tcpi_notsent_bytes,
@@ -258,7 +253,7 @@ static void output_tcp_rate(void *ctx, int cpu, void *data, __u32 size)
     ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
+        "|%s|%u|%u|%s|%s|%u|%u|%u"
         "|%u|%u|%u|%u|%u|%u|%llu|%u|%u|%u|%u|%u|\n",
         TCP_TBL_RATE,
         link->tgid,
@@ -268,7 +263,6 @@ static void output_tcp_rate(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
-        link->comm,
 
         metrics->rate_stats.tcpi_rto,
         metrics->rate_stats.tcpi_ato,
@@ -298,7 +292,7 @@ static void output_tcp_sockbuf(void *ctx, int cpu, void *data, __u32 size)
     ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u|%s"
+        "|%s|%u|%u|%s|%s|%u|%u|%u"
         "|%u|%u|%u|%u|%u|%u|%u|%d|%d|\n",
         TCP_TBL_SOCKBUF,
         link->tgid,
@@ -308,7 +302,6 @@ static void output_tcp_sockbuf(void *ctx, int cpu, void *data, __u32 size)
         link->c_port,
         link->s_port,
         link->family,
-        link->comm,
 
         metrics->sockbuf_stats.tcpi_sk_err_que_size,
         metrics->sockbuf_stats.tcpi_sk_rcv_que_size,

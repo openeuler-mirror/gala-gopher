@@ -207,22 +207,6 @@ static int __is_valid_container_id(char *str)
     return 1;
 }
 
-static int get_proc_container_id(u32 pid, proc_info_t *proc_info)
-{
-    char buffer[LINE_BUF_LEN];
-    buffer[0] = 0;
-    int ret = access_check_read_line(pid, PROC_CPUSET_CMD, PROC_CPUSET, buffer, LINE_BUF_LEN);
-    if (ret < 0) {
-        return -1;
-    }
-    if (!__is_valid_container_id(buffer)) {
-        return 0;
-    }
-    (void)memcpy(proc_info->container_id, buffer, CONTAINER_ABBR_ID_LEN);
-    proc_info->container_id[CONTAINER_ABBR_ID_LEN] = 0;
-    return 0;
-}
-
 static FILE *get_proc_file(u32 pid, const char *file_fmt)
 {
     FILE *f = NULL;
@@ -546,15 +530,13 @@ static void output_proc_infos(proc_hash_t *one_proc)
     float fd_free_per = fd_free / (float)one_proc->info.max_fd_limit * 100;
 
     nprobe_fprintf(stdout,
-        "|%s|%lu|%llu|%d|%d|%s|%s|%s|%u|%.2f|%llu|%llu|%u|%u|%llu|%llu|%llu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|%d|\n",
+        "|%s|%lu|%llu|%d|%d|%s|%u|%.2f|%llu|%llu|%u|%u|%llu|%llu|%llu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|%d|\n",
         METRICS_PROC_NAME,
         one_proc->key.pid,
         one_proc->key.start_time,
         one_proc->info.pgid,
         one_proc->info.ppid,
-        one_proc->info.comm,
         one_proc->info.cmdline == NULL ? "" : one_proc->info.cmdline,
-        one_proc->info.container_id,
         one_proc->info.fd_count,
         fd_free_per,
         one_proc->info.proc_rchar_bytes - g_pre_proc_info.proc_rchar_bytes,
@@ -610,7 +592,6 @@ static proc_hash_t* init_one_proc(u32 pid, char *stime, char *comm)
     } else {
         (void)get_proc_cmdline(pid, item->info.cmdline, sizeof(item->info.cmdline));
     }
-    (void)get_proc_container_id(pid, &item->info);
 
     (void)get_proc_max_fdnum(pid, &item->info);
 

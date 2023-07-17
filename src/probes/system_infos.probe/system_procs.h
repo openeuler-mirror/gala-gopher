@@ -79,7 +79,6 @@ typedef struct {
     int pgid;
     int ppid;
     char cmdline[PROC_CMDLINE_LEN];
-    char container_id[CONTAINER_ID_BUF_LEN];
     u64 proc_start_time;                // FROM same as proc_stat_min_flt
     u32 fd_count;                       // FROM '/usr/bin/ls -l /proc/[PID]/fd | wc -l'
     u32 max_fd_limit;                   // FROM 'cat /proc/[PID]/limits | grep -w "MAX open files"'

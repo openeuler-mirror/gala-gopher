@@ -149,10 +149,9 @@ static void report_proc_metrics(struct proc_data_s *proc)
 static void output_proc_metrics_syscall(struct proc_data_s *proc)
 {
     (void)fprintf(stdout,
-        "|%s|%u|%s|%u|\n",
+        "|%s|%u|%u|\n",
         PROC_TBL_SYSCALL,
         proc->proc_id,
-        proc->comm,
 
         proc->syscall.failed);
 }
@@ -160,11 +159,10 @@ static void output_proc_metrics_syscall(struct proc_data_s *proc)
 static void output_proc_metrics_syscall_io(struct proc_data_s *proc)
 {
     (void)fprintf(stdout,
-        "|%s|%u|%s|"
+        "|%s|%u|"
         "%llu|%llu|%llu|%llu|%llu|\n",
         PROC_TBL_SYSCALL_IO,
         proc->proc_id,
-        proc->comm,
 
         proc->syscall.ns_mount,
         proc->syscall.ns_umount,
@@ -176,11 +174,10 @@ static void output_proc_metrics_syscall_io(struct proc_data_s *proc)
 static void output_proc_metrics_syscall_net(struct proc_data_s *proc)
 {
     (void)fprintf(stdout,
-        "|%s|%u|%s|"
+        "|%s|%u|"
         "%llu|%llu|\n",
         PROC_TBL_SYSCALL_NET,
         proc->proc_id,
-        proc->comm,
 
         proc->syscall.ns_sendmsg,
         proc->syscall.ns_recvmsg);
@@ -189,11 +186,10 @@ static void output_proc_metrics_syscall_net(struct proc_data_s *proc)
 static void output_proc_metrics_syscall_sched(struct proc_data_s *proc)
 {
     (void)fprintf(stdout,
-        "|%s|%u|%s|"
+        "|%s|%u|"
         "%llu|%llu|%llu|%llu|\n",
         PROC_TBL_SYSCALL_SCHED,
         proc->proc_id,
-        proc->comm,
 
         proc->syscall.ns_sched_yield,
         proc->syscall.ns_futex,
@@ -204,12 +200,11 @@ static void output_proc_metrics_syscall_sched(struct proc_data_s *proc)
 static void output_proc_metrics_syscall_fork(struct proc_data_s *proc)
 {
     (void)fprintf(stdout,
-        "|%s|%u|%s|"
+        "|%s|%u|"
         "%llu|%llu|%llu|\n",
 
         PROC_TBL_SYSCALL_FORK,
         proc->proc_id,
-        proc->comm,
 
         proc->syscall.ns_fork,
         proc->syscall.ns_vfork,
@@ -219,12 +214,11 @@ static void output_proc_metrics_syscall_fork(struct proc_data_s *proc)
 static void output_proc_metrics_ext4(struct proc_data_s *proc)
 {
     (void)fprintf(stdout,
-        "|%s|%u|%s|"
+        "|%s|%u|"
         "%llu|%llu|%llu|%llu|\n",
 
         PROC_TBL_EXT4,
         proc->proc_id,
-        proc->comm,
 
         proc->op_ext4.ns_read,
         proc->op_ext4.ns_write,
@@ -235,12 +229,11 @@ static void output_proc_metrics_ext4(struct proc_data_s *proc)
 static void output_proc_metrics_overlay(struct proc_data_s *proc)
 {
     (void)fprintf(stdout,
-        "|%s|%u|%s|"
+        "|%s|%u|"
         "%llu|%llu|%llu|%llu|\n",
 
         PROC_TBL_OVERLAY,
         proc->proc_id,
-        proc->comm,
 
         proc->op_overlay.ns_read,
         proc->op_overlay.ns_write,
@@ -251,12 +244,11 @@ static void output_proc_metrics_overlay(struct proc_data_s *proc)
 static void output_proc_metrics_tmpfs(struct proc_data_s *proc)
 {
     (void)fprintf(stdout,
-        "|%s|%u|%s|"
+        "|%s|%u|"
         "%llu|%llu|%llu|\n",
 
         PROC_TBL_TMPFS,
         proc->proc_id,
-        proc->comm,
 
         proc->op_tmpfs.ns_read,
         proc->op_tmpfs.ns_write,
@@ -266,11 +258,10 @@ static void output_proc_metrics_tmpfs(struct proc_data_s *proc)
 static void output_proc_metrics_page(struct proc_data_s *proc)
 {
     (void)fprintf(stdout,
-        "|%s|%u|%s|"
+        "|%s|%u|"
         "%llu|%llu|%llu|%llu|%llu|\n",
         PROC_TBL_PAGE,
         proc->proc_id,
-        proc->comm,
 
         proc->page_op.reclaim_ns,
         proc->page_op.count_access_pagecache,
@@ -282,11 +273,10 @@ static void output_proc_metrics_page(struct proc_data_s *proc)
 static void output_proc_metrics_dns(struct proc_data_s *proc)
 {
     (void)fprintf(stdout,
-        "|%s|%u|%s|"
+        "|%s|%u|"
         "%llu|%llu|\n",
         PROC_TBL_DNS,
         proc->proc_id,
-        proc->comm,
 
         proc->dns_op.gethostname_failed,
         proc->dns_op.gethostname_ns);
@@ -295,12 +285,11 @@ static void output_proc_metrics_dns(struct proc_data_s *proc)
 static void output_proc_io_stats(struct proc_data_s *proc)
 {
     (void)fprintf(stdout,
-        "|%s|%u|%s|"
+        "|%s|%u|"
         "%u|%u|%u|%u|"
         "%u|%u|%u|%llu|\n",
         PROC_TBL_IO,
         proc->proc_id,
-        proc->comm,
 
         proc->proc_io.less_4k_io_read,
         proc->proc_io.less_4k_io_write,
