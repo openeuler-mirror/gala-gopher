@@ -150,6 +150,7 @@ static void report_sched_logs(struct event *sched_evt)
     char msg[__ENTITY_MSG_LEN];
     char entityId[__ENTITY_ID_LEN];
     char *metrics[EVT_MAX] = {"sched_systime", "sched_syscall"};
+    struct event_info_s evt = {0};
 
     if (probe.ipc_body.probe_param.logs == 0) {
         return;
@@ -180,9 +181,12 @@ static void report_sched_logs(struct event *sched_evt)
     entityId[0] = 0;
     __build_entity_id(sched_evt->proc_id, entityId, __ENTITY_ID_LEN);
 
-    report_logs(OO_NAME,
-                entityId,
-                metrics[sched_evt->e],
+    evt.entityName = OO_NAME;
+    evt.entityId = entityId;
+    evt.metrics = metrics[sched_evt->e];
+    evt.pid = (int)sched_evt->proc_id;
+
+    report_logs((const struct event_info_s *)&evt,
                 EVT_SEC_WARN,
                 msg);
     return;

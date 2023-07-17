@@ -201,6 +201,12 @@ char is_digit_str(const char *s)
     return 1;
 }
 
+int get_system_ip(char ip_str[], unsigned int size)
+{
+    const char *cmd = "/sbin/ip a | grep inet | grep -v \"127.0.0.1\" | grep -v inet6 | awk 'NR==1 {print $2}' |  awk -F '/' '{print $1}'";
+
+    return exec_cmd(cmd, ip_str, size);
+}
 int get_system_uuid(char *buffer, unsigned int size)
 {
     FILE *fp = NULL;

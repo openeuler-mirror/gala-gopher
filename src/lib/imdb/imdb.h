@@ -40,6 +40,7 @@
 
 #define MAX_IMDB_SYSTEM_UUID_LEN        40
 #define MAX_IMDB_HOSTNAME_LEN           64
+#define MAX_IMDB_HOSTIP_LEN             64
 
 #define METRIC_TYPE_LABEL "label"
 #define METRIC_TYPE_KEY "key"
@@ -54,6 +55,7 @@
 typedef struct {
     char systemUuid[MAX_IMDB_SYSTEM_UUID_LEN];
     char hostName[MAX_IMDB_HOSTNAME_LEN];
+    char hostIP[MAX_IMDB_HOSTIP_LEN];
 } IMDB_NodeInfo;
 
 typedef struct {

@@ -103,6 +103,8 @@ static void __build_entity_id(char *dev, char *deriver, char *buf, int buf_len)
 static void rcv_nic_failure(void *ctx, int cpu, void *data, __u32 size)
 {
     struct nic_failure_s *nic_failure = data;
+    char entityId[__ENTITY_ID_LEN];
+    struct event_info_s evt = {0};
 
     (void)fprintf(stdout, "|%s|%s|%s|%s|%d|%d|%d|%d|\n",
         TBL_NIC_FAILURE,
@@ -116,13 +118,15 @@ static void rcv_nic_failure(void *ctx, int cpu, void *data, __u32 size)
     (void)fflush(stdout);
 
     if (nic_failure->xmit_timeout_count > 0) {
-        char entityId[__ENTITY_ID_LEN];
         entityId[0] = 0;
         __build_entity_id(nic_failure->entity.dev_name, nic_failure->entity.driver, entityId, __ENTITY_ID_LEN);
 
-        report_logs(OO_NAME,
-                    entityId,
-                    "nic_xmit_timeout",
+        evt.entityName = OO_NAME;
+        evt.entityId = entityId;
+        evt.metrics = "nic_xmit_timeout";
+        evt.dev = nic_failure->entity.dev_name;
+
+        report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "HW nic nic_xmit_timeout (dev: %s (%s), queue_index: %d)",
                     nic_failure->entity.dev_name, nic_failure->entity.driver, nic_failure->entity.queue_index);

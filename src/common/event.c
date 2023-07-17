@@ -20,6 +20,7 @@
 #include <time.h>
 #include <stdarg.h>
 #include "common.h"
+#include "container.h"
 #include "event_config.h"
 #include "event.h"
 #ifdef NATIVE_PROBE_FPRINTF
@@ -84,57 +85,84 @@ static struct evt_sec_s secs[EVT_SEC_MAX] = {
     {21,              "FATAL"}
 };
 
-#define __EVT_BODY_LEN  512	// same as MAX_IMDB_METRIC_VAL_LEN
-void report_logs(const char* entityName,
-                 const char* entityId,
-                 const char* metrics,
-                 enum evt_sec_e sec,
-                 const char * fmt, ...)
+#define __EVT_BODY_LEN  512 // same as MAX_IMDB_METRIC_VAL_LEN
+void report_logs(const struct event_info_s* evt, enum evt_sec_e sec, const char * fmt, ...)
 {
     int len;
     va_list args;
+    char pid_str[INT_LEN];
+    char pid_comm[TASK_COMM_LEN];
+    char container_id[CONTAINER_ABBR_ID_LEN + 1];
+    char pod_id[POD_ID_LEN + 1];
     char body[__EVT_BODY_LEN];
     char *p;
     time_t cur_time;
 
     body[0] = 0;
     __get_local_time(body, __EVT_BODY_LEN, &cur_time);
-    if ((g_evt_period > 0) && (!is_evt_need_report(entityId, cur_time))) {
-        DEBUG("event not report, bacause entityId[%s] in event_period.\n", entityId);
+    if ((g_evt_period > 0) && (!is_evt_need_report(evt->entityId, cur_time))) {
+        DEBUG("event not report, bacause entityId[%s] in event_period.\n", evt->entityId);
         return;
     }
 
     p = body + strlen(body);
     len = __EVT_BODY_LEN - strlen(body);
 
-    (void)snprintf(p, len, " %s Entity(%s) ", secs[sec].sec_text, entityId);
+    (void)snprintf(p, len, " %s Entity(%s) ", secs[sec].sec_text, evt->entityId);
     p = body + strlen(body);
     len = __EVT_BODY_LEN - strlen(body);
 
     char fmt2[MAX_EVT_BODY_LEN];
+    fmt2[0] = 0;
     va_start(args, fmt);
-    __replace_desc_fmt(entityName, metrics, fmt, fmt2);
+    __replace_desc_fmt(evt->entityName, evt->metrics, fmt, fmt2);
     (void)vsnprintf(p, len, fmt2, args);
     va_end(args);
 
+    pid_str[0] = 0;
+    pid_comm[0] = 0;
+    container_id[0] = 0;
+    if (evt->pid != 0) {
+        (void)snprintf(pid_str, INT_LEN, "%d", evt->pid);
+        (void)get_container_id_by_pid_cpuset((const char *)pid_str, container_id, CONTAINER_ABBR_ID_LEN + 1);
+        (void)get_proc_comm(evt->pid, pid_comm, TASK_COMM_LEN);
+    }
+
+    pod_id[0] = 0;
+    if (container_id[0] != 0) {
+        (void)get_container_pod_id((const char *)container_id, pod_id, POD_ID_LEN + 1);
+    }
+
 #ifdef NATIVE_PROBE_FPRINTF
-    (void)nprobe_fprintf(stdout, "|%s|%s|%s|%s|%s|%d|%s|\n",
+    (void)nprobe_fprintf(stdout, "|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%d|%s|\n",
                          "event",
-                         entityName,
-                         entityId,
-                         metrics,
+                         evt->entityName,
+                         evt->entityId,
+                         evt->metrics,
+                         (pid_str[0] != 0) ? pid_str : "",
+                         (pid_comm[0] != 0) ? pid_comm : "",
+                         (evt->ip[0] != 0) ? evt->ip : "",
+                         (container_id[0] != 0) ? container_id : "",
+                         (pod_id[0] != 0) ? pod_id : "",
+                         evt->dev ? evt->dev : "",
                          secs[sec].sec_text,
                          secs[sec].sec_number,
                          body);
 #else
-    (void)fprintf(stdout, "|%s|%s|%s|%s|%s|%d|%s|\n",
-                          "event",
-                          entityName,
-                          entityId,
-                          metrics,
-                          secs[sec].sec_text,
-                          secs[sec].sec_number,
-                          body);
+    (void)fprintf(stdout, "|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%d|%s|\n",
+                  "event",
+                  evt->entityName,
+                  evt->entityId,
+                  evt->metrics,
+                  (pid_str[0] != 0) ? pid_str : "",
+                  (pid_comm[0] != 0) ? pid_comm : "",
+                  (evt->ip[0] != 0) ? evt->ip : "",
+                  (container_id[0] != 0) ? container_id : "",
+                  (pod_id[0] != 0) ? pod_id : "",
+                  evt->dev ? evt->dev : "",
+                  secs[sec].sec_text,
+                  secs[sec].sec_number,
+                  body);
 #endif
     return;
 }

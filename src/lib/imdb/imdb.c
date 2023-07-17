@@ -269,6 +269,13 @@ IMDB_DataBaseMgr *IMDB_DataBaseMgrCreate(uint32_t capacity)
         return NULL;
     }
 
+    ret = get_system_ip(mgr->nodeInfo.hostIP, MAX_IMDB_HOSTIP_LEN);
+    if (ret != 0) {
+        ERROR("[IMDB] Can not get system ip.\n");
+        free(mgr);
+        return NULL;
+    }
+
     mgr->tables = (IMDB_Table **)malloc(sizeof(IMDB_Table *) * capacity);
     if (mgr->tables == NULL) {
         free(mgr);
