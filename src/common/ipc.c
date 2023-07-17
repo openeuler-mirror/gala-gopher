@@ -1116,15 +1116,16 @@ int recv_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body)
     int deserialize_len;
     struct ipc_msg_s* ipc_msg;
     int msg_rcvd = 0;
+    u32 msg_len;
 
     if (msqid < 0) {
         return -1;
     }
 
     ipc_msg = __get_raw_ipc_msg(msg_type);
-
+    msg_len = ipc_msg->msg_len + sizeof(u32);
     /* Only deal with the last message within every check */
-    while (msgrcv(msqid, ipc_msg, ipc_msg->msg_len + sizeof(u32) , msg_type, IPC_NOWAIT) != -1) {
+    while (msgrcv(msqid, ipc_msg, msg_len, msg_type, IPC_NOWAIT) != -1) {
         msg_rcvd = 1;
     }
 
@@ -1147,6 +1148,26 @@ end:
         destroy_ipc_body(ipc_body);
     }
     return err;
+}
+
+void clear_ipc_msg(long msg_type)
+{
+    int msqid;
+    struct ipc_msg_s *ipc_msg;
+    u32 msg_len;
+
+    msqid = create_ipc_msg_queue(IPC_EXCL);
+    if (msqid < 0) {
+        return;
+    }
+
+    ipc_msg = __get_raw_ipc_msg(msg_type);
+    msg_len = ipc_msg->msg_len + sizeof(u32);
+    while (1) {
+        if (msgrcv(msqid, ipc_msg, msg_len, msg_type, IPC_NOWAIT) == -1) {
+            break;
+        }
+    }
 }
 
 void destroy_ipc_body(struct ipc_body_s *ipc_body)

@@ -350,7 +350,7 @@ static int __get_install_dir(const char *bin_name, char install_dir[], size_t si
         (void)snprintf(cmd, COMMAND_LEN, DEFAULT_INSTALL_DIR_CMD, bin_name);
         if (exec_cmd((const char *)cmd, install_dir, size) < 0) {
             return -1;
-        } 
+        }
     }
 
     return 0;
@@ -563,6 +563,7 @@ static int stop_probe(struct probe_s *probe)
         }
         SET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPED);
         UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_RUNNING);
+        clear_ipc_msg((long)probe->probe_type);
     } else {
         if (pthread_cancel(probe->tid) != 0) {
             PARSE_ERR("failed to cancel extend probe");
@@ -664,7 +665,7 @@ static int probe_parser_cmd(struct probe_s *probe, const cJSON *item)
     } else {
         bin_string = probe_define[probe->probe_type - 1].bin;
     }
-    
+
     if (set_probe_bin(probe, bin_string)) {
         return -1;
     }
@@ -731,11 +732,11 @@ static int probe_parser_state(struct probe_s *probe, const cJSON *item)
         return start_probe(probe);
     }
 
-    if (!strcasecmp("stoped", (const char *)item->valuestring)) {
+    if (!strcasecmp("stopped", (const char *)item->valuestring)) {
         return stop_probe(probe);
     }
 
-    PARSE_ERR("invalid state %s: must be running or stoped", (const char *)item->valuestring);
+    PARSE_ERR("invalid state %s: must be running or stopped", (const char *)item->valuestring);
     return -1;
 }
 
@@ -1170,8 +1171,6 @@ static void keeplive_probes(struct probe_mng_s *probe_mng)
         }
 
         (void)try_start_probe(probe);
-        break;
-
     }
 }
 
