@@ -565,9 +565,6 @@ static int stop_probe(struct probe_s *probe)
         UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_RUNNING);
         clear_ipc_msg((long)probe->probe_type);
     } else {
-        if (pthread_cancel(probe->tid) != 0) {
-            PARSE_ERR("failed to cancel extend probe");
-        }
         pid = get_probe_pid(probe);
         if (pid < 0) {
             PARSE_ERR("failed to find process of extend probe");
