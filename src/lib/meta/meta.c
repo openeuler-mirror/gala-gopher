@@ -340,7 +340,6 @@ static int metadata_build_vrsion(const Measurement *mm, char *json_str, int max_
 }
 
 /* "keys": ["machine_id", "tgid"] */
-#define META_FIELD_TYPE_KEY "key"
 static int metadata_build_keys(const Measurement *mm, char *json_str, int max_len)
 {
     int i, ret;
@@ -348,7 +347,7 @@ static int metadata_build_keys(const Measurement *mm, char *json_str, int max_le
     int str_len = max_len;
     int total_len = 0;
 
-    ret = snprintf(str, str_len, ", \"keys\": [\"machine_id\"");
+    ret = snprintf(str, str_len, ", \"keys\": [\"%s\"", META_COMMON_KEY_HOST_ID);
     if (ret < 0 || ret >= str_len) {
         return -1;
     }
@@ -376,8 +375,24 @@ static int metadata_build_keys(const Measurement *mm, char *json_str, int max_le
     return total_len;
 }
 
+static int is_proc_level(const Measurement *mm)
+{
+    int i;
+
+    for (i = 0; i < mm->fieldsNum; i++) {
+        if (strcmp(mm->fields[i].type, META_FIELD_TYPE_KEY) != 0 &&
+            strcmp(mm->fields[i].type, META_FIELD_TYPE_LABEL) != 0) {
+            continue;
+        }
+        if (strcasecmp(mm->fields[i].name, META_FIELD_NAME_PROC) == 0) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 /* "labels": ["hostname", "blk_type", "comm"] */
-#define META_FIELD_TYPE_LABEL "label"
 static int metadata_build_labels(const Measurement *mm, char *json_str, int max_len)
 {
     int i, ret;
@@ -385,7 +400,7 @@ static int metadata_build_labels(const Measurement *mm, char *json_str, int max_
     int str_len = max_len;
     int total_len = 0;
 
-    ret = snprintf(str, str_len, ", \"labels\": [\"hostname\"");
+    ret = snprintf(str, str_len, ", \"labels\": [\"%s\"", META_COMMON_LABEL_HOST_NAME);
     if (ret < 0 || ret >= str_len) {
         return -1;
     }
@@ -404,6 +419,18 @@ static int metadata_build_labels(const Measurement *mm, char *json_str, int max_
             total_len += ret;
         }
     }
+
+    if (is_proc_level(mm)) {
+        ret = snprintf(str, str_len, ", \"%s\", \"%s\", \"%s\"",
+            META_COMMON_LABEL_PROC_COMM, META_COMMON_LABEL_CONTAINER_ID, META_COMMON_LABEL_POD_ID);
+        if (ret < 0 || ret >= str_len) {
+            return -1;
+        }
+        str += ret;
+        str_len -= ret;
+        total_len += ret;
+    }
+
     ret = snprintf(str, str_len, "]");
     if (ret < 0 || ret >= str_len) {
         return -1;

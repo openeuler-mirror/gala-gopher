@@ -20,6 +20,7 @@
 #include <unistd.h>
 #include "common.h"
 #include "container.h"
+#include "meta.h"
 #include "imdb.h"
 
 static uint32_t g_recordTimeout = 60;       // default timeout: 60 seconds
@@ -835,21 +836,21 @@ static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
         }
 
         if (tgidRecord->comm[0] != 0) {
-            ret = __snprintf(&p, size, &size, ",comm=\"%s\"", tgidRecord->comm);
+            ret = __snprintf(&p, size, &size, ",%s=\"%s\"", META_COMMON_LABEL_PROC_COMM, tgidRecord->comm);
             if (ret < 0) {
                 goto err;
             }
         }
 
         if (tgidRecord->container_id[0] != 0) {
-            ret = __snprintf(&p, size, &size, ",container_id=\"%s\"", tgidRecord->container_id);
+            ret = __snprintf(&p, size, &size, ",%s=\"%s\"", META_COMMON_LABEL_CONTAINER_ID, tgidRecord->container_id);
             if (ret < 0) {
                 goto err;
             }
         }
 
         if (tgidRecord->pod_id[0] != 0) {
-            ret = __snprintf(&p, size, &size, ",pod_id=\"%s\"", tgidRecord->pod_id);
+            ret = __snprintf(&p, size, &size, ",%s=\"%s\"", META_COMMON_LABEL_POD_ID, tgidRecord->pod_id);
             if (ret < 0) {
                 goto err;
             }
@@ -858,7 +859,8 @@ static int IMDB_BuildPrometheusLabel(const IMDB_DataBaseMgr *mgr,
 
 out:
     // Append 'machine_id' label for ALL metrics.
-    ret = __snprintf(&p, size, &size, ",machine_id=\"%s-%s\"", mgr->nodeInfo.systemUuid, mgr->nodeInfo.hostIP);
+    ret = __snprintf(&p, size, &size, ",%s=\"%s-%s\"",
+                     META_COMMON_KEY_HOST_ID, mgr->nodeInfo.systemUuid, mgr->nodeInfo.hostIP);
     if (ret < 0) {
         goto err;
     }
