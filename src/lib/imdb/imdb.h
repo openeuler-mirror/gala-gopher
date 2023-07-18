@@ -19,8 +19,8 @@
 
 #include <stdint.h>
 #include <pthread.h>
-#include <uthash.h>
 #include "base.h"
+#include "hash.h"
 
 #define MAX_IMDB_DATABASEMGR_CAPACITY   256
 // metric specification
@@ -88,6 +88,19 @@ typedef struct {
 } IMDB_Table;
 
 typedef struct {
+    char tgid[INT_LEN + 1];
+    int startup_ts;
+} TGID_RecordKey;
+
+typedef struct {
+    TGID_RecordKey key;
+    char container_id[CONTAINER_ABBR_ID_LEN + 1];
+    char pod_id[POD_ID_LEN + 1];
+    char comm[TASK_COMM_LEN + 1];
+    H_HANDLE;
+} TGID_Record;
+
+typedef struct {
     uint32_t tblsCapability;        // Capability for tables count in one database
     uint32_t tablesNum;
 
@@ -95,6 +108,8 @@ typedef struct {
     IMDB_NodeInfo nodeInfo;
     pthread_rwlock_t rwlock;
     uint32_t writeLogsOn;
+
+    TGID_Record **tgids;
 
     pthread_t metrics_tid;
 } IMDB_DataBaseMgr;

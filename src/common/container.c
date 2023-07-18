@@ -570,7 +570,8 @@ int get_container_id_by_pid_cpuset(const char *pid, char *container_id, unsigned
     }
 
     if (!__is_container_id(container_id)) {
-        return -1;
+        container_id[0] = 0;
+        return 0;
     }
 
     container_id[CONTAINER_ABBR_ID_LEN] = 0;
