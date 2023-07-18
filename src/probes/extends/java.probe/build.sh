@@ -62,7 +62,7 @@ function compile_jsseprobe()
     cd ${PRJ_DIR}/jsse.probe
     echo "Compile jsseProbeAgent...."
     make_jsseprobe_agent_jar
-
+    echo "jsseProbeAgent compiling completed."
     cd ${PRJ_DIR}
     return 0
 }
