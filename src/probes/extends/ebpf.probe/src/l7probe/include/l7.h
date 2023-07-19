@@ -23,6 +23,7 @@
 #include "common.h"
 
 #define L7_DATA_BUFFER_MAXSIZE 1024 // TODO: enough?
+#define L7_DATA_BUFFER_IDX_MASK (L7_DATA_BUFFER_MAXSIZE - 1) // value must be (2^k - 1)
 
 #define HTTP_ENABLE     0x0001
 #define DNS_ENABLE      0x0002
@@ -112,6 +113,8 @@ static __inline enum message_type_t __get_http_type(const char* buf, size_t coun
 // References Redis spec: https://redis.io/topics/protocol
 static __inline enum message_type_t __get_redis_type(const char* buf, size_t count)
 {
+    volatile unsigned int idx = 0;
+
     if (count < __REDIS_MIN_SIZE) {
         return MESSAGE_UNKNOW;
     }
@@ -120,15 +123,16 @@ static __inline enum message_type_t __get_redis_type(const char* buf, size_t cou
         return MESSAGE_UNKNOW;
     }
 
-/*  // TODO: bpf validator error: math between map_value pointer and register with unbounded min value is not allowed
     // The last two chars are \r\n.
-    if (buf[count - 2] != '\r') {
+    idx = count - 2;
+    if (buf[idx & L7_DATA_BUFFER_IDX_MASK] != '\r') {
         return MESSAGE_UNKNOW;
     }
-    if (buf[count - 1] != '\n') {
+    idx = count - 1;
+    if (buf[idx & L7_DATA_BUFFER_IDX_MASK] != '\n') {
         return MESSAGE_UNKNOW;
     }
-*/
+
     // The Redis request and response formats are the same.
     return MESSAGE_REQUEST;
 }
@@ -295,16 +299,21 @@ static __inline enum message_type_t __get_dns_type(const char* buf, size_t count
 
 static __inline enum message_type_t __get_nats_type(const char* buf, size_t count)
 {
+    volatile unsigned int idx = 0;
     // Check whether the length is valid.
     if (count < __NATS_MINSIZE) {
         return MESSAGE_UNKNOW;
     }
-/*  // TODO: bpf validator error: math between map_value pointer and register with unbounded min value is not allowed
     // Check whether the characters at the end are valid.
-    if ((buf[count - 2] != '\r') || (buf[count - 1] != '\n')) {
+    idx = count - 2;
+    if (buf[idx & L7_DATA_BUFFER_IDX_MASK] != '\r') {
         return MESSAGE_UNKNOW;
     }
-*/
+    idx = count - 1;
+    if (buf[idx & L7_DATA_BUFFER_IDX_MASK] != '\n') {
+        return MESSAGE_UNKNOW;
+    }
+
     enum message_type_t type;
     type = __NATS_CONNECT(buf, count);
     if (type != MESSAGE_UNKNOW) {

@@ -159,13 +159,13 @@ struct {
 
 static __always_inline void submit_perf_buf(void* ctx, char *buf, size_t bytes_count, struct conn_data_s* conn_data)
 {
-    size_t copied_size;
+    volatile size_t copied_size;
     if (buf == NULL || bytes_count == 0) {
         return;
     }
 
     copied_size = (bytes_count > CONN_DATA_MAX_SIZE) ? CONN_DATA_MAX_SIZE : bytes_count;
-    bpf_probe_read(&conn_data->data, copied_size, buf);
+    bpf_probe_read(&conn_data->data, copied_size & CONN_DATA_MAX_SIZE, buf);
     conn_data->data_size = copied_size;
 
 #ifdef __USE_RING_BUF
@@ -286,18 +286,26 @@ static __always_inline __maybe_unused char *read_from_buf_ptr(char* buf)
 static __always_inline __maybe_unused void submit_sock_data(void *ctx, struct sock_conn_s* sock_conn, conn_ctx_t id,
             enum l7_direction_t direction, struct sock_data_args_s* args, size_t bytes_count)
 {
+    char *buffer;
+
     if (sock_conn->info.is_ssl != args->is_ssl) {
         return;
     }
-    return;// TODO
     if (args->buf) {
-        char *buffer = read_from_buf_ptr(args->buf);
+        buffer = read_from_buf_ptr(args->buf);
+        if (!buffer) {
+            return;
+        }
         update_sock_conn_proto(sock_conn, direction, buffer, bytes_count);
     } else if (args->iov) {
         struct iovec iov_cpy = {0};
         bpf_probe_read(&iov_cpy, sizeof(iov_cpy), &args->iov[0]);
+        buffer = read_from_buf_ptr((char *)iov_cpy.iov_base);
+        if (!buffer) {
+            return;
+        }
         size_t iov_len = (size_t)min(iov_cpy.iov_len, bytes_count);
-        update_sock_conn_proto(sock_conn, direction, iov_cpy.iov_base, iov_len);
+        update_sock_conn_proto(sock_conn, direction, buffer, iov_len);
     } else {
         return;
     }

@@ -131,7 +131,7 @@ struct conn_stats_s {
 // Exchange data between user mode/kernel using
 // 'conn_data_events' perf channel.
 #define LOOP_LIMIT 4
-#define CONN_DATA_MAX_SIZE  (10 * 1024)
+#define CONN_DATA_MAX_SIZE  (8 * 1024 - 1)
 struct conn_data_s {
     struct conn_id_s conn_id;
 
