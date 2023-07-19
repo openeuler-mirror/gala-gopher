@@ -24,6 +24,7 @@
 #include <sys/stat.h>
 #include <sched.h>
 #include <fcntl.h>
+#include <time.h>
 
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
@@ -36,16 +37,18 @@
 #include "bpf.h"
 #include "ipc.h"
 #include "tcpprobe.h"
+#include "tcp_tracker.h"
 
 #define UNLOAD_TCP_FD_PROBE (120)   // 2 min
 
 static volatile sig_atomic_t g_stop;
-static struct ipc_body_s g_ipc_body;
+static struct tcp_mng_s g_tcp_mng;
 
 #define RM_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__tcplink_*"
 
 void load_established_tcps(struct ipc_body_s *ipc_body, int map_fd);
-int tcp_load_probe(struct ipc_body_s *ipc_body, struct bpf_prog_s **tcp_progs);
+int tcp_load_probe(struct tcp_mng_s *tcp_mng, struct ipc_body_s *ipc_body, struct bpf_prog_s **new_prog);
+void scan_tcp_trackers(struct tcp_mng_s *tcp_mng);
 
 static void sig_int(int signo)
 {
@@ -85,12 +88,29 @@ static void unload_tcp_snoopers(int fd, struct ipc_body_s *ipc_body)
     }
 }
 
+static char is_need_scan(struct tcp_mng_s *tcp_mng)
+{
+#define __SCAN_TIME_SECS     (1 * 60)       // 1min
+    time_t current = (time_t)time(NULL);
+    time_t secs;
+
+    if (current > tcp_mng->last_scan) {
+        secs = current - tcp_mng->last_scan;
+        if (secs >= __SCAN_TIME_SECS) {
+            tcp_mng->last_scan = current;
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     int err = -1, ret;
     int tcp_fd_map_fd = -1, proc_obj_map_fd = -1;
     int start_time_second;
-    struct bpf_prog_s *tcp_progs = NULL;
+    struct tcp_mng_s *tcp_mng = &g_tcp_mng;
     FILE *fp = NULL;
     struct ipc_body_s ipc_body;
 
@@ -103,7 +123,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "can't set signal handler: %d\n", errno);
         return errno;
     }
-    (void)memset(&g_ipc_body, 0, sizeof(g_ipc_body));
+    (void)memset(tcp_mng, 0, sizeof(struct tcp_mng_s));
 
     int msq_id = create_ipc_msg_queue(IPC_EXCL);
     if (msq_id < 0) {
@@ -112,6 +132,9 @@ int main(int argc, char **argv)
     }
 
     INIT_BPF_APP(tcpprobe, EBPF_RLIM_LIMITED);
+
+    INFO("[TCPPROBE]: Starting to load established tcp...\n");
+
     lkup_established_tcp();
     ret = tcp_load_fd_probe(&tcp_fd_map_fd, &proc_obj_map_fd);
     if (ret) {
@@ -119,39 +142,41 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    printf("Successfully started!\n");
+    INFO("[TCPPROBE]: Successfully started!\n");
 
     start_time_second = 0;
+    tcp_mng->last_scan = (time_t)time(NULL);
     while (!g_stop) {
         ret = recv_ipc_msg(msq_id, (long)PROBE_TCP, &ipc_body);
         if (ret == 0) {
             /* zero probe_flag means probe is restarted, so reload bpf prog */
             if (ipc_body.probe_flags & IPC_FLAGS_PARAMS_CHG || ipc_body.probe_flags == 0) {
-                unload_bpf_prog(&tcp_progs);
-                if (tcp_load_probe(&ipc_body, &tcp_progs)) {
+                INFO("[TCPPROBE]: Starting to unload ebpf prog.\n");
+                unload_bpf_prog(&(tcp_mng->tcp_progs));
+                if (tcp_load_probe(tcp_mng, &ipc_body, &(tcp_mng->tcp_progs))) {
                     destroy_ipc_body(&ipc_body);
                     break;
                 }
             }
 
             if (ipc_body.probe_flags & IPC_FLAGS_SNOOPER_CHG || ipc_body.probe_flags == 0) {
-                unload_tcp_snoopers(proc_obj_map_fd, &g_ipc_body);
+                unload_tcp_snoopers(proc_obj_map_fd, &(tcp_mng->ipc_body));
                 load_tcp_snoopers(proc_obj_map_fd, &ipc_body);
             }
-            destroy_ipc_body(&g_ipc_body);
-            (void)memcpy(&g_ipc_body, &ipc_body, sizeof(g_ipc_body));
+            destroy_ipc_body(&(tcp_mng->ipc_body));
+            (void)memcpy(&(tcp_mng->ipc_body), &ipc_body, sizeof(tcp_mng->ipc_body));
         }
 
-        if (tcp_progs) {
-            load_established_tcps(&g_ipc_body, tcp_fd_map_fd);
+        if (tcp_mng->tcp_progs) {
+            load_established_tcps(&(tcp_mng->ipc_body), tcp_fd_map_fd);
 
             start_time_second++;
             if (start_time_second > UNLOAD_TCP_FD_PROBE) {
                 tcp_unload_fd_probe();
                 start_time_second = 0;
             }
-            for (int i = 0; i < tcp_progs->num && i < SKEL_MAX_NUM; i++) {
-                if (tcp_progs->pbs[i] && ((err = perf_buffer__poll(tcp_progs->pbs[i], THOUSAND)) < 0)) {
+            for (int i = 0; i < tcp_mng->tcp_progs->num && i < SKEL_MAX_NUM; i++) {
+                if (tcp_mng->tcp_progs->pbs[i] && ((err = perf_buffer__poll(tcp_mng->tcp_progs->pbs[i], THOUSAND)) < 0)) {
                     if (err != -EINTR) {
                         ERROR("[TCPPROBE]: perf poll prog_%d failed.\n", i);
                     }
@@ -161,11 +186,17 @@ int main(int argc, char **argv)
         } else {
             sleep(1);
         }
+
+        // Scans all TCP trackers every minute to delete invalid trackers and output data.
+        if (is_need_scan(tcp_mng)) {
+            scan_tcp_trackers(tcp_mng);
+        }
     }
 
 err:
-    unload_bpf_prog(&tcp_progs);
-
+    unload_bpf_prog(&(tcp_mng->tcp_progs));
+    destroy_ipc_body(&(tcp_mng->ipc_body));
+    destroy_tcp_trackers(tcp_mng);
     tcp_unload_fd_probe();
     destroy_established_tcps();
     return -err;

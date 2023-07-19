@@ -88,6 +88,11 @@ int histo_bucket_value(struct histo_bucket_s bucket[], size_t bucket_size, enum 
     size_t histo_count;
     struct histo_bucket_s *bucket_finded;
 
+    if (sum == 0) {
+        *value = 0.0;
+        return -1;
+    }
+
     if (type == HISTO_P50) {
         histo_count = (size_t)(sum * __histo_p50);
     } else if (type == HISTO_P90) {
@@ -99,6 +104,11 @@ int histo_bucket_value(struct histo_bucket_s bucket[], size_t bucket_size, enum 
     bucket_finded = __find_histo_bucket(bucket, bucket_size, histo_count, &offset);
     if (offset == 0) {
         offset += 1;
+    }
+
+    if (bucket_finded->count == 0) {
+        *value = 0.0;
+        return -1;
     }
 
     if (bucket_finded) {

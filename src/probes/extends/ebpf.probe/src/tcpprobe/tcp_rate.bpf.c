@@ -46,6 +46,7 @@ static __always_inline void report_rate(void *ctx, struct tcp_metrics_s *metrics
     //__builtin_memset(&(metrics->rate_stats), 0x0, sizeof(metrics->rate_stats));
 }
 
+#if 0
 static void tcp_compute_busy_time(struct tcp_sock *tcp_sk, struct tcp_rate* rate_stats)
 {
     u32 i;
@@ -90,6 +91,7 @@ static void tcp_compute_delivery_rate(struct tcp_sock *tcp_sk, struct tcp_rate* 
     stats->tcpi_delivery_rate = rate64;
     return;
 }
+#endif
 
 static __always_inline unsigned int jiffies_to_usecs(unsigned long j)
 {
@@ -99,7 +101,6 @@ static __always_inline unsigned int jiffies_to_usecs(unsigned long j)
 static void get_tcp_rate(struct sock *sk, struct tcp_rate* stats)
 {
     u32 tmp;
-    struct tcp_sock *tcp_sk = (struct tcp_sock *)sk;
     struct inet_connection_sock *icsk = (struct inet_connection_sock *)sk;
 
     tmp = jiffies_to_usecs(_(icsk->icsk_rto));
@@ -108,6 +109,7 @@ static void get_tcp_rate(struct sock *sk, struct tcp_rate* stats)
     tmp = jiffies_to_usecs(_(icsk->icsk_ack.ato));
     stats->tcpi_ato = tmp;
 
+#if 0
     stats->tcpi_snd_ssthresh = _(tcp_sk->snd_ssthresh);
 
     stats->tcpi_rcv_ssthresh = _(tcp_sk->rcv_ssthresh);
@@ -129,6 +131,7 @@ static void get_tcp_rate(struct sock *sk, struct tcp_rate* stats)
     if (tmp != ~0U) {
         stats->tcpi_max_pacing_rate = min_zero(stats->tcpi_max_pacing_rate, tmp);
     }
+#endif
 }
 
 static void tcp_rate_probe_func(void *ctx, struct sock *sk)
