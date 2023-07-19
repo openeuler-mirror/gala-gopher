@@ -21,6 +21,17 @@
 #include "base.h"
 #include "kafka.h"
 
+#define META_FIELD_TYPE_KEY             "key"
+#define META_FIELD_TYPE_LABEL           "label"
+
+#define META_FIELD_NAME_PROC            "tgid"
+
+#define META_COMMON_KEY_HOST_ID         "machine_id"
+#define META_COMMON_LABEL_HOST_NAME     "hostname"
+#define META_COMMON_LABEL_PROC_COMM     "comm"
+#define META_COMMON_LABEL_CONTAINER_ID  "container_id"
+#define META_COMMON_LABEL_POD_ID        "pod_id"
+
 typedef struct {
     char description[MAX_FIELD_DESCRIPTION_LEN];
     char type[MAX_FIELD_TYPE_LEN];
