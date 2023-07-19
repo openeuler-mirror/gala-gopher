@@ -176,4 +176,27 @@ static inline enum l7_role_t  get_l7_role(enum message_type_t msg_type, enum l7_
     return ((direction == L7_EGRESS) ^ (msg_type == MESSAGE_RESPONSE)) ? L7_CLIENT : L7_SERVER;
 }
 
+static __always_inline __maybe_unused int update_sock_conn_proto(struct sock_conn_s* sock_conn,
+    enum l7_direction_t direction, const char* buf, size_t count)
+{
+    if (sock_conn->info.protocol != PROTO_UNKNOW) {
+        return 0;
+    }
+
+    struct l7_proto_s l7pro = {0};
+    if (get_l7_protocol(buf, count, PROTO_ALL_ENABLE, &l7pro)) {
+        return -1;
+    }
+
+    if (l7pro.proto == PROTO_UNKNOW) {
+        return -1;
+    }
+    sock_conn->info.protocol = l7pro.proto;
+    // ROLE_CLIENT: message(MESSAGE_REQUEST) -> direct(L7_EGRESS)
+    // ROLE_CLIENT: message(MESSAGE_RESPONSE) -> direct(L7_INGRESS)
+    // ROLE_SERVER: message(MESSAGE_REQUEST) -> direct(L7_INGRESS)
+    // ROLE_SERVER: message(MESSAGE_RESPONSE) -> direct(L7_EGRESS)
+    sock_conn->info.l7_role  = get_l7_role(l7pro.type, direction);
+    return 0;
+}
 #endif

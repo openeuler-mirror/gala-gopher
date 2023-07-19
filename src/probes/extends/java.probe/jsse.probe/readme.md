@@ -30,6 +30,31 @@ JSSE为基于SSL和TLS协议的Java网络应用提供了Java API，JSSEProbe基�
 - 字节码插桩原理如下图所示：
 
   ![JSSEProbe-BCI](../../../../../doc/pic/JSSEProbe-BCI.png)
+  
+  #### （附）onMethodExit中字节码对应的java源码
+  
+  ```
+  private class AppOutputStream2 extends OutputStream {
+      @Override
+      public void write(byte[] b, int off, int len) throws IOException {
+          RandomAccessFile raf = new RandomAccessFile("metricTmpFile", "rw");
+          FileChannel fileChannel = raf.getChannel();
+          FileLock lock = fileChannel.lock();
+          raf.seek(raf.length());
+  
+          raf.write(String.format("|jsse_msg|%s|%s|%d|%s|%s|%d|", "pid",
+                  getSession(), System.currentTimeMillis(), "Read",
+                  getInetAddress().getHostAddress(), getPeerPort()).getBytes());
+          raf.write(b, off, len);
+  
+          raf.write("|\r\n".getBytes());
+          lock.release();
+          raf.close();
+      }
+  }
+  ```
+  
+  
 
 ### 主程序实现思路
 
@@ -38,9 +63,10 @@ JSSE为基于SSL和TLS协议的Java网络应用提供了Java API，JSSEProbe基�
 - 加载JavaAgent
 
   利用 jvm_attach （该工具实现源码对应 `../../../../../src/common/jvm_attach.c`），将 agent.jar 加载到目标JVM进程上。
+  对于主机上的进程<nspid>=<pid>，对于容器内进程<nspid>一般为1
 
   ```shell
-  jvm_attach <pid> <nspid> load instrument false "/tmp/JSSEProbeAgent.jar=<pid>,java-data-<pid>"
+  jvm_attach <pid> <nspid> load instrument false "/tmp/JSSEProbeAgent.jar=<pid>,java-data-<pid>,start"
   ```
 
 - 获取解析metrics

@@ -54,7 +54,7 @@ function init_probes_json()
             exit 1
         fi
 
-        put_data=$(echo $line | awk '{print $2}')
+        put_data=$(echo $line | cut -d ' ' -f 1 --complement)
         if [ -z "$put_data" ] ; then
             exit 1
         fi

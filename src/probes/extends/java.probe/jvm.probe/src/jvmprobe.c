@@ -33,6 +33,14 @@ static void sig_int(int signal)
     g_stop = 1;
 }
 
+static void remove_proc(struct proc_hash_t *r)
+{
+    HASH_DEL(g_procmap, r);
+    if (r != NULL) {
+        (void)free(r);
+    }
+}
+
 static struct proc_hash_t *hash_find_key(u32 pid, u64 stime)
 {
     struct proc_hash_t *p = NULL;
@@ -55,17 +63,20 @@ static void load_jvm_probe(struct java_attach_args *args)
         ret = get_proc_start_time(r->key.pid, stime, TIME_STRING_LEN);
         if (ret != 0) {
             WARN("[JVMPROBE] Gets proc %u start time failed\n", r->key.pid);
+            remove_proc(r);
             continue;
         }
 
         if (r->key.start_time != (u64)atoll(stime)) {
             INFO("[JVMPROBE] Proc %u start time changed\n", r->key.pid);
+            remove_proc(r);
             continue;
         }
 
         ret = java_load(r->key.pid, (void *)args);
         if (ret != 0) {
             WARN("[JVMPROBE]: Attach to proc %d failed\n", r->key.pid);
+            remove_proc(r);
         }
     }
 }
@@ -78,10 +89,7 @@ static void clear_proc_hash_t(void)
 
     struct proc_hash_t *r, *tmp;
     HASH_ITER(hh, g_procmap, r, tmp) {
-        HASH_DEL(g_procmap, r);
-        if (r != NULL) {
-            (void)free(r);
-        }
+        remove_proc(r);
     }
 }
 
@@ -147,7 +155,7 @@ static void output_java_msg(struct java_attach_args * args)
 {
     struct proc_hash_t *r, *tmp;
     HASH_ITER(hh, g_procmap, r, tmp) {
-        java_msg_handler(r->key.pid, (void *)args);
+        java_msg_handler(r->key.pid, (void *)args, NULL, NULL);
     }
 }
 

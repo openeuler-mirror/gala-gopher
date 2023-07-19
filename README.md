@@ -179,6 +179,10 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
 
   如上有指标数据输出则证明gala-gopher运行成功。
 
+#### K8S daemonset方式部署运行
+
+[k8s环境gala-gopher daemonset部署指导](./k8s/README.md)
+
 #### 基于源码编译、安装、运行
 
 ##### 仅编译二进制

@@ -14,6 +14,7 @@ spec:
       labels:
         name: gala-gopher
     spec:
+      nodeName:
       tolerations:
       - key: node-role.kubernetes.io/master
         effect: NoSchedule
@@ -56,8 +57,14 @@ spec:
           value: "/host"
         - name: GOPHER_EVENT_CHANNEL
           value: "kafka"
+        - name: GOPHER_META_CHANNEL
+          value: "kafka"
         - name: GOPHER_KAKFA_SERVER
           value: "{{KAFKA_SERVER}}"
+        - name: GOPHER_METRIC_PORT
+          value: "8888"
+        - name: GOPHER_REST_PORT
+          value: "9999"
         - name: GOPHER_REST_AUTH
           value: "no"
         - name: GOPHER_REST_PRIVATE_KEY
@@ -66,6 +73,10 @@ spec:
           value: ""
         - name: GOPHER_REST_CAFILE
           value: ""
+        - name: GOPHER_PROBES_INIT
+          value: |
+              baseinfo {"cmd":{"probe":["cpu","mem","nic","net","disk","fs","proc","host"]},"snooper":{"proc_name":[{"comm":"^java$","cmdline":""}]},"params":{"report_event":1},"state":"running"}
+              tcp {"cmd":{"probe":["tcp_abnormal","tcp_rtt","tcp_windows"]},"snooper":{"proc_name":[{"comm":"^java$","cmdline":""}]},"params":{"report_event":1},"state":"running"}
       hostNetwork: true
       hostPID: true
       dnsPolicy: ClusterFirstWithHostNet

@@ -248,7 +248,7 @@ static int _do_attach(u32 pid, struct jvm_process_info *v)
     char args[LINE_BUF_LEN] = {0};
 
     if (strstr(jvm_agent_file, ".so")) {
-        // jvm_attach <pid> <nspid> load /tmp/xxxx.so true /tmp/java-data-<pid>
+        // jvm_attach <pid> <nspid> load /tmp/xxxx.so true /tmp/java-data-<pid>,start
         if (strlen(attach_type) > 0) {
             (void)snprintf(args, LINE_BUF_LEN, "%s,%s",
                 v->ns_java_data_path,
@@ -264,7 +264,7 @@ static int _do_attach(u32 pid, struct jvm_process_info *v)
             v->ns_agent_path,
             args);
     } else if (strstr(jvm_agent_file, ".jar")) {
-        // jvm_attach <pid> <nspid> load instrument false "/tmp/xxxxx.jar=<pid>,/tmp/java-data-<pid>"
+        // jvm_attach <pid> <nspid> load instrument false "/tmp/xxxxx.jar=<pid>,/tmp/java-data-<pid>,start"
         if (strlen(attach_type) > 0) {
             (void)snprintf(args, LINE_BUF_LEN, "%d,%s,%s",
                 pid,
@@ -314,9 +314,8 @@ int java_load(u32 pid, struct java_attach_args *args)
     return 0;
 }
 
-void java_msg_handler(u32 pid, struct java_attach_args *args)
+void java_msg_handler(u32 pid, struct java_attach_args *args, java_msg_handler_cb cb, void *cb_ctx)
 {
-    char line[LINE_BUF_LEN];
     char tmp_file_path[PATH_LEN];
 
     tmp_file_path[0] = 0;
@@ -341,11 +340,18 @@ void java_msg_handler(u32 pid, struct java_attach_args *args)
         return;
     }
 
-    line[0] = 0;
-    while (fgets(line, LINE_BUF_LEN, fp) != NULL) {
-        (void)fprintf(stdout, "%s", line);
+    if (!cb) {
+        char line[LINE_BUF_LEN];
         line[0] = 0;
+        while (fgets(line, LINE_BUF_LEN, fp) != NULL) {
+            (void)fprintf(stdout, "%s", line);
+            line[0] = 0;
+        }
+    } else {
+        struct file_ref_s file_ref = {.pid = pid, .fd = fd, .fp = fp};
+        cb(cb_ctx, &file_ref);
     }
+
     (void)fflush(stdout);
     (void)ftruncate(fd, 0);
     (void)fclose(fp);

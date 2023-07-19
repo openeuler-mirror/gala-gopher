@@ -37,10 +37,18 @@ struct java_property_s {
     char mainClassName[PROC_CMDLINE_LEN];
 };
 
+struct file_ref_s {
+    u32 pid;
+    int fd;
+    FILE *fp;
+};
+
+typedef void (*java_msg_handler_cb)(void *ctx, struct file_ref_s *file_ref);
+
 int get_host_java_tmp_file(u32 pid, const char *file_name, char *file_path, int path_len);
 int detect_proc_is_java(u32 pid, char *comm, int comm_len);
 int java_load(u32 pid, struct java_attach_args *args);
-void java_msg_handler(u32 pid, struct java_attach_args *args);
+void java_msg_handler(u32 pid, struct java_attach_args *args, java_msg_handler_cb cb, void *cb_ctx);
 int get_java_property(int pid, struct java_property_s *prop);
 
 #endif
