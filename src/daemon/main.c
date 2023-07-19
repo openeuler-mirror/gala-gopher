@@ -108,10 +108,12 @@ static int CmdProcessing(int argc, char *argv[])
 }
 
 static int g_probe_mng_ipc_msgid = -1;
+static ResourceMgr *g_resourceMgr;
 
 static void quit_handler(int signo)
 {
     destroy_probe_threads();
+    destroy_daemon_threads(g_resourceMgr);
     // probe_mng创建的ipc消息队列是跟随内核的，进程结束消息队列还会存在，需要显示调用函数销毁
     destroy_ipc_msg_queue(g_probe_mng_ipc_msgid);
 
@@ -132,7 +134,6 @@ static void sig_setup(void)
 int main(int argc, char *argv[])
 {
     int ret = 0;
-    ResourceMgr *resourceMgr = NULL;
 
     sig_setup();
 
@@ -142,33 +143,33 @@ int main(int argc, char *argv[])
         goto err;
     }
 
-    resourceMgr = ResourceMgrCreate();
-    if (resourceMgr == NULL) {
+    g_resourceMgr = ResourceMgrCreate();
+    if (g_resourceMgr == NULL) {
         ERROR("[MAIN] create resource manager failed.\n");
         goto err;
     }
 
-    ret = ResourceMgrInit(resourceMgr);
+    ret = ResourceMgrInit(g_resourceMgr);
     if (ret != 0) {
         ERROR("[MAIN] ResourceMgrInit failed.\n");
         goto err;
     }
-    g_probe_mng_ipc_msgid = resourceMgr->probe_mng->msq_id;
+    g_probe_mng_ipc_msgid = g_resourceMgr->probe_mng->msq_id;
 
-    ret = DaemonRun(resourceMgr);
+    ret = DaemonRun(g_resourceMgr);
     if (ret != 0) {
         ERROR("[MAIN] daemon run failed.\n");
         goto err;
     }
 
-    ret = DaemonWaitDone(resourceMgr);
+    ret = DaemonWaitDone(g_resourceMgr);
     if (ret != 0) {
         ERROR("[MAIN] daemon wait done failed.\n");
         goto err;
     }
 err:
-    ResourceMgrDeinit(resourceMgr);
-    ResourceMgrDestroy(resourceMgr);
+    ResourceMgrDeinit(g_resourceMgr);
+    ResourceMgrDestroy(g_resourceMgr);
     exit(EXIT_FAILURE);
 }
 

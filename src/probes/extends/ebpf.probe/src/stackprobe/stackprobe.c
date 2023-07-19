@@ -504,10 +504,8 @@ static int add_stack_histo(struct stack_trace_s *st, struct stack_symbs_s *stack
     }
 
     if (str[0] == 0) {
-#ifdef GOPHER_DEBUG
-        ERROR("[STACKPROBE]: symbs2str is null(proc = %d).\n",
+        DEBUG("[STACKPROBE]: symbs2str is null(proc = %d).\n",
                 stack_symbs->pid.proc_id);
-#endif
         return -1;
     }
 
@@ -575,9 +573,7 @@ static int stack_id2symbs_user(struct stack_trace_s *st, struct stack_id_s *stac
     int fd = get_stack_map_fd(st);
 
     if (bpf_map_lookup_elem(fd, &(stack_id->user_stack_id), ip) != 0) {
-#ifdef GOPHER_DEBUG
-        ERROR("[STACKPROBE]: Failed to id2symbs user stack(map_lkup).\n");
-#endif
+        DEBUG("[STACKPROBE]: Failed to id2symbs user stack(map_lkup).\n");
         st->stats.count[STACK_STATS_MAP_LKUP_ERR]++;
         return -1;
     }
@@ -585,10 +581,8 @@ static int stack_id2symbs_user(struct stack_trace_s *st, struct stack_id_s *stac
     for (int i = PERF_MAX_STACK_DEPTH - 1; (i >= 0 && index < size); i--) {
         if (ip[i] != 0 && IS_IEG_ADDR(ip[i])) {
             if (search_user_addr_symb(ip[i], &(usr_stack_symbs[index]), proc_cache, stack_id->comm)) {
-#ifdef GOPHER_DEBUG
-                ERROR("[STACKPROBE]: Failed to id2symbs user stack(%s[0x%llx]).\n",
+                DEBUG("[STACKPROBE]: Failed to id2symbs user stack(%s[0x%llx]).\n",
                     stack_id->comm, ip[i]);
-#endif
                 st->stats.count[STACK_STATS_USR_ADDR_ERR]++;
                 usr_stack_symbs[index].mod = stack_id->comm;
             } else {
@@ -617,9 +611,7 @@ static int stack_id2symbs_kern(struct stack_trace_s *st, u32 kern_stack_id,
     int fd = get_stack_map_fd(st);
 
     if (bpf_map_lookup_elem(fd, &kern_stack_id, ip) != 0) {
-#ifdef GOPHER_DEBUG
-        ERROR("[STACKPROBE]: Failed to id2symbs kern stack(stack_id = %u).\n", kern_stack_id);
-#endif
+        DEBUG("[STACKPROBE]: Failed to id2symbs kern stack(stack_id = %u).\n", kern_stack_id);
         st->stats.count[STACK_STATS_MAP_LKUP_ERR]++;
         return -1;
     }
@@ -627,10 +619,8 @@ static int stack_id2symbs_kern(struct stack_trace_s *st, u32 kern_stack_id,
     for (int i = PERF_MAX_STACK_DEPTH - 1; (i >= 0 && index < size); i--) {
         if (ip[i] != 0 && IS_IEG_ADDR(ip[i])) {
             if (search_kern_addr_symb(st->ksymbs, ip[i], &(kern_stack_symbs[index]))) {
-#ifdef GOPHER_DEBUG
-                ERROR("[STACKPROBE]: Failed to id2symbs kern stack(0x%llx).\n", ip[i]);
+                DEBUG("[STACKPROBE]: Failed to id2symbs kern stack(0x%llx).\n", ip[i]);
                 st->stats.count[STACK_STATS_KERN_ADDR_ERR]++;
-#endif
             } else {
                 st->stats.count[STACK_STATS_KERN_ADDR]++;
             }

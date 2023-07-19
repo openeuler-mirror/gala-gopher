@@ -372,6 +372,43 @@ int DaemonRun(ResourceMgr *mgr)
     return 0;
 }
 
+void destroy_daemon_threads(ResourceMgr *mgr)
+{
+    if (mgr == NULL) {
+        return;
+    }
+
+    if (mgr->ingressMgr != NULL && mgr->ingressMgr->tid != 0) {
+        pthread_cancel(mgr->ingressMgr->tid);
+        pthread_join(mgr->ingressMgr->tid, NULL);
+    }
+
+    if (mgr->egressMgr != NULL && mgr->egressMgr->tid != 0) {
+        pthread_cancel(mgr->egressMgr->tid);
+        pthread_join(mgr->egressMgr->tid, NULL);
+    }
+
+    if (mgr->mmMgr != NULL && mgr->mmMgr->tid != 0) {
+        pthread_cancel(mgr->mmMgr->tid);
+        pthread_join(mgr->mmMgr->tid, NULL);
+    }
+
+    if (mgr->probe_mng != NULL && mgr->probe_mng->tid != 0) {
+        pthread_cancel(mgr->probe_mng->tid);
+        pthread_join(mgr->probe_mng->tid, NULL);
+    }
+
+    if (mgr->imdbMgr != NULL && mgr->imdbMgr->metrics_tid != 0) {
+        pthread_cancel(mgr->imdbMgr->metrics_tid);
+        pthread_join(mgr->imdbMgr->metrics_tid, NULL);
+    }
+
+    if (mgr->ctl_tid != 0) {
+        pthread_cancel(mgr->ctl_tid);
+        pthread_join(mgr->ctl_tid, NULL);
+    }
+}
+
 int DaemonWaitDone(const ResourceMgr *mgr)
 {
     // 1. wait ingress done
