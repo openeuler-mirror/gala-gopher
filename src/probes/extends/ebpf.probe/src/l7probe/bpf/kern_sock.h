@@ -120,26 +120,31 @@ struct {
 
 struct {
     __uint(type, GOPHER_BPF_MAP_TYPE_PERF);
+#ifndef __USE_RING_BUF
     __uint(key_size, sizeof(u32));
     __uint(value_size, sizeof(u32));
-    __uint(max_entries, 64);
+#endif
+    __uint(max_entries, GOPHER_BPF_PERF_MAP_MAX_ENTRIES);
 } conn_data_events SEC(".maps");
 
 struct {
     __uint(type, GOPHER_BPF_MAP_TYPE_PERF);
+#ifndef __USE_RING_BUF
     __uint(key_size, sizeof(u32));
     __uint(value_size, sizeof(u32));
-    __uint(max_entries, 64);
+#endif
+    __uint(max_entries, GOPHER_BPF_PERF_MAP_MAX_ENTRIES);
 } conn_control_events SEC(".maps");
 
 struct {
     __uint(type, GOPHER_BPF_MAP_TYPE_PERF);
+#ifndef __USE_RING_BUF
     __uint(key_size, sizeof(u32));
     __uint(value_size, sizeof(u32));
-    __uint(max_entries, 64);
+#endif
+    __uint(max_entries, GOPHER_BPF_PERF_MAP_MAX_ENTRIES);
 } conn_stats_events SEC(".maps");
 
-#ifndef __USE_RING_BUF
 // Use the BPF map to cache socket data to avoid the restriction
 // that the BPF program stack does not exceed 512 bytes.
 struct {
@@ -148,7 +153,6 @@ struct {
     __uint(value_size, sizeof(struct conn_data_s));
     __uint(max_entries, 1);
 } conn_data_buffer SEC(".maps");
-#endif
 
 struct {
     __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
@@ -165,12 +169,19 @@ static __always_inline void submit_perf_buf(void* ctx, char *buf, size_t bytes_c
     }
 
     copied_size = (bytes_count > CONN_DATA_MAX_SIZE) ? CONN_DATA_MAX_SIZE : bytes_count;
-    bpf_probe_read(&conn_data->data, copied_size & CONN_DATA_MAX_SIZE, buf);
     conn_data->data_size = copied_size;
 
 #ifdef __USE_RING_BUF
-    bpf_ringbuf_submit(conn_data, 0);
+    struct conn_data_s *conn_data_tmp = bpf_ringbuf_reserve(&conn_data_events, sizeof(struct conn_data_s), 0);
+    if (conn_data_tmp == NULL) {
+        return;
+    }
+    __builtin_memcpy(conn_data_tmp, conn_data, (char *)&conn_data->data - (char *)conn_data);
+    bpf_probe_read(&conn_data_tmp->data, copied_size & CONN_DATA_MAX_SIZE, buf);
+
+    bpf_ringbuf_submit(conn_data_tmp, 0);
 #else
+    bpf_probe_read(&conn_data->data, copied_size & CONN_DATA_MAX_SIZE, buf);
     (void)bpf_perf_event_output(ctx, &conn_data_events, BPF_F_CURRENT_CPU, conn_data, sizeof(struct conn_data_s));
 #endif
     return;
@@ -178,12 +189,8 @@ static __always_inline void submit_perf_buf(void* ctx, char *buf, size_t bytes_c
 
 static __always_inline __maybe_unused struct conn_data_s* store_conn_data_buf(enum l7_direction_t direction, struct sock_conn_s* sock_conn)
 {
-#ifdef __USE_RING_BUF
-    struct conn_data_s *conn_data = bpf_ringbuf_reserve(&conn_data_events, sizeof(struct conn_data_s), 0);
-#else
     int key = 0;
     struct conn_data_s* conn_data = bpf_map_lookup_elem(&conn_data_buffer, &key);
-#endif
 
     if (conn_data == NULL) {
         return NULL;

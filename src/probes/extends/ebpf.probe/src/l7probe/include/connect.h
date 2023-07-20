@@ -25,8 +25,10 @@
 
 #ifdef __USE_RING_BUF
 #define GOPHER_BPF_MAP_TYPE_PERF   BPF_MAP_TYPE_RINGBUF
+#define GOPHER_BPF_PERF_MAP_MAX_ENTRIES   (64 * 1024)
 #else
 #define GOPHER_BPF_MAP_TYPE_PERF   BPF_MAP_TYPE_PERF_EVENT_ARRAY
+#define GOPHER_BPF_PERF_MAP_MAX_ENTRIES   64
 #endif
 
 #define L7_CONN_BPF_PATH          "/sys/fs/bpf/gala-gopher/__l7_connect"
