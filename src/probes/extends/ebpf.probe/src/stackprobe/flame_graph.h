@@ -24,6 +24,6 @@ int do_wr_stack_histo(struct stack_svg_mng_s *svg_mng,
                         struct stack_trace_histo_s *stack_trace_histo, int first, struct post_info_s *post_info);
 void wr_flamegraph(struct stack_svg_mng_s *svg_mng, int en_type, struct post_server_s *post_server);
 int set_flame_graph_path(struct stack_svg_mng_s *svg_mng, const char* path, const char *flame_name);
-int set_post_server(struct post_server_s *post_server, const char *pyroscopeServer);
+int set_post_server(struct post_server_s *post_server, const char *pyroscopeServer, unsigned int perf_sample_period);
 void clean_post_server();
 #endif

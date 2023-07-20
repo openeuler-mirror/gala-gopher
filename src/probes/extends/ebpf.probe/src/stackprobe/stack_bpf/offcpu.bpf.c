@@ -22,8 +22,8 @@
 
 char g_linsence[] SEC("license") = "GPL";
 
-#define MAXBLOCK_US ((u64)-1)
-#define MINBLOCK_US 1000 // 1000us
+#define MAXBLOCK_MS ((u64)-1)
+#define MINBLOCK_MS 1 // 1ms
 #define MAX_START_ENTRIES 1024
 
 struct start_info_t {
@@ -147,14 +147,14 @@ int bpf_trace_sched_switch_func(struct trace_event_raw_sched_switch *ctx)
         goto out;
     }
 
-    u64 delta_us = (t_end - t_start) / 1000;
-    // TODO: MINBLOCK_US and MAXBLOCK_US configurable
-    if ((delta_us < MINBLOCK_US) || (delta_us > MAXBLOCK_US)) { 
+    u64 delta_ms = (t_end - t_start) / 1000000; // 1000000ns = 1ms
+    // TODO: MINBLOCK_MS and MAXBLOCK_MS configurable
+    if ((delta_ms < MINBLOCK_MS) || (delta_ms > MAXBLOCK_MS)) { 
         goto out;
     }
 
     struct raw_trace_s *next_raw_trace = &next_info->raw_trace;
-    next_raw_trace->count = delta_us;
+    next_raw_trace->count = delta_ms;
     if (((convert_data->convert_counter % 2) == 0)) { // % 2 代表对stackmap_a和stackmap_b的选择
         (void)bpf_perf_event_output(ctx, &stackmap_perf_a, BPF_F_CURRENT_CPU, next_raw_trace,
             sizeof(struct raw_trace_s));
