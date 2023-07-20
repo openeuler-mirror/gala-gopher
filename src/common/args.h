@@ -29,7 +29,7 @@
 #define MAX_IP_NUM          8
 #define MAX_TGIDS_LEN       64
 
-#define PYSCOPE_SERVER_URL_LEN  256
+#define PYSCOPE_SERVER_URL_LEN  64  // compat for [domainName]:4040 for most of domains and xxx.xxx.xxx.xxx:4040
 #ifndef PATH_LEN
 #define PATH_LEN            256
 #endif
@@ -53,7 +53,7 @@
 #define L7PROBE_TRACING_NATS    0x0020
 
 #define __OPT_S "t:s:T:J:O:D:F:lU:L:c:p:w:d:P:Ck:i:m:e:f:A"
-struct probe_params {
+struct probe_params_deprecated {
     unsigned int period;          // [-t <>] Report period, unit second, default is 5 seconds
     unsigned int sample_period;   // [-s <>] Sampling period, unit milliseconds, default is 100 milliseconds
     unsigned int latency_thr;     // [-T <>] Threshold of latency time, unit ms, default is 0 milliseconds
@@ -94,14 +94,52 @@ struct probe_params {
     */
     unsigned int l7_probe_proto_flags;
     unsigned int enable_all_thrds; // [-A] Enable all threads, default is 0
+};
+
+struct probe_params {
+    unsigned int period;               // Report period, unit second, default is 5 seconds
+    unsigned int sample_period;        // Sampling period, unit milliseconds, default is 100 milliseconds
+    unsigned int latency_thr;          // Threshold of latency time, unit ms, default is 0 milliseconds
+    unsigned int jitter_thr;           // Threshold of jitter time, unit ms, default is 0 milliseconds
+    unsigned int offline_thr;          // Threshold of offline time, unit ms, default is 0 milliseconds
+    unsigned int drops_count_thr;      // Threshold of the number of drop packets, default is 0
+    unsigned int kafka_port;           // the port to which kafka server attach.
+    char logs;                         // Enable the logs function
+    char metrics_flags;                // Support for report metrics flags(0x01(raw metrics), 0x02(openTelemetry metrics, eg.. P50/P90/P99) );
+    char env_flags;                    // Support for env flags(default 0x01(node), 0x02(container), 0x04(K8S));
+    char support_ssl;                  // Support for SSL probe;
+    char res_percent_upper;            //  Upper limit of resource percentage, default is 0%
+    char res_percent_lower;            //  Lower limit of resource percentage, default is 0%
+    char cport_flag;                   //  Indicates whether the probes(such as tcp) identifies the client port, default is 0 (no identify)
+    char continuous_sampling_flag;     //  Enables the continuous sampling, default is 0
+    char target_dev[DEV_NAME];         //  Device name, default is null
+    char elf_path[MAX_PATH_LEN];       //  Set ELF file path of the monitored software, default is null
+#if 0
+    char host_ip_list[MAX_IP_NUM][MAX_IP_LEN]; // Host ip fields list, default is null
     char sys_debuging_dir[MAX_PATH_LEN];
+#endif
+    /*
+        [-P <>]
+        L7 probe monitoring protocol flags, Refer to the below definitions(default is 0):
+        0x0001  HTTP
+        0x0002  DNS
+        0x0004  REDIS
+        0x0008  MYSQL
+        0x0010  PGSQL
+        0x0012  KAFKA
+        0x0014  MONGODB
+        0x0018  Cassandra
+        0x0020  NATS
+    */
+    unsigned int l7_probe_proto_flags;
     unsigned int svg_period;
     unsigned int perf_sample_period;
     char pyroscope_server[PYSCOPE_SERVER_URL_LEN];
     char svg_dir[PATH_LEN];
     char flame_dir[PATH_LEN];
 };
-int args_parse(int argc, char **argv, struct probe_params* params);
-int params_parse(char *s, struct probe_params *params);
+
+int args_parse(int argc, char **argv, struct probe_params_deprecated *params);
+int params_parse(char *s, struct probe_params_deprecated *params);
 
 #endif

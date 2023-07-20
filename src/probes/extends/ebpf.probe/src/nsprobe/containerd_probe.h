@@ -62,7 +62,7 @@ struct container_hash_t {
 
 struct container_value* get_container_by_proc_id(struct container_hash_t **pphead,
                                                             u32 proc_id);
-void get_containers(struct container_hash_t **pphead, struct probe_params *params);
+void get_containers(struct container_hash_t **pphead, struct probe_params_deprecated *params);
 void put_containers(struct container_hash_t **pphead);
 
 #endif /* __TRACE_CONTAINERD__H */

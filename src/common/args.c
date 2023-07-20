@@ -26,9 +26,10 @@
 #define MAX_PORT_NUM            65535
 #define FILTER_BY_TASKPROBE    "task"
 
-static void __set_default_params(struct probe_params *params)
+
+static void __set_default_params(struct probe_params_deprecated *params)
 {
-    (void)memset(params, 0, sizeof(struct probe_params));
+    (void)memset(params, 0, sizeof(struct probe_params_deprecated));
     params->period = DEFAULT_PERIOD;
     params->sample_period = DEFAULT_SAMPLE_PERIOD;
     params->load_probe = DEFAULT_LOAD_PROBE;
@@ -37,7 +38,8 @@ static void __set_default_params(struct probe_params *params)
     params->env_flags = SUPPORT_NODE_ENV;    // Support for node environment(include guest/host os)
 }
 
-static void __parse_host_ip_fields(char *ip_str, struct probe_params *params)
+
+static void __parse_host_ip_fields(char *ip_str, struct probe_params_deprecated *params)
 {
     char *p = NULL;
     int index = 0;
@@ -68,7 +70,7 @@ static char __is_digit_str(const char *s)
     return 1;
 }
 
-static void __filter_arg_parse(char *arg, struct probe_params *params)
+static void __filter_arg_parse(char *arg, struct probe_params_deprecated *params)
 {
     if (strcmp(arg, FILTER_BY_TASKPROBE) == 0) {
         params->filter_task_probe = 1;
@@ -86,7 +88,7 @@ static void __filter_arg_parse(char *arg, struct probe_params *params)
 }
 
 // gala-gopher.conf only support one arg, used set out put period
-static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
+static int __period_arg_parse(char opt, char *arg, struct probe_params_deprecated *params)
 {
     unsigned int interval, cport_flag;
     unsigned int param_val;
@@ -200,7 +202,7 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
     return 0;
 }
 
-static int __args_parse(int argc, char **argv, char *opt_str, struct probe_params *params)
+static int __args_parse(int argc, char **argv, char *opt_str, struct probe_params_deprecated *params)
 {
     int ch = -1;
 
@@ -216,7 +218,7 @@ static int __args_parse(int argc, char **argv, char *opt_str, struct probe_param
     return 0;
 }
 
-int args_parse(int argc, char **argv, struct probe_params *params)
+int args_parse(int argc, char **argv, struct probe_params_deprecated *params)
 {
     __set_default_params(params);
 
@@ -241,7 +243,7 @@ static void __params_val_parse(char *p, char params_val[], size_t params_len)
   -p val -c val2
 */
 #define ARGS_SPILT_STRING   " -"
-int params_parse(char *s, struct probe_params *params)
+int params_parse(char *s, struct probe_params_deprecated *params)
 {
     char opt;
     char params_val[MAX_PARAM_LEN];
@@ -275,4 +277,3 @@ int params_parse(char *s, struct probe_params *params)
     }
     return 0;
 }
-

@@ -332,7 +332,7 @@ static void set_bpf_link_inactive()
     if (head == NULL) {
         return;
     }
-    
+
     H_ITER(head, item, tmp) {
         item->v.pid_state = PID_NOEXIST;
     }
@@ -371,9 +371,9 @@ static void clear_all_bpf_link()
 static void reload_tc_bpf(struct ipc_body_s* ipc_body)
 {
 #ifdef KERNEL_SUPPORT_TSTAMP
-    if (strcmp(g_pgsli_probe.ipc_body.probe_param.netcard_list, ipc_body->probe_param.netcard_list) != 0) {
+    if (strcmp(g_pgsli_probe.ipc_body.probe_param.target_dev, ipc_body->probe_param.target_dev) != 0) {
         offload_tc_bpf(TC_TYPE_INGRESS);
-        load_tc_bpf(ipc_body->probe_param.netcard_list, TC_TSTAMP_PROG, TC_TYPE_INGRESS);
+        load_tc_bpf(ipc_body->probe_param.target_dev, TC_TSTAMP_PROG, TC_TYPE_INGRESS);
     }
 #endif
     return;
@@ -518,7 +518,7 @@ static int init_conn_mgt_first_load(bool is_first_load)
     if (err != 0) {
         return err;
     }
-    
+
     return 0;
 }
 

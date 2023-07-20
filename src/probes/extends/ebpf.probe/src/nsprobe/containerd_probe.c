@@ -95,7 +95,7 @@ static void put_nm_obj(struct container_value *container)
     (void)nm_put(&obj);
 }
 
-static int is_valid_tgid(struct probe_params *p, u32 pid)
+static int is_valid_tgid(struct probe_params_deprecated *p, u32 pid)
 {
     if (p->filter_task_probe) {
         struct proc_s obj = {.proc_id = pid};
@@ -108,7 +108,7 @@ static int is_valid_tgid(struct probe_params *p, u32 pid)
     return 1;
 }
 
-static int filter_conatiner(const char *container_id, struct probe_params *params)
+static int filter_conatiner(const char *container_id, struct probe_params_deprecated *params)
 {
     u32 pid;
     int ret = get_container_pid(container_id, &pid);
@@ -471,7 +471,7 @@ struct container_value* get_container_by_proc_id(struct container_hash_t **pphea
     return NULL;
 }
 
-void get_containers(struct container_hash_t **pphead, struct probe_params *params)
+void get_containers(struct container_hash_t **pphead, struct probe_params_deprecated *params)
 {
     int i;
     struct container_hash_t* item;

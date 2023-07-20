@@ -57,7 +57,7 @@
     MAP_SET_PIN_PATH(probe_name, args_map, ARGS_PATH, load); \
     LOAD_ATTACH(nsprobe, probe_name, end, load)
 
-static struct probe_params params = {.period = DEFAULT_PERIOD};
+static struct probe_params_deprecated params = {.period = DEFAULT_PERIOD};
 static volatile sig_atomic_t g_stop;
 static struct container_hash_t *head = NULL;
 
@@ -86,7 +86,7 @@ static void output_qdisc_metrics(void *ctx, int cpu, void *data, __u32 size)
     (void)fflush(stdout);
 }
 
-static void load_args(int args_fd, struct probe_params* params)
+static void load_args(int args_fd, struct probe_params_deprecated* params)
 {
     __u32 key = 0;
     struct ns_args_s args = {0};
