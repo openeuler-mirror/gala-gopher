@@ -484,8 +484,17 @@ static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, struct proc_s
     return 0;
 }
 
+static s64 convert_real_count(struct stack_trace_s *st, enum stack_svg_type_e en_type, s64 origin_count)
+{
+    if (en_type == STACK_SVG_OFFCPU) {
+        return origin_count / st->post_server.sample_period;
+    }
+
+    return  origin_count;
+}
+
 static int add_stack_histo(struct stack_trace_s *st, struct stack_symbs_s *stack_symbs,
-    struct proc_symbs_s *proc_symbs, enum stack_svg_type_e en_type, s64 count)
+    struct proc_symbs_s *proc_symbs, enum stack_svg_type_e en_type, s64 origin_count)
 {
     char str[STACK_SYMBS_LEN];
     struct stack_trace_histo_s *item = NULL, *new_item = NULL;
@@ -503,6 +512,7 @@ static int add_stack_histo(struct stack_trace_s *st, struct stack_symbs_s *stack
         st->stats.count[STACK_STATS_HISTO_ERR]++;
     }
 
+    s64 count = convert_real_count(st, en_type, origin_count);
     if (str[0] == 0) {
         DEBUG("[STACKPROBE]: symbs2str is null(proc = %d).\n",
                 stack_symbs->pid.proc_id);
@@ -997,7 +1007,8 @@ static struct stack_trace_s *create_stack_trace(struct ipc_body_s *ipc_body)
     }
 #endif
 
-    if (set_post_server(&st->post_server, ipc_body->probe_param.pyroscope_server) != 0) {
+    if (set_post_server(&st->post_server, ipc_body->probe_param.pyroscope_server,
+                        ipc_body->probe_param.perf_sample_period) != 0) {
         INFO("[STACKPROBE]: Do not post to Pyroscope Server.\n");
         st->post_server.post_enable = 0;
     } else {

@@ -19,12 +19,13 @@
 
 #include "common.h"
 
-#define AGGRE_PERIOD    (1 * 30 * 1000) // 30s
-#define TMOUT_PERIOD    (AGGRE_PERIOD / 1000) // Second as unit
-#define PROC_CACHE_MAX_COUNT    100    // Cache 100 proc symbols
-#define DIV_ROUND_UP(NUM, DEN) ((NUM + DEN - 1) / DEN)
+#define DEFAULT_PERF_SAMPLE_PERIOD   10 // ms
+#define AGGRE_PERIOD                (1 * 30 * 1000) // 30s
+#define TMOUT_PERIOD                (AGGRE_PERIOD / 1000) // Second as unit
+#define PROC_CACHE_MAX_COUNT        100    // Cache 100 proc symbols
+#define DIV_ROUND_UP(NUM, DEN)      ((NUM + DEN - 1) / DEN)
 
-#define MAX_PERCPU_SAMPLE_COUNT     (2 * DIV_ROUND_UP(AGGRE_PERIOD, 10)) // samplePeriod as 10ms
+#define MAX_PERCPU_SAMPLE_COUNT     (2 * DIV_ROUND_UP(AGGRE_PERIOD, DEFAULT_PERF_SAMPLE_PERIOD)) // samplePeriod as 10ms
 
 struct convert_data_t {
     u32 whitelist_enable;

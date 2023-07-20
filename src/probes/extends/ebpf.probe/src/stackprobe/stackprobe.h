@@ -105,6 +105,7 @@ struct svg_stack_trace_s {
 
 struct post_server_s {
     char post_enable;
+    u32 sample_period; // ms
     long timeout; // sec
     char host[PATH_LEN];
     char app_suffix[APP_SUFFIX_LEN];

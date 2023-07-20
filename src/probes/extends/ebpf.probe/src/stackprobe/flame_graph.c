@@ -210,13 +210,14 @@ static int __build_url(char *url, struct post_server_s *post_server, int en_type
     post_server->last_post_ts = now;
 
     (void)snprintf(url, LINE_BUF_LEN, 
-        "http://%s/ingest?name=%s-%s&from=%ld&until=%ld&units=%s",
+        "http://%s/ingest?name=%s-%s&from=%ld&until=%ld&units=%s&sampleRate=%u",
         post_server->host,
         appname[en_type],
         post_server->app_suffix,
         (long)before,
         (long)now,
-        en_type == STACK_SVG_MEMLEAK ? "bytes" : "samples");
+        en_type == STACK_SVG_MEMLEAK ? "bytes" : "samples",
+        1000 / post_server->sample_period); // 1000 ms
     return 0;
 }
 
@@ -375,7 +376,7 @@ int set_flame_graph_path(struct stack_svg_mng_s *svg_mng, const char* path, cons
     return 0;
 }
 
-int set_post_server(struct post_server_s *post_server, const char *server_str)
+int set_post_server(struct post_server_s *post_server, const char *server_str, unsigned int perf_sample_period)
 {
     if (server_str == NULL) {
         return -1;
@@ -389,6 +390,8 @@ int set_post_server(struct post_server_s *post_server, const char *server_str)
     curl_global_init(CURL_GLOBAL_ALL);
     post_server->post_enable = 1;
     post_server->timeout = 3;
+    post_server->sample_period = perf_sample_period == 0 ? DEFAULT_PERF_SAMPLE_PERIOD : perf_sample_period;
+
     (void)strcpy(post_server->host, server_str);
 
     return 0;
