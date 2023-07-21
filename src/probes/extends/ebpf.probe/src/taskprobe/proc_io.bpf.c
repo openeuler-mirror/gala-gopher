@@ -29,7 +29,7 @@
 char g_linsence[] SEC("license") = "GPL";
 
 struct proc_bio_stats_s {
-    int proc_id;
+    u64 proc_id;
     u64 start_ts;
 };
 
@@ -40,7 +40,6 @@ struct {
     __uint(value_size, sizeof(struct proc_bio_stats_s));
     __uint(max_entries, __BIO_MAX);
 } bio_map SEC(".maps");
-
 
 static __always_inline char is_read_bio(struct bio *bio)
 {
@@ -58,7 +57,7 @@ static __always_inline char is_write_bio(struct bio *bio)
 static __always_inline int store_bio(struct bio *bio, int proc_id)
 {
     struct proc_bio_stats_s bio_stats = {0};
-    bio_stats.proc_id = proc_id;
+    bio_stats.proc_id = (u64)proc_id;
     bio_stats.start_ts = bpf_ktime_get_ns();
     return bpf_map_update_elem(&bio_map, &bio, &bio_stats, BPF_ANY);
 }
@@ -76,7 +75,7 @@ static __always_inline void end_bio(void *ctx, struct bio *bio)
     }
     struct proc_data_s *proc;
 
-    proc = get_proc_entry(bio_stats->proc_id);
+    proc = get_proc_entry((u32)bio_stats->proc_id);
     if (proc == NULL) {
         (void)bpf_map_delete_elem(&bio_map, &bio);
         return;
@@ -98,16 +97,14 @@ static __always_inline void end_bio(void *ctx, struct bio *bio)
     return;
 }
 
-KRAWTRACE(block_bio_queue, bpf_raw_tracepoint_args)
+static __always_inline void start_bio(void *ctx, u32 proc_id, struct bio *bio)
 {
     u32 bio_size;
-    struct bio *bio = (struct bio*)ctx->args[1];
-    u32 proc_id = bpf_get_current_pid_tgid() >> INT_LEN;
     struct proc_data_s *proc;
 
     proc = get_proc_entry(proc_id);
     if (proc == NULL) {
-        return 0;
+        return;
     }
 
     if (is_read_bio(bio)) {
@@ -120,7 +117,7 @@ KRAWTRACE(block_bio_queue, bpf_raw_tracepoint_args)
         report_proc(ctx, proc, TASK_PROBE_IO);
 
         store_bio(bio, proc_id);
-        return 0;
+        return;
     }
 
     if (is_write_bio(bio)) {
@@ -133,10 +130,59 @@ KRAWTRACE(block_bio_queue, bpf_raw_tracepoint_args)
         report_proc(ctx, proc, TASK_PROBE_IO);
 
         store_bio(bio, proc_id);
-        return 0;
+        return;
     }
+    return;
+}
+
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 19, 0))
+KRAWTRACE(block_bio_queue, bpf_raw_tracepoint_args)
+{
+    struct bio *bio = (struct bio*)ctx->args[1];
+    u32 proc_id = bpf_get_current_pid_tgid() >> INT_LEN;
+
+    start_bio(ctx, proc_id, bio);
+
     return 0;
 }
+#else
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(u64));
+    __uint(value_size, sizeof(u64));
+    __uint(max_entries, 1000);
+} bio_args_buffer SEC(".maps");
+
+KPROBE(generic_make_request_checks, pt_regs)
+{
+    u64 key = bpf_get_current_pid_tgid();
+    u64 value = (u64)PT_REGS_PARM1(ctx);
+    (void)bpf_map_update_elem(&bio_args_buffer, &key, &value, BPF_ANY);
+    return 0;
+}
+
+KRETPROBE(generic_make_request_checks, pt_regs)
+{
+    struct bio *bio = NULL;
+    u64 *bio_args = NULL;
+    u64 key = bpf_get_current_pid_tgid();
+    bool ret = (bool)PT_REGS_RC(ctx);
+    if (ret == false) {
+        goto end;
+    }
+
+    bio_args = (u64 *)bpf_map_lookup_elem(&bio_args_buffer, &key);
+    if (bio_args == NULL) {
+        goto end;
+    }
+    bio = (struct bio *)(*bio_args);
+    start_bio(ctx, (u32)(key >> INT_LEN), bio);
+
+end:
+    (void)bpf_map_delete_elem(&bio_args_buffer, &key);
+    return 0;
+}
+#endif
 
 // block_bio_complete, block_rq_complete exclusion, so use kprobe
 KPROBE(bio_endio, pt_regs)
@@ -145,6 +191,7 @@ KPROBE(bio_endio, pt_regs)
     end_bio(ctx, bio);
     return 0;
 }
+
 #if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(sched_process_hang, bpf_raw_tracepoint_args)
 {
