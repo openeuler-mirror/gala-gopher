@@ -2,39 +2,141 @@ version = "1.0.0"
 measurements:
 (
     {
-        table_name: "pod_state",
-        entity_name: "pod",
+        table_name: "l7_link",
+        entity_name: "l7",
         fields:
         (
             {
-                description: "Name of the pod",
+                description: "Process ID of l7 session.",
                 type: "key",
-                name: "pod_name",
+                name: "tgid",
             },
             {
-                description: "Pod event",
-                type: "label",
-                name: "pod_event",
+                description: "Remote IP address of l7 session.",
+                type: "key",
+                name: "remote_ip",
             },
             {
-                description: "IP of the pod",
+                description: "Remote port of l7 session.",
+                type: "key",
+                name: "remote_port",
+            },
+            {
+                description: "Role of l4 protocol(TCP Client/Server or UDP).",
+                type: "key",
+                name: "l4_role",
+            },
+            {
+                description: "Role of l7 protocol(Client or Server).",
+                type: "key",
+                name: "l7_role",
+            },
+            {
+                description: "Name of l7 protocol(http/http2/mysql...).",
+                type: "key",
+                name: "protocol",
+            },
+            {
+                description: "IP address of pod which l7 session belongs.",
                 type: "label",
                 name: "pod_ip",
             },
             {
-                description: "ID of the container",
+                description: "Indicates whether an SSL-encrypted l7 session is used.",
                 type: "label",
-                name: "container_id",
+                name: "ssl",
             },
             {
-                description: "Name of the container",
-                type: "label",
-                name: "container_name",
-            },
-            {
-                description: "a fixed num as metric",
+                description: "Number of bytes sent by a l7 session.",
                 type: "gauge",
-                name: "value",
+                name: "bytes_sent",
+            },
+            {
+                description: "Number of bytes recv by a l7 session.",
+                type: "gauge",
+                name: "bytes_recv",
+            }
+        )
+    },
+    {
+        table_name: "l7_rpc",
+        entity_name: "l7",
+        fields:
+        (
+            {
+                description: "Process ID of l7 session.",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "Remote IP address of l7 session.",
+                type: "key",
+                name: "remote_ip",
+            },
+            {
+                description: "Remote port of l7 session.",
+                type: "key",
+                name: "remote_port",
+            },
+            {
+                description: "Role of l4 protocol(TCP Client/Server or UDP).",
+                type: "key",
+                name: "l4_role",
+            },
+            {
+                description: "Role of l7 protocol(Client or Server).",
+                type: "key",
+                name: "l7_role",
+            },
+            {
+                description: "Name of l7 protocol(http/http2/mysql...).",
+                type: "key",
+                name: "protocol",
+            },
+            {
+                description: "IP address of pod which l7 session belongs.",
+                type: "label",
+                name: "pod_ip",
+            },
+            {
+                description: "Indicates whether an SSL-encrypted l7 session is used.",
+                type: "label",
+                name: "ssl",
+            },
+            {
+                description: "Request throughput of l7 session.",
+                type: "histogram",
+                name: "throughput_req",
+            },
+            {
+                description: "Response throughput of l7 session.",
+                type: "histogram",
+                name: "throughput_resp",
+            },
+            {
+                description: "Average l7 session latency.",
+                type: "gauge",
+                name: "latency_avg",
+            },
+            {
+                description: "L7 session P50 latency.",
+                type: "histogram",
+                name: "latency_p50",
+            },
+            {
+                description: "L7 session P90 latency.",
+                type: "histogram",
+                name: "latency_p90",
+            },
+            {
+                description: "L7 session P99 latency.",
+                type: "histogram",
+                name: "latency_p99",
+            },
+            {
+                description: "L7 session error rate.",
+                type: "gauge",
+                name: "err_ratio",
             }
         )
     }

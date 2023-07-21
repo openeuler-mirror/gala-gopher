@@ -74,6 +74,12 @@ const char *l7_role_name[L7_ROLE_MAX] = {
     "server"
 };
 
+const char *l4_role_name[L4_ROLE_MAX] = {
+    "udp",
+    "tcp_client",
+    "tcp_server"
+};
+
 static void init_latency_buckets(struct histo_bucket_s latency_buckets[], size_t size)
 {
     for (int i = 0; i < __MAX_LT_RANGE && i < size; i++) {
@@ -588,7 +594,7 @@ static void calc_l7_stats(struct l7_mng_s *l7_mng)
     return;
 }
 
-#define OO_NAME "L7"
+#define OO_NAME "l7"
 static void reprot_l7_link(struct l7_link_s *link)
 {
     unsigned char remote_ip[INET6_ADDRSTRLEN];
@@ -596,19 +602,17 @@ static void reprot_l7_link(struct l7_link_s *link)
     ip_str(link->id.remote_addr.family, (unsigned char *)&(link->id.remote_addr.ip), remote_ip, INET6_ADDRSTRLEN);
 
     (void)fprintf(stdout, "|%s|%u|%s|%u|%s|%s"
-        "|%s|%s|%s|%s|%s"
+        "|%s|%s|%s"
         "|%llu|%llu|\n",
 
         OO_NAME,
         link->id.tgid,
         remote_ip,
         link->id.remote_addr.port,
-        proto_name[link->id.protocol],
+        l4_role_name[link->id.l4_role],
         l7_role_name[link->id.l7_role],
+        proto_name[link->id.protocol],
 
-        link->l7_info.comm,
-        link->l7_info.container_id,
-        link->l7_info.pod_id,
         link->l7_info.pod_ip,
         link->l7_info.is_ssl ? "ssl" : "no_ssl",
 
@@ -623,30 +627,26 @@ static void reprot_l7_rpc(struct l7_link_s *link)
     ip_str(link->id.remote_addr.family, (unsigned char *)&(link->id.remote_addr.ip), remote_ip, INET6_ADDRSTRLEN);
 
     (void)fprintf(stdout, "|%s|%u|%s|%u|%s|%s"
-        "|%s|%s|%s|%s|%s"
+        "|%s|%s|%s"
         "|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|\n",
 
         OO_NAME,
         link->id.tgid,
         remote_ip,
         link->id.remote_addr.port,
-        proto_name[link->id.protocol],
+        l4_role_name[link->id.l4_role],
         l7_role_name[link->id.l7_role],
+        proto_name[link->id.protocol],
 
-        link->l7_info.comm,
-        link->l7_info.container_id,
-        link->l7_info.pod_id,
         link->l7_info.pod_ip,
         link->l7_info.is_ssl ? "ssl" : "no_ssl",
 
         link->throughput[THROUGHPUT_REQ],
         link->throughput[THROUGHPUT_RESP],
-
         (float)((float)link->latency_sum / (float)link->stats[REQ_COUNT]),
         link->latency[LATENCY_P50],
         link->latency[LATENCY_P90],
         link->latency[LATENCY_P99],
-
         link->err_ratio);
 }
 
