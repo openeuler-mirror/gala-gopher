@@ -76,9 +76,6 @@ struct tcp_abn {
     __u32 tcp_oom;          // FROM tcp_check_oom event
     __u32 send_rsts;        // FROM tcp_send_reset event
     __u32 receive_rsts;     // FROM tcp_receive_reset event
-
-    int sk_err;             // FROM sock.sk_err
-    int sk_err_soft;        // FROM sock.sk_err_soft
 };
 
 struct tcp_tx_rx {
@@ -91,6 +88,7 @@ struct tcp_tx_rx {
 };
 
 struct tcp_sockbuf {
+#if 0
     __u32   tcpi_sk_err_que_size;   // FROM sock.sk_error_queue.qlen
     __u32   tcpi_sk_rcv_que_size;   // FROM sock.sk_receive_queue.qlen
     __u32   tcpi_sk_wri_que_size;   // FROM sock.sk_write_queue.qlen
@@ -99,7 +97,7 @@ struct tcp_sockbuf {
     __u32   tcpi_sk_omem_size;      // FROM sock.sk_omem_alloc
     __u32   tcpi_sk_forward_size;   // FROM sock.sk_forward_alloc
     __u32   tcpi_sk_wmem_size;      // FROM sock.sk_wmem_alloc
-
+#endif
     int   sk_rcvbuf;                    // FROM sock.sk_rcvbuf
     int   sk_sndbuf;                // FROM sock.sk_sndbuf
 };
@@ -107,7 +105,7 @@ struct tcp_sockbuf {
 struct tcp_rate {
     __u32   tcpi_rto;           // Retransmission timeOut(us)
     __u32   tcpi_ato;           // Estimated value of delayed ACK(us)
-
+#if 0
     __u32   tcpi_snd_ssthresh;  // Slow start threshold for congestion control.
     __u32   tcpi_rcv_ssthresh;  // Current receive window size.
     __u32   tcpi_advmss;        // Local MSS upper limit.
@@ -121,6 +119,7 @@ struct tcp_rate {
 
     __u32   tcpi_pacing_rate;    // bytes per second
     __u32   tcpi_max_pacing_rate;   // bytes per second
+#endif
 };
 
 struct tcp_windows {

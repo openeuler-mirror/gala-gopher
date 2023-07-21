@@ -27,11 +27,6 @@ measurements:
                 name: "server_ip",
             },
             {
-                description: "client port",
-                type: "key",
-                name: "client_port",
-            },
-            {
                 description: "server port",
                 type: "key",
                 name: "server_port",
@@ -89,11 +84,6 @@ measurements:
                 name: "server_ip",
             },
             {
-                description: "client port",
-                type: "key",
-                name: "client_port",
-            },
-            {
                 description: "server port",
                 type: "key",
                 name: "server_port",
@@ -105,13 +95,33 @@ measurements:
             },
             {
                 description: "Smoothed Round Trip Time(us).",
-                type: "gauge",
-                name: "srtt",
+                type: "histogram",
+                name: "srtt_p50",
+            },
+            {
+                description: "Smoothed Round Trip Time(us).",
+                type: "histogram",
+                name: "srtt_p90",
+            },
+            {
+                description: "Smoothed Round Trip Time(us).",
+                type: "histogram",
+                name: "srtt_p99",
             },
             {
                 description: "Receive end RTT (unidirectional measurement).",
-                type: "gauge",
-                name: "rcv_rtt",
+                type: "histogram",
+                name: "rcv_rtt_p50",
+            },
+            {
+                description: "Receive end RTT (unidirectional measurement).",
+                type: "histogram",
+                name: "rcv_rtt_p90",
+            },
+            {
+                description: "Receive end RTT (unidirectional measurement).",
+                type: "histogram",
+                name: "rcv_rtt_p99",
             }
         )
     },
@@ -141,11 +151,6 @@ measurements:
                 name: "server_ip",
             },
             {
-                description: "client port",
-                type: "key",
-                name: "client_port",
-            },
-            {
                 description: "server port",
                 type: "key",
                 name: "server_port",
@@ -157,38 +162,118 @@ measurements:
             },
             {
                 description: "Congestion Control Window Size.",
-                type: "gauge",
-                name: "snd_cwnd",
+                type: "histogram",
+                name: "snd_cwnd_p50",
+            },
+            {
+                description: "Congestion Control Window Size.",
+                type: "histogram",
+                name: "snd_cwnd_p90",
+            },
+            {
+                description: "Congestion Control Window Size.",
+                type: "histogram",
+                name: "snd_cwnd_p99",
             },
             {
                 description: "Number of bytes not sent currently.",
-                type: "gauge",
-                name: "notsent_bytes",
+                type: "histogram",
+                name: "notsent_bytes_p50",
+            },
+            {
+                description: "Number of bytes not sent currently.",
+                type: "histogram",
+                name: "notsent_bytes_p90",
+            },
+            {
+                description: "Number of bytes not sent currently.",
+                type: "histogram",
+                name: "notsent_bytes_p99",
             },
             {
                 description: "Number of bytes not ack currently.",
-                type: "gauge",
-                name: "notack_bytes",
+                type: "histogram",
+                name: "notack_bytes_p50",
+            },
+            {
+                description: "Number of bytes not ack currently.",
+                type: "histogram",
+                name: "notack_bytes_p90",
+            },
+            {
+                description: "Number of bytes not ack currently.",
+                type: "histogram",
+                name: "notack_bytes_p99",
             },
             {
                 description: "Segments to be reordered.",
-                type: "gauge",
-                name: "reordering",
+                type: "histogram",
+                name: "reordering_p50",
+            },
+            {
+                description: "Segments to be reordered.",
+                type: "histogram",
+                name: "reordering_p90",
+            },
+            {
+                description: "Segments to be reordered.",
+                type: "histogram",
+                name: "reordering_p99",
             },
             {
                 description: "Size of TCP send window.",
-                type: "gauge",
-                name: "snd_wnd",
+                type: "histogram",
+                name: "snd_wnd_p50",
+            },
+            {
+                description: "Size of TCP send window.",
+                type: "histogram",
+                name: "snd_wnd_p90",
+            },
+            {
+                description: "Size of TCP send window.",
+                type: "histogram",
+                name: "snd_wnd_p99",
             },
             {
                 description: "Size of TCP receive window.",
-                type: "gauge",
-                name: "rcv_wnd",
+                type: "histogram",
+                name: "rcv_wnd_p50",
+            },
+            {
+                description: "Size of TCP receive window.",
+                type: "histogram",
+                name: "rcv_wnd_p90",
+            },
+            {
+                description: "Size of TCP receive window.",
+                type: "histogram",
+                name: "rcv_wnd_p99",
             },
             {
                 description: "TCP available send window.",
+                type: "histogram",
+                name: "avl_snd_wnd_p50",
+            },
+            {
+                description: "TCP available send window.",
+                type: "histogram",
+                name: "avl_snd_wnd_p90",
+            },
+            {
+                description: "TCP available send window.",
+                type: "histogram",
+                name: "avl_snd_wnd_p99",
+            },
+            {
+                description: "TCP zero receive windows ratio",
                 type: "gauge",
-                name: "avl_snd_wnd",
+                name: "zero_win_rx_ratio",
+            },
+            {
+                description: "TCP zero send windows ratio",
+                type: "gauge",
+                name: "zero_win_tx_ratio",
             }
         )
     },
@@ -218,11 +303,6 @@ measurements:
                 name: "server_ip",
             },
             {
-                description: "client port",
-                type: "key",
-                name: "client_port",
-            },
-            {
                 description: "server port",
                 type: "key",
                 name: "server_port",
@@ -234,63 +314,33 @@ measurements:
             },
             {
                 description: "Retransmission timeOut(us)",
-                type: "gauge",
-                name: "rto",
+                type: "histogram",
+                name: "rto_p50",
+            },
+            {
+                description: "Retransmission timeOut(us)",
+                type: "histogram",
+                name: "rto_p90",
+            },
+            {
+                description: "Retransmission timeOut(us)",
+                type: "histogram",
+                name: "rto_p99",
             },
             {
                 description: "Estimated value of delayed ACK(us)",
-                type: "gauge",
-                name: "ato",
+                type: "histogram",
+                name: "ato_p50",
             },
             {
-                description: "Slow start threshold for congestion control.",
-                type: "gauge",
-                name: "snd_ssthresh",
+                description: "Estimated value of delayed ACK(us)",
+                type: "histogram",
+                name: "ato_p90",
             },
             {
-                description: "Current receive window size.",
-                type: "gauge",
-                name: "rcv_ssthresh",
-            },
-            {
-                description: "Local MSS upper limit.",
-                type: "gauge",
-                name: "advmss",
-            },
-            {
-                description: "Current receive buffer size.",
-                type: "gauge",
-                name: "rcv_space",
-            },
-            {
-                description: "Current transmit rate (multiple different from the actual value).",
-                type: "gauge",
-                name: "delivery_rate",
-            },
-            {
-                description: "Time (jiffies) busy sending data.",
-                type: "gauge",
-                name: "busy_time",
-            },
-            {
-                description: "Time (jiffies) limited by receive window.",
-                type: "gauge",
-                name: "rwnd_limited",
-            },
-            {
-                description: "Time (jiffies) limited by send buffer.",
-                type: "gauge",
-                name: "sndbuf_limited",
-            },
-            {
-                description: "TCP pacing rate, bytes per second",
-                type: "gauge",
-                name: "pacing_rate",
-            },
-            {
-                description: "MAX TCP pacing rate, bytes per second",
-                type: "gauge",
-                name: "max_pacing_rate",
+                description: "Estimated value of delayed ACK(us)",
+                type: "histogram",
+                name: "ato_p99",
             }
         )
     },
@@ -320,11 +370,6 @@ measurements:
                 name: "server_ip",
             },
             {
-                description: "client port",
-                type: "key",
-                name: "client_port",
-            },
-            {
                 description: "server port",
                 type: "key",
                 name: "server_port",
@@ -333,6 +378,21 @@ measurements:
                 description: "protocol",
                 type: "key",
                 name: "protocol",
+            },
+            {
+                description: "RTT of syn packet(us).",
+                type: "histogram",
+                name: "syn_srtt_p50",
+            },
+            {
+                description: "RTT of syn packet(us).",
+                type: "histogram",
+                name: "syn_srtt_p90",
+            },
+            {
+                description: "RTT of syn packet(us).",
+                type: "histogram",
+                name: "syn_srtt_p99",
             },
             {
                 description: "RTT of syn packet(us).",
@@ -367,11 +427,6 @@ measurements:
                 name: "server_ip",
             },
             {
-                description: "client port",
-                type: "key",
-                name: "client_port",
-            },
-            {
                 description: "server port",
                 type: "key",
                 name: "server_port",
@@ -382,49 +437,34 @@ measurements:
                 name: "protocol",
             },
             {
-                description: "Size of error queue in sock.",
-                type: "gauge",
-                name: "sk_err_que_size",
-            },
-            {
-                description: "Size of receive queue in sock.",
-                type: "gauge",
-                name: "sk_rcv_que_size",
-            },
-            {
-                description: "Size of write queue in sock.",
-                type: "gauge",
-                name: "sk_wri_que_size",
-            },
-            {
-                description: "Size of backlog queue in sock.",
-                type: "gauge",
-                name: "sk_backlog_size",
-            },
-            {
-                description: "Size of omem in sock.",
-                type: "gauge",
-                name: "sk_omem_size",
-            },
-            {
-                description: "Size of forward in sock.",
-                type: "gauge",
-                name: "sk_forward_size",
-            },
-            {
-                description: "Size of wmem in sock.",
-                type: "gauge",
-                name: "sk_wmem_size",
+                description: "Byte length of the RX buffer.",
+                type: "histogram",
+                name: "sk_rcvbuf_p50",
             },
             {
                 description: "Byte length of the RX buffer.",
-                type: "gauge",
-                name: "sk_rcvbuf",
+                type: "histogram",
+                name: "sk_rcvbuf_p90",
+            },
+            {
+                description: "Byte length of the RX buffer.",
+                type: "histogram",
+                name: "sk_rcvbuf_p99",
             },
             {
                 description: "Byte length of the TX buffer.",
-                type: "gauge",
-                name: "sk_sndbuf",
+                type: "histogram",
+                name: "sk_sndbuf_p50",
+            },
+            {
+                description: "Byte length of the TX buffer.",
+                type: "histogram",
+                name: "sk_sndbuf_p90",
+            },
+            {
+                description: "Byte length of the TX buffer.",
+                type: "histogram",
+                name: "sk_sndbuf_p99",
             }
         )
     },
@@ -452,11 +492,6 @@ measurements:
                 description: "server ip",
                 type: "key",
                 name: "server_ip",
-            },
-            {
-                description: "client port",
-                type: "key",
-                name: "client_port",
             },
             {
                 description: "server port",
@@ -529,14 +564,9 @@ measurements:
                 name: "receive_rsts",
             },
             {
-                description: "sk_err",
+                description: "retrans ratio",
                 type: "gauge",
-                name: "sk_err",
-            },
-            {
-                description: "sk_err_soft",
-                type: "gauge",
-                name: "sk_err_soft",
+                name: "retrans_ratio",
             }
         )
     }
