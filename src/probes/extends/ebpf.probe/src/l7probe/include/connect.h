@@ -43,6 +43,8 @@ enum l4_role_t {
     L4_UNKNOW = 0,              // udp
     L4_CLIENT,
     L4_SERVER,
+
+    L4_ROLE_MAX
 };
 
 enum l7_role_t {
