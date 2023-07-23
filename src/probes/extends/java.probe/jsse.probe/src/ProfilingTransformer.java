@@ -164,7 +164,7 @@ public class ProfilingTransformer implements ClassFileTransformer {
             mv.visitLdcInsn(this.Pid);
             mv.visitInsn(AASTORE);
 
-            // 这里本应上报socket fd来标识一个连接，但因为socket fd是私有属性所以较难获取。因此这里使用SSLSession。
+            // Use SSLSession because socket fd is private so hard to access
             mv.visitInsn(DUP);
             mv.visitInsn(ICONST_1);
             mv.visitVarInsn(ALOAD, 0);

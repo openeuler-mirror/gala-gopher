@@ -41,6 +41,8 @@
 #include "include/bpf_mng.h"
 #include "include/java_mng.h"
 
+#define RM_L7_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__l7*"
+
 volatile sig_atomic_t g_stop;
 static struct l7_mng_s g_l7_mng;
 
@@ -298,7 +300,7 @@ static int __poll_l7_pb(struct bpf_prog_s* prog)
     for (int i = 0; i < prog->num && i < SKEL_MAX_NUM; i++) {
         if (prog->rbs[i]) {
             ret = ring_buffer__poll(prog->rbs[i], THOUSAND);
-            if (ret) {
+            if (ret < 0) {
                 return ret;
             }
         }
@@ -307,7 +309,7 @@ static int __poll_l7_pb(struct bpf_prog_s* prog)
     for (int i = 0; i < prog->num && i < SKEL_MAX_NUM; i++) {
         if (prog->pbs[i]) {
             ret = perf_buffer__poll(prog->pbs[i], THOUSAND);
-            if (ret) {
+            if (ret < 0) {
                 return ret;
             }
         }
@@ -346,6 +348,13 @@ int main(int argc, char **argv)
     int ret = 0, is_load_prog = 0;
     struct l7_mng_s *l7_mng = &g_l7_mng;
     struct ipc_body_s ipc_body;
+    FILE *fp = NULL;
+
+    fp = popen(RM_L7_MAP_PATH, "r");
+    if (fp != NULL) {
+        (void)pclose(fp);
+        fp = NULL;
+    }
 
     if (signal(SIGINT, sig_int) == SIG_ERR) {
         ERROR("[L7PROBE]: Can't set signal handler: %d\n", errno);

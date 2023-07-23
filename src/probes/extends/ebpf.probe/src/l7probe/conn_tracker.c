@@ -35,6 +35,9 @@
 #include "include/data_stream.h"
 #include "l7_common.h"
 
+#define OO_NAME        "l7"
+#define L7_TBL_LINK    "l7_link"
+#define L7_TBL_RPC     "l7_rpc"
 
 struct latency_histo_s {
     enum latency_range_t range;
@@ -270,7 +273,7 @@ static struct l7_link_s* add_l7_link(struct l7_mng_s *l7_mng, const struct l7_li
         return NULL;
     }
 
-    link->stats[OPEN_EVT] = 1;
+    new_link->stats[OPEN_EVT] = 1;
     __init_l7_link_info(l7_mng, new_link, tracker);
 
     H_ADD_KEYPTR(l7_mng->l7_links, &new_link->id, sizeof(struct l7_link_id_s), new_link);
@@ -594,7 +597,7 @@ static void calc_l7_stats(struct l7_mng_s *l7_mng)
     return;
 }
 
-#define OO_NAME "l7"
+
 static void reprot_l7_link(struct l7_link_s *link)
 {
     unsigned char remote_ip[INET6_ADDRSTRLEN];
@@ -605,7 +608,7 @@ static void reprot_l7_link(struct l7_link_s *link)
         "|%s|%s|%s"
         "|%llu|%llu|\n",
 
-        OO_NAME,
+        L7_TBL_LINK,
         link->id.tgid,
         remote_ip,
         link->id.remote_addr.port,
@@ -630,7 +633,7 @@ static void reprot_l7_rpc(struct l7_link_s *link)
         "|%s|%s|%s"
         "|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|\n",
 
-        OO_NAME,
+        L7_TBL_RPC,
         link->id.tgid,
         remote_ip,
         link->id.remote_addr.port,
