@@ -375,11 +375,13 @@ int main(int argc, char **argv)
     while (!g_stop) {
         ret = recv_ipc_msg(msq_id, (long)PROBE_L7, &ipc_body);
         if (ret == 0) {
-            unload_l7_prog(l7_mng);
-            ret = load_l7_prog(l7_mng);
-            if (ret) {
-                destroy_ipc_body(&ipc_body);
-                break;
+            if (ipc_body.probe_flags & IPC_FLAGS_PARAMS_CHG || ipc_body.probe_flags == 0) {
+                unload_l7_prog(l7_mng);
+                ret = load_l7_prog(l7_mng);
+                if (ret) {
+                    destroy_ipc_body(&ipc_body);
+                    break;
+                }
             }
 
             unload_l7_snoopers(l7_mng->bpf_progs.proc_obj_map_fd, &(l7_mng->ipc_body));

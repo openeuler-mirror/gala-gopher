@@ -334,6 +334,7 @@ KRETPROBE(sock_alloc, pt_regs)
 // int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 KPROBE_SYSCALL(connect)
 {
+    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
 
@@ -341,8 +342,8 @@ KPROBE_SYSCALL(connect)
         return 0;
     }
 
-    int fd = (int)PT_REGS_PARM1(ctx);
-    const struct sockaddr *addr = (const struct sockaddr *)PT_REGS_PARM2(ctx);
+    int fd = (int)PT_REGS_PARM1_CORE(regs);
+    const struct sockaddr *addr = (const struct sockaddr *)PT_REGS_PARM2_CORE(regs);
 
     struct sys_connect_args_s args = {0};
     args.fd = fd;
@@ -384,6 +385,7 @@ end:
 // ssize_t send(int sockfd, const void *buf, size_t len, int flags);
 KPROBE_SYSCALL(send)
 {
+    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
 
@@ -391,13 +393,13 @@ KPROBE_SYSCALL(send)
         return 0;
     }
 
-    int fd = (int)PT_REGS_PARM1(ctx);
+    int fd = (int)PT_REGS_PARM1_CORE(regs);
 
     struct sock_data_args_s args = {0};
     args.conn_id.fd = fd;
     args.conn_id.tgid = proc_id;
     args.direct = L7_EGRESS;
-    args.buf = (char *)PT_REGS_PARM2(ctx);
+    args.buf = (char *)PT_REGS_PARM2_CORE(regs);
     args.is_ssl = 0;
     bpf_map_update_elem(&sock_data_args, &id, &args, BPF_ANY);
     return 0;
@@ -435,13 +437,14 @@ end:
 // int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
 KPROBE_SYSCALL(accept)
 {
+    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
 
     if (!is_tracing((int)(id >> INT_LEN))) {
         return 0;
     }
 
-    struct sockaddr *addr = (struct sockaddr *)PT_REGS_PARM2(ctx);
+    struct sockaddr *addr = (struct sockaddr *)PT_REGS_PARM2_CORE(regs);
 
     struct sys_accept_args_s args = {0};
     args.addr = addr;
@@ -480,13 +483,14 @@ end:
 // int accept4(int sockfd, struct sockaddr *addr, socklen_t *addrlen, int flags);
 KPROBE_SYSCALL(accept4)
 {
+    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
 
     if (!is_tracing((int)(id >> INT_LEN))) {
         return 0;
     }
 
-    struct sockaddr *addr = (struct sockaddr *)PT_REGS_PARM2(ctx);
+    struct sockaddr *addr = (struct sockaddr *)PT_REGS_PARM2_CORE(regs);
 
     struct sys_accept_args_s args = {0};
     args.addr = addr;
@@ -525,9 +529,10 @@ end:
 // ssize_t write(int fd, const void *buf, size_t count);
 KPROBE_SYSCALL(write)
 {
+    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
-    int fd = (int)PT_REGS_PARM1(ctx);
+    int fd = (int)PT_REGS_PARM1_CORE(regs);
 
     if (!is_tracing(proc_id)) {
         return 0;
@@ -537,7 +542,7 @@ KPROBE_SYSCALL(write)
     args.conn_id.fd = fd;
     args.conn_id.tgid = proc_id;
     args.direct = L7_EGRESS;
-    args.buf = (char *)PT_REGS_PARM2(ctx);
+    args.buf = (char *)PT_REGS_PARM2_CORE(regs);
     args.is_ssl = 0;
     bpf_map_update_elem(&sock_data_args, &id, &args, BPF_ANY);
     return 0;
@@ -575,9 +580,10 @@ end:
 // ssize_t read(int fd, void *buf, size_t count);
 KPROBE_SYSCALL(read)
 {
+    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
-    int fd = (int)PT_REGS_PARM1(ctx);
+    int fd = (int)PT_REGS_PARM1_CORE(regs);
 
     if (!is_tracing(proc_id)) {
         return 0;
@@ -587,7 +593,7 @@ KPROBE_SYSCALL(read)
     args.conn_id.fd = fd;
     args.conn_id.tgid = proc_id;
     args.direct = L7_INGRESS;
-    args.buf = (char *)PT_REGS_PARM2(ctx);
+    args.buf = (char *)PT_REGS_PARM2_CORE(regs);
     args.is_ssl = 0;
     bpf_map_update_elem(&sock_data_args, &id, &args, BPF_ANY);
     return 0;
@@ -624,9 +630,10 @@ end:
 // ssize_t recv(int sockfd, void *buf, size_t len, int flags);
 KPROBE_SYSCALL(recv)
 {
+    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
-    int fd = (int)PT_REGS_PARM1(ctx);
+    int fd = (int)PT_REGS_PARM1_CORE(regs);
 
     if (!is_tracing(proc_id)) {
         return 0;
@@ -636,7 +643,7 @@ KPROBE_SYSCALL(recv)
     args.conn_id.fd = fd;
     args.conn_id.tgid = proc_id;
     args.direct = L7_INGRESS;
-    args.buf = (char *)PT_REGS_PARM2(ctx);
+    args.buf = (char *)PT_REGS_PARM2_CORE(regs);
     args.is_ssl = 0;
     bpf_map_update_elem(&sock_data_args, &id, &args, BPF_ANY);
     return 0;
@@ -673,6 +680,7 @@ end:
 //      int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
 KPROBE_SYSCALL(sendto)
 {
+    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
 
@@ -680,15 +688,15 @@ KPROBE_SYSCALL(sendto)
         return 0;
     }
 
-    int sockfd = (int)PT_REGS_PARM1(ctx);
-    char *buf = (char *)PT_REGS_PARM2(ctx);
+    int sockfd = (int)PT_REGS_PARM1_CORE(regs);
+    char *buf = (char *)PT_REGS_PARM2_CORE(regs);
     if (buf == NULL || sockfd < 0) {
         return -1;
     }
 
     // Filter by UDP tracing-on/off
     if (is_tracing_udp()) {
-        struct sockaddr * dest_addr = (struct sockaddr *)PT_REGS_PARM5(ctx);
+        struct sockaddr * dest_addr = (struct sockaddr *)PT_REGS_PARM5_CORE(regs);
         if (dest_addr && sockfd > 0) {
             struct sys_connect_args_s args = {0};
             args.fd = sockfd;
@@ -756,6 +764,7 @@ end:
 //      int flags, struct sockaddr *src_addr, socklen_t *addrlen);
 KPROBE_SYSCALL(recvfrom)
 {
+    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
 
@@ -763,15 +772,15 @@ KPROBE_SYSCALL(recvfrom)
         return 0;
     }
 
-    int sockfd = (int)PT_REGS_PARM1(ctx);
-    char *buf = (char *)PT_REGS_PARM2(ctx);
+    int sockfd = (int)PT_REGS_PARM1_CORE(regs);
+    char *buf = (char *)PT_REGS_PARM2_CORE(regs);
     if (buf == NULL || sockfd < 0) {
         return -1;
     }
 
     // Filter by UDP tracing-on/off
     if (is_tracing_udp()) {
-        struct sockaddr * src_addr = (struct sockaddr *)PT_REGS_PARM5(ctx);
+        struct sockaddr * src_addr = (struct sockaddr *)PT_REGS_PARM5_CORE(regs);
         if (src_addr) {
             struct sys_connect_args_s args = {0};
             args.fd = sockfd;
@@ -839,6 +848,7 @@ end:
 // ssize_t sendmsg(int sockfd, const struct msghdr *msg, int flags);
 KPROBE_SYSCALL(sendmsg)
 {
+    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
 
@@ -846,8 +856,8 @@ KPROBE_SYSCALL(sendmsg)
         return 0;
     }
 
-    int fd = (int)PT_REGS_PARM1(ctx);
-    struct user_msghdr *msg = (struct user_msghdr *)PT_REGS_PARM2(ctx);
+    int fd = (int)PT_REGS_PARM1_CORE(regs);
+    struct user_msghdr *msg = (struct user_msghdr *)PT_REGS_PARM2_CORE(regs);
 #if (CURRENT_LIBBPF_VERSION  < LIBBPF_VERSION(0, 8))
     void * msg_name = BPF_CORE_READ(msg, msg_name);
     struct iovec* iov = BPF_CORE_READ(msg, msg_iov);
@@ -927,14 +937,15 @@ end:
 // ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags);
 KPROBE_SYSCALL(recvmsg)
 {
+    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
     if (!is_tracing(proc_id)) {
         return 0;
     }
 
-    int fd = (int)PT_REGS_PARM1(ctx);
-    struct user_msghdr *msg = (struct user_msghdr *)PT_REGS_PARM2(ctx);
+    int fd = (int)PT_REGS_PARM1_CORE(regs);
+    struct user_msghdr *msg = (struct user_msghdr *)PT_REGS_PARM2_CORE(regs);
 #if (CURRENT_LIBBPF_VERSION  < LIBBPF_VERSION(0, 8))
     void * msg_name = BPF_CORE_READ(msg, msg_name);
     struct iovec* iov = BPF_CORE_READ(msg, msg_iov);
@@ -1014,12 +1025,13 @@ end:
 // int close(int fd);
 KPROBE_SYSCALL(close)
 {
+    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
     if (!is_tracing((int)(id >> INT_LEN))) {
         return 0;
     }
 
-    int fd = (int)PT_REGS_PARM1(ctx);
+    int fd = (int)PT_REGS_PARM1_CORE(regs);
     if (fd < 0) {
         return 0;
     }
