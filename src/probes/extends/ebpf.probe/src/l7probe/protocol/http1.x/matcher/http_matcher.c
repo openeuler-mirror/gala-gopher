@@ -17,35 +17,46 @@
 
 static void add_http_record_into_buf(http_record *record, struct record_buf_s *record_buf)
 {
-    struct record_data_s *record_data = (struct record_data_s *) malloc(sizeof(struct record_data_s));
-    if (record_data == NULL) {
-        ERROR("[HTTP1.x MATCHER] Failed to malloc record_data.");
+    // 复制record内容
+    http_record *rcd_cp = (http_record *) malloc(sizeof(http_record));
+    if (rcd_cp == NULL) {
+        ERROR("[HTTP1.x MATCHER] Failed to malloc http_record.\n");
         return;
     }
-    record_data->record = record;
-    record_data->latency = record->resp->timestamp_ns - record->req->timestamp_ns;
+    rcd_cp->req = record->req;
+    rcd_cp->resp = record->resp;
+
+    struct record_data_s *record_data = (struct record_data_s *) malloc(sizeof(struct record_data_s));
+    if (record_data == NULL) {
+        ERROR("[HTTP1.x MATCHER] Failed to malloc record_data.\n");
+        free_http_record(rcd_cp);
+        return;
+    }
+    record_data->record = rcd_cp;
+    record_data->latency = rcd_cp->resp->timestamp_ns - rcd_cp->req->timestamp_ns;
 
     // 计数错误个数，大于等于400均为错误，4xx为客户端错误，5xx为服务端错误
-    if (record->resp->resp_status >= 400) {
+    if (rcd_cp->resp->resp_status >= 400) {
+        DEBUG("[HTTP1.x MATCHER] Response Status Code: %d, error count increase.\n", record->resp->resp_status);
         ++record_buf->err_count;
     }
     record_buf->records[record_buf->record_buf_size] = record_data;
     ++record_buf->record_buf_size;
 }
 
-// Note: http消息队列若中间丢失req或resp，导致不能match正确到record，则结果不准确，影响较大
+// Note: http消息队列若中间丢失req或resp，导致不能match正确到record，则结果不准确
 void http_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *resp_frames, struct record_buf_s *record_buf)
 {
+    DEBUG("[HTTP1.x MATCHER] Start to match http req and resp into record.\n");
+    if (req_frames->frame_buf_size == 0 || resp_frames->frame_buf_size == 0) {
+        return;
+    }
     record_buf->err_count = 0;
     record_buf->record_buf_size = 0;
     record_buf->req_count = req_frames->frame_buf_size;
     record_buf->resp_count = resp_frames->frame_buf_size;
 
-    http_record *record = (http_record *) malloc(sizeof(http_record));
-    if (record == NULL) {
-        ERROR("[HTTP1.x MATCHER] Failed to malloc http_record.");
-        return;
-    }
+    http_record record = {0};
 
     // 占位message，时间戳设置为最大
     http_message placeholder_msg = {0};
@@ -60,29 +71,37 @@ void http_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *resp_
 
         // 处理req，添加到record中
         if (req_msg->timestamp_ns < resp_msg->timestamp_ns) {
-            // Requests always go into the record (though not pushed yet).
-            // If the next oldest item is a request too, it will (correctly) clobber this one.
-            // set req into record, not adding record into records yet, record pointer not changed.
-            record->req = req_msg;
+            DEBUG("[HTTP1.x MATCHER] Add req into record, req.timestamp: %d, resq.timestamp: %d\n",
+                 req_msg->timestamp_ns, resp_msg->timestamp_ns);
+            memset(&record, 0, sizeof(http_record));
+
+            // req_msg一定放入record中，只要有就放入
+            record.req = req_msg;
             ++req_frames->current_pos;
             continue;
         }
 
-        // Two cases for a response:
-        // 1) No older request was found: then we ignore the response.
-        // 2) An older request was found: then it is considered a match. Push the record, and reset.
-        if (record->req->timestamp_ns != 0) {
-            record->resp = resp_msg;
-            ++resp_frames->current_pos;
-            add_http_record_into_buf(record, record_buf);
+        // 循环默认假定req的数量一定大于等于resp，这也符合正常情况。此处异常分支处理跳出循环
+        if (record.req == NULL) {
+            WARN("[HTTP1.x MATCHER] There's no req in the record, break the cycle.\n");
+            break;
+        }
 
-            record = (http_record *) malloc(sizeof(http_record));
-            if (record == NULL) {
-                ERROR("[HTTP1.x MATCHER] Failed to malloc http_record.");
-                return;
-            }
+        // 两种情况分别处理
+        // 如果现存record中的req是ok的，则匹配，放入record_buf中，并重新分配record内存
+        if (record.req->timestamp_ns != 0) {
+            DEBUG("[HTTP1.x MATCHER] Record->req->timestamp: %d\n", record.req->timestamp_ns);
+            record.resp = resp_msg;
+            ++resp_frames->current_pos;
+            add_http_record_into_buf(&record, record_buf);
+
+            // 重新分配record的内容空间
+            memset(&record, 0, sizeof(http_record));
             continue;
         }
+
+        // 如果record中现存的req是个占位的，则直接忽略继续遍历
         ++resp_frames->current_pos;
     }
+    DEBUG("[HTTP1.x MATCHER] match finished.\n");
 }

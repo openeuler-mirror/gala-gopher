@@ -21,37 +21,25 @@
 #include "hash.h"
 #include "../util/string_utils.h"
 
-#define MAX_KEY_LEN 100
-#define MAX_VALUE_LEN 100
-
-/**
- * multiple map value link node
- */
-typedef struct value_node_t {
-    char *value;
-    struct value_node_t *next;
-} value_node;
-
-value_node *init_value_node();
-
-void free_value_node(value_node *node);
+#define MAX_HEADERS_SIZE 50
 
 /**
  * multiple map key-value pair
  *
  * http headers map, using UTHash
  * HTTP1.x headers can have multiple values for the same name, and filed names are case-insensitive.
- * key_l represents lower case of key
+ * key represents lower case of key
  */
 typedef struct key_values_pair {
-    char *key_l;
-    value_node *values;
-    UT_hash_handle hh;
-} multiple_map_pair, http_headers_map;
+    H_HANDLE;
+    char *key;
+    char *values[MAX_HEADERS_SIZE];
+    size_t val_len;
+} http_headers_map;
 
 http_headers_map *init_http_headers_map(void);
 
-void free_http_headers_map(http_headers_map* map);
+void free_http_headers_map(http_headers_map** map);
 
 /**
  * insert key-value into the multiple-map
@@ -60,7 +48,7 @@ void free_http_headers_map(http_headers_map* map);
  * @param key
  * @param value
  */
-void insert_into_multiple_map(http_headers_map *map, const char *key, const char *value);
+void insert_into_multiple_map(http_headers_map **map, const char *key, const char *value);
 
 /**
  * get values from the multiple-map by key

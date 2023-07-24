@@ -43,8 +43,11 @@ char *substr(char *src_str, size_t start_pos, size_t len)
 
 char *to_upper(const char *src_char)
 {
-    char *upper_str = (char *) malloc(sizeof(char *));
-    for (int i = 0; src_char[i] != '\0'; i++) {
+    char *upper_str = (char *) malloc(sizeof(char) * strlen(src_char));
+    if (upper_str == NULL) {
+        return NULL;
+    }
+    for (int i = 0; i < strlen(src_char); i++) {
         upper_str[i] = toupper(src_char[i]);
     }
     return upper_str;
@@ -52,8 +55,11 @@ char *to_upper(const char *src_char)
 
 char *to_lower(const char *src_char)
 {
-    char *lower_str = (char *) malloc(sizeof(char *));
-    for (int i = 0; src_char[i] != '\0'; i++) {
+    char *lower_str = (char *) malloc(sizeof(char) * strlen(src_char));
+    if (lower_str == NULL) {
+        return NULL;
+    }
+    for (int i = 0; i < strlen(src_char); i++) {
         lower_str[i] = tolower(src_char[i]);
     }
     return lower_str;
@@ -113,7 +119,7 @@ size_t rfind_str(const char *str, const char *sub)
         return -1;
     }
 
-    for (int i = str_len - sub_len; i >= 0; i++) {
+    for (int i = str_len - sub_len; i >= 0; i--) {
         if (strncmp(str + i, sub, sub_len) == 0) {
             return i;
         }
@@ -125,7 +131,7 @@ size_t rfind_str(const char *str, const char *sub)
 size_t get_array_len(const char *arr[])
 {
     size_t len = 0;
-    while(arr[len] != NULL) {
+    while(arr[len][0] != '\0') {
         len++;
     }
     return len;

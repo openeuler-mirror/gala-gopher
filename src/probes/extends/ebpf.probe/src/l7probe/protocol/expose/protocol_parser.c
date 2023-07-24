@@ -40,10 +40,10 @@ void free_record_data(enum proto_type_t type, struct record_data_s *record_data)
 
     switch (type) {
         case PROTO_PGSQL:
-            free_pgsql_record((struct pgsql_record_s *) record_data);
+            free_pgsql_record((struct pgsql_record_s *) record_data->record);
             break;
         case PROTO_HTTP:
-            free_http_record((http_record *) record_data);
+            free_http_record((http_record *) record_data->record);
             break;
         // todo: add protocols:
         case PROTO_HTTP2:

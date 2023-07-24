@@ -16,6 +16,7 @@
 #define __HTTP_PARSE_WRAPPER_H__
 
 #include "../model/http_msg_format.h"
+#include "picohttpparser.h"
 
 /**
  * HTTP header
@@ -29,7 +30,7 @@ typedef struct http_header_t {
 
 http_header *init_http_header();
 
-void free_http_header(http_header *header);
+void free_http_header(http_header* header);
 
 /**
  * HTTP Request
@@ -40,29 +41,29 @@ typedef struct http_request {
     const char *path;
     size_t path_len;
     int minor_version;
-    http_header *headers;
+    struct phr_header headers[MAX_HEADERS_SIZE];
     size_t num_headers;
 } http_request;
 
 http_request *init_http_request(void);
 
-void free_http_request(http_request *req);
+void free_http_request(http_request* req);
 
 /**
  * HTTP Response
  */
 typedef struct http_response {
-    const char* msg;
+    char* msg;
     size_t msg_len;
     int status;
     int minor_version;
-    http_header *headers;
+    struct phr_header headers[MAX_HEADERS_SIZE];
     size_t num_headers;
 } http_response;
 
 http_response *init_http_response(void);
 
-void free_http_response(http_response *resp);
+void free_http_response(http_response* resp);
 
 /**
  * Parse http request header
@@ -71,7 +72,7 @@ void free_http_response(http_response *resp);
  * @param req
  * @return
  */
-size_t http_parse_request_headers(struct raw_data_s *raw_data, http_request* req);
+size_t http_parse_request_headers(struct raw_data_s* raw_data, http_request* req);
 
 /**
  * Parse http response header
@@ -80,7 +81,7 @@ size_t http_parse_request_headers(struct raw_data_s *raw_data, http_request* req
  * @param resp
  * @return
  */
-size_t http_parse_response_headers(struct raw_data_s *raw_data, http_response* resp);
+size_t http_parse_response_headers(struct raw_data_s* raw_data, http_response* resp);
 
 /**
  * parse http headers from req.headers into http_headers_map
@@ -89,6 +90,6 @@ size_t http_parse_response_headers(struct raw_data_s *raw_data, http_response* r
  * @param num_headers
  * @return
  */
-http_headers_map *get_http_headers_map(http_header *headers, size_t num_headers);
+http_headers_map *get_http_headers_map(struct phr_header* headers, size_t num_headers);
 
 #endif // __HTTP_PARSE_WRAPPER_H__
