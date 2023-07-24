@@ -97,7 +97,7 @@ static int CmdProcessing(int argc, char *argv[])
                 return -1;
             case 'c':
                 ret = ParseConfigPath(optarg);
-                break;
+                return ret;
             default:
                 printf("command error!\n");
                 return -1;
