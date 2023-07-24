@@ -12,12 +12,17 @@
 %define without_l7            0
 %define without_postgre_sli   0
 %define without_redis_sli     0
+%define without_proc          0
+%define without_tprofiling    0
 
 # example for tailoring probes
-%define extend_tailor_probes \\\
-  %[0%{?without_flamegraph}?"stackprobe|":""] \\\
-  %[0%{?without_cadvisor}?"cadvisor.probe|":""] \\\
-  %[0%{?without_jvm}?"jvm.probe|":""]
+%global extend_tailor_probes %{nil}
+%if 0%{?without_flamegraph}
+%global extend_tailor_probes %{extend_tailor_probes}stackprobe|
+%endif
+%if 0%{?without_jvm}
+%global extend_tailor_probes %{extend_tailor_probes}jvm.probe
+%endif
 
 Summary:       Intelligent ops toolkit for openEuler
 Name:          gala-gopher
@@ -31,50 +36,50 @@ BuildRequires: systemd cmake gcc-c++ elfutils-devel clang >= 10.0.1 llvm
 BuildRequires: libconfig-devel librdkafka-devel libmicrohttpd-devel
 BuildRequires: libbpf-devel >= 2:0.3 uthash-devel log4cplus-devel
 BuildRequires: cjson-devel gnutls-devel
-%if 0%{?without_flamegraph}?0:1
+%if !0%{?without_flamegraph}
 BuildRequires: libcurl-devel
 %endif
-%if 0%{?without_jvm}?0:1
+%if !0%{?without_jvm}
 BuildRequires: java-1.8.0-openjdk-devel
 %endif
-%if 0%{?without_l7}?0:1
+%if !0%{?without_l7}
 BuildRequires: cjson-devel java-1.8.0-openjdk-devel
 %endif
 
 Requires:      bash glibc elfutils bpftool dmidecode libbpf >= 2:0.3
 Requires:      log4cplus librdkafka libmicrohttpd libconfig
 Requires:      iproute cjson gnutls
-%if 0%{?without_systeminfo}?0:1
+%if !0%{?without_systeminfo}
 Requires:      ethtool systemd iproute
 %endif
-%if 0%{?without_virt}?0:1
+%if !0%{?without_virt}
 Requires:      systemd
 %endif
-%if 0%{?without_tcp}?0:1
+%if !0%{?without_tcp}
 Requires:      iproute
 %endif
-%if 0%{?without_proc}?0:1
+%if !0%{?without_proc}
 Requires:      kmod
 %endif
-%if 0%{?without_flamegraph}?0:1
+%if !0%{?without_flamegraph}
 Requires:      flamegraph libcurl
 %endif
-%if 0%{?without_opengauss_sli}?0:1
+%if !0%{?without_opengauss_sli}
 Requires:      python3-psycopg2 python3-yaml net-tools
 %endif
-%if 0%{?without_cadvisor}?0:1
+%if !0%{?without_cadvisor}
 Requires:      cadvisor python3-libconf python3-requests net-tools
 %endif
-%if 0%{?without_postgre_sli}?0:1
+%if !0%{?without_postgre_sli}
 Requires:      iproute
 %endif
-%if 0%{?without_redis_sli}?0:1
+%if !0%{?without_redis_sli}
 Requires:      iproute
 %endif
-%if 0%{?without_l7}?0:1
+%if !0%{?without_l7}
 Requires:      cjson
 %endif
-%if 0%{?without_tprofiling}?0:1
+%if !0%{?without_tprofiling}
 Requires:      lsof
 %endif
 
