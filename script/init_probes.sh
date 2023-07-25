@@ -54,7 +54,7 @@ function init_probes_json()
             exit 1
         fi
 
-        put_data=$(echo $line | cut -d ' ' -f 1 --complement)
+        put_data=$(echo $line | cut -d ' ' -f 1 --complement | sed 's/[[:space:]]//g')
         if [ -z "$put_data" ] ; then
             exit 1
         fi

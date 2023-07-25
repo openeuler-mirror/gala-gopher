@@ -393,7 +393,11 @@ def print_metrics():
 
 def clean_metrics():
     pass
-    # Clean up containers that don't exist 
+    # Clean up containers that don't exist
+
+def reset_g_metric():
+    global g_metric
+    g_metric = {}
 
 
 if __name__ == "__main__":
@@ -414,6 +418,7 @@ if __name__ == "__main__":
     s = requests.Session()
     while True:
         time.sleep(params.period)
+        reset_g_metric()
         basic_probe.get_basic_infos()
         if cadvisor_running_flag:
             try:
