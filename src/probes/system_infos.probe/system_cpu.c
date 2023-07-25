@@ -99,21 +99,10 @@ static void report_cpu_status(struct ipc_body_s *ipc_body)
     }
 }
 
-static void get_cpu_time(char *src, u64 *last_total, u64 *last_used, u64 *cur_total, u64 *cur_used)
-{
-    if (is_first_get == true) {
-        get_cpu_time_in_jiff(src, cur_total, cur_used);
-    } else {
-        *last_total = *cur_total;
-        *last_used = *cur_used;
-        get_cpu_time_in_jiff(src, cur_total, cur_used);
-    }
-}
-
 static float get_cpu_util(char *src, u64 *last_total, u64 *last_used, u64 *cur_total, u64 *cur_used)
 {
     float util;
-    get_cpu_time(src, last_total, last_used, cur_total, cur_used);
+    get_cpu_time_in_jiff(src, cur_total, cur_used);
 
     util = (*cur_used - *last_used) * FULL_PER * 1.0 / (*cur_total - *last_total);
 
@@ -144,6 +133,8 @@ static int get_proc_stat_info(void)
         if (is_first_line) {
             util_per = get_cpu_util(dst_line, &last_time_total, &last_time_used,
                                     &cur_time_total, &cur_time_used);
+            last_time_total = cur_time_total;
+            last_time_used = cur_time_used;
             is_first_line = false;
             continue;
         }
