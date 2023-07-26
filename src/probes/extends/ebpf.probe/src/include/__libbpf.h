@@ -158,7 +158,7 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
             } \
         }\
     } while (0)
-    
+
 #define MAP_SET_PIN_PATH(probe_name, map_name, map_path, load) \
     do { \
         if (load) \
@@ -166,7 +166,7 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
             __MAP_SET_PIN_PATH(probe_name, map_name, map_path); \
         } \
     } while (0)
-    
+
 #define LOAD_ATTACH(app_name, probe_name, end, load) \
     do { \
         if (load) \
@@ -358,6 +358,7 @@ static __always_inline __maybe_unused struct perf_buffer* __do_create_pref_buffe
     struct perf_buffer_opts pb_opts = {};
     pb_opts.sample_cb = cb;
     pb_opts.lost_cb = lost_cb;
+    pb_opts.ctx = ctx;
     pb = perf_buffer__new(map_fd, 8, &pb_opts);
 #endif
     if (pb == NULL){
