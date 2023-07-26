@@ -268,6 +268,12 @@ static struct l7_link_s* add_l7_link(struct l7_mng_s *l7_mng, const struct l7_li
         return link;
     }
 
+#define __L7_LINK_MAX (4 * 1024)
+    if (l7_mng->l7_links_capability >= __L7_LINK_MAX) {
+        ERROR("[L7PROBE]: Create 'l7_link' failed(upper to limited).\n");
+        return NULL;
+    }
+
     struct l7_link_s* new_link = create_l7_link(id);
     if (new_link == NULL) {
         return NULL;
@@ -275,11 +281,13 @@ static struct l7_link_s* add_l7_link(struct l7_mng_s *l7_mng, const struct l7_li
 
     new_link->stats[OPEN_EVT] = 1;
     __init_l7_link_info(l7_mng, new_link, tracker);
+    new_link->last_rcv_data = time(NULL);
 
     H_ADD_KEYPTR(l7_mng->l7_links, &new_link->id, sizeof(struct l7_link_id_s), new_link);
     return new_link;
 }
 
+#if 0
 static int del_l7_link(struct l7_mng_s *l7_mng, const struct l7_link_id_s *id, const struct conn_tracker_s* tracker)
 {
     struct conn_tracker_s* last_tracker;
@@ -301,6 +309,7 @@ static int del_l7_link(struct l7_mng_s *l7_mng, const struct l7_link_id_s *id, c
     destroy_l7_link(link);
     return 0;
 }
+#endif
 
 static struct l7_link_s* find_l7_link(struct l7_mng_s *l7_mng, const struct conn_tracker_s* tracker)
 {
@@ -348,6 +357,7 @@ static int proc_conn_ctl_msg(struct l7_mng_s *l7_mng, struct conn_ctl_s *conn_ct
         }
         case CONN_EVT_CLOSE:
         {
+            #if 0
             tracker = lkup_conn_tracker(l7_mng, (const struct tracker_id_s *)&tracker_id);
             if (tracker) {
                 l7_link_id.l4_role = tracker->l4_role;
@@ -357,6 +367,7 @@ static int proc_conn_ctl_msg(struct l7_mng_s *l7_mng, struct conn_ctl_s *conn_ct
                 (void)memcpy(&(l7_link_id.remote_addr), &(tracker->open_info.remote_addr), sizeof(struct conn_addr_s));
                 (void)del_l7_link(l7_mng, (const struct l7_link_id_s *)&l7_link_id, (const struct conn_tracker_s *)tracker);
             }
+            #endif
             del_conn_tracker(l7_mng, &tracker_id);
             break;
         }
@@ -397,6 +408,7 @@ static int proc_conn_stats_msg(struct l7_mng_s *l7_mng, struct conn_stats_s *con
 
         link->stats[LAST_BYTES_SENT] = conn_stats_msg->wr_bytes;
         link->stats[LAST_BYTES_RECV] = conn_stats_msg->rd_bytes;
+        link->last_rcv_data = time(NULL);
     }
     return 0;
 }
@@ -419,6 +431,7 @@ static int proc_conn_data_msg(struct l7_mng_s *l7_mng, struct conn_data_s *conn_
     if (link == NULL) {
         return -1;
     }
+    link->last_rcv_data = time(NULL);
 
     tracker->protocol = conn_data_msg->proto;
     tracker->l7_role = conn_data_msg->l7_role;
@@ -554,6 +567,35 @@ static void reset_l7_stats(struct l7_mng_s *l7_mng)
     }
 
     return;
+}
+
+static char is_l7link_inactive(struct l7_link_s *link)
+{
+#define __INACTIVE_TIME_SECS     (5 * 60)       // 5min
+    time_t current = time(NULL);
+    time_t secs;
+
+    if (current > link->last_rcv_data) {
+        secs = current - link->last_rcv_data;
+        if (secs >= __INACTIVE_TIME_SECS) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+void aging_l7_links(struct l7_mng_s *l7_mng)
+{
+    struct l7_link_s *link, *tmp;
+
+    H_ITER(l7_mng->l7_links, link, tmp) {
+        if (is_l7link_inactive(link)) {
+            H_DEL(l7_mng->l7_links, link);
+            destroy_l7_link(link);
+            l7_mng->l7_links_capability--;
+        }
+    }
 }
 
 static void calc_tracker_stats(struct conn_tracker_s* tracker, struct probe_params *probe_param)
@@ -692,7 +734,7 @@ void report_l7(void *ctx)
     calc_l7_stats(l7_mng);
     report_l7_stats(l7_mng);
     reset_l7_stats(l7_mng);
-
+    aging_l7_links(l7_mng);
     return;
 }
 
