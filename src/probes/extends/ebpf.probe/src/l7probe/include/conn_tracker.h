@@ -161,6 +161,7 @@ struct l7_link_s {
     float latency[__MAX_LATENCY];
     float err_ratio;
     u64 latency_sum;
+    time_t last_rcv_data;
 };
 
 void destroy_trackers(void *ctx);
