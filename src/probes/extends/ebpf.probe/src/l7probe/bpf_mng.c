@@ -145,17 +145,17 @@ int l7_load_probe_libssl(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog, const
         return -1;
     }
 
-    // libssl bpf prog create pb for 'conn_stats_events'
-    fd = GET_MAP_FD(libssl, conn_stats_events);
-    if (l7_prog_create_pb(prog, fd, get_stats_msg_cb(), l7_mng)) {
-        ERROR("[L7PROBE]: Create 'conn_stats_events' perf buf failed.\n");
-        return -1;
-    }
-
     // libssl bpf prog create pb for 'conn_data_events'
     fd = GET_MAP_FD(libssl, conn_data_events);
     if (l7_prog_create_pb(prog, fd, get_data_msg_cb(), l7_mng)) {
         ERROR("[L7PROBE]: Create 'conn_data_events' perf buf failed.\n");
+        return -1;
+    }
+
+    // libssl bpf prog create pb for 'conn_stats_events'
+    fd = GET_MAP_FD(libssl, conn_stats_events);
+    if (l7_prog_create_pb(prog, fd, get_stats_msg_cb(), l7_mng)) {
+        ERROR("[L7PROBE]: Create 'conn_stats_events' perf buf failed.\n");
         return -1;
     }
 
@@ -197,17 +197,17 @@ int l7_load_probe_kern_sock(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog)
         return -1;
     }
 
-    // kern_sock bpf prog create pb for 'conn_stats_events'
-    fd = GET_MAP_FD(kern_sock, conn_stats_events);
-    if (l7_prog_create_pb(prog, fd, get_stats_msg_cb(), l7_mng)) {
-        ERROR("[L7PROBE]: Create 'conn_stats_events' perf buf failed.\n");
-        return -1;
-    }
-
     // kern_sock bpf prog create pb for 'conn_data_events'
     fd = GET_MAP_FD(kern_sock, conn_data_events);
     if (l7_prog_create_pb(prog, fd, get_data_msg_cb(), l7_mng)) {
         ERROR("[L7PROBE]: Create 'conn_data_events' perf buf failed.\n");
+        return -1;
+    }
+
+    // kern_sock bpf prog create pb for 'conn_stats_events'
+    fd = GET_MAP_FD(kern_sock, conn_stats_events);
+    if (l7_prog_create_pb(prog, fd, get_stats_msg_cb(), l7_mng)) {
+        ERROR("[L7PROBE]: Create 'conn_stats_events' perf buf failed.\n");
         return -1;
     }
 

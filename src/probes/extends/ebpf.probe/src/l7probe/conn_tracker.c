@@ -116,7 +116,6 @@ static void destroy_conn_tracker(struct conn_tracker_s* tracker)
     return;
 }
 
-
 static struct conn_tracker_s* create_conn_tracker(const struct tracker_id_s *id)
 {
     struct conn_tracker_s* tracker = (struct conn_tracker_s *)malloc(sizeof(struct conn_tracker_s));
@@ -129,10 +128,11 @@ static struct conn_tracker_s* create_conn_tracker(const struct tracker_id_s *id)
     (void)init_data_stream(&(tracker->send_stream));
     (void)init_data_stream(&(tracker->recv_stream));
 
+    tracker->l4_role = L4_ROLE_MAX; // init
+
     init_latency_buckets(tracker->latency_buckets, __MAX_LT_RANGE);
     return tracker;
 }
-
 
 static struct conn_tracker_s* lkup_conn_tracker(struct l7_mng_s *l7_mng, const struct tracker_id_s *id)
 {
@@ -158,15 +158,16 @@ static struct conn_tracker_s* add_conn_tracker(struct l7_mng_s *l7_mng, const st
     return new_tracker;
 }
 
-static void del_conn_tracker(struct l7_mng_s *l7_mng, const struct tracker_id_s *id)
+static void try_del_conn_tracker(struct l7_mng_s *l7_mng, const struct tracker_id_s *id)
 {
     struct conn_tracker_s* tracker = lkup_conn_tracker(l7_mng, id);
     if (tracker == NULL) {
         return;
     }
-
-    H_DEL(l7_mng->trackers, tracker);
-    destroy_conn_tracker(tracker);
+    if (tracker->inactive == 1) {
+        H_DEL(l7_mng->trackers, tracker);
+        destroy_conn_tracker(tracker);
+    }
     return;
 }
 
@@ -260,9 +261,17 @@ static void __init_l7_link_info(struct l7_mng_s *l7_mng, struct l7_link_s* link,
     return;
 }
 
-static struct l7_link_s* add_l7_link(struct l7_mng_s *l7_mng, const struct l7_link_id_s *id, const struct conn_tracker_s* tracker)
+static struct l7_link_s* add_l7_link(struct l7_mng_s *l7_mng, const struct conn_tracker_s* tracker)
 {
-    struct l7_link_s* link = lkup_l7_link(l7_mng, id);
+    struct l7_link_id_s l7_link_id = {0};
+
+    l7_link_id.l4_role = tracker->l4_role;
+    l7_link_id.l7_role = tracker->l7_role;
+    l7_link_id.protocol = tracker->protocol;
+    l7_link_id.tgid = tracker->id.tgid;
+    (void)memcpy(&(l7_link_id.remote_addr), &(tracker->open_info.remote_addr), sizeof(struct conn_addr_s));
+
+    struct l7_link_s* link = lkup_l7_link(l7_mng, (const struct l7_link_id_s *)&l7_link_id);
     if (link) {
         link->stats[OPEN_EVT]++;
         return link;
@@ -274,7 +283,7 @@ static struct l7_link_s* add_l7_link(struct l7_mng_s *l7_mng, const struct l7_li
         return NULL;
     }
 
-    struct l7_link_s* new_link = create_l7_link(id);
+    struct l7_link_s* new_link = create_l7_link((const struct l7_link_id_s *)&l7_link_id);
     if (new_link == NULL) {
         return NULL;
     }
@@ -286,30 +295,6 @@ static struct l7_link_s* add_l7_link(struct l7_mng_s *l7_mng, const struct l7_li
     H_ADD_KEYPTR(l7_mng->l7_links, &new_link->id, sizeof(struct l7_link_id_s), new_link);
     return new_link;
 }
-
-#if 0
-static int del_l7_link(struct l7_mng_s *l7_mng, const struct l7_link_id_s *id, const struct conn_tracker_s* tracker)
-{
-    struct conn_tracker_s* last_tracker;
-
-    struct l7_link_s* link = lkup_l7_link(l7_mng, id);
-    if (link == NULL) {
-        // Abnormal end.
-        return -1;
-    }
-
-    last_tracker = find_conn_tracker(l7_mng, id);
-    if (last_tracker) {
-        link->stats[CLOSE_EVT]++;
-        // Normal end.
-        return 0;
-    }
-
-    H_DEL(l7_mng->l7_links, link);
-    destroy_l7_link(link);
-    return 0;
-}
-#endif
 
 static struct l7_link_s* find_l7_link(struct l7_mng_s *l7_mng, const struct conn_tracker_s* tracker)
 {
@@ -330,7 +315,6 @@ static struct l7_link_s* find_l7_link(struct l7_mng_s *l7_mng, const struct conn
 static int proc_conn_ctl_msg(struct l7_mng_s *l7_mng, struct conn_ctl_s *conn_ctl_msg)
 {
     struct conn_tracker_s* tracker;
-    struct l7_link_id_s l7_link_id = {0};
     struct tracker_id_s tracker_id = {0};
 
     tracker_id.fd = conn_ctl_msg->conn_id.fd;
@@ -342,38 +326,28 @@ static int proc_conn_ctl_msg(struct l7_mng_s *l7_mng, struct conn_ctl_s *conn_ct
             tracker = add_conn_tracker(l7_mng, (const struct tracker_id_s *)&tracker_id);
             if (tracker) {
                 tracker->is_ssl = conn_ctl_msg->open.is_ssl;
-                tracker->l4_role = conn_ctl_msg->open.l4_role;
+                if (tracker->l4_role == L4_ROLE_MAX) {
+                    tracker->l4_role = conn_ctl_msg->open.l4_role;
+                }
                 tracker->open_info.timestamp_ns = conn_ctl_msg->timestamp_ns;
-                (void)memcpy(&(tracker->open_info.remote_addr), &(conn_ctl_msg->open.addr), sizeof(struct conn_addr_s));
-
-                l7_link_id.l4_role = tracker->l4_role;
-                l7_link_id.l7_role = tracker->l7_role;
-                l7_link_id.protocol = tracker->protocol;
-                l7_link_id.tgid = tracker_id.tgid;
-                (void)memcpy(&(l7_link_id.remote_addr), &(tracker->open_info.remote_addr), sizeof(struct conn_addr_s));
-                (void)add_l7_link(l7_mng, (const struct l7_link_id_s *)&l7_link_id, (const struct conn_tracker_s *)tracker);
+                if (tracker->open_info.remote_addr.port == 0 && tracker->open_info.remote_addr.family == 0) {
+                    (void)memcpy(&(tracker->open_info.remote_addr),
+                            &(conn_ctl_msg->open.addr), sizeof(struct conn_addr_s));
+                }
             }
             break;
         }
         case CONN_EVT_CLOSE:
         {
-            #if 0
             tracker = lkup_conn_tracker(l7_mng, (const struct tracker_id_s *)&tracker_id);
             if (tracker) {
-                l7_link_id.l4_role = tracker->l4_role;
-                l7_link_id.l7_role = tracker->l7_role;
-                l7_link_id.protocol = tracker->protocol;
-                l7_link_id.tgid = tracker->id.tgid;
-                (void)memcpy(&(l7_link_id.remote_addr), &(tracker->open_info.remote_addr), sizeof(struct conn_addr_s));
-                (void)del_l7_link(l7_mng, (const struct l7_link_id_s *)&l7_link_id, (const struct conn_tracker_s *)tracker);
+                tracker->inactive = 1;
             }
-            #endif
-            del_conn_tracker(l7_mng, &tracker_id);
             break;
         }
         default:
         {
-            // TODO: Debuging
+            ERROR("[L7PROBE]: Recv unknow ctrl msg.\n");
             return -1;
         }
     }
@@ -389,10 +363,9 @@ static int proc_conn_stats_msg(struct l7_mng_s *l7_mng, struct conn_stats_s *con
     tracker_id.fd = conn_stats_msg->conn_id.fd;
     tracker_id.tgid = conn_stats_msg->conn_id.tgid;
 
-
     tracker = lkup_conn_tracker(l7_mng, (const struct tracker_id_s *)&tracker_id);
     if (tracker == NULL) {
-        return -1;
+        return 0;
     }
 
     tracker->stats[BYTES_SENT] += conn_stats_msg->wr_bytes;
@@ -410,6 +383,14 @@ static int proc_conn_stats_msg(struct l7_mng_s *l7_mng, struct conn_stats_s *con
         link->stats[LAST_BYTES_RECV] = conn_stats_msg->rd_bytes;
         link->last_rcv_data = time(NULL);
     }
+
+    /*
+        MUST be deleted here to inactive TCP tracker.
+
+        eBPF Sequence of events:   ctrl msg  -->  stats msg  -->  data msg
+        perf buffer poll sequence:   ctrl msg  -->  data msg  -->  stats msg
+    */
+    try_del_conn_tracker(l7_mng, (const struct tracker_id_s *)&tracker_id);
     return 0;
 }
 
@@ -424,17 +405,23 @@ static int proc_conn_data_msg(struct l7_mng_s *l7_mng, struct conn_data_s *conn_
     tracker_id.tgid = conn_data_msg->conn_id.tgid;
     tracker = lkup_conn_tracker(l7_mng, (const struct tracker_id_s *)&tracker_id);
     if (tracker == NULL) {
-        return -1;
+        return 0;
+    }
+    if (tracker->protocol == PROTO_UNKNOW) {
+        tracker->protocol = conn_data_msg->proto;
+        tracker->send_stream.type = tracker->protocol;
+        tracker->recv_stream.type = tracker->protocol;
     }
 
-    link = find_l7_link(l7_mng, (const struct conn_tracker_s *)tracker);
+    if (tracker->l7_role == L7_UNKNOW) {
+        tracker->l7_role = conn_data_msg->l7_role;
+    }
+
+    link = add_l7_link(l7_mng, (const struct conn_tracker_s *)tracker);
     if (link == NULL) {
         return -1;
     }
     link->last_rcv_data = time(NULL);
-
-    tracker->protocol = conn_data_msg->proto;
-    tracker->l7_role = conn_data_msg->l7_role;
 
     switch (conn_data_msg->direction) {
         case L7_EGRESS:
@@ -457,7 +444,7 @@ static int proc_conn_data_msg(struct l7_mng_s *l7_mng, struct conn_data_s *conn_
         }
         default:
         {
-            // TODO: Debuging
+            ERROR("[L7PROBE] Recv unknow data msg.\n");
             return -1;
         }
     }
