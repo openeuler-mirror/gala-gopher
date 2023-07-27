@@ -41,8 +41,8 @@
 #define CONTAINERD_STATUS_COMMAND "--output go-template --template='{{.status.state}}'"
 #define CONTAINERD_ID_COMMAND "%s ps -q | xargs %s inspect --output go-template --template='{{.info.pid}}, {{.status.id}}'"\
         "| /usr/bin/grep -w %u | /usr/bin/awk -F ', ' '{print $2}'"
-#define CONTAINERD_POD_COMMAND "--output go-template --template='{{index .status.labels \"io.kubernetes.pod.name\"}}''"
-#define CONTAINERD_PODID_COMMAND "--output go-template --template='{{index .status.labels \"io.kubernetes.pod.uid\"}}''"
+#define CONTAINERD_POD_COMMAND "--output go-template --template='{{index .status.labels \"io.kubernetes.pod.name\"}}'"
+#define CONTAINERD_PODID_COMMAND "--output go-template --template='{{index .status.labels \"io.kubernetes.pod.uid\"}}'"
 #define CONTAINERD_MERGED_COMMAND "mount | grep %s | grep rootfs | awk '{print $3}'"
 #define CONTAINERD_IP_CMD "%s ps | grep %s | awk '{print $NF}' | xargs %s inspectp --output go-template --template='{{.status.network.ip}}'"
 #define CONTAINERD_LIST_CONTAINER_COMMAND "%s ps -q | xargs  %s inspect --output go-template "\

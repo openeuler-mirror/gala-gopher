@@ -1147,9 +1147,9 @@ static char __rcv_snooper_proc_exec_sub(struct probe_s *probe, const char *comm,
 static void __rcv_snooper_proc_exec(struct probe_mng_s *probe_mng, const char* comm, u32 proc_id)
 {
     int i;
+    char pod_id_ready = 0;
     char snooper_obj_added;
     struct probe_s *probe;
-
     char container_id[CONTAINER_ABBR_ID_LEN + 1];
     char pod_id[POD_ID_LEN + 1];
     char pid_str[INT_LEN + 1];
@@ -1159,15 +1159,18 @@ static void __rcv_snooper_proc_exec(struct probe_mng_s *probe_mng, const char* c
 
     container_id[0] = 0;
     pod_id[0] = 0;
-    (void)get_container_id_by_pid_cpuset(pid_str, container_id, CONTAINER_ABBR_ID_LEN + 1);
-    if (container_id[0] != 0) {
-        (void)get_container_pod_id((const char *)container_id, pod_id, POD_ID_LEN + 1);
-    }
-
     for (i = 0; i < PROBE_TYPE_MAX; i++) {
         probe = probe_mng->probes[i];
         if (!probe) {
             continue;
+        }
+
+        if (pod_id_ready == 0) {
+            (void)get_container_id_by_pid_cpuset(pid_str, container_id, CONTAINER_ABBR_ID_LEN + 1);
+            if (container_id[0] != 0) {
+                (void)get_container_pod_id((const char *)container_id, pod_id, POD_ID_LEN + 1);
+            }
+            pod_id_ready = 1;
         }
 
         snooper_obj_added = __rcv_snooper_proc_exec_sub(probe, comm, proc_id, container_id, pod_id);
