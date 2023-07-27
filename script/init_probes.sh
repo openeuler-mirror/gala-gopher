@@ -47,8 +47,10 @@ function check_rest_server()
 
 function init_probes_json()
 {
-    while read line || [[ -n "${line}" ]] ; do
-        [[ $line =~ ^#.* ]] && continue
+    while read line; do
+        if [ -z "$line" ] || [[ $line =~ ^#.* ]]; then
+            continue
+        fi
         url=$(echo $line | awk '{print $1}')
         if [ -z "$url" ] ; then
             exit 1
