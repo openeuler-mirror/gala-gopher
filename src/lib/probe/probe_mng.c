@@ -764,7 +764,11 @@ struct probe_parser_s {
     probe_rollbacker rollbacker;
 };
 
-// !!!NOTICE:The function sequence cannot be changed.
+// !!!NOTICE:The function sequence and macros cannot be changed.
+#define PARSER_FLAG_CMD       0x01
+#define PARSER_FLAG_SNOOPERS  0x02
+#define PARSER_FLAG_PARAMS    0x04
+#define PARSER_FLAG_STATE     0x08
 struct probe_parser_s probe_parsers[] = {
     {"cmd", probe_parser_cmd, probe_printer_cmd, probe_backup_cmd, probe_rollback_cmd},
     {"snoopers", parse_snooper, print_snooper, backup_snooper, rollback_snooper},
@@ -907,7 +911,7 @@ static char snooper_is_modify(struct snooper_conf_s* conf, struct snooper_conf_s
     return snooper_modifys[conf->type].is_modify(conf, backup_conf);
 }
 
-static void set_probe_modify(struct probe_s *probe, struct probe_s *backup_probe)
+static void set_probe_modify(struct probe_s *probe, struct probe_s *backup_probe, u32 parse_flag)
 {
     char is_modify;
 
@@ -915,12 +919,18 @@ static void set_probe_modify(struct probe_s *probe, struct probe_s *backup_probe
     probe->is_params_chg = 0;
     probe->is_snooper_chg = 0;
 
-    if (probe->probe_range_flags != backup_probe->probe_range_flags) {
+    if ((parse_flag & PARSER_FLAG_CMD) &&
+        (probe->probe_range_flags != backup_probe->probe_range_flags)) {
         probe->is_params_chg = 1;
     }
 
-    if (memcmp(&(probe->probe_param), &(backup_probe->probe_param), sizeof(struct probe_params))) {
+    if ((parse_flag & PARSER_FLAG_PARAMS) &&
+        (memcmp(&(probe->probe_param), &(backup_probe->probe_param), sizeof(struct probe_params)))) {
         probe->is_params_chg = 1;
+    }
+
+    if (!(parse_flag & PARSER_FLAG_SNOOPERS)) {
+        return;
     }
 
     if (probe->snooper_conf_num != backup_probe->snooper_conf_num) {
@@ -973,8 +983,6 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
     }
     (void)memset(probe_backup, 0, sizeof(struct probe_s));
 
-
-
     size_t size = sizeof(probe_parsers) / sizeof(struct probe_parser_s);
     for (int i = 0; i < size; i++) {
         parser = &(probe_parsers[i]);
@@ -995,7 +1003,7 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
     }
 
     if (ret == 0) {
-        set_probe_modify(probe, probe_backup);
+        set_probe_modify(probe, probe_backup, parse_flag);
     }
 
     /* Send snooper obj after parsing successfully, except when the probe was deleted */
