@@ -22,8 +22,13 @@ if ! [[ $JAVA_TAILOR_PROBES =~ "jvm.probe" ]] ; then
 fi
 
 # tailor jsseprobe jar when tailoring l7probe
-if ! [[ $JAVA_TAILOR_PROBES =~ "l7prbe" ]] ; then
+if ! [[ $JAVA_TAILOR_PROBES =~ "l7probe" ]] ; then
     INSTALL_FILES+=" jsse.probe/JSSEProbeAgent.jar"
+fi
+
+# tailor jstackprobe jar when tailoring stackprobe
+if ! [[ $JAVA_TAILOR_PROBES =~ "stackprobe" ]] ; then
+    INSTALL_FILES+=" jstack.probe/JstackProbeAgent.jar"
 fi
 
 if [ ${INSTALL_PATH} ]; then
