@@ -370,6 +370,19 @@ static int parser_perf_sample_period(struct probe_s *probe, struct param_key_s *
     return 0;
 }
 
+static int parser_separate_out(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
+{
+    int value = (int)key_item->valueint;
+    if (value < param_key->v.min || value > param_key->v.max) {
+        PARSE_ERR("params.%s invalid value, must be in [%d, %d]",
+                  param_key->key, param_key->v.min, param_key->v.max);
+        return -1;
+    }
+
+    probe->probe_param.separate_out_flag = (char)value;
+    return 0;
+}
+
 #if 0
 static int parser_sysdebuging_dir(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
 {
@@ -477,6 +490,7 @@ SET_DEFAULT_PARAMS_CAHR(res_percent_upper);
 SET_DEFAULT_PARAMS_CAHR(res_percent_lower);
 SET_DEFAULT_PARAMS_CAHR(cport_flag);
 SET_DEFAULT_PARAMS_CAHR(continuous_sampling_flag);
+SET_DEFAULT_PARAMS_CAHR(separate_out_flag);
 
 #if 0
 SET_DEFAULT_PARAMS_STR(sys_debuging_dir);
@@ -502,6 +516,7 @@ struct param_key_s param_keys[] = {
     {"pyroscope_server",   {0, 0, 0, "localhost:4040"},             parser_pyscope_server, set_default_params_str_pyroscope_server, cJSON_String},
     {"svg_period",         {180, 30, 600, ""},                      parser_svg_period, set_default_params_inter_svg_period, cJSON_Number},
     {"perf_sample_period", {10, 10, 1000, ""},                      parser_perf_sample_period, set_default_params_inter_perf_sample_period, cJSON_Number},
+    {"separate_out",       {0, 0, 1, ""},                           parser_separate_out, set_default_params_char_separate_out_flag, cJSON_Number},
     {"svg_dir",            {0, 0, 0, "/var/log/gala-gopher/stacktrace"}, parser_svg_dir, set_default_params_str_svg_dir, cJSON_String},
     {"flame_dir",          {0, 0, 0, "/var/log/gala-gopher/flamegraph"}, parser_flame_dir, set_default_params_str_flame_dir, cJSON_String},
 #if 0

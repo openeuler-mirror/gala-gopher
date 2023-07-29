@@ -112,6 +112,7 @@ struct probe_params {
     char res_percent_lower;            //  Lower limit of resource percentage, default is 0%
     char cport_flag;                   //  Indicates whether the probes(such as tcp) identifies the client port, default is 0 (no identify)
     char continuous_sampling_flag;     //  Enables the continuous sampling, default is 0
+    char separate_out_flag;            //  Enables output of individual flame graphs for each process, default is 0
     char target_dev[DEV_NAME];         //  Device name, default is null
     char elf_path[MAX_PATH_LEN];       //  Set ELF file path of the monitored software, default is null
 #if 0

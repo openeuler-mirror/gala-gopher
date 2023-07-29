@@ -21,6 +21,12 @@
 #include "stack.h"
 #include <curl/curl.h>
 
+enum proc_stack_type_e {
+    PROC_STACK_STORE_IN_HASH = 0,
+    PROC_STACK_STORE_IN_FILE = 1,
+    PROC_STACK_STORE_READED = 2
+};
+
 struct post_info_s {
     int post_flag;
     int remain_size;
@@ -69,7 +75,7 @@ struct stack_svg_mng_s {
 struct stack_svg_mng_s* create_svg_mng(u32 default_period);
 void destroy_svg_mng(struct stack_svg_mng_s* svg_mng);
 int set_svg_dir(struct stack_svgs_s *svg, const char *dir, const char *flame_name);
-int create_svg_file(struct stack_svg_mng_s* svg_mng, const char *flame_graph, int en_type);
+int create_svg_file(struct stack_svg_mng_s* svg_mng, const char *flame_graph, int en_type, int proc_id);
 char is_svg_tmout(struct stack_svg_mng_s* svg_mng);
 
 #endif

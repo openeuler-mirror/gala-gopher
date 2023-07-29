@@ -178,7 +178,7 @@ int __mkdir_with_svg_date(const char *svg_dir, char *svg_date_dir, size_t size)
     return 0;
 }
 
-static int stack_get_next_svg_file(struct stack_svgs_s* svgs, char svg_file[], size_t size, int en_type)
+static int stack_get_next_svg_file(struct stack_svgs_s* svgs, char svg_file[], size_t size, int en_type, int proc_id)
 {
     int next;
     char svg_name[PATH_LEN];
@@ -204,7 +204,7 @@ static int stack_get_next_svg_file(struct stack_svgs_s* svgs, char svg_file[], s
     }
 
     svg_name[0] = 0;
-    (void)snprintf(svg_name, PATH_LEN, "%s.svg", get_cur_time());
+    (void)snprintf(svg_name, PATH_LEN, "%s-%d.svg", get_cur_time(), proc_id);
 
     svg_file[0] = 0;
     (void)snprintf(svg_file, size, "%s/%s", svg_date_dir, svg_name);
@@ -233,14 +233,14 @@ char is_svg_tmout(struct stack_svg_mng_s* svg_mng)
     return 0;
 }
 
-int create_svg_file(struct stack_svg_mng_s* svg_mng, const char *flame_graph, int en_type)
+int create_svg_file(struct stack_svg_mng_s* svg_mng, const char *flame_graph, int en_type, int proc_id)
 {
     char svg_file[LINE_BUF_LEN];
     struct stack_svgs_s* svgs;
 
     svgs = &(svg_mng->svg);
 
-    if (stack_get_next_svg_file(svgs, svg_file, LINE_BUF_LEN, en_type)) {
+    if (stack_get_next_svg_file(svgs, svg_file, LINE_BUF_LEN, en_type, proc_id)) {
         return -1;
     }
 
