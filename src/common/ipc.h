@@ -43,6 +43,7 @@
 #define PROBE_RANGE_TCP_SOCKBUF     0x00000010
 #define PROBE_RANGE_TCP_RATE        0x00000020
 #define PROBE_RANGE_TCP_SRTT        0x00000040
+#define PROBE_RANGE_TCP_DELAY       0x00000080
 
 /* socket subprobe define */
 #define PROBE_RANGE_SOCKET_TCP      0x00000001

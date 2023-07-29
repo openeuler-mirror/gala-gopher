@@ -40,6 +40,7 @@
 #include "tcp_rate.skel.h"
 #include "tcp_abn.skel.h"
 #include "tcp_link.skel.h"
+#include "tcp_delay.skel.h"
 
 #define TCP_TBL_ABN     "tcp_abn"
 #define TCP_TBL_SYNRTT  "tcp_srtt"
@@ -48,6 +49,7 @@
 #define TCP_TBL_RATE    "tcp_rate"
 #define TCP_TBL_SOCKBUF "tcp_sockbuf"
 #define TCP_TBL_TXRX    "tcp_tx_rx"
+#define TCP_TBL_DELAY   "proc_flow_perf"
 
 #define HISTO_BUCKET_DECLARE(variable) \
     float variable##_p50 = 0.0, variable##_p90 = 0.0, variable##_p99 = 0.0
@@ -266,6 +268,33 @@ static void output_tcp_sockbuf(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *
     (void)fflush(stdout);
 }
 
+static void output_tcp_flow_delay(struct tcp_mng_s *tcp_mng, struct tcp_flow_tracker_s *tracker)
+{
+    char send_delay_buf[MAX_HISTO_SERIALIZE_SIZE];
+    char recv_delay_buf[MAX_HISTO_SERIALIZE_SIZE];
+
+    send_delay_buf[0] = 0;
+    recv_delay_buf[0] = 0;
+    if (serialize_histo(tracker->send_delay_buckets, __MAX_DELAY_SIZE, send_delay_buf, sizeof(send_delay_buf))) {
+        return;
+    }
+    if (serialize_histo(tracker->recv_delay_buckets, __MAX_DELAY_SIZE, recv_delay_buf, sizeof(recv_delay_buf))) {
+        return;
+    }
+
+    (void)fprintf(stdout,
+        "|%s|%u|%s|%s|%u"
+        "|%s|%s|\n",
+        TCP_TBL_DELAY,
+        tracker->id.tgid,
+        (tracker->id.role == 0) ? "server" : "client",
+        tracker->id.remote_ip,
+        tracker->id.port,
+
+        recv_delay_buf, send_delay_buf);
+    (void)fflush(stdout);
+}
+
 static void reset_tcp_tracker_stats(struct tcp_tracker_s *tracker)
 {
     histo_bucket_reset(tracker->snd_wnd_buckets, __MAX_WIND_SIZE);
@@ -289,6 +318,13 @@ static void reset_tcp_tracker_stats(struct tcp_tracker_s *tracker)
     memset(&(tracker->stats), 0, sizeof(u64) * __MAX_STATS);
     tracker->zero_win_rx_ratio = 0.0;
     tracker->zero_win_tx_ratio = 0.0;
+    return;
+}
+
+static void reset_tcp_flow_tracker_stats(struct tcp_flow_tracker_s *tracker)
+{
+    histo_bucket_reset(tracker->send_delay_buckets, __MAX_DELAY_SIZE);
+    histo_bucket_reset(tracker->recv_delay_buckets, __MAX_DELAY_SIZE);
     return;
 }
 
@@ -331,9 +367,27 @@ static void output_tcp_metrics(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *
         need_reset = 1;
         output_tcp_rate(tcp_mng, tracker);
     }
+
     tracker->report_flags = 0;
     if (need_reset) {
         reset_tcp_tracker_stats(tracker);
+    }
+    return;
+}
+
+static void output_tcp_flow_metrics(struct tcp_mng_s *tcp_mng, struct tcp_flow_tracker_s *tracker)
+{
+    char need_reset = 0;
+    u32 flags = tracker->report_flags & TCP_PROBE_ALL;
+
+    if (flags & TCP_PROBE_DELAY) {
+        need_reset = 1;
+        output_tcp_flow_delay(tcp_mng, tracker);
+    }
+
+    tracker->report_flags = 0;
+    if (need_reset) {
+        reset_tcp_flow_tracker_stats(tracker);
     }
     return;
 }
@@ -440,7 +494,36 @@ static void proc_tcp_sockbuf(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tr
     return;
 }
 
+static void proc_tcp_flow_delay(struct tcp_mng_s *tcp_mng, struct tcp_flow_tracker_s *tracker,
+    const struct tcp_delay *data)
+{
+    if (data->recv_state == DELAY_SAMP_FINISH) {
+        (void)histo_bucket_add_value(tracker->recv_delay_buckets, __MAX_DELAY_SIZE, NS2MS(data->net_recv_delay));
+    }
+    if (data->send_state == DELAY_SAMP_FINISH) {
+        (void)histo_bucket_add_value(tracker->send_delay_buckets, __MAX_DELAY_SIZE, NS2MS(data->net_send_delay));
+    }
+    tracker->report_flags |= TCP_PROBE_DELAY;
+    return;
+}
+
 static char is_tracker_inactive(struct tcp_tracker_s *tracker)
+{
+#define __INACTIVE_TIME_SECS     (5 * 60)       // 5min
+    time_t current = (time_t)time(NULL);
+    time_t secs;
+
+    if (current > tracker->last_rcv_data) {
+        secs = current - tracker->last_rcv_data;
+        if (secs >= __INACTIVE_TIME_SECS) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static char is_flow_tracker_inactive(struct tcp_flow_tracker_s *tracker)
 {
 #define __INACTIVE_TIME_SECS     (5 * 60)       // 5min
     time_t current = (time_t)time(NULL);
@@ -476,11 +559,29 @@ static char is_track_tmout(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
     return 0;
 }
 
-static void proc_tcp_metrics_evt(void *ctx, int cpu, void *data, __u32 size)
+static char is_flow_track_tmout(struct tcp_mng_s *tcp_mng, struct tcp_flow_tracker_s *tracker)
+{
+    time_t current = (time_t)time(NULL);
+    time_t secs;
+
+    if (current > tracker->last_report) {
+        secs = current - tracker->last_report;
+        if (secs >= tcp_mng->ipc_body.probe_param.period) {
+            tracker->last_report = current;
+            return 1;
+        }
+    }
+
+    if (current < tracker->last_report) {
+        tracker->last_report = current;
+    }
+
+    return 0;
+}
+
+static void process_tcp_tracker_metrics(struct tcp_mng_s *tcp_mng, struct tcp_metrics_s *metrics)
 {
     struct tcp_tracker_s* tracker = NULL;
-    struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
-    struct tcp_mng_s *tcp_mng = ctx;
     u32 metrics_flags = metrics->report_flags & TCP_PROBE_ALL;
 
     tracker = get_tcp_tracker(tcp_mng, (const void *)(&(metrics->link)));
@@ -521,6 +622,36 @@ static void proc_tcp_metrics_evt(void *ctx, int cpu, void *data, __u32 size)
     if (is_track_tmout(tcp_mng, tracker)) {
         output_tcp_metrics(tcp_mng, tracker);
     }
+}
+
+static void process_tcp_flow_tracker_metrics(struct tcp_mng_s *tcp_mng, struct tcp_metrics_s *metrics)
+{
+    struct tcp_flow_tracker_s* tracker = NULL;
+    u32 metrics_flags = metrics->report_flags & TCP_PROBE_ALL;
+
+    tracker = get_tcp_flow_tracker(tcp_mng, (const void *)(&(metrics->link)));
+    if (tracker == NULL) {
+        return;
+    }
+
+    tracker->last_rcv_data = (time_t)time(NULL);
+
+    if (metrics_flags & TCP_PROBE_DELAY) {
+        proc_tcp_flow_delay(tcp_mng, tracker, (const struct tcp_delay *)(&(metrics->delay_stats)));
+    }
+
+    if (is_flow_track_tmout(tcp_mng, tracker)) {
+        output_tcp_flow_metrics(tcp_mng, tracker);
+    }
+}
+
+static void proc_tcp_metrics_evt(void *ctx, int cpu, void *data, __u32 size)
+{
+    struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
+    struct tcp_mng_s *tcp_mng = ctx;
+
+    process_tcp_tracker_metrics(tcp_mng, metrics);
+    process_tcp_flow_tracker_metrics(tcp_mng, metrics);
 
     return;
 }
@@ -683,6 +814,32 @@ err:
     return -1;
 }
 
+static int tcp_load_probe_delay(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
+{
+    int fd;
+    struct perf_buffer *pb = NULL;
+
+    __LOAD_PROBE(tcp_delay, err, is_load);
+    if (is_load) {
+        prog->skels[prog->num].skel = tcp_delay_skel;
+        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_delay_bpf__destroy;
+
+        fd = GET_MAP_FD(tcp_delay, tcp_output);
+        pb = create_pref_buffer3(fd, proc_tcp_metrics_evt, NULL, tcp_mng);
+        if (pb == NULL) {
+            ERROR("[TCPPROBE] Crate 'tcp_delay' perf buffer failed.\n");
+            goto err;
+        }
+        prog->pbs[prog->num] = pb;
+        prog->num++;
+    }
+
+    return 0;
+err:
+    UNLOAD(tcp_delay);
+    return -1;
+}
+
 static void load_args(int args_fd, struct probe_params* params)
 {
     u32 key = 0;
@@ -724,7 +881,7 @@ int tcp_load_probe(struct tcp_mng_s *tcp_mng, struct ipc_body_s *ipc_body, struc
 {
     char is_load = 0;
     struct bpf_prog_s *prog;
-    char is_load_txrx, is_load_abn, is_load_win, is_load_rate, is_load_rtt, is_load_sockbuf;
+    char is_load_txrx, is_load_abn, is_load_win, is_load_rate, is_load_rtt, is_load_sockbuf, is_load_delay;
 
     is_load_txrx = ipc_body->probe_range_flags & PROBE_RANGE_TCP_STATS;
     is_load_abn = ipc_body->probe_range_flags & PROBE_RANGE_TCP_ABNORMAL;
@@ -732,8 +889,9 @@ int tcp_load_probe(struct tcp_mng_s *tcp_mng, struct ipc_body_s *ipc_body, struc
     is_load_win = ipc_body->probe_range_flags & PROBE_RANGE_TCP_WINDOWS;
     is_load_rtt = ipc_body->probe_range_flags & PROBE_RANGE_TCP_RTT;
     is_load_sockbuf = ipc_body->probe_range_flags & PROBE_RANGE_TCP_SOCKBUF;
+    is_load_delay = ipc_body->probe_range_flags & PROBE_RANGE_TCP_DELAY;
 
-    is_load = is_load_txrx | is_load_abn | is_load_rate | is_load_win | is_load_rtt | is_load_sockbuf;
+    is_load = is_load_txrx | is_load_abn | is_load_rate | is_load_win | is_load_rtt | is_load_sockbuf | is_load_delay;
     if (!is_load) {
         return 0;
     }
@@ -771,6 +929,10 @@ int tcp_load_probe(struct tcp_mng_s *tcp_mng, struct ipc_body_s *ipc_body, struc
         goto err;
     }
 
+    if (tcp_load_probe_delay(tcp_mng, prog, is_load_delay)) {
+        goto err;
+    }
+
     INFO("[TCPPROBE]: Successfully load ebpf prog.\n");
     *new_prog = prog;
     return 0;
@@ -797,3 +959,19 @@ void scan_tcp_trackers(struct tcp_mng_s *tcp_mng)
     }
 }
 
+void scan_tcp_flow_trackers(struct tcp_mng_s *tcp_mng)
+{
+    struct tcp_flow_tracker_s *tracker, *tmp;
+
+    H_ITER(tcp_mng->flow_trackers, tracker, tmp) {
+        if (is_flow_tracker_inactive(tracker)) {
+            H_DEL(tcp_mng->flow_trackers, tracker);
+            destroy_tcp_flow_tracker(tracker);
+            tcp_mng->tcp_flow_tracker_count--;
+        } else {
+            if (is_flow_track_tmout(tcp_mng, tracker)) {
+                output_tcp_flow_metrics(tcp_mng, tracker);
+            }
+        }
+    }
+}

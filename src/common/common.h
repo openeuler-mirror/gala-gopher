@@ -130,6 +130,8 @@ static inline int __debug_printf(const char *format, ...)
 #endif
 
 #define NS(sec)  ((__u64)(sec) * 1000000000)
+#define MS2NS(ms) ((__u64)(ms) * NSEC_PER_MSEC)
+#define NS2MS(ns) ((__u64)(ns) / NSEC_PER_MSEC)
 
 #ifndef __u8
 typedef unsigned char __u8;

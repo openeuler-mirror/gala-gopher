@@ -81,6 +81,7 @@ struct probe_range_define_s probe_range_define[] = {
     {PROBE_TCP,    "tcp_rate",            PROBE_RANGE_TCP_RATE},
     {PROBE_TCP,    "tcp_sockbuf",         PROBE_RANGE_TCP_SOCKBUF},
     {PROBE_TCP,    "tcp_stats",           PROBE_RANGE_TCP_STATS},
+    {PROBE_TCP,    "tcp_delay",           PROBE_RANGE_TCP_DELAY},
 
     {PROBE_SOCKET, "tcp_socket",          PROBE_RANGE_SOCKET_TCP},
     {PROBE_SOCKET, "udp_socket",          PROBE_RANGE_SOCKET_UDP},
