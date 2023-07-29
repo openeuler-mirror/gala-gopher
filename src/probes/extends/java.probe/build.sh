@@ -14,6 +14,28 @@ function find_cmd_jar()
     fi
 }
 
+function make_jstackprobe_agent_jar()
+{
+    mkdir -p tmp
+    cd tmp
+    javac ../src/*.java -d ./ || return 1
+    cd ..
+    jar cfm JstackProbeAgent.jar config/META-INF/MANIFEST.MF -C tmp/ . || return 1
+
+    rm -rf tmp 2>/dev/null
+    return 0
+}
+
+function compile_jstackprobe()
+{
+    cd ${PRJ_DIR}/jstack.probe
+    echo "Compile JstackProbeAgent...."
+    make_jstackprobe_agent_jar || return 1
+    echo "JstackProbeAgent compiling completed."
+    cd ${PRJ_DIR}
+    return 0
+}
+
 function make_jvmprobe_agent_jar()
 {
     mkdir -p tmp
@@ -40,7 +62,7 @@ function compile_jvmprobe()
 
     echo "Compile jvmProbe...."
     make_jvmprobe_bin || return 1
-
+    echo "jvmProbeAgent compiling completed."
     cd ${PRJ_DIR}
     return 0
 }
@@ -83,7 +105,7 @@ then
 fi
 
 # tailor jvmprobe
-if [[ $JAVA_TAILOR_PROBES =~ "jvm.probe" ]] && [[ $JAVA_TAILOR_PROBES =~ "l7probe" ]]; then
+if [[ $JAVA_TAILOR_PROBES =~ "jvm.probe" ]] && [[ $JAVA_TAILOR_PROBES =~ "l7probe" ]] && [[ $JAVA_TAILOR_PROBES =~ "stackprobe" ]]; then
     exit
 fi
 
@@ -107,6 +129,11 @@ else
     if ! [[ $JAVA_TAILOR_PROBES =~ "l7probe" ]] ; then
         compile_jsseprobe || exit 1
     fi
+
+    if ! [[ $JAVA_TAILOR_PROBES =~ "stackprobe" ]] ; then
+        compile_jstackprobe || exit 1
+    fi
+
     compile_clean
     exit
 fi
