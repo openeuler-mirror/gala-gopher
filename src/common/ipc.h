@@ -113,6 +113,8 @@ enum probe_type_e {
     PROBE_KSLI,
     PROBE_SCHED,
 
+    // If you want to add a probe, add the probe type.
+
     PROBE_TYPE_MAX
 };
 
