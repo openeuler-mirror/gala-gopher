@@ -56,6 +56,8 @@ struct probe_define_s probe_define[] = {
     {"hw",                  "$gala-gopher-dir/hwprobe",             PROBE_HW},
     {"ksli",                "$gala-gopher-dir/ksliprobe",           PROBE_KSLI},
     {"sched",               "$gala-gopher-dir/schedprobe",          PROBE_SCHED}
+
+    // If you want to add a probe, add the probe define.
 };
 
 struct probe_range_define_s {
@@ -118,6 +120,8 @@ struct probe_range_define_s probe_range_define[] = {
 
     {PROBE_SCHED,  "sched_systime",       PROBE_RANGE_SCHED_SYSTIME},
     {PROBE_SCHED,  "sched_syscall",       PROBE_RANGE_SCHED_SYSCALL},
+
+    // If you want to add a probe, add the probe range.
 };
 
 static int get_probe_range(enum probe_type_e probe_type, const char *range)
