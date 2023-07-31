@@ -20,14 +20,13 @@
 #include <errno.h>
 #include "ipc.h"
 
-#define IPC_TLV_LEN_DEFAULT ((3 * (sizeof(struct ipc_tlv_s) + sizeof(u32))) \
+#define IPC_TLV_LEN_DEFAULT ((2 * (sizeof(struct ipc_tlv_s) + sizeof(u32))) \
     + (sizeof(struct ipc_tlv_s) + sizeof(struct probe_params)))
 
 enum ipct_type_e {
     IPCT_PROBE_RANGE = 100,
     IPCT_PROBE_PARAMS = 101,
-    IPCT_PROBE_FLAGS = 102,
-    IPCT_SNOOPER_NUM = 103
+    IPCT_SNOOPER_NUM = 102
 };
 
 enum ipct_subtype_e {
@@ -55,6 +54,7 @@ struct ipc_tlv_s {
 
 struct ipc_msg_s {
     long msg_type;  // Equivalent to enum probe_type_e
+    u32 msg_flag;
     u32 msg_len;
     char msg[0];
 };
@@ -721,6 +721,7 @@ static int __build_probe_range_tlv(char *buf, size_t size, struct ipc_body_s* ip
     return (sizeof(struct ipc_tlv_s) + sizeof(u32));
 }
 
+#if 0
 static int __build_probe_flags_tlv(char *buf, size_t size, struct ipc_body_s* ipc_body)
 {
     u32 *value;
@@ -732,6 +733,7 @@ static int __build_probe_flags_tlv(char *buf, size_t size, struct ipc_body_s* ip
     *value = ipc_body->probe_flags;
     return (sizeof(struct ipc_tlv_s) + sizeof(u32));
 }
+#endif
 
 static int __build_snooper_num_tlv(char *buf, size_t size, struct ipc_body_s* ipc_body)
 {
@@ -802,6 +804,7 @@ static int __build_ipc_msg(char *buf, size_t size, struct ipc_body_s* ipc_body)
     cur += build_len;
     fill_len += build_len;
 
+#if 0
     build_len = __build_probe_flags_tlv(cur, (size_t)max_len, ipc_body);
     max_len = max_len - build_len;
     if (max_len <= 0) {
@@ -809,6 +812,7 @@ static int __build_ipc_msg(char *buf, size_t size, struct ipc_body_s* ipc_body)
     }
     cur += build_len;
     fill_len += build_len;
+#endif
 
     build_len = __build_snooper_num_tlv(cur, (size_t)max_len, ipc_body);
     max_len = max_len - build_len;
@@ -862,6 +866,7 @@ static struct ipc_msg_s* __create_ipc_msg(struct ipc_body_s* ipc_body, long msg_
         return NULL;
     }
 
+    ipc_msg->msg_flag = ipc_body->probe_flags;
     buf = (char *)(ipc_msg->msg);
 
     ret = __build_ipc_msg(buf, ipc_msg->msg_len, ipc_body);
@@ -916,6 +921,7 @@ static int __deserialize_probe_params_tlv(char *buf, size_t size, struct ipc_bod
     return (tlv->len + sizeof(struct ipc_tlv_s));
 }
 
+#if 0
 static int __deserialize_probe_flags_tlv(char *buf, size_t size, struct ipc_body_s* ipc_body)
 {
     struct ipc_tlv_s *tlv = (struct ipc_tlv_s *)buf;
@@ -927,6 +933,7 @@ static int __deserialize_probe_flags_tlv(char *buf, size_t size, struct ipc_body
     ipc_body->probe_flags = *(u32 *)tlv->value;
     return (tlv->len + sizeof(struct ipc_tlv_s));
 }
+#endif
 
 static int __deserialize_snooper_num_tlv(char *buf, size_t size, struct ipc_body_s* ipc_body)
 {
@@ -1005,6 +1012,7 @@ static int __deserialize_ipc_msg(struct ipc_msg_s* ipc_msg, struct ipc_body_s* i
         return -1;
     }
 
+#if 0
     cur = start + offset;
     deserialize_len = __deserialize_probe_flags_tlv(cur, (size_t)max_len, ipc_body);
     if (deserialize_len < 0) {
@@ -1015,6 +1023,7 @@ static int __deserialize_ipc_msg(struct ipc_msg_s* ipc_msg, struct ipc_body_s* i
     if (max_len < 0) {
         return -1;
     }
+#endif
 
     cur = start + offset;
     deserialize_len = __deserialize_snooper_num_tlv(cur, (size_t)max_len, ipc_body);
@@ -1103,7 +1112,7 @@ int send_ipc_msg(int msqid, long msg_type, struct ipc_body_s* ipc_body)
         return -1;
     }
 
-    if (msgsnd(msqid, ipc_msg, ipc_msg->msg_len + sizeof(u32), 0) < 0) {
+    if (msgsnd(msqid, ipc_msg, ipc_msg->msg_len + sizeof(ipc_msg->msg_len) + sizeof(ipc_msg->msg_flag), 0) < 0) {
         ERROR("[IPC] send ipc message(msg_type = %ld) failed(%d).\n", msg_type, errno);
         err = -1;
     }
@@ -1114,6 +1123,7 @@ int send_ipc_msg(int msqid, long msg_type, struct ipc_body_s* ipc_body)
     return err;
 }
 
+/* return 0 when ipc msg recvd and build a valid ipc_body */
 int recv_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body)
 {
     int err = -1;
@@ -1121,16 +1131,18 @@ int recv_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body)
     struct ipc_msg_s* ipc_msg;
     int msg_rcvd = 0;
     u32 msg_len;
+    u32 msg_flags = 0;
 
     if (msqid < 0) {
         return -1;
     }
 
     ipc_msg = __get_raw_ipc_msg(msg_type);
-    msg_len = ipc_msg->msg_len + sizeof(u32);
+    msg_len = ipc_msg->msg_len + sizeof(ipc_msg->msg_len) + sizeof(ipc_msg->msg_flag);
     /* Only deal with the last message within every check */
     while (msgrcv(msqid, ipc_msg, msg_len, msg_type, IPC_NOWAIT) != -1) {
         msg_rcvd = 1;
+        msg_flags |= ipc_msg->msg_flag;
     }
 
     if (msg_rcvd) {
@@ -1144,6 +1156,7 @@ int recv_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body)
             ERROR("[IPC] recv ipc message(msg_type = %d) deserialize failed.\n", msg_type);
             goto end;
         }
+        ipc_body->probe_flags = msg_flags;
         err = 0;
     }
 

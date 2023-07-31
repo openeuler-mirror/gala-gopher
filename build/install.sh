@@ -205,6 +205,10 @@ function install_script()
         SCRIPT_TARGET_DIR=$1
     fi
 
+    if [ ! -d ${SCRIPT_TARGET_DIR} ]; then
+        mkdir -p ${SCRIPT_TARGET_DIR}
+    fi
+
     cd ${PROJECT_FOLDER}
     if [ ! -f ${INIT_PROBES_SCRIPT} ]; then
         echo "${INIT_PROBES_SCRIPT} does not exist. Please check ./script dir"
