@@ -108,6 +108,7 @@ static struct raw_data_s* pop_raw_data(struct data_stream_s *data_stream)
     for (int i = 1; i < raw_buf->raw_buf_size && i < __RAW_BUF_SIZE; i++) {
         raw_buf->raw_datas[i - 1] = raw_buf->raw_datas[i];
     }
+    raw_buf->raw_datas[raw_buf->raw_buf_size - 1] = NULL;
     raw_buf->raw_buf_size--;
     return raw_data;
 }
