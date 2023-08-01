@@ -94,10 +94,9 @@ err:
 static int do_l7_load_tcp_fd(int fd, const char *container_id, int netns_fd)
 {
     int ret;
-    int container_fd = -1;
 
     if (container_id) {
-        ret = enter_container_netns(container_id, &container_fd);
+        ret = enter_container_netns(container_id);
         if (ret) {
             ERROR("[L7PROBE]: Enter container netns failed.(%s, ret = %d)\n",
                 container_id, ret);
@@ -108,7 +107,6 @@ static int do_l7_load_tcp_fd(int fd, const char *container_id, int netns_fd)
     __do_l7_load_tcp_fd(fd);
 
     if (container_id) {
-        (void)close(container_fd);
         (void)exit_container_netns(netns_fd);
     }
     return 0;

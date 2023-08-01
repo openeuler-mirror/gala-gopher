@@ -171,10 +171,9 @@ static int get_netns_fd(pid_t pid)
 static int do_lkup_established_tcp(const char *container_id, int netns_fd)
 {
     int ret;
-    int container_fd = -1;
 
     if (container_id) {
-        ret = enter_container_netns(container_id, &container_fd);
+        ret = enter_container_netns(container_id);
         if (ret) {
             ERROR("[TCPPROBE]: Enter container netns failed.(%s, ret = %d)\n",
                 container_id, ret);
@@ -185,7 +184,6 @@ static int do_lkup_established_tcp(const char *container_id, int netns_fd)
     do_lkup_established_tcp_info();
 
     if (container_id) {
-        (void)close(container_fd);
         (void)exit_container_netns(netns_fd);
     }
     return 0;
