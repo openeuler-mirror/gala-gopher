@@ -60,7 +60,7 @@ int get_container_pod(const char *abbr_container_id, char pod[], unsigned int le
 int get_container_pod_id(const char *abbr_container_id, char pod_id[], unsigned int len);
 int get_pod_ip(const char *abbr_container_id, char *pod_ip_str, int len);
 container_tbl* list_containers_by_pod_id(const char *pod_id);
-int enter_container_netns(const char *container_id, int *container_fd);
+int enter_container_netns(const char *container_id);
 int exit_container_netns(int netns_fd);
 
 #endif

@@ -1036,8 +1036,9 @@ static int __pidfd_open(pid_t pid, unsigned int flags)
     return syscall(__NR_pidfd_open, pid, flags);
 }
 
-static int __set_netns_by_pid(pid_t pid, int *container_fd)
+static int __set_netns_by_pid(pid_t pid)
 {
+    int ret;
     int fd = -1;
     u32 kern_version = 0;
 
@@ -1052,14 +1053,9 @@ static int __set_netns_by_pid(pid_t pid, int *container_fd)
         ERROR("Get tgid(%d)'s pidfd failed.\n", pid);
         return -1;
     }
-
-    if (setns(fd, CLONE_NEWNET)) {
-        (void)close(fd);
-        return -1;
-    }
-
-    *container_fd = fd;
-    return 0;
+    ret = setns(fd, CLONE_NEWNET);
+    (void)close(fd);
+    return ret;
 }
 
 static int __set_netns_by_fd(int fd)
@@ -1067,7 +1063,7 @@ static int __set_netns_by_fd(int fd)
     return setns(fd, CLONE_NEWNET);
 }
 
-int enter_container_netns(const char *container_id, int *container_fd)
+int enter_container_netns(const char *container_id)
 {
     int ret;
     u32 pid;
@@ -1078,7 +1074,7 @@ int enter_container_netns(const char *container_id, int *container_fd)
         return ret;
     }
 
-    return __set_netns_by_pid((pid_t)pid, container_fd);
+    return __set_netns_by_pid((pid_t)pid);
 }
 
 int exit_container_netns(int netns_fd)
