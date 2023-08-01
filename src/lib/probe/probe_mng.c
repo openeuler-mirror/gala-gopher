@@ -286,6 +286,7 @@ static struct probe_s* new_probe(const char* name, enum probe_type_e probe_type)
         goto err;
     }
 
+    SET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPED);
     probe->pid = -1;
 
     return probe;
