@@ -327,8 +327,18 @@ static struct elf_reader_s gElfReader = {
 struct proc_symbs_s *add_symb_info(proc_info_t *proc_info)
 {
     struct proc_symbs_s *symbs;
+    int ret;
 
-    symbs = proc_load_all_symbs(&gElfReader, proc_info->tgid);
+    symbs = new_proc_symbs(proc_info->tgid);
+    if (symbs == NULL) {
+        return NULL;
+    }
+
+    ret = proc_load_all_symbs(symbs, &gElfReader, proc_info->tgid);
+    if (ret != 0) {
+        return NULL;
+    }
+
     proc_info->symbs = symbs;
 
     return symbs;

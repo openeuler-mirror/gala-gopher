@@ -197,8 +197,8 @@ static size_t __write_memory_cb(void *contents, size_t size, size_t nmemb, void 
     return realsize;
 }
  
-// http://localhost:4040/ingest?name=gala-gopher-oncpu&from=1671189474&until=1671189534
-static int __build_url(char *url, struct post_server_s *post_server, int en_type)
+// http://localhost:4040/ingest?name=gala-gopher-oncpu.56789&from=1671189474&until=1671189534&units=samples&sampleRate=100",
+static int __build_url(char *url, struct post_server_s *post_server, int en_type, int proc_id)
 {
     time_t now, before;
     (void)time(&now);
@@ -209,20 +209,34 @@ static int __build_url(char *url, struct post_server_s *post_server, int en_type
     }
     post_server->last_post_ts = now;
 
-    (void)snprintf(url, LINE_BUF_LEN, 
-        "http://%s/ingest?name=%s-%s&from=%ld&until=%ld&units=%s&sampleRate=%u",
-        post_server->host,
-        appname[en_type],
-        post_server->app_suffix,
-        (long)before,
-        (long)now,
-        en_type == STACK_SVG_MEMLEAK ? "bytes" : "samples",
-        1000 / post_server->sample_period); // 1000 ms
+    if (post_server->separate_out_flag) {
+        (void)snprintf(url, LINE_BUF_LEN, 
+            "http://%s/ingest?name=%s-%s.%d&from=%ld&until=%ld&units=%s&sampleRate=%u",
+            post_server->host,
+            appname[en_type],
+            post_server->app_suffix,
+            proc_id,
+            (long)before,
+            (long)now,
+            en_type == STACK_SVG_MEMLEAK ? "bytes" : "samples",
+            1000 / post_server->sample_period); // 1000 ms
+    } else {
+        (void)snprintf(url, LINE_BUF_LEN, 
+            "http://%s/ingest?name=%s-%s&from=%ld&until=%ld&units=%s&sampleRate=%u",
+            post_server->host,
+            appname[en_type],
+            post_server->app_suffix,
+            (long)before,
+            (long)now,
+            en_type == STACK_SVG_MEMLEAK ? "bytes" : "samples",
+            1000 / post_server->sample_period); // 1000 ms
+    }
+
     return 0;
 }
 
 
-static void __curl_post(struct post_server_s *post_server, struct post_info_s *post_info, int en_type)
+void curl_post(struct post_server_s *post_server, struct post_info_s *post_info, int en_type, int proc_id)
 {
     CURLcode res;
     CURL *curl = post_info->curl;
@@ -237,7 +251,7 @@ static void __curl_post(struct post_server_s *post_server, struct post_info_s *p
     }
 
     char url[LINE_BUF_LEN] = {0};
-    __build_url(url, post_server, en_type);
+    __build_url(url, post_server, en_type, proc_id);
     struct MemoryStruct chunk;
     chunk.memory = malloc(1);  /* will be grown as needed by realloc above */
     chunk.size = 0;    /* no data at this point */
@@ -287,7 +301,7 @@ end2:
     return;
 }
 
-static void __init_curl_handle(struct post_server_s *post_server, struct post_info_s *post_info)
+void init_curl_handle(struct post_server_s *post_server, struct post_info_s *post_info)
 {
     if (post_server == NULL || post_server->post_enable == 0) {
         return;
@@ -309,22 +323,15 @@ static void __init_curl_handle(struct post_server_s *post_server, struct post_in
     }
 }
 
-static void __do_wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct post_server_s *post_server, int en_type)
+static void __do_wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct proc_stack_trace_histo_s *proc_histo,
+    struct post_server_s *post_server, int en_type)
 {
     int first_flag = 0;
-    struct post_info_s post_info = {.remain_size = g_post_max, .post_flag = 0};
-
     if (__test_flame_graph_flags(svg_mng, FLAME_GRAPH_NEW)) {
         first_flag = 1;
     }
 
-    __init_curl_handle(post_server, &post_info);
-
-    iter_histo_tbl(svg_mng, en_type, &first_flag, &post_info);
-
-    if (post_info.post_flag) {
-        __curl_post(post_server, &post_info, en_type);
-    }
+    iter_histo_tbl(proc_histo, post_server, svg_mng, en_type, &first_flag);
     
     __flush_flame_graph_file(svg_mng);
     __reset_flame_graph_flags(svg_mng, ~FLAME_GRAPH_NEW);
@@ -332,16 +339,28 @@ static void __do_wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct post_serv
 
 #endif
 
-void wr_flamegraph(struct stack_svg_mng_s *svg_mng, int en_type,
+void wr_flamegraph(struct proc_stack_trace_histo_s **proc_histo_tbl, struct stack_svg_mng_s *svg_mng, int en_type,
     struct post_server_s *post_server)
 {
-    __do_wr_flamegraph(svg_mng, post_server, en_type);
+    if (*proc_histo_tbl == NULL) {
+        return;
+    }
 
+    int svg_out_flag = 0;
     if (is_svg_tmout(svg_mng)) {
-        (void)create_svg_file(svg_mng,
-                              __get_flame_graph_file(svg_mng), en_type);
+        svg_out_flag = 1;
+    }
 
-        __reopen_flame_graph_file(svg_mng);
+    struct proc_stack_trace_histo_s *proc_histo, *proc_tmp;
+    H_ITER(*proc_histo_tbl, proc_histo, proc_tmp) {
+        __do_wr_flamegraph(svg_mng, proc_histo, post_server, en_type);
+
+        if (svg_out_flag) {
+            (void)create_svg_file(svg_mng,
+                                __get_flame_graph_file(svg_mng), en_type, proc_histo->proc_id);
+
+            __reopen_flame_graph_file(svg_mng);
+        }
     }
 }
 
@@ -376,7 +395,8 @@ int set_flame_graph_path(struct stack_svg_mng_s *svg_mng, const char* path, cons
     return 0;
 }
 
-int set_post_server(struct post_server_s *post_server, const char *server_str, unsigned int perf_sample_period)
+int set_post_server(struct post_server_s *post_server, const char *server_str, unsigned int perf_sample_period,
+                    char separate_out_flag)
 {
     if (server_str == NULL) {
         return -1;
@@ -391,6 +411,7 @@ int set_post_server(struct post_server_s *post_server, const char *server_str, u
     post_server->post_enable = 1;
     post_server->timeout = 3;
     post_server->sample_period = perf_sample_period == 0 ? DEFAULT_PERF_SAMPLE_PERIOD : perf_sample_period;
+    post_server->separate_out_flag = separate_out_flag;
 
     (void)strcpy(post_server->host, server_str);
 

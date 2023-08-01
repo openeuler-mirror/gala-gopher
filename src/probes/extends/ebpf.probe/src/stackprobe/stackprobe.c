@@ -74,6 +74,13 @@
 typedef int (*AttachFunc)(struct ipc_body_s *ipc_body, struct svg_stack_trace_s *svg_st);
 typedef int (*PerfProcessFunc)(void *ctx, int cpu, void *data, u32 size);
 
+struct proc_histo_tmp_s {
+    enum stack_svg_type_e en_type;
+    int load_symbs;
+    struct proc_symbs_s *proc_symbs;
+    struct proc_stack_trace_histo_s *proc_histo;
+};
+
 typedef struct {
     u32 sw;
     enum stack_svg_type_e en_type;
@@ -269,14 +276,22 @@ static struct proc_cache_s* __search_proc_cache(struct stack_trace_s *st, struct
     return item;
 }
 
-static struct proc_cache_s* __create_proc_cache(struct stack_trace_s *st, struct stack_pid_s *stack_pid)
+static struct proc_cache_s* __create_proc_cache(struct stack_trace_s *st, struct stack_pid_s *stack_pid, int load_symbs)
 {
     struct proc_cache_s *new_item;
     struct proc_symbs_s* proc_symbs;
+    int ret;
 
-    proc_symbs = proc_load_all_symbs(st->elf_reader, stack_pid->proc_id);
-    if (!proc_symbs) {
+    proc_symbs = new_proc_symbs(stack_pid->proc_id);
+    if (proc_symbs == NULL) {
         return NULL;
+    }
+
+    if (load_symbs) {
+        ret = proc_load_all_symbs(proc_symbs, st->elf_reader, stack_pid->proc_id);
+        if (ret != 0) {
+            return NULL;
+        }
     }
 
     new_item = (struct proc_cache_s *)malloc(sizeof(struct proc_cache_s));
@@ -451,6 +466,60 @@ static int stack_addrsymbs2string(struct proc_symbs_s *proc_symbs, struct addr_s
     return size > len ? (size - len) : -1;
 }
 
+static int __stack_file2string(struct proc_symbs_s *proc_symbs, char *line, char *p, int size, s64 *count)
+{
+    int ret;
+    if (size <= 0) {
+        return -1;
+    }
+
+    char *cur_p = p;
+    int len = size;
+
+    if (line == NULL) {
+        return 0;
+    }
+
+    *count = 0;
+    int line_len = strlen(line);
+    if (line_len >= size || line_len <= 3) {
+        return 0;
+    }
+    for (int i = line_len - 2; i > 0; i--) {
+        if (line[i] == ' ') {
+            *count = atoi(line + i + 1);
+            line[i] = 0;
+            break;
+        }
+    }
+
+    if (*count == 0) {
+        return 0;
+    }
+
+    cur_p[0] = 0;
+    if (proc_symbs->pod[0] != 0) {
+        ret = __snprintf(&cur_p, len, &len, "[Pod]%s; ", proc_symbs->pod);
+    }
+    if (ret < 0) {
+        return -1;
+    }
+
+    if (proc_symbs->container_name[0] != 0) {
+        ret = __snprintf(&cur_p, len, &len, "[Con]%s; ", proc_symbs->container_name);
+    }
+    if (ret < 0) {
+        return -1;
+    }
+
+    ret = __snprintf(&cur_p, len, &len, "[%d]%s; %s", proc_symbs->proc_id, proc_symbs->comm, line);
+    if (ret < 0) {
+        return -1;
+    }
+
+    return size > len ? (size - len) : -1;
+}
+
 static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, struct proc_symbs_s *proc_symbs,
                                 char symbos_str[], size_t size, int incomplete_stack_flag)
 {
@@ -493,51 +562,36 @@ static s64 convert_real_count(struct stack_trace_s *st, enum stack_svg_type_e en
     return  origin_count;
 }
 
-static int add_stack_histo(struct stack_trace_s *st, struct stack_symbs_s *stack_symbs,
-    struct proc_symbs_s *proc_symbs, enum stack_svg_type_e en_type, s64 origin_count)
+static struct proc_stack_trace_histo_s *get_proc_histo_item(struct svg_stack_trace_s *svg_st, int proc_id)
 {
-    char str[STACK_SYMBS_LEN];
-    struct stack_trace_histo_s *item = NULL, *new_item = NULL;
-    struct stack_trace_histo_s *tmp;
-    int incomplete_stack_flag = 0;
+    struct proc_stack_trace_histo_s *proc_histo = NULL;
+    H_FIND_I(svg_st->proc_histo_tbl, &proc_id, proc_histo);
+    return proc_histo;
+}
 
-    str[0] = 0;
-
-    if (stack_symbs->user_stack_symbs[PERF_MAX_STACK_DEPTH - 1].orign_addr != 0) {
-        incomplete_stack_flag = 1;
+static struct proc_stack_trace_histo_s *add_proc_histo_item(struct svg_stack_trace_s *svg_st, int proc_id,
+    enum proc_stack_type_e proc_stack_type)
+{
+    struct proc_stack_trace_histo_s *new_proc_item =
+        (struct proc_stack_trace_histo_s *)malloc(sizeof(struct proc_stack_trace_histo_s));
+    if (!new_proc_item) {
+        return NULL;
     }
+    new_proc_item->proc_id = proc_id;
+    new_proc_item->proc_stack_type = proc_stack_type;
+    new_proc_item->histo_tbl = NULL;
+    H_ADD_I(svg_st->proc_histo_tbl, proc_id, new_proc_item);
 
-    if (__stack_symbs2string(stack_symbs, proc_symbs, str, STACK_SYMBS_LEN, incomplete_stack_flag)) {
-        // Statistic error, but program continues
-        st->stats.count[STACK_STATS_HISTO_ERR]++;
-    }
+    return new_proc_item;
+}
 
-    s64 count = convert_real_count(st, en_type, origin_count);
-    if (str[0] == 0) {
-        DEBUG("[STACKPROBE]: symbs2str is null(proc = %d).\n",
-                stack_symbs->pid.proc_id);
-        return -1;
-    }
+static int add_stack_symbs_str(struct stack_trace_s *st, struct proc_stack_trace_histo_s *proc_histo,
+    char *str, s64 count)
+{
+    struct stack_trace_histo_s *item = NULL;
+    struct stack_trace_histo_s *new_item = NULL;
 
-    if (st->svg_stack_traces[en_type] == NULL) {
-        return 0;
-    }
-
-    // incomplete call stack merge
-    if (incomplete_stack_flag) {
-        char tmp_str[__FUNC_NAME_LEN] = {0};
-        (void)snprintf(tmp_str, __FUNC_NAME_LEN, "[%d]", proc_symbs->proc_id);
-        H_ITER(st->svg_stack_traces[en_type]->histo_tbl, item, tmp) {
-            if (strstr(item->stack_symbs_str, tmp_str) && strstr(item->stack_symbs_str, str)) {
-                st->stats.count[STACK_STATS_HISTO_FOLDED]++;
-                item->count = item->count + count;
-                return 0;
-            }
-        }
-        return -1;
-    }
-
-    H_FIND_S(st->svg_stack_traces[en_type]->histo_tbl, str, item); // TODO: use stack_id as key?
+    H_FIND_S(proc_histo->histo_tbl, str, item);
     if (item) {
         st->stats.count[STACK_STATS_HISTO_FOLDED]++;
         item->count = (s64)item->count + count;
@@ -552,7 +606,113 @@ static int add_stack_histo(struct stack_trace_s *st, struct stack_symbs_s *stack
     (void)snprintf(new_item->stack_symbs_str, sizeof(new_item->stack_symbs_str), "%s", str);
     new_item->count = count < 0 ? 0 : count;
     if (new_item->count != 0) {
-        H_ADD_S(st->svg_stack_traces[en_type]->histo_tbl, stack_symbs_str, new_item);
+        H_ADD_S(proc_histo->histo_tbl, stack_symbs_str, new_item);
+    }
+
+    return 0;
+}
+
+static char *stack_tmp_files[STACK_SVG_MAX] = {
+    "stacks-oncpu.txt",
+    "stacks-offcpu.txt",
+    "stacks-mem.txt",
+    "stacks-io.txt"
+};
+
+static int add_stack_histo_from_file(struct stack_trace_s *st, struct proc_histo_tmp_s *proc_histo_tmp)
+{
+    enum stack_svg_type_e en_type = proc_histo_tmp->en_type;
+    struct proc_stack_trace_histo_s *proc_histo = proc_histo_tmp->proc_histo;
+    struct proc_symbs_s *proc_symbs = proc_histo_tmp->proc_symbs;
+
+    char stack_file[LINE_BUF_LEN];
+    FILE *stack_fp;
+
+    // /proc/<pid>/root/tmp/java-data-<pid>/stacks-mem.txt
+    int ret = get_host_java_tmp_file(proc_symbs->proc_id,
+        stack_tmp_files[en_type], stack_file, LINE_BUF_LEN);
+    if (ret != 0) {
+        ERROR("[FLAMEGRAPH]: get java proc stack tmp file failed: %s\n", stack_file);
+        return -1;
+    }
+
+    stack_fp = fopen(stack_file, "rb");
+    if(!stack_fp) {
+        ERROR("[FLAMEGRAPH]: fopen java proc stack tmp file failed: %s\n", stack_file);
+        return -1;
+    }
+
+    proc_histo->proc_stack_type = PROC_STACK_STORE_READED;
+    int len;
+    char line[STACK_SYMBS_LEN];
+    line[0] = 0;
+    char str[STACK_SYMBS_LEN];
+    s64 count;
+    while (fgets(line, sizeof(line), stack_fp)) {
+        len = __stack_file2string(proc_symbs, line, str, STACK_SYMBS_LEN, &count);
+        if (len < 0) {
+            return -1;
+        }
+        add_stack_symbs_str(st, proc_histo, str, count);
+    }
+
+    fclose(stack_fp);
+    return 0;
+}
+
+static int add_stack_histo_from_hash(struct stack_trace_s *st, struct stack_symbs_s *stack_symbs,
+    struct proc_histo_tmp_s *proc_histo_tmp, s64 origin_count)
+{
+    char str[STACK_SYMBS_LEN];
+    struct stack_trace_histo_s *tmp;
+    struct stack_trace_histo_s *item = NULL;
+    int incomplete_stack_flag = 0;
+    enum stack_svg_type_e en_type = proc_histo_tmp->en_type;
+    struct proc_stack_trace_histo_s *proc_histo = proc_histo_tmp->proc_histo;
+    struct proc_symbs_s *proc_symbs = proc_histo_tmp->proc_symbs;
+
+    if (stack_symbs->user_stack_symbs[PERF_MAX_STACK_DEPTH - 1].orign_addr != 0) {
+        incomplete_stack_flag = 1;
+    }
+
+    str[0] = 0;
+    if (__stack_symbs2string(stack_symbs, proc_symbs, str, STACK_SYMBS_LEN, incomplete_stack_flag)) {
+        // Statistic error, but program continues
+        st->stats.count[STACK_STATS_HISTO_ERR]++;
+    }
+
+    s64 count = convert_real_count(st, en_type, origin_count);
+    if (str[0] == 0) {
+        DEBUG("[STACKPROBE]: symbs2str is null(proc = %d).\n",
+                stack_symbs->pid.proc_id);
+        return -1;
+    }
+
+    // incomplete call stack merge
+    if (incomplete_stack_flag) {
+        char tmp_str[__FUNC_NAME_LEN] = {0};
+        (void)snprintf(tmp_str, __FUNC_NAME_LEN, "[%d]", proc_symbs->proc_id);
+
+        H_ITER(proc_histo->histo_tbl, item, tmp) {
+            if (strstr(item->stack_symbs_str, tmp_str) && strstr(item->stack_symbs_str, str)) {
+                st->stats.count[STACK_STATS_HISTO_FOLDED]++;
+                item->count = item->count + count;
+                return 0;
+            }
+        }
+        return -1;
+    }
+
+    return add_stack_symbs_str(st, proc_histo, str, count);
+}
+
+static int add_stack_histo(struct stack_trace_s *st, struct stack_symbs_s *stack_symbs,
+    struct proc_histo_tmp_s *proc_histo_tmp, s64 origin_count)
+{
+    if (proc_histo_tmp->load_symbs) {
+        add_stack_histo_from_hash(st, stack_symbs, proc_histo_tmp, origin_count);
+    } else {
+        add_stack_histo_from_file(st, proc_histo_tmp);
     }
 
     return 0;
@@ -560,16 +720,24 @@ static int add_stack_histo(struct stack_trace_s *st, struct stack_symbs_s *stack
 
 static void clear_stack_histo(struct svg_stack_trace_s *svg_st)
 {
-    if (!svg_st || !svg_st->histo_tbl) {
+    if (!svg_st || !svg_st->proc_histo_tbl) {
         return;
     }
 
+    struct proc_stack_trace_histo_s *proc_histo, *proc_tmp;
     struct stack_trace_histo_s *item, *tmp;
-    H_ITER(svg_st->histo_tbl, item, tmp) {
-        H_DEL(svg_st->histo_tbl, item);
-        (void)free(item);
+    H_ITER(svg_st->proc_histo_tbl, proc_histo, proc_tmp) {
+        if (proc_histo->histo_tbl != NULL) {
+            H_ITER(proc_histo->histo_tbl, item, tmp) {
+                H_DEL(proc_histo->histo_tbl, item);
+                (void)free(item);
+            }
+            proc_histo->histo_tbl = NULL;
+        }
+        H_DEL(svg_st->proc_histo_tbl, proc_histo);
+        (void)free(proc_histo);
     }
-    svg_st->histo_tbl = NULL;
+    svg_st->proc_histo_tbl = NULL;
 }
 
 #endif
@@ -700,14 +868,14 @@ static u64 __stack_count_symb(struct stack_trace_s *st)
     return count;
 }
 
-static struct proc_cache_s* __get_proc_cache(struct stack_trace_s *st, struct stack_pid_s *stack_pid)
+static struct proc_cache_s* __get_proc_cache(struct stack_trace_s *st, struct stack_pid_s *stack_pid, int load_symbs)
 {
     struct proc_cache_s* proc_cache;
 
     proc_cache = __search_proc_cache(st, stack_pid);
     if (!proc_cache) {
-        proc_cache = __create_proc_cache(st, stack_pid);
-    } else if (proc_cache->proc_symbs->need_update) {
+        proc_cache = __create_proc_cache(st, stack_pid, load_symbs);
+    } else if (load_symbs && proc_cache->proc_symbs->need_update) {
         __update_proc_cache(proc_cache->proc_symbs);
     }
 
@@ -721,34 +889,69 @@ static int stack_id2histogram(struct stack_trace_s *st, enum stack_svg_type_e en
     struct stack_symbs_s stack_symbs;
     struct raw_stack_trace_s *raw_st;
     struct proc_cache_s* proc_cache;
-    if (!st->svg_stack_traces[en_type]) {
+    struct proc_stack_trace_histo_s *proc_histo;
+    struct svg_stack_trace_s *svg_st = st->svg_stack_traces[en_type];
+    int load_symbs; // Indicates whether to read the process symbol table or read the symbolic call stack file directly
+
+    if (!svg_st) {
         return -1;
     }
     if (is_stackmap_a) {
-        raw_st = st->svg_stack_traces[en_type]->raw_stack_trace_a;
+        raw_st = svg_st->raw_stack_trace_a;
     } else {
-        raw_st = st->svg_stack_traces[en_type]->raw_stack_trace_b;
+        raw_st = svg_st->raw_stack_trace_b;
     }
     if (raw_st == NULL) { 
         return -1;
     }
+    
     int rt_count = raw_st->raw_trace_count;
     for (int i = 0; i < rt_count; i++) {
         if (g_stop) {
             break;
         }
         stack_id = &(raw_st->raw_traces[i].stack_id);
-        proc_cache = __get_proc_cache(st, &(stack_id->pid));
+        proc_histo = get_proc_histo_item(svg_st, stack_id->pid.proc_id);
+        if (proc_histo != NULL) {
+            if (proc_histo->proc_stack_type == PROC_STACK_STORE_IN_HASH) {
+                load_symbs = 1;
+            } else if (proc_histo->proc_stack_type == PROC_STACK_STORE_IN_FILE) {
+                load_symbs = 0;
+            } else {
+                // PROC_STACK_STORE_READED means that the symbolic call stack of this process has been read within 30s
+                continue;
+            }
+        } else {
+            proc_histo = add_proc_histo_item(svg_st, stack_id->pid.proc_id, PROC_STACK_STORE_IN_HASH);
+            if (proc_histo == NULL) {
+                return -1;
+            }
+            load_symbs = 1;
+        }
+
+        proc_cache = __get_proc_cache(st, &(stack_id->pid), load_symbs);
         if (!proc_cache) {
             continue;
         }
-        (void)memset(&stack_symbs, 0, sizeof(stack_symbs));
-        ret = stack_id2symbs(st, stack_id, proc_cache, &stack_symbs);
-        if (ret != 0) {
-            continue;
+
+        // None of the members is empty
+        struct proc_histo_tmp_s proc_histo_tmp = {
+            .en_type = en_type,
+            .load_symbs = load_symbs,
+            .proc_symbs = proc_cache->proc_symbs,
+            .proc_histo = proc_histo
+        };
+        if (load_symbs) {
+            (void)memset(&stack_symbs, 0, sizeof(stack_symbs));
+            ret = stack_id2symbs(st, stack_id, proc_cache, &stack_symbs);
+            if (ret != 0) {
+                continue;
+            }
+            st->stats.count[STACK_STATS_ID2SYMBS]++;
+            (void)add_stack_histo(st, &stack_symbs, &proc_histo_tmp, raw_st->raw_traces[i].count);
+        } else {
+            (void)add_stack_histo(st, NULL, &proc_histo_tmp, 0);
         }
-        st->stats.count[STACK_STATS_ID2SYMBS]++;
-        (void)add_stack_histo(st, &stack_symbs, proc_cache->proc_symbs, en_type, raw_st->raw_traces[i].count);
     }
 
     st->stats.count[STACK_STATS_P_CACHE] = H_COUNT(st->proc_cache);
@@ -1000,7 +1203,7 @@ static struct stack_trace_s *create_stack_trace(struct ipc_body_s *ipc_body)
     (void)memset(st, 0, size);
     st->cpus_num = cpus_num;
     st->whitelist_enable = 1; // Only the flame graph of the specified process is collected
-
+    st->separate_out_flag = ipc_body->probe_param.separate_out_flag;
 #if 0
     if (stacktrace_create_log_mgr(st, conf->generalConfig->logDir)) {
         goto err;
@@ -1008,7 +1211,7 @@ static struct stack_trace_s *create_stack_trace(struct ipc_body_s *ipc_body)
 #endif
 
     if (set_post_server(&st->post_server, ipc_body->probe_param.pyroscope_server,
-                        ipc_body->probe_param.perf_sample_period) != 0) {
+                        ipc_body->probe_param.perf_sample_period, ipc_body->probe_param.separate_out_flag) != 0) {
         INFO("[STACKPROBE]: Do not post to Pyroscope Server.\n");
         st->post_server.post_enable = 0;
     } else {
@@ -1561,8 +1764,8 @@ static FILE *__get_flame_graph_fp(struct stack_svg_mng_s *svg_mng)
     return sfg->fp;
 }
 
-int __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng,
-                      struct stack_trace_histo_s *stack_trace_histo, int first, struct post_info_s *post_info)
+int  __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng, struct stack_trace_histo_s *stack_trace_histo,
+    int first, struct post_info_s *post_info)
 {
     FILE *fp = __get_flame_graph_fp(svg_mng);
     if (!fp) {
@@ -1579,6 +1782,7 @@ int __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng,
         (void)snprintf(__histo_tmp_str, HISTO_TMP_LEN, "\n%s %llu",
                 stack_trace_histo->stack_symbs_str, stack_trace_histo->count);
     }
+
     if (post_info->post_flag) {
         int written = post_info->buf - post_info->buf_start;
         int ret = __snprintf(&post_info->buf, post_info->remain_size, &post_info->remain_size, "%s", __histo_tmp_str);
@@ -1603,14 +1807,101 @@ int __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng,
     return 0;
 }
 
-void iter_histo_tbl(struct stack_svg_mng_s *svg_mng, int en_type, int *first_flag, struct post_info_s *post_info)
+void iter_histo_tbl(struct proc_stack_trace_histo_s *proc_histo, struct post_server_s *post_server,
+    struct stack_svg_mng_s *svg_mng, int en_type, int *first_flag)
 {
     struct stack_trace_histo_s *item, *tmp;
-    H_ITER(g_st->svg_stack_traces[en_type]->histo_tbl, item, tmp) {
-        (void)__do_wr_stack_histo(svg_mng, item, *first_flag, post_info);
+    struct post_info_s post_info = {.remain_size = g_post_max, .post_flag = 0};
+
+    init_curl_handle(post_server, &post_info);
+
+    H_ITER(proc_histo->histo_tbl, item, tmp) {
+        (void)__do_wr_stack_histo(svg_mng, item, *first_flag, &post_info);
         *first_flag = 0;
     }
+
+    if (post_info.post_flag) {
+        curl_post(post_server, &post_info, en_type, proc_histo->proc_id);
+    }
+
     return;
+}
+
+static int set_jstack_args(struct java_attach_args *attach_args)
+{
+    int len = ATTACH_TYPE_LEN;
+    int ret;
+    char *pos = attach_args->action;
+    char *flame_types[] = {"oncpu", "offcpu", "mem", "io"};
+
+    attach_args->action[0] = 0;
+    for (int i = 0; i < STACK_SVG_MAX; i++) {
+        if (g_st->svg_stack_traces[i] != NULL) {
+            ret = __snprintf(&pos,(const int)len, &len, "%s|", flame_types[i]);
+            if (ret < 0) {
+                return ret;
+            }
+        }
+    }
+
+    (void)snprintf(attach_args->agent_file_name, FILENAME_LEN, "%s", JSTACK_AGENT_FILE);
+    (void)snprintf(attach_args->tmp_file_name, FILENAME_LEN, "%s", JSTACK_TMP_FILE);
+    return 0;
+}
+
+static void add_java_proc_histo_item(unsigned int pid)
+{
+    struct proc_stack_trace_histo_s *proc_histo;
+    for (int i = 0; i < STACK_SVG_MAX; i++) {
+        if (g_st->svg_stack_traces[i] != NULL) {
+            proc_histo = get_proc_histo_item(g_st->svg_stack_traces[i], pid);
+            if (proc_histo == NULL) {
+                (void)add_proc_histo_item(g_st->svg_stack_traces[i], pid, PROC_STACK_STORE_IN_FILE);
+            } else {
+                proc_histo->proc_stack_type = PROC_STACK_STORE_IN_FILE;
+            }
+        }
+    }
+}
+
+static void load_jstack_agent()
+{
+    if (!g_st || (g_st->proc_obj_map_fd <= 0)) {
+        ERROR("[STACKPROBE]: Load jvm agent failed!\n");
+        return;
+    }
+
+    int ret = 0;
+    unsigned int pid;
+    int proc_obj_map_fd = g_st->proc_obj_map_fd;
+    struct proc_s key = {0};
+    struct proc_s next_key = {0};
+    struct obj_ref_s value = {0};
+    struct java_attach_args attach_args = {0};
+    char comm[TASK_COMM_LEN];
+
+    if (set_jstack_args(&attach_args)) {
+        return;
+    }
+
+    while (bpf_map_get_next_key(proc_obj_map_fd, &key, &next_key) == 0) {
+        ret = bpf_map_lookup_elem(proc_obj_map_fd, &next_key, &value);
+        key = next_key;
+        if (ret < 0) {
+            continue;
+        }
+        pid = key.proc_id;
+        comm[0] = 0;
+        ret = detect_proc_is_java(pid, comm, TASK_COMM_LEN);
+        if (ret == 0) {
+            continue;
+        }
+        ret = java_load(pid, (void *)&attach_args);
+        if (ret == 0) {
+            add_java_proc_histo_item(pid);
+            INFO("[STACKPROBE]: Attach to proc %d succeed\n", pid);
+        }
+    }
 }
 
 static void switch_stackmap()
@@ -1628,6 +1919,11 @@ static void switch_stackmap()
     // Notify BPF to switch to another channel
     st->convert_stack_count++;
     update_convert_counter();
+
+    if (st->separate_out_flag) {
+        load_jstack_agent();
+    }
+
     // Histogram format to flame graph
     for (int i = 0; i < STACK_SVG_MAX; i++) {
         if (st->svg_stack_traces[i] == NULL) {
@@ -1636,8 +1932,8 @@ static void switch_stackmap()
         if (stack_id2histogram(st, i, st->is_stackmap_a) != 0) {
             continue;
         }
-        if (H_COUNT(st->svg_stack_traces[i]->histo_tbl) != 0) {
-            wr_flamegraph(st->svg_stack_traces[i]->svg_mng, i, &st->post_server);
+        if (H_COUNT(st->svg_stack_traces[i]->proc_histo_tbl) != 0) {
+            wr_flamegraph(&st->svg_stack_traces[i]->proc_histo_tbl, st->svg_stack_traces[i]->svg_mng, i, &st->post_server);
         }
         clear_raw_stack_trace(st->svg_stack_traces[i], st->is_stackmap_a);
     }
@@ -1755,7 +2051,9 @@ static void reload_observation_range(struct ipc_body_s *ipc_body)
         unload_stackprobe_snoopers();
         load_stackprobe_snoopers(ipc_body);
         init_convert_counter();
-        load_jvm_agent();
+        if (!ipc_body->probe_param.separate_out_flag) {
+            load_jvm_agent(ipc_body);
+        }
     }
 }
 

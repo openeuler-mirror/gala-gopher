@@ -181,7 +181,6 @@ static int _set_attach_argv(u32 pid, struct jvm_process_info *v)
         ERROR("[JAVA_SUPPORT]: proc %u chown fail when set ns_java_data_path\n", pid);
         return ret;
     }
-    get_host_java_tmp_file(pid, jvm_agent_file, v->host_java_tmp_file, PATH_LEN);
 
     return ret;
 }

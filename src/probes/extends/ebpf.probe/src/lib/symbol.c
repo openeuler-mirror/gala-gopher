@@ -977,19 +977,28 @@ void __get_proc_info(struct proc_symbs_s* proc_symbs, int proc_id)
     }
 }
 
-struct proc_symbs_s* proc_load_all_symbs(void *elf_reader, int proc_id)
+struct proc_symbs_s *new_proc_symbs(int proc_id)
 {
-    int ret;
-    FILE* fp = NULL;
-    char maps_file[PATH_LEN];
     struct proc_symbs_s* proc_symbs;
-
     proc_symbs = (struct proc_symbs_s *)malloc(sizeof(struct proc_symbs_s));
     if (!proc_symbs) {
         return NULL;
     }
     (void)memset(proc_symbs, 0, sizeof(struct proc_symbs_s));
     __get_proc_info(proc_symbs, proc_id);
+
+    return proc_symbs;
+}
+
+int proc_load_all_symbs(struct proc_symbs_s* proc_symbs, void *elf_reader, int proc_id)
+{
+    int ret;
+    FILE* fp = NULL;
+    char maps_file[PATH_LEN];
+
+    if (!proc_symbs) {
+        return -1;
+    }
 
     maps_file[0] = 0;
     (void)snprintf(maps_file, PATH_LEN, "/proc/%d/maps", proc_id);
@@ -1012,14 +1021,14 @@ struct proc_symbs_s* proc_load_all_symbs(void *elf_reader, int proc_id)
 #ifdef GOPHER_DEBUG
     __print_proc(proc_symbs);
 #endif
-    return proc_symbs;
+    return 0;
 err:
     proc_symbs_destroy(proc_symbs);
     (void)free(proc_symbs);
     if (fp) {
         fclose(fp);
     }
-    return NULL;
+    return -1;
 }
 
 void proc_delete_all_symbs(struct proc_symbs_s *proc_symbs)

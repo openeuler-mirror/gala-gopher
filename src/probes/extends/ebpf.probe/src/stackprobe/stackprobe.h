@@ -25,6 +25,9 @@
 #define BPF_FUNC_NAME_LEN 32
 #define APP_SUFFIX_LEN 64
 
+#define JSTACK_AGENT_FILE       "JstackProbeAgent.jar"
+#define JSTACK_TMP_FILE         "stacks-mem.txt"
+
 struct stack_symbs_s {
     struct addr_symb_s user_stack_symbs[PERF_MAX_STACK_DEPTH];
     struct addr_symb_s kern_stack_symbs[PERF_MAX_STACK_DEPTH];
@@ -39,10 +42,18 @@ struct raw_stack_trace_s {
 
 #define __FUNC_NAME_LEN     64
 #define STACK_SYMBS_LEN     (2 * (PERF_MAX_STACK_DEPTH * __FUNC_NAME_LEN))  // KERN + USER
+
 struct stack_trace_histo_s {
     H_HANDLE;
     char stack_symbs_str[STACK_SYMBS_LEN];
     u64 count;
+};
+
+struct proc_stack_trace_histo_s {
+    H_HANDLE;
+    int proc_id;
+    enum proc_stack_type_e proc_stack_type;
+    struct stack_trace_histo_s *histo_tbl;
 };
 
 struct proc_cache_s {
@@ -100,11 +111,12 @@ struct svg_stack_trace_s {
     struct raw_stack_trace_s *raw_stack_trace_b;
 
     struct stack_svg_mng_s *svg_mng;
-    struct stack_trace_histo_s *histo_tbl;
+    struct proc_stack_trace_histo_s *proc_histo_tbl;
 };
 
 struct post_server_s {
     char post_enable;
+    char separate_out_flag;
     u32 sample_period; // ms
     long timeout; // sec
     char host[PATH_LEN];
@@ -115,6 +127,7 @@ struct post_server_s {
 struct stack_trace_s {
     char pad[3];
     char is_stackmap_a;
+    char separate_out_flag;
     int cpus_num;
     u32 whitelist_enable;
     int convert_map_fd;
@@ -142,6 +155,7 @@ struct stack_trace_s {
     int pmu_fd[];   // It must be put to the last.
 };
 
-void iter_histo_tbl(struct stack_svg_mng_s *svg_mng, int en_type, int *first_flag, struct post_info_s *post_info);
+void iter_histo_tbl(struct proc_stack_trace_histo_s *proc_histo, struct post_server_s *post_server,
+    struct stack_svg_mng_s *svg_mng, int en_type, int *first_flag);
 
 #endif

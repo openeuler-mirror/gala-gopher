@@ -38,7 +38,6 @@ static void __set_default_params(struct probe_params_deprecated *params)
     params->env_flags = SUPPORT_NODE_ENV;    // Support for node environment(include guest/host os)
 }
 
-
 static void __parse_host_ip_fields(char *ip_str, struct probe_params_deprecated *params)
 {
     char *p = NULL;
