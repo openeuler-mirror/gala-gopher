@@ -112,7 +112,6 @@ static int add_estab_tcp_fd(const struct estab_tcp_key *k,
     item->v.fds[item->v.num].fd = fd;
     item->v.fds[item->v.num].role = role;
     item->v.num++;
-    INFO("[TCPPROBE]: Load established tcp(proc = %u, fd = %d)\n", k->proc_id, fd);
     return 0;
 }
 
@@ -168,31 +167,25 @@ static int get_netns_fd(pid_t pid)
     return open(path, O_RDONLY);
 }
 
-static int do_lkup_established_tcp(const char *container_id, int netns_fd)
+/*
+ * 查询tcp探针启动前系统中已创建的tcp连接信息
+ *   1. 全局只获取一次主机netns下的tcp连接信息
+ *   2. 只对新增的容器进程查询对应容器netns下的tcp连接信息
+ */
+void lkup_established_tcp(int proc_map_fd, struct ipc_body_s *ipc_body)
 {
-    int ret;
-
-    if (container_id) {
-        ret = enter_container_netns(container_id);
-        if (ret) {
-            ERROR("[TCPPROBE]: Enter container netns failed.(%s, ret = %d)\n",
-                container_id, ret);
-            return ret;
-        }
-    }
-
-    do_lkup_established_tcp_info();
-
-    if (container_id) {
-        (void)exit_container_netns(netns_fd);
-    }
-    return 0;
-}
-
-void lkup_established_tcp(void)
-{
-    int i;
     int netns_fd = 0;
+    struct proc_s key = {0};
+    struct obj_ref_s val = {0};
+    static char host_netns_flag = 0;   // 全局只获取一次主机netns下的tcp连接信息
+    int ret;
+    int i;
+
+    if (!host_netns_flag) {
+        INFO("[TCPPROBE]: Lookup established tcp for host netns...\n");
+        do_lkup_established_tcp_info();
+        host_netns_flag = 1;
+    }
 
     netns_fd = get_netns_fd(getpid());
     if (netns_fd <= 0) {
@@ -200,17 +193,28 @@ void lkup_established_tcp(void)
         return;
     }
 
-    container_tbl* cstbl = get_all_container();
-    if (cstbl != NULL) {
-        container_info *p = cstbl->cs;
-        for (i = 0; i < cstbl->num; i++) {
-            (void)do_lkup_established_tcp((const char *)p->abbrContainerId, netns_fd);
-            p++;
+    for (i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_body->snooper_objs[i].type != SNOOPER_OBJ_PROC) {
+            continue;
         }
-        free_container_tbl(&cstbl);
+
+        key.proc_id = ipc_body->snooper_objs[i].obj.proc.proc_id;
+        if (bpf_map_lookup_elem(proc_map_fd, &key, &val) == 0) {
+            continue;
+        }
+
+        if (is_container_proc(key.proc_id)) {
+            ret = enter_proc_netns(key.proc_id);
+            if (ret) {
+                ERROR("[TCPPROBE]: Enter container netns failed.(%u, ret = %d)\n", key.proc_id, ret);
+                continue;
+            }
+            INFO("[TCPPROBE]: Lookup established tcp for container netns of proc:%u ...\n", key.proc_id);
+            do_lkup_established_tcp_info();
+            (void)exit_container_netns(netns_fd);
+        }
     }
 
-    (void)do_lkup_established_tcp(NULL, netns_fd);
     (void)close(netns_fd);
 }
 

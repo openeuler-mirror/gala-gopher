@@ -133,9 +133,6 @@ int main(int argc, char **argv)
 
     INIT_BPF_APP(tcpprobe, EBPF_RLIM_LIMITED);
 
-    INFO("[TCPPROBE]: Starting to load established tcp...\n");
-
-    lkup_established_tcp();
     ret = tcp_load_fd_probe(&tcp_fd_map_fd, &proc_obj_map_fd);
     if (ret) {
         fprintf(stderr, "Load tcp fd ebpf prog failed.\n");
@@ -160,6 +157,7 @@ int main(int argc, char **argv)
             }
 
             if (ipc_body.probe_flags & IPC_FLAGS_SNOOPER_CHG || ipc_body.probe_flags == 0) {
+                lkup_established_tcp(proc_obj_map_fd, &ipc_body);
                 unload_tcp_snoopers(proc_obj_map_fd, &(tcp_mng->ipc_body));
                 load_tcp_snoopers(proc_obj_map_fd, &ipc_body);
             }

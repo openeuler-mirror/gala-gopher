@@ -1082,3 +1082,24 @@ int exit_container_netns(int netns_fd)
     return __set_netns_by_fd(netns_fd);
 }
 
+int enter_proc_netns(u32 pid)
+{
+    return __set_netns_by_pid((pid_t)pid);
+}
+
+int is_container_proc(u32 pid)
+{
+    char container_id[CONTAINER_ID_LEN + 1];
+    char pid_str[INT_LEN];
+    int ret;
+
+    pid_str[0] = 0;
+    container_id[0] = 0;
+    (void)snprintf(pid_str, sizeof(pid_str), "%d", pid);
+    ret = get_container_id_by_pid_cpuset(pid_str, container_id, sizeof(container_id));
+    if (ret || container_id[0] == 0) {
+        return 0;
+    }
+
+    return 1;
+}
