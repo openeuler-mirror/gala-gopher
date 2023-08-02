@@ -116,8 +116,8 @@ struct svg_stack_trace_s {
 
 struct post_server_s {
     char post_enable;
-    char separate_out_flag;
-    u32 sample_period; // ms
+    char multi_instance_flag;
+    u32 perf_sample_period; // ms
     long timeout; // sec
     char host[PATH_LEN];
     char app_suffix[APP_SUFFIX_LEN];
@@ -127,7 +127,8 @@ struct post_server_s {
 struct stack_trace_s {
     char pad[3];
     char is_stackmap_a;
-    char separate_out_flag;
+    char multi_instance_flag;
+    char native_stack_flag;
     int cpus_num;
     u32 whitelist_enable;
     int convert_map_fd;

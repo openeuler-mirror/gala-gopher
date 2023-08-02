@@ -22,9 +22,9 @@
 #include <curl/curl.h>
 
 enum proc_stack_type_e {
-    PROC_STACK_STORE_IN_HASH = 0,
-    PROC_STACK_STORE_IN_FILE = 1,
-    PROC_STACK_STORE_READED = 2
+    PROC_STACK_STORE_IN_HASH = 0, // when load_jvm_agent
+    PROC_STACK_STORE_IN_FILE = 1, // when load_jstack_agent
+    PROC_STACK_STORE_READED = 2   // when load_jstack_agent
 };
 
 struct post_info_s {

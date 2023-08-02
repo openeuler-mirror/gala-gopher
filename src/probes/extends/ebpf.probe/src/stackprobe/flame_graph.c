@@ -209,7 +209,7 @@ static int __build_url(char *url, struct post_server_s *post_server, int en_type
     }
     post_server->last_post_ts = now;
 
-    if (post_server->separate_out_flag) {
+    if (post_server->multi_instance_flag) {
         (void)snprintf(url, LINE_BUF_LEN, 
             "http://%s/ingest?name=%s-%s.%d&from=%ld&until=%ld&units=%s&sampleRate=%u",
             post_server->host,
@@ -219,7 +219,7 @@ static int __build_url(char *url, struct post_server_s *post_server, int en_type
             (long)before,
             (long)now,
             en_type == STACK_SVG_MEMLEAK ? "bytes" : "samples",
-            1000 / post_server->sample_period); // 1000 ms
+            1000 / post_server->perf_sample_period); // 1000 ms
     } else {
         (void)snprintf(url, LINE_BUF_LEN, 
             "http://%s/ingest?name=%s-%s&from=%ld&until=%ld&units=%s&sampleRate=%u",
@@ -229,7 +229,7 @@ static int __build_url(char *url, struct post_server_s *post_server, int en_type
             (long)before,
             (long)now,
             en_type == STACK_SVG_MEMLEAK ? "bytes" : "samples",
-            1000 / post_server->sample_period); // 1000 ms
+            1000 / post_server->perf_sample_period); // 1000 ms
     }
 
     return 0;
@@ -396,8 +396,13 @@ int set_flame_graph_path(struct stack_svg_mng_s *svg_mng, const char* path, cons
 }
 
 int set_post_server(struct post_server_s *post_server, const char *server_str, unsigned int perf_sample_period,
-                    char separate_out_flag)
+                    char multi_instance_flag)
 {
+    post_server->post_enable = 1;
+    post_server->timeout = 3;
+    post_server->perf_sample_period = perf_sample_period == 0 ? DEFAULT_PERF_SAMPLE_PERIOD : perf_sample_period;
+    post_server->multi_instance_flag = multi_instance_flag;
+
     if (server_str == NULL) {
         return -1;
     }
@@ -408,10 +413,6 @@ int set_post_server(struct post_server_s *post_server, const char *server_str, u
     }
 
     curl_global_init(CURL_GLOBAL_ALL);
-    post_server->post_enable = 1;
-    post_server->timeout = 3;
-    post_server->sample_period = perf_sample_period == 0 ? DEFAULT_PERF_SAMPLE_PERIOD : perf_sample_period;
-    post_server->separate_out_flag = separate_out_flag;
 
     (void)strcpy(post_server->host, server_str);
 

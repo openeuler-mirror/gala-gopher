@@ -16,6 +16,7 @@ public class JstackProbeAgent {
     private static final String CPU_EVENT_JAVA_SAMPLE = "jdk.ExecutionSample";
     private static final String CPU_EVENT_NATIVE_SAMPLE = "jdk.NativeMethodSample";
     private static final String OFFCPU_EVENT_JAVA_MON_WAIT = "jdk.JavaMonitorWait";
+    private static final String OFFCPU_EVENT_THREAD_PARK = "jdk.ThreadPark";
     private static final String MEM_EVENT_IN_TLAB = "jdk.ObjectAllocationInNewTLAB";
     private static final String MEM_EVENT_OUT_TLAB = "jdk.ObjectAllocationOutsideTLAB";
 
@@ -84,7 +85,7 @@ public class JstackProbeAgent {
 
         if (eventType.equals(CPU_EVENT_JAVA_SAMPLE) || eventType.equals(CPU_EVENT_NATIVE_SAMPLE)) {
             bw = oncpuStackWriter;
-        } else if (eventType.equals(OFFCPU_EVENT_JAVA_MON_WAIT)) {
+        } else if (eventType.equals(OFFCPU_EVENT_JAVA_MON_WAIT) || eventType.equals(OFFCPU_EVENT_THREAD_PARK)) {
             bw = offcpuStackWriter;
         } else {
             bw = memStackWriter;
@@ -185,14 +186,16 @@ public class JstackProbeAgent {
     private static void startRecording() {
         try {
             recording = new Recording();
+            int samplePeriodMs = args.getSamplePeriodMs();
 
             // event ref: jdk\src\share\classes\jdk\jfr\conf\default.jfc or jdk.test.lib.jfr.EventNames
             if (oncpuStackWriter != null) {
-                recording.enable(CPU_EVENT_JAVA_SAMPLE).withPeriod(Duration.ofMillis(10)); // .withPeriod(Duration.ofMillis(50))
-                recording.enable(CPU_EVENT_NATIVE_SAMPLE).withPeriod(Duration.ofMillis(10));
+                recording.enable(CPU_EVENT_JAVA_SAMPLE).withPeriod(Duration.ofMillis(samplePeriodMs));
+                recording.enable(CPU_EVENT_NATIVE_SAMPLE).withPeriod(Duration.ofMillis(samplePeriodMs));
             }
             if (offcpuStackWriter != null) {
-                recording.enable(OFFCPU_EVENT_JAVA_MON_WAIT).withPeriod(Duration.ofMillis(10));
+                recording.enable(OFFCPU_EVENT_JAVA_MON_WAIT).withPeriod(Duration.ofMillis(samplePeriodMs));
+                recording.enable(OFFCPU_EVENT_THREAD_PARK).withPeriod(Duration.ofMillis(samplePeriodMs));
             }
             if (memStackWriter != null) {
                 recording.enable(MEM_EVENT_IN_TLAB);
