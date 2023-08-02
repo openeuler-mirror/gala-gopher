@@ -787,7 +787,7 @@ err:
                                         || IS_STARTED_STR(name, "//anon") || IS_STARTED_STR(name, "/dev/zero") \
                                         || IS_STARTED_STR(name, "[stack") || IS_STARTED_STR(name, "[heap]") \
                                         || IS_STARTED_STR(name, "/anon_hugepage") || IS_STARTED_STR(name, "[uprobes]")
-static int get_mod_name(struct mod_info_s* mod_info, char *maps_line, struct proc_symbs_s* proc_symbs)
+static int get_mod_name(struct mod_info_s* mod_info, char *maps_line, struct proc_symbs_s* proc_symbs, char native_stack_flag)
 {
     char *end, *name, *target;
 
@@ -806,7 +806,7 @@ static int get_mod_name(struct mod_info_s* mod_info, char *maps_line, struct pro
         return GET_MOD_NAME;
     }
 
-    if (strstr(name, "libjvm.so")) {
+    if (!native_stack_flag && strstr(name, "libjvm.so")) {
         return GET_MOD_NAME;
     }
 
@@ -857,7 +857,7 @@ static struct mod_s* proc_get_mod_by_name(struct proc_symbs_s* proc_symbs, const
 #define MAPS_PERM_MAX    5
 #define MAPS_IS_EXEC_PERM(perm) (perm[2] == 'x')
 
-static int proc_iter_maps(void *elf_reader, struct proc_symbs_s* proc_symbs, FILE *fp)
+static int proc_iter_maps(void *elf_reader, struct proc_symbs_s* proc_symbs, FILE *fp, char native_stack_flag)
 {
     int ret = 0, is_over = 0;
     u64 dev_major __maybe_unused;
@@ -882,7 +882,7 @@ static int proc_iter_maps(void *elf_reader, struct proc_symbs_s* proc_symbs, FIL
         if (!MAPS_IS_EXEC_PERM(maps_perm)) {
             goto next;
         }
-        ret = get_mod_name(&mod_info, line, proc_symbs);
+        ret = get_mod_name(&mod_info, line, proc_symbs, native_stack_flag);
         if (ret != 0) {
             goto next;
         }
@@ -990,7 +990,7 @@ struct proc_symbs_s *new_proc_symbs(int proc_id)
     return proc_symbs;
 }
 
-int proc_load_all_symbs(struct proc_symbs_s* proc_symbs, void *elf_reader, int proc_id)
+int proc_load_all_symbs(struct proc_symbs_s* proc_symbs, void *elf_reader, int proc_id, char native_stack_flag)
 {
     int ret;
     FILE* fp = NULL;
@@ -1011,7 +1011,7 @@ int proc_load_all_symbs(struct proc_symbs_s* proc_symbs, void *elf_reader, int p
         goto err;
     }
 
-    ret = proc_iter_maps(elf_reader, proc_symbs, fp);
+    ret = proc_iter_maps(elf_reader, proc_symbs, fp, native_stack_flag);
     if (ret != 0) {
         ERROR("[SYMBOL]: Iter proc maps failed[proc = %d, ret = %d].\n", proc_id, ret);
         goto err;

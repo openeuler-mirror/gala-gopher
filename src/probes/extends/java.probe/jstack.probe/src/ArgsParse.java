@@ -5,12 +5,13 @@ public class ArgsParse {
     private String OffcpuStacksFile = null;
     private String MemStacksFile = null;
     private String IoStacksFile = null;
+    private int SamplePeriodMs = 10; // ms
     private String JfrFile;
 
     public int setArgs(String Args) {
         String[] args = Args.split("[,]");
-        if (args.length < 3) {
-            System.out.println("[JstackProbeAgent] please add args: Pid, DataPath, EventType.");
+        if (args.length < 4) {
+            System.out.println("[JstackProbeAgent] please add args: Pid, DataPath, EventType, SamplePeriod.");
             return -1;
         }
         try {
@@ -28,6 +29,8 @@ public class ArgsParse {
             if (args[2].contains("io")) {
                 this.IoStacksFile = String.format("%s/stacks-io.txt", args[1]);
             }
+
+            this.SamplePeriodMs = Integer.parseInt(args[3]);
             this.JfrFile = String.format("%s/recording.jfr", args[1]); // recording.jfr
         } catch (IllegalArgumentException e) {
             System.out.println("[JstackProbeAgent] parse args failed.");
@@ -54,5 +57,9 @@ public class ArgsParse {
 
     public String getArgJfrFile() {
         return this.JfrFile;
+    }
+
+    public int getSamplePeriodMs() {
+        return this.SamplePeriodMs;
     }
 }

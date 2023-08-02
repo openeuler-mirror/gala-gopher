@@ -334,7 +334,7 @@ struct proc_symbs_s *add_symb_info(proc_info_t *proc_info)
         return NULL;
     }
 
-    ret = proc_load_all_symbs(symbs, &gElfReader, proc_info->tgid);
+    ret = proc_load_all_symbs(symbs, &gElfReader, proc_info->tgid, 0);
     if (ret != 0) {
         return NULL;
     }
