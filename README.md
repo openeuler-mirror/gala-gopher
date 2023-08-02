@@ -413,3 +413,4 @@ openEuler-22.09 : https://117.78.1.88/package/show/home:zpublic:branches:openEul
 | 支持kafka client形式对接         | 22.12    | openEuler 22.03 SP1                  |
 | 支持REST接口动态变更探针监控能力 | 23.06    | openEuler 22.03 SP1, openEuler 23.09 |
 
+
