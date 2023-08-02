@@ -21,67 +21,102 @@
 #include "task.h"
 #include "proc_map.h"
 #include "output_proc.h"
+#include "glibc_bpf.h"
 
 char LICENSE[] SEC("license") = "GPL";
 
-static __always_inline void store_dns_op_start_ts(void)
+#define BPF_F_INDEX_MASK    0xffffffffULL
+#define BPF_F_CURRENT_CPU   BPF_F_INDEX_MASK
+
+#define PERF_OUT_MAX (64)
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, PERF_OUT_MAX);
+} dns_output SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(u64));          // context id
+    __uint(value_size, sizeof(struct dns_cache_s));
+    __uint(max_entries, 1000);
+} dns_map SEC(".maps");
+
+static __always_inline __maybe_unused void report_dns_perf_evt(void *ctx, struct dns_cache_s *cache)
 {
-    struct proc_data_s *proc;
-    u32 proc_id = bpf_get_current_pid_tgid() >> INT_LEN;
-
-    proc = get_proc_entry(proc_id);
-    if (proc == NULL) {
-        return;
-    }
-
-    proc->dns_op.gethostname_start_ts = bpf_ktime_get_ns();
+    (void)bpf_perf_event_output(ctx, &dns_output, BPF_F_CURRENT_CPU, cache, sizeof(struct dns_cache_s));
 }
 
-static __always_inline void update_gethostname_res(struct pt_regs* ctx)
+static __always_inline int start_dns(struct pt_regs* ctx)
 {
-    struct proc_data_s *proc;
-    u64 ts = bpf_ktime_get_ns(), delta = 0;
-    u32 proc_id = bpf_get_current_pid_tgid() >> INT_LEN;
-    int ret = PT_REGS_RC(ctx);
+    u32 proc_id;
+    u64 key = bpf_get_current_pid_tgid();
+    proc_id = key >> INT_LEN;
 
-    proc = get_proc_entry(proc_id);
-    if (proc == NULL) {
-        return;
+    if (get_proc_entry(proc_id) == NULL) {
+        return 0;
     }
 
-    if (ret) {
-        __sync_fetch_and_add(&(proc->dns_op.gethostname_failed), 1);
-    }
+    const char *domain = (const char *)PT_REGS_PARM1(ctx);
 
-    if (proc->dns_op.gethostname_start_ts == 0) {
-        return;
-    }
-
-    if (ts > proc->dns_op.gethostname_start_ts) {
-        delta = ts - proc->dns_op.gethostname_start_ts;
-    }
-
-    proc->dns_op.gethostname_start_ts = 0;
-    if (delta > proc->dns_op.gethostname_ns) {
-        proc->dns_op.gethostname_ns = delta;
-        report_proc(ctx, proc, TASK_PROBE_DNS_OP);
-    }
+    struct dns_cache_s cache = {0};
+    bpf_probe_read_user(cache.domain, DOMAIN_LEN, domain);
+    cache.proc_id = proc_id;
+    cache.start_ts = bpf_ktime_get_ns();
+    (void)bpf_map_update_elem(&dns_map, &key, &cache, BPF_ANY);
+    return 0;
 }
 
-#define UPROBE_GLIBC(func, start_fn, stop_fn) \
-    UPROBE(func, pt_regs) \
-    { \
-        start_fn(); \
-        return 0; \
-    } \
-    \
-    URETPROBE(func, pt_regs) \
-    { \
-        stop_fn(ctx); \
-        return 0; \
+static __always_inline int end_dns(struct pt_regs* ctx)
+{
+    u64 key = bpf_get_current_pid_tgid();
+    u64 ret = (u64)PT_REGS_RC(ctx);
+
+    struct dns_cache_s *cache = (struct dns_cache_s *)bpf_map_lookup_elem(&dns_map, &key);
+    if (cache == NULL) {
+        goto end;
     }
 
-UPROBE_GLIBC(getaddrinfo, store_dns_op_start_ts, update_gethostname_res)
-UPROBE_GLIBC(gethostbyname2, store_dns_op_start_ts, update_gethostname_res)
-UPROBE_GLIBC(gethostbyname, store_dns_op_start_ts, update_gethostname_res)
+    cache->error = ret;
+    cache->end_ts = bpf_ktime_get_ns();
 
+    report_dns_perf_evt(ctx, cache);
+
+end:
+    (void)bpf_map_delete_elem(&dns_map, &key);
+    return 0;
+}
+
+// int getaddrinfo(const char *__name, const char *__service, const struct addrinfo *__req, struct addrinfo **__pai);
+UPROBE(getaddrinfo, pt_regs)
+{
+    return start_dns(ctx);
+}
+
+URETPROBE(getaddrinfo, pt_regs)
+{
+    return end_dns(ctx);
+}
+
+// struct hostent *gethostbyname2 (const char *__name, int __af);
+UPROBE(gethostbyname2, pt_regs)
+{
+    return start_dns(ctx);
+}
+
+URETPROBE(gethostbyname2, pt_regs)
+{
+    return end_dns(ctx);
+}
+
+// struct hostent *gethostbyname (const char *__name);
+UPROBE(gethostbyname, pt_regs)
+{
+    return start_dns(ctx);
+}
+
+URETPROBE(gethostbyname, pt_regs)
+{
+    return end_dns(ctx);
+}
