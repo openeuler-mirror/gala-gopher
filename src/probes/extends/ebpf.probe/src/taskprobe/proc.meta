@@ -265,28 +265,6 @@ measurements:
         )
     },
     {
-        table_name: "proc_dns",
-        entity_name: "proc",
-        fields:
-        (
-            {
-                description: "ID of the process",
-                type: "key",
-                name: "tgid",
-            },
-            {
-                description: "Number of failed DNS obtaining by processes.",
-                type: "gauge",
-                name: "gethostname_failed",
-            },
-            {
-                description: "Duration for a process to obtain a DNS address, in ns.",
-                type: "gauge",
-                name: "ns_gethostname",
-            }
-        )
-    },
-    {
         table_name: "proc_io",
         entity_name: "proc",
         fields:

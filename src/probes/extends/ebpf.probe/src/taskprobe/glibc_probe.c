@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <time.h>
 #include <sys/resource.h>
 
 #ifdef BPF_PROG_KERN
@@ -30,7 +31,9 @@
 #include "bpf.h"
 #include "task.h"
 #include "proc.h"
+#include "event.h"
 #include "glibc.skel.h"
+#include "glibc_bpf.h"
 #include "bpf_prog.h"
 
 #define __LOAD_PROBE(probe_name, end, load) \
@@ -39,14 +42,209 @@
     MAP_SET_PIN_PATH(probe_name, g_proc_map, PROC_PATH, load); \
     LOAD_ATTACH(taskprobe, probe_name, end, load)
 
-void output_proc_metrics(void *ctx, int cpu, void *data, __u32 size);
+#define PROC_DNS_TBL  "proc_dns"
+#define OO_NAME "dns"
 
-static int load_glibc_create_pb(struct bpf_prog_s* prog, int fd)
+static struct dns_entry_s * create_dns_entry(struct task_probe_s *task_probe, const struct dns_cache_s* cache)
+{
+    struct dns_entry_s* entry = (struct dns_entry_s *)malloc(sizeof(struct dns_entry_s));
+    if (entry == NULL) {
+        return NULL;
+    }
+
+    memset(entry, 0, sizeof(struct dns_entry_s));
+    entry->id.proc_id = cache->proc_id;
+    memcpy(entry->id.domain, cache->domain, DOMAIN_LEN);
+
+    H_ADD_KEYPTR(task_probe->dns_entrys, &entry->id, sizeof(struct dns_id_s), entry);
+    return entry;
+}
+
+static struct dns_entry_s * lkup_dns_entry(struct task_probe_s *task_probe, const struct dns_cache_s* cache)
+{
+    struct dns_entry_s* entry = NULL;
+    struct dns_id_s id;
+
+    id.proc_id = cache->proc_id;
+    memcpy(id.domain, cache->domain, DOMAIN_LEN);
+
+    H_FIND(task_probe->dns_entrys, &id, sizeof(struct dns_id_s), entry);
+    return entry;
+}
+
+static int add_dns_entry(struct task_probe_s *task_probe, const struct dns_cache_s* cache)
+{
+    u64 delay;
+    struct dns_entry_s* entry = lkup_dns_entry(task_probe, cache);
+    if (entry == NULL) {
+        entry = create_dns_entry(task_probe, cache);
+    }
+
+    if (entry == NULL) {
+        ERROR("[TASKPROBE] Failed to create dns entry.\n");
+        return -1;
+    }
+
+    entry->last_rcv_data = (time_t)time(NULL);
+
+    entry->dns_op_count++;
+    entry->err_count += (cache->error == 0) ? 0 : 1;
+    if ((cache->end_ts > cache->start_ts) && (cache->error == 0)) {
+        delay = cache->end_ts - cache->start_ts;
+        entry->latency_sum += delay;
+        entry->latency_max = max(entry->latency_max, delay);
+    }
+    return 0;
+}
+
+static char is_entry_inactive(struct dns_entry_s* entry)
+{
+#define __INACTIVE_TIME_SECS     (10 * 60)       // 10min
+    time_t current = (time_t)time(NULL);
+    time_t secs;
+
+    if (current > entry->last_rcv_data) {
+        secs = current - entry->last_rcv_data;
+        if (secs >= __INACTIVE_TIME_SECS) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static char is_entry_tmout(struct task_probe_s *task_probe, struct dns_entry_s* entry)
+{
+    time_t current = (time_t)time(NULL);
+    time_t secs;
+
+    if ((entry->last_report == (time_t)0) || (current < entry->last_report)) {
+        entry->last_report = current;
+        return 0;
+    }
+
+    if (current > entry->last_report) {
+        secs = current - entry->last_report;
+        if (secs >= task_probe->ipc_body.probe_param.period) {
+            entry->last_report = current;
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+void rcv_dns_cache(void *ctx, int cpu, void *data, __u32 size)
+{
+    struct task_probe_s *task_probe = (struct task_probe_s *)ctx;
+    (void)add_dns_entry(task_probe, (const struct dns_cache_s *)data);
+}
+
+static void reset_dns_entry(struct dns_entry_s *entry)
+{
+    entry->dns_op_count = 0;
+    entry->err_count = 0;
+    entry->latency_max = 0;
+    entry->latency_sum = 0;
+    entry->err_ratio = 0.0;
+}
+
+static void report_dns_event(struct task_probe_s *task_probe, struct dns_entry_s *entry)
+{
+#define __ENTITY_ID_LEN 128
+
+    char entityId[__ENTITY_ID_LEN];
+    struct event_info_s evt = {0};
+
+    if (entry->err_ratio == 0.0) {
+        return;
+    }
+
+    if (task_probe->ipc_body.probe_param.logs == 0) {
+        return;
+    }
+
+    entityId[0] = 0;
+    (void)snprintf(entityId, __ENTITY_ID_LEN, "%u_%s", entry->id.proc_id, entry->id.domain);
+
+    evt.entityName = OO_NAME;
+    evt.entityId = entityId;
+    evt.pid = (int)entry->id.proc_id;
+    evt.metrics = "error_ratio";
+
+    report_logs((const struct event_info_s *)&evt,
+                EVT_SEC_WARN,
+                "Process(PID:%u) DNS error ratio(%.3f %).",
+                entry->id.proc_id,
+                entry->err_ratio);
+    return;
+}
+
+static void output_dns_entry(struct dns_entry_s *entry)
+{
+    u64 succeed_op_count = 0;
+    u64 latency_avg = 0;
+    float err_ratio = 0.0;
+
+    if (entry->dns_op_count > entry->err_count) {
+        succeed_op_count = entry->dns_op_count - entry->err_count;
+        latency_avg = entry->latency_sum / succeed_op_count;
+        latency_avg = latency_avg >> 6;
+    }
+
+    if (entry->err_count != 0 && entry->dns_op_count != 0) {
+        err_ratio = (float)((float)entry->err_count / (float)entry->dns_op_count);
+        entry->err_ratio = err_ratio * 100; // Percentage
+    }
+
+    (void)fprintf(stdout,
+        "|%s|%u|%s|"
+        "%llu|%llu|%.3f|%llu|\n",
+        PROC_DNS_TBL,
+        entry->id.proc_id,
+        entry->id.domain,
+
+        latency_avg,
+        entry->latency_max >> 6,
+        entry->err_ratio,
+        entry->dns_op_count);
+    return;
+}
+
+void scan_dns_entrys(struct task_probe_s *task_probe)
+{
+    struct dns_entry_s *entry, *tmp;
+
+    H_ITER(task_probe->dns_entrys, entry, tmp) {
+        if (is_entry_tmout(task_probe, entry)) {
+            output_dns_entry(entry);
+            report_dns_event(task_probe, entry);
+            reset_dns_entry(entry);
+        }
+
+        if (is_entry_inactive(entry)) {
+            H_DEL(task_probe->dns_entrys, entry);
+            free(entry);
+        }
+    }
+}
+
+void destroy_dns_entrys(struct task_probe_s *task_probe)
+{
+    struct dns_entry_s *entry, *tmp;
+
+    H_ITER(task_probe->dns_entrys, entry, tmp) {
+        H_DEL(task_probe->dns_entrys, entry);
+        free(entry);
+    }
+}
+
+static int load_glibc_create_pb(struct task_probe_s *task_probe, struct bpf_prog_s* prog, int fd)
 {
     struct perf_buffer *pb;
 
     if (prog->pb == NULL) {
-        pb = create_pref_buffer(fd, output_proc_metrics);
+        pb = create_pref_buffer3(fd, rcv_dns_cache, NULL, task_probe);
         if (pb == NULL) {
             fprintf(stderr, "ERROR: crate perf buffer failed\n");
             return -1;
@@ -117,7 +315,7 @@ int load_glibc_bpf_prog(struct task_probe_s *task_probe, const char *glibc_path,
     prog->skels[prog->num]._link[link_num++] = (void *)glibc_link[glibc_link_current - 1];
     prog->skels[prog->num]._link_num = link_num;
 
-    ret = load_glibc_create_pb(prog, GET_MAP_FD(glibc, g_proc_output));
+    ret = load_glibc_create_pb(task_probe, prog, GET_MAP_FD(glibc, dns_output));
     if (ret) {
         goto err;
     }

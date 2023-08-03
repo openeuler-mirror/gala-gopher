@@ -63,12 +63,6 @@ struct page_op_s {
     u64 count_mark_page_dirty;
 };
 
-struct dns_op_s {
-    u64 gethostname_start_ts;
-    u64 gethostname_ns;
-    u64 gethostname_failed;
-};
-
 struct proc_ts_s {
     u64 ts_syscall;
     u64 ts_syscall_io;
@@ -108,7 +102,6 @@ struct proc_data_s {
     struct fs_op_s op_overlay;
     struct fs_op_s op_tmpfs;
     struct page_op_s page_op;
-    struct dns_op_s dns_op;
     struct proc_io_s proc_io;
 };
 

@@ -302,11 +302,13 @@ int main(int argc, char **argv)
         if (ret) {
             break;
         }
+        scan_dns_entrys(&g_task_probe);
     }
 
 err:
     taskprobe_unload_bpf();
     destroy_ipc_body(&(g_task_probe.ipc_body));
+    destroy_dns_entrys(&g_task_probe);
     return ret;
 }
 
