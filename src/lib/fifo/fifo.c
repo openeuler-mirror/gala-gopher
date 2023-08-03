@@ -79,6 +79,11 @@ void FifoDestroy(Fifo *fifo)
     return;
 }
 
+int FifoFull(Fifo *fifo)
+{
+    return ((fifo->size - fifo->in + fifo->out) <= 1) ? 1 : 0;
+}
+
 uint32_t FifoPut(Fifo *fifo, void *element)
 {
     uint32_t len = 1;

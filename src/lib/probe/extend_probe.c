@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <sys/prctl.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "probe_mng.h"
 
@@ -86,16 +87,9 @@ static void sendOutputToIngresss(struct probe_s *probe, char *buffer, uint32_t b
             dataStr[index] = '\0';
             ret = FifoPut(probe->fifo, (void *)dataStr);
             if (ret != 0) {
-                ERROR("[E-PROBE %s] fifo full.\n", probe->name);
+                ERROR("[E-PROBE %s] fifo put failed.\n", probe->name);
                 (void)free(dataStr);
                 dataStr = NULL;
-                break;
-            }
-
-            uint64_t msg = 1;
-            ret = write(probe->fifo->triggerFd, &msg, sizeof(uint64_t));
-            if (ret != sizeof(uint64_t)) {
-                ERROR("[E-PROBE %s] send trigger msg to eventfd failed.\n", probe->name);
                 break;
             }
 
@@ -107,18 +101,40 @@ static void sendOutputToIngresss(struct probe_s *probe, char *buffer, uint32_t b
             index++;
         }
     }
+
+    return;
+}
+
+static void writeIngressEvt(struct probe_s *probe)
+{
+    uint64_t msg = 1;
+    int ret = write(probe->fifo->triggerFd, &msg, sizeof(uint64_t));
+    if (ret != sizeof(uint64_t)) {
+        ERROR("[E-PROBE %s] send trigger msg to eventfd failed.\n", probe->name);
+    }
+    return;
 }
 
 static void parseExtendProbeOutput(struct probe_s *probe, FILE *f)
 {
+#define __WRITE_EVT_PERIOD  5
     int ret = 0;
     char buffer[MAX_DATA_STR_LEN];
     uint32_t bufferSize = 0;
+    time_t last_wr_event = (time_t)0, current = (time_t)0;
+    time_t secs;
 
     while (feof(f) == 0 && ferror(f) == 0) {
         if (IS_STOPPING_PROBE(probe)) {
             break;
         }
+
+        if (FifoFull(probe->fifo)) {
+            writeIngressEvt(probe);
+            sleep(1);   // Rate limiting for probes
+            continue;
+        }
+
         if (fgets(buffer, sizeof(buffer), f) == NULL) {
             continue;
         }
@@ -132,8 +148,23 @@ static void parseExtendProbeOutput(struct probe_s *probe, FILE *f)
             ERROR("[E-PROBE %s] stdout buf(len:%u) is too long\n", probe->name, bufferSize);
             continue;
         }
+
         sendOutputToIngresss(probe, buffer, bufferSize);
+        if (last_wr_event == (time_t)0) {
+            writeIngressEvt(probe);
+            last_wr_event = (time_t)time(NULL);
+        } else {
+            current = (time_t)time(NULL);
+            if (current > last_wr_event) {
+                secs = current - last_wr_event;
+                if (secs >= __WRITE_EVT_PERIOD) {
+                    writeIngressEvt(probe);
+                    last_wr_event = current;
+                }
+            }
+        }
     }
+    return;
 }
 
 int RunExtendProbe(struct probe_s *probe)

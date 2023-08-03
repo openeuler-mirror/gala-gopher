@@ -35,6 +35,7 @@ typedef struct {
 Fifo *FifoCreate(uint32_t size);
 void FifoDestroy(Fifo *fifo);
 
+int FifoFull(Fifo *fifo);
 uint32_t FifoPut(Fifo *fifo, void *element);
 uint32_t FifoGet(Fifo *fifo, void **elements);
 
