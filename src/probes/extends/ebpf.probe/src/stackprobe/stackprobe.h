@@ -157,6 +157,6 @@ struct stack_trace_s {
 };
 
 void iter_histo_tbl(struct proc_stack_trace_histo_s *proc_histo, struct post_server_s *post_server,
-    struct stack_svg_mng_s *svg_mng, int en_type, int *first_flag);
+    struct stack_svg_mng_s *svg_mng, int en_type);
 
 #endif

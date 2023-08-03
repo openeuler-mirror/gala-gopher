@@ -1767,7 +1767,7 @@ static FILE *__get_flame_graph_fp(struct stack_svg_mng_s *svg_mng)
 }
 
 int  __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng, struct stack_trace_histo_s *stack_trace_histo,
-    int first, struct post_info_s *post_info)
+    struct post_info_s *post_info)
 {
     FILE *fp = __get_flame_graph_fp(svg_mng);
     if (!fp) {
@@ -1776,14 +1776,8 @@ int  __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng, struct stack_trace_his
     }
 
     __histo_tmp_str[0] = 0;
-
-    if (first) {
-        (void)snprintf(__histo_tmp_str, HISTO_TMP_LEN, "%s %llu",
+    (void)snprintf(__histo_tmp_str, HISTO_TMP_LEN, "%s %llu\n",
                 stack_trace_histo->stack_symbs_str, stack_trace_histo->count);
-    } else {
-        (void)snprintf(__histo_tmp_str, HISTO_TMP_LEN, "\n%s %llu",
-                stack_trace_histo->stack_symbs_str, stack_trace_histo->count);
-    }
 
     if (post_info->post_flag) {
         int written = post_info->buf - post_info->buf_start;
@@ -1810,7 +1804,7 @@ int  __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng, struct stack_trace_his
 }
 
 void iter_histo_tbl(struct proc_stack_trace_histo_s *proc_histo, struct post_server_s *post_server,
-    struct stack_svg_mng_s *svg_mng, int en_type, int *first_flag)
+    struct stack_svg_mng_s *svg_mng, int en_type)
 {
     struct stack_trace_histo_s *item, *tmp;
     struct post_info_s post_info = {.remain_size = g_post_max, .post_flag = 0};
@@ -1818,8 +1812,7 @@ void iter_histo_tbl(struct proc_stack_trace_histo_s *proc_histo, struct post_ser
     init_curl_handle(post_server, &post_info);
 
     H_ITER(proc_histo->histo_tbl, item, tmp) {
-        (void)__do_wr_stack_histo(svg_mng, item, *first_flag, &post_info);
-        *first_flag = 0;
+        (void)__do_wr_stack_histo(svg_mng, item, &post_info);
     }
 
     if (post_info.post_flag) {
