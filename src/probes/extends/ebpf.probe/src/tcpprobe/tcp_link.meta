@@ -569,5 +569,42 @@ measurements:
                 name: "retrans_ratio",
             }
         )
+    },
+    {
+        table_name: "proc_flow_perf",
+        entity_name: "proc_flow_perf",
+        fields:
+        (
+            {
+                description: "id of process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "role",
+                type: "key",
+                name: "role",
+            },
+            {
+                description: "remote ip",
+                type: "key",
+                name: "remote_ip",
+            },
+            {
+                description: "server port",
+                type: "key",
+                name: "server_port",
+            },
+            {
+                description: "request receive delay(ms) before read by application and after arrive netcard",
+                type: "histogram",
+                name: "rx_delay",
+            },
+            {
+                description: "response send delay(ms) before receive ack and after write by application",
+                type: "histogram",
+                name: "tx_delay",
+            }
+        )
     }
 )

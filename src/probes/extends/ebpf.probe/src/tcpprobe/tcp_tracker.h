@@ -76,6 +76,17 @@ enum rto_size_t {
     __MAX_RTO_SIZE
 };
 
+enum delay_size_t {
+    DELAY_SIZE_1 = 0,       // (0, 1]
+    DELAY_SIZE_2,           // (1, 10]
+    DELAY_SIZE_3,           // (10, 100]
+    DELAY_SIZE_4,           // (100, 1000]
+    DELAY_SIZE_5,           // (1000, 10000]
+    DELAY_SIZE_6,           // (10000, 100000]
+    DELAY_SIZE_7,           // (100000, 1000000]
+    __MAX_DELAY_SIZE
+};
+
 enum tcp_stats_t {
     BYTES_SENT = 0,
     BYTES_RECV,
@@ -154,16 +165,40 @@ struct tcp_tracker_s {
     float zero_win_tx_ratio;
 };
 
+struct tcp_flow_tracker_id_s {
+    u32 tgid;     // process id
+    char remote_ip[INET6_ADDRSTRLEN];
+    u16 port;
+    u32 role;     // role: client:1/server:0
+};
+
+struct tcp_flow_tracker_s {
+    H_HANDLE;
+    struct tcp_flow_tracker_id_s id;
+    u32 report_flags;
+    time_t last_report;
+    time_t last_rcv_data;
+
+    struct histo_bucket_s send_delay_buckets[__MAX_DELAY_SIZE];
+    struct histo_bucket_s recv_delay_buckets[__MAX_DELAY_SIZE];
+};
+
 struct tcp_mng_s {
     u32 tcp_tracker_count;
+    u32 tcp_flow_tracker_count;
     time_t last_scan;
     struct ipc_body_s ipc_body;
     struct bpf_prog_s *tcp_progs;
     struct tcp_tracker_s *trackers;
+    struct tcp_flow_tracker_s *flow_trackers;
 };
 
 struct tcp_tracker_s* get_tcp_tracker(struct tcp_mng_s *tcp_mng, const void *link);
 void destroy_tcp_tracker(struct tcp_tracker_s* tracker);
 void destroy_tcp_trackers(struct tcp_mng_s *tcp_mng);
+
+struct tcp_flow_tracker_s* get_tcp_flow_tracker(struct tcp_mng_s *tcp_mng, const void *link);
+void destroy_tcp_flow_tracker(struct tcp_flow_tracker_s* tracker);
+void destroy_tcp_flow_trackers(struct tcp_mng_s *tcp_mng);
 
 #endif

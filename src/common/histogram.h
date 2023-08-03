@@ -19,6 +19,8 @@
 
 #include "common.h"
 
+#define MAX_HISTO_SERIALIZE_SIZE 256
+
 enum histo_type_t {
     HISTO_P50,
     HISTO_P90,
@@ -34,6 +36,16 @@ int init_histo_bucket(struct histo_bucket_s *bucket, u64 min, u64 max);
 int histo_bucket_add_value(struct histo_bucket_s bucket[], size_t bucket_size, u64 value);
 int histo_bucket_value(struct histo_bucket_s bucket[], size_t bucket_size, enum histo_type_t type, float *value);
 void histo_bucket_reset(struct histo_bucket_s bucket[], size_t bucket_size);
+
+/*
+ * serialize histogram metric from a struct histo_bucket_s to a string.
+ * string format like: "<bucket1_max> <bucket1_count> <bucket2_max> <bucket2_count> ..."
+ */
+int serialize_histo(struct histo_bucket_s bucket[], size_t bucket_size, char *buf, size_t buf_size);
+/*
+ * deserialize histogram metric from a string to a struct histo_bucket_s.
+ */
+int deserialize_histo(char *buf, size_t buf_size, struct histo_bucket_s *bucket, size_t bucket_size);
 
 #endif
 

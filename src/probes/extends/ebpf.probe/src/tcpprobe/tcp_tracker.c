@@ -94,6 +94,16 @@ struct __tcp_histo_s tcp_rto_histios[__MAX_RTO_SIZE] = {
     {RTO_SIZE_10, 500000, 1000000}
 };
 
+struct __tcp_histo_s tcp_delay_histios[__MAX_DELAY_SIZE] = {
+    {DELAY_SIZE_1, 0, 1},
+    {DELAY_SIZE_2, 1, 10},
+    {DELAY_SIZE_3, 10, 100},
+    {DELAY_SIZE_4, 100, 1000},
+    {DELAY_SIZE_5, 1000, 10000},
+    {DELAY_SIZE_6, 10000, 100000},
+    {DELAY_SIZE_7, 100000, 1000000}
+};
+
 #define HISTO_BUCKET_INIT(buckets, size, histios) \
 do { \
     for (int i = 0; i < size; i++) { \
@@ -188,6 +198,60 @@ static void __init_tracker_id(struct tcp_tracker_id_s *tracker_id, const struct 
     return;
 }
 
+static void init_tcp_flow_buckets(struct tcp_flow_tracker_s* tracker)
+{
+    HISTO_BUCKET_INIT(tracker->send_delay_buckets, __MAX_DELAY_SIZE, tcp_delay_histios);
+    HISTO_BUCKET_INIT(tracker->recv_delay_buckets, __MAX_DELAY_SIZE, tcp_delay_histios);
+}
+
+static struct tcp_flow_tracker_s* create_tcp_flow_tracker(struct tcp_mng_s *tcp_mng,
+    const struct tcp_flow_tracker_id_s *id)
+{
+#define __TCP_FLOW_TRACKER_MAX (4 * 1024)
+    if (tcp_mng->tcp_flow_tracker_count >= __TCP_FLOW_TRACKER_MAX) {
+        ERROR("[TCPPROBE]: Create 'tcp_flow_tracker' failed(upper to limited).\n");
+        return NULL;
+    }
+
+    struct tcp_flow_tracker_s* tracker = (struct tcp_flow_tracker_s *)malloc(sizeof(struct tcp_flow_tracker_s));
+    if (tracker == NULL) {
+        return NULL;
+    }
+
+    memset(tracker, 0, sizeof(struct tcp_flow_tracker_s));
+    memcpy(&(tracker->id), id, sizeof(struct tcp_flow_tracker_id_s));
+
+    tracker->last_report = (time_t)time(NULL);
+    init_tcp_flow_buckets(tracker);
+    tcp_mng->tcp_flow_tracker_count++;
+    return tracker;
+}
+static struct tcp_flow_tracker_s* lkup_tcp_flow_tracker(struct tcp_mng_s *tcp_mng,
+    const struct tcp_flow_tracker_id_s *id)
+{
+    struct tcp_flow_tracker_s* tracker = NULL;
+
+    H_FIND(tcp_mng->flow_trackers, id, sizeof(struct tcp_flow_tracker_id_s), tracker);
+    return tracker;
+}
+
+static void __init_flow_tracker_id(struct tcp_flow_tracker_id_s *tracker_id, const struct tcp_link_s *tcp_link)
+{
+    tracker_id->tgid = tcp_link->tgid;
+    tracker_id->role = tcp_link->role;
+    tracker_id->port = tcp_link->s_port;
+
+    if (tcp_link->role == 0) {
+        ip_str(tcp_link->family, (unsigned char *)&(tcp_link->c_ip),
+            (unsigned char *)tracker_id->remote_ip, sizeof(tracker_id->remote_ip));
+    } else {
+        ip_str(tcp_link->family, (unsigned char *)&(tcp_link->s_ip),
+            (unsigned char *)tracker_id->remote_ip, sizeof(tracker_id->remote_ip));
+    }
+
+    return;
+}
+
 #endif
 
 struct tcp_tracker_s* get_tcp_tracker(struct tcp_mng_s *tcp_mng, const void *link)
@@ -235,3 +299,40 @@ void destroy_tcp_trackers(struct tcp_mng_s *tcp_mng)
     }
 }
 
+struct tcp_flow_tracker_s* get_tcp_flow_tracker(struct tcp_mng_s *tcp_mng, const void *link)
+{
+    struct tcp_flow_tracker_id_s tracker_id = {0};
+    const struct tcp_link_s *tcp_link = link;
+
+    __init_flow_tracker_id(&tracker_id, tcp_link);
+
+    struct tcp_flow_tracker_s* tracker = lkup_tcp_flow_tracker(tcp_mng,
+        (const struct tcp_flow_tracker_id_s *)&tracker_id);
+    if (tracker) {
+        return tracker;
+    }
+
+    struct tcp_flow_tracker_s* new_tracker = create_tcp_flow_tracker(tcp_mng, &tracker_id);
+    if (new_tracker == NULL) {
+        return NULL;
+    }
+
+    H_ADD_KEYPTR(tcp_mng->flow_trackers, &new_tracker->id, sizeof(struct tcp_flow_tracker_id_s), new_tracker);
+    return new_tracker;
+}
+
+void destroy_tcp_flow_tracker(struct tcp_flow_tracker_s* tracker)
+{
+    free(tracker);
+    return;
+}
+
+void destroy_tcp_flow_trackers(struct tcp_mng_s *tcp_mng)
+{
+    struct tcp_flow_tracker_s *tracker, *tmp;
+
+    H_ITER(tcp_mng->flow_trackers, tracker, tmp) {
+        H_DEL(tcp_mng->flow_trackers, tracker);
+        destroy_tcp_flow_tracker(tracker);
+    }
+}

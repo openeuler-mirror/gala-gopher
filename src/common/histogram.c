@@ -14,9 +14,11 @@
  ******************************************************************************/
 #include <stdio.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <signal.h>
 #include <errno.h>
 
+#include "strbuf.h"
 #include "histogram.h"
 
 // Refer to https://zhuanlan.zhihu.com/p/608621390
@@ -118,4 +120,54 @@ int histo_bucket_value(struct histo_bucket_s bucket[], size_t bucket_size, enum 
     return -1;
 }
 
+int serialize_histo(struct histo_bucket_s bucket[], size_t bucket_size, char *buf, size_t buf_size)
+{
+    int ret;
+    u64 sum = 0;
+    int i;
+    strbuf_t strbuf = {
+        .buf = buf,
+        .size = buf_size
+    };
 
+    for (i = 0; i < bucket_size; i++) {
+        sum += bucket[i].count;
+        ret = snprintf(strbuf.buf, strbuf.size, "%llu %llu ", bucket[i].max, sum);
+        if (ret < 0 || ret >= strbuf.size) {
+            ERROR("[HISTOGRAM] Failed to serialize histogram: buffer space not enough\n");
+            return -1;
+        }
+        strbuf_update_offset(&strbuf, ret);
+    }
+    strbuf_append_chr(&strbuf, '\0');
+
+    return 0;
+}
+
+int deserialize_histo(char *buf, size_t buf_size, struct histo_bucket_s *bucket, size_t bucket_size)
+{
+    char *loc;
+    int i;
+
+    loc = strtok(buf, " ");
+    for (i = 0; i < bucket_size; i++) {
+        if (!loc) {
+            return -1;
+        }
+        bucket[i].max = strtoull(loc, NULL, 10);
+        bucket[i].min = (i == 0) ? 0 : bucket[i-1].max;
+
+        loc = strtok(NULL, " ");
+        if (!loc) {
+            return -1;
+        }
+        bucket[i].count = strtoull(loc, NULL, 10);
+        if (i > 0) {
+            bucket[i].count -= bucket[i-1].count;
+        }
+
+        loc = strtok(NULL, " ");
+    }
+
+    return 0;
+}

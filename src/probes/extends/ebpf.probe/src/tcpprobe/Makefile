@@ -2,6 +2,7 @@ include ../mk/var.mk
 INCLUDES = $(BASE_INC)
 
 APP := tcpprobe
+TC_BPF := tc_tstamp.bpf.o
 
 SRC_CPLUS := $(wildcard *.cpp)
 SRC_CPLUS += $(CPLUSFILES)
@@ -43,4 +44,6 @@ clean:
 install:
 	mkdir -p $(INSTALL_DIR)
 	cp $(APP) $(INSTALL_DIR)
+	mkdir -p $(INSTALL_DIR)/tcp_bpf
+	cp $(TC_BPF) $(INSTALL_DIR)/tcp_bpf
 

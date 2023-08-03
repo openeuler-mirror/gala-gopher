@@ -55,7 +55,6 @@ static void sig_int(int signo)
     stop = 1;
 }
 
-#define MS2NS(ms)   ((u64)(ms) * 1000000)
 #define __ENTITY_ID_LEN 128
 
 static void report_sli_event(struct msg_event_data_t *msg_evt_data)
