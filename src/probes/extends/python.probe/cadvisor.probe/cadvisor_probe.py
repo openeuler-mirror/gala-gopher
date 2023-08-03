@@ -10,11 +10,15 @@ import re
 import getopt
 import requests
 import libconf
+import ipc
 
 DOCKER_LEN = 8
 CONTAINER_ABBR_ID_LEN = 12
 CONTAINER_NAME_LEN = 64
+CONTAINER_ID_LEN = 64
 CONTAINER_STATUS_RUNNING = 0
+DEFAULT_CADVISOR_PORT = 8080
+DEFAULT_REPORT_PERIOD = 5
 FILTER_BY_TASKPROBE = "task"
 PROJECT_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # /opt/gala-gopher/
 PATTERN = re.compile(r'[/-][a-z0-9]+')
@@ -41,71 +45,18 @@ class ContainerTbl(Structure):
         ("cs", POINTER(ContainerInfo))
     ]
 
-
-class CadvisorParam(object):
-    def __init__(self, port, period, filter_task_probe, filter_pid):
-        self.port = port
-        self.period = period
-        self.filter_task_probe = filter_task_probe
-        self.filter_pid = filter_pid
-
-
 class ParamException(Exception):
     pass
 
-
-def parse_filter_arg(argstr):
-    filter_task_probe = False
-    filter_pid = 0
-    if argstr == FILTER_BY_TASKPROBE:
-        filter_task_probe = True
-    else:
-        filter_pid = int(argstr)
-    return filter_task_probe, filter_pid
-
-
-def init_param():
-    argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "-p:-d:-F:")
-    port = 0
-    period = 5
-    filter_task_probe = False
-    filter_pid = 0
-    for opt, arg in opts:
-        if opt in ["-p"]:
-            port = int(arg)
-        elif opt in ["-d"]:
-            period = int(arg)
-        elif opt in ["-F"]:
-            filter_task_probe, filter_pid = parse_filter_arg(arg)
-    if port == 0:
-        raise ParamException('[cadvisor_probe]no port param specified')
-    return CadvisorParam(port, period, filter_task_probe, filter_pid)
-
-
 def init_so():
-    object_lib = None
-    if params.filter_task_probe:
-        object_lib_path = os.path.join(PROJECT_PATH, "lib/object.so")
-        object_lib = cdll.LoadLibrary(object_lib_path)
-        object_lib.obj_module_init()
-        print("[cadvisor_probe]load object.so.")
     container_lib_path = os.path.join(PROJECT_PATH, "lib/container.so")
     container_lib = cdll.LoadLibrary(container_lib_path)
     print("[cadvisor_probe]load container.so.")
-    return object_lib, container_lib
-
-
-def offload_so(object_lib):
-    if params.filter_task_probe:
-        object_lib.obj_module_exit()
-        print("[cadvisor_probe]offload object.so.")
-
+    return container_lib
 
 def signal_handler(signum, frame):
-    offload_so(object_lib)
     cadvisor_probe.stop_cadvisor()
-
+    sys.exit(0)
 
 def convert_meta():
     '''
@@ -134,30 +85,36 @@ def convert_meta():
                     # main will catch the exception
                     raise
 
+def get_meta_label_list():
+    global g_meta
+    str = ''
+    for key1 in g_meta.keys():
+        if key1 == 'container_basic':
+            continue
+        for key2 in g_meta[key1].keys():
+            if g_meta[key1][key2] == LABEL:
+                str = str + key2 + ','
+    return str[:-1]
+
 
 class Probe:
-    def __init__(self, object_lib, container_lib):
-        self.object_lib = object_lib
+    def __init__(self, container_lib, container_list):
         self.container_lib = container_lib
+        self.container_list = container_list
 
     def filter_container(self, container_id):
-        if params.filter_task_probe:
-            pid = pointer(c_uint(0))
-            self.container_lib.get_container_pid(container_id, pid)
-            ret = object_lib.is_proc_exist(pointer(Proc(pid[0])))
-            return ret == 1
+        if container_id in self.container_list:
+            return True
+        else:
+            return False
 
-        if params.filter_pid != 0:
-            pid = pointer(c_uint(0))
-            self.container_lib.get_container_pid(container_id, pid)
-            return pid == g_params.filter_pid
-
-        return True
+    def set_container_list(self, container_list):
+        self.container_list = container_list
 
 
 class BasicLabelProbe(Probe):
-    def __init__(self, object_lib, container_lib):
-        super().__init__(object_lib, container_lib)
+    def __init__(self, container_lib):
+        super().__init__(container_lib, [])
         self.container_ids = set()
 
     def get_container_pid(self, container_id):
@@ -194,6 +151,11 @@ class BasicLabelProbe(Probe):
         ns_id = pointer(c_uint(0))
         self.container_lib.get_container_netns_id(container_id, ns_id)
         return str(ns_id[0])
+
+    def get_container_id_by_pid(self, pid):
+        container_id = create_string_buffer(CONTAINER_ID_LEN)
+        self.container_lib.get_container_id_by_pid(pid, container_id, CONTAINER_ID_LEN)
+        return str(container_id.value, encoding='utf-8')
 
     def get_all_containers(self):
         self.container_ids.clear()
@@ -236,8 +198,8 @@ class BasicLabelProbe(Probe):
 
 
 class CadvisorProbe(Probe):
-    def __init__(self, object_lib, container_lib, port_c):
-        super().__init__(object_lib, container_lib)
+    def __init__(self, container_lib, port_c):
+        super().__init__(container_lib, [])
         self.port = port_c
         self.pid = 0
 
@@ -265,14 +227,17 @@ class CadvisorProbe(Probe):
                 return
             else:
                 raise Exception('[cadvisor_probe]cAdvisor running but get info failed')
-        ps = subprocess.Popen(["/usr/bin/cadvisor", "-port", str(self.port)], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=False)
+        whitelist_label = "-whitelisted_container_labels=" + get_meta_label_list()
+        ps = subprocess.Popen(["/usr/bin/cadvisor", "-port", str(self.port),\
+            "--store_container_labels=false", whitelist_label\
+            ], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=False)
         self.pid = ps.pid
         print("[cadvisor_probe]cAdvisor started at port %s." % self.port)
 
     def stop_cadvisor(self):
         print("[cadvisor_probe]stop cAdvisor before exit.")
-        subprocess.Popen(["/usr/bin/kill", "-9", str(self.pid)], stdout=subprocess.PIPE, shell=False)
-        sys.exit(0)
+        if self.pid != 0:
+            subprocess.Popen(["/usr/bin/kill", "-9", str(self.pid)], stdout=subprocess.PIPE, shell=False)
 
     def find_2nd_index(self, stri, key):
         first = stri.index(key) + 1
@@ -341,7 +306,7 @@ class CadvisorProbe(Probe):
                 value_end_index = value_start_index + self.find_2nd_index(line[value_start_index:], " ")
                 value = line[value_start_index:value_end_index]
                 try:
-                    if g_meta[table_name][metric_name] == COUNTER:
+                    if metric_name in g_meta[table_name] and g_meta[table_name][metric_name] == COUNTER:
                         if metric_name in g_metric[table_name][hashed_metric_str]:
                             g_metric[table_name][hashed_metric_str][metric_name][1] = float(value)
                         else:
@@ -357,6 +322,17 @@ class CadvisorProbe(Probe):
         r.raise_for_status()
         self.parse_metrics(r.text)
 
+    def change_cadvisor_port(self, port):
+        if self.get_cadvisor_port() and self.port == port:
+            return True
+        self.stop_cadvisor()
+        self.port = port
+        try:
+            cadvisor_probe.start_cadvisor()
+        except Exception as e:
+            print(e)
+            return False
+        return True
 
 def print_metrics():
     '''
@@ -401,30 +377,58 @@ def reset_g_metric():
 
 
 if __name__ == "__main__":
-    params = init_param()
-    object_lib, container_lib = init_so()
+    cadvisor_port = DEFAULT_CADVISOR_PORT
+    period = DEFAULT_REPORT_PERIOD
     cadvisor_running_flag = True
-    cadvisor_probe = CadvisorProbe(object_lib, container_lib, params.port)
+
+    convert_meta()
+    container_lib = init_so()
+    signal.signal(signal.SIGINT, signal_handler)
+    basic_probe = BasicLabelProbe(container_lib)
+    ipc_body = ipc.IpcBody()
+    s = requests.Session()
+
+    msq_id = ipc.create_ipc_msg_queue(ipc.IPC_EXCL)
+    if msq_id < 0:
+        print("[cadvisor_probe] create ipc msg queue failed")
+        sys.exit(-1)
+
+    cadvisor_probe = CadvisorProbe(container_lib, cadvisor_port)
     try:
         cadvisor_probe.start_cadvisor()
     except Exception as e:
         print(e)
         cadvisor_running_flag = False
-    basic_probe = BasicLabelProbe(object_lib, container_lib)
 
-    signal.signal(signal.SIGINT, signal_handler)
-    convert_meta()
-
-    s = requests.Session()
     while True:
-        time.sleep(params.period)
+        ret = ipc.recv_ipc_msg(msq_id, ipc.ProbeType.PROBE_CONTAINER, ipc_body)
+        if ret == 0:
+            if ipc_body.probe_flags & ipc.IPC_FLAGS_PARAMS_CHG or ipc_body.probe_flags == 0:
+                period = ipc_body.probe_param.period
+                if cadvisor_probe.change_cadvisor_port(ipc_body.probe_param.cadvisor_port):
+                    cadvisor_running_flag = True
+                    cadvisor_port = ipc_body.probe_param.cadvisor_port
+                else:
+                    cadvisor_running_flag = False
+
+            if ipc_body.probe_flags & ipc.IPC_FLAGS_SNOOPER_CHG or ipc_body.probe_flags == 0:
+                container_list = []
+                proc_list = ipc.get_snooper_proc_list(ipc_body)
+                for pid in proc_list:
+                    container_id = basic_probe.get_container_id_by_pid(pid)
+                    container_list.append(container_id)
+                basic_probe.set_container_list(container_list)
+                cadvisor_probe.set_container_list(container_list)
+
+            ipc.destroy_ipc_body(ipc_body)
         reset_g_metric()
         basic_probe.get_basic_infos()
         if cadvisor_running_flag:
             try:
-                cadvisor_probe.get_metrics(s, cadvisor_probe.port)
+                cadvisor_probe.get_metrics(s, cadvisor_port)
             except Exception as e:
                 print("[cadvisor_probe]get metrics failed. Err: %s" % repr(e))
                 s = requests.Session()
         print_metrics()
         clean_metrics()
+        time.sleep(period)

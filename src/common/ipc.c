@@ -575,7 +575,7 @@ static int deserialize_tlv_container(char *buf, size_t size, struct snooper_obj_
                 break;
             }
         }
-    } while (offset < size);
+    } while (offset < tlv_1st->len);
 
 end:
     if (err) {
@@ -672,7 +672,7 @@ static int deserialize_tlv_gaussdb(char *buf, size_t size, struct snooper_obj_s 
                 break;
             }
         }
-    } while (offset < size);
+    } while (offset < tlv_1st->len);
 
 end:
     if (err) {

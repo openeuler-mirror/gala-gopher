@@ -453,6 +453,19 @@ static int parser_elf_path(struct probe_s *probe, struct param_key_s *param_key,
     return 0;
 }
 
+static int parser_cadvisor_port(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
+{
+    int value = (int)key_item->valueint;
+    if (value < param_key->v.min || value > param_key->v.max) {
+        PARSE_ERR("params.%s invalid value, must be in [%d, %d]",
+                  param_key->key, param_key->v.min, param_key->v.max);
+        return -1;
+    }
+
+    probe->probe_param.cadvisor_port = (u32)value;
+    return 0;
+}
+
 #define SET_DEFAULT_PARAMS_INTER(field) \
     static void set_default_params_inter_##field(struct probe_params *params, struct param_val_s *value) \
     { \
@@ -480,6 +493,7 @@ SET_DEFAULT_PARAMS_INTER(kafka_port);
 SET_DEFAULT_PARAMS_INTER(l7_probe_proto_flags);
 SET_DEFAULT_PARAMS_INTER(svg_period);
 SET_DEFAULT_PARAMS_INTER(perf_sample_period);
+SET_DEFAULT_PARAMS_INTER(cadvisor_port);
 
 
 SET_DEFAULT_PARAMS_CAHR(logs);
@@ -526,7 +540,8 @@ struct param_key_s param_keys[] = {
     {"dev_name",           {0, 0, 0, ""},                           parser_dev_name, NULL, cJSON_String},
     {"continuous_sampling", {0, 0, 1, ""},                          parser_continuous_sampling, set_default_params_char_continuous_sampling_flag, cJSON_Number},
     {"elf_path",            {0, 0, 0, ""},                          parser_elf_path, NULL, cJSON_String},
-    {"kafka_port",         {DEFAULT_KAFKA_PORT, 1, 65535, ""},      parser_kafka_port, set_default_params_inter_kafka_port, cJSON_Number}
+    {"kafka_port",         {DEFAULT_KAFKA_PORT, 1, 65535, ""},      parser_kafka_port, set_default_params_inter_kafka_port, cJSON_Number},
+    {"cadvisor_port",      {DEFAULT_CADVISOR_PORT, 1, 65535, ""},   parser_cadvisor_port, set_default_params_inter_cadvisor_port, cJSON_Number}
 };
 
 void set_default_params(struct probe_s *probe)

@@ -55,7 +55,8 @@ struct probe_define_s probe_define[] = {
     {"tprofiling",          "$gala-gopher-dir/tprofiling",          PROBE_TP},
     {"hw",                  "$gala-gopher-dir/hwprobe",             PROBE_HW},
     {"ksli",                "$gala-gopher-dir/ksliprobe",           PROBE_KSLI},
-    {"sched",               "$gala-gopher-dir/schedprobe",          PROBE_SCHED}
+    {"sched",               "$gala-gopher-dir/schedprobe",          PROBE_SCHED},
+    {"container",           "$gala-gopher-dir/cadvisor_probe.py",   PROBE_CONTAINER}
 
     // If you want to add a probe, add the probe define.
 };
