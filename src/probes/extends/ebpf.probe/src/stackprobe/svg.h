@@ -59,9 +59,7 @@ struct stack_svgs_s {
     struct stack_svg_s svg_files;
 };
 
-#define FLAME_GRAPH_NEW     0x00000001
 struct stack_flamegraph_s {
-    u32 flags;
     FILE *fp;
     char flame_graph_file[PATH_LEN];
     char *flame_graph_dir;
