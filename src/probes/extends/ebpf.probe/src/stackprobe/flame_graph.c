@@ -313,6 +313,9 @@ void wr_flamegraph(struct proc_stack_trace_histo_s **proc_histo_tbl, struct stac
 
     struct proc_stack_trace_histo_s *proc_histo, *proc_tmp;
     H_ITER(*proc_histo_tbl, proc_histo, proc_tmp) {
+        if (H_COUNT(proc_histo->histo_tbl) <= 0) {
+            continue;
+        }
         __reopen_flame_graph_file(svg_mng, proc_histo->proc_id);
         __do_wr_flamegraph(svg_mng, proc_histo, post_server, en_type);
 

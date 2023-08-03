@@ -55,8 +55,11 @@
 #define ON_CPU_PROG    "/opt/gala-gopher/extend_probes/stack_bpf/oncpu.bpf.o"
 #define OFF_CPU_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/offcpu.bpf.o"
 #define IO_PROG        "/opt/gala-gopher/extend_probes/stack_bpf/io.bpf.o"
+#if defined(__TARGET_ARCH_x86)
 #define MEMLEAK_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/memleak.bpf.o"
-
+#else
+#define MEMLEAK_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/memleak_fp.bpf.o"
+#endif
 #define RM_STACK_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__stack*"
 #define STACK_PROC_MAP_PATH     "/sys/fs/bpf/gala-gopher/__stack_proc_map"
 #define STACK_CONVERT_PATH      "/sys/fs/bpf/gala-gopher/__stack_convert"

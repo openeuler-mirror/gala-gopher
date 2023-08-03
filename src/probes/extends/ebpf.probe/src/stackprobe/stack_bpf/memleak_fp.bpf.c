@@ -206,6 +206,10 @@ static inline int alloc_exit(void *ctx, u64 addr) {
 
 static inline int alloc_enter(u64 size) {
     u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;
+    struct proc_s obj = {.proc_id = tgid};
+    if (!is_proc_exist(&obj)) {
+        return 0;
+    }
     bpf_map_update_elem(&to_allocate, &tgid, &size, BPF_ANY);
 
     return 0;
