@@ -28,6 +28,8 @@ static volatile sig_atomic_t g_stop = 0;
 static struct ipc_body_s g_ipc_body;
 static struct proc_hash_t *g_procmap = NULL;
 
+static unsigned int loop_period = DEFAULT_PERIOD;
+
 static void sig_int(int signal)
 {
     g_stop = 1;
@@ -151,11 +153,31 @@ static int refresh_proc_hash_t(struct ipc_body_s *ipc_body)
     return 0;
 }
 
-static void output_java_msg(struct java_attach_args * args)
+static void load_jvm_probe_data(struct java_attach_args *args)
 {
+    unsigned int num_procs = HASH_COUNT(g_procmap);
+    if (num_procs == 0) {
+        sleep(loop_period);
+        return;
+    }
+
+    int i = 0;
+    int accumulated_sec = 0;
+    int num_batches = loop_period / JVMPROBE_SLEEP_SEC;
+    int batch_size = (num_procs - 1) / num_batches + 1;
+
     struct proc_hash_t *r, *tmp;
     HASH_ITER(hh, g_procmap, r, tmp) {
         java_msg_handler(r->key.pid, (void *)args, NULL, NULL);
+        if (++i % batch_size == 0) {
+            sleep(JVMPROBE_SLEEP_SEC);
+            accumulated_sec += JVMPROBE_SLEEP_SEC;
+        }
+    }
+
+    int rest_sec = loop_period - accumulated_sec;
+    if (rest_sec > 0) {
+        sleep(rest_sec);
     }
 }
 
@@ -189,14 +211,12 @@ int main(int argc, char **argv)
             }
             destroy_ipc_body(&g_ipc_body);
             (void)memcpy(&g_ipc_body, &ipc_body, sizeof(g_ipc_body));
+            if (g_ipc_body.probe_param.period > 0) {
+                loop_period = g_ipc_body.probe_param.period;
+            }
         }
         (void)load_jvm_probe(&attach_args);
-        output_java_msg(&attach_args);
-        if (g_ipc_body.probe_param.period == 0) {
-            sleep(DEFAULT_PERIOD);
-        } else {
-            sleep(g_ipc_body.probe_param.period);
-        }
+        (void)load_jvm_probe_data(&attach_args);
     }
 
 err:

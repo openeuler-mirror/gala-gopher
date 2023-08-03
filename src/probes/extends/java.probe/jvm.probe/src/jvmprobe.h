@@ -20,6 +20,8 @@
 #define JVMPROBE_AGENT_FILE "JvmProbeAgent.jar"
 #define JVMPROBE_TMP_FILE   "jvm-metrics.txt"
 
+#define JVMPROBE_SLEEP_SEC   1
+
 
 struct proc_key_t {
     u32 pid;         // process id
