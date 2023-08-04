@@ -186,9 +186,7 @@ struct tcp_link_s {
         unsigned char s_ip6[IP6_LEN];
     };
     __u16 s_port;   // server port
-    __u16 c_port;   // client port
     __u16 family;
-    __u16 c_flag;   // c_port valid:1/invalid:0
     __u32 role;     // role: client:1/server:0
     char comm[TASK_COMM_LEN];
 };
@@ -230,8 +228,7 @@ struct sock_stats_s {
 };
 
 struct tcp_args_s {
-    __u64 period;               // Sampling period, unit ns
-    __u32 cport_flag;           // Indicates whether the probes(such as tcp) identifies the client port
+    __u64 sample_period;               // Sampling period, unit ns
 };
 
 #if !defined(BPF_PROG_KERN) && !defined(BPF_PROG_USER)

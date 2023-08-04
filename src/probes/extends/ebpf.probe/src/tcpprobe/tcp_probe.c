@@ -328,9 +328,9 @@ static void reset_tcp_flow_tracker_stats(struct tcp_flow_tracker_s *tracker)
     return;
 }
 
-static void output_tcp_metrics(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
+static int output_tcp_metrics(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
 {
-    char need_reset = 0;
+    int need_reset = 0;
     u32 flags = tracker->report_flags & TCP_PROBE_ALL;
 
     if (flags & TCP_PROBE_ABN) {
@@ -372,12 +372,12 @@ static void output_tcp_metrics(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *
     if (need_reset) {
         reset_tcp_tracker_stats(tracker);
     }
-    return;
+    return need_reset;
 }
 
-static void output_tcp_flow_metrics(struct tcp_mng_s *tcp_mng, struct tcp_flow_tracker_s *tracker)
+static int output_tcp_flow_metrics(struct tcp_mng_s *tcp_mng, struct tcp_flow_tracker_s *tracker)
 {
-    char need_reset = 0;
+    int need_reset = 0;
     u32 flags = tracker->report_flags & TCP_PROBE_ALL;
 
     if (flags & TCP_PROBE_DELAY) {
@@ -389,7 +389,7 @@ static void output_tcp_flow_metrics(struct tcp_mng_s *tcp_mng, struct tcp_flow_t
     if (need_reset) {
         reset_tcp_flow_tracker_stats(tracker);
     }
-    return;
+    return need_reset;
 }
 
 #if 1
@@ -618,10 +618,7 @@ static void process_tcp_tracker_metrics(struct tcp_mng_s *tcp_mng, struct tcp_me
     if (metrics_flags & TCP_PROBE_RATE) {
         proc_tcp_rate(tcp_mng, tracker, (const struct tcp_rate *)(&(metrics->rate_stats)));
     }
-
-    if (is_track_tmout(tcp_mng, tracker)) {
-        output_tcp_metrics(tcp_mng, tracker);
-    }
+    return;
 }
 
 static void process_tcp_flow_tracker_metrics(struct tcp_mng_s *tcp_mng, struct tcp_metrics_s *metrics)
@@ -639,19 +636,30 @@ static void process_tcp_flow_tracker_metrics(struct tcp_mng_s *tcp_mng, struct t
     if (metrics_flags & TCP_PROBE_DELAY) {
         proc_tcp_flow_delay(tcp_mng, tracker, (const struct tcp_delay *)(&(metrics->delay_stats)));
     }
-
-    if (is_flow_track_tmout(tcp_mng, tracker)) {
-        output_tcp_flow_metrics(tcp_mng, tracker);
-    }
+    return;
 }
 
-static void proc_tcp_metrics_evt(void *ctx, int cpu, void *data, __u32 size)
+static void proc_tcp_metrics_evt(void *ctx, int cpu, void *data, u32 size)
 {
-    struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
+    char *p = data;
+    int remain_size = (int)size, step_size = sizeof(struct tcp_metrics_s), offset = 0;
+    struct tcp_metrics_s *metrics;
     struct tcp_mng_s *tcp_mng = ctx;
 
-    process_tcp_tracker_metrics(tcp_mng, metrics);
-    process_tcp_flow_tracker_metrics(tcp_mng, metrics);
+
+    do {
+        if (remain_size < step_size) {
+            break;
+        }
+        p = (char *)data + offset;
+        metrics  = (struct tcp_metrics_s *)p;
+
+        process_tcp_tracker_metrics(tcp_mng, metrics);
+        process_tcp_flow_tracker_metrics(tcp_mng, metrics);
+
+        offset += step_size;
+        remain_size -= step_size;
+    } while (1);
 
     return;
 }
@@ -845,8 +853,7 @@ static void load_args(int args_fd, struct probe_params* params)
     u32 key = 0;
     struct tcp_args_s args = {0};
 
-    args.cport_flag = (u32)params->cport_flag;
-    args.period = NS(params->period);
+    args.sample_period = MS2NS(params->sample_period);
 
     (void)bpf_map_update_elem(args_fd, &key, &args, BPF_ANY);
 }
@@ -942,7 +949,7 @@ err:
     return -1;
 }
 
-void scan_tcp_trackers(struct tcp_mng_s *tcp_mng)
+void aging_tcp_trackers(struct tcp_mng_s *tcp_mng)
 {
     struct tcp_tracker_s *tracker, *tmp;
 
@@ -951,15 +958,11 @@ void scan_tcp_trackers(struct tcp_mng_s *tcp_mng)
             H_DEL(tcp_mng->trackers, tracker);
             destroy_tcp_tracker(tracker);
             tcp_mng->tcp_tracker_count--;
-        } else {
-            if (is_track_tmout(tcp_mng, tracker)) {
-                output_tcp_metrics(tcp_mng, tracker);
-            }
         }
     }
 }
 
-void scan_tcp_flow_trackers(struct tcp_mng_s *tcp_mng)
+void aging_tcp_flow_trackers(struct tcp_mng_s *tcp_mng)
 {
     struct tcp_flow_tracker_s *tracker, *tmp;
 
@@ -968,10 +971,31 @@ void scan_tcp_flow_trackers(struct tcp_mng_s *tcp_mng)
             H_DEL(tcp_mng->flow_trackers, tracker);
             destroy_tcp_flow_tracker(tracker);
             tcp_mng->tcp_flow_tracker_count--;
-        } else {
-            if (is_flow_track_tmout(tcp_mng, tracker)) {
-                output_tcp_flow_metrics(tcp_mng, tracker);
-            }
+        }
+    }
+}
+
+#define __STEP (200)
+void scan_tcp_trackers(struct tcp_mng_s *tcp_mng)
+{
+    int count = 0;
+    struct tcp_tracker_s *tracker, *tmp;
+
+    H_ITER(tcp_mng->trackers, tracker, tmp) {
+        if ((count < __STEP) && is_track_tmout(tcp_mng, tracker)) {
+            count += output_tcp_metrics(tcp_mng, tracker);
+        }
+    }
+}
+
+void scan_tcp_flow_trackers(struct tcp_mng_s *tcp_mng)
+{
+    int count = 0;
+    struct tcp_flow_tracker_s *tracker, *tmp;
+
+    H_ITER(tcp_mng->flow_trackers, tracker, tmp) {
+        if ((count < __STEP) && is_flow_track_tmout(tcp_mng, tracker)) {
+            count += output_tcp_flow_metrics(tcp_mng, tracker);
         }
     }
 }

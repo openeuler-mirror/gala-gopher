@@ -186,7 +186,7 @@ struct tcp_flow_tracker_s {
 struct tcp_mng_s {
     u32 tcp_tracker_count;
     u32 tcp_flow_tracker_count;
-    time_t last_scan;
+    time_t last_aging;
     struct ipc_body_s ipc_body;
     struct bpf_prog_s *tcp_progs;
     struct tcp_tracker_s *trackers;

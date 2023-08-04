@@ -72,7 +72,7 @@ static __always_inline __maybe_unused u64 get_period()
 
     args = (struct tcp_args_s *)bpf_map_lookup_elem(&args_map, &key);
     if (args) {
-        period = args->period;
+        period = args->sample_period;
     }
     return period; // units from second to nanosecond
 }
@@ -87,19 +87,6 @@ static __always_inline __maybe_unused int is_gopher_comm(void)
         return 1;
     }
     return 0;
-}
-
-static __always_inline __maybe_unused u16 get_cport_flag()
-{
-    u32 key = 0;
-    u16 cport_flag = 0; // default: invalid
-    struct tcp_args_s *args;
-
-    args = (struct tcp_args_s *)bpf_map_lookup_elem(&args_map, &key);
-    if (args)
-        cport_flag = (u16)args->cport_flag;
-
-    return cport_flag;
 }
 
 static __always_inline __maybe_unused char is_valid_tgid(u32 tgid)
