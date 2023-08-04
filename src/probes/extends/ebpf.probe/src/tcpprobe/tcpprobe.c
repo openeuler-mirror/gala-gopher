@@ -36,6 +36,7 @@
 
 #include "bpf.h"
 #include "ipc.h"
+#include "tc_loader.h"
 #include "tcpprobe.h"
 #include "tcp_tracker.h"
 
@@ -49,6 +50,7 @@ static struct tcp_mng_s g_tcp_mng;
 void load_established_tcps(struct ipc_body_s *ipc_body, int map_fd);
 int tcp_load_probe(struct tcp_mng_s *tcp_mng, struct ipc_body_s *ipc_body, struct bpf_prog_s **new_prog);
 void scan_tcp_trackers(struct tcp_mng_s *tcp_mng);
+void scan_tcp_flow_trackers(struct tcp_mng_s *tcp_mng);
 
 static void sig_int(int signo)
 {
@@ -86,6 +88,33 @@ static void unload_tcp_snoopers(int fd, struct ipc_body_s *ipc_body)
             (void)bpf_map_delete_elem(fd, &proc);
         }
     }
+}
+
+static void reload_tc_bpf(struct ipc_body_s* ipc_body)
+{
+#ifdef KERNEL_SUPPORT_TSTAMP
+    char is_loaded = 0;
+    char need_load = 0;
+    char is_dev_changed = 0;
+
+    if (g_tcp_mng.ipc_body.probe_flags & PROBE_RANGE_TCP_DELAY) {
+        is_loaded = 1;
+    }
+    if (ipc_body->probe_flags & PROBE_RANGE_TCP_DELAY) {
+        need_load = 1;
+    }
+    if (strcmp(g_tcp_mng.ipc_body.probe_param.target_dev, ipc_body->probe_param.target_dev) != 0) {
+        is_dev_changed = 1;
+    }
+
+    if (is_loaded && is_dev_changed) {
+        offload_tc_bpf(TC_TYPE_INGRESS);
+    }
+    if (need_load && (!is_loaded || is_dev_changed)) {
+        load_tc_bpf(ipc_body->probe_param.target_dev, TC_PROG, TC_TYPE_INGRESS);
+    }
+#endif
+    return;
 }
 
 static char is_need_scan(struct tcp_mng_s *tcp_mng)
@@ -133,6 +162,11 @@ int main(int argc, char **argv)
 
     INIT_BPF_APP(tcpprobe, EBPF_RLIM_LIMITED);
 
+#ifndef KERNEL_SUPPORT_TSTAMP
+    INFO("[TCPPROBE]: The kernel version does not support loading the tc tstamp program\n");
+#endif
+    INFO("[TCPPROBE]: Starting to load established tcp...\n");
+
     ret = tcp_load_fd_probe(&tcp_fd_map_fd, &proc_obj_map_fd);
     if (ret) {
         fprintf(stderr, "Load tcp fd ebpf prog failed.\n");
@@ -149,6 +183,7 @@ int main(int argc, char **argv)
             /* zero probe_flag means probe is restarted, so reload bpf prog */
             if (ipc_body.probe_flags & IPC_FLAGS_PARAMS_CHG || ipc_body.probe_flags == 0) {
                 INFO("[TCPPROBE]: Starting to unload ebpf prog.\n");
+                reload_tc_bpf(&ipc_body);
                 unload_bpf_prog(&(tcp_mng->tcp_progs));
                 if (tcp_load_probe(tcp_mng, &ipc_body, &(tcp_mng->tcp_progs))) {
                     destroy_ipc_body(&ipc_body);
@@ -188,13 +223,18 @@ int main(int argc, char **argv)
         // Scans all TCP trackers every minute to delete invalid trackers and output data.
         if (is_need_scan(tcp_mng)) {
             scan_tcp_trackers(tcp_mng);
+            scan_tcp_flow_trackers(tcp_mng);
         }
     }
 
 err:
     unload_bpf_prog(&(tcp_mng->tcp_progs));
+#ifdef KERNEL_SUPPORT_TSTAMP
+    offload_tc_bpf(TC_TYPE_INGRESS);
+#endif
     destroy_ipc_body(&(tcp_mng->ipc_body));
     destroy_tcp_trackers(tcp_mng);
+    destroy_tcp_flow_trackers(tcp_mng);
     tcp_unload_fd_probe();
     destroy_established_tcps();
     return -err;

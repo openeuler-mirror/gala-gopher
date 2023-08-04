@@ -25,6 +25,8 @@
 
 #include "tcpprobe.h"
 
+#define HIST_SAMPLE_PERIOD NS(1)
+
 #define __TCP_LINK_MAX (10 * 1024)
 // Used to identifies the TCP link(including multiple establish tcp connection)
 // and save TCP statistics.

@@ -33,9 +33,10 @@
 #define TCP_PROBE_SOCKBUF   (u32)(1 << 4)
 #define TCP_PROBE_RATE      (u32)(1 << 5)
 #define TCP_PROBE_SRTT      (u32)(1 << 6)
+#define TCP_PROBE_DELAY     (u32)(1 << 7)
 #define TCP_PROBE_ALL       (u32)(TCP_PROBE_ABN | TCP_PROBE_WINDOWS \
                 | TCP_PROBE_RTT | TCP_PROBE_TXRX \
-                | TCP_PROBE_SOCKBUF | TCP_PROBE_RATE | TCP_PROBE_SRTT)
+                | TCP_PROBE_SOCKBUF | TCP_PROBE_RATE | TCP_PROBE_SRTT | TCP_PROBE_DELAY)
 
 #if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(5, 10, 0))
 #define TCP_FD_PER_PROC_MAX (10)
@@ -45,6 +46,11 @@
 
 #if (CURRENT_KERNEL_VERSION == KERNEL_VERSION(5, 10, 0))
 #define TCP_WRITE_ERR_PROBE_OFF 1
+#endif
+
+#define TC_PROG "tcp_bpf/tc_tstamp.bpf.o"
+#if ((CURRENT_KERNEL_VERSION == KERNEL_VERSION(4, 18, 0)) || (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(5, 10, 0)))
+#define KERNEL_SUPPORT_TSTAMP
 #endif
 
 #define BPF_F_INDEX_MASK    0xffffffffULL
@@ -138,6 +144,23 @@ struct tcp_rtt {
     __u32   tcpi_rcv_rtt;       // Receive end RTT (unidirectional measurement).
 };
 
+// #define NET_DELAY_BUCKET_SIZE   6
+
+enum tcp_delay_samp_state {
+    DELAY_SAMP_INIT = 0,
+    DELAY_SAMP_START_READY,
+    DELAY_SAMP_FINISH
+};
+
+struct tcp_delay {
+    __u64 net_send_delay;
+    __u64 net_recv_delay;
+    enum tcp_delay_samp_state send_state;
+    enum tcp_delay_samp_state recv_state;
+    __u64 write_start_ts;   // use for net_send_delay calculation
+    __u32 write_seq;        // use for net_send_delay calculation
+};
+
 #define TCP_BACKLOG_DROPS_INC(data) __sync_fetch_and_add(&((data).backlog_drops), 1)
 #define TCP_FILTER_DROPS_INC(data) __sync_fetch_and_add(&((data).filter_drops), 1)
 #define TCP_TMOUT_INC(data) __sync_fetch_and_add(&((data).tmout), 1)
@@ -181,6 +204,7 @@ struct tcp_metrics_s {
     struct tcp_srtt srtt_stats;
     struct tcp_rate rate_stats;
     struct tcp_sockbuf sockbuf_stats;
+    struct tcp_delay delay_stats;
 };
 
 struct sock_info_s {
@@ -197,6 +221,7 @@ struct tcp_ts {
     u64 txrx_ts;
     u64 sockbuf_ts;
     u64 rate_ts;
+    u64 delay_ts;
 };
 
 struct sock_stats_s {

@@ -74,7 +74,7 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 | ------------- | ------------------------------------- | ------------------------------------------------------------ | ---------------------------------------- | ---------------------------------- | ------------------------- |
 | flamegraph    | 在线性能火焰图观测能力                | oncpu, offcpu, mem                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/stackprobe        |                           |
 | l7            | 应用7层协议观测能力                   | l7_bytes_metrics、l7_rpc_metrics、l7_rpc_trace               | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/l7probe           |                           |
-| tcp           | TCP异常、状态观测能力                 | tcp_abnormal, tcp_rtt, tcp_windows, tcp_rate, tcp_srtt, tcp_sockbuf, tcp_stats | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/tcpprobe          |                           |
+| tcp           | TCP异常、状态观测能力                 | tcp_abnormal, tcp_rtt, tcp_windows, tcp_rate, tcp_srtt, tcp_sockbuf, tcp_stats,tcp_delay | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/tcpprobe          |                           |
 | socket        | Socket(TCP/UDP)异常观测能力           | tcp_socket, udp_socket                                       | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/endpoint          |                           |
 | io            | Block层I/O观测能力                    | io_trace, io_err, io_count, page_cache                       | NA                                       | $gala-gopher-dir/ioprobe           |                           |
 | proc          | 进程系统调用、I/O、DNS、VFS等观测能力 | base_metrics, proc_syscall, proc_fs, proc_io, proc_dns,proc_pagecache | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/taskprobe         |                           |
@@ -125,7 +125,8 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 | report_source_port | 是否上报源端口                                         | 0, [0, 1]                                                    |         | tcp                      | Y                   |
 | l7_protocol        | L7层协议范围                                           | http, [http, postgresql, mysql, redis, kafka,  mongodb, rocketmq, dns] |         | l7                       | Y                   |
 | support_ssl        | 支持SSL加密协议观测                                    | 0, [0, 1]                                                    |         | l7                       | Y                   |
-| separate_out | 是否每个进程输出独立火焰图 | 0, [0, 1] |  | flamegraph | Y |
+| multi_instance | 是否每个进程输出独立火焰图 | 0, [0, 1] |  | flamegraph | Y |
+| native_stack | 是否显示本地语言堆栈(针对JAVA进程) | 0, [0, 1] | | flamegraph | Y |
 | pyroscope_server   | 设置火焰图UI服务端地址                                 | localhost:4040                                               |         | flamegraph               | Y                   |
 | svg_period | 火焰图svg文件生成周期 | 180, [30, 600] | s | flamegraph | Y |
 | perf_sample_period | oncpu火焰图采集堆栈信息的周期 | 10, [10, 1000] | ms | flamegraph | Y |

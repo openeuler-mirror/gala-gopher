@@ -1,0 +1,41 @@
+version = "1.0.0"
+measurements:
+(
+    {
+        table_name: "proc_dns",
+        entity_name: "dns",
+        fields:
+        (
+            {
+                description: "ID of the process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "DNS domain name",
+                type: "key",
+                name: "domain",
+            },
+            {
+                description: "Average DNS Access Delay.",
+                type: "gauge",
+                name: "delay_avg",
+            },
+            {
+                description: "Maximum DNS Access Delay.",
+                type: "gauge",
+                name: "max_delay",
+            },
+            {
+                description: "DNS access error rate.",
+                type: "gauge",
+                name: "error_ratio",
+            },
+            {
+                description: "Number of DNS accesses (successful and non-successful).",
+                type: "gauge",
+                name: "count",
+            }
+        )
+    }
+)

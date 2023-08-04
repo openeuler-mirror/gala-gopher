@@ -54,6 +54,7 @@
 #define CONTAINER_ID_LEN        64
 #define CONTAINER_ABBR_ID_LEN   12
 #define NAMESPACE_LEN           64
+#define DOMAIN_LEN                 64
 #define POD_NAME_LEN            64
 #define POD_ID_LEN              36 // Pod id len may be 32 or 36
 
@@ -130,6 +131,8 @@ static inline int __debug_printf(const char *format, ...)
 #endif
 
 #define NS(sec)  ((__u64)(sec) * 1000000000)
+#define MS2NS(ms) ((__u64)(ms) * NSEC_PER_MSEC)
+#define NS2MS(ns) ((__u64)(ns) / NSEC_PER_MSEC)
 
 #ifndef __u8
 typedef unsigned char __u8;

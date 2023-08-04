@@ -80,7 +80,6 @@ enum pid_state_t {
     PID_ELF_ATTACHED
 };
 
-#define MS2NS(ms)   ((u64)(ms) * 1000000)
 #define __ENTITY_ID_LEN 128
 
 struct bpf_link_hash_value {

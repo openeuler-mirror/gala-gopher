@@ -83,6 +83,7 @@ struct probe_range_define_s probe_range_define[] = {
     {PROBE_TCP,    "tcp_rate",            PROBE_RANGE_TCP_RATE},
     {PROBE_TCP,    "tcp_sockbuf",         PROBE_RANGE_TCP_SOCKBUF},
     {PROBE_TCP,    "tcp_stats",           PROBE_RANGE_TCP_STATS},
+    {PROBE_TCP,    "tcp_delay",           PROBE_RANGE_TCP_DELAY},
 
     {PROBE_SOCKET, "tcp_socket",          PROBE_RANGE_SOCKET_TCP},
     {PROBE_SOCKET, "udp_socket",          PROBE_RANGE_SOCKET_UDP},
@@ -286,6 +287,7 @@ static struct probe_s* new_probe(const char* name, enum probe_type_e probe_type)
         goto err;
     }
 
+    SET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPED);
     probe->pid = -1;
 
     return probe;

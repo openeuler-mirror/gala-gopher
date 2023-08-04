@@ -55,8 +55,11 @@
 #define ON_CPU_PROG    "/opt/gala-gopher/extend_probes/stack_bpf/oncpu.bpf.o"
 #define OFF_CPU_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/offcpu.bpf.o"
 #define IO_PROG        "/opt/gala-gopher/extend_probes/stack_bpf/io.bpf.o"
+#if defined(__TARGET_ARCH_x86)
 #define MEMLEAK_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/memleak.bpf.o"
-
+#else
+#define MEMLEAK_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/memleak_fp.bpf.o"
+#endif
 #define RM_STACK_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__stack*"
 #define STACK_PROC_MAP_PATH     "/sys/fs/bpf/gala-gopher/__stack_proc_map"
 #define STACK_CONVERT_PATH      "/sys/fs/bpf/gala-gopher/__stack_convert"
@@ -288,7 +291,7 @@ static struct proc_cache_s* __create_proc_cache(struct stack_trace_s *st, struct
     }
 
     if (load_symbs) {
-        ret = proc_load_all_symbs(proc_symbs, st->elf_reader, stack_pid->proc_id);
+        ret = proc_load_all_symbs(proc_symbs, st->elf_reader, stack_pid->proc_id, st->native_stack_flag);
         if (ret != 0) {
             return NULL;
         }
@@ -468,7 +471,7 @@ static int stack_addrsymbs2string(struct proc_symbs_s *proc_symbs, struct addr_s
 
 static int __stack_file2string(struct proc_symbs_s *proc_symbs, char *line, char *p, int size, s64 *count)
 {
-    int ret;
+    int ret = 0;
     if (size <= 0) {
         return -1;
     }
@@ -500,16 +503,17 @@ static int __stack_file2string(struct proc_symbs_s *proc_symbs, char *line, char
     cur_p[0] = 0;
     if (proc_symbs->pod[0] != 0) {
         ret = __snprintf(&cur_p, len, &len, "[Pod]%s; ", proc_symbs->pod);
+        if (ret < 0) {
+            return -1;
+        }
     }
-    if (ret < 0) {
-        return -1;
-    }
+
 
     if (proc_symbs->container_name[0] != 0) {
         ret = __snprintf(&cur_p, len, &len, "[Con]%s; ", proc_symbs->container_name);
-    }
-    if (ret < 0) {
-        return -1;
+        if (ret < 0) {
+            return -1;
+        }
     }
 
     ret = __snprintf(&cur_p, len, &len, "[%d]%s; %s", proc_symbs->proc_id, proc_symbs->comm, line);
@@ -556,7 +560,7 @@ static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, struct proc_s
 static s64 convert_real_count(struct stack_trace_s *st, enum stack_svg_type_e en_type, s64 origin_count)
 {
     if (en_type == STACK_SVG_OFFCPU) {
-        return origin_count / st->post_server.sample_period;
+        return origin_count / st->post_server.perf_sample_period;
     }
 
     return  origin_count;
@@ -1203,7 +1207,8 @@ static struct stack_trace_s *create_stack_trace(struct ipc_body_s *ipc_body)
     (void)memset(st, 0, size);
     st->cpus_num = cpus_num;
     st->whitelist_enable = 1; // Only the flame graph of the specified process is collected
-    st->separate_out_flag = ipc_body->probe_param.separate_out_flag;
+    st->multi_instance_flag = ipc_body->probe_param.multi_instance_flag;
+    st->native_stack_flag = ipc_body->probe_param.native_stack_flag;
 #if 0
     if (stacktrace_create_log_mgr(st, conf->generalConfig->logDir)) {
         goto err;
@@ -1211,7 +1216,7 @@ static struct stack_trace_s *create_stack_trace(struct ipc_body_s *ipc_body)
 #endif
 
     if (set_post_server(&st->post_server, ipc_body->probe_param.pyroscope_server,
-                        ipc_body->probe_param.perf_sample_period, ipc_body->probe_param.separate_out_flag) != 0) {
+                        ipc_body->probe_param.perf_sample_period, ipc_body->probe_param.multi_instance_flag) != 0) {
         INFO("[STACKPROBE]: Do not post to Pyroscope Server.\n");
         st->post_server.post_enable = 0;
     } else {
@@ -1765,7 +1770,7 @@ static FILE *__get_flame_graph_fp(struct stack_svg_mng_s *svg_mng)
 }
 
 int  __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng, struct stack_trace_histo_s *stack_trace_histo,
-    int first, struct post_info_s *post_info)
+    struct post_info_s *post_info)
 {
     FILE *fp = __get_flame_graph_fp(svg_mng);
     if (!fp) {
@@ -1774,14 +1779,8 @@ int  __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng, struct stack_trace_his
     }
 
     __histo_tmp_str[0] = 0;
-
-    if (first) {
-        (void)snprintf(__histo_tmp_str, HISTO_TMP_LEN, "%s %llu",
+    (void)snprintf(__histo_tmp_str, HISTO_TMP_LEN, "%s %llu\n",
                 stack_trace_histo->stack_symbs_str, stack_trace_histo->count);
-    } else {
-        (void)snprintf(__histo_tmp_str, HISTO_TMP_LEN, "\n%s %llu",
-                stack_trace_histo->stack_symbs_str, stack_trace_histo->count);
-    }
 
     if (post_info->post_flag) {
         int written = post_info->buf - post_info->buf_start;
@@ -1808,7 +1807,7 @@ int  __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng, struct stack_trace_his
 }
 
 void iter_histo_tbl(struct proc_stack_trace_histo_s *proc_histo, struct post_server_s *post_server,
-    struct stack_svg_mng_s *svg_mng, int en_type, int *first_flag)
+    struct stack_svg_mng_s *svg_mng, int en_type)
 {
     struct stack_trace_histo_s *item, *tmp;
     struct post_info_s post_info = {.remain_size = g_post_max, .post_flag = 0};
@@ -1816,8 +1815,7 @@ void iter_histo_tbl(struct proc_stack_trace_histo_s *proc_histo, struct post_ser
     init_curl_handle(post_server, &post_info);
 
     H_ITER(proc_histo->histo_tbl, item, tmp) {
-        (void)__do_wr_stack_histo(svg_mng, item, *first_flag, &post_info);
-        *first_flag = 0;
+        (void)__do_wr_stack_histo(svg_mng, item, &post_info);
     }
 
     if (post_info.post_flag) {
@@ -1831,9 +1829,9 @@ static int set_jstack_args(struct java_attach_args *attach_args)
 {
     int len = ATTACH_TYPE_LEN;
     int ret;
-    char *pos = attach_args->action;
+    char *pos = attach_args->action; // eg: oncpu|offcpu|mem|,10
     char *flame_types[] = {"oncpu", "offcpu", "mem", "io"};
-
+    u32 perf_sample_period = g_st->post_server.perf_sample_period;
     attach_args->action[0] = 0;
     for (int i = 0; i < STACK_SVG_MAX; i++) {
         if (g_st->svg_stack_traces[i] != NULL) {
@@ -1843,8 +1841,11 @@ static int set_jstack_args(struct java_attach_args *attach_args)
             }
         }
     }
-
-    (void)snprintf(attach_args->agent_file_name, FILENAME_LEN, "%s", JSTACK_AGENT_FILE);
+    ret = __snprintf(&pos,(const int)len, &len, ",%u", perf_sample_period);
+    if (ret < 0) {
+        return ret;
+    }
+    (void)snprintf(attach_args->agent_file_name, FILENAME_LEN, "%s", JSTACK_AGENT_FILE); 
     (void)snprintf(attach_args->tmp_file_name, FILENAME_LEN, "%s", JSTACK_TMP_FILE);
     return 0;
 }
@@ -1864,6 +1865,8 @@ static void add_java_proc_histo_item(unsigned int pid)
     }
 }
 
+// load cmd example: 
+// jvm_attach 123456 1 load instrument false "/tmp/JstackProbeAgent.jar=123456,/tmp/java-data-123456,oncpu|offcpu|mem|,10"
 static void load_jstack_agent()
 {
     if (!g_st || (g_st->proc_obj_map_fd <= 0)) {
@@ -1920,7 +1923,13 @@ static void switch_stackmap()
     st->convert_stack_count++;
     update_convert_counter();
 
-    if (st->separate_out_flag) {
+    /* 
+     *  The jstack agent walks call stack based on JFR, which is different from the perf-event-based stack walker for
+     *  native language process. Therefore when the jstack agent is used to walk call stack, the flame graphs of
+     *  different processes cannot be merged, meanwhile, the call stack of the JVM itself (that is, the local language
+     *  stack part of the process) cannot be obtained.
+     */
+    if (st->multi_instance_flag && !st->native_stack_flag) {
         load_jstack_agent();
     }
 
@@ -2004,6 +2013,8 @@ static int init_enabled_svg_stack_traces(struct ipc_body_s *ipc_body)
     return 0;
 }
 
+// load cmd example: 
+// jvm_attach 123456 1 load /tmp/jvm_agent.so true /tmp/java-data-123456
 static void load_jvm_agent()
 {
     if (!g_st || (g_st->proc_obj_map_fd <= 0)) {
@@ -2033,6 +2044,7 @@ static void load_jvm_agent()
         if (ret == 0) {
             continue;
         }
+
         ret = java_load(pid, (void *)&attach_args);
         if (ret == 0) {
             INFO("[STACKPROBE]: Attach to proc %d succeed\n", pid);
@@ -2051,8 +2063,8 @@ static void reload_observation_range(struct ipc_body_s *ipc_body)
         unload_stackprobe_snoopers();
         load_stackprobe_snoopers(ipc_body);
         init_convert_counter();
-        if (!ipc_body->probe_param.separate_out_flag) {
-            load_jvm_agent(ipc_body);
+        if (!g_st->multi_instance_flag || g_st->native_stack_flag) {
+            load_jvm_agent();
         }
     }
 }

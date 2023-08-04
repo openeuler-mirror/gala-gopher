@@ -62,7 +62,6 @@ static struct ipc_body_s *__ipc_body = NULL;
 #define PROC_TBL_TMPFS          "proc_tmpfs"
 
 #define PROC_TBL_PAGE           "proc_page"
-#define PROC_TBL_DNS            "proc_dns"
 
 #define PROC_TBL_IO             "proc_io"
 
@@ -105,6 +104,7 @@ static void report_proc_metrics(struct proc_data_s *proc)
                     proc->syscall.failed);
     }
 
+#if 0
     if (proc->dns_op.gethostname_failed > 0) {
         evt.metrics = "gethostname_failed";
         report_logs((const struct event_info_s *)&evt,
@@ -114,7 +114,7 @@ static void report_proc_metrics(struct proc_data_s *proc)
                     proc->proc_id,
                     proc->dns_op.gethostname_failed);
     }
-
+#endif
     if (latency_thr_us > 0 && proc->proc_io.iowait_us > latency_thr_us) {
         evt.metrics = "iowait_us";
         report_logs((const struct event_info_s *)&evt,
@@ -270,6 +270,7 @@ static void output_proc_metrics_page(struct proc_data_s *proc)
         proc->page_op.count_mark_page_dirty);
 }
 
+#if 0
 static void output_proc_metrics_dns(struct proc_data_s *proc)
 {
     (void)fprintf(stdout,
@@ -281,6 +282,7 @@ static void output_proc_metrics_dns(struct proc_data_s *proc)
         proc->dns_op.gethostname_failed,
         proc->dns_op.gethostname_ns);
 }
+#endif
 
 static void output_proc_io_stats(struct proc_data_s *proc)
 {
@@ -327,8 +329,6 @@ void output_proc_metrics(void *ctx, int cpu, void *data, __u32 size)
         output_proc_metrics_tmpfs(proc);
     } else if (flags & TASK_PROBE_PAGE_OP) {
         output_proc_metrics_page(proc);
-    } else if (flags & TASK_PROBE_DNS_OP) {
-        output_proc_metrics_dns(proc);
     } else if (flags & TASK_PROBE_IO) {
         output_proc_io_stats(proc);
     }

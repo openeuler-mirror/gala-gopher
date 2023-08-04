@@ -116,7 +116,7 @@ KPROBE(tcp_set_state, pt_regs)
         metrics = get_tcp_metrics(sk);
         if (metrics) {
             metrics->report_flags |= (TCP_PROBE_ABN | TCP_PROBE_WINDOWS \
-                | TCP_PROBE_RTT | TCP_PROBE_TXRX | TCP_PROBE_SOCKBUF | TCP_PROBE_RATE);
+                | TCP_PROBE_RTT | TCP_PROBE_TXRX | TCP_PROBE_SOCKBUF | TCP_PROBE_RATE | TCP_PROBE_DELAY);
             report_srtt(ctx, metrics);
         }
 
