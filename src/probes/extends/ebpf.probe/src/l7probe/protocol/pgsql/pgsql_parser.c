@@ -122,8 +122,6 @@ parse_state_t pgsql_parse_startup_msg(struct raw_data_s *raw_data, struct pgsql_
         return parse_state;
     }
 
-    // offset raw_data
-    parser_raw_data_offset(raw_data, raw_data->current_pos - raw_data->current_pos);
     return STATE_SUCCESS;
 }
 

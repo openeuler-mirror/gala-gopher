@@ -8,20 +8,22 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Author: zhaoguolin
- * Create: 2023-04-24
+ * Author: niebin
+ * Create: 2023-04-14
  * Description:
  ******************************************************************************/
 
-#ifndef __PARSER_MACROS_H__
-#define __PARSER_MACROS_H__
+#ifndef __STRING_UTILS_H__
+#define __STRING_UTILS_H__
 
 #pragma once
-#include <stdint.h>
 
-// For unused input parameters, avoid compiler alarms.
-#define PARSER_UNUSED(x) (void) (x)
+#include <stdbool.h>
 
-#define PARSER_INVALID_BOUNDARY_INDEX (SIZE_MAX)
+bool is_end_with(char *str, const char *suffix);
+
+char *remove_suffix(char *str, size_t n);
+
+char *str_to_upper(char *str);
 
 #endif

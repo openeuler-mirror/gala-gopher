@@ -200,7 +200,7 @@ static void* memmem_custom(const void* haystack, size_t haystack_len, const void
     return NULL;
 }
 
-parse_state_t decoder_extract_str_until_str(struct raw_data_s *raw_data, char **res, char *search_str)
+parse_state_t decoder_extract_str_until_str(struct raw_data_s *raw_data, char **res, const char *search_str)
 {
     char *start_search_ptr = &raw_data->data[raw_data->current_pos];
     size_t unconsumed_len = raw_data->data_len - raw_data->current_pos;
