@@ -62,5 +62,7 @@ int get_pod_ip(const char *abbr_container_id, char *pod_ip_str, int len);
 container_tbl* list_containers_by_pod_id(const char *pod_id);
 int enter_container_netns(const char *container_id);
 int exit_container_netns(int netns_fd);
+int enter_proc_netns(u32 pid);
+int is_container_proc(u32 pid);
 
 #endif

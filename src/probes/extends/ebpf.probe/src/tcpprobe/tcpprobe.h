@@ -234,7 +234,10 @@ struct tcp_args_s {
     __u32 cport_flag;           // Indicates whether the probes(such as tcp) identifies the client port
 };
 
-void lkup_established_tcp(void);
+#if !defined(BPF_PROG_KERN) && !defined(BPF_PROG_USER)
+#include "ipc.h"
+
+void lkup_established_tcp(int proc_map_fd, struct ipc_body_s *ipc_body);
 void destroy_established_tcps(void);
 int tcp_load_fd_probe(int *tcp_fd_map_fd, int *proc_obj_map_fd);
 void tcp_unload_fd_probe(void);
@@ -245,5 +248,7 @@ void tcp_unload_fd_probe(void);
     MAP_SET_PIN_PATH(probe_name, tcp_link_map, TCP_LINK_TCP_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, sock_map, TCP_LINK_SOCKS_PATH, load); \
     LOAD_ATTACH(tcpprobe, probe_name, end, load)
+
+#endif
 
 #endif
