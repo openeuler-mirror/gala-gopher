@@ -56,9 +56,9 @@
 #define OFF_CPU_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/offcpu.bpf.o"
 #define IO_PROG        "/opt/gala-gopher/extend_probes/stack_bpf/io.bpf.o"
 #if defined(__TARGET_ARCH_x86)
-#define MEMLEAK_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/memleak.bpf.o"
+#define MEM_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/mem.bpf.o"
 #else
-#define MEMLEAK_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/memleak_fp.bpf.o"
+#define MEM_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/mem_fp.bpf.o"
 #endif
 #define RM_STACK_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__stack*"
 #define STACK_PROC_MAP_PATH     "/sys/fs/bpf/gala-gopher/__stack_proc_map"
@@ -70,7 +70,7 @@
 
 #define IS_IEG_ADDR(addr)     ((addr) != 0xcccccccccccccccc && (addr) != 0xffffffffffffffff)
 
-#define MEMLEAK_SEC_NUM 4
+#define MEM_SEC_NUM 4
 #define HISTO_TMP_LEN   (2 * STACK_SYMBS_LEN)
 #define POST_MAX_STEP_SIZE 1048576 // 1M
 
@@ -104,7 +104,7 @@ struct bpf_link_hash_value {
     enum pid_state_t pid_state;
     char elf_path[MAX_PATH_LEN];
     int bpf_link_num;
-    struct bpf_link *bpf_links[32]; // 32 cover num of probes in memleak.bpf.c
+    struct bpf_link *bpf_links[32]; // 32 cover num of probes in mem.bpf.c
 };
 
 struct bpf_link_hash_t {
@@ -1041,17 +1041,17 @@ static void process_offcpu_raw_stack_trace(void *ctx, int cpu, void *data, u32 s
 }
 
 
-static void process_memleak_raw_stack_trace(void *ctx, int cpu, void *data, u32 size)
+static void process_mem_raw_stack_trace(void *ctx, int cpu, void *data, u32 size)
 {
     struct raw_stack_trace_s *raw_st;
-    if (!g_st || !g_st->svg_stack_traces[STACK_SVG_MEMLEAK] || !data) {
+    if (!g_st || !g_st->svg_stack_traces[STACK_SVG_MEM] || !data) {
         return;
     }
 
     if (g_st->is_stackmap_a) {
-        raw_st = g_st->svg_stack_traces[STACK_SVG_MEMLEAK]->raw_stack_trace_a;
+        raw_st = g_st->svg_stack_traces[STACK_SVG_MEM]->raw_stack_trace_a;
     } else {
-        raw_st = g_st->svg_stack_traces[STACK_SVG_MEMLEAK]->raw_stack_trace_b;
+        raw_st = g_st->svg_stack_traces[STACK_SVG_MEM]->raw_stack_trace_b;
     }
 
     if (!raw_st) {
@@ -1566,7 +1566,7 @@ static void unload_bpf_progs(struct svg_stack_trace_s *svg_st)
             }
             H_DEL(bpf_link_head, pid_bpf_links);
             (void)free(pid_bpf_links);
-            INFO("[STACKPROBE]: detach memleak bpf to pid %u success\n", pid_bpf_links->pid);
+            INFO("[STACKPROBE]: detach mem bpf to pid %u success\n", pid_bpf_links->pid);
         }
     }
 }
@@ -1607,7 +1607,7 @@ static void *__uprobe_attach_check(void *arg)
 
                     err = libbpf_get_error(pid_bpf_links->v.bpf_links[i]); 
                     if (err) {
-                        ERROR("[STACKPROBE]: attach memleak bpf to pid %u failed %d\n", pid_bpf_links->pid, err);
+                        ERROR("[STACKPROBE]: attach mem bpf to pid %u failed %d\n", pid_bpf_links->pid, err);
                         break;
                     }
                     i++;
@@ -1615,7 +1615,7 @@ static void *__uprobe_attach_check(void *arg)
                 if (err == 0) {
                     pid_bpf_links->v.pid_state = PID_ELF_ATTACHED;
                     pid_bpf_links->v.bpf_link_num = i;
-                    INFO("[STACKPROBE]: attach memleak bpf to pid %u success\n", pid_bpf_links->pid);
+                    INFO("[STACKPROBE]: attach mem bpf to pid %u success\n", pid_bpf_links->pid);
                 } else {
                     pid_bpf_links->v.bpf_links[i] = NULL;
                     for (i--; i >= 0; i--) {
@@ -1633,27 +1633,27 @@ static void *__uprobe_attach_check(void *arg)
 
 }
 #endif
-static int attach_memleak_bpf_prog(struct ipc_body_s *ipc_body, struct svg_stack_trace_s *svg_st)
+static int attach_mem_bpf_prog(struct ipc_body_s *ipc_body, struct svg_stack_trace_s *svg_st)
 {
     int err;
 #if 1
-    // this is for memleak.bpf.c and memleak_fp.bpf.c
+    // this is for mem.bpf.c and mem_fp.bpf.c
     int i = 0;
     struct bpf_program *prog;
-    struct bpf_link *links[MEMLEAK_SEC_NUM] = {0};
+    struct bpf_link *links[MEM_SEC_NUM] = {0};
 
     bpf_object__for_each_program(prog, svg_st->obj) {
         links[i] = bpf_program__attach(prog);
         err = libbpf_get_error(links[i]); 
         if (err) {
-            ERROR("[STACKPROBE]: attach memleak bpf failed %d\n", err);
+            ERROR("[STACKPROBE]: attach mem bpf failed %d\n", err);
             links[i] = NULL;
             goto cleanup;
         }
         i++;
     }
 
-    INFO("[STACKPROBE]: attach memleak bpf succeed.\n");
+    INFO("[STACKPROBE]: attach mem bpf succeed.\n");
     return 0;
 cleanup:
     for (i--; i >= 0; i--) {
@@ -1662,17 +1662,17 @@ cleanup:
 
     return -1;
 #else
-    // this is for memleak_glibc.bpf.c
+    // this is for mem_glibc.bpf.c
     pthread_t uprobe_attach_thd;
 
     err = pthread_create(&uprobe_attach_thd, NULL, __uprobe_attach_check, (void *)svg_st);
     if (err != 0) {
-        ERROR("[STACKPROBE]: attach memleak bpf failed %d\n", err);
+        ERROR("[STACKPROBE]: attach mem bpf failed %d\n", err);
         return -1;
     }
     (void)pthread_detach(uprobe_attach_thd);
 
-    INFO("[STACKPROBE]: attach memleak bpf succeed.\n");
+    INFO("[STACKPROBE]: attach mem bpf succeed.\n");
     return 0;
 #endif
 }
@@ -1978,7 +1978,7 @@ static int init_enabled_svg_stack_traces(struct ipc_body_s *ipc_body)
         // This array order must be the same as the order of enum stack_svg_type_e
         { PROBE_RANGE_ONCPU, STACK_SVG_ONCPU, "oncpu", ON_CPU_PROG, attach_oncpu_bpf_prog, process_oncpu_raw_stack_trace},
         { PROBE_RANGE_OFFCPU, STACK_SVG_OFFCPU, "offcpu", OFF_CPU_PROG, attach_offcpu_bpf_prog, process_offcpu_raw_stack_trace},
-        { PROBE_RANGE_MEM, STACK_SVG_MEMLEAK, "memleak", MEMLEAK_PROG, attach_memleak_bpf_prog, process_memleak_raw_stack_trace},
+        { PROBE_RANGE_MEM, STACK_SVG_MEM, "mem", MEM_PROG, attach_mem_bpf_prog, process_mem_raw_stack_trace},
         { PROBE_RANGE_IO, STACK_SVG_IO, "io", IO_PROG, NULL, NULL},
     };
     

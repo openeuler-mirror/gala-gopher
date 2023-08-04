@@ -231,7 +231,7 @@ static inline int free_enter(void *ctx, u64 addr) {
     return 0;
 }
 
-// MEMLEAK_SEC_NUM is the num of bpf_section
+// MEM_SEC_NUM is the num of bpf_section
 
 bpf_section("tracepoint/syscalls/sys_enter_brk")
 int function_sys_enter_brk(struct sys_enter_brk_args *ctx)
