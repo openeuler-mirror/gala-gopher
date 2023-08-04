@@ -47,7 +47,7 @@ struct MemoryStruct {
 static char *appname[STACK_SVG_MAX] = {
     "gala-gopher-oncpu",
     "gala-gopher-offcpu",
-    "gala-gopher-memleak",
+    "gala-gopher-mem",
     "gala-gopher-io"
 };
 
@@ -185,7 +185,7 @@ static int __build_url(char *url, struct post_server_s *post_server, int en_type
             proc_id,
             (long)before,
             (long)now,
-            en_type == STACK_SVG_MEMLEAK ? "bytes" : "samples",
+            en_type == STACK_SVG_MEM ? "bytes" : "samples",
             1000 / post_server->perf_sample_period); // 1000 ms
     } else {
         (void)snprintf(url, LINE_BUF_LEN, 
@@ -195,7 +195,7 @@ static int __build_url(char *url, struct post_server_s *post_server, int en_type
             post_server->app_suffix,
             (long)before,
             (long)now,
-            en_type == STACK_SVG_MEMLEAK ? "bytes" : "samples",
+            en_type == STACK_SVG_MEM ? "bytes" : "samples",
             1000 / post_server->perf_sample_period); // 1000 ms
     }
 

@@ -10,7 +10,7 @@
  * See the Mulan PSL v2 for more details.
  * Author: wo_cow
  * Create: 2022-11-26
- * Description: memleak stack tracing based on glibc function
+ * Description: mem stack tracing based on glibc function
  ******************************************************************************/
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
