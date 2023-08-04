@@ -102,6 +102,7 @@ static __always_inline __maybe_unused struct sock_conn_s* new_sock_conn(void *ct
 
     sock_conn.info.id.fd = fd;
     sock_conn.info.id.tgid = tgid;
+    sock_conn.info.is_reported = 0;
     sock_conn.info.is_ssl = 0;
     sock_conn.info.protocol = PROTO_UNKNOW;
     sock_conn.info.l4_role = l4_role;
@@ -216,6 +217,7 @@ static __always_inline __maybe_unused int submit_conn_open(void *ctx, struct soc
 static __always_inline __maybe_unused int submit_conn_close(void *ctx, conn_ctx_t id, int fd)
 {
     int tgid = (int)(id >> INT_LEN);
+    struct conn_id_s conn_id = {.tgid = tgid, .fd = fd};
     struct sock_conn_s* sock_conn = lkup_sock_conn(tgid, fd);
     if (sock_conn == NULL) {
         return 0;
@@ -247,7 +249,7 @@ static __always_inline __maybe_unused int submit_conn_close(void *ctx, conn_ctx_
 #ifdef __USE_RING_BUF
 end:
 #endif
-    bpf_map_delete_elem(&conn_tbl, &id);
+    bpf_map_delete_elem(&conn_tbl, &conn_id);
 
     return 0;
 }

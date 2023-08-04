@@ -205,7 +205,9 @@ static void __do_pop_frames(enum proto_type_t type, struct frame_buf_s *frame_bu
     start = 0;
     for (int i = frame_bufs->current_pos; i < frame_bufs->frame_buf_size && i < __FRAME_BUF_SIZE && start < __FRAME_BUF_SIZE; i++) {
         frame_bufs->frames[start++] = frame_bufs->frames[i];
+        frame_bufs->frames[i] = NULL;
     }
+    frame_bufs->frame_buf_size -= frame_bufs->current_pos;
     frame_bufs->current_pos = 0;
 
     return;

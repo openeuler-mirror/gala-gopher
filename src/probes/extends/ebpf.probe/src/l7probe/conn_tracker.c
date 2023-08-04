@@ -171,6 +171,7 @@ static void try_del_conn_tracker(struct l7_mng_s *l7_mng, const struct tracker_i
     return;
 }
 
+#if 0
 static struct conn_tracker_s* find_conn_tracker(struct l7_mng_s *l7_mng, const struct l7_link_id_s *l7_link_id)
 {
     struct conn_tracker_s *tracker, *tmp;
@@ -187,6 +188,7 @@ static struct conn_tracker_s* find_conn_tracker(struct l7_mng_s *l7_mng, const s
 
     return NULL;
 }
+#endif
 
 static struct frame_buf_s* get_req_frames(struct conn_tracker_s* tracker)
 {
@@ -325,6 +327,7 @@ static int proc_conn_ctl_msg(struct l7_mng_s *l7_mng, struct conn_ctl_s *conn_ct
         {
             tracker = add_conn_tracker(l7_mng, (const struct tracker_id_s *)&tracker_id);
             if (tracker) {
+                tracker->inactive = 0;
                 tracker->is_ssl = conn_ctl_msg->open.is_ssl;
                 if (tracker->l4_role == L4_ROLE_MAX) {
                     tracker->l4_role = conn_ctl_msg->open.l4_role;
