@@ -1846,7 +1846,6 @@ static int set_jstack_args(struct java_attach_args *attach_args)
         return ret;
     }
     (void)snprintf(attach_args->agent_file_name, FILENAME_LEN, "%s", JSTACK_AGENT_FILE); 
-    (void)snprintf(attach_args->tmp_file_name, FILENAME_LEN, "%s", JSTACK_TMP_FILE);
     return 0;
 }
 
@@ -2031,7 +2030,6 @@ static void load_jvm_agent()
     struct java_attach_args attach_args = {0};
     char comm[TASK_COMM_LEN];
     (void)snprintf(attach_args.agent_file_name, FILENAME_LEN, "%s", JAVA_SYM_AGENT_FILE);
-    (void)snprintf(attach_args.tmp_file_name, FILENAME_LEN, "%s", JAVA_SYM_FILE);
     while (bpf_map_get_next_key(proc_obj_map_fd, &key, &next_key) == 0) {
         ret = bpf_map_lookup_elem(proc_obj_map_fd, &next_key, &value);
         key = next_key;
@@ -2063,6 +2061,9 @@ static void reload_observation_range(struct ipc_body_s *ipc_body)
         unload_stackprobe_snoopers();
         load_stackprobe_snoopers(ipc_body);
         init_convert_counter();
+    }
+
+    if (ipc_body->probe_flags & IPC_FLAGS_PARAMS_CHG || ipc_body->probe_flags == 0) {
         if (!g_st->multi_instance_flag || g_st->native_stack_flag) {
             load_jvm_agent();
         }

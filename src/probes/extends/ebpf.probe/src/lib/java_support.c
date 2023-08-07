@@ -296,6 +296,8 @@ int java_load(u32 pid, struct java_attach_args *args)
     (void)snprintf(jvm_tmp_file, FILENAME_LEN, "%s", args->tmp_file_name);
     if (strlen(args->action) > 0) {
         (void)snprintf(attach_type, ATTACH_TYPE_LEN, "%s", args->action);
+    } else {
+        attach_type[0] = 0;
     }
 
     if (!is_valid_proc(pid)) {
