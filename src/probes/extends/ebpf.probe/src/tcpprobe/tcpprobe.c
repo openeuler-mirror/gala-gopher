@@ -51,6 +51,8 @@ void load_established_tcps(struct ipc_body_s *ipc_body, int map_fd);
 int tcp_load_probe(struct tcp_mng_s *tcp_mng, struct ipc_body_s *ipc_body, struct bpf_prog_s **new_prog);
 void scan_tcp_trackers(struct tcp_mng_s *tcp_mng);
 void scan_tcp_flow_trackers(struct tcp_mng_s *tcp_mng);
+void aging_tcp_trackers(struct tcp_mng_s *tcp_mng);
+void aging_tcp_flow_trackers(struct tcp_mng_s *tcp_mng);
 
 static void sig_int(int signo)
 {
@@ -117,16 +119,16 @@ static void reload_tc_bpf(struct ipc_body_s* ipc_body)
     return;
 }
 
-static char is_need_scan(struct tcp_mng_s *tcp_mng)
+static char is_need_aging(struct tcp_mng_s *tcp_mng)
 {
-#define __SCAN_TIME_SECS     (1 * 60)       // 1min
+#define __AGING_TIME_SECS     (5 * 60)       // 5min
     time_t current = (time_t)time(NULL);
     time_t secs;
 
-    if (current > tcp_mng->last_scan) {
-        secs = current - tcp_mng->last_scan;
-        if (secs >= __SCAN_TIME_SECS) {
-            tcp_mng->last_scan = current;
+    if (current > tcp_mng->last_aging) {
+        secs = current - tcp_mng->last_aging;
+        if (secs >= __AGING_TIME_SECS) {
+            tcp_mng->last_aging = current;
             return 1;
         }
     }
@@ -176,7 +178,7 @@ int main(int argc, char **argv)
     INFO("[TCPPROBE]: Successfully started!\n");
 
     start_time_second = 0;
-    tcp_mng->last_scan = (time_t)time(NULL);
+    tcp_mng->last_aging = (time_t)time(NULL);
     while (!g_stop) {
         ret = recv_ipc_msg(msq_id, (long)PROBE_TCP, &ipc_body);
         if (ret == 0) {
@@ -220,10 +222,13 @@ int main(int argc, char **argv)
             sleep(1);
         }
 
-        // Scans all TCP trackers every minute to delete invalid trackers and output data.
-        if (is_need_scan(tcp_mng)) {
-            scan_tcp_trackers(tcp_mng);
-            scan_tcp_flow_trackers(tcp_mng);
+        scan_tcp_trackers(tcp_mng);
+        scan_tcp_flow_trackers(tcp_mng);
+
+        // Aging all invalid TCP trackers trackers.
+        if (is_need_aging(tcp_mng)) {
+            aging_tcp_trackers(tcp_mng);
+            aging_tcp_flow_trackers(tcp_mng);
         }
     }
 

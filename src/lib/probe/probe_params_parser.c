@@ -268,19 +268,6 @@ static int parser_l7pro(struct probe_s *probe, struct param_key_s *param_key, co
     return 0;
 }
 
-static int parser_report_tcpsport(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
-{
-    int value = (int)key_item->valueint;
-    if (value < param_key->v.min || value > param_key->v.max) {
-        PARSE_ERR("params.%s invalid value, must be in [%d, %d]",
-                  param_key->key, param_key->v.min, param_key->v.max);
-        return -1;
-    }
-
-    probe->probe_param.cport_flag = (char)value;
-    return 0;
-}
-
 static int parser_support_ssl(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
 {
     int value = (int)key_item->valueint;
@@ -501,7 +488,6 @@ SET_DEFAULT_PARAMS_CAHR(env_flags);
 SET_DEFAULT_PARAMS_CAHR(support_ssl);
 SET_DEFAULT_PARAMS_CAHR(res_percent_upper);
 SET_DEFAULT_PARAMS_CAHR(res_percent_lower);
-SET_DEFAULT_PARAMS_CAHR(cport_flag);
 SET_DEFAULT_PARAMS_CAHR(continuous_sampling_flag);
 SET_DEFAULT_PARAMS_CAHR(multi_instance_flag);
 SET_DEFAULT_PARAMS_CAHR(native_stack_flag);
@@ -524,7 +510,6 @@ struct param_key_s param_keys[] = {
     {"report_event",       {0, 0, 1, ""},                           parser_report_event, set_default_params_char_logs, cJSON_Number},
     {"metrics_type",       {SUPPORT_METRICS_RAW | SUPPORT_METRICS_TELEM, 0, 0, "raw"}, parser_metrics_type, set_default_params_char_metrics_flags, cJSON_Array},
     {"env",                {SUPPORT_NODE_ENV, 0, 0, "node"},        parser_work_env, set_default_params_char_env_flags, cJSON_Array},
-    {"report_source_port", {0, 0, 1, ""},                           parser_report_tcpsport, set_default_params_char_cport_flag, cJSON_Number},
     {"l7_protocol",        {0, 0, 0, "http"},                       parser_l7pro, set_default_params_inter_l7_probe_proto_flags, cJSON_Array},
     {"support_ssl",        {0, 0, 1, ""},                           parser_support_ssl, set_default_params_char_support_ssl, cJSON_Number},
     {"pyroscope_server",   {0, 0, 0, "localhost:4040"},             parser_pyscope_server, set_default_params_str_pyroscope_server, cJSON_String},

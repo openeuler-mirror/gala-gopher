@@ -18,8 +18,8 @@
 #pragma once
 
 #define DEFAULT_LOAD_PROBE  (0xFFFFFFFF)
-#define DEFAULT_PERIOD      5
-#define DEFAULT_SAMPLE_PERIOD      100
+#define DEFAULT_PERIOD      60
+#define DEFAULT_SAMPLE_PERIOD      5000
 #define MAX_PATH_LEN        512
 #define MAX_COMM_LEN        17
 #define MAX_PROC_NAME_LEN   8
@@ -110,7 +110,6 @@ struct probe_params {
     char support_ssl;                  // Support for SSL probe;
     char res_percent_upper;            //  Upper limit of resource percentage, default is 0%
     char res_percent_lower;            //  Lower limit of resource percentage, default is 0%
-    char cport_flag;                   //  Indicates whether the probes(such as tcp) identifies the client port, default is 0 (no identify)
     char continuous_sampling_flag;     //  Enables the continuous sampling, default is 0
     char multi_instance_flag;            //  Enables output of individual flame graphs for each process, default is 0
     char native_stack_flag;            //  Enables output of native language call stack (only for java process), default is 0

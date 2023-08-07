@@ -89,7 +89,7 @@ static void __filter_arg_parse(char *arg, struct probe_params_deprecated *params
 // gala-gopher.conf only support one arg, used set out put period
 static int __period_arg_parse(char opt, char *arg, struct probe_params_deprecated *params)
 {
-    unsigned int interval, cport_flag;
+    unsigned int interval;
     unsigned int param_val;
 
     switch (opt) {
@@ -114,14 +114,6 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params_deprecate
             if (arg != NULL) {
                 (void)snprintf((void *)params->task_whitelist, MAX_PATH_LEN, "%s", arg);
             }
-            break;
-        case 'c':
-            cport_flag = (unsigned int)atoi(arg);
-            if (cport_flag != 0 && cport_flag != 1) {
-                ERROR("Please check arg(t), val shold be 1:cport_valid 0:cport_invalid.\n");
-                return -1;
-            }
-            params->cport_flag = (unsigned char)cport_flag;
             break;
         case 'T':
             params->latency_thr = (unsigned int)atoi(arg);

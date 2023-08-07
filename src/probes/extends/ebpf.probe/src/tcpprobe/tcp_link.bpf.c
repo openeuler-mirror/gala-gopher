@@ -50,8 +50,6 @@ static __always_inline int add_tcp_link(struct sock *sk, struct sock_info_s *inf
     info->tcp_link_ok = 1;
     info->proc_id = tgid;
 
-    /* update c_port_flag */
-    link.c_flag = get_cport_flag();
     link.family = _(sk->sk_family);
 
     if (info->role == LINK_ROLE_CLIENT) {
@@ -63,11 +61,6 @@ static __always_inline int add_tcp_link(struct sock *sk, struct sock_info_s *inf
             (void)bpf_probe_read(&link.s_ip6, IP6_LEN, &sk->sk_v6_daddr);
         }
         link.s_port = bpf_ntohs(_(sk->sk_dport));
-        if (link.c_flag == 1) {
-            link.c_port = _(sk->sk_num);
-        } else {
-            link.c_port = 0;
-        }
     } else {
         if (link.family == AF_INET) {
             link.s_ip = _(sk->sk_rcv_saddr);
@@ -77,11 +70,6 @@ static __always_inline int add_tcp_link(struct sock *sk, struct sock_info_s *inf
             (void)bpf_probe_read(&link.c_ip6, IP6_LEN, &sk->sk_v6_daddr);
         }
         link.s_port = _(sk->sk_num);
-        if (link.c_flag == 1) {
-            link.c_port = bpf_ntohs(_(sk->sk_dport));
-        } else {
-            link.c_port = 0;
-        }
     }
 
     link.role = info->role;
