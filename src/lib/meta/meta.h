@@ -32,6 +32,10 @@
 #define META_COMMON_LABEL_CONTAINER_ID  "container_id"
 #define META_COMMON_LABEL_POD_ID        "pod_id"
 
+#define ENTITY_PROC                     "proc"
+#define META_PROC_LABEL_CMDLINE         "cmdline"
+#define META_PROC_LABEL_START_TIME      "start_time"
+
 typedef struct {
     char description[MAX_FIELD_DESCRIPTION_LEN];
     char type[MAX_FIELD_TYPE_LEN];
@@ -69,6 +73,7 @@ int MeasurementMgrLoad(const MeasurementMgr *mgr, const char *metaDir);
 int MeasurementMgrLoadSingleMeta(MeasurementMgr *mgr, const char *metaPath);
 
 int ReportMetaDataMain(const MeasurementMgr *mgr);
+int is_entity_proc(const char *entity_name);
 
 #endif
 

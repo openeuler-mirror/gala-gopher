@@ -213,6 +213,7 @@ int access_check_read_line(u32 pid, const char *command, const char *fname, char
 int get_proc_start_time(u32 pid, char *buf, int buf_len);
 int get_proc_startup_ts(int pid);
 int get_proc_comm(u32 pid, char *buf, int buf_len);
+int get_proc_cmdline(u32 pid, char *buf, u32 buf_len);
 int get_kern_version(u32 *kern_version);
 int is_valid_proc(int pid);
 

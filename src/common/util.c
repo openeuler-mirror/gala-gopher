@@ -24,6 +24,7 @@
 
 #define PROC_COMM           "/proc/%u/comm"
 #define PROC_COMM_CMD       "/usr/bin/cat /proc/%u/comm 2> /dev/null"
+#define PROC_CMDLINE_CMD    "/proc/%u/cmdline"
 #define PROC_STAT           "/proc/%u/stat"
 #define PROC_START_TIME_CMD "/usr/bin/cat /proc/%u/stat | awk '{print $22}'"
 
@@ -300,6 +301,48 @@ int get_proc_startup_ts(int pid)
 int get_proc_comm(u32 pid, char *buf, int buf_len)
 {
     return access_check_read_line(pid, PROC_COMM_CMD, PROC_COMM, buf, buf_len);
+}
+
+int get_proc_cmdline(u32 pid, char *buf, u32 buf_len)
+{
+    FILE *f = NULL;
+    char path[LINE_BUF_LEN];
+    int index = 0;
+
+    (void)memset(buf, 0, buf_len);
+
+    path[0] = 0;
+    (void)snprintf(path, LINE_BUF_LEN, PROC_CMDLINE_CMD, pid);
+    f = fopen(path, "r");
+    if (f == NULL) {
+        return -1;
+    }
+    /* parse line */
+    while (!feof(f)) {
+        if (index >= buf_len - 1) {
+            buf[index] = '\0';
+            break;
+        }
+        buf[index] = fgetc(f);
+        if (buf[index] == '\"') {
+            if (index > buf_len -2) {
+                buf[index] = '\0';
+                break;
+            } else {
+                buf[index] = '\\';
+                buf[index + 1] =  '\"';
+                index++;
+            }
+        } else if (buf[index] == '\0') {
+            buf[index] = ' ';
+        } else if (buf[index] == EOF) {
+            buf[index] = '\0';
+        }
+        index++;
+    }
+
+    (void)fclose(f);
+    return 0;
 }
 
 int get_kern_version(u32 *kern_version)
