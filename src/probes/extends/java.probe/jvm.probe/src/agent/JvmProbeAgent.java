@@ -19,6 +19,13 @@ import java.lang.reflect.Method;
 import java.lang.reflect.InvocationTargetException;
 
 
+/**
+ * If you decide to update this agent during the jvm process running mode,
+ * the modification wouldn't work since the jvm has attached original jar package.
+ * (Reason: https://gitee.com/openeuler/gala-gopher/issues/I7KUN6?from=project-issue#note_19870876_link)
+ * 
+ * Note: If you update jar, please also update Manifest-Version;
+ */
 public class JvmProbeAgent {
 
     private static final int MSEC_PER_SEC = 1000;
