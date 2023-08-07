@@ -26,7 +26,6 @@
 #define APP_SUFFIX_LEN 64
 
 #define JSTACK_AGENT_FILE       "JstackProbeAgent.jar"
-#define JSTACK_TMP_FILE         "stacks-mem.txt"
 
 struct stack_symbs_s {
     struct addr_symb_s user_stack_symbs[PERF_MAX_STACK_DEPTH];

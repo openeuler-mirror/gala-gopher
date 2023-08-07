@@ -30,7 +30,7 @@ enum java_pid_state_t {
 };
 struct java_attach_args {
     char agent_file_name[FILENAME_LEN];
-    char tmp_file_name[FILENAME_LEN];
+    char tmp_file_name[FILENAME_LEN]; // for msg_handler
     char action[ATTACH_TYPE_LEN];
 };
 struct java_property_s {
