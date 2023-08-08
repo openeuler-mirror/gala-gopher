@@ -23,12 +23,10 @@
 #include "common.h"
 #include "nprobe_fprintf.h"
 #include "system_procs.h"
-#include "java_support.h"
 
 #define METRICS_PROC_NAME   "system_proc"
 #define PROC_STAT           "/proc/%u/stat"
 #define FULL_PER            100
-#define PROC_CMDLINE_CMD    "/proc/%u/cmdline"
 #define PROC_FD             "/proc/%u/fd"
 #define PROC_IO             "/proc/%u/io"
 #define PROC_SMAPS          "/proc/%u/smaps_rollup"
@@ -142,48 +140,6 @@ out:
         pclose(f);
     }
     return;
-}
-
-int get_proc_cmdline(u32 pid, char *buf, u32 buf_len)
-{
-    FILE *f = NULL;
-    char path[LINE_BUF_LEN];
-    int index = 0;
-
-    (void)memset(buf, 0, buf_len);
-
-    path[0] = 0;
-    (void)snprintf(path, LINE_BUF_LEN, PROC_CMDLINE_CMD, pid);
-    f = fopen(path, "r");
-    if (f == NULL) {
-        return -1;
-    }
-    /* parse line */
-    while (!feof(f)) {
-        if (index >= buf_len - 1) {
-            buf[index] = '\0';
-            break;
-        }
-        buf[index] = fgetc(f);
-        if (buf[index] == '\"') {
-            if (index > buf_len -2) {
-                buf[index] = '\0';
-                break;
-            } else {
-                buf[index] = '\\';
-                buf[index + 1] =  '\"';
-                index++;
-            }
-        } else if (buf[index] == '\0') {
-            buf[index] = ' ';
-        } else if (buf[index] == EOF) {
-            buf[index] = '\0';
-        }
-        index++;
-    }
-
-    (void)fclose(f);
-    return 0;
 }
 
 static int __is_valid_container_id(char *str)
@@ -530,13 +486,11 @@ static void output_proc_infos(proc_hash_t *one_proc)
     float fd_free_per = fd_free / (float)one_proc->info.max_fd_limit * 100;
 
     nprobe_fprintf(stdout,
-        "|%s|%lu|%llu|%d|%d|%s|%u|%.2f|%llu|%llu|%u|%u|%llu|%llu|%llu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|%d|\n",
+        "|%s|%lu|%d|%d|%u|%.2f|%llu|%llu|%u|%u|%llu|%llu|%llu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|%d|\n",
         METRICS_PROC_NAME,
         one_proc->key.pid,
-        one_proc->key.start_time,
         one_proc->info.pgid,
         one_proc->info.ppid,
-        one_proc->info.cmdline == NULL ? "" : one_proc->info.cmdline,
         one_proc->info.fd_count,
         fd_free_per,
         one_proc->info.proc_rchar_bytes - g_pre_proc_info.proc_rchar_bytes,
@@ -574,7 +528,6 @@ static proc_hash_t* init_one_proc(u32 pid, char *stime, char *comm)
 {
     int ret;
     proc_hash_t *item;
-    struct java_property_s java_prop = {0};
 
     item = (proc_hash_t *)malloc(sizeof(proc_hash_t));
     (void)memset(item, 0, sizeof(proc_hash_t));
@@ -584,14 +537,6 @@ static proc_hash_t* init_one_proc(u32 pid, char *stime, char *comm)
 
     (void)snprintf(item->info.comm, sizeof(item->info.comm), "%s", comm);
     item->flag = PROC_IN_PROBE_RANGE;
-    if (strcmp(comm, "java") == 0) {
-        ret = get_java_property((int)item->key.pid, &java_prop);
-        if (ret == 0) {
-            (void)snprintf(item->info.cmdline, sizeof(item->info.cmdline), "%s", java_prop.mainClassName);
-        }
-    } else {
-        (void)get_proc_cmdline(pid, item->info.cmdline, sizeof(item->info.cmdline));
-    }
 
     (void)get_proc_max_fdnum(pid, &item->info);
 

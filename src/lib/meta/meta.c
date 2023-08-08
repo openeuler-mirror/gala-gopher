@@ -431,6 +431,17 @@ static int metadata_build_labels(const Measurement *mm, char *json_str, int max_
         total_len += ret;
     }
 
+    if (is_entity_proc(mm->entity)) {
+        ret = snprintf(str, str_len, ", \"%s\", \"%s\"",
+            META_PROC_LABEL_CMDLINE, META_PROC_LABEL_START_TIME);
+        if (ret < 0 || ret >= str_len) {
+            return -1;
+        }
+        str += ret;
+        str_len -= ret;
+        total_len += ret;
+    }
+
     ret = snprintf(str, str_len, "]");
     if (ret < 0 || ret >= str_len) {
         return -1;
@@ -643,6 +654,14 @@ int ReportMetaDataMain(const MeasurementMgr *mgr)
         }
         sleep(TEM_MINUTES);
     }
+}
+
+int is_entity_proc(const char *entity_name)
+{
+    if (strcmp(entity_name, ENTITY_PROC) == 0) {
+        return 1;
+    }
+    return 0;
 }
 
 #endif

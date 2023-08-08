@@ -97,6 +97,7 @@ typedef struct {
     char container_id[CONTAINER_ABBR_ID_LEN + 1];
     char pod_id[POD_ID_LEN + 1];
     char comm[TASK_COMM_LEN + 1];
+    char cmdline[PROC_CMDLINE_LEN];
     H_HANDLE;
 } TGID_Record;
 

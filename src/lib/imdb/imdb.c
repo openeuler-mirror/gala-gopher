@@ -19,6 +19,7 @@
 #include <time.h>
 #include <unistd.h>
 #include "common.h"
+#include "java_support.h"
 #include "container.h"
 #include "meta.h"
 #include "imdb.h"
@@ -340,6 +341,7 @@ static TGID_Record* IMDB_TgidCreateRecord(const IMDB_DataBaseMgr *mgr, const cha
     char pod_id[POD_ID_LEN + 1];
     char comm[TASK_COMM_LEN + 1];
     TGID_Record *record;
+    struct java_property_s java_prop;
 
     comm[0] = 0;
     pid = atoi(tgid);
@@ -353,17 +355,6 @@ static TGID_Record* IMDB_TgidCreateRecord(const IMDB_DataBaseMgr *mgr, const cha
         return NULL;
     }
 
-    container_id[0] = 0;
-    ret = get_container_id_by_pid_cpuset(tgid, container_id, CONTAINER_ABBR_ID_LEN + 1);
-    if (ret) {
-        return NULL;
-    }
-
-    pod_id[0] = 0;
-    if (container_id[0] != 0) {
-        (void)get_container_pod_id((const char *)container_id, pod_id, POD_ID_LEN + 1);
-    }
-
     record = (TGID_Record *)malloc(sizeof(TGID_Record));
     if (record == NULL) {
         return NULL;
@@ -371,9 +362,29 @@ static TGID_Record* IMDB_TgidCreateRecord(const IMDB_DataBaseMgr *mgr, const cha
     (void)memset(record, 0, sizeof(TGID_Record));
     record->key.startup_ts = startup_ts;
     strncpy(record->key.tgid, tgid, INT_LEN);
-    strncpy(record->container_id, container_id, CONTAINER_ABBR_ID_LEN);
-    strncpy(record->pod_id, pod_id, POD_ID_LEN);
     strncpy(record->comm, comm, TASK_COMM_LEN);
+
+    if (strcmp(comm, "java") == 0) {
+        memset(&java_prop, 0, sizeof(java_prop));
+        ret = get_java_property(pid, &java_prop);
+        if (ret == 0) {
+            (void)snprintf(record->cmdline, sizeof(record->cmdline), "%s", java_prop.mainClassName);
+        }
+    } else {
+        (void)get_proc_cmdline(pid, record->cmdline, sizeof(record->cmdline));
+    }
+
+    container_id[0] = 0;
+    ret = get_container_id_by_pid_cpuset(tgid, container_id, CONTAINER_ABBR_ID_LEN + 1);
+    if (ret == 0) {
+        strncpy(record->container_id, container_id, CONTAINER_ABBR_ID_LEN);
+    }
+
+    pod_id[0] = 0;
+    if (container_id[0] != 0) {
+        (void)get_container_pod_id((const char *)container_id, pod_id, POD_ID_LEN + 1);
+        strncpy(record->pod_id, pod_id, POD_ID_LEN);
+    }
 
     IMDB_TgidAddRecord(mgr, record);
     return record;
@@ -779,6 +790,7 @@ static int IMDB_BuildPrometheusMetrics(const IMDB_Metric *metric, char *buffer, 
 
 static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
                                      IMDB_Record *record,
+                                     const char *entity_name,
                                      char *buffer,
                                      uint32_t maxLen)
 {
@@ -829,7 +841,7 @@ static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
 
         if (tgidRecord == NULL) {
             DEBUG("[IMDB] append proc(PID = %s) common label fail.\n", record->metrics[tgid_idx]->val);
-            goto out;
+            goto err;
         }
 
         if (tgidRecord->comm[0] != 0) {
@@ -848,6 +860,19 @@ static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
 
         if (tgidRecord->pod_id[0] != 0) {
             ret = __snprintf(&p, size, &size, ",%s=\"%s\"", META_COMMON_LABEL_POD_ID, tgidRecord->pod_id);
+            if (ret < 0) {
+                goto err;
+            }
+        }
+
+        if (is_entity_proc(entity_name)) {
+            ret = __snprintf(&p, size, &size, ",%s=\"%s\"",
+                META_PROC_LABEL_CMDLINE, tgidRecord->cmdline);
+            if (ret < 0) {
+                goto err;
+            }
+            ret = __snprintf(&p, size, &size, ",%s=\"%d\"",
+                META_PROC_LABEL_START_TIME, tgidRecord->key.startup_ts);
             if (ret < 0) {
                 goto err;
             }
@@ -938,7 +963,7 @@ static int IMDB_Rec2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Record *record, char 
     uint32_t curMaxLen = maxLen;
 
     char labels[MAX_LABELS_BUFFER_SIZE] = {0};
-    ret = IMDB_BuildPrometheusLabel(mgr, record, labels, MAX_LABELS_BUFFER_SIZE);
+    ret = IMDB_BuildPrometheusLabel(mgr, record, entity_name, labels, MAX_LABELS_BUFFER_SIZE);
     if (ret < 0) {
         ERROR("[IMDB] table of (%s) build label fail, ret: %d\n", entity_name, ret);
         goto ERR;

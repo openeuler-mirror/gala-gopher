@@ -13,11 +13,6 @@ measurements:
                 name: "tgid",
             },
             {
-                description: "process startup time",
-                type: "label",
-                name: "start_time",
-            },
-            {
                 description: "process group id",
                 type: "label",
                 name: "pgid",
@@ -26,11 +21,6 @@ measurements:
                 description: "parent id of process",
                 type: "label",
                 name: "ppid",
-            },
-            {
-                description: "cmdline of the process",
-                type: "label",
-                name: "cmdline",
             },
             {
                 description: "fd counts of the process",
