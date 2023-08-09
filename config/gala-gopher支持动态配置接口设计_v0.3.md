@@ -90,6 +90,7 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 | baseinfo      | 系统基础信息                          | cpu, mem, nic, disk, net, fs, proc,host                      | NA                                       | system_infos                       | NA                        |
 | virt          | 虚拟化管理信息                        | NA                                                           | NA                                       | virtualized_infos                  | NA                        |
 | tprofiling    | 线程级性能profiling观测能力           | oncpu, syscall_file, syscall_net, syscall_lock, syscall_sched | proc_id, proc_name                       | $gala-gopher-dir/tprofiling        | NA                        |
+| container    | 容器信息          | NA | proc_id, proc_name, container_id                      | $gala-gopher-dir/cadvisor_probe.py        | NA                        |
 
 ## 探针运行参数
 
@@ -136,6 +137,7 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 | continuous_sampling | 是否持续采样 | 0, [0, 1] | | ksli | Y |
 | elf_path | 要观测的可执行文件的路径 | "" | | nginx, haproxy, dnsmasq | Y |
 | kafka_port | 要观测的kafka端口号 | 9092, [1, 65535] | | kafka | Y |
+| cadvisor_port | 启动的cadvisor端口号 | 8080, [1, 65535] | | cadvisor | Y |
 
 
 

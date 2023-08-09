@@ -28,6 +28,7 @@
 #define MAX_IP_LEN          20	// xxx.xxx.xxx.xxx/xx
 #define MAX_IP_NUM          8
 #define MAX_TGIDS_LEN       64
+#define DEFAULT_CADVISOR_PORT    8080
 
 #define PYSCOPE_SERVER_URL_LEN  64  // compat for [domainName]:4040 for most of domains and xxx.xxx.xxx.xxx:4040
 #ifndef PATH_LEN
@@ -95,7 +96,10 @@ struct probe_params_deprecated {
     unsigned int l7_probe_proto_flags;
     unsigned int enable_all_thrds; // [-A] Enable all threads, default is 0
 };
-
+/*
+    copy struct probe_params code to python.probe/ipc.py.
+    if modify struct probe_params, please sync change to the class ProbeParams in ipc.py
+*/
 struct probe_params {
     unsigned int period;               // Report period, unit second, default is 5 seconds
     unsigned int sample_period;        // Sampling period, unit milliseconds, default is 100 milliseconds
@@ -138,6 +142,7 @@ struct probe_params {
     char pyroscope_server[PYSCOPE_SERVER_URL_LEN];
     char svg_dir[PATH_LEN];
     char flame_dir[PATH_LEN];
+    unsigned int cadvisor_port;         // the port which cadvisor start.
 };
 
 int args_parse(int argc, char **argv, struct probe_params_deprecated *params);

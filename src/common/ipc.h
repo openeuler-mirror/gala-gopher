@@ -89,6 +89,10 @@
 #define PROBE_RANGE_SCHED_SYSTIME   0x00000001
 #define PROBE_RANGE_SCHED_SYSCALL   0x00000002
 
+/*
+    copy probe_type_e, snooper_obj_e, snooper_con_info_s, snooper_obj_s, ipc_body_s code to python.probe/ipc.py.
+    if modify above struct , please sync change to ipc.py
+*/
 enum probe_type_e {
     PROBE_BASEINFO = 1,
     PROBE_VIRT,
@@ -113,6 +117,7 @@ enum probe_type_e {
     PROBE_HW,
     PROBE_KSLI,
     PROBE_SCHED,
+    PROBE_CONTAINER,
 
     // If you want to add a probe, add the probe type.
 
