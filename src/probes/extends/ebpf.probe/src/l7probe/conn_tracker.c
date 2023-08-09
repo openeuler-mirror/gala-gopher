@@ -158,17 +158,6 @@ static struct conn_tracker_s* add_conn_tracker(struct l7_mng_s *l7_mng, const st
     return new_tracker;
 }
 
-static void del_conn_tracker(struct l7_mng_s *l7_mng, const struct tracker_id_s *id)
-{
-    struct conn_tracker_s* tracker = lkup_conn_tracker(l7_mng, id);
-    if (tracker == NULL) {
-        return;
-    }
-    H_DEL(l7_mng->trackers, tracker);
-    destroy_conn_tracker(tracker);
-    return;
-}
-
 #if 0
 static struct conn_tracker_s* find_conn_tracker(struct l7_mng_s *l7_mng, const struct l7_link_id_s *l7_link_id)
 {
@@ -293,6 +282,7 @@ static struct l7_link_s* add_l7_link(struct l7_mng_s *l7_mng, const struct conn_
     new_link->last_rcv_data = time(NULL);
 
     H_ADD_KEYPTR(l7_mng->l7_links, &new_link->id, sizeof(struct l7_link_id_s), new_link);
+    l7_mng->l7_links_capability++;
     return new_link;
 }
 
@@ -325,6 +315,14 @@ static int proc_conn_ctl_msg(struct l7_mng_s *l7_mng, struct conn_ctl_s *conn_ct
         {
             tracker = add_conn_tracker(l7_mng, (const struct tracker_id_s *)&tracker_id);
             if (tracker) {
+                /* Reinit conn_tracker when it is reused */
+                if (tracker->inactive) {
+                    tracker->inactive = 0;
+                    tracker->l4_role = L4_ROLE_MAX;
+                    tracker->l7_role = L7_UNKNOW;
+                    memset(&(tracker->open_info), 0, sizeof(struct tracker_open_s));
+                    memset(&(tracker->close_info), 0, sizeof(struct tracker_close_s));
+                }
                 tracker->is_ssl = conn_ctl_msg->open.is_ssl;
                 if (tracker->l4_role == L4_ROLE_MAX) {
                     tracker->l4_role = conn_ctl_msg->open.l4_role;
@@ -339,7 +337,10 @@ static int proc_conn_ctl_msg(struct l7_mng_s *l7_mng, struct conn_ctl_s *conn_ct
         }
         case CONN_EVT_CLOSE:
         {
-            del_conn_tracker(l7_mng, (const struct tracker_id_s *)&tracker_id);
+            tracker = lkup_conn_tracker(l7_mng, (const struct tracker_id_s *)&tracker_id);
+            if (tracker) {
+                tracker->inactive = 1;
+            }
             break;
         }
         default:
@@ -564,9 +565,17 @@ static char is_l7link_inactive(struct l7_link_s *link)
     return 0;
 }
 
-void aging_l7_links(struct l7_mng_s *l7_mng)
+static void aging_l7_stats(struct l7_mng_s *l7_mng)
 {
+    struct conn_tracker_s *tracker, *tmp_tracker;
     struct l7_link_s *link, *tmp;
+
+    H_ITER(l7_mng->trackers, tracker, tmp_tracker) {
+        if (tracker->inactive) {
+            H_DEL(l7_mng->trackers, tracker);
+            destroy_conn_tracker(tracker);
+        }
+    }
 
     H_ITER(l7_mng->l7_links, link, tmp) {
         if (is_l7link_inactive(link)) {
@@ -712,8 +721,8 @@ void report_l7(void *ctx)
 
     calc_l7_stats(l7_mng);
     report_l7_stats(l7_mng);
+    aging_l7_stats(l7_mng);
     reset_l7_stats(l7_mng);
-    aging_l7_links(l7_mng);
     return;
 }
 
