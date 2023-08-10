@@ -26,7 +26,6 @@ RUN chmod +x /entrypoint.sh
 # install gala-gopher
 RUN yum install -y libbpf-0.3-1.oe1.x86_64.rpm \
     && yum install -y gala-gopher-1.0.2-2.x86_64.rpm \
-    && yum install -y docker \
     && yum install -y java-1.8.0-openjdk \
     && yum clean all \
     && rm -rf /var/cache/yum/*

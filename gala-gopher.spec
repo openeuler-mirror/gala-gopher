@@ -139,8 +139,6 @@ fi
 %config(noreplace) /etc/gala-gopher/probes.init
 %config(noreplace) /etc/gala-gopher/*.conf
 %config(noreplace) /etc/gala-gopher/extend_probes/*.conf
-%exclude /opt/gala-gopher/extend_probes/*.pyc
-%exclude /opt/gala-gopher/extend_probes/*.pyo
 /usr/lib/systemd/system/gala-gopher.service
 %attr(0700,root,root) /usr/libexec/gala-gopher/init_probes.sh
 

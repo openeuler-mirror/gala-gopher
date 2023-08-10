@@ -43,13 +43,13 @@ static struct node_infos g_nodeinfos = {0};
 static int do_get_os_release_path(char path[], int path_len)
 {
     // The file /etc/os-release takes precedence over /usr/lib/os-release
-    path[0] = 0;
-    if (!access(OS_RELEASE_PATH1, 0)) {
-        (void)snprintf(path, path_len, "%s", OS_RELEASE_PATH1);
+    convert_to_host_path(path, OS_RELEASE_PATH1, path_len);
+    if (!access(path, 0)) {
         return 0;
     }
-    if (!access(OS_RELEASE_PATH2, 0)) {
-        (void)snprintf(path, path_len, "%s", OS_RELEASE_PATH2);
+
+    convert_to_host_path(path, OS_RELEASE_PATH2, path_len);
+    if (!access(path, 0)) {
         return 0;
     }
     ERROR("[SYSTEM_OS] os-release file isn't /etc/os-release or /usr/lib/os-release.\n");
@@ -114,9 +114,9 @@ static int get_os_release_info(struct node_infos *infos)
 
     os_latest_path[0] = 0;
     if (!strcasecmp(infos->os_id, "openEuler")) {
-        strcpy(os_latest_path, "/etc/openEuler-latest");
+        convert_to_host_path(os_latest_path, "/etc/openEuler-latest", sizeof(os_latest_path));
     } else if (!strcasecmp(infos->os_id, "euleros")) {
-        strcpy(os_latest_path, "/etc/euleros-latest");
+        convert_to_host_path(os_latest_path, "/etc/euleros-latest", sizeof(os_latest_path));
     } else {
         (void)snprintf(infos->os_version, sizeof(infos->os_version), "%s", infos->os_pretty_name);
         return 0;

@@ -42,7 +42,7 @@ static int __get_link_path(const char* link, char *path, unsigned int len)
 
     command[0] = 0;
     (void)snprintf(command, COMMAND_LEN, COMMAND_REAL_PATH, link);
-    return exec_cmd(command, path, len);
+    return exec_cmd_chroot(command, path, len);
 }
 
 static int __do_get_glibc_path_host(char *path, unsigned int len)
@@ -50,11 +50,12 @@ static int __do_get_glibc_path_host(char *path, unsigned int len)
     int ret;
     FILE *f = NULL;
     char line[LINE_BUF_LEN];
+    char path_buf[PATH_LEN];
 
-    path[0] = 0;
+    path_buf[0] = 0;
     line[0] = 0;
 
-    f = popen(COMMAND_GLIBC_PATH, "r");
+    f = popen_chroot(COMMAND_GLIBC_PATH, "r");
     if (f == NULL)
         return -1;
 
@@ -64,12 +65,13 @@ static int __do_get_glibc_path_host(char *path, unsigned int len)
     }
 
     split_newline_symbol(line);
-    ret = __get_link_path((const char *)line, path, len);
+    ret = __get_link_path((const char *)line, path_buf, len);
     if (ret < 0) {
         (void)pclose(f);
         return -1;
     }
 
+    convert_to_host_path(path, path_buf, len);
     (void)pclose(f);
     return 0;
 }
@@ -132,6 +134,7 @@ static int __do_get_path_from_host(const char *binary_file, char **res_buf, int 
     char *p = NULL;
     char *syspath_ptr = getenv("PATH");
     char syspath[PATH_LEN];
+    char path_buf[PATH_LEN];
 
     if (syspath_ptr == NULL) {
         (void)snprintf((void *)syspath, PATH_LEN, "%s", DEFAULT_PATH_LIST);
@@ -141,7 +144,8 @@ static int __do_get_path_from_host(const char *binary_file, char **res_buf, int 
     p = strtok(syspath_ptr, ":");
     while (p != NULL) {
         char abs_path[PATH_LEN] = {0};
-        (void)snprintf((char *)abs_path, PATH_LEN, "%s/%s", p, binary_file);
+        convert_to_host_path(path_buf, p, PATH_LEN);
+        (void)snprintf((char *)abs_path, PATH_LEN, "%s/%s", path_buf, binary_file);
         if (__is_exec_file(abs_path)) {
             if (r_len >= res_len) {
                 printf("host abs_path's num[%d] beyond res_buf's size[%d].\n", r_len, res_len);
@@ -203,6 +207,7 @@ int get_exec_file_path(const char *binary_file, const char *specified_path, cons
                         char **res_buf, int res_len)
 {
     int ret_path_num = -1;
+    char specified_host_path[PATH_LEN];
 
     if (binary_file == NULL || !strcmp(binary_file, "NULL")) {
         printf("please input binary_file name.\n");
@@ -210,12 +215,13 @@ int get_exec_file_path(const char *binary_file, const char *specified_path, cons
     }
     /* specified file path */
     if (specified_path != NULL && strlen(specified_path)) {
-        if (!__is_exec_file(specified_path)) {
+        convert_to_host_path(specified_host_path, specified_path, PATH_LEN);
+        if (!__is_exec_file(specified_host_path)) {
             printf("specified path check error[%d].\n", errno);
             return -1;
         }
         res_buf[0] = (char *)malloc(PATH_LEN * sizeof(char));
-        (void)snprintf(res_buf[0], PATH_LEN, "%s", specified_path);
+        (void)snprintf(res_buf[0], PATH_LEN, "%s", specified_host_path);
         return 1;
     }
 

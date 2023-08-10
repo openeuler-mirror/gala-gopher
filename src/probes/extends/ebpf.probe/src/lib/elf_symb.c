@@ -61,7 +61,7 @@ int __get_inode(const char *elf, u32 *inode)
     inode_s[0] = 0;
     (void)snprintf(command, COMMAND_LEN, __STAT_INODE, elf);
 
-    if (exec_cmd((const char *)command, inode_s, INT_LEN) < 0) {
+    if (exec_cmd_chroot((const char *)command, inode_s, INT_LEN) < 0) {
         return -1;
     }
 

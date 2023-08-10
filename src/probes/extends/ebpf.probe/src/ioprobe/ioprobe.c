@@ -176,7 +176,7 @@ static void get_devname(int major, int minor, char dev_name[], size_t size)
     cmd[0] = 0;
     (void)sprintf(cmd, LSBLK_LIST_CMD, major, minor);
 
-    (void)exec_cmd((const char *)cmd, dev_name, size);
+    (void)exec_cmd_chroot((const char *)cmd, dev_name, size);
     return;
 }
 
@@ -213,7 +213,7 @@ static void get_diskname(const char* dev_name, char *disk_name, size_t size)
     char last_disk_name[DISK_NAME_LEN];
 
     strcpy(cmd, LSBLK_TREE_CMD);
-    f = popen(cmd, "r");
+    f = popen_chroot(cmd, "r");
     if (f == NULL) {
         return;
     }
@@ -479,7 +479,7 @@ static char is_load_probe(char *probe_name)
     cmd[0] = 0;
     (void)sprintf(cmd, LS_BLOCK_CMD, probe_name);
     count_str[0] = 0;
-    if (exec_cmd(cmd, count_str, INT_LEN) < 0) {
+    if (exec_cmd_chroot(cmd, count_str, INT_LEN) < 0) {
         return 0;
     }
 
