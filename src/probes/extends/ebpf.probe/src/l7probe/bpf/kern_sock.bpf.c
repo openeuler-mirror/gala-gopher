@@ -186,7 +186,7 @@ static __always_inline __maybe_unused int submit_conn_open(void *ctx, struct soc
     }
 
 #ifdef __USE_RING_BUF
-    struct conn_ctl_s *e = bpf_ringbuf_reserve(&conn_control_events, sizeof(struct conn_ctl_s), 0);
+    struct conn_ctl_s *e = bpf_ringbuf_reserve(&conn_tracker_events, sizeof(struct conn_ctl_s), 0);
     if (!e) {
         return -1;
     }
@@ -195,6 +195,7 @@ static __always_inline __maybe_unused int submit_conn_open(void *ctx, struct soc
     struct conn_ctl_s *e = &evt;
 #endif
 
+    e->evt = TRACKER_EVT_CTRL;
     e->type = CONN_EVT_OPEN;
     e->timestamp_ns = bpf_ktime_get_ns();
     e->conn_id = sock_conn->info.id;
@@ -207,7 +208,7 @@ static __always_inline __maybe_unused int submit_conn_open(void *ctx, struct soc
 #ifdef __USE_RING_BUF
     bpf_ringbuf_submit(e, 0);
 #else
-    (void)bpf_perf_event_output(ctx, &conn_control_events, BPF_F_CURRENT_CPU, e, sizeof(struct conn_ctl_s));
+    (void)bpf_perf_event_output(ctx, &conn_tracker_events, BPF_F_CURRENT_CPU, e, sizeof(struct conn_ctl_s));
 #endif
     sock_conn->info.is_reported = 1;
     return 0;
@@ -224,7 +225,7 @@ static __always_inline __maybe_unused int submit_conn_close(void *ctx, conn_ctx_
     }
 
 #ifdef __USE_RING_BUF
-    struct conn_ctl_s *e = bpf_ringbuf_reserve(&conn_control_events, sizeof(struct conn_ctl_s), 0);
+    struct conn_ctl_s *e = bpf_ringbuf_reserve(&conn_tracker_events, sizeof(struct conn_ctl_s), 0);
     if (!e) {
         goto end;
     }
@@ -233,6 +234,7 @@ static __always_inline __maybe_unused int submit_conn_close(void *ctx, conn_ctx_
     struct conn_ctl_s *e = &evt;
 #endif
 
+    e->evt = TRACKER_EVT_CTRL;
     e->type = CONN_EVT_CLOSE;
     e->timestamp_ns = bpf_ktime_get_ns();
     e->conn_id = sock_conn->info.id;
@@ -243,7 +245,7 @@ static __always_inline __maybe_unused int submit_conn_close(void *ctx, conn_ctx_
 #ifdef __USE_RING_BUF
     bpf_ringbuf_submit(e, 0);
 #else
-    (void)bpf_perf_event_output(ctx, &conn_control_events, BPF_F_CURRENT_CPU, e, sizeof(struct conn_ctl_s));
+    (void)bpf_perf_event_output(ctx, &conn_tracker_events, BPF_F_CURRENT_CPU, e, sizeof(struct conn_ctl_s));
 #endif
 
 #ifdef __USE_RING_BUF

@@ -55,6 +55,13 @@ enum l7_role_t {
     L7_ROLE_MAX
 };
 
+enum tracker_evt_e {
+    TRACKER_EVT_STATS = 1,
+    TRACKER_EVT_CTRL,
+    TRACKER_EVT_DATA
+};
+
+
 struct conn_id_s {
     int tgid;                   // process id
     int fd;
@@ -112,7 +119,9 @@ struct conn_close_s {
 // Exchange data between user mode/kernel using
 // 'conn_control_events' perf channel.
 struct conn_ctl_s {
+    enum tracker_evt_e evt; // Head field must be placed
     struct conn_id_s conn_id;
+
     u64 timestamp_ns;
 
     enum conn_evt_e type;
@@ -123,7 +132,9 @@ struct conn_ctl_s {
 // Exchange data between user mode/kernel using
 // 'conn_stats_events' perf channel.
 struct conn_stats_s {
+    enum tracker_evt_e evt; // Head field must be placed
     struct conn_id_s conn_id;
+
     u64 timestamp_ns;
 
     // The number of bytes written on this connection.
@@ -137,6 +148,7 @@ struct conn_stats_s {
 #define LOOP_LIMIT 4
 #define CONN_DATA_MAX_SIZE  (8 * 1024 - 1)
 struct conn_data_s {
+    enum tracker_evt_e evt; // Head field must be placed
     struct conn_id_s conn_id;
 
     u64 timestamp_ns;   // The timestamp when syscall completed.

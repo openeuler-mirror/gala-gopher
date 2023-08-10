@@ -66,8 +66,8 @@ static void submit_perf_buf_user(void *ctx, char *buf, size_t bytes_count, struc
     copied_size = (bytes_count > CONN_DATA_MAX_SIZE) ? CONN_DATA_MAX_SIZE : bytes_count;
     memcpy(&conn_data->data, buf, copied_size);
     conn_data->data_size = copied_size;
-
-    trakcer_data_msg_pb(ctx, 0, conn_data, 0);
+    conn_data->evt = TRACKER_EVT_DATA;
+    trakcer_msg_pb(ctx, 0, conn_data, sizeof(struct conn_data_s));
     return;
 }
 
@@ -114,7 +114,8 @@ static void submit_sock_conn_stats(void *ctx, struct sock_conn_s* sock_conn,
     e->rd_bytes = sock_conn->rd_bytes;
 
     // submit conn stats event.
-    trakcer_stats_msg_pb(ctx, 0, e, 0);
+    e->evt = TRACKER_EVT_STATS;
+    trakcer_msg_pb(ctx, 0, e, sizeof(struct conn_stats_s));
     return;
 }
 

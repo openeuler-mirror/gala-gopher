@@ -117,7 +117,6 @@ struct {
     __uint(max_entries, __MAX_CONCURRENCY);
 } sock_data_args SEC(".maps");
 
-
 struct {
     __uint(type, GOPHER_BPF_MAP_TYPE_PERF);
 #ifndef __USE_RING_BUF
@@ -125,25 +124,7 @@ struct {
     __uint(value_size, sizeof(u32));
 #endif
     __uint(max_entries, GOPHER_BPF_PERF_MAP_MAX_ENTRIES);
-} conn_data_events SEC(".maps");
-
-struct {
-    __uint(type, GOPHER_BPF_MAP_TYPE_PERF);
-#ifndef __USE_RING_BUF
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-#endif
-    __uint(max_entries, GOPHER_BPF_PERF_MAP_MAX_ENTRIES);
-} conn_control_events SEC(".maps");
-
-struct {
-    __uint(type, GOPHER_BPF_MAP_TYPE_PERF);
-#ifndef __USE_RING_BUF
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-#endif
-    __uint(max_entries, GOPHER_BPF_PERF_MAP_MAX_ENTRIES);
-} conn_stats_events SEC(".maps");
+} conn_tracker_events SEC(".maps");
 
 // Use the BPF map to cache socket data to avoid the restriction
 // that the BPF program stack does not exceed 512 bytes.
@@ -172,17 +153,19 @@ static __always_inline void submit_perf_buf(void* ctx, char *buf, size_t bytes_c
     conn_data->data_size = copied_size;
 
 #ifdef __USE_RING_BUF
-    struct conn_data_s *conn_data_tmp = bpf_ringbuf_reserve(&conn_data_events, sizeof(struct conn_data_s), 0);
+    struct conn_data_s *conn_data_tmp = bpf_ringbuf_reserve(&conn_tracker_events, sizeof(struct conn_data_s), 0);
     if (conn_data_tmp == NULL) {
         return;
     }
     __builtin_memcpy(conn_data_tmp, conn_data, (char *)&conn_data->data - (char *)conn_data);
     bpf_probe_read(&conn_data_tmp->data, copied_size & CONN_DATA_MAX_SIZE, buf);
 
+    conn_data_tmp->evt = TRACKER_EVT_DATA;
     bpf_ringbuf_submit(conn_data_tmp, 0);
 #else
     bpf_probe_read(&conn_data->data, copied_size & CONN_DATA_MAX_SIZE, buf);
-    (void)bpf_perf_event_output(ctx, &conn_data_events, BPF_F_CURRENT_CPU, conn_data, sizeof(struct conn_data_s));
+    conn_data->evt = TRACKER_EVT_DATA;
+    (void)bpf_perf_event_output(ctx, &conn_tracker_events, BPF_F_CURRENT_CPU, conn_data, sizeof(struct conn_data_s));
 #endif
     return;
 }
@@ -217,7 +200,7 @@ static __always_inline __maybe_unused void submit_sock_conn_stats(void *ctx, str
     }
 
 #ifdef __USE_RING_BUF
-    struct conn_stats_s *e = bpf_ringbuf_reserve(&conn_stats_events, sizeof(struct conn_stats_s), 0);
+    struct conn_stats_s *e = bpf_ringbuf_reserve(&conn_tracker_events, sizeof(struct conn_stats_s), 0);
     if (!e) {
         return;
     }
@@ -226,6 +209,7 @@ static __always_inline __maybe_unused void submit_sock_conn_stats(void *ctx, str
     struct conn_stats_s *e = &evt;
 #endif
 
+    e->evt = TRACKER_EVT_STATS;
     e->timestamp_ns = bpf_ktime_get_ns();
     e->conn_id = sock_conn->info.id;
     e->wr_bytes = sock_conn->wr_bytes;
@@ -235,7 +219,7 @@ static __always_inline __maybe_unused void submit_sock_conn_stats(void *ctx, str
 #ifdef __USE_RING_BUF
     bpf_ringbuf_submit(e, 0);
 #else
-    (void)bpf_perf_event_output(ctx, &conn_stats_events, BPF_F_CURRENT_CPU, e, sizeof(struct conn_stats_s));
+    (void)bpf_perf_event_output(ctx, &conn_tracker_events, BPF_F_CURRENT_CPU, e, sizeof(struct conn_stats_s));
 #endif
     return;
 }

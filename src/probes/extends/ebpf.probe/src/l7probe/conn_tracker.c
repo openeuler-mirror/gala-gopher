@@ -158,16 +158,14 @@ static struct conn_tracker_s* add_conn_tracker(struct l7_mng_s *l7_mng, const st
     return new_tracker;
 }
 
-static void try_del_conn_tracker(struct l7_mng_s *l7_mng, const struct tracker_id_s *id)
+static void del_conn_tracker(struct l7_mng_s *l7_mng, const struct tracker_id_s *id)
 {
     struct conn_tracker_s* tracker = lkup_conn_tracker(l7_mng, id);
     if (tracker == NULL) {
         return;
     }
-    if (tracker->inactive == 1) {
-        H_DEL(l7_mng->trackers, tracker);
-        destroy_conn_tracker(tracker);
-    }
+    H_DEL(l7_mng->trackers, tracker);
+    destroy_conn_tracker(tracker);
     return;
 }
 
@@ -327,7 +325,6 @@ static int proc_conn_ctl_msg(struct l7_mng_s *l7_mng, struct conn_ctl_s *conn_ct
         {
             tracker = add_conn_tracker(l7_mng, (const struct tracker_id_s *)&tracker_id);
             if (tracker) {
-                tracker->inactive = 0;
                 tracker->is_ssl = conn_ctl_msg->open.is_ssl;
                 if (tracker->l4_role == L4_ROLE_MAX) {
                     tracker->l4_role = conn_ctl_msg->open.l4_role;
@@ -342,10 +339,7 @@ static int proc_conn_ctl_msg(struct l7_mng_s *l7_mng, struct conn_ctl_s *conn_ct
         }
         case CONN_EVT_CLOSE:
         {
-            tracker = lkup_conn_tracker(l7_mng, (const struct tracker_id_s *)&tracker_id);
-            if (tracker) {
-                tracker->inactive = 1;
-            }
+            del_conn_tracker(l7_mng, (const struct tracker_id_s *)&tracker_id);
             break;
         }
         default:
@@ -368,7 +362,8 @@ static int proc_conn_stats_msg(struct l7_mng_s *l7_mng, struct conn_stats_s *con
 
     tracker = lkup_conn_tracker(l7_mng, (const struct tracker_id_s *)&tracker_id);
     if (tracker == NULL) {
-        return 0;
+        ERROR("[L7Probe]: Conn trakcer[%d:%d] is not found when proc stats msg.\n", tracker_id.tgid, tracker_id.fd);
+        return -1;
     }
 
     tracker->stats[BYTES_SENT] += conn_stats_msg->wr_bytes;
@@ -387,13 +382,6 @@ static int proc_conn_stats_msg(struct l7_mng_s *l7_mng, struct conn_stats_s *con
         link->last_rcv_data = time(NULL);
     }
 
-    /*
-        MUST be deleted here to inactive TCP tracker.
-
-        eBPF Sequence of events:   ctrl msg  -->  stats msg  -->  data msg
-        perf buffer poll sequence:   ctrl msg  -->  data msg  -->  stats msg
-    */
-    try_del_conn_tracker(l7_mng, (const struct tracker_id_s *)&tracker_id);
     return 0;
 }
 
@@ -408,7 +396,8 @@ static int proc_conn_data_msg(struct l7_mng_s *l7_mng, struct conn_data_s *conn_
     tracker_id.tgid = conn_data_msg->conn_id.tgid;
     tracker = lkup_conn_tracker(l7_mng, (const struct tracker_id_s *)&tracker_id);
     if (tracker == NULL) {
-        return 0;
+        ERROR("[L7Probe]: Conn trakcer[%d:%d] is not found when proc data msg.\n", tracker_id.tgid, tracker_id.fd);
+        return -1;
     }
     if (tracker->protocol == PROTO_UNKNOW) {
         tracker->protocol = conn_data_msg->proto;
@@ -763,34 +752,74 @@ void l7_parser(void *ctx)
     }
 }
 
-void trakcer_data_msg_pb(void *ctx, int cpu, void *data, unsigned int size)
+static void trakcer_msg(struct l7_mng_s *l7_mng, void *data, unsigned int size)
 {
-    (void)proc_conn_data_msg((struct l7_mng_s *)ctx, (struct conn_data_s *)data);
+    char *p = data;
+    int remain_size = (int)size, step_size = 0, walk_size = 0, offset = 0;
+    enum tracker_evt_e *evt;
+
+    step_size = min(sizeof(struct conn_stats_s), sizeof(struct conn_ctl_s));
+    step_size = min(step_size, sizeof(struct conn_data_s));
+
+    do {
+        if (remain_size < step_size) {
+            break;
+        }
+
+        p = (char *)data + offset;
+
+        evt = (enum tracker_evt_e *)p;
+        switch (*evt) {
+            case TRACKER_EVT_STATS:
+            {
+                if (remain_size < sizeof(struct conn_stats_s)) {
+                    ERROR("[L7Probe]: Invalid conn tracker stats msg.\n");
+                    return;
+                }
+                (void)proc_conn_stats_msg(l7_mng, (struct conn_stats_s *)p);
+                walk_size = sizeof(struct conn_stats_s);
+                break;
+            }
+            case TRACKER_EVT_CTRL:
+            {
+                if (remain_size < sizeof(struct conn_ctl_s)) {
+                    ERROR("[L7Probe]: Invalid conn tracker ctrl msg.\n");
+                    return;
+                }
+                (void)proc_conn_ctl_msg(l7_mng, (struct conn_ctl_s *)p);
+                walk_size = sizeof(struct conn_ctl_s);
+                break;
+            }
+            case TRACKER_EVT_DATA:
+            {
+                if (remain_size < sizeof(struct conn_data_s)) {
+                    ERROR("[L7Probe]: Invalid conn tracker data msg.\n");
+                    return;
+                }
+                (void)proc_conn_data_msg(l7_mng, (struct conn_data_s *)p);
+                walk_size = sizeof(struct conn_data_s);
+                break;
+            }
+            default:
+            {
+                ERROR("[L7Probe]: Unknown conn tracker msg.\n");
+                return;
+            }
+        }
+
+        offset += walk_size;
+        remain_size -= walk_size;
+    } while (1);
+    return;
 }
 
-void trakcer_ctrl_msg_pb(void *ctx, int cpu, void *data, unsigned int size)
+void trakcer_msg_pb(void *ctx, int cpu, void *data, unsigned int size)
 {
-    (void)proc_conn_ctl_msg((struct l7_mng_s *)ctx, (struct conn_ctl_s *)data);
+    trakcer_msg((struct l7_mng_s *)ctx, data, size);
 }
 
-void trakcer_stats_msg_pb(void *ctx, int cpu, void *data, unsigned int size)
+int trakcer_msg_rb(void *ctx, void *data, unsigned int size)
 {
-    (void)proc_conn_stats_msg((struct l7_mng_s *)ctx, (struct conn_stats_s *)data);
+    trakcer_msg((struct l7_mng_s *)ctx, data, size);
+    return 0;
 }
-
-int trakcer_data_msg_rb(void *ctx, void *data, unsigned int size)
-{
-    return proc_conn_data_msg((struct l7_mng_s *)ctx, (struct conn_data_s *)data);
-}
-
-int trakcer_ctrl_msg_rb(void *ctx, void *data, unsigned int size)
-{
-    return proc_conn_ctl_msg((struct l7_mng_s *)ctx, (struct conn_ctl_s *)data);
-}
-
-int trakcer_stats_msg_rb(void *ctx, void *data, unsigned int size)
-{
-    return proc_conn_stats_msg((struct l7_mng_s *)ctx, (struct conn_stats_s *)data);
-}
-
-

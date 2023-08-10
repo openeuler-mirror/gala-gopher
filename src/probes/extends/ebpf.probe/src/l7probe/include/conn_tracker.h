@@ -108,8 +108,7 @@ struct conn_tracker_s {
     H_HANDLE;
     struct tracker_id_s id;
     char is_ssl;
-    char inactive;
-    char pad[2];
+    char pad[3];
     enum l4_role_t l4_role;     // TCP client or server; udp unknow
     enum l7_role_t l7_role;     // RPC client or server
     enum proto_type_t protocol; // L7 protocol type
@@ -169,12 +168,9 @@ void destroy_trackers(void *ctx);
 void destroy_links(void *ctx);
 void l7_parser(void *ctx);
 void report_l7(void *ctx);
-void trakcer_data_msg_pb(void *ctx, int cpu, void *data, unsigned int size);
-void trakcer_ctrl_msg_pb(void *ctx, int cpu, void *data, unsigned int size);
-void trakcer_stats_msg_pb(void *ctx, int cpu, void *data, unsigned int size);
-int trakcer_data_msg_rb(void *ctx, void *data, unsigned int size);
-int trakcer_ctrl_msg_rb(void *ctx, void *data, unsigned int size);
-int trakcer_stats_msg_rb(void *ctx, void *data, unsigned int size);
+
+void trakcer_msg_pb(void *ctx, int cpu, void *data, unsigned int size);
+int trakcer_msg_rb(void *ctx, void *data, unsigned int size);
 
 #endif
 
