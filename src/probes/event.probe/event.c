@@ -37,7 +37,7 @@ void PrintEventOutput(const struct event_data *event)
     nprobe_fprintf(stdout, "|%s|%s|%s|%s|\n", "event", timestamp, event->level, event->body);
 }
 
-static int GetFileLineNum(const char * filename)
+static int GetFileLineNum(void)
 {
     int ret;
     FILE *f = NULL;
