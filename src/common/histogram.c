@@ -130,44 +130,135 @@ int serialize_histo(struct histo_bucket_s bucket[], size_t bucket_size, char *bu
         .size = buf_size
     };
 
+    ret = snprintf(strbuf.buf, strbuf.size, "%lu", bucket_size);
+    if (ret < 0 || ret >= strbuf.size) {
+        goto err;
+    }
+    strbuf_update_offset(&strbuf, ret);
+
     for (i = 0; i < bucket_size; i++) {
         sum += bucket[i].count;
-        ret = snprintf(strbuf.buf, strbuf.size, "%llu %llu ", bucket[i].max, sum);
+        ret = snprintf(strbuf.buf, strbuf.size, " %llu %llu", bucket[i].max, sum);
         if (ret < 0 || ret >= strbuf.size) {
-            ERROR("[HISTOGRAM] Failed to serialize histogram: buffer space not enough\n");
-            return -1;
+            goto err;
         }
         strbuf_update_offset(&strbuf, ret);
     }
     strbuf_append_chr(&strbuf, '\0');
 
     return 0;
+err:
+    ERROR("[HISTOGRAM] Failed to serialize histogram: buffer space not enough\n");
+    return -1;
 }
 
-int deserialize_histo(char *buf, size_t buf_size, struct histo_bucket_s *bucket, size_t bucket_size)
+static int _deserialize_histo(char *buf, struct histo_bucket_s *bucket, size_t bucket_size)
 {
-    char *loc;
+    char *cur_pos, *next_pos;
+    u64 sum = 0, count;
     int i;
 
-    loc = strtok(buf, " ");
+    cur_pos = buf;
     for (i = 0; i < bucket_size; i++) {
-        if (!loc) {
+        next_pos = strchr(cur_pos, ' ');
+        if (!next_pos) {
             return -1;
         }
-        bucket[i].max = strtoull(loc, NULL, 10);
+        *next_pos = '\0';
+
+        bucket[i].max = strtoull(cur_pos, NULL, 10);
         bucket[i].min = (i == 0) ? 0 : bucket[i-1].max;
 
-        loc = strtok(NULL, " ");
-        if (!loc) {
-            return -1;
-        }
-        bucket[i].count = strtoull(loc, NULL, 10);
-        if (i > 0) {
-            bucket[i].count -= bucket[i-1].count;
+        cur_pos = next_pos + 1;
+        next_pos = strchr(cur_pos, ' ');
+        if (i + 1 < bucket_size) {
+            if (!next_pos) {
+                return -1;
+            }
+            *next_pos = '\0';
+        } else {
+            if (next_pos) {
+                return -1;
+            }
         }
 
-        loc = strtok(NULL, " ");
+        count = strtoull(cur_pos, NULL, 10);
+        if (count < sum) {
+            return -1;
+        }
+        bucket[i].count = count - sum;
+        sum = count;
+
+        if (i + 1 < bucket_size) {
+            cur_pos = next_pos + 1;
+        }
     }
 
     return 0;
+}
+
+static int resolve_bucket_size(char *buf, char **new_buf)
+{
+    int ret;
+    char *pos;
+
+    pos = strchr(buf, ' ');
+    if (!pos) {
+        return -1;
+    }
+    *pos = '\0';
+
+    ret = atoi(buf);
+    if (ret <= 0) {
+        return -1;
+    }
+
+    *new_buf = pos + 1;
+    return ret;
+}
+
+int deserialize_histo(const char *buf, struct histo_bucket_s **bucket, size_t *bucket_size)
+{
+    struct histo_bucket_s *bkt = NULL;
+    size_t bkt_sz = 0;
+    char *buf_dup = NULL;
+    char *pos;
+    int ret;
+
+    buf_dup = strdup(buf);
+    if (!buf_dup) {
+        ERROR("[HISTOGRAM] Failed to deserialize histogram: dup buffer failed\n");
+        return -1;
+    }
+
+    ret = resolve_bucket_size(buf_dup, &pos);
+    if (ret <= 0) {
+        goto err;
+    }
+    bkt_sz = ret;
+
+    bkt = (struct histo_bucket_s *)malloc(bkt_sz * sizeof(struct histo_bucket_s));
+    if (!bkt) {
+        ERROR("[HISTOGRAM] Failed to deserialize histogram: malloc bucket space failed\n");
+        free(buf_dup);
+        return -1;
+    }
+    ret = _deserialize_histo(pos, bkt, bkt_sz);
+    if (ret) {
+        goto err;
+    }
+
+    *bucket = bkt;
+    *bucket_size = bkt_sz;
+    free(buf_dup);
+    return 0;
+err:
+    ERROR("[HISTOGRAM] Failed to deserialize histogram: format error(%s)\n", buf);
+    if (buf_dup) {
+        free(buf_dup);
+    }
+    if (bkt) {
+        free(bkt);
+    }
+    return -1;
 }

@@ -20,6 +20,8 @@
 #include <unistd.h>
 #include "common.h"
 #include "java_support.h"
+#include "histogram.h"
+#include "strbuf.h"
 #include "container.h"
 #include "meta.h"
 #include "imdb.h"
@@ -768,7 +770,7 @@ static int IMDB_BuildPrometheusMetrics(const IMDB_Metric *metric, char *buffer, 
     char *p = buffer;
     int size = (int)maxLen;
     time_t now;
-    const char *fmt = "%s %s %lld\n";  // Metrics##labels MetricsVal timestamp
+    const char *fmt = "{%s} %s %lld\n";  // Metrics##labels MetricsVal timestamp
 
     ret = IMDB_BuildMetrics(entity_name, metric->name, buffer, (uint32_t)size);
     if (ret < 0) {
@@ -800,11 +802,6 @@ static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
     char first_flag = 1;
     int tgid_idx = -1;
 
-    ret = __snprintf(&p, size, &size, "%s", "{");
-    if (ret < 0) {
-        goto err;
-    }
-
     for (int i = 0; i < record->metricsNum; i++) {
         if (MetricNameIsTgid(record->metrics[i]) == 1) {
             tgid_idx = i;
@@ -830,6 +827,11 @@ static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
             goto err;
         }
         first_flag = 0;
+    }
+
+    // At least one key label needs to be filled.
+    if (first_flag) {
+        return -1;
     }
 
     // Append 'COMM, Container and POD' label for ALL process-level metrics.
@@ -895,11 +897,6 @@ out:
         goto err;
     }
 
-    ret = __snprintf(&p, size, &size, "%s", "}");
-    if (ret < 0) {
-        goto err;
-    }
-
     return 0;
 err:
     return ret;
@@ -954,6 +951,89 @@ static void IMDB_AdjustTblPrio(IMDB_DataBaseMgr *mgr)
     return;
 }
 
+static int append_label(strbuf_t *labels_buf, const char *key, const char *val)
+{
+    int ret;
+    int left_size;
+
+    if (labels_buf->len == 0 || labels_buf->len >= labels_buf->size) {
+        return -1;
+    }
+
+    left_size = labels_buf->size - labels_buf->len;
+    ret = snprintf(labels_buf->buf + labels_buf->len, left_size, ",%s=\"%s\"", key, val);
+    if (ret < 0 || ret >= left_size) {
+        labels_buf->buf[labels_buf->len] = '\0';
+        return -1;
+    }
+    labels_buf->len += ret;
+
+    return 0;
+}
+
+static int append_label_histo_le(strbuf_t *labels_buf, u64 val)
+{
+    char buf[INT_LEN];
+    buf[0] = 0;
+    (void)snprintf(buf, sizeof(buf), "%llu", val);
+    return append_label(labels_buf, "le", buf);
+}
+
+static int IMDB_BuildPrometheusHistoMetrics(const IMDB_Metric *metric, char *buffer, uint32_t maxLen,
+    const char *entity_name, strbuf_t *labels_buf)
+{
+    int ret, len;
+    char *p = buffer;
+    int size = (int)maxLen;
+    int orig_labels_len;
+    time_t now;
+    const char *fmt = "{%s} %llu %lld\n";  // Metrics##labels MetricsVal timestamp
+
+    struct histo_bucket_s *bkt = NULL;
+    size_t bkt_sz = 0;
+    u64 sum = 0;
+    int i;
+
+    ret = deserialize_histo(metric->val, &bkt, &bkt_sz);
+    if (ret) {
+        ERROR("[IMDB] Failed to deserialize histogram metric %s\n", metric->name);
+        return -1;
+    }
+
+    (void)time(&now);
+    for (i = 0; i < bkt_sz; i++) {
+        ret = IMDB_BuildMetrics(entity_name, metric->name, p, (uint32_t)size);
+        if (ret < 0) {
+            free(bkt);
+            return ret;
+        }
+        len = strlen(p);
+        p += len;
+        size -= len;
+
+        orig_labels_len = labels_buf->len;
+        ret = append_label_histo_le(labels_buf, bkt[i].max);
+        if (ret) {
+            free(bkt);
+            return -1;
+        }
+
+        sum += bkt[i].count;
+        ret = __snprintf(&p, size, &size, fmt, labels_buf->buf, sum, now * THOUSAND);
+        if (ret < 0) {
+            free(bkt);
+            return ret;
+        }
+
+        // restore labels
+        labels_buf->buf[orig_labels_len] = '\0';
+        labels_buf->len = orig_labels_len;
+    }
+    free(bkt);
+
+    return (int)((int)maxLen - size);   // Returns the number of printed characters
+}
+
 static int IMDB_Rec2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Record *record, char *entity_name,
                                char *buffer, uint32_t maxLen)
 {
@@ -961,6 +1041,7 @@ static int IMDB_Rec2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Record *record, char 
     int total = 0;
     char *curBuffer = buffer;
     uint32_t curMaxLen = maxLen;
+    strbuf_t labels_buf;
 
     char labels[MAX_LABELS_BUFFER_SIZE] = {0};
     ret = IMDB_BuildPrometheusLabel(mgr, record, entity_name, labels, MAX_LABELS_BUFFER_SIZE);
@@ -968,6 +1049,9 @@ static int IMDB_Rec2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Record *record, char 
         ERROR("[IMDB] table of (%s) build label fail, ret: %d\n", entity_name, ret);
         goto ERR;
     }
+    labels_buf.buf = labels;
+    labels_buf.len = strlen(labels);
+    labels_buf.size = MAX_LABELS_BUFFER_SIZE;
 
     for (int i = 0; i < record->metricsNum; i++) {
         ret = MetricTypeSatisfyPrometheus(record->metrics[i]);
@@ -980,7 +1064,12 @@ static int IMDB_Rec2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Record *record, char 
             continue;
         }
 
-        ret = IMDB_BuildPrometheusMetrics(record->metrics[i], curBuffer, curMaxLen, entity_name, labels);
+        if (strcmp(record->metrics[i]->type, "histogram") == 0) {
+            ret = IMDB_BuildPrometheusHistoMetrics(record->metrics[i], curBuffer, curMaxLen, entity_name, &labels_buf);
+        } else {
+            ret = IMDB_BuildPrometheusMetrics(record->metrics[i], curBuffer, curMaxLen, entity_name, labels);
+        }
+
         if (ret < 0) {
             break;  /* buffer is full, break loop */
         }

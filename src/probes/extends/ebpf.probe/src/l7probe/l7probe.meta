@@ -105,12 +105,12 @@ measurements:
             },
             {
                 description: "Request throughput of l7 session.",
-                type: "histogram",
+                type: "gauge",
                 name: "throughput_req",
             },
             {
                 description: "Response throughput of l7 session.",
-                type: "histogram",
+                type: "gauge",
                 name: "throughput_resp",
             },
             {
@@ -120,17 +120,17 @@ measurements:
             },
             {
                 description: "L7 session P50 latency.",
-                type: "histogram",
+                type: "gauge",
                 name: "latency_p50",
             },
             {
                 description: "L7 session P90 latency.",
-                type: "histogram",
+                type: "gauge",
                 name: "latency_p90",
             },
             {
                 description: "L7 session P99 latency.",
-                type: "histogram",
+                type: "gauge",
                 name: "latency_p99",
             },
             {

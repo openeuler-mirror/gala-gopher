@@ -39,13 +39,13 @@ void histo_bucket_reset(struct histo_bucket_s bucket[], size_t bucket_size);
 
 /*
  * serialize histogram metric from a struct histo_bucket_s to a string.
- * string format like: "<bucket1_max> <bucket1_count> <bucket2_max> <bucket2_count> ..."
+ * string format like: "<bucket_size> <bucket1_max> <bucket1_count> <bucket2_max> <bucket2_count> ..."
  */
 int serialize_histo(struct histo_bucket_s bucket[], size_t bucket_size, char *buf, size_t buf_size);
 /*
  * deserialize histogram metric from a string to a struct histo_bucket_s.
  */
-int deserialize_histo(char *buf, size_t buf_size, struct histo_bucket_s *bucket, size_t bucket_size);
+int deserialize_histo(const char *buf, struct histo_bucket_s **bucket, size_t *bucket_size);
 
 #endif
 
