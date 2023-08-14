@@ -53,7 +53,7 @@ void free_http_request(http_request* req);
  * HTTP Response
  */
 typedef struct http_response {
-    char* msg;
+    const char *msg;
     size_t msg_len;
     int status;
     int minor_version;
