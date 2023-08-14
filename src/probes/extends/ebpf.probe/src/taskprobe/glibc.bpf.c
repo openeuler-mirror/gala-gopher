@@ -68,7 +68,7 @@ static __always_inline int start_dns(struct pt_regs* ctx)
     return 0;
 }
 
-static __always_inline int end_dns(struct pt_regs* ctx)
+static __always_inline int end_dns(struct pt_regs* ctx, enum dns_rc_type_e type)
 {
     u64 key = bpf_get_current_pid_tgid();
     u64 ret = (u64)PT_REGS_RC(ctx);
@@ -78,7 +78,11 @@ static __always_inline int end_dns(struct pt_regs* ctx)
         goto end;
     }
 
-    cache->error = ret;
+    if (type == DNS_RC_INT) {
+        cache->error = ret;
+    } else {
+        cache->error = ret ? 0 : 1;
+    }
     cache->end_ts = bpf_ktime_get_ns();
 
     report_dns_perf_evt(ctx, cache);
@@ -96,7 +100,7 @@ UPROBE(getaddrinfo, pt_regs)
 
 URETPROBE(getaddrinfo, pt_regs)
 {
-    return end_dns(ctx);
+    return end_dns(ctx, DNS_RC_INT);
 }
 
 // struct hostent *gethostbyname2 (const char *__name, int __af);
@@ -107,7 +111,7 @@ UPROBE(gethostbyname2, pt_regs)
 
 URETPROBE(gethostbyname2, pt_regs)
 {
-    return end_dns(ctx);
+    return end_dns(ctx, DNS_RC_POINTER);
 }
 
 // struct hostent *gethostbyname (const char *__name);
@@ -118,5 +122,5 @@ UPROBE(gethostbyname, pt_regs)
 
 URETPROBE(gethostbyname, pt_regs)
 {
-    return end_dns(ctx);
+    return end_dns(ctx, DNS_RC_POINTER);
 }

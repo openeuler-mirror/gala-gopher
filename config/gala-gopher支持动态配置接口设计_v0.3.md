@@ -115,7 +115,7 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 | 参数               | 含义                                                   | 缺省值&范围                                                  | 单位    | 支持的监控范围           | gala-gopher是否支持 |
 | ------------------ | ------------------------------------------------------ | ------------------------------------------------------------ | ------- | ------------------------ | ------------------- |
 | sample_period      | 采样周期                                               | 100, [100~10000]                                             | ms      | io                       | Y                   |
-| report_period      | 上报周期                                               | 5, [5~600]                                                   | s       | ALL                      | Y                   |
+| report_period      | 上报周期                                               | 60, [5~600]                                                 | s       | ALL                      | Y                   |
 | latency_thr        | 时延上报门限                                           | 0, [10~100000]                                               | ms      | tcp, io, proc, ksli      |                     |
 | drops_thr          | 丢包上送门限                                           | 0, [10~100000]                                               | package | tcp, nic                 | Y                   |
 | res_lower_thr      | 资源百分比下限                                         | 0%, [0%~100%]                                                | percent | ALL                      | Y                   |
