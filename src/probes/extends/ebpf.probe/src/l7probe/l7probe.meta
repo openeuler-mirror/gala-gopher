@@ -12,14 +12,19 @@ measurements:
                 name: "tgid",
             },
             {
-                description: "Remote IP address of l7 session.",
+                description: "Client IP address of l7 session.",
                 type: "key",
-                name: "remote_ip",
+                name: "client_ip",
             },
             {
-                description: "Remote port of l7 session.",
+                description: "Server IP address of l7 session.",
                 type: "key",
-                name: "remote_port",
+                name: "server_ip",
+            },
+            {
+                description: "Server Port of l7 session.",
+                type: "key",
+                name: "server_port",
             },
             {
                 description: "Role of l4 protocol(TCP Client/Server or UDP).",
@@ -35,11 +40,6 @@ measurements:
                 description: "Name of l7 protocol(http/http2/mysql...).",
                 type: "key",
                 name: "protocol",
-            },
-            {
-                description: "IP address of pod which l7 session belongs.",
-                type: "label",
-                name: "pod_ip",
             },
             {
                 description: "Indicates whether an SSL-encrypted l7 session is used.",
@@ -69,14 +69,19 @@ measurements:
                 name: "tgid",
             },
             {
-                description: "Remote IP address of l7 session.",
+                description: "Client IP address of l7 session.",
                 type: "key",
-                name: "remote_ip",
+                name: "client_ip",
             },
             {
-                description: "Remote port of l7 session.",
+                description: "Server IP address of l7 session.",
                 type: "key",
-                name: "remote_port",
+                name: "server_ip",
+            },
+            {
+                description: "Server Port of l7 session.",
+                type: "key",
+                name: "server_port",
             },
             {
                 description: "Role of l4 protocol(TCP Client/Server or UDP).",
@@ -92,11 +97,6 @@ measurements:
                 description: "Name of l7 protocol(http/http2/mysql...).",
                 type: "key",
                 name: "protocol",
-            },
-            {
-                description: "IP address of pod which l7 session belongs.",
-                type: "label",
-                name: "pod_ip",
             },
             {
                 description: "Indicates whether an SSL-encrypted l7 session is used.",
