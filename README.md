@@ -1,6 +1,9 @@
 # gala-gopher
 
+![](./doc/pic/logo.png)
+
 ### 什么是gala-gopher
+
 gala-gopher是一款结合eBPF、java agent等非侵入可观测技术的观测平台，其通过探针式架构可以轻松实现增加、减少探针。gala-gopher是gala项目内负责数据采集的组件，其为gala项目提供Metrics、Event、Perf等数据，便于gala项目完成系统拓扑的绘制、故障根因的定位。
 
 ## 观测范围
@@ -324,9 +327,11 @@ linux社区提供的解决方案是CO-RE技术（Compile Once Run Everywhere）�
 
 <a id="config"></a>
 
-### 配置文件及参数
+### 配置及参数
 
 [配置文件及参数](https://gitee.com/openeuler/gala-gopher/blob/dev/doc/conf_introduction.md)
+
+[REST API介绍](https://gitee.com/openeuler/gala-gopher/blob/dev/config/gala-gopher%E6%94%AF%E6%8C%81%E5%8A%A8%E6%80%81%E9%85%8D%E7%BD%AE%E6%8E%A5%E5%8F%A3%E8%AE%BE%E8%AE%A1_v0.3.md)
 
 ## 软件架构
 

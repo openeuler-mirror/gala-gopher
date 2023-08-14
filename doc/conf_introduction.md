@@ -1,9 +1,7 @@
 配置文件介绍
 ================
 
-gala-gopher启动必须的外部参数通过配置文件`gala-gopher.conf`定义；主要的配置项包括：设置数据上报周期、数据库信息、探针定义、cache数据库配置等。
-
-部分extend探针有自己的配置文件，开启该探针前需要设置好探针的配置文件。
+gala-gopher启动必须的外部参数通过配置文件`gala-gopher.conf`定义；主要的配置项包括：设置数据上报周期、数据库信息、cache数据库配置等。
 
 ## 配置介绍
 
@@ -195,13 +193,4 @@ logs =
     meta_dir = "/var/log/gala-gopher/meta";
     debug_dir = "/var/log/gala-gopher/debug";
 };
-
-probes =                             # 仅列出switch为on的探针
-(
-    {
-        name = "system_infos";
-        param = "-t 5 -w /etc/gala-gopher/gala-gopher-app.conf -l warn -U 80";
-        switch = "on";
-    }
-);
 ```
