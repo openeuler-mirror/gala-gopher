@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
+#include <string.h>
 #include <errno.h>
 #include <pthread.h>
 
@@ -208,12 +209,20 @@ static struct frame_buf_s* get_resp_frames(struct conn_tracker_s* tracker)
 #if 1
 static void destroy_l7_link(struct l7_link_s* link)
 {
+    if (link->client_ip) {
+        free(link->client_ip);
+    }
+    if (link->server_ip) {
+        free(link->server_ip);
+    }
     free(link);
     return;
 }
 
 static struct l7_link_s* create_l7_link(const struct l7_link_id_s *id)
 {
+    unsigned char ip[INET6_ADDRSTRLEN];
+
     struct l7_link_s* link = (struct l7_link_s *)malloc(sizeof(struct l7_link_s));
     if (link == NULL) {
         return NULL;
@@ -221,6 +230,23 @@ static struct l7_link_s* create_l7_link(const struct l7_link_id_s *id)
 
     memset(link, 0, sizeof(struct l7_link_s));
     memcpy(&(link->id), id, sizeof(struct l7_link_id_s));
+
+    ip[0] = 0;
+    if (link->id.client_addr.family != 0) {
+        ip_str(link->id.client_addr.family, (unsigned char *)&(link->id.client_addr.ip), ip, INET6_ADDRSTRLEN);
+        if (ip[0] != 0) {
+            link->client_ip = strdup((const char *)ip);
+        }
+    }
+
+    ip[0] = 0;
+    if (link->id.server_addr.family != 0) {
+        ip_str(link->id.server_addr.family, (unsigned char *)&(link->id.server_addr.ip), ip, INET6_ADDRSTRLEN);
+        if (ip[0] != 0) {
+            link->server_ip = strdup((const char *)ip);
+        }
+    }
+
     init_latency_buckets(link->latency_buckets, __MAX_LT_RANGE);
     return link;
 }
@@ -244,7 +270,6 @@ static void __init_l7_link_info(struct l7_mng_s *l7_mng, struct l7_link_s* link,
     (void)get_proc_comm(link->id.tgid, l7_info->comm, TASK_COMM_LEN);
     (void)get_container_id_by_pid_cpuset((const char *)pid_str, l7_info->container_id, CONTAINER_ABBR_ID_LEN + 1);
     (void)get_container_pod_id((const char *)l7_info->container_id, l7_info->pod_id, POD_ID_LEN + 1);
-    (void)get_pod_ip((const char *)l7_info->container_id, l7_info->pod_ip, INET6_ADDRSTRLEN);
 
     l7_info->is_ssl = tracker->is_ssl;
     return;
@@ -258,7 +283,8 @@ static struct l7_link_s* add_l7_link(struct l7_mng_s *l7_mng, const struct conn_
     l7_link_id.l7_role = tracker->l7_role;
     l7_link_id.protocol = tracker->protocol;
     l7_link_id.tgid = tracker->id.tgid;
-    (void)memcpy(&(l7_link_id.remote_addr), &(tracker->open_info.remote_addr), sizeof(struct conn_addr_s));
+    (void)memcpy(&(l7_link_id.client_addr), &(tracker->open_info.client_addr), sizeof(struct conn_addr_s));
+    (void)memcpy(&(l7_link_id.server_addr), &(tracker->open_info.server_addr), sizeof(struct conn_addr_s));
 
     struct l7_link_s* link = lkup_l7_link(l7_mng, (const struct l7_link_id_s *)&l7_link_id);
     if (link) {
@@ -291,7 +317,8 @@ static struct l7_link_s* find_l7_link(struct l7_mng_s *l7_mng, const struct conn
     struct l7_link_id_s l7_link_id = {0};
 
     l7_link_id.tgid = tracker->id.tgid;
-    (void)memcpy(&(l7_link_id.remote_addr), &(tracker->open_info.remote_addr), sizeof(struct conn_addr_s));
+    (void)memcpy(&(l7_link_id.client_addr), &(tracker->open_info.client_addr), sizeof(struct conn_addr_s));
+    (void)memcpy(&(l7_link_id.server_addr), &(tracker->open_info.server_addr), sizeof(struct conn_addr_s));
     l7_link_id.l4_role = tracker->l4_role;
     l7_link_id.l7_role = tracker->l7_role;
     l7_link_id.protocol = tracker->protocol;
@@ -328,9 +355,11 @@ static int proc_conn_ctl_msg(struct l7_mng_s *l7_mng, struct conn_ctl_s *conn_ct
                     tracker->l4_role = conn_ctl_msg->open.l4_role;
                 }
                 tracker->open_info.timestamp_ns = conn_ctl_msg->timestamp_ns;
-                if (tracker->open_info.remote_addr.port == 0 && tracker->open_info.remote_addr.family == 0) {
-                    (void)memcpy(&(tracker->open_info.remote_addr),
-                            &(conn_ctl_msg->open.addr), sizeof(struct conn_addr_s));
+                if (tracker->open_info.server_addr.port == 0 && tracker->open_info.server_addr.family == 0) {
+                    (void)memcpy(&(tracker->open_info.server_addr),
+                            &(conn_ctl_msg->open.server_addr), sizeof(struct conn_addr_s));
+                    (void)memcpy(&(tracker->open_info.client_addr),
+                            &(conn_ctl_msg->open.client_addr), sizeof(struct conn_addr_s));
                 }
             }
             break;
@@ -630,23 +659,19 @@ static void calc_l7_stats(struct l7_mng_s *l7_mng)
 
 static void reprot_l7_link(struct l7_link_s *link)
 {
-    unsigned char remote_ip[INET6_ADDRSTRLEN];
-
-    ip_str(link->id.remote_addr.family, (unsigned char *)&(link->id.remote_addr.ip), remote_ip, INET6_ADDRSTRLEN);
-
-    (void)fprintf(stdout, "|%s|%u|%s|%u|%s|%s"
-        "|%s|%s|%s"
+    (void)fprintf(stdout, "|%s|%u|%s|%s|%u"
+        "|%s|%s|%s|%s"
         "|%llu|%llu|\n",
 
         L7_TBL_LINK,
         link->id.tgid,
-        remote_ip,
-        link->id.remote_addr.port,
+        (link->client_ip == NULL) ? "no_ip" : link->client_ip,
+        (link->server_ip == NULL) ? "no_ip" : link->server_ip,
+        link->id.server_addr.port,
+
         l4_role_name[link->id.l4_role],
         l7_role_name[link->id.l7_role],
         proto_name[link->id.protocol],
-
-        link->l7_info.pod_ip,
         link->l7_info.is_ssl ? "ssl" : "no_ssl",
 
         link->stats[BYTES_SENT],
@@ -655,23 +680,19 @@ static void reprot_l7_link(struct l7_link_s *link)
 
 static void reprot_l7_rpc(struct l7_link_s *link)
 {
-    unsigned char remote_ip[INET6_ADDRSTRLEN];
-
-    ip_str(link->id.remote_addr.family, (unsigned char *)&(link->id.remote_addr.ip), remote_ip, INET6_ADDRSTRLEN);
-
-    (void)fprintf(stdout, "|%s|%u|%s|%u|%s|%s"
-        "|%s|%s|%s"
+    (void)fprintf(stdout, "|%s|%u|%s|%s|%u"
+        "|%s|%s|%s|%s"
         "|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|\n",
 
         L7_TBL_RPC,
         link->id.tgid,
-        remote_ip,
-        link->id.remote_addr.port,
+        (link->client_ip == NULL) ? "no_ip" : link->client_ip,
+        (link->server_ip == NULL) ? "no_ip" : link->server_ip,
+        link->id.server_addr.port,
+
         l4_role_name[link->id.l4_role],
         l7_role_name[link->id.l7_role],
         proto_name[link->id.protocol],
-
-        link->l7_info.pod_ip,
         link->l7_info.is_ssl ? "ssl" : "no_ssl",
 
         link->throughput[THROUGHPUT_REQ],

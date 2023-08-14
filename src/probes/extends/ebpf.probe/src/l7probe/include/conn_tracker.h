@@ -63,7 +63,8 @@ struct tracker_id_s {
 
 struct tracker_open_s {
     u64 timestamp_ns;
-    struct conn_addr_s remote_addr;
+    struct conn_addr_s client_addr;
+    struct conn_addr_s server_addr;
 };
 
 struct tracker_close_s {
@@ -139,14 +140,14 @@ struct l7_info_s {
     char comm[TASK_COMM_LEN];
     char container_id[CONTAINER_ABBR_ID_LEN + 1];
     char pod_id[POD_ID_LEN + 1];
-    char pod_ip[INET6_ADDRSTRLEN];
     char is_ssl;
     char pad[3];
 };
 
 struct l7_link_id_s {
     int tgid;
-    struct conn_addr_s remote_addr;
+    struct conn_addr_s client_addr; // TCP client IP address;
+    struct conn_addr_s server_addr; // TCP server IP address; UDP remote address;
     enum l4_role_t l4_role;     // TCP client or server; udp unknow
     enum l7_role_t l7_role;     // RPC client or server
     enum proto_type_t protocol; // L7 protocol type
@@ -156,6 +157,8 @@ struct l7_link_s {
     H_HANDLE;
     struct l7_link_id_s id;
     struct l7_info_s l7_info;
+    char *client_ip;
+    char *server_ip;
     u64 stats[__MAX_STATS];
     struct histo_bucket_s latency_buckets[__MAX_LT_RANGE];
     float throughput[__MAX_THROUGHPUT];

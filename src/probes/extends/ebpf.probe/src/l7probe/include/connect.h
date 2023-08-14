@@ -85,7 +85,9 @@ struct conn_info_s {
     enum l7_role_t l7_role;     // RPC client or server
     enum proto_type_t protocol; // L7 protocol type
 
-    struct conn_addr_s remote_addr; // TCP remote address; UDP datagram address
+    struct conn_addr_s remote_addr; // UDP datagram address
+    struct conn_addr_s client_addr; // TCP client address
+    struct conn_addr_s server_addr; // TCP server address
 };
 
 typedef u64 conn_ctx_t;         // pid & tgid
@@ -105,7 +107,8 @@ enum conn_evt_e {
 };
 
 struct conn_open_s {
-    struct conn_addr_s addr;
+    struct conn_addr_s client_addr; // TCP client IP address;
+    struct conn_addr_s server_addr; // TCP server IP address; UDP remote address
     enum l4_role_t l4_role;     // TCP client or server; udp unknow
     char is_ssl;
     char pad[3];
