@@ -20,18 +20,18 @@
 #include "multiple_map.h"
 #include "../../../include/data_stream.h"
 
-extern const char kContentEncoding[17];
-extern const char kContentLength[15];
-extern const char kContentType[13];
-extern const char kTransferEncoding[18];
-extern const char kUpgrade[8];
+extern const char KEY_CONTENT_ENCODING[17];
+extern const char KEY_CONTENT_LENGTH[15];
+extern const char KEY_CONTENT_TYPE[13];
+extern const char KEY_TRANSFER_ENCODING[18];
+extern const char KEY_UPGRADE[8];
 
 /**
  * Http message structure, req or resp use the same
  */
 typedef struct http_message {
     enum message_type_t type;
-    uint64_t timestamp_ns;
+    u64 timestamp_ns;
 
     int minor_version;
     http_headers_map *headers;

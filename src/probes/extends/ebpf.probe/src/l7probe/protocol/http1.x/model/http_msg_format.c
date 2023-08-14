@@ -16,11 +16,11 @@
 #include <stdlib.h>
 #include "http_msg_format.h"
 
-const char kContentEncoding[17] = "Content-Encoding";
-const char kContentLength[15] = "Content-Length";
-const char kContentType[13] = "Content-Type";
-const char kTransferEncoding[18] = "Transfer-Encoding";
-const char kUpgrade[8] = "Upgrade";
+const char KEY_CONTENT_ENCODING[17] = "Content-Encoding";
+const char KEY_CONTENT_LENGTH[15] = "Content-Length";
+const char KEY_CONTENT_TYPE[13] = "Content-Type";
+const char KEY_TRANSFER_ENCODING[18] = "Transfer-Encoding";
+const char KEY_UPGRADE[8] = "Upgrade";
 
 http_message *init_http_msg(void)
 {
@@ -28,13 +28,10 @@ http_message *init_http_msg(void)
     if (http_msg == NULL) {
         return NULL;
     }
+    memset(http_msg, 0, sizeof(http_message));
     http_msg->type = MESSAGE_UNKNOW;
-    http_msg->timestamp_ns = 0;
     http_msg->minor_version = -1;
-    http_msg->headers = init_http_headers_map();
     http_msg->resp_status = -1;
-    http_msg->body_size = 0;
-
     return http_msg;
 }
 
@@ -44,7 +41,7 @@ void free_http_msg(http_message *http_msg)
         return;
     }
     if (http_msg->headers != NULL) {
-        free_http_headers_map(http_msg->headers);
+        free_http_headers_map(&(http_msg->headers));
     }
     if (http_msg->req_method != NULL) {
         free(http_msg->req_method);
@@ -75,11 +72,7 @@ void free_http_record(http_record *http_record)
     if (http_record == NULL) {
         return;
     }
-    if (http_record->req != NULL) {
-        free_http_msg(http_record->req);
-    }
-    if (http_record->resp != NULL) {
-        free_http_msg(http_record->resp);
-    }
+
+    // NOTE：record中的req和resp复用了frame_buf中的req和resp指针，此处不释放，由frame_buf释放
     free(http_record);
 }

@@ -15,6 +15,7 @@ GOPHER_COMMON_DIR = $(ROOT_DIR)/../../../../../common
 LIB_DIR ?= $(ROOT_DIR)../lib
 CFILES ?= $(wildcard $(LIB_DIR)/*.c)
 CFILES += $(wildcard $(GOPHER_COMMON_DIR)/*.c)
+CFILES += $(wildcard $(ROOT_DIR)/../l7probe/3rd_party/pico/*.c)
 
 CPLUSFILES += $(wildcard $(GOPHER_COMMON_DIR)/*.cpp)
 
@@ -74,4 +75,5 @@ BASE_INC := -I/usr/include \
             -I$(ROOT_DIR)../include \
             -I$(GOPHER_COMMON_DIR) \
             -I$(LIBBPF_DIR) \
-            -I$(LIBELF_DIR)
+            -I$(LIBELF_DIR) \
+            -I$(ROOT_DIR)/../l7probe/3rd_party/pico
