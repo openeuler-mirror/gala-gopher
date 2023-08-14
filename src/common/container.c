@@ -145,7 +145,7 @@ static bool __is_docker_running(const char *docker_command)
 
     is_running = false;
     (void)snprintf(command, COMMAND_LEN, "%s ps 2>/dev/null", docker_command);
-    f = popen(command, "r");
+    f = popen_chroot(command, "r");
     if (f == NULL) {
         return false;
     }
@@ -204,7 +204,7 @@ static int __get_container_count(const char *command_s)
     line[0] = 0;
     (void)snprintf(command, COMMAND_LEN, "%s %s", command_s, DOCKER_COUNT_COMMAND);
 
-    if (exec_cmd((const char *)command, line, LINE_BUF_LEN) < 0) {
+    if (exec_cmd_chroot((const char *)command, line, LINE_BUF_LEN) < 0) {
         return -1;
     }
 
@@ -224,7 +224,7 @@ static int __get_containers_id(container_tbl* cstbl, const char *command_s)
     index = 0;
     (void)memset(command, 0, COMMAND_LEN);
     (void)snprintf(command, COMMAND_LEN, "%s %s", command_s, DOCKER_PS_COMMAND);
-    f = popen(command, "r");
+    f = popen_chroot(command, "r");
     if (f == NULL) {
         return -1;
     }
@@ -284,7 +284,7 @@ static int __get_containers_status(container_tbl* cstbl, const char *command_s)
                     command_s, p->abbrContainerId, DOCKER_STATUS_COMMAND);
         }
 
-        if (!exec_cmd((const char *)command, line, LINE_BUF_LEN)) {
+        if (!exec_cmd_chroot((const char *)command, line, LINE_BUF_LEN)) {
             __containers_status(p, line);
             p++;
         }
@@ -309,7 +309,7 @@ static int __get_container_name(const char *abbr_container_id, char name[], unsi
                 get_current_command(), abbr_container_id, DOCKER_NAME_COMMAND);
     }
 
-    return exec_cmd((const char *)command, name, len);
+    return exec_cmd_chroot((const char *)command, name, len);
 }
 
 static int __get_container_pid(const char *abbr_container_id, unsigned int *pid)
@@ -332,7 +332,7 @@ static int __get_container_pid(const char *abbr_container_id, unsigned int *pid)
                 get_current_command(), abbr_container_id, DOCKER_PID_COMMAND);
     }
 
-    if (exec_cmd((const char *)command, line, LINE_BUF_LEN) < 0) {
+    if (exec_cmd_chroot((const char *)command, line, LINE_BUF_LEN) < 0) {
         return -1;
     }
 
@@ -356,7 +356,7 @@ static int __get_container_pod(const char *abbr_container_id, char pod[], unsign
                 get_current_command(), abbr_container_id, DOCKER_POD_COMMAND);
     }
 
-    if (exec_cmd((const char *)command, pod, len) < 0) {
+    if (exec_cmd_chroot((const char *)command, pod, len) < 0) {
         return -1;
     }
 
@@ -378,7 +378,7 @@ static unsigned int __get_pid_namespace(unsigned int pid, const char *namespace)
     ns[0] = 0;
     (void)snprintf(command, COMMAND_LEN, namespace, pid);
 
-    if (exec_cmd((const char *)command, ns, LINE_BUF_LEN) < 0) {
+    if (exec_cmd_chroot((const char *)command, ns, LINE_BUF_LEN) < 0) {
         return 0;
     }
 
@@ -460,7 +460,7 @@ int get_container_merged_path(const char *abbr_container_id, char *path, unsigne
             get_current_command(), abbr_container_id, DOCKER_MERGED_COMMAND);
     }
 
-    return exec_cmd((const char *)command, path, len);
+    return exec_cmd_chroot((const char *)command, path, len);
 }
 
 /* docker exec -it 92a7a60249cb [xxx] */
@@ -482,7 +482,7 @@ int exec_container_command(const char *abbr_container_id, const char *exec, char
     (void)snprintf(command, COMMAND_LEN, "%s exec -it %s %s", \
             get_current_command(), abbr_container_id, exec);
 
-    return exec_cmd((const char *)command, buf, len);
+    return exec_cmd_chroot((const char *)command, buf, len);
 }
 
 /*
@@ -512,7 +512,7 @@ int get_container_id_by_pid(unsigned int pid, char *container_id, unsigned int b
         (void)snprintf(command, COMMAND_LEN, DOCKER_ID_COMMAND, get_current_command(), get_current_command(), pid);
     }
 
-    ret = exec_cmd((const char *)command, line, LINE_BUF_LEN);
+    ret = exec_cmd_chroot((const char *)command, line, LINE_BUF_LEN);
     if (ret < 0) {
         return -1;
     }
@@ -704,7 +704,7 @@ static int __get_fullpath_inode(const char *full_path, unsigned int *inode)
     inode_s[0] = 0;
     (void)snprintf(command, COMMAND_LEN, __STAT_INODE, full_path);
 
-    if (exec_cmd((const char *)command, inode_s, LINE_BUF_LEN) < 0) {
+    if (exec_cmd_chroot((const char *)command, inode_s, LINE_BUF_LEN) < 0) {
         return -1;
     }
 
@@ -889,7 +889,7 @@ int get_container_pod_id(const char *abbr_container_id, char pod_id[], unsigned 
             get_current_command(), abbr_container_id, DOCKER_PODID_COMMAND);
     }
 
-    int ret = exec_cmd((const char *)command, pod_id, len);
+    int ret = exec_cmd_chroot((const char *)command, pod_id, len);
     if (ret) {
         pod_id[0] = 0;
     }
@@ -918,7 +918,7 @@ int get_pod_ip(const char *abbr_container_id, char *pod_ip_str, int len)
             get_current_command(), abbr_container_id, DOCKER_IP_CMD);
     }
 
-    int ret = exec_cmd((const char *)command, pod_ip_str, len);
+    int ret = exec_cmd_chroot((const char *)command, pod_ip_str, len);
     if (ret) {
         pod_ip_str[0] = 0;
     }
@@ -941,7 +941,7 @@ static int __list_containers_count_by_pod_id(const char *pod_id)
     }
 
     line[0] = 0;
-    int ret = exec_cmd((const char *)command, line, INT_LEN);
+    int ret = exec_cmd_chroot((const char *)command, line, INT_LEN);
     if (ret) {
         return 0;
     }
@@ -965,7 +965,7 @@ static int __list_containers_by_pod_id(const char *pod_id, container_tbl *cstbl)
             get_current_command(), get_current_command(), pod_id);
     }
 
-    f = popen(command, "r");
+    f = popen_chroot(command, "r");
     if (f == NULL) {
         return -1;
     }

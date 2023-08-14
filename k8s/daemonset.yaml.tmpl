@@ -34,21 +34,11 @@ spec:
         - name: sys
           mountPath: /sys
           readOnly: false
-        - name: os-release
-          mountPath: /etc/os-release
-          readOnly: true
-        - name: localtime
           mountPath: /etc/localtime
-          readOnly: true
-        - name: boot
-          mountPath: /boot
           readOnly: true
         - name: debugdir
           mountPath: /usr/lib/debug
           readOnly: true
-        - name: docker-sock
-          mountPath: /var/run/docker.sock
-          readOnly: false
         - name: docker-fs
           mountPath: /var/lib/docker
           readOnly: true
@@ -75,8 +65,8 @@ spec:
           value: ""
         - name: GOPHER_PROBES_INIT
           value: |
-              baseinfo {"cmd":{"probe":["cpu","mem","nic","net","disk","fs","proc","host"]},"snooper":{"proc_name":[{"comm":"^java$","cmdline":""}]},"params":{"report_event":1},"state":"running"}
-              tcp {"cmd":{"probe":["tcp_abnormal","tcp_rtt","tcp_windows"]},"snooper":{"proc_name":[{"comm":"^java$","cmdline":""}]},"params":{"report_event":1},"state":"running"}
+              baseinfo {"cmd":{"probe":["cpu","mem","nic","net","disk","fs","proc","host"]},"snoopers":{"proc_name":[{"comm":"^java$","cmdline":""}]},"params":{"report_event":1},"state":"running"}
+              tcp {"cmd":{"probe":["tcp_abnormal","tcp_rtt","tcp_windows"]},"snoopers":{"proc_name":[{"comm":"^java$","cmdline":""}]},"params":{"report_event":1},"state":"running"}
       hostNetwork: true
       hostPID: true
       dnsPolicy: ClusterFirstWithHostNet
@@ -90,26 +80,14 @@ spec:
         hostPath:
             path: /sys
             type: Directory
-      - name: os-release
-        hostPath:
-            path: /etc/os-release
-            type: FileOrCreate
       - name: localtime
         hostPath:
             path: /etc/localtime
             type: File
-      - name: boot
-        hostPath:
-            path: /boot
-            type: Directory
       - name: debugdir
         hostPath:
             path: /usr/lib/debug
             type: Directory
-      - name: docker-sock
-        hostPath:
-            path: /var/run/docker.sock
-            type: Socket
       - name: docker-fs
         hostPath:
             path: /var/lib/docker

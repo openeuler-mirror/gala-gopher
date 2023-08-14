@@ -42,7 +42,7 @@
 #define APACHE_PATH             "which httpd"
 #define NGINX_SSL_PATH          "ldd $(which nginx) | grep libssl | awk '{print $3}'"
 #define APACHE_SSL_PATH         "ldd /etc/httpd/modules/mod_ssl.so | grep libssl | awk '{print $3}'"
-#define HTTPD_SSL_PATH         "/etc/httpd/modules/mod_ssl.so"
+#define HTTPD_SSL_PATH          "/etc/httpd/modules/mod_ssl.so"
 
 #define LOAD_HTTP_PROBE(probe_name, end, load) \
     OPEN(probe_name, end, load); \
@@ -71,9 +71,9 @@ static void get_libssl_path(char *nginx_sslpath, char *apache_sslpath)
     FILE *f1 = NULL, *f2 = NULL;
     char buf[PATH_LEN] = {0};
 
-    f1 = popen(NGINX_PATH, "r");
+    f1 = popen_chroot(NGINX_PATH, "r");
     if (fgets(buf, PATH_LEN, f1) != NULL && strlen(buf) > 0 && !(buf[strlen(buf) - 1] = 0) && access(buf, F_OK) == 0) {
-        if ((f2 = popen(NGINX_SSL_PATH, "r")) != NULL && fgets(nginx_sslpath, PATH_LEN, f2) != NULL) {
+        if ((f2 = popen_chroot(NGINX_SSL_PATH, "r")) != NULL && fgets(nginx_sslpath, PATH_LEN, f2) != NULL) {
             if (strlen(nginx_sslpath) != 0) {
                 nginx_sslpath[strlen(nginx_sslpath) - 1] = 0;
             }
@@ -81,10 +81,10 @@ static void get_libssl_path(char *nginx_sslpath, char *apache_sslpath)
         pclose(f2);
     }
     pclose(f1);
-    f1 = popen(APACHE_PATH, "r");
+    f1 = popen_chroot(APACHE_PATH, "r");
     if (fgets(buf, PATH_LEN, f1) != NULL && strlen(buf) > 0 && !(buf[strlen(buf) - 1] = 0) &&
         access(buf, F_OK) == 0 && access(HTTPD_SSL_PATH, F_OK) == 0) {
-        if ((f2 = popen(APACHE_SSL_PATH, "r")) != NULL && fgets(apache_sslpath, PATH_LEN, f2) != NULL) {
+        if ((f2 = popen_chroot(APACHE_SSL_PATH, "r")) != NULL && fgets(apache_sslpath, PATH_LEN, f2) != NULL) {
             if (strlen(apache_sslpath) != 0) {
                 apache_sslpath[strlen(apache_sslpath) - 1] = 0;
             }

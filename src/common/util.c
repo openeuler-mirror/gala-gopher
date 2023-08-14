@@ -22,11 +22,37 @@
 #include <stdarg.h>
 #include "common.h"
 
+#define CHROOT_CMD          "/usr/sbin/chroot %s %s"
 #define PROC_COMM           "/proc/%u/comm"
 #define PROC_COMM_CMD       "/usr/bin/cat /proc/%u/comm 2> /dev/null"
 #define PROC_CMDLINE_CMD    "/proc/%u/cmdline"
 #define PROC_STAT           "/proc/%u/stat"
 #define PROC_START_TIME_CMD "/usr/bin/cat /proc/%u/stat | awk '{print $22}'"
+
+static char *g_host_path_prefix;
+
+static char *get_host_path_prefix()
+{
+    static char running_in_container = 1;
+
+    /* gala-gopher running on host */
+    if (!running_in_container) {
+        return NULL;
+    }
+
+    if (g_host_path_prefix) {
+        return g_host_path_prefix;
+    }
+
+    /* env HOST_PATH_PREFIX_ENV is set means gala-gopher is running in container */
+    g_host_path_prefix = getenv(HOST_PATH_PREFIX_ENV);
+    if (g_host_path_prefix) {
+        return g_host_path_prefix;
+    }
+
+    running_in_container = 0;
+    return NULL;
+}
 
 char *get_cur_date(void)
 {
@@ -106,7 +132,7 @@ void ip6_str(unsigned char *ip6, unsigned char *ip_str, unsigned int ip_str_size
 void ip_str(unsigned int family, unsigned char *ip, unsigned char *ip_str, unsigned int ip_str_size)
 {
     ip_str[0] = 0;
-    
+
     if (family == AF_INET6) {
         (void)ip6_str(ip, ip_str, ip_str_size);
         return;
@@ -147,6 +173,38 @@ char is_exist_mod(const char *mod)
     pclose(fp);
 
     return (char)(cnt > 0);
+}
+
+#define CHROOT_COMMAND_LEN  (2 * COMMAND_LEN)
+void *popen_chroot(const char *command, const char *modes) {
+    char *host_path = get_host_path_prefix();
+    char chroot_cmd[CHROOT_COMMAND_LEN];
+
+    if (host_path) {
+        chroot_cmd[0] = 0;
+        (void)snprintf(chroot_cmd, CHROOT_COMMAND_LEN, CHROOT_CMD, host_path, command);
+        command = chroot_cmd;
+    }
+
+    return popen(command, modes);
+}
+
+int exec_cmd_chroot(const char *cmd, char *buf, unsigned int buf_len)
+{
+    FILE *f = NULL;
+
+    f = popen_chroot(cmd, "r");
+    if (f == NULL)
+        return -1;
+
+    if (fgets(buf, buf_len, f) == NULL) {
+        (void)pclose(f);
+        return -1;
+    }
+    (void)pclose(f);
+
+    SPLIT_NEWLINE_SYMBOL(buf);
+    return 0;
 }
 
 int exec_cmd(const char *cmd, char *buf, unsigned int buf_len)
@@ -206,8 +264,9 @@ int get_system_ip(char ip_str[], unsigned int size)
 {
     const char *cmd = "/sbin/ip a | grep inet | grep -v \"127.0.0.1\" | grep -v inet6 | awk 'NR==1 {print $2}' |  awk -F '/' '{print $1}'";
 
-    return exec_cmd(cmd, ip_str, size);
+    return exec_cmd_chroot(cmd, ip_str, size);
 }
+
 int get_system_uuid(char *buffer, unsigned int size)
 {
     FILE *fp = NULL;
@@ -379,4 +438,30 @@ int is_valid_proc(int pid)
         return 1;
     }
     return 0;
+}
+
+/*
+ * Convert path to the relative host path mounted in the container by adding
+ * a prefix dir(env "HOST_PATH_PREFIX_ENV").
+ * @host_path: converted output which stored in
+ * @path: original abs path
+ * @path_len: len of host_path
+ */
+void convert_to_host_path(char *host_path, const char *path, int path_len)
+{
+    char *host_prefix;
+
+    if (path == NULL || strlen(path) == 0) {
+        return;
+    }
+
+    host_path[0] = 0;
+    host_prefix = get_host_path_prefix();
+    if (host_prefix) {
+        (void)snprintf(host_path, path_len, "%s%s", host_prefix, path);
+    } else {
+        (void)snprintf(host_path, path_len, "%s", path);
+    }
+
+    INFO("host_path is %s\n", host_path);
 }

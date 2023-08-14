@@ -78,6 +78,8 @@
 #define PERF_MAX_STACK_DEPTH    127
 #endif
 
+#define HOST_PATH_PREFIX_ENV    "GOPHER_HOST_PATH"
+
 void convert_output_to_log(char *buffer, int bufferSize);
 void debug_logs(const char* format, ...);
 void info_logs(const char* format, ...);
@@ -201,7 +203,9 @@ char *get_cur_date(void);
 char *get_cur_time(void);
 
 void ip_str(unsigned int family, unsigned char *ip, unsigned char *ip_str, unsigned int ip_str_size);
+void *popen_chroot(const char *command, const char *modes);
 int exec_cmd(const char *cmd, char *buf, unsigned int buf_len);
+int exec_cmd_chroot(const char *cmd, char *buf, unsigned int buf_len);
 char is_exist_mod(const char *mod);
 int __snprintf(char **buf, const int bufLen, int *remainLen, const char *format, ...);
 char is_digit_str(const char *s);
@@ -216,5 +220,6 @@ int get_proc_comm(u32 pid, char *buf, int buf_len);
 int get_proc_cmdline(u32 pid, char *buf, u32 buf_len);
 int get_kern_version(u32 *kern_version);
 int is_valid_proc(int pid);
+void convert_to_host_path(char *host_path, const char *path, int path_len);
 
 #endif

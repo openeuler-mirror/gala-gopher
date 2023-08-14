@@ -35,7 +35,7 @@ static int do_read_line(char *command, char line[])
         return -1;
     }
 
-    f = popen(command, "r");
+    f = popen_chroot(command, "r");
     if (f == NULL) {
         return -1;
     }

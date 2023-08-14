@@ -206,27 +206,27 @@ static void build_event_lable(struct endpoint_val_t *ep, struct event_info_s *ev
             break;
         }
         case SK_TYPE_LISTEN_UDP: {
-            ip_str(ep->key.key.udp_server_key.ip_addr.family, 
-                   (unsigned char *)&(ep->key.key.udp_server_key.ip_addr.ip), 
-                   s_addr, 
+            ip_str(ep->key.key.udp_server_key.ip_addr.family,
+                   (unsigned char *)&(ep->key.key.udp_server_key.ip_addr.ip),
+                   s_addr,
                    INET6_ADDRSTRLEN);
             (void)snprintf(evt->ip, size, "udp bind %s", s_addr);
             evt->pid = ep->key.key.udp_server_key.tgid;
             break;
         }
         case SK_TYPE_CLIENT_TCP: {
-            ip_str(ep->key.key.tcp_connect_key.ip_addr.family, 
-                   (unsigned char *)&(ep->key.key.tcp_connect_key.ip_addr.ip), 
-                   s_addr, 
+            ip_str(ep->key.key.tcp_connect_key.ip_addr.family,
+                   (unsigned char *)&(ep->key.key.tcp_connect_key.ip_addr.ip),
+                   s_addr,
                    INET6_ADDRSTRLEN);
             (void)snprintf(evt->ip, size, "Tcp connect %s", s_addr);
             evt->pid = ep->key.key.tcp_connect_key.tgid;
             break;
         }
         case SK_TYPE_CLIENT_UDP: {
-            ip_str(ep->key.key.udp_client_key.ip_addr.family, 
-                   (unsigned char *)&(ep->key.key.udp_client_key.ip_addr.ip), 
-                   s_addr, 
+            ip_str(ep->key.key.udp_client_key.ip_addr.family,
+                   (unsigned char *)&(ep->key.key.udp_client_key.ip_addr.ip),
+                   s_addr,
                    INET6_ADDRSTRLEN);
             (void)snprintf(evt->ip, size, "Udp rcv %s", s_addr);
             evt->pid = ep->key.key.udp_client_key.tgid;
@@ -500,7 +500,7 @@ static int endpoint_load_probe(struct ipc_body_s *ipc_body)
     struct bpf_prog_s *new_prog = NULL;
 
     is_load_tcp = ipc_body->probe_range_flags & PROBE_RANGE_SOCKET_TCP;
-    is_load_udp = ipc_body->probe_range_flags & PROBE_RANGE_TCP_ABNORMAL;
+    is_load_udp = ipc_body->probe_range_flags & PROBE_RANGE_SOCKET_UDP;
     if (!(is_load_tcp | is_load_udp)) {
         return 0;
     }
