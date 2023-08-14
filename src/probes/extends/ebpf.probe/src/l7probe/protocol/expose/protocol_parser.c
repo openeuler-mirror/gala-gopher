@@ -19,6 +19,9 @@
 #include "../pgsql/pgsql_matcher.h"
 #include "../http1.x/parser/http_parser.h"
 #include "../http1.x/matcher/http_matcher.h"
+#include "../kafka/kafka_msg_format.h"
+#include "../kafka/kafka_parser.h"
+#include "../kafka/kafka_matcher.h"
 #include "../redis/redis_parser.h"
 #include "../redis/redis_matcher.h"
 
@@ -45,12 +48,14 @@ void free_record_data(enum proto_type_t type, struct record_data_s *record_data)
         case PROTO_HTTP:
             free_http_record((http_record *) record_data);
             break;
-        // todo: add protocols:
+            // todo: add protocols:
         case PROTO_HTTP2:
         case PROTO_REDIS:
             free_redis_record((struct redis_record_s *) record_data);
             break;
         case PROTO_KAFKA:
+            free_kafka_record((struct kafka_record_s *) record_data);
+            break;
         case PROTO_MYSQL:
         case PROTO_MONGO:
         case PROTO_DNS:
@@ -85,6 +90,8 @@ void free_frame_data_s(enum proto_type_t type, struct frame_data_s *frame)
             free_redis_msg((struct redis_msg_s *) frame->frame);
             break;
         case PROTO_KAFKA:
+            free_kafka_frame((struct kafka_frame_s *) frame->frame);
+            break;
         case PROTO_MYSQL:
         case PROTO_MONGO:
         case PROTO_DNS:
@@ -111,6 +118,8 @@ size_t proto_find_frame_boundary(enum proto_type_t type, enum message_type_t msg
             ret = redis_find_frame_boundary(raw_data);
             break;
         case PROTO_KAFKA:
+            ret = kafka_find_frame_boundary(msg_type, raw_data);
+            break;
         case PROTO_MYSQL:
         case PROTO_MONGO:
         case PROTO_DNS:
@@ -138,6 +147,8 @@ parse_state_t proto_parse_frame(enum proto_type_t type, enum message_type_t msg_
             state = redis_parse_frame(msg_type, raw_data, frame_data);
             break;
         case PROTO_KAFKA:
+            state = kafka_parse_frame(msg_type, raw_data, frame_data);
+            break;
         case PROTO_MYSQL:
         case PROTO_MONGO:
         case PROTO_DNS:
@@ -164,6 +175,8 @@ void proto_match_frames(enum proto_type_t type, struct frame_buf_s *req_frame, s
             redis_match_frames(req_frame, resp_frame, record_buf);
             break;
         case PROTO_KAFKA:
+            kafka_match_frames(req_frame, resp_frame, record_buf);
+            break;
         case PROTO_MYSQL:
         case PROTO_MONGO:
         case PROTO_DNS:

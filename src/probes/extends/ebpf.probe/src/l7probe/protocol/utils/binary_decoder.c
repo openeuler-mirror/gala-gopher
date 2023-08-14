@@ -35,18 +35,29 @@ parse_state_t decoder_extract_char(struct raw_data_s *raw_data, char *res)
     return STATE_SUCCESS;
 }
 
+parse_state_t decoder_extract_bool(struct raw_data_s *raw_data, bool *res)
+{
+    char res_char;
+    parse_state_t decode_status = decoder_extract_char(raw_data, &res_char);
+    if (decode_status != STATE_SUCCESS) {
+        return STATE_INVALID;
+    }
+    *res = res_char;
+    return STATE_SUCCESS;
+}
+
 /**
  * 大端法提取字符串中的整形数据。
  *
  * @param data_stream_buf 字符串缓存
- * @return int(uint8_t, uint16_t, uint32_t)
+ * @return int(u_int8_t, u_int16_t, u_int32_t)
  */
 #define BIG_ENDIAN_BYTES_TO_INT(INT_TYPE)                            \
 INT_TYPE big_endian_bytes_to_##INT_TYPE(const char *data_stream_buf) \
 {                                                                    \
     INT_TYPE res = 0;                                                \
     for (size_t i = 0; i < sizeof(INT_TYPE); i++) {                  \
-        res = (uint8_t)(data_stream_buf[i]) | (res << 8);            \
+        res = (u_int8_t)(data_stream_buf[i]) | (res << 8);            \
     }                                                                \
     return res;                                                      \
 }
@@ -57,17 +68,22 @@ BIG_ENDIAN_BYTES_TO_INT(int16_t)
 
 BIG_ENDIAN_BYTES_TO_INT(int32_t)
 
-// uint8_t big_endian_bytes_to_uint8_t(const char *data_stream_buf)
-BIG_ENDIAN_BYTES_TO_INT(uint8_t)
+BIG_ENDIAN_BYTES_TO_INT(int64_t)
 
-// uint16_t big_endian_bytes_to_uint16_t(const char *data_stream_buf)
-BIG_ENDIAN_BYTES_TO_INT(uint16_t)
+// u_int8_t big_endian_bytes_to_u_int8_t(const char *data_stream_buf)
+BIG_ENDIAN_BYTES_TO_INT(u_int8_t)
 
-// uint32_t big_endian_bytes_to_uint32_t(const char *data_stream_buf)
-BIG_ENDIAN_BYTES_TO_INT(uint32_t)
+// u_int16_t big_endian_bytes_to_u_int16_t(const char *data_stream_buf)
+BIG_ENDIAN_BYTES_TO_INT(u_int16_t)
+
+// u_int32_t big_endian_bytes_to_u_int32_t(const char *data_stream_buf)
+BIG_ENDIAN_BYTES_TO_INT(u_int32_t)
+
+// u_int64_t big_endian_bytes_to_u_int64_t(const char *data_stream_buf)
+BIG_ENDIAN_BYTES_TO_INT(u_int64_t)
 
 /**
- * 从raw_data中提取int类型数据（uint8_t, uint16_t, uint32_t......）
+ * 从raw_data中提取int类型数据（u_int8_t, u_int16_t, u_int32_t......）
  *
  * @param raw_data 字符串缓存
  * @return 状态码
@@ -90,14 +106,19 @@ DECODER_EXTRACT_INT(int16_t)
 
 DECODER_EXTRACT_INT(int32_t)
 
-// parse_state_t decoder_extract_uint8_t(raw_data_s *raw_data, uint8_t *res)
-DECODER_EXTRACT_INT(uint8_t)
+DECODER_EXTRACT_INT(int64_t)
 
-// parse_state_t decoder_extract_uint16_t(raw_data_s *raw_data, uint16_t *res)
-DECODER_EXTRACT_INT(uint16_t)
+// parse_state_t decoder_extract_u_int8_t(raw_data_s *raw_data, u_int8_t *res)
+DECODER_EXTRACT_INT(u_int8_t)
 
-// parse_state_t decoder_extract_uint32_t(raw_data_s *raw_data, uint32_t *res)
-DECODER_EXTRACT_INT(uint32_t)
+// parse_state_t decoder_extract_u_int16_t(raw_data_s *raw_data, u_int16_t *res)
+DECODER_EXTRACT_INT(u_int16_t)
+
+// parse_state_t decoder_extract_u_int32_t(raw_data_s *raw_data, u_int32_t *res)
+DECODER_EXTRACT_INT(u_int32_t)
+
+// parse_state_t decoder_extract_u_int64_t(raw_data_s *raw_data, u_int32_t *res)
+DECODER_EXTRACT_INT(u_int64_t)
 
 bool extract_prefix_bytes_string(struct raw_data_s *raw_data, char **res, size_t decode_len, size_t data_stream_offset)
 {
@@ -146,6 +167,7 @@ parse_state_t decoder_extract_raw_data_with_len(struct raw_data_s *src_raw_data,
     return STATE_SUCCESS;
 }
 
+//1
 parse_state_t decoder_extract_string(struct raw_data_s *raw_data, char **res, size_t decode_len)
 {
     if ((raw_data->data_len - raw_data->current_pos) < decode_len) {

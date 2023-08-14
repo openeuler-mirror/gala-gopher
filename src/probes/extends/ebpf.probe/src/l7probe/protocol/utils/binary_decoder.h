@@ -31,26 +31,43 @@
  */
 parse_state_t decoder_extract_char(struct raw_data_s *raw_data, char *res);
 
+
+/**
+ * 提取raw_data中的第一个字节，并转换为bool。
+ *
+ * @param raw_data 原始数据缓存
+ * @param res 提取bool型结果的指针
+ * @return 状态码
+ */
+parse_state_t decoder_extract_bool(struct raw_data_s *raw_data, bool *res);
+
+
 #define BIG_ENDIAN_BYTES_TO_INT_FUNC(INT_TYPE) \
 INT_TYPE big_endian_bytes_to_##INT_TYPE(const char *data_stream_buf)
 
-// uint8_t big_endian_bytes_to_int8_t(const char *data_stream_buf)
+// int8_t big_endian_bytes_to_int8_t(const char *data_stream_buf)
 BIG_ENDIAN_BYTES_TO_INT_FUNC(int8_t);
 
-// uint16_t big_endian_bytes_to_int16_t(const char *data_stream_buf)
+// int16_t big_endian_bytes_to_int16_t(const char *data_stream_buf)
 BIG_ENDIAN_BYTES_TO_INT_FUNC(int16_t);
 
-// uint16_t big_endian_bytes_to_int32_t(const char *data_stream_buf)
+// int32_t big_endian_bytes_to_int32_t(const char *data_stream_buf)
 BIG_ENDIAN_BYTES_TO_INT_FUNC(int32_t);
 
-// uint8_t big_endian_bytes_to_uint8_t(const char *data_stream_buf)
-BIG_ENDIAN_BYTES_TO_INT_FUNC(uint8_t);
+// int64_t big_endian_bytes_to_int64_t(const char *data_stream_buf)
+BIG_ENDIAN_BYTES_TO_INT_FUNC(int64_t);
 
-// uint16_t big_endian_bytes_to_uint16_t(const char *data_stream_buf)
-BIG_ENDIAN_BYTES_TO_INT_FUNC(uint16_t);
+// u_int8_t big_endian_bytes_to_u_int8_t(const char *data_stream_buf)
+BIG_ENDIAN_BYTES_TO_INT_FUNC(u_int8_t);
 
-// uint32_t big_endian_bytes_to_uint32_t(const char *data_stream_buf)
-BIG_ENDIAN_BYTES_TO_INT_FUNC(uint32_t);
+// u_int16_t big_endian_bytes_to_u_int16_t(const char *data_stream_buf)
+BIG_ENDIAN_BYTES_TO_INT_FUNC(u_int16_t);
+
+// u_int32_t big_endian_bytes_to_u_int32_t(const char *data_stream_buf)
+BIG_ENDIAN_BYTES_TO_INT_FUNC(u_int32_t);
+
+// u_int64_t big_endian_bytes_to_u_int64_t(const char *data_stream_buf)
+BIG_ENDIAN_BYTES_TO_INT_FUNC(u_int64_t);
 
 #define DECODER_EXTRACT_INT_FUNC(INT_TYPE) \
 parse_state_t decoder_extract_##INT_TYPE(struct raw_data_s *raw_data, INT_TYPE *res)
@@ -64,19 +81,25 @@ DECODER_EXTRACT_INT_FUNC(int16_t);
 // parse_state_t decoder_extract_int32_t(raw_data_s *raw_data, int32_t *res)
 DECODER_EXTRACT_INT_FUNC(int32_t);
 
-// parse_state_t decoder_extract_uint8_t(raw_data_s *raw_data, uint8_t *res)
-DECODER_EXTRACT_INT_FUNC(uint8_t);
+// parse_state_t decoder_extract_int64_t(raw_data_s *raw_data, int32_t *res)
+DECODER_EXTRACT_INT_FUNC(int64_t);
 
-// parse_state_t decoder_extract_uint16_t(raw_data_s *raw_data, uint16_t *res)
-DECODER_EXTRACT_INT_FUNC(uint16_t);
+// parse_state_t decoder_extract_u_int8_t(raw_data_s *raw_data, u_int8_t *res)
+DECODER_EXTRACT_INT_FUNC(u_int8_t);
 
-// parse_state_t decoder_extract_uint32_t(raw_data_s *raw_data, uint32_t *res)
-DECODER_EXTRACT_INT_FUNC(uint32_t);
+// parse_state_t decoder_extract_u_int16_t(raw_data_s *raw_data, u_int16_t *res)
+DECODER_EXTRACT_INT_FUNC(u_int16_t);
+
+// parse_state_t decoder_extract_u_int32_t(raw_data_s *raw_data, u_int32_t *res)
+DECODER_EXTRACT_INT_FUNC(u_int32_t);
+
+// parse_state_t decoder_extract_u_int64_t(raw_data_s *raw_data, u_int32_t *res)
+DECODER_EXTRACT_INT_FUNC(u_int64_t);
 
 /**
  * 提取整形数据宏
  *
- * @param int_type 整形类型（int8_t uint8_t int16_t uint16_t int32_t uint32_t）
+ * @param int_type 整形类型（int8_t u_int8_t int16_t u_int16_t int32_t u_int32_t）
  * @param raw_data_ptr 字符串缓存结构体raw_data_s指针
  * @param res_ptr 整形数据结果存放指针
  */
