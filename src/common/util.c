@@ -338,9 +338,50 @@ int access_check_read_line(u32 pid, const char *command, const char *fname, char
     return 0;
 }
 
+static int read_starttime_from_procstat(char *line, char *buf, int buf_len) {
+    int ret;
+    char *pos, *space_pos;
+    const char *space_chrs = " \t";
+    int idx = 1;
+
+#define __PROC_STAT_STARTTIME_IDX 22
+    pos = line + strspn(line, space_chrs);
+    while ((space_pos = strpbrk(pos, space_chrs)) != NULL) {
+        if (idx == __PROC_STAT_STARTTIME_IDX) {
+            *space_pos = '\0';
+            ret = snprintf(buf, buf_len, "%s", pos);
+            if (ret < 0 || ret >= buf_len) {
+                return -1;
+            }
+            return 0;
+        }
+        idx++;
+        pos = space_pos + strspn(space_pos, space_chrs);
+    }
+    return -1;
+}
+
 int get_proc_start_time(u32 pid, char *buf, int buf_len)
 {
-    return access_check_read_line(pid, PROC_START_TIME_CMD, PROC_STAT, buf, buf_len);
+    FILE *f = NULL;
+    char fname[PATH_LEN];
+    char line[LINE_BUF_LEN];
+    int ret;
+
+    fname[0] = 0;
+    (void)snprintf(fname, sizeof(fname), PROC_STAT, pid);
+    f = fopen(fname, "r");
+    if (!f) {
+        return -1;
+    }
+    line[0] = 0;
+    if (fgets(line, sizeof(line), f) == NULL) {
+        (void)fclose(f);
+        return -1;
+    }
+    (void)fclose(f);
+
+    return read_starttime_from_procstat(line, buf, buf_len);
 }
 
 int get_proc_startup_ts(int pid)
