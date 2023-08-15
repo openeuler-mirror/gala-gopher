@@ -366,7 +366,6 @@ int get_proc_start_time(u32 pid, char *buf, int buf_len)
     FILE *f = NULL;
     char fname[PATH_LEN];
     char line[LINE_BUF_LEN];
-    int ret;
 
     fname[0] = 0;
     (void)snprintf(fname, sizeof(fname), PROC_STAT, pid);

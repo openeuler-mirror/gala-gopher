@@ -18,6 +18,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <uthash.h>
+#include <time.h>
 #include "args.h"
 #include "ipc.h"
 #include "common.h"
