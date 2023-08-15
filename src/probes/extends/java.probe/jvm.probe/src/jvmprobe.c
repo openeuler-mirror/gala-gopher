@@ -55,24 +55,47 @@ static struct proc_hash_t *hash_find_key(u32 pid, u64 stime)
     return p;
 }
 
+static int check_proc_start_time(struct proc_key_t *proc_key)
+{
+    int ret;
+
+    ret = get_proc_startup_ts(proc_key->pid);
+    if (ret <= 0) {
+        WARN("[JVMPROBE] Gets proc %u start time failed\n", proc_key->pid);
+        return -1;
+    }
+    if (proc_key->start_time != ret) {
+        INFO("[JVMPROBE] Proc %u start time changed\n", proc_key->pid);
+        return -1;
+    }
+
+    return 0;
+}
+
+#define _PROC_START_TIME_CHECK_PERIOD 60
+
 static void load_jvm_probe(struct java_attach_args *args)
 {
     int ret;
-    char stime[TIME_STRING_LEN];
     struct proc_hash_t *r, *tmp;
 
-    HASH_ITER(hh, g_procmap, r, tmp) {
-        ret = get_proc_start_time(r->key.pid, stime, TIME_STRING_LEN);
-        if (ret != 0) {
-            WARN("[JVMPROBE] Gets proc %u start time failed\n", r->key.pid);
-            remove_proc(r);
-            continue;
-        }
+    time_t now;
+    int check_flag = 0;
+    static time_t last_check = 0;
 
-        if (r->key.start_time != (u64)atoll(stime)) {
-            INFO("[JVMPROBE] Proc %u start time changed\n", r->key.pid);
-            remove_proc(r);
-            continue;
+    time(&now);
+    if (now > last_check + _PROC_START_TIME_CHECK_PERIOD) {
+        check_flag = 1;
+        last_check = now;
+    }
+
+    HASH_ITER(hh, g_procmap, r, tmp) {
+        if (check_flag) {
+            ret = check_proc_start_time(&(r->key));
+            if (ret) {
+                remove_proc(r);
+                continue;
+            }
         }
 
         ret = java_load(r->key.pid, (void *)args);
