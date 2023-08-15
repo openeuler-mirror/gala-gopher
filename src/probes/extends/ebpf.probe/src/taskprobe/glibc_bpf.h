@@ -19,6 +19,11 @@
 
 #include "common.h"
 
+enum dns_rc_type_e {
+    DNS_RC_INT = 0,
+    DNS_RC_POINTER
+};
+
 struct dns_cache_s {
     u32 proc_id;
     int error;

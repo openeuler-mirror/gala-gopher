@@ -463,5 +463,5 @@ void convert_to_host_path(char *host_path, const char *path, int path_len)
         (void)snprintf(host_path, path_len, "%s", path);
     }
 
-    INFO("host_path is %s\n", host_path);
+    DEBUG("convert path[%s] to host_path[%s]\n", path, host_path);
 }
