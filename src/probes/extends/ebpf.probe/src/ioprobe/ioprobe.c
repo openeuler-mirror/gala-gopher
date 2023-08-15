@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <time.h>
 #include <sys/resource.h>
 
 #ifdef BPF_PROG_KERN
@@ -30,6 +31,7 @@
 #include "bpf.h"
 #include "args.h"
 #include "ipc.h"
+#include "hash.h"
 #include "io_trace_scsi.skel.h"
 #include "io_trace_nvme.skel.h"
 #include "io_trace_virtblk.skel.h"
@@ -109,6 +111,26 @@ struct blk_err_desc_s {
     int blk_err_code;
     const char *desc;
 };
+
+struct blk_id_s {
+    int major;
+    int minor;
+};
+
+struct blk_cache_s {
+    H_HANDLE;
+    struct blk_id_s id;
+    char *dev_name;
+    char *disk_name;
+    time_t last_cached;
+};
+
+struct blk_tbl_s {
+    struct blk_cache_s *blk_caches;
+    int cache_count;
+};
+
+static struct blk_tbl_s g_blk_tbl;
 
 // Refer to linux souce code: include/linux/blk_types.h
 #define BLK_STS_OK                      (0)
@@ -282,6 +304,135 @@ static int get_devt(char *dev_name, int *major, int *minor)
 }
 #endif
 
+static void free_blk_cache(struct blk_cache_s *cache)
+{
+    if (cache->dev_name) {
+        free(cache->dev_name);
+    }
+    if (cache->disk_name) {
+        free(cache->disk_name);
+    }
+
+    free(cache);
+    return;
+}
+
+static struct blk_cache_s *lkup_blk_cache(struct blk_cache_s *caches, int major, int minor)
+{
+    struct blk_cache_s* cache = NULL;
+    struct blk_id_s id;
+
+    id.major = major;
+    id.minor = minor;
+
+    H_FIND(caches, &id, sizeof(struct blk_id_s), cache);
+    return cache;
+}
+
+static struct blk_cache_s *add_blk_cache(struct blk_cache_s *caches, int major, int minor)
+{
+    char dev_name[DISK_NAME_LEN];
+    char disk_name[DISK_NAME_LEN];
+    struct blk_cache_s *new_cache = malloc(sizeof(struct blk_cache_s));
+    if (new_cache == NULL) {
+        return NULL;
+    }
+
+    memset(new_cache, 0, sizeof(struct blk_cache_s));
+    new_cache->id.major = major;
+    new_cache->id.minor = minor;
+
+    dev_name[0] = 0;
+    disk_name[0] = 0;
+    get_devname(major, minor, dev_name, DISK_NAME_LEN);
+    get_diskname((const char*)dev_name, disk_name, DISK_NAME_LEN);
+
+    if (dev_name[0] != 0) {
+        new_cache->dev_name = strdup((const char *)dev_name);
+    }
+    if (disk_name[0] != 0) {
+        new_cache->disk_name = strdup((const char *)disk_name);
+    }
+
+    H_ADD_KEYPTR(caches, &new_cache->id, sizeof(struct blk_id_s), new_cache);
+
+    return new_cache;
+}
+
+static struct blk_cache_s *get_blk_cache(struct blk_tbl_s *tbl, int major, int minor)
+{
+#define __BLK_CACHE_MAX 500
+    struct blk_cache_s * cache = lkup_blk_cache(tbl->blk_caches, major, minor);
+    if (cache != NULL) {
+        cache->last_cached = time(NULL);
+        return cache;
+    }
+
+    if (tbl->cache_count >= __BLK_CACHE_MAX) {
+        return NULL;
+    }
+
+    struct blk_cache_s *new_cache = add_blk_cache(tbl->blk_caches, major, minor);
+    if (new_cache == NULL) {
+        return NULL;
+    }
+
+    tbl->cache_count++;
+    return new_cache;
+}
+
+static void destroy_blk_cache(struct blk_cache_s *caches)
+{
+    struct blk_cache_s *cache, *tmp;
+
+    H_ITER(caches, cache, tmp) {
+        H_DEL(caches, cache);
+        free_blk_cache(cache);
+    }
+}
+
+static void init_blk_tbl(struct blk_tbl_s *tbl)
+{
+    memset(tbl, 0, sizeof(struct blk_tbl_s));
+    return;
+}
+
+static void deinit_blk_tbl(struct blk_tbl_s *tbl)
+{
+    destroy_blk_cache(tbl->blk_caches);
+    memset(tbl, 0, sizeof(struct blk_tbl_s));
+    return;
+}
+
+static char is_blk_cache_inactive(struct blk_cache_s *cache)
+{
+#define __INACTIVE_TIME_SECS     (60 * 60)       // 60min
+    time_t current = time(NULL);
+    time_t secs;
+
+    if (current > cache->last_cached) {
+        secs = current - cache->last_cached;
+        if (secs >= __INACTIVE_TIME_SECS) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static void aging_blk_tbl(struct blk_tbl_s *tbl)
+{
+    struct blk_cache_s *cache, *tmp;
+
+    H_ITER(tbl->blk_caches, cache, tmp) {
+        if (is_blk_cache_inactive(cache)) {
+            H_DEL(tbl->blk_caches, cache);
+            free_blk_cache(cache);
+            tbl->cache_count--;
+        }
+    }
+}
+
 #define __ENTITY_ID_LEN 32
 static void __build_entity_id(int major, int minor, char *buf, int buf_len)
 {
@@ -293,10 +444,14 @@ static void rcv_io_latency_thr(struct io_latency_s *io_latency)
     char entityId[__ENTITY_ID_LEN];
     unsigned int latency_thr_us;
     struct event_info_s evt = {0};
-    char dev_name[DISK_NAME_LEN];
-    char disk_name[DISK_NAME_LEN];
+    struct blk_cache_s *cache = NULL;
 
     if (g_ipc_body.probe_param.logs == 0) {
+        return;
+    }
+
+    cache = get_blk_cache(&g_blk_tbl, io_latency->major, io_latency->first_minor);
+    if (cache == NULL) {
         return;
     }
 
@@ -306,22 +461,17 @@ static void rcv_io_latency_thr(struct io_latency_s *io_latency)
         entityId[0] = 0;
         __build_entity_id(io_latency->major, io_latency->first_minor, entityId, __ENTITY_ID_LEN);
 
-        dev_name[0] = 0;
-        disk_name[0] = 0;
-        get_devname(io_latency->major, io_latency->first_minor, dev_name, DISK_NAME_LEN);
-        get_diskname((const char*)dev_name, disk_name, DISK_NAME_LEN);
-
         evt.entityName = OO_NAME;
         evt.entityId = entityId;
         evt.metrics = "latency_req_max";
-        evt.dev = disk_name;
+        evt.dev = cache->disk_name;
 
         report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "IO latency occured."
                     "(Disk %s(%d:%d), COMM %s, PID %u, op: %s, datalen %u, "
                     "drv_latency %llu, dev_latency %llu)",
-                    disk_name, io_latency->major, io_latency->first_minor,
+                    cache->disk_name ? cache->disk_name : "", io_latency->major, io_latency->first_minor,
                     io_latency->comm, io_latency->proc_id, io_latency->rwbs, io_latency->data_len,
                     io_latency->latency[IO_STAGE_DRIVER].max,
                     io_latency->latency[IO_STAGE_DEVICE].max);
@@ -331,14 +481,13 @@ static void rcv_io_latency_thr(struct io_latency_s *io_latency)
 
 static void rcv_pagecache_stats(void *ctx, int cpu, void *data, __u32 size)
 {
-    char dev_name[DISK_NAME_LEN];
-    char disk_name[DISK_NAME_LEN];
     struct pagecache_stats_s *pagecache_stats = data;
+    struct blk_cache_s *cache = NULL;
 
-    dev_name[0] = 0;
-    disk_name[0] = 0;
-    get_devname(pagecache_stats->major, pagecache_stats->first_minor, dev_name, DISK_NAME_LEN);
-    get_diskname((const char*)dev_name, disk_name, DISK_NAME_LEN);
+    cache = get_blk_cache(&g_blk_tbl, pagecache_stats->major, pagecache_stats->first_minor);
+    if (cache == NULL) {
+        return;
+    }
 
     (void)fprintf(stdout, "|%s|%d|%d|%s|%s"
         "|%u|%u|%u|%u|\n",
@@ -346,8 +495,8 @@ static void rcv_pagecache_stats(void *ctx, int cpu, void *data, __u32 size)
         IO_TBL_PAGECACHE,
         pagecache_stats->major,
         pagecache_stats->first_minor,
-        dev_name,
-        disk_name,
+        cache->dev_name ? cache->dev_name : "",
+        cache->disk_name ? cache->disk_name : "",
 
         pagecache_stats->access_pagecache,
         pagecache_stats->mark_buffer_dirty,
@@ -358,14 +507,13 @@ static void rcv_pagecache_stats(void *ctx, int cpu, void *data, __u32 size)
 
 static void rcv_io_count(void *ctx, int cpu, void *data, __u32 size)
 {
-    char dev_name[DISK_NAME_LEN];
-    char disk_name[DISK_NAME_LEN];
     struct io_count_s *io_count = data;
+    struct blk_cache_s *cache = NULL;
 
-    dev_name[0] = 0;
-    disk_name[0] = 0;
-    get_devname(io_count->major, io_count->first_minor, dev_name, DISK_NAME_LEN);
-    get_diskname((const char*)dev_name, disk_name, DISK_NAME_LEN);
+    cache = get_blk_cache(&g_blk_tbl, io_count->major, io_count->first_minor);
+    if (cache == NULL) {
+        return;
+    }
 
     (void)fprintf(stdout, "|%s|%d|%d|%s|%s"
         "|%llu|%llu|\n",
@@ -373,8 +521,8 @@ static void rcv_io_count(void *ctx, int cpu, void *data, __u32 size)
         IO_TBL_COUNT,
         io_count->major,
         io_count->first_minor,
-        dev_name,
-        disk_name,
+        cache->dev_name ? cache->dev_name : "",
+        cache->disk_name ? cache->disk_name : "",
 
         io_count->read_bytes,
         io_count->write_bytes);
@@ -383,16 +531,15 @@ static void rcv_io_count(void *ctx, int cpu, void *data, __u32 size)
 
 static void rcv_io_latency(void *ctx, int cpu, void *data, __u32 size)
 {
-    char dev_name[DISK_NAME_LEN];
-    char disk_name[DISK_NAME_LEN];
     struct io_latency_s *io_latency = data;
+    struct blk_cache_s *cache = NULL;
 
     rcv_io_latency_thr(io_latency);
 
-    dev_name[0] = 0;
-    disk_name[0] = 0;
-    get_devname(io_latency->major, io_latency->first_minor, dev_name, DISK_NAME_LEN);
-    get_diskname((const char*)dev_name, disk_name, DISK_NAME_LEN);
+    cache = get_blk_cache(&g_blk_tbl, io_latency->major, io_latency->first_minor);
+    if (cache == NULL) {
+        return;
+    }
 
     (void)fprintf(stdout, "|%s|%d|%d|%s|%s"
         "|%llu|%llu|%llu|%llu|%u"
@@ -402,8 +549,8 @@ static void rcv_io_latency(void *ctx, int cpu, void *data, __u32 size)
         IO_TBL_LATENCY,
         io_latency->major,
         io_latency->first_minor,
-        dev_name,
-        disk_name,
+        cache->dev_name ? cache->dev_name : "",
+        cache->disk_name ? cache->disk_name : "",
 
         io_latency->latency[IO_STAGE_BLOCK].max,
         io_latency->latency[IO_STAGE_BLOCK].last,
@@ -431,25 +578,24 @@ static void rcv_io_err(void *ctx, int cpu, void *data, __u32 size)
     char entityId[__ENTITY_ID_LEN];
     struct io_err_s *io_err = data;
     struct event_info_s evt = {0};
-    char dev_name[DISK_NAME_LEN];
-    char disk_name[DISK_NAME_LEN];
+    struct blk_cache_s *cache = NULL;
 
     if (g_ipc_body.probe_param.logs == 0) {
+        return;
+    }
+
+    cache = get_blk_cache(&g_blk_tbl, io_err->major, io_err->first_minor);
+    if (cache == NULL) {
         return;
     }
 
     entityId[0] = 0;
     __build_entity_id(io_err->major, io_err->first_minor, entityId, __ENTITY_ID_LEN);
 
-    dev_name[0] = 0;
-    disk_name[0] = 0;
-    get_devname(io_err->major, io_err->first_minor, dev_name, DISK_NAME_LEN);
-    get_diskname((const char*)dev_name, disk_name, DISK_NAME_LEN);
-
     evt.entityName = OO_NAME;
     evt.entityId = entityId;
     evt.metrics = "err_code";
-    evt.dev = disk_name;
+    evt.dev = cache->disk_name;
 
     const char *blk_err_desc = get_blk_err_desc(io_err->err_code, &blk_err);
     report_logs((const struct event_info_s *)&evt,
@@ -457,7 +603,7 @@ static void rcv_io_err(void *ctx, int cpu, void *data, __u32 size)
                 "IO errors occured."
                 "(Disk %s(%d:%d), COMM %s, PID %u, op: %s, datalen %u, "
                 "blk_err(%d) '%s', scsi_err(%d) '%s', timestamp %f)",
-                disk_name, io_err->major, io_err->first_minor,
+                cache->disk_name ? cache->disk_name : "", io_err->major, io_err->first_minor,
                 io_err->comm, io_err->proc_id, io_err->rwbs, io_err->data_len,
                 blk_err, blk_err_desc, io_err->scsi_err, get_scis_err_desc(io_err->scsi_err),
                 io_err->timestamp / 1000000.0);
@@ -795,6 +941,8 @@ int main(int argc, char **argv)
     printf("Successfully started!\n");
     INIT_BPF_APP(ioprobe, EBPF_RLIM_LIMITED);
 
+    init_blk_tbl(&g_blk_tbl);
+
     while (!g_stop) {
         ret = recv_ipc_msg(msq_id, (long)PROBE_IO, &ipc_body);
         if (ret == 0) {
@@ -818,11 +966,13 @@ int main(int argc, char **argv)
                 break;
             }
         }
+        aging_blk_tbl(&g_blk_tbl);
     }
 
 err:
     ioprobe_unload_bpf();
     destroy_ipc_body(&g_ipc_body);
+    deinit_blk_tbl(&g_blk_tbl);
 
     return ret;
 }
