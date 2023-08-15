@@ -136,6 +136,31 @@ static char is_need_aging(struct tcp_mng_s *tcp_mng)
     return 0;
 }
 
+static int init_tcp_historm(struct tcp_mng_s *tcp_mng)
+{
+    char *historm = NULL;
+
+    for (int i = 0; i < TCP_HISTORM_MAX; i++) {
+        historm = (char *)malloc(MAX_HISTO_SERIALIZE_SIZE);
+        if (historm == NULL) {
+            return -1;
+        }
+        historm[0] = 0;
+        tcp_mng->historms[i] = historm;
+    }
+    return 0;
+}
+
+static void deinit_tcp_historm(struct tcp_mng_s *tcp_mng)
+{
+    for (int i = 0; i < TCP_HISTORM_MAX; i++) {
+        if (tcp_mng->historms[i] != NULL) {
+            free(tcp_mng->historms[i]);
+            tcp_mng->historms[i] = NULL;
+        }
+    }
+}
+
 int main(int argc, char **argv)
 {
     int err = -1, ret;
@@ -159,6 +184,11 @@ int main(int argc, char **argv)
     int msq_id = create_ipc_msg_queue(IPC_EXCL);
     if (msq_id < 0) {
         fprintf(stderr, "Create ipc msg que failed.\n");
+        goto err;
+    }
+
+    if (init_tcp_historm(tcp_mng)) {
+        fprintf(stderr, "Init tcp historm failed.\n");
         goto err;
     }
 
@@ -240,6 +270,7 @@ err:
     destroy_ipc_body(&(tcp_mng->ipc_body));
     destroy_tcp_trackers(tcp_mng);
     destroy_tcp_flow_trackers(tcp_mng);
+    deinit_tcp_historm(tcp_mng);
     tcp_unload_fd_probe();
     destroy_established_tcps();
     return -err;

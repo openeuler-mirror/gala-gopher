@@ -51,16 +51,6 @@
 #define TCP_TBL_TXRX    "tcp_tx_rx"
 #define TCP_TBL_DELAY   "proc_flow_perf"
 
-#define HISTO_BUCKET_DECLARE(variable) \
-    float variable##_p50 = 0.0, variable##_p90 = 0.0, variable##_p99 = 0.0
-
-#define HISTO_BUCKET_CALC(buckets, size, variable) \
-do { \
-    (void)histo_bucket_value((buckets), size, HISTO_P50, &(variable##_p50)); \
-    (void)histo_bucket_value((buckets), size, HISTO_P90, &(variable##_p90)); \
-    (void)histo_bucket_value((buckets), size, HISTO_P99, &(variable##_p99)); \
-} while (0)
-
 static void output_tcp_abn(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
 {
     float retrans_ratio = 0.0;
@@ -99,15 +89,19 @@ static void output_tcp_abn(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
 
 static void output_tcp_syn_rtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
 {
-    HISTO_BUCKET_DECLARE(syn_rtt);
+    char *syn_srtt_historm = tcp_mng->historms[TCP_HISTORM_RTT_SYN_SRTT];
+
+    syn_srtt_historm[0] = 0;
+
+    if (serialize_histo(tracker->syn_srtt_buckets, __MAX_RTT_SIZE, syn_srtt_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
 
     report_tcp_syn_rtt_evt(&(tcp_mng->ipc_body.probe_param), tracker);
 
-    HISTO_BUCKET_CALC(tracker->syn_srtt_buckets, __MAX_RTT_SIZE, syn_rtt);
-
     (void)fprintf(stdout,
         "|%s|%u|%s|%s|%s|%u|%u"
-        "|%.2f|%.2f|%.2f|%llu|\n",
+        "|%s|%llu|\n",
         TCP_TBL_SYNRTT,
         tracker->id.tgid,
         (tracker->id.role == 0) ? "server" : "client",
@@ -116,24 +110,29 @@ static void output_tcp_syn_rtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *
         tracker->id.port,
         tracker->id.family,
 
-        syn_rtt_p50,
-        syn_rtt_p90,
-        syn_rtt_p99,
-        tracker->stats[SYN_SRTT]);
+        syn_srtt_historm,
+        tracker->stats[SYN_SRTT_MAX]);
     (void)fflush(stdout);
 }
 
 static void output_tcp_rtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
 {
-    HISTO_BUCKET_DECLARE(srtt);
-    HISTO_BUCKET_DECLARE(rcv_rtt);
+    char *srtt_historm = tcp_mng->historms[TCP_HISTORM_RTT_SRTT];
+    char *rcv_rtt_historm = tcp_mng->historms[TCP_HISTORM_RTT_RCV_RTT];
 
-    HISTO_BUCKET_CALC(tracker->srtt_buckets, __MAX_RTT_SIZE, srtt);
-    HISTO_BUCKET_CALC(tracker->rcv_rtt_buckets, __MAX_RTT_SIZE, rcv_rtt);
+    srtt_historm[0] = 0;
+    rcv_rtt_historm[0] = 0;
+
+    if (serialize_histo(tracker->srtt_buckets, __MAX_RTT_SIZE, srtt_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+    if (serialize_histo(tracker->rcv_rtt_buckets, __MAX_RTT_SIZE, rcv_rtt_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
 
     (void)fprintf(stdout,
         "|%s|%u|%s|%s|%s|%u|%u"
-        "|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|\n",
+        "|%s|%s|\n",
         TCP_TBL_RTT,
         tracker->id.tgid,
         (tracker->id.role == 0) ? "server" : "client",
@@ -142,12 +141,8 @@ static void output_tcp_rtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
         tracker->id.port,
         tracker->id.family,
 
-        srtt_p50,
-        srtt_p90,
-        srtt_p99,
-        rcv_rtt_p50,
-        rcv_rtt_p90,
-        rcv_rtt_p99);
+        srtt_historm,
+        rcv_rtt_historm);
     (void)fflush(stdout);
 }
 
@@ -173,21 +168,43 @@ static void output_tcp_txrx(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tra
 
 static void output_tcp_win(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
 {
-    HISTO_BUCKET_DECLARE(snd_cwnd);
-    HISTO_BUCKET_DECLARE(notsent_bytes);
-    HISTO_BUCKET_DECLARE(notack_bytes);
-    HISTO_BUCKET_DECLARE(reordering);
-    HISTO_BUCKET_DECLARE(snd_wnd);
-    HISTO_BUCKET_DECLARE(rcv_wnd);
-    HISTO_BUCKET_DECLARE(avl_snd_wnd);
+    char *snd_cwnd_historm = tcp_mng->historms[TCP_HISTORM_WIND_SND_CWND];
+    char *not_sent_historm = tcp_mng->historms[TCP_HISTORM_WIND_NOT_SENT];
+    char *not_acked_historm = tcp_mng->historms[TCP_HISTORM_WIND_ACKED];
+    char *reordering_historm = tcp_mng->historms[TCP_HISTORM_WIND_REORDERING];
+    char *snd_wind_historm = tcp_mng->historms[TCP_HISTORM_WIND_SND];
+    char *rcv_wind_historm = tcp_mng->historms[TCP_HISTORM_WIND_RCV];
+    char *avl_snd_wind_historm = tcp_mng->historms[TCP_HISTORM_WIND_AVL_SND];
 
-    HISTO_BUCKET_CALC(tracker->snd_cwnd_buckets, __MAX_WIND_SIZE, snd_cwnd);
-    HISTO_BUCKET_CALC(tracker->not_sent_buckets, __MAX_WIND_SIZE, notsent_bytes);
-    HISTO_BUCKET_CALC(tracker->not_acked_buckets, __MAX_WIND_SIZE, notack_bytes);
-    HISTO_BUCKET_CALC(tracker->reordering_buckets, __MAX_WIND_SIZE, reordering);
-    HISTO_BUCKET_CALC(tracker->snd_wnd_buckets, __MAX_WIND_SIZE, snd_wnd);
-    HISTO_BUCKET_CALC(tracker->rcv_wnd_buckets, __MAX_WIND_SIZE, rcv_wnd);
-    HISTO_BUCKET_CALC(tracker->avl_snd_wnd_buckets, __MAX_WIND_SIZE, avl_snd_wnd);
+    snd_cwnd_historm[0] = 0;
+    not_sent_historm[0] = 0;
+    not_acked_historm[0] = 0;
+    reordering_historm[0] = 0;
+    snd_wind_historm[0] = 0;
+    rcv_wind_historm[0] = 0;
+    avl_snd_wind_historm[0] = 0;
+
+    if (serialize_histo(tracker->snd_cwnd_buckets, __MAX_WIND_SIZE, snd_cwnd_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+    if (serialize_histo(tracker->not_sent_buckets, __MAX_WIND_SIZE, not_sent_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+    if (serialize_histo(tracker->not_acked_buckets, __MAX_WIND_SIZE, not_acked_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+    if (serialize_histo(tracker->reordering_buckets, __MAX_WIND_SIZE, reordering_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+    if (serialize_histo(tracker->snd_wnd_buckets, __MAX_WIND_SIZE, snd_wind_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+    if (serialize_histo(tracker->rcv_wnd_buckets, __MAX_WIND_SIZE, rcv_wind_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+    if (serialize_histo(tracker->avl_snd_wnd_buckets, __MAX_WIND_SIZE, avl_snd_wind_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
 
     if (tracker->stats[ZERO_WIN_RX] > 0) {
         tracker->zero_win_rx_ratio = (float)((float)tracker->stats[ZERO_WIN_RX] / (float)tracker->stats[BYTES_RECV]);
@@ -201,10 +218,10 @@ static void output_tcp_win(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
 
     (void)fprintf(stdout,
         "|%s|%u|%s|%s|%s|%u|%u"
-        "|%.0f|%.0f|%.0f|%.0f|%.0f|%.0f|"
-        "|%.0f|%.0f|%.0f|%.0f|%.0f|%.0f|"
-        "|%.0f|%.0f|%.0f|%.0f|%.0f|%.0f|"
-        "|%.0f|%.0f|%.0f|"
+        "|%s|%s|%s|%s|%s|%s|%s|"
+
+        "|%llu|%llu|"
+
         "|%.2f|%.2f|\n",
         TCP_TBL_WIN,
         tracker->id.tgid,
@@ -214,25 +231,39 @@ static void output_tcp_win(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
         tracker->id.port,
         tracker->id.family,
 
-        snd_cwnd_p50, snd_cwnd_p90, snd_cwnd_p99, notsent_bytes_p50, notsent_bytes_p90, notsent_bytes_p99,
-        notack_bytes_p50, notack_bytes_p90, notack_bytes_p99, reordering_p50, reordering_p90, reordering_p99,
-        snd_wnd_p50, snd_wnd_p90, snd_wnd_p99, rcv_wnd_p50, rcv_wnd_p90, rcv_wnd_p99,
-        avl_snd_wnd_p50, avl_snd_wnd_p90, avl_snd_wnd_p99,
+        snd_cwnd_historm,
+        not_sent_historm,
+        not_acked_historm,
+        reordering_historm,
+        snd_wind_historm,
+        rcv_wind_historm,
+        avl_snd_wind_historm,
+
+        tracker->stats[ZERO_WIN_RX],
+        tracker->stats[ZERO_WIN_TX],
+
         tracker->zero_win_rx_ratio, tracker->zero_win_tx_ratio);
     (void)fflush(stdout);
 }
 
 static void output_tcp_rate(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
 {
-    HISTO_BUCKET_DECLARE(rto);
-    HISTO_BUCKET_DECLARE(ato);
+    char *rto_historm = tcp_mng->historms[TCP_HISTORM_RTO];
+    char *ato_historm = tcp_mng->historms[TCP_HISTORM_ATO];
 
-    HISTO_BUCKET_CALC(tracker->rto_buckets, __MAX_RTO_SIZE, rto);
-    HISTO_BUCKET_CALC(tracker->ato_buckets, __MAX_RTO_SIZE, ato);
+    rto_historm[0] = 0;
+    ato_historm[0] = 0;
+
+    if (serialize_histo(tracker->rto_buckets, __MAX_RTO_SIZE, rto_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+    if (serialize_histo(tracker->ato_buckets, __MAX_RTO_SIZE, ato_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
 
     (void)fprintf(stdout,
         "|%s|%u|%s|%s|%s|%u|%u"
-        "|%.0f|%.0f|%.0f|%.0f|%.0f|%.0f|\n",
+        "|%s|%s|\n",
         TCP_TBL_RATE,
         tracker->id.tgid,
         (tracker->id.role == 0) ? "server" : "client",
@@ -241,21 +272,28 @@ static void output_tcp_rate(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tra
         tracker->id.port,
         tracker->id.family,
 
-        rto_p50, rto_p90, rto_p99, ato_p50, ato_p90, ato_p99);
+        rto_historm, ato_historm);
     (void)fflush(stdout);
 }
 
 static void output_tcp_sockbuf(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
 {
-    HISTO_BUCKET_DECLARE(rcv_buf);
-    HISTO_BUCKET_DECLARE(snd_buf);
+    char *rcv_buf_historm = tcp_mng->historms[TCP_HISTORM_SOCKBUF_RCV];
+    char *snd_buf_historm = tcp_mng->historms[TCP_HISTORM_SOCKBUF_SND];
 
-    HISTO_BUCKET_CALC(tracker->rcv_buf_buckets, __MAX_SOCKBUF_SIZE, rcv_buf);
-    HISTO_BUCKET_CALC(tracker->snd_buf_buckets, __MAX_SOCKBUF_SIZE, snd_buf);
+    rcv_buf_historm[0] = 0;
+    snd_buf_historm[0] = 0;
+
+    if (serialize_histo(tracker->rcv_buf_buckets, __MAX_SOCKBUF_SIZE, rcv_buf_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+    if (serialize_histo(tracker->snd_buf_buckets, __MAX_SOCKBUF_SIZE, snd_buf_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
 
     (void)fprintf(stdout,
         "|%s|%u|%s|%s|%s|%u|%u"
-        "|%.0f|%.0f|%.0f|%.0f|%.0f|%.0f|\n",
+        "|%s|%s|\n",
         TCP_TBL_SOCKBUF,
         tracker->id.tgid,
         (tracker->id.role == 0) ? "server" : "client",
@@ -264,21 +302,21 @@ static void output_tcp_sockbuf(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *
         tracker->id.port,
         tracker->id.family,
 
-        rcv_buf_p50, rcv_buf_p90, rcv_buf_p99, snd_buf_p50, snd_buf_p90, snd_buf_p99);
+        rcv_buf_historm, snd_buf_historm);
     (void)fflush(stdout);
 }
 
 static void output_tcp_flow_delay(struct tcp_mng_s *tcp_mng, struct tcp_flow_tracker_s *tracker)
 {
-    char send_delay_buf[MAX_HISTO_SERIALIZE_SIZE];
-    char recv_delay_buf[MAX_HISTO_SERIALIZE_SIZE];
+    char *send_delay_buf = tcp_mng->historms[TCP_HISTORM_DELAY_TX];
+    char *recv_delay_buf = tcp_mng->historms[TCP_HISTORM_DELAY_RX];
 
     send_delay_buf[0] = 0;
     recv_delay_buf[0] = 0;
-    if (serialize_histo(tracker->send_delay_buckets, __MAX_DELAY_SIZE, send_delay_buf, sizeof(send_delay_buf))) {
+    if (serialize_histo(tracker->send_delay_buckets, __MAX_DELAY_SIZE, send_delay_buf, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
-    if (serialize_histo(tracker->recv_delay_buckets, __MAX_DELAY_SIZE, recv_delay_buf, sizeof(recv_delay_buf))) {
+    if (serialize_histo(tracker->recv_delay_buckets, __MAX_DELAY_SIZE, recv_delay_buf, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
 
@@ -473,15 +511,15 @@ static void proc_tcp_rtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracke
 static void proc_tcp_srtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker, const struct tcp_srtt *data)
 {
     (void)histo_bucket_add_value(tracker->syn_srtt_buckets, __MAX_RTT_SIZE, data->syn_srtt);
-    tracker->stats[SYN_SRTT] = max(tracker->stats[SYN_SRTT], data->syn_srtt);
+    tracker->stats[SYN_SRTT_MAX] = max(tracker->stats[SYN_SRTT_MAX], data->syn_srtt);
     tracker->report_flags |= TCP_PROBE_SRTT;
     return;
 }
 
 static void proc_tcp_rate(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker, const struct tcp_rate *data)
 {
-    (void)histo_bucket_add_value(tracker->rto_buckets, __MAX_RTO_SIZE, data->tcpi_rto);
-    (void)histo_bucket_add_value(tracker->ato_buckets, __MAX_RTO_SIZE, data->tcpi_ato);
+    (void)histo_bucket_add_value(tracker->rto_buckets, __MAX_RTO_SIZE, data->tcpi_rto >> 3);
+    (void)histo_bucket_add_value(tracker->ato_buckets, __MAX_RTO_SIZE, data->tcpi_ato >> 3);
     tracker->report_flags |= TCP_PROBE_RATE;
     return;
 }
