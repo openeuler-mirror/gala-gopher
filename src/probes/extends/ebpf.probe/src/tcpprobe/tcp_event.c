@@ -194,14 +194,14 @@ void report_tcp_syn_rtt_evt(struct probe_params *args, struct tcp_tracker_s *tra
     build_event_label(tracker, &evt);
 
     latency_thr_us = args->latency_thr << 3; // milliseconds to microseconds
-    if ((latency_thr_us != 0) && (tracker->stats[SYN_SRTT] > latency_thr_us)) {
+    if ((latency_thr_us != 0) && (tracker->stats[SYN_SRTT_MAX] > latency_thr_us)) {
         build_entity_id(tracker, entityId, __ENTITY_ID_LEN);
-        evt.metrics = "syn_srtt";
+        evt.metrics = "syn_srtt_max";
 
         report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "TCP connection establish timed out(%llu us).",
-                    tracker->stats[SYN_SRTT]);
+                    tracker->stats[SYN_SRTT_MAX]);
     }
 }
 

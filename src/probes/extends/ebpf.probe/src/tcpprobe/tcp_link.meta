@@ -95,33 +95,13 @@ measurements:
             },
             {
                 description: "Smoothed Round Trip Time(us).",
-                type: "gauge",
-                name: "srtt_p50",
-            },
-            {
-                description: "Smoothed Round Trip Time(us).",
-                type: "gauge",
-                name: "srtt_p90",
-            },
-            {
-                description: "Smoothed Round Trip Time(us).",
-                type: "gauge",
-                name: "srtt_p99",
+                type: "histogram",
+                name: "srtt",
             },
             {
                 description: "Receive end RTT (unidirectional measurement).",
-                type: "gauge",
-                name: "rcv_rtt_p50",
-            },
-            {
-                description: "Receive end RTT (unidirectional measurement).",
-                type: "gauge",
-                name: "rcv_rtt_p90",
-            },
-            {
-                description: "Receive end RTT (unidirectional measurement).",
-                type: "gauge",
-                name: "rcv_rtt_p99",
+                type: "histogram",
+                name: "rcv_rtt",
             }
         )
     },
@@ -162,108 +142,48 @@ measurements:
             },
             {
                 description: "Congestion Control Window Size.",
-                type: "gauge",
-                name: "snd_cwnd_p50",
-            },
-            {
-                description: "Congestion Control Window Size.",
-                type: "gauge",
-                name: "snd_cwnd_p90",
-            },
-            {
-                description: "Congestion Control Window Size.",
-                type: "gauge",
-                name: "snd_cwnd_p99",
+                type: "histogram",
+                name: "snd_cwnd",
             },
             {
                 description: "Number of bytes not sent currently.",
-                type: "gauge",
-                name: "notsent_bytes_p50",
-            },
-            {
-                description: "Number of bytes not sent currently.",
-                type: "gauge",
-                name: "notsent_bytes_p90",
-            },
-            {
-                description: "Number of bytes not sent currently.",
-                type: "gauge",
-                name: "notsent_bytes_p99",
+                type: "histogram",
+                name: "notsent_bytes",
             },
             {
                 description: "Number of bytes not ack currently.",
-                type: "gauge",
-                name: "notack_bytes_p50",
-            },
-            {
-                description: "Number of bytes not ack currently.",
-                type: "gauge",
-                name: "notack_bytes_p90",
-            },
-            {
-                description: "Number of bytes not ack currently.",
-                type: "gauge",
-                name: "notack_bytes_p99",
+                type: "histogram",
+                name: "notack_bytes",
             },
             {
                 description: "Segments to be reordered.",
-                type: "gauge",
-                name: "reordering_p50",
-            },
-            {
-                description: "Segments to be reordered.",
-                type: "gauge",
-                name: "reordering_p90",
-            },
-            {
-                description: "Segments to be reordered.",
-                type: "gauge",
-                name: "reordering_p99",
+                type: "histogram",
+                name: "reordering",
             },
             {
                 description: "Size of TCP send window.",
-                type: "gauge",
-                name: "snd_wnd_p50",
-            },
-            {
-                description: "Size of TCP send window.",
-                type: "gauge",
-                name: "snd_wnd_p90",
-            },
-            {
-                description: "Size of TCP send window.",
-                type: "gauge",
-                name: "snd_wnd_p99",
+                type: "histogram",
+                name: "snd_wnd",
             },
             {
                 description: "Size of TCP receive window.",
-                type: "gauge",
-                name: "rcv_wnd_p50",
-            },
-            {
-                description: "Size of TCP receive window.",
-                type: "gauge",
-                name: "rcv_wnd_p90",
-            },
-            {
-                description: "Size of TCP receive window.",
-                type: "gauge",
-                name: "rcv_wnd_p99",
+                type: "histogram",
+                name: "rcv_wnd",
             },
             {
                 description: "TCP available send window.",
-                type: "gauge",
-                name: "avl_snd_wnd_p50",
+                type: "histogram",
+                name: "avl_snd_wnd",
             },
             {
-                description: "TCP available send window.",
+                description: "The number of receive window 0 windows.",
                 type: "gauge",
-                name: "avl_snd_wnd_p90",
+                name: "zero_rcv_wnd_count",
             },
             {
-                description: "TCP available send window.",
+                description: "The number of sending window 0 windows.",
                 type: "gauge",
-                name: "avl_snd_wnd_p99",
+                name: "zero_snd_wnd_count",
             },
             {
                 description: "TCP zero receive windows ratio",
@@ -314,33 +234,13 @@ measurements:
             },
             {
                 description: "Retransmission timeOut(us)",
-                type: "gauge",
-                name: "rto_p50",
-            },
-            {
-                description: "Retransmission timeOut(us)",
-                type: "gauge",
-                name: "rto_p90",
-            },
-            {
-                description: "Retransmission timeOut(us)",
-                type: "gauge",
-                name: "rto_p99",
+                type: "histogram",
+                name: "rto",
             },
             {
                 description: "Estimated value of delayed ACK(us)",
-                type: "gauge",
-                name: "ato_p50",
-            },
-            {
-                description: "Estimated value of delayed ACK(us)",
-                type: "gauge",
-                name: "ato_p90",
-            },
-            {
-                description: "Estimated value of delayed ACK(us)",
-                type: "gauge",
-                name: "ato_p99",
+                type: "histogram",
+                name: "ato",
             }
         )
     },
@@ -381,23 +281,13 @@ measurements:
             },
             {
                 description: "RTT of syn packet(us).",
-                type: "gauge",
-                name: "syn_srtt_p50",
-            },
-            {
-                description: "RTT of syn packet(us).",
-                type: "gauge",
-                name: "syn_srtt_p90",
-            },
-            {
-                description: "RTT of syn packet(us).",
-                type: "gauge",
-                name: "syn_srtt_p99",
-            },
-            {
-                description: "RTT of syn packet(us).",
-                type: "gauge",
+                type: "histogram",
                 name: "syn_srtt",
+            },
+            {
+                description: "RTT of syn packet(us).",
+                type: "gauge",
+                name: "syn_srtt_max",
             }
         )
     },
@@ -438,33 +328,13 @@ measurements:
             },
             {
                 description: "Byte length of the RX buffer.",
-                type: "gauge",
-                name: "sk_rcvbuf_p50",
-            },
-            {
-                description: "Byte length of the RX buffer.",
-                type: "gauge",
-                name: "sk_rcvbuf_p90",
-            },
-            {
-                description: "Byte length of the RX buffer.",
-                type: "gauge",
-                name: "sk_rcvbuf_p99",
+                type: "histogram",
+                name: "sk_rcvbuf",
             },
             {
                 description: "Byte length of the TX buffer.",
-                type: "gauge",
-                name: "sk_sndbuf_p50",
-            },
-            {
-                description: "Byte length of the TX buffer.",
-                type: "gauge",
-                name: "sk_sndbuf_p90",
-            },
-            {
-                description: "Byte length of the TX buffer.",
-                type: "gauge",
-                name: "sk_sndbuf_p99",
+                type: "histogram",
+                name: "sk_sndbuf",
             }
         )
     },

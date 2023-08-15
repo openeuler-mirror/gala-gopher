@@ -21,69 +21,53 @@
 #include "hash.h"
 
 enum wind_size_t {
-    WIND_SIZE_1 = 0,         // (0 ~ 10000]
-    WIND_SIZE_2,             // (10000 ~ 50000]
-    WIND_SIZE_3,             // (50000 ~ 150000]
-    WIND_SIZE_4,             // (150000 ~ 1000000]
-    WIND_SIZE_5,             // (1000000 ~ 5000000]
-    WIND_SIZE_6,             // (5000000 ~ 10000000]
-    WIND_SIZE_7,             // (10000000 ~ 100000000]
-    WIND_SIZE_8,             // (100000000 ~ 500000000]
-    WIND_SIZE_9,             // (500000000 ~ 1000000000]
-    WIND_SIZE_10,            // (1000000000 ~ 4294967295]
+    WIND_SIZE_1 = 0,         // (0 ~ 1000]
+    WIND_SIZE_2,             // (1000 ~ 5000]
+    WIND_SIZE_3,             // (5000 ~ 10000]
+    WIND_SIZE_4,             // (10000 ~ 20000]
+    WIND_SIZE_5,             // (20000 ~ 65535]
     __MAX_WIND_SIZE
 };
 
 enum sockbuf_size_t {
-    SOCKBUF_SIZE_1 = 0,         // (0 ~ 10000]
-    SOCKBUF_SIZE_2,             // (10000 ~ 50000]
-    SOCKBUF_SIZE_3,             // (50000 ~ 150000]
-    SOCKBUF_SIZE_4,             // (150000 ~ 1000000]
-    SOCKBUF_SIZE_5,             // (1000000 ~ 5000000]
-    SOCKBUF_SIZE_6,             // (5000000 ~ 10000000]
-    SOCKBUF_SIZE_7,             // (10000000 ~ 100000000]
-    SOCKBUF_SIZE_8,             // (100000000 ~ 500000000]
-    SOCKBUF_SIZE_9,             // (500000000 ~ 1000000000]
-    SOCKBUF_SIZE_10,            // (1000000000 ~ 4294967295]
+    SOCKBUF_SIZE_1 = 0,         // (0 ~ 131072]
+    SOCKBUF_SIZE_2,             // (131072 ~ 262144]
+    SOCKBUF_SIZE_3,             // (262144 ~ 524288]
+    SOCKBUF_SIZE_4,             // (524288 ~ 1048576]
+    SOCKBUF_SIZE_5,             // (1048576 ~ 2097152]
+    SOCKBUF_SIZE_6,             // (2097152 ~ 4194304]
+    SOCKBUF_SIZE_7,             // (4194304 ~ 8388608]
+    SOCKBUF_SIZE_8,             // (8388608 ~ 16777216]
     __MAX_SOCKBUF_SIZE
 };
 
+// unit: millisecond
 enum rtt_size_t {
-    RTT_SIZE_1 = 0,         // (0 ~ 500]
-    RTT_SIZE_2,             // (500 ~ 1000]
-    RTT_SIZE_3,             // (1000 ~ 5000]
-    RTT_SIZE_4,             // (5000 ~ 10000]
-    RTT_SIZE_5,             // (10000 ~ 20000]
-    RTT_SIZE_6,             // (20000 ~ 50000]
-    RTT_SIZE_7,             // (50000 ~ 100000]
-    RTT_SIZE_8,             // (100000 ~ 200000]
-    RTT_SIZE_9,             // (200000 ~ 500000]
-    RTT_SIZE_10,            // (500000 ~ 1000000]
+    RTT_SIZE_1 = 0,         // (0 ~ 50]
+    RTT_SIZE_2,             // (50 ~ 100]
+    RTT_SIZE_3,             // (100 ~ 200]
+    RTT_SIZE_4,             // (200 ~ 500]
+    RTT_SIZE_5,             // (500 ~ 1000]
     __MAX_RTT_SIZE
 };
 
+// unit: millisecond
 enum rto_size_t {
-    RTO_SIZE_1 = 0,         // (0 ~ 500]
-    RTO_SIZE_2,             // (500 ~ 1000]
-    RTO_SIZE_3,             // (1000 ~ 5000]
-    RTO_SIZE_4,             // (5000 ~ 10000]
-    RTO_SIZE_5,             // (10000 ~ 20000]
-    RTO_SIZE_6,             // (20000 ~ 50000]
-    RTO_SIZE_7,             // (50000 ~ 100000]
-    RTO_SIZE_8,             // (100000 ~ 200000]
-    RTO_SIZE_9,             // (200000 ~ 500000]
-    RTO_SIZE_10,            // (500000 ~ 1000000]
+    RTO_SIZE_1 = 0,         // (0 ~ 1000]
+    RTO_SIZE_2,             // (1000 ~ 10000]
+    RTO_SIZE_3,             // (10000 ~ 20000]
+    RTO_SIZE_4,             // (20000 ~ 40000]
+    RTO_SIZE_5,             // (40000 ~ 80000]
     __MAX_RTO_SIZE
 };
 
+// unit: millisecond
 enum delay_size_t {
     DELAY_SIZE_1 = 0,       // (0, 1]
     DELAY_SIZE_2,           // (1, 10]
     DELAY_SIZE_3,           // (10, 100]
     DELAY_SIZE_4,           // (100, 1000]
     DELAY_SIZE_5,           // (1000, 10000]
-    DELAY_SIZE_6,           // (10000, 100000]
-    DELAY_SIZE_7,           // (100000, 1000000]
     __MAX_DELAY_SIZE
 };
 
@@ -108,7 +92,7 @@ enum tcp_stats_t {
     SEND_RSTS,
     RECEIVE_RSTS,
 
-    SYN_SRTT,
+    SYN_SRTT_MAX,
 
     ZERO_WIN_TX,
     ZERO_WIN_RX,
@@ -132,6 +116,31 @@ struct tcp_tracker_id_s {
     u32 role;     // role: client:1/server:0
 };
 
+enum tcp_historm_e {
+    TCP_HISTORM_WIND_SND = 0,
+    TCP_HISTORM_WIND_RCV,
+    TCP_HISTORM_WIND_AVL_SND,
+    TCP_HISTORM_WIND_SND_CWND,
+    TCP_HISTORM_WIND_NOT_SENT,
+    TCP_HISTORM_WIND_ACKED,
+    TCP_HISTORM_WIND_REORDERING,
+
+    TCP_HISTORM_SOCKBUF_SND,
+    TCP_HISTORM_SOCKBUF_RCV,
+
+    TCP_HISTORM_RTT_SRTT,
+    TCP_HISTORM_RTT_RCV_RTT,
+    TCP_HISTORM_RTT_SYN_SRTT,
+
+    TCP_HISTORM_RTO,
+    TCP_HISTORM_ATO,
+
+    TCP_HISTORM_DELAY_TX,
+    TCP_HISTORM_DELAY_RX,
+
+    TCP_HISTORM_MAX
+};
+
 struct tcp_tracker_s {
     H_HANDLE;
     struct tcp_tracker_id_s id;
@@ -140,14 +149,14 @@ struct tcp_tracker_s {
     char *dst_ip;
     time_t last_report;
     time_t last_rcv_data;
-    struct histo_bucket_s snd_wnd_buckets[__MAX_WIND_SIZE];
-    struct histo_bucket_s rcv_wnd_buckets[__MAX_WIND_SIZE];
-    struct histo_bucket_s avl_snd_wnd_buckets[__MAX_WIND_SIZE];
     struct histo_bucket_s snd_cwnd_buckets[__MAX_WIND_SIZE];
-
     struct histo_bucket_s not_sent_buckets[__MAX_WIND_SIZE];
     struct histo_bucket_s not_acked_buckets[__MAX_WIND_SIZE];
     struct histo_bucket_s reordering_buckets[__MAX_WIND_SIZE];
+
+    struct histo_bucket_s snd_wnd_buckets[__MAX_WIND_SIZE];
+    struct histo_bucket_s rcv_wnd_buckets[__MAX_WIND_SIZE];
+    struct histo_bucket_s avl_snd_wnd_buckets[__MAX_WIND_SIZE];
 
     struct histo_bucket_s srtt_buckets[__MAX_RTT_SIZE];
     struct histo_bucket_s rcv_rtt_buckets[__MAX_RTT_SIZE];
@@ -156,8 +165,8 @@ struct tcp_tracker_s {
     struct histo_bucket_s rto_buckets[__MAX_RTO_SIZE];
     struct histo_bucket_s ato_buckets[__MAX_RTO_SIZE];
 
-    struct histo_bucket_s snd_buf_buckets[__MAX_SOCKBUF_SIZE];
     struct histo_bucket_s rcv_buf_buckets[__MAX_SOCKBUF_SIZE];
+    struct histo_bucket_s snd_buf_buckets[__MAX_SOCKBUF_SIZE];
 
     u64 stats[__MAX_STATS];
     
@@ -191,6 +200,8 @@ struct tcp_mng_s {
     struct bpf_prog_s *tcp_progs;
     struct tcp_tracker_s *trackers;
     struct tcp_flow_tracker_s *flow_trackers;
+
+    char *historms[TCP_HISTORM_MAX];
 };
 
 struct tcp_tracker_s* get_tcp_tracker(struct tcp_mng_s *tcp_mng, const void *link);
