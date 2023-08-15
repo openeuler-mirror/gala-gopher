@@ -329,7 +329,7 @@ static struct blk_cache_s *lkup_blk_cache(struct blk_cache_s *caches, int major,
     return cache;
 }
 
-static struct blk_cache_s *add_blk_cache(struct blk_cache_s *caches, int major, int minor)
+static struct blk_cache_s *add_blk_cache(struct blk_cache_s **caches, int major, int minor)
 {
     char dev_name[DISK_NAME_LEN];
     char disk_name[DISK_NAME_LEN];
@@ -341,6 +341,7 @@ static struct blk_cache_s *add_blk_cache(struct blk_cache_s *caches, int major, 
     memset(new_cache, 0, sizeof(struct blk_cache_s));
     new_cache->id.major = major;
     new_cache->id.minor = minor;
+    new_cache->last_cached = time(NULL);
 
     dev_name[0] = 0;
     disk_name[0] = 0;
@@ -354,7 +355,7 @@ static struct blk_cache_s *add_blk_cache(struct blk_cache_s *caches, int major, 
         new_cache->disk_name = strdup((const char *)disk_name);
     }
 
-    H_ADD_KEYPTR(caches, &new_cache->id, sizeof(struct blk_id_s), new_cache);
+    H_ADD_KEYPTR(*caches, &new_cache->id, sizeof(struct blk_id_s), new_cache);
 
     return new_cache;
 }
@@ -372,7 +373,7 @@ static struct blk_cache_s *get_blk_cache(struct blk_tbl_s *tbl, int major, int m
         return NULL;
     }
 
-    struct blk_cache_s *new_cache = add_blk_cache(tbl->blk_caches, major, minor);
+    struct blk_cache_s *new_cache = add_blk_cache(&(tbl->blk_caches), major, minor);
     if (new_cache == NULL) {
         return NULL;
     }
