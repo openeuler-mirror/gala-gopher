@@ -81,7 +81,7 @@ static int FilterLogEvent(void)
     char line[LEN_LINE];
     char cmd[LEN_CMD] = {0};
     
-    int lineNum = GetFileLineNum(LOG_MESSAGES);
+    int lineNum = GetFileLineNum();
     if (lineNum < 1) {
        return -1;
     }
