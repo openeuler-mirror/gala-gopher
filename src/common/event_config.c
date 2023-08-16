@@ -20,6 +20,7 @@
 #include <libconfig.h>
 #include "event_config.h"
 
+#if 0
 #define EVT_MULTY_LANG_RES_FILE_PATH    "/etc/gala-gopher/res/event_multy_language.rc"
 
 static void event_config_destroy(eventConfig *evt);
@@ -240,3 +241,4 @@ int get_event_field(EventsConfig *conf, const char *entity, const char *metric, 
 
     return 0;
 }
+#endif

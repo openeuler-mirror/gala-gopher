@@ -21,7 +21,7 @@
 #include <stdarg.h>
 #include "common.h"
 #include "container.h"
-#include "event_config.h"
+// #include "event_config.h"
 #include "event.h"
 #ifdef NATIVE_PROBE_FPRINTF
 #include "nprobe_fprintf.h"
@@ -29,8 +29,8 @@
 
 static struct evt_ts_hash_t *g_evt_head = NULL;
 static unsigned int g_evt_period = 600;
-static EventsConfig *g_evt_conf;
-static char g_lang_type[MAX_EVT_GRP_NAME_LEN] = "zh_CN";
+// static EventsConfig *g_evt_conf;
+// static char g_lang_type[MAX_EVT_GRP_NAME_LEN] = "zh_CN";
 
 static void hash_clear_older_evt(time_t cur_time);
 static unsigned int hash_count_evt(void);
@@ -49,6 +49,7 @@ static void __get_local_time(char *buf, int buf_len, time_t *cur_time)
     *cur_time = rawtime;
 }
 
+#if 0
 static void __replace_desc_fmt(const char* entityName, const char* metrics, const char *fmt, char *new_fmt)
 {
     if (new_fmt == NULL) {
@@ -71,6 +72,7 @@ static void __replace_desc_fmt(const char* entityName, const char* metrics, cons
     }
     return;
 }
+#endif
 
 #define __SEC_TXT_LEN  32
 struct evt_sec_s {
@@ -112,11 +114,11 @@ void report_logs(const struct event_info_s* evt, enum evt_sec_e sec, const char 
     p = body + strlen(body);
     len = __EVT_BODY_LEN - strlen(body);
 
-    char fmt2[MAX_EVT_BODY_LEN];
-    fmt2[0] = 0;
+    //char fmt2[MAX_EVT_BODY_LEN];
+    //fmt2[0] = 0;
     va_start(args, fmt);
-    __replace_desc_fmt(evt->entityName, evt->metrics, fmt, fmt2);
-    (void)vsnprintf(p, len, fmt2, args);
+    //__replace_desc_fmt(evt->entityName, evt->metrics, fmt, fmt2);
+    (void)vsnprintf(p, len, fmt, args);
     va_end(args);
 
     pid_str[0] = 0;
@@ -263,9 +265,12 @@ static int is_evt_need_report(const char *entityId, time_t cur_time)
 
 void init_event_mgr(unsigned int time_out, char *lang_type)
 {
+#if 0
     g_evt_period = time_out;
     g_lang_type[0] = 0;
     if (lang_type != NULL && strlen(lang_type) > 0) {
         (void)snprintf(g_lang_type, sizeof(g_lang_type), "%s", lang_type);
     }
+#endif
+    return;
 }
