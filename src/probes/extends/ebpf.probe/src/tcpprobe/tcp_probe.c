@@ -51,6 +51,14 @@
 #define TCP_TBL_TXRX    "tcp_tx_rx"
 #define TCP_TBL_DELAY   "proc_flow_perf"
 
+static int is_load_probe(struct tcp_mng_s *tcp_mng, u32 probe_load_flag)
+{
+    if (tcp_mng->ipc_body.probe_range_flags & probe_load_flag) {
+        return 1;
+    }
+    return 0;
+}
+
 static void output_tcp_abn(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
 {
     float retrans_ratio = 0.0;
@@ -371,7 +379,7 @@ static int output_tcp_metrics(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *t
     int need_reset = 0;
     u32 flags = tracker->report_flags & TCP_PROBE_ALL;
 
-    if (flags & TCP_PROBE_ABN) {
+    if ((flags & TCP_PROBE_ABN) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_ABNORMAL)) {
         need_reset = 1;
         output_tcp_abn(tcp_mng, tracker);
     }
@@ -381,27 +389,27 @@ static int output_tcp_metrics(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *t
         output_tcp_syn_rtt(tcp_mng, tracker);
     }
 
-    if (flags & TCP_PROBE_WINDOWS) {
+    if ((flags & TCP_PROBE_WINDOWS) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_WINDOWS)) {
         need_reset = 1;
         output_tcp_win(tcp_mng, tracker);
     }
 
-    if (flags & TCP_PROBE_RTT) {
+    if ((flags & TCP_PROBE_RTT) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_RTT)) {
         need_reset = 1;
         output_tcp_rtt(tcp_mng, tracker);
     }
 
-    if (flags & TCP_PROBE_TXRX) {
+    if ((flags & TCP_PROBE_TXRX) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_STATS)) {
         need_reset = 1;
         output_tcp_txrx(tcp_mng, tracker);
     }
 
-    if (flags & TCP_PROBE_SOCKBUF) {
+    if ((flags & TCP_PROBE_SOCKBUF) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_SOCKBUF)) {
         need_reset = 1;
         output_tcp_sockbuf(tcp_mng, tracker);
     }
 
-    if (flags & TCP_PROBE_RATE) {
+    if ((flags & TCP_PROBE_RATE) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_RATE)) {
         need_reset = 1;
         output_tcp_rate(tcp_mng, tracker);
     }
@@ -418,7 +426,7 @@ static int output_tcp_flow_metrics(struct tcp_mng_s *tcp_mng, struct tcp_flow_tr
     int need_reset = 0;
     u32 flags = tracker->report_flags & TCP_PROBE_ALL;
 
-    if (flags & TCP_PROBE_DELAY) {
+    if ((flags & TCP_PROBE_DELAY) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_DELAY)) {
         need_reset = 1;
         output_tcp_flow_delay(tcp_mng, tracker);
     }
