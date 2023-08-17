@@ -356,7 +356,7 @@ static int KafkaMgrInit(ResourceMgr *resourceMgr)
         resourceMgr->metric_kafkaMgr = kafkaMgr;
         INFO("[RESOURCE] create kafkaMgr of metric success.\n");
     } else {
-        INFO("[RESOURCE] metric out_channel isn't kafka, ship create kafkaMgr.\n");
+        INFO("[RESOURCE] metric out_channel isn't kafka, skip create kafkaMgr.\n");
     }
     /* init meta_kafka */
     kafkaMgr = NULL;
@@ -372,7 +372,7 @@ static int KafkaMgrInit(ResourceMgr *resourceMgr)
         }
         INFO("[RESOURCE] create kafkaMgr of meta success.\n");
     } else {
-        INFO("[RESOURCE] meta out_channel isn't kafka, ship create kafkaMgr.\n");
+        INFO("[RESOURCE] meta out_channel isn't kafka, skip create kafkaMgr.\n");
     }
     /* init event_kafka */
     kafkaMgr = NULL;
@@ -385,7 +385,7 @@ static int KafkaMgrInit(ResourceMgr *resourceMgr)
         resourceMgr->event_kafkaMgr = kafkaMgr;
         INFO("[RESOURCE] create kafkaMgr of event success.\n");
     } else {
-        INFO("[RESOURCE] event out_channel isn't kafka, ship create kafkaMgr.\n");
+        INFO("[RESOURCE] event out_channel isn't kafka, skip create kafkaMgr.\n");
     }
 
     return 0;

@@ -32,7 +32,7 @@ int ReadMetricsLogs(char logs_file_name[])
 
 void RemoveMetricsLogs(char logs_file_name[])
 {
-    return rm_log_file(logs_file_name);
+    rm_log_file(logs_file_name);
 }
 
 static int WriteMetricsLogs(IMDB_DataBaseMgr *imdbMgr)

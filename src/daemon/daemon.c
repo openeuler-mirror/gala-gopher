@@ -254,7 +254,7 @@ int DaemonRun(ResourceMgr *mgr)
     // 1. start ingress thread
     ret = pthread_create(&mgr->ingressMgr->tid, NULL, DaemonRunIngress, mgr->ingressMgr);
     if (ret != 0) {
-        ERROR("[DAEMON] create ingress thread failed. errno: %d\n", errno);
+        ERROR("[DAEMON] create ingress thread failed.(errno:%d, %s)\n", errno, strerror(errno));
         return -1;
     }
     INFO("[DAEMON] create ingress thread success.\n");
@@ -262,7 +262,7 @@ int DaemonRun(ResourceMgr *mgr)
     // 2. start egress thread
     ret = pthread_create(&mgr->egressMgr->tid, NULL, DaemonRunEgress, mgr->egressMgr);
     if (ret != 0) {
-        ERROR("[DAEMON] create egress thread failed. errno: %d\n", errno);
+        ERROR("[DAEMON] create egress thread failed.(errno:%d, %s)\n", errno, strerror(errno));
         return -1;
     }
     INFO("[DAEMON] create egress thread success.\n");
@@ -271,7 +271,7 @@ int DaemonRun(ResourceMgr *mgr)
         // 3. start web_server thread
         ret = WebServerStartDaemon(mgr->webServer);
         if (ret != 0) {
-            ERROR("[DAEMON] create web_server daemon failed. errno: %d\n", errno);
+            ERROR("[DAEMON] create web_server daemon failed.(errno:%d, %s)\n", errno, strerror(errno));
             return -1;
         }
         INFO("[DAEMON] create web_server daemon success.\n");
@@ -280,7 +280,7 @@ int DaemonRun(ResourceMgr *mgr)
     // 4. start metadata_report thread
     ret = pthread_create(&mgr->mmMgr->tid, NULL, DaemonRunMetadataReport, mgr->mmMgr);
     if (ret != 0) {
-        ERROR("[DAEMON] create metadata_report thread failed. errno: %d\n", ret);
+        ERROR("[DAEMON] create metadata_report thread failed.(errno:%d, %s)\n", errno, strerror(errno));
         return -1;
     }
     INFO("[DAEMON] create metadata_report thread success.\n");
@@ -330,7 +330,7 @@ int DaemonRun(ResourceMgr *mgr)
     // 6. start probe manager thread
     ret = pthread_create(&mgr->probe_mng->tid, NULL, DaemonRunProbeMng, mgr->probe_mng);
     if (ret != 0) {
-        ERROR("[DAEMON] create probe_mng thread failed. errno: %d\n", errno);
+        ERROR("[DAEMON] create probe_mng thread failed.(errno:%d, %s)\n", errno, strerror(errno));
         return -1;
     }
     INFO("[DAEMON] create probe_mng thread success.\n");
@@ -338,7 +338,7 @@ int DaemonRun(ResourceMgr *mgr)
     // 7. start write metricsLogs thread
     ret = pthread_create(&mgr->imdbMgr->metrics_tid, NULL, DaemonRunMetricsWriteLogs, mgr->imdbMgr);
     if (ret != 0) {
-        ERROR("[DAEMON] create metrics_write_logs thread failed. errno: %d\n", errno);
+        ERROR("[DAEMON] create metrics_write_logs thread failed.(errno:%d, %s)\n", errno, strerror(errno));
         return -1;
     }
     INFO("[DAEMON] create metrics_write_logs thread success.\n");
@@ -346,7 +346,7 @@ int DaemonRun(ResourceMgr *mgr)
     // 8. start CmdServer thread
     ret = pthread_create(&mgr->ctl_tid, NULL, CmdServer, NULL);
     if (ret != 0) {
-        ERROR("[DAEMON] create cmd_server thread failed. errno: %d\n", errno);
+        ERROR("[DAEMON] create cmd_server thread failed.(errno:%d, %s)\n", errno, strerror(errno));
         return -1;
     }
     INFO("[DAEMON] create cmd_server thread success.\n");
@@ -364,7 +364,7 @@ int DaemonRun(ResourceMgr *mgr)
     // 10. start rest_api_server thread
     ret = RestServerStartDaemon(mgr->restServer);
     if (ret != 0) {
-        ERROR("[DAEMON] create rest api server daemon failed: %s\n", strerror(errno));
+        ERROR("[DAEMON] create rest api server daemon failed.(errno:%d, %s)\n", errno, strerror(errno));;
         return -1;
     }
     INFO("[DAEMON] create rest api server daemon success.\n");
