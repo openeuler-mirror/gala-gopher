@@ -42,6 +42,36 @@ struct {
 } snooper_proc_channel SEC(".maps");
 
 #if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
+KRAWTRACE(sched_process_fork, bpf_raw_tracepoint_args)
+{
+    struct snooper_proc_evt_s event = {0};
+    struct task_struct *child = (struct task_struct *)ctx->args[1];
+
+    event.pid = _(child->pid);
+    event.proc_event = PROC_EXEC;
+    bpf_probe_read_str(event.filename, sizeof(child->comm), child->comm);
+
+    bpf_perf_event_output(ctx, &snooper_proc_channel, BPF_F_ALL_CPU,
+                          &event, sizeof(event));
+    return 0;
+}
+#else
+SEC("tracepoint/sched/sched_process_fork")
+int bpf_trace_sched_process_fork_func(struct trace_event_raw_sched_process_fork *ctx)
+{
+    struct snooper_proc_evt_s event = {0};
+
+    event.pid = ctx->child_pid;
+    event.proc_event = PROC_EXEC;
+    __builtin_memcpy(event.filename, ctx->child_comm, sizeof(ctx->child_comm));
+
+    bpf_perf_event_output(ctx, &snooper_proc_channel, BPF_F_ALL_CPU,
+                          &event, sizeof(event));
+    return 0;
+}
+#endif
+
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(sched_process_exec, bpf_raw_tracepoint_args)
 {
     struct snooper_proc_evt_s event = {0};
