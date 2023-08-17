@@ -1514,7 +1514,7 @@ static int add_pids()
             if (add_bpf_link(pid) != 0) {
                 ERROR("[STACKPROBE]: add pid %u failed\n", pid);
             } else {
-                INFO("[STACKPROBE]: add of pid %u success\n", pid);
+                DEBUG("[STACKPROBE]: add of pid %u success\n", pid);
             }
         }
     }
@@ -1530,7 +1530,7 @@ static void clear_invalid_pids()
     }
     H_ITER(bpf_link_head, pid_bpf_links, tmp) {
         if (pid_bpf_links->v.pid_state == PID_NOEXIST) {
-            INFO("[STACKPROBE]: clear bpf link of pid %u\n", pid_bpf_links->pid);
+            DEBUG("[STACKPROBE]: clear bpf link of pid %u\n", pid_bpf_links->pid);
             H_DEL(bpf_link_head, pid_bpf_links);
             (void)free(pid_bpf_links);
         }
@@ -1566,7 +1566,7 @@ static void unload_bpf_progs(struct svg_stack_trace_s *svg_st)
             }
             H_DEL(bpf_link_head, pid_bpf_links);
             (void)free(pid_bpf_links);
-            INFO("[STACKPROBE]: detach mem bpf to pid %u success\n", pid_bpf_links->pid);
+            DEBUG("[STACKPROBE]: detach mem bpf to pid %u success\n", pid_bpf_links->pid);
         }
     }
 }
@@ -1615,7 +1615,7 @@ static void *__uprobe_attach_check(void *arg)
                 if (err == 0) {
                     pid_bpf_links->v.pid_state = PID_ELF_ATTACHED;
                     pid_bpf_links->v.bpf_link_num = i;
-                    INFO("[STACKPROBE]: attach mem bpf to pid %u success\n", pid_bpf_links->pid);
+                    DEBUG("[STACKPROBE]: attach mem bpf to pid %u success\n", pid_bpf_links->pid);
                 } else {
                     pid_bpf_links->v.bpf_links[i] = NULL;
                     for (i--; i >= 0; i--) {
@@ -1716,7 +1716,7 @@ static void record_running_ctx(struct stack_trace_s *st)
         "KERN_OK", "USER_OK", "KERN_USER", "P_CACHE", "SYMB_CACHE"};
     const int offset[STACK_STATS_MAX] = {-8, -8, -10, -12, -10, -12, -12, -10, -10, -14, -9, -9, -11, -9, 12};
 
-    printf("\n========================================================================================\n");
+    DEBUG("\n========================================================================================\n");
 
     buf[0] = 0;
     pos = buf;
@@ -1728,7 +1728,7 @@ static void record_running_ctx(struct stack_trace_s *st)
     }
     (void)snprintf(pos, len, "%*s\n", offset[i], col[i]);
 
-    printf(buf);
+    DEBUG(buf);
 
     buf[0] = 0;
     pos = buf;
@@ -1739,7 +1739,7 @@ static void record_running_ctx(struct stack_trace_s *st)
         pos += ret;
     }
     (void)snprintf(pos, len, "%*llu\n", offset[i], st->stats.count[i]);
-    printf(buf);
+    DEBUG(buf);
 #endif
     return;
 }
@@ -1796,7 +1796,7 @@ int  __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng, struct stack_trace_his
                 post_info->buf = post_info->buf_start + written;
                 post_info->remain_size += POST_MAX_STEP_SIZE;
                 g_post_max = new_post_max;
-                INFO("[STACKPROBE]: post memory realloc to %d\n", g_post_max);
+                DEBUG("[STACKPROBE]: post memory realloc to %d\n", g_post_max);
                 (void)__snprintf(&post_info->buf, post_info->remain_size, &post_info->remain_size, "%s", __histo_tmp_str);
             }
         }
@@ -1901,7 +1901,7 @@ static void load_jstack_agent()
         ret = java_load(pid, (void *)&attach_args);
         if (ret == 0) {
             add_java_proc_histo_item(pid);
-            INFO("[STACKPROBE]: Attach to proc %d succeed\n", pid);
+            DEBUG("[STACKPROBE]: Attach to proc %d succeed\n", pid);
         }
     }
 }
@@ -2045,7 +2045,7 @@ static void load_jvm_agent()
 
         ret = java_load(pid, (void *)&attach_args);
         if (ret == 0) {
-            INFO("[STACKPROBE]: Attach to proc %d succeed\n", pid);
+            DEBUG("[STACKPROBE]: Attach to proc %d succeed\n", pid);
         }
     }
 }
