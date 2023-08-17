@@ -61,6 +61,7 @@ static __always_inline int add_tcp_link(struct sock *sk, struct sock_info_s *inf
             (void)bpf_probe_read(&link.s_ip6, IP6_LEN, &sk->sk_v6_daddr);
         }
         link.s_port = bpf_ntohs(_(sk->sk_dport));
+        link.c_port = _(sk->sk_num);
     } else {
         if (link.family == AF_INET) {
             link.s_ip = _(sk->sk_rcv_saddr);
@@ -70,9 +71,10 @@ static __always_inline int add_tcp_link(struct sock *sk, struct sock_info_s *inf
             (void)bpf_probe_read(&link.c_ip6, IP6_LEN, &sk->sk_v6_daddr);
         }
         link.s_port = _(sk->sk_num);
+        link.c_port = bpf_ntohs(_(sk->sk_dport));
     }
 
-    link.role = info->role;
+    link.role = (u16)info->role;
     link.tgid = tgid;
     (void)bpf_get_current_comm(&link.comm, sizeof(link.comm));
     return create_tcp_link(sk, &link, info->syn_srtt);

@@ -186,8 +186,9 @@ struct tcp_link_s {
         unsigned char s_ip6[IP6_LEN];
     };
     __u16 s_port;   // server port
+    __u16 c_port;   // client port
     __u16 family;
-    __u32 role;     // role: client:1/server:0
+    __u16 role;     // role: client:1/server:0
     char comm[TASK_COMM_LEN];
 };
 

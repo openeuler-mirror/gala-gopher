@@ -117,6 +117,7 @@ struct probe_params {
     char continuous_sampling_flag;     //  Enables the continuous sampling, default is 0
     char multi_instance_flag;            //  Enables output of individual flame graphs for each process, default is 0
     char native_stack_flag;            //  Enables output of native language call stack (only for java process), default is 0
+    char cluster_ip_backend;           // [-n <>] Indicates whether transform cluster IP address to backend, default is 0 (no transform)
     char target_dev[DEV_NAME];         //  Device name, default is null
     char elf_path[MAX_PATH_LEN];       //  Set ELF file path of the monitored software, default is null
 #if 0

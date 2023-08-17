@@ -383,6 +383,20 @@ static int parser_native_stack(struct probe_s *probe, struct param_key_s *param_
     return 0;
 }
 
+static int parser_cluster_ip_backend_flag(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
+{
+    int value = (int)key_item->valueint;
+    if (value < param_key->v.min || value > param_key->v.max) {
+        PARSE_ERR("params.%s invalid value, must be in [%d, %d]",
+                  param_key->key, param_key->v.min, param_key->v.max);
+        return -1;
+    }
+
+    probe->probe_param.cluster_ip_backend = (char)value;
+    return 0;
+}
+
+
 #if 0
 static int parser_sysdebuging_dir(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
 {
@@ -505,6 +519,7 @@ SET_DEFAULT_PARAMS_CAHR(res_percent_lower);
 SET_DEFAULT_PARAMS_CAHR(continuous_sampling_flag);
 SET_DEFAULT_PARAMS_CAHR(multi_instance_flag);
 SET_DEFAULT_PARAMS_CAHR(native_stack_flag);
+SET_DEFAULT_PARAMS_CAHR(cluster_ip_backend);
 
 #if 0
 SET_DEFAULT_PARAMS_STR(sys_debuging_dir);
@@ -531,6 +546,7 @@ struct param_key_s param_keys[] = {
     {"perf_sample_period", {10, 10, 1000, ""},                      parser_perf_sample_period, set_default_params_inter_perf_sample_period, cJSON_Number},
     {"multi_instance",       {0, 0, 1, ""},                           parser_multi_instance, set_default_params_char_multi_instance_flag, cJSON_Number},
     {"native_stack",       {0, 0, 1, ""},                           parser_native_stack, set_default_params_char_native_stack_flag, cJSON_Number},
+    {"cluster_ip_backend", {0, 0, 1, ""},                           parser_cluster_ip_backend_flag, set_default_params_char_cluster_ip_backend, cJSON_Number},
     {"svg_dir",            {0, 0, 0, "/var/log/gala-gopher/stacktrace"}, parser_svg_dir, set_default_params_str_svg_dir, cJSON_String},
     {"flame_dir",          {0, 0, 0, "/var/log/gala-gopher/flamegraph"}, parser_flame_dir, set_default_params_str_flame_dir, cJSON_String},
 #if 0
