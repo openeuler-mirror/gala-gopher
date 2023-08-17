@@ -56,7 +56,7 @@ Requires:      ethtool systemd iproute
 Requires:      systemd
 %endif
 %if !0%{?without_tcp}
-Requires:      iproute
+Requires:      iproute conntrack-tools
 %endif
 %if !0%{?without_proc}
 Requires:      kmod
@@ -77,7 +77,7 @@ Requires:      iproute
 Requires:      iproute
 %endif
 %if !0%{?without_l7}
-Requires:      cjson
+Requires:      cjson conntrack-tools
 %endif
 %if !0%{?without_tprofiling}
 Requires:      lsof

@@ -128,6 +128,7 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 | support_ssl        | 支持SSL加密协议观测                                    | 0, [0, 1]                                                    |         | l7                       | Y                   |
 | multi_instance | 是否每个进程输出独立火焰图 | 0, [0, 1] |  | flamegraph | Y |
 | native_stack | 是否显示本地语言堆栈(针对JAVA进程) | 0, [0, 1] | | flamegraph | Y |
+| cluster_ip_backend | 执行Cluster IP backend转换 | 0, [0, 1] | | tcp，l7 | Y |
 | pyroscope_server   | 设置火焰图UI服务端地址                                 | localhost:4040                                               |         | flamegraph               | Y                   |
 | svg_period | 火焰图svg文件生成周期 | 180, [30, 600] | s | flamegraph | Y |
 | perf_sample_period | oncpu火焰图采集堆栈信息的周期 | 10, [10, 1000] | ms | flamegraph | Y |
