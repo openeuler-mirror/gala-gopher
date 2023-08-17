@@ -152,7 +152,7 @@ static size_t __write_memory_cb(void *contents, size_t size, size_t nmemb, void 
     char *ptr = realloc(mem->memory, mem->size + realsize + 1);
     if(!ptr) {
         /* out of memory! */
-        printf("not enough memory (realloc returned NULL)\n");
+        ERROR("[FLAMEGRAPH]:not enough memory (realloc returned NULL)\n");
         return 0;
     }
     
@@ -250,7 +250,7 @@ void curl_post(struct post_server_s *post_server, struct post_info_s *post_info,
     if(res != CURLE_OK) {
         ERROR("[FLAMEGRAPH]: curl post to %s failed: %s\n", url, curl_easy_strerror(res));
     } else {
-        INFO("[FLAMEGRAPH]: curl post post to %s success\n", url);
+        DEBUG("[FLAMEGRAPH]: curl post post to %s success\n", url);
     }
 
     if (chunk.memory) {

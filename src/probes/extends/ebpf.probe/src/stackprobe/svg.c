@@ -71,7 +71,7 @@ static void __rm_svg(const char *svg_file)
     if (fp != NULL) {
         (void)pclose(fp);
         fp = NULL;
-        INFO("[SVG]: Delete svg file(%s)\n", svg_file);
+        DEBUG("[SVG]: Delete svg file(%s)\n", svg_file);
     }
 }
 
@@ -100,7 +100,7 @@ static int __new_svg(const char *flame_graph, const char *svg_file, int en_type)
     if (fp != NULL) {
         (void)pclose(fp);
         fp = NULL;
-        INFO("[SVG]: Create svg file(%s)\n", svg_file);
+        DEBUG("[SVG]: Create svg file(%s)\n", svg_file);
         return 0;
     }
 

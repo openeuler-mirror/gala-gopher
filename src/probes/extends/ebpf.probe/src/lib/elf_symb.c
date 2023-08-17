@@ -486,7 +486,7 @@ struct elf_symbo_s* get_symb_from_file(const char* elf, enum sym_file_t sym_file
 
     H_ADD_I(__head, i_inode, new_item);
     if (sym_file_type == JAVA_SYM) {
-        INFO("[ELF_SYMBOL]: Succeed to init JVM symbs %s(symbs_count = %u).\n", new_item->elf, new_item->symbs_count);
+        DEBUG("[ELF_SYMBOL]: Succeed to init JVM symbs %s(symbs_count = %u).\n", new_item->elf, new_item->symbs_count);
     }
 
     return new_item;
