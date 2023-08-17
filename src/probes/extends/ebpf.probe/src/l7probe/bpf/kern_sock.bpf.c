@@ -104,7 +104,7 @@ static __always_inline __maybe_unused void get_remote_sockaddr(struct conn_info_
 #if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
 static __always_inline __maybe_unused void get_sockaddr(struct conn_info_s* conn_info, enum l4_role_t l4_role, const struct socket* socket)
 {
-    u16 family, server_port;
+    u16 family, server_port, client_port;
 
     family = BPF_CORE_READ(socket, sk, __sk_common.skc_family);
 
@@ -114,11 +114,15 @@ static __always_inline __maybe_unused void get_sockaddr(struct conn_info_s* conn
     if (l4_role == L4_CLIENT) {
         server_port = BPF_CORE_READ(socket, sk, __sk_common.skc_dport);
         server_port = bpf_ntohs(server_port);
+        client_port = BPF_CORE_READ(socket, sk, __sk_common.skc_num);
     } else {
         server_port = BPF_CORE_READ(socket, sk, __sk_common.skc_num);
+        client_port = BPF_CORE_READ(socket, sk, __sk_common.skc_dport);
+        client_port = bpf_ntohs(client_port);
     }
 
     conn_info->server_addr.port = server_port;
+    conn_info->client_addr.port = client_port;
 
     if (l4_role == L4_CLIENT) {
         if (family == AF_INET) {
@@ -142,7 +146,7 @@ static __always_inline __maybe_unused void get_sockaddr(struct conn_info_s* conn
 #else
 static __always_inline __maybe_unused void get_sockaddr(struct conn_info_s* conn_info, enum l4_role_t l4_role, const struct socket* socket)
 {
-    u16 family, server_port;
+    u16 family, server_port, client_port;
 
     struct sock* sk = NULL;
     sk = _(socket->sk);
@@ -153,11 +157,14 @@ static __always_inline __maybe_unused void get_sockaddr(struct conn_info_s* conn
 
     if (l4_role == L4_CLIENT) {
         server_port = bpf_ntohs(_(sk->sk_dport));
+        client_port = _(sk->sk_num);
     } else {
         server_port = _(sk->sk_num);
+        client_port = bpf_ntohs(_(sk->sk_dport));
     }
 
     conn_info->server_addr.port = server_port;
+    conn_info->client_addr.port = client_port;
 
     if (l4_role == L4_CLIENT) {
         if (family == AF_INET) {
