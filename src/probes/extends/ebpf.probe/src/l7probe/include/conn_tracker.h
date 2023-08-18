@@ -76,16 +76,13 @@ struct tracker_close_s {
 
 
 enum latency_range_t {
-    LT_RANGE_1 = 0,         // (0 ~ 1]ms
-    LT_RANGE_2,             // (1 ~ 3]ms
-    LT_RANGE_3,             // (3 ~ 10]ms
-    LT_RANGE_4,             // (10 ~ 20]ms
-    LT_RANGE_5,             // (20 ~ 50]ms
-    LT_RANGE_6,             // (50 ~ 100]ms
-    LT_RANGE_7,             // (100 ~ 300]ms
-    LT_RANGE_8,             // (300 ~ 500]ms
-    LT_RANGE_9,             // (500 ~ 1000]ms
-    LT_RANGE_10,            // (1000 ~ 10000]ms
+    LT_RANGE_1 = 0,         // (0 ~ 3]ms
+    LT_RANGE_2,             // (3 ~ 10]ms
+    LT_RANGE_3,             // (10 ~ 50]ms
+    LT_RANGE_4,             // (50 ~ 100]ms
+    LT_RANGE_5,             // (100 ~ 500]ms
+    LT_RANGE_6,             // (500 ~ 1000]ms
+    LT_RANGE_7,            // (1000 ~ 10000]ms
 
     __MAX_LT_RANGE
 };
@@ -121,14 +118,6 @@ struct conn_tracker_s {
     enum tracker_state_t tacker_state;
     struct tracker_open_s open_info;
     struct tracker_close_s close_info;
-    u64 stats[__MAX_STATS];
-
-    struct histo_bucket_s latency_buckets[__MAX_LT_RANGE];
-    u64 latency_sum;
-
-    float throughput[__MAX_THROUGHPUT];
-    float latency[__MAX_LATENCY];
-    float err_ratio;
 
     struct data_stream_s send_stream;
     struct data_stream_s recv_stream;

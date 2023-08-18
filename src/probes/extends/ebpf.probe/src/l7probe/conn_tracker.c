@@ -30,6 +30,7 @@
 #include "bpf.h"
 #include "container.h"
 #include "histogram.h"
+#include "conntrack.h"
 #include "include/conn_tracker.h"
 #include "include/connect.h"
 #include "protocol/expose/protocol_parser.h"
@@ -46,16 +47,13 @@ struct latency_histo_s {
 };
 
 struct latency_histo_s latency_histios[__MAX_LT_RANGE] = {
-    {LT_RANGE_1, 0, 1},
-    {LT_RANGE_2, 1, 3},
-    {LT_RANGE_3, 3, 10},
-    {LT_RANGE_4, 10, 20},
-    {LT_RANGE_5, 20, 50},
-    {LT_RANGE_6, 50, 100},
-    {LT_RANGE_7, 100, 300},
-    {LT_RANGE_8, 300, 500},
-    {LT_RANGE_9, 500, 1000},
-    {LT_RANGE_10, 1000, 10000}
+    {LT_RANGE_1, 0, 3},
+    {LT_RANGE_2, 3, 10},
+    {LT_RANGE_3, 10, 50},
+    {LT_RANGE_4, 50, 100},
+    {LT_RANGE_5, 100, 500},
+    {LT_RANGE_6, 500, 1000},
+    {LT_RANGE_7, 1000, 10000}
 };
 
 const char *proto_name[PROTO_MAX] = {
@@ -131,7 +129,6 @@ static struct conn_tracker_s* create_conn_tracker(const struct tracker_id_s *id)
 
     tracker->l4_role = L4_ROLE_MAX; // init
 
-    init_latency_buckets(tracker->latency_buckets, __MAX_LT_RANGE);
     return tracker;
 }
 
@@ -158,25 +155,6 @@ static struct conn_tracker_s* add_conn_tracker(struct l7_mng_s *l7_mng, const st
     H_ADD_KEYPTR(l7_mng->trackers, &new_tracker->id, sizeof(struct tracker_id_s), new_tracker);
     return new_tracker;
 }
-
-#if 0
-static struct conn_tracker_s* find_conn_tracker(struct l7_mng_s *l7_mng, const struct l7_link_id_s *l7_link_id)
-{
-    struct conn_tracker_s *tracker, *tmp;
-
-    H_ITER(l7_mng->trackers, tracker, tmp) {
-        if ((tracker->id.tgid == l7_link_id->tgid)
-            && (tracker->l4_role == l7_link_id->l4_role)
-            && (tracker->l7_role == l7_link_id->l7_role)
-            && (tracker->protocol == l7_link_id->protocol)
-            && (memcmp(&(l7_link_id->remote_addr), &(tracker->open_info.remote_addr), sizeof(struct conn_addr_s)) == 0)) {
-            return tracker;
-        }
-    }
-
-    return NULL;
-}
-#endif
 
 static struct frame_buf_s* get_req_frames(struct conn_tracker_s* tracker)
 {
@@ -329,6 +307,49 @@ static struct l7_link_s* find_l7_link(struct l7_mng_s *l7_mng, const struct conn
 #endif
 
 #if 1
+
+static void transform_cluster_ip(struct l7_mng_s *l7_mng, struct conn_tracker_s* tracker)
+{
+    int transform = 0;
+
+    if (l7_mng->ipc_body.probe_param.cluster_ip_backend == 0) {
+        return;
+    }
+
+    // Only transform Kubernetes cluster IP backend for the client TCP connection.
+    if (tracker->l4_role != L4_CLIENT) {
+        return;
+    }
+
+    struct tcp_connect_s connect;
+
+    connect.role = (tracker->l4_role == L4_CLIENT) ? 1 : 0;
+    connect.family = tracker->open_info.client_addr.family;
+
+    if (connect.family == AF_INET) {
+        connect.cip_addr.c_ip = tracker->open_info.client_addr.ip;
+        connect.sip_addr.s_ip = tracker->open_info.server_addr.ip;
+    } else {
+        memcpy(&(connect.cip_addr), tracker->open_info.client_addr.ip6, IP6_LEN);
+        memcpy(&(connect.sip_addr), tracker->open_info.server_addr.ip6, IP6_LEN);
+    }
+    connect.c_port = tracker->open_info.client_addr.port;
+    connect.s_port = tracker->open_info.server_addr.port;
+
+    (void)get_cluster_ip_backend(&connect, &transform);
+    if (!transform) {
+        return;
+    }
+
+    if (connect.family == AF_INET) {
+        tracker->open_info.server_addr.ip = connect.sip_addr.s_ip;
+    } else {
+        memcpy(tracker->open_info.server_addr.ip6, &(connect.sip_addr), IP6_LEN);
+    }
+    tracker->open_info.server_addr.port = connect.s_port;
+    return;
+}
+
 static int proc_conn_ctl_msg(struct l7_mng_s *l7_mng, struct conn_ctl_s *conn_ctl_msg)
 {
     struct conn_tracker_s* tracker;
@@ -360,6 +381,12 @@ static int proc_conn_ctl_msg(struct l7_mng_s *l7_mng, struct conn_ctl_s *conn_ct
                             &(conn_ctl_msg->open.server_addr), sizeof(struct conn_addr_s));
                     (void)memcpy(&(tracker->open_info.client_addr),
                             &(conn_ctl_msg->open.client_addr), sizeof(struct conn_addr_s));
+
+                    // Transform K8S cluster IP to backend IP.
+                    transform_cluster_ip(l7_mng, tracker);
+
+                    // Client port just used for cluster IP address translation. Here, client port MUST set 0.
+                    tracker->open_info.client_addr.port = 0;
                 }
             }
             break;
@@ -396,21 +423,18 @@ static int proc_conn_stats_msg(struct l7_mng_s *l7_mng, struct conn_stats_s *con
         return -1;
     }
 
-    tracker->stats[BYTES_SENT] += conn_stats_msg->wr_bytes;
-    tracker->stats[BYTES_RECV] += conn_stats_msg->rd_bytes;
-
-    tracker->stats[LAST_BYTES_SENT] = conn_stats_msg->wr_bytes;
-    tracker->stats[LAST_BYTES_RECV] = conn_stats_msg->rd_bytes;
-
     link = find_l7_link(l7_mng, (const struct conn_tracker_s *)tracker);
-    if (link) {
-        link->stats[BYTES_SENT] += conn_stats_msg->wr_bytes;
-        link->stats[BYTES_RECV] += conn_stats_msg->rd_bytes;
-
-        link->stats[LAST_BYTES_SENT] = conn_stats_msg->wr_bytes;
-        link->stats[LAST_BYTES_RECV] = conn_stats_msg->rd_bytes;
-        link->last_rcv_data = time(NULL);
+    if (link == NULL) {
+        ERROR("[L7Probe]: Conn link[%d:%d] is not found when proc stats msg.\n", tracker_id.tgid, tracker_id.fd);
+        return -1;
     }
+
+    link->stats[BYTES_SENT] += conn_stats_msg->wr_bytes;
+    link->stats[BYTES_RECV] += conn_stats_msg->rd_bytes;
+
+    link->stats[LAST_BYTES_SENT] = conn_stats_msg->wr_bytes;
+    link->stats[LAST_BYTES_RECV] = conn_stats_msg->rd_bytes;
+    link->last_rcv_data = time(NULL);
 
     return 0;
 }
@@ -477,28 +501,21 @@ static void add_tracker_stats(struct l7_mng_s *l7_mng, struct conn_tracker_s* tr
 {
     int ret;
     struct l7_link_s* link;
-    tracker->stats[REQ_COUNT] += tracker->records.req_count;
-    tracker->stats[RSP_COUNT] += tracker->records.resp_count;
-    tracker->stats[ERR_COUNT] += tracker->records.err_count;
 
     link = find_l7_link(l7_mng, (const struct conn_tracker_s *)tracker);
-    if (link) {
-        link->stats[REQ_COUNT] += tracker->records.req_count;
-        link->stats[RSP_COUNT] += tracker->records.resp_count;
-        link->stats[ERR_COUNT] += tracker->records.err_count;
+    if (link == NULL) {
+        return;
     }
+
+    link->stats[REQ_COUNT] += tracker->records.req_count;
+    link->stats[RSP_COUNT] += tracker->records.resp_count;
+    link->stats[ERR_COUNT] += tracker->records.err_count;
 
     for (int i = 0; i < tracker->records.record_buf_size && i < RECORD_BUF_SIZE; i++) {
         if (tracker->records.records[i]) {
-            tracker->latency_sum += tracker->records.records[i]->latency;
-            ret = histo_bucket_add_value(tracker->latency_buckets,
+            link->latency_sum += tracker->records.records[i]->latency;
+            ret = histo_bucket_add_value(link->latency_buckets,
                             __MAX_LT_RANGE, tracker->records.records[i]->latency);
-            if (link) {
-                link->latency_sum += tracker->records.records[i]->latency;
-                ret = histo_bucket_add_value(link->latency_buckets,
-                                __MAX_LT_RANGE, tracker->records.records[i]->latency);
-            }
-
             if (ret) {
                 // TODO: debuging
             }
@@ -538,18 +555,6 @@ static void l7_parser_tracker(struct l7_mng_s *l7_mng, struct conn_tracker_s* tr
 
 #if 1
 
-static void reset_tracker_stats(struct conn_tracker_s* tracker)
-{
-    histo_bucket_reset(tracker->latency_buckets, __MAX_LT_RANGE);
-    tracker->latency_sum = 0;
-    tracker->err_ratio = 0.0;
-
-    memset(&(tracker->stats), 0, sizeof(u64) * __MAX_STATS);
-    memset(&(tracker->throughput), 0, sizeof(float) * __MAX_THROUGHPUT);
-    memset(&(tracker->latency), 0, sizeof(float) * __MAX_LATENCY);
-    return;
-}
-
 static void reset_link_stats(struct l7_link_s *link)
 {
     histo_bucket_reset(link->latency_buckets, __MAX_LT_RANGE);
@@ -565,12 +570,8 @@ static void reset_link_stats(struct l7_link_s *link)
 
 static void reset_l7_stats(struct l7_mng_s *l7_mng)
 {
-    struct conn_tracker_s *tracker, *tmp_tracker;
     struct l7_link_s *link, *tmp;
 
-    H_ITER(l7_mng->trackers, tracker, tmp_tracker) {
-        reset_tracker_stats(tracker);
-    }
     H_ITER(l7_mng->l7_links, link, tmp) {
         reset_link_stats(link);
     }
@@ -615,18 +616,6 @@ static void aging_l7_stats(struct l7_mng_s *l7_mng)
     }
 }
 
-static void calc_tracker_stats(struct conn_tracker_s* tracker, struct probe_params *probe_param)
-{
-    tracker->err_ratio = (float)((float)tracker->stats[ERR_COUNT] / (float)tracker->stats[REQ_COUNT]);
-
-    tracker->throughput[THROUGHPUT_REQ] = (float)((float)tracker->stats[REQ_COUNT] / (float)probe_param->period);
-    tracker->throughput[THROUGHPUT_RESP] = (float)((float)tracker->stats[REQ_COUNT] / (float)probe_param->period);
-
-    (void)histo_bucket_value(tracker->latency_buckets, __MAX_LT_RANGE, HISTO_P50, &(tracker->latency[LATENCY_P50]));
-    (void)histo_bucket_value(tracker->latency_buckets, __MAX_LT_RANGE, HISTO_P90, &(tracker->latency[LATENCY_P90]));
-    (void)histo_bucket_value(tracker->latency_buckets, __MAX_LT_RANGE, HISTO_P99, &(tracker->latency[LATENCY_P99]));
-}
-
 static void calc_link_stats(struct l7_link_s *link, struct probe_params *probe_param)
 {
     link->err_ratio = (float)((float)link->stats[ERR_COUNT] / (float)link->stats[REQ_COUNT]);
@@ -634,21 +623,13 @@ static void calc_link_stats(struct l7_link_s *link, struct probe_params *probe_p
     link->throughput[THROUGHPUT_REQ] = (float)((float)link->stats[REQ_COUNT] / (float)probe_param->period);
     link->throughput[THROUGHPUT_RESP] = (float)((float)link->stats[REQ_COUNT] / (float)probe_param->period);
 
-    (void)histo_bucket_value(link->latency_buckets, __MAX_LT_RANGE, HISTO_P50, &(link->latency[LATENCY_P50]));
-    (void)histo_bucket_value(link->latency_buckets, __MAX_LT_RANGE, HISTO_P90, &(link->latency[LATENCY_P90]));
-    (void)histo_bucket_value(link->latency_buckets, __MAX_LT_RANGE, HISTO_P99, &(link->latency[LATENCY_P99]));
-
     return;
 }
 
 static void calc_l7_stats(struct l7_mng_s *l7_mng)
 {
-    struct conn_tracker_s *tracker, *tmp_tracker;
     struct l7_link_s *link, *tmp;
 
-    H_ITER(l7_mng->trackers, tracker, tmp_tracker) {
-        calc_tracker_stats(tracker, &(l7_mng->ipc_body.probe_param));
-    }
     H_ITER(l7_mng->l7_links, link, tmp) {
         calc_link_stats(link, &(l7_mng->ipc_body.probe_param));
     }
@@ -661,7 +642,7 @@ static void reprot_l7_link(struct l7_link_s *link)
 {
     (void)fprintf(stdout, "|%s|%u|%s|%s|%u"
         "|%s|%s|%s|%s"
-        "|%llu|%llu|\n",
+        "|%llu|%llu|%llu|%llu|\n",
 
         L7_TBL_LINK,
         link->id.tgid,
@@ -675,14 +656,25 @@ static void reprot_l7_link(struct l7_link_s *link)
         link->l7_info.is_ssl ? "ssl" : "no_ssl",
 
         link->stats[BYTES_SENT],
-        link->stats[BYTES_RECV]);
+        link->stats[BYTES_RECV],
+        link->stats[DATA_EVT_SENT],
+        link->stats[DATA_EVT_RECV]);
 }
 
 static void reprot_l7_rpc(struct l7_link_s *link)
 {
+    char latency_historm[MAX_HISTO_SERIALIZE_SIZE];
+
+    latency_historm[0] = 0;
+    if (serialize_histo(link->latency_buckets, __MAX_LT_RANGE, latency_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+
     (void)fprintf(stdout, "|%s|%u|%s|%s|%u"
         "|%s|%s|%s|%s"
-        "|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|\n",
+        "|%.2f|%.2f|%llu|%llu"
+        "|%.2f|%s|%llu"
+        "|%.2f|%llu|\n",
 
         L7_TBL_RPC,
         link->id.tgid,
@@ -697,11 +689,15 @@ static void reprot_l7_rpc(struct l7_link_s *link)
 
         link->throughput[THROUGHPUT_REQ],
         link->throughput[THROUGHPUT_RESP],
+        link->stats[REQ_COUNT],
+        link->stats[RSP_COUNT],
+
         (float)((float)link->latency_sum / (float)link->stats[REQ_COUNT]),
-        link->latency[LATENCY_P50],
-        link->latency[LATENCY_P90],
-        link->latency[LATENCY_P99],
-        link->err_ratio);
+        latency_historm,
+        link->latency_sum,
+
+        link->err_ratio,
+        link->stats[ERR_COUNT]);
 }
 
 static void report_l7_stats(struct l7_mng_s *l7_mng)
