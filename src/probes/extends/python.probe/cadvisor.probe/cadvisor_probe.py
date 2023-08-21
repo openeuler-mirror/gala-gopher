@@ -253,7 +253,7 @@ class CadvisorProbe(Probe):
         container_id = ""
         for sub_str in re.finditer(PATTERN, metric_str):
             container_id = sub_str.group(0)
-        if len(container_id) - 1 != CONTAINER_NAME_LEN:
+        if len(container_id) - 1 < CONTAINER_ABBR_ID_LEN:
             return ""
         return container_id[1:CONTAINER_ABBR_ID_LEN + 1]
     
@@ -262,7 +262,7 @@ class CadvisorProbe(Probe):
         Convert origin metric to the following format:
         before: 
             container_cpu_load_average_10s{id="/docker",image="redis",name="musing_archimedes"} 0 1658113125812
-        after: g_metric['container_cpu'][hashed_metric_str] = {
+        after: g_metric['container_cpu'][container_id] = {
             'id': '/docker',
             'image': 'redis',
             'name': 'musing_archimedes',
@@ -277,6 +277,9 @@ class CadvisorProbe(Probe):
                 delimiter = self.find_2nd_index(line, "_")
                 table_name = line[:delimiter]
                 if table_name not in g_meta:
+                    continue
+                metric_name = line[line.index("_") + 1:line.index("{")]
+                if metric_name not in g_meta[table_name]:
                     continue
                 if table_name not in g_metric:
                     g_metric[table_name] = dict()
@@ -296,23 +299,21 @@ class CadvisorProbe(Probe):
                 if container_id == "" or (not self.filter_container(container_id)):
                     continue
 
-                hashed_metric_str = frozenset(metric_str.items())
-                if hashed_metric_str not in g_metric[table_name]:
-                    g_metric[table_name][hashed_metric_str] = metric_str
-                    g_metric[table_name][hashed_metric_str]['container_id'] = container_id
+                if container_id not in g_metric[table_name]:
+                    g_metric[table_name][container_id] = dict()
+                    g_metric[table_name][container_id]['container_id'] = container_id
 
-                metric_name = line[line.index("_") + 1:line.index("{")]
                 value_start_index = line.rfind("}") + 1
                 value_end_index = value_start_index + self.find_2nd_index(line[value_start_index:], " ")
                 value = line[value_start_index:value_end_index]
                 try:
-                    if metric_name in g_meta[table_name] and g_meta[table_name][metric_name] == COUNTER:
-                        if metric_name in g_metric[table_name][hashed_metric_str]:
-                            g_metric[table_name][hashed_metric_str][metric_name][1] = float(value)
+                    if g_meta[table_name][metric_name] == COUNTER:
+                        if metric_name in g_metric[table_name][container_id]:
+                            g_metric[table_name][container_id][metric_name][1] = float(value)
                         else:
-                            g_metric[table_name][hashed_metric_str][metric_name] = [0, float(value)]
+                            g_metric[table_name][container_id][metric_name] = [0, float(value)]
                     else:
-                        g_metric[table_name][hashed_metric_str][metric_name] = value
+                        g_metric[table_name][container_id][metric_name] = value
                 except KeyError:
                     # main will catch the exception
                     raise
@@ -419,10 +420,10 @@ if __name__ == "__main__":
                     container_list.append(container_id)
                 basic_probe.set_container_list(container_list)
                 cadvisor_probe.set_container_list(container_list)
-
+                reset_g_metric()
+                basic_probe.get_basic_infos()
             ipc.destroy_ipc_body(ipc_body)
-        reset_g_metric()
-        basic_probe.get_basic_infos()
+
         if cadvisor_running_flag:
             try:
                 cadvisor_probe.get_metrics(s, cadvisor_port)
