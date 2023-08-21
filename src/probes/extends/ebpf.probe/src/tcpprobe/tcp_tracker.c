@@ -211,8 +211,8 @@ static void __transform_cluster_ip(struct tcp_mng_s *tcp_mng, const struct tcp_l
     ip1[0] = 0;
     (void)inet_ntop(tcp_link->family, (const void *)&(tcp_link->s_ip), ip1, IP6_LEN);
     ip2[0] = 0;
-    (void)inet_ntop(connect->family, (const void *)&(connect->sip_addr), ip2, IP6_LEN);
-    DEBUG("[TCPPROBE]: Cluster IP[%s:%u->%s:%u] transform successfully.\n", ip1, tcp_link->s_port, ip2, connect->s_port);
+    (void)inet_ntop(connect.family, (const void *)&(connect.sip_addr), ip2, IP6_LEN);
+    DEBUG("[TCPPROBE]: Cluster IP[%s:%u->%s:%u] transform successfully.\n", ip1, tcp_link->s_port, ip2, connect.s_port);
 #endif
 
     backend_ip->family = tcp_link->family;
