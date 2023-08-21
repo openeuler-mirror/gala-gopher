@@ -7,7 +7,7 @@ TOOLS_DIR=${PRJ_DIR}/tools
 SRC_DIR=${PRJ_DIR}/src
 VMLINUX_DIR=${SRC_DIR}/include
 LINUX_VER="${VMLINUX_VER:-$(uname -r)}"
-DEP_LIST=(elfutils-devel libbpf libbpf-devel clang llvm)
+DEP_LIST=(elfutils-devel libbpf libbpf-devel llvm)
 # tailor probes
 export EBPF_TAILOR_PROBES=$(for probe in ${EXTEND_PROBES//|/ } ; do printf "./%s/ " $probe; done)
 
@@ -45,6 +45,12 @@ function check_dep()
             exit 1
         fi
     done
+
+    rpm -q clang --quiet || rpm -q clang12 --quiet
+    if [ $? -ne 0 ];then
+            echo "Error: clang and clang12 not installed"
+            exit 1
+    fi
 
     V=`clang --version | grep version | awk -F ' ' '{print $3}' | awk -F . '{print $1}'`
     if [ "$V" -lt 10 ];then

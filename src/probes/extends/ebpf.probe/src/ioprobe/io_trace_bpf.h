@@ -153,7 +153,9 @@ static __always_inline void blk_fill_rwbs(char *rwbs, unsigned int op)
 {
     switch (op & REQ_OP_MASK) {
     case REQ_OP_WRITE:
+#if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(5, 18, 0))
     case REQ_OP_WRITE_SAME:
+#endif
         rwbs[0] = 'W';
         break;
     case REQ_OP_DISCARD:

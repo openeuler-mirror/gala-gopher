@@ -9662,10 +9662,6 @@ enum rseq_cs_flags_bit {
 	RSEQ_CS_FLAG_NO_RESTART_ON_MIGRATE_BIT = 2,
 };
 
-enum {
-	TASK_COMM_LEN = 16,
-};
-
 enum rseq_event_mask_bits {
 	RSEQ_EVENT_PREEMPT_BIT = 0,
 	RSEQ_EVENT_SIGNAL_BIT = 1,
