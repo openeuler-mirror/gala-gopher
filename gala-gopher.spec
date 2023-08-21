@@ -32,7 +32,7 @@ License:       Mulan PSL v2
 URL:           https://gitee.com/openeuler/gala-gopher
 Source:        %{name}-%{version}.tar.gz
 BuildRoot:     %{_builddir}/%{name}-%{version}
-BuildRequires: systemd cmake gcc-c++ elfutils-devel clang >= 10.0.1 llvm
+BuildRequires: systemd cmake gcc-c++ elfutils-devel (clang >= 10.0.1 or clang12) llvm
 BuildRequires: libconfig-devel librdkafka-devel libmicrohttpd-devel
 BuildRequires: libbpf-devel >= 2:0.3 uthash-devel log4cplus-devel
 BuildRequires: cjson-devel gnutls-devel
@@ -97,6 +97,7 @@ EXTEND_PROBES="%{extend_tailor_probes}"
 EOF
 
 pushd build
+export PATH=$PATH:/usr/lib64/llvm12/bin
 sh build.sh --release %{vmlinux_ver}
 popd
 
