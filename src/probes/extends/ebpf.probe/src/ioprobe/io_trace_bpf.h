@@ -263,7 +263,14 @@ static __always_inline struct io_trace_s* get_io_trace(struct request* req)
         return NULL;
     }
 
+
+#if (CURRENT_KERNEL_VERSION <= KERNEL_VERSION(5, 16, 0))
     disk = _(req->rq_disk);
+#else
+    struct request_queue *q = _(req->q);
+    disk = _(q->disk);
+#endif
+
     if (disk == NULL) {
         return NULL;
     }

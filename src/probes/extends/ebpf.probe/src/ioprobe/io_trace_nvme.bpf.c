@@ -25,12 +25,10 @@ char g_linsence[] SEC("license") = "GPL";
 KRAWTRACE(nvme_setup_cmd, bpf_raw_tracepoint_args)
 {
     struct io_trace_s *io_trace = NULL;
-    struct scsi_cmnd *sc = (struct scsi_cmnd *)ctx->args[0];
-    if (sc == NULL) {
+    struct request *req = (struct request *)ctx->args[0];
+    if (req == NULL) {
         return 0;
     }
-
-    struct request* req = _(sc->request);
 
     io_trace = get_io_trace(req);
     if (io_trace == NULL) {

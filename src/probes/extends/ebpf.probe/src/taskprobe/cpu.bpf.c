@@ -39,8 +39,11 @@ static __always_inline void store_start(struct task_struct* prev, int pid, u32 c
     if (data == NULL) {
         return;
     }
-
+#if (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(5, 14, 0))
+    unsigned int state = _(prev->__state);
+#else
     long int state = _(prev->state);
+#endif
     if (state != TASK_RUNNING) {
         return;
     }
