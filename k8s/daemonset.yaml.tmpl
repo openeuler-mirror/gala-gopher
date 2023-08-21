@@ -34,6 +34,7 @@ spec:
         - name: sys
           mountPath: /sys
           readOnly: false
+        - name: localtime
           mountPath: /etc/localtime
           readOnly: true
         - name: debugdir
@@ -65,8 +66,12 @@ spec:
           value: ""
         - name: GOPHER_PROBES_INIT
           value: |
-              baseinfo {"cmd":{"probe":["cpu","mem","nic","net","disk","fs","proc","host"]},"snoopers":{"proc_name":[{"comm":"^java$","cmdline":""}]},"params":{"report_event":1},"state":"running"}
-              tcp {"cmd":{"probe":["tcp_abnormal","tcp_rtt","tcp_windows"]},"snoopers":{"proc_name":[{"comm":"^java$","cmdline":""}]},"params":{"report_event":1},"state":"running"}
+            baseinfo {"cmd":{"probe":["cpu","mem","nic","net","disk","fs","proc","host"]},"snoopers":{"proc_name":[{"comm":"^java$","cmdline":""}]},"params":{"report_event":1,"report_period":60},"state":"running"}
+            tcp {"cmd":{"probe":["tcp_abnormal","tcp_rtt","tcp_windows","tcp_srtt","tcp_rate","tcp_stats","tcp_delay"]},"snoopers":{"proc_name":[{"comm":"^java$","cmdline":""}]},"params":{"report_event":1,"report_period":60},"state":"running"}
+            io {"cmd":{"probe":["io_trace","io_err","io_count","page_cache"]},"params":{"report_event":1,"report_period":30},"state":"running"}
+            socket {"cmd":{"probe":["tcp_socket","udp_socket"]},"snoopers":{"proc_name":[{"comm":"java$","cmdline":""}]},"params":{"report_period":30},"state":"running"}
+            proc {"cmd":{"probe":["base_metrics","proc_syscall","proc_fs","proc_io","proc_dns","proc_pagecache"]},"snoopers":{"proc_name":[{"comm":"^java$","cmdline":""}]},"params":{"report_period":30},"state":"running"}
+            jvm {"cmd":{},"snoopers":{"proc_name":[{"comm":"^java$","cmdline":""}]},"params":{"report_period":30},"state":"running"}'
       hostNetwork: true
       hostPID: true
       dnsPolicy: ClusterFirstWithHostNet
