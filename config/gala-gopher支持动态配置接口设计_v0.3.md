@@ -87,9 +87,9 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 | nginx         | Nginx L4/L7层会话观测能力             | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/nginx_probe       |                           |
 | haproxy       | Haproxy L4/7层会话观测能力            | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/trace_haproxy     |                           |
 | kafka         | kafka 生产者/消费者topic观测能力      | NA                                                           | dev, port                                | $gala-gopher-dir/kafkaprobe        |                           |
-| baseinfo      | 系统基础信息                          | cpu, mem, nic, disk, net, fs, proc,host                      | NA                                       | system_infos                       | NA                        |
+| baseinfo      | 系统基础信息                          | cpu, mem, nic, disk, net, fs, proc,host                      | proc_id, proc_name, pod_id, container_id | system_infos                       | NA                        |
 | virt          | 虚拟化管理信息                        | NA                                                           | NA                                       | virtualized_infos                  | NA                        |
-| tprofiling    | 线程级性能profiling观测能力           | oncpu, syscall_file, syscall_net, syscall_lock, syscall_sched | proc_id, proc_name                       | $gala-gopher-dir/tprofiling        | NA                        |
+| tprofiling    | 线程级性能profiling观测能力           | oncpu, syscall_file, syscall_net, syscall_lock, syscall_sched | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/tprofiling        | NA                        |
 | container    | 容器信息          | NA | proc_id, proc_name, container_id                      | $gala-gopher-dir/cadvisor_probe.py        | NA                        |
 
 ## 探针运行参数
@@ -114,7 +114,7 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 
 | 参数               | 含义                                                   | 缺省值&范围                                                  | 单位    | 支持的监控范围           | gala-gopher是否支持 |
 | ------------------ | ------------------------------------------------------ | ------------------------------------------------------------ | ------- | ------------------------ | ------------------- |
-| sample_period      | 采样周期                                               | 100, [100~10000]                                             | ms      | io                       | Y                   |
+| sample_period      | 采样周期                                               | 100, [100~10000]                                             | ms      | io, tcp                  | Y                   |
 | report_period      | 上报周期                                               | 60, [5~600]                                                 | s       | ALL                      | Y                   |
 | latency_thr        | 时延上报门限                                           | 0, [10~100000]                                               | ms      | tcp, io, proc, ksli      |                     |
 | drops_thr          | 丢包上送门限                                           | 0, [10~100000]                                               | package | tcp, nic                 | Y                   |
@@ -134,7 +134,7 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 | perf_sample_period | oncpu火焰图采集堆栈信息的周期 | 10, [10, 1000] | ms | flamegraph | Y |
 | svg_dir | 火焰图svg文件存储目录 | "/var/log/gala-gopher/stacktrace" | | flamegraph | Y |
 | flame_dir | 火焰图原始堆栈信息存储目录 | "/var/log/gala-gopher/flamegraph" | | flamegraph | Y |
-| dev_name | 观测的网卡/磁盘设备名 | "" |  | io, kafka, ksli, postgre_sli，baseinfo | Y |
+| dev_name | 观测的网卡/磁盘设备名 | "" |  | io, kafka, ksli, postgre_sli，baseinfo, tcp | Y |
 | continuous_sampling | 是否持续采样 | 0, [0, 1] | | ksli | Y |
 | elf_path | 要观测的可执行文件的路径 | "" | | nginx, haproxy, dnsmasq | Y |
 | kafka_port | 要观测的kafka端口号 | 9092, [1, 65535] | | kafka | Y |
