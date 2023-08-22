@@ -528,36 +528,64 @@ SET_DEFAULT_PARAMS_STR(pyroscope_server);
 SET_DEFAULT_PARAMS_STR(svg_dir);
 SET_DEFAULT_PARAMS_STR(flame_dir);
 
+#define SAMPLE_PERIOD       "sample_period"
+#define REPORT_PERIOD       "report_period"
+#define LATENCY_THR         "latency_thr"
+#define DROPS_THR           "drops_thr"
+#define RES_LOWER_THR       "res_lower_thr"
+#define RES_UPPER_THR       "res_upper_thr"
+#define REPORT_EVENT        "report_event"
+#define METRICS_TYPE        "metrics_type"
+#define ENV                 "env"
+#define L7_PROTOCOL         "l7_protocol"
+#define SUPPORT_SSL         "support_ssl"
+#define PYROSCOPE_SERVER    "pyroscope_server"
+#define SVG_PERIOD          "svg_period"
+#define PERF_SAMPLE_PERIOD  "perf_sample_period"
+#define MULTI_INSTANCE      "multi_instance"
+#define NATIVE_STACK        "native_stack"
+#define CLUSTER_IP_BACKEND  "cluster_ip_backend"
+#define SVG_DIR             "svg_dir"
+#define FLAME_DIR           "flame_dir"
+#if 0
+#define DEBUGGING_DIR       "debugging_dir"
+#define HOST_IP_FIELDS      "host_ip_fields"
+#endif
+#define DEV_NAME            "dev_name"
+#define CONTINUOUS_SAMPLING "continuous_sampling"
+#define ELF_PATH            "elf_path"
+#define KAFKA_PORT          "kafka_port"
+#define CADVISOR_PORT       "cadvisor_port"
 
 struct param_key_s param_keys[] = {
-    {"sample_period",      {DEFAULT_SAMPLE_PERIOD, 100, 10000, ""}, parser_sample_peirod, set_default_params_inter_sample_period, cJSON_Number},
-    {"report_period",      {DEFAULT_PERIOD, 5, 600, ""},            parser_report_peirod, set_default_params_inter_period, cJSON_Number},
-    {"latency_thr",        {0, 10, 100000, ""},                     parser_latency_thr, set_default_params_inter_latency_thr, cJSON_Number},
-    {"drops_thr",          {0, 10, 100000, ""},                     parser_drops_thr, set_default_params_inter_drops_count_thr, cJSON_Number},
-    {"res_lower_thr",      {0, 0, 100, ""},                         parser_res_lower_thr, set_default_params_char_res_percent_lower, cJSON_Number},
-    {"res_upper_thr",      {0, 0, 100, ""},                         parser_res_upper_thr, set_default_params_char_res_percent_upper, cJSON_Number},
-    {"report_event",       {0, 0, 1, ""},                           parser_report_event, set_default_params_char_logs, cJSON_Number},
-    {"metrics_type",       {SUPPORT_METRICS_RAW | SUPPORT_METRICS_TELEM, 0, 0, "raw"}, parser_metrics_type, set_default_params_char_metrics_flags, cJSON_Array},
-    {"env",                {SUPPORT_NODE_ENV, 0, 0, "node"},        parser_work_env, set_default_params_char_env_flags, cJSON_Array},
-    {"l7_protocol",        {0, 0, 0, "http"},                       parser_l7pro, set_default_params_inter_l7_probe_proto_flags, cJSON_Array},
-    {"support_ssl",        {0, 0, 1, ""},                           parser_support_ssl, set_default_params_char_support_ssl, cJSON_Number},
-    {"pyroscope_server",   {0, 0, 0, "localhost:4040"},             parser_pyscope_server, set_default_params_str_pyroscope_server, cJSON_String},
-    {"svg_period",         {180, 30, 600, ""},                      parser_svg_period, set_default_params_inter_svg_period, cJSON_Number},
-    {"perf_sample_period", {10, 10, 1000, ""},                      parser_perf_sample_period, set_default_params_inter_perf_sample_period, cJSON_Number},
-    {"multi_instance",       {0, 0, 1, ""},                           parser_multi_instance, set_default_params_char_multi_instance_flag, cJSON_Number},
-    {"native_stack",       {0, 0, 1, ""},                           parser_native_stack, set_default_params_char_native_stack_flag, cJSON_Number},
-    {"cluster_ip_backend", {0, 0, 1, ""},                           parser_cluster_ip_backend_flag, set_default_params_char_cluster_ip_backend, cJSON_Number},
-    {"svg_dir",            {0, 0, 0, "/var/log/gala-gopher/stacktrace"}, parser_svg_dir, set_default_params_str_svg_dir, cJSON_String},
-    {"flame_dir",          {0, 0, 0, "/var/log/gala-gopher/flamegraph"}, parser_flame_dir, set_default_params_str_flame_dir, cJSON_String},
+    {SAMPLE_PERIOD,      {DEFAULT_SAMPLE_PERIOD, 100, 10000, ""}, parser_sample_peirod, set_default_params_inter_sample_period, cJSON_Number},
+    {REPORT_PERIOD,      {DEFAULT_PERIOD, 5, 600, ""},            parser_report_peirod, set_default_params_inter_period, cJSON_Number},
+    {LATENCY_THR,        {0, 10, 100000, ""},                     parser_latency_thr, set_default_params_inter_latency_thr, cJSON_Number},
+    {DROPS_THR,          {0, 10, 100000, ""},                     parser_drops_thr, set_default_params_inter_drops_count_thr, cJSON_Number},
+    {RES_LOWER_THR,      {0, 0, 100, ""},                         parser_res_lower_thr, set_default_params_char_res_percent_lower, cJSON_Number},
+    {RES_UPPER_THR,      {0, 0, 100, ""},                         parser_res_upper_thr, set_default_params_char_res_percent_upper, cJSON_Number},
+    {REPORT_EVENT,       {0, 0, 1, ""},                           parser_report_event, set_default_params_char_logs, cJSON_Number},
+    {METRICS_TYPE,       {SUPPORT_METRICS_RAW | SUPPORT_METRICS_TELEM, 0, 0, "raw"}, parser_metrics_type, set_default_params_char_metrics_flags, cJSON_Array},
+    {ENV,                {SUPPORT_NODE_ENV, 0, 0, "node"},        parser_work_env, set_default_params_char_env_flags, cJSON_Array},
+    {L7_PROTOCOL,        {0, 0, 0, "http"},                       parser_l7pro, set_default_params_inter_l7_probe_proto_flags, cJSON_Array},
+    {SUPPORT_SSL,        {0, 0, 1, ""},                           parser_support_ssl, set_default_params_char_support_ssl, cJSON_Number},
+    {PYROSCOPE_SERVER,   {0, 0, 0, "localhost:4040"},             parser_pyscope_server, set_default_params_str_pyroscope_server, cJSON_String},
+    {SVG_PERIOD,         {180, 30, 600, ""},                      parser_svg_period, set_default_params_inter_svg_period, cJSON_Number},
+    {PERF_SAMPLE_PERIOD, {10, 10, 1000, ""},                      parser_perf_sample_period, set_default_params_inter_perf_sample_period, cJSON_Number},
+    {MULTI_INSTANCE,       {0, 0, 1, ""},                           parser_multi_instance, set_default_params_char_multi_instance_flag, cJSON_Number},
+    {NATIVE_STACK,       {0, 0, 1, ""},                           parser_native_stack, set_default_params_char_native_stack_flag, cJSON_Number},
+    {CLUSTER_IP_BACKEND, {0, 0, 1, ""},                           parser_cluster_ip_backend_flag, set_default_params_char_cluster_ip_backend, cJSON_Number},
+    {SVG_DIR,            {0, 0, 0, "/var/log/gala-gopher/stacktrace"}, parser_svg_dir, set_default_params_str_svg_dir, cJSON_String},
+    {FLAME_DIR,          {0, 0, 0, "/var/log/gala-gopher/flamegraph"}, parser_flame_dir, set_default_params_str_flame_dir, cJSON_String},
 #if 0
-    {"debugging_dir",      {0, 0, 0, ""},                           parser_sysdebuging_dir, set_default_params_str_sys_debuging_dir, cJSON_String},
-    {"host_ip_fields",     {0, 0, 0, ""},                           parse_host_ip_fields, NULL, cJSON_String},
+    {DEBUGGING_DIR,      {0, 0, 0, ""},                           parser_sysdebuging_dir, set_default_params_str_sys_debuging_dir, cJSON_String},
+    {HOST_IP_FIELDS,     {0, 0, 0, ""},                           parse_host_ip_fields, NULL, cJSON_String},
 #endif
-    {"dev_name",           {0, 0, 0, ""},                           parser_dev_name, NULL, cJSON_String},
-    {"continuous_sampling", {0, 0, 1, ""},                          parser_continuous_sampling, set_default_params_char_continuous_sampling_flag, cJSON_Number},
-    {"elf_path",            {0, 0, 0, ""},                          parser_elf_path, NULL, cJSON_String},
-    {"kafka_port",         {DEFAULT_KAFKA_PORT, 1, 65535, ""},      parser_kafka_port, set_default_params_inter_kafka_port, cJSON_Number},
-    {"cadvisor_port",      {DEFAULT_CADVISOR_PORT, 1, 65535, ""},   parser_cadvisor_port, set_default_params_inter_cadvisor_port, cJSON_Number}
+    {DEV_NAME,           {0, 0, 0, ""},                           parser_dev_name, NULL, cJSON_String},
+    {CONTINUOUS_SAMPLING, {0, 0, 1, ""},                          parser_continuous_sampling, set_default_params_char_continuous_sampling_flag, cJSON_Number},
+    {ELF_PATH,            {0, 0, 0, ""},                          parser_elf_path, NULL, cJSON_String},
+    {KAFKA_PORT,         {DEFAULT_KAFKA_PORT, 1, 65535, ""},      parser_kafka_port, set_default_params_inter_kafka_port, cJSON_Number},
+    {CADVISOR_PORT,      {DEFAULT_CADVISOR_PORT, 1, 65535, ""},   parser_cadvisor_port, set_default_params_inter_cadvisor_port, cJSON_Number}
 };
 
 void set_default_params(struct probe_s *probe)
@@ -602,4 +630,78 @@ int parse_params(struct probe_s *probe, const cJSON *params_json)
     }
 
     return ret;
+}
+
+static cJSON *param_flags_to_json(unsigned int flags, struct param_flags_s param_flags[], size_t size)
+{
+    cJSON *arr = cJSON_CreateArray();
+    int i;
+
+    for (i = 0; i < size; i++) {
+        if (flags & param_flags[i].flags) {
+            cJSON_AddItemToArray(arr, cJSON_CreateString(param_flags[i].desc));
+        }
+    }
+
+    return arr;
+}
+
+void probe_params_to_json(struct probe_s *probe, cJSON *params)
+{
+    struct probe_params *probe_param = &probe->probe_param;
+    enum probe_type_e probe_type = probe->probe_type;
+    cJSON *flags_arr;
+    size_t flags_size;
+
+    cJSON_AddItemToObject(params, SAMPLE_PERIOD, cJSON_CreateNumber(probe_param->sample_period));
+    cJSON_AddItemToObject(params, REPORT_PERIOD, cJSON_CreateNumber(probe_param->period));
+    cJSON_AddItemToObject(params, LATENCY_THR, cJSON_CreateNumber(probe_param->latency_thr));
+    cJSON_AddItemToObject(params, DROPS_THR, cJSON_CreateNumber(probe_param->drops_count_thr));
+    cJSON_AddItemToObject(params, RES_LOWER_THR, cJSON_CreateNumber(probe_param->res_percent_lower));
+    cJSON_AddItemToObject(params, RES_UPPER_THR, cJSON_CreateNumber(probe_param->res_percent_upper));
+    cJSON_AddItemToObject(params, REPORT_EVENT, cJSON_CreateNumber(probe_param->logs));
+
+    flags_size = sizeof(param_metrics_flags) / sizeof(param_metrics_flags[0]);
+    flags_arr = param_flags_to_json(probe_param->metrics_flags, param_metrics_flags, flags_size);
+    cJSON_AddItemToObject(params, METRICS_TYPE, flags_arr);
+
+    flags_size = sizeof(param_env_flags) / sizeof(param_env_flags[0]);
+    flags_arr = param_flags_to_json(probe_param->env_flags, param_env_flags, flags_size);
+    cJSON_AddItemToObject(params, ENV, flags_arr);
+
+    if (probe_type == PROBE_L7) {
+        flags_size = sizeof(param_l7pro_flags) / sizeof(param_l7pro_flags[0]);
+        flags_arr = param_flags_to_json(probe_param->l7_probe_proto_flags, param_l7pro_flags, flags_size);
+        cJSON_AddItemToObject(params, L7_PROTOCOL, flags_arr);
+
+        cJSON_AddItemToObject(params, SUPPORT_SSL, cJSON_CreateNumber(probe_param->support_ssl));
+    }
+    if (probe_type == PROBE_L7 || probe_type == PROBE_TCP) {
+        cJSON_AddItemToObject(params, CLUSTER_IP_BACKEND, cJSON_CreateNumber(probe_param->cluster_ip_backend));
+    }
+    if (probe_type == PROBE_FG) {
+        cJSON_AddStringToObject(params, PYROSCOPE_SERVER, probe_param->pyroscope_server);
+        cJSON_AddItemToObject(params, SVG_PERIOD, cJSON_CreateNumber(probe_param->svg_period));
+        cJSON_AddItemToObject(params, PERF_SAMPLE_PERIOD, cJSON_CreateNumber(probe_param->perf_sample_period));
+        cJSON_AddItemToObject(params, MULTI_INSTANCE, cJSON_CreateNumber(probe_param->multi_instance_flag));
+        cJSON_AddItemToObject(params, NATIVE_STACK, cJSON_CreateNumber(probe_param->native_stack_flag));
+        cJSON_AddStringToObject(params, SVG_DIR, probe_param->svg_dir);
+        cJSON_AddStringToObject(params, FLAME_DIR, probe_param->flame_dir);
+    }
+    if (probe_type == PROBE_IO || probe_type == PROBE_KAFKA || probe_type == PROBE_KSLI ||
+        probe_type == PROBE_POSTGRE_SLI || probe_type == PROBE_BASEINFO || probe_type == PROBE_TCP) {
+        cJSON_AddStringToObject(params, DEV_NAME, probe_param->target_dev);
+    }
+    if (probe_type == PROBE_KSLI) {
+        cJSON_AddItemToObject(params, CONTINUOUS_SAMPLING, cJSON_CreateNumber(probe_param->continuous_sampling_flag));
+    }
+    if (probe_type == PROBE_NGINX || probe_type == PROBE_HAPROXY || probe_type == PROBE_DNSMASQ) {
+        cJSON_AddStringToObject(params, ELF_PATH, probe_param->elf_path);
+    }
+    if (probe_type == PROBE_KAFKA) {
+        cJSON_AddItemToObject(params, KAFKA_PORT, cJSON_CreateNumber(probe_param->kafka_port));
+    }
+    if (probe_type == PROBE_CONTAINER) {
+        cJSON_AddItemToObject(params, CADVISOR_PORT, cJSON_CreateNumber(probe_param->cadvisor_port));
+    }
 }

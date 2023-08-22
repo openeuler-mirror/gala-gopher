@@ -732,11 +732,11 @@ static int probe_parser_state(struct probe_s *probe, const cJSON *item)
         return -1;
     }
 
-    if (!strcasecmp("running", (const char *)item->valuestring)) {
+    if (!strcasecmp(PROBE_STATE_RUNNING, (const char *)item->valuestring)) {
         return start_probe(probe);
     }
 
-    if (!strcasecmp("stopped", (const char *)item->valuestring)) {
+    if (!strcasecmp(PROBE_STATE_STOPPED, (const char *)item->valuestring)) {
         return stop_probe(probe);
     }
 
@@ -744,9 +744,28 @@ static int probe_parser_state(struct probe_s *probe, const cJSON *item)
     return -1;
 }
 
+static void print_state(struct probe_s *probe, cJSON *json)
+{
+    char *state;
+
+    if (probe->probe_status.status_flags == 0) {
+        state = PROBE_STATE_UNKNOWN;
+    } else if (IS_STOPPED_PROBE(probe)) {
+        state = PROBE_STATE_STOPPED;
+    } else {
+        state = PROBE_STATE_RUNNING;
+    }
+    cJSON_AddStringToObject(json, "state", state);
+}
+
 static int probe_parser_params(struct probe_s *probe, const cJSON *item)
 {
     return parse_params(probe, item);
+}
+
+static void print_params(struct probe_s *probe, cJSON *json)
+{
+    probe_params_to_json(probe, json);
 }
 
 static void probe_backup_params(struct probe_s *probe, struct probe_s *probe_backup)
@@ -777,10 +796,10 @@ struct probe_parser_s {
 #define PARSER_FLAG_PARAMS    0x04
 #define PARSER_FLAG_STATE     0x08
 struct probe_parser_s probe_parsers[] = {
-    {"cmd", probe_parser_cmd, probe_printer_cmd, probe_backup_cmd, probe_rollback_cmd},
-    {"snoopers", parse_snooper, print_snooper, backup_snooper, rollback_snooper},
-    {"params", probe_parser_params, NULL, probe_backup_params, probe_rollback_params},
-    {"state", probe_parser_state, NULL, NULL, NULL}
+    {"cmd",      probe_parser_cmd,    probe_printer_cmd, probe_backup_cmd,    probe_rollback_cmd},
+    {"snoopers", parse_snooper,       print_snooper,     backup_snooper,      rollback_snooper},
+    {"params",   probe_parser_params, print_params,      probe_backup_params, probe_rollback_params},
+    {"state",    probe_parser_state,  print_state,       NULL,                NULL}
 };
 
 static void rollback_probe(struct probe_s *probe, struct probe_s *probe_backup, u32 flag)
@@ -1055,9 +1074,13 @@ char *get_probe_json(const char *probe_name)
     for (int i = 0; i < size; i++) {
         parser = &(probe_parsers[i]);
         if (parser->printer) {
-            item = cJSON_CreateObject();
-            parser->printer(probe, item);
-            cJSON_AddItemToObject(res, parser->item, item);
+            if (strcmp(parser->item, "state") == 0) {
+                parser->printer(probe, res);
+            } else {
+                item = cJSON_CreateObject();
+                parser->printer(probe, item);
+                cJSON_AddItemToObject(res, parser->item, item);
+            }
         }
     }
 

@@ -30,6 +30,10 @@
 #define PROBE_FLAGS_STOPPING        0x00000004    // probe has been tried to stop by user
 #define PROBE_FLAGS_RUNNING         0x00000008    // probe is in running state
 
+#define PROBE_STATE_RUNNING         "running"
+#define PROBE_STATE_STOPPED         "stopped"
+#define PROBE_STATE_UNKNOWN         "unknown"
+
 #define PARSE_JSON_ERR_STR_LEN 200
 extern char g_parse_json_err[PARSE_JSON_ERR_STR_LEN];
 
