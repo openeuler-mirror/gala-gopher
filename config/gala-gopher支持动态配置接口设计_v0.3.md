@@ -116,7 +116,8 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 | ------------------ | ------------------------------------------------------ | ------------------------------------------------------------ | ------- | ------------------------ | ------------------- |
 | sample_period      | 采样周期                                               | 100, [100~10000]                                             | ms      | io, tcp                  | Y                   |
 | report_period      | 上报周期                                               | 60, [5~600]                                                 | s       | ALL                      | Y                   |
-| latency_thr        | 时延上报门限                                           | 0, [10~100000]                                               | ms      | tcp, io, proc, ksli      |                     |
+| latency_thr        | 时延上报门限                                           | 0, [10~100000]                                               | ms      | tcp, io, proc, ksli      | Y |
+| offline_thr | 进程离线上报门限 | 0, [10~100000] | ms | proc | Y |
 | drops_thr          | 丢包上送门限                                           | 0, [10~100000]                                               | package | tcp, nic                 | Y                   |
 | res_lower_thr      | 资源百分比下限                                         | 0%, [0%~100%]                                                | percent | ALL                      | Y                   |
 | res_upper_thr      | 资源百分比上限                                         | 0%, [0%~100%]                                                | percent | ALL                      | Y                   |

@@ -104,7 +104,6 @@ struct probe_params {
     unsigned int period;               // Report period, unit second, default is 5 seconds
     unsigned int sample_period;        // Sampling period, unit milliseconds, default is 100 milliseconds
     unsigned int latency_thr;          // Threshold of latency time, unit ms, default is 0 milliseconds
-    unsigned int jitter_thr;           // Threshold of jitter time, unit ms, default is 0 milliseconds
     unsigned int offline_thr;          // Threshold of offline time, unit ms, default is 0 milliseconds
     unsigned int drops_count_thr;      // Threshold of the number of drop packets, default is 0
     unsigned int kafka_port;           // the port to which kafka server attach.
