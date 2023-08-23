@@ -23,7 +23,6 @@ class ProbeParams(Structure):
         ("period", c_uint),
         ("sample_period", c_uint),
         ("latency_thr", c_uint),
-        ("jitter_thr", c_uint),
         ("offline_thr", c_uint),
         ("drops_count_thr", c_uint),
         ("kafka_port", c_uint),

@@ -116,6 +116,19 @@ static int parser_latency_thr(struct probe_s *probe, struct param_key_s *param_k
     return 0;
 }
 
+static int parser_offline_thr(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
+{
+    int value = (int)key_item->valueint;
+    if (value < param_key->v.min || value > param_key->v.max) {
+        PARSE_ERR("params.%s invalid value, must be in [%d, %d]",
+                  param_key->key, param_key->v.min, param_key->v.max);
+        return -1;
+    }
+
+    probe->probe_param.offline_thr = (u32)value;
+    return 0;
+}
+
 static int parser_drops_thr(struct probe_s *probe, struct param_key_s *param_key, const cJSON *key_item)
 {
     int value = (int)key_item->valueint;
@@ -531,6 +544,7 @@ SET_DEFAULT_PARAMS_STR(flame_dir);
 #define SAMPLE_PERIOD       "sample_period"
 #define REPORT_PERIOD       "report_period"
 #define LATENCY_THR         "latency_thr"
+#define OFFLINE_THR         "offline_thr"
 #define DROPS_THR           "drops_thr"
 #define RES_LOWER_THR       "res_lower_thr"
 #define RES_UPPER_THR       "res_upper_thr"
@@ -551,7 +565,7 @@ SET_DEFAULT_PARAMS_STR(flame_dir);
 #define DEBUGGING_DIR       "debugging_dir"
 #define HOST_IP_FIELDS      "host_ip_fields"
 #endif
-#define DEV_NAME            "dev_name"
+#define DEV_NAME_KEY        "dev_name"
 #define CONTINUOUS_SAMPLING "continuous_sampling"
 #define ELF_PATH            "elf_path"
 #define KAFKA_PORT          "kafka_port"
@@ -561,6 +575,7 @@ struct param_key_s param_keys[] = {
     {SAMPLE_PERIOD,      {DEFAULT_SAMPLE_PERIOD, 100, 10000, ""}, parser_sample_peirod, set_default_params_inter_sample_period, cJSON_Number},
     {REPORT_PERIOD,      {DEFAULT_PERIOD, 5, 600, ""},            parser_report_peirod, set_default_params_inter_period, cJSON_Number},
     {LATENCY_THR,        {0, 10, 100000, ""},                     parser_latency_thr, set_default_params_inter_latency_thr, cJSON_Number},
+    {OFFLINE_THR,        {0, 10, 100000, ""},                     parser_offline_thr, set_default_params_inter_offline_thr, cJSON_Number},
     {DROPS_THR,          {0, 10, 100000, ""},                     parser_drops_thr, set_default_params_inter_drops_count_thr, cJSON_Number},
     {RES_LOWER_THR,      {0, 0, 100, ""},                         parser_res_lower_thr, set_default_params_char_res_percent_lower, cJSON_Number},
     {RES_UPPER_THR,      {0, 0, 100, ""},                         parser_res_upper_thr, set_default_params_char_res_percent_upper, cJSON_Number},
@@ -581,7 +596,7 @@ struct param_key_s param_keys[] = {
     {DEBUGGING_DIR,      {0, 0, 0, ""},                           parser_sysdebuging_dir, set_default_params_str_sys_debuging_dir, cJSON_String},
     {HOST_IP_FIELDS,     {0, 0, 0, ""},                           parse_host_ip_fields, NULL, cJSON_String},
 #endif
-    {DEV_NAME,           {0, 0, 0, ""},                           parser_dev_name, NULL, cJSON_String},
+    {DEV_NAME_KEY,        {0, 0, 0, ""},                          parser_dev_name, NULL, cJSON_String},
     {CONTINUOUS_SAMPLING, {0, 0, 1, ""},                          parser_continuous_sampling, set_default_params_char_continuous_sampling_flag, cJSON_Number},
     {ELF_PATH,            {0, 0, 0, ""},                          parser_elf_path, NULL, cJSON_String},
     {KAFKA_PORT,         {DEFAULT_KAFKA_PORT, 1, 65535, ""},      parser_kafka_port, set_default_params_inter_kafka_port, cJSON_Number},
@@ -656,6 +671,7 @@ void probe_params_to_json(struct probe_s *probe, cJSON *params)
     cJSON_AddItemToObject(params, SAMPLE_PERIOD, cJSON_CreateNumber(probe_param->sample_period));
     cJSON_AddItemToObject(params, REPORT_PERIOD, cJSON_CreateNumber(probe_param->period));
     cJSON_AddItemToObject(params, LATENCY_THR, cJSON_CreateNumber(probe_param->latency_thr));
+    cJSON_AddItemToObject(params, OFFLINE_THR, cJSON_CreateNumber(probe_param->offline_thr));
     cJSON_AddItemToObject(params, DROPS_THR, cJSON_CreateNumber(probe_param->drops_count_thr));
     cJSON_AddItemToObject(params, RES_LOWER_THR, cJSON_CreateNumber(probe_param->res_percent_lower));
     cJSON_AddItemToObject(params, RES_UPPER_THR, cJSON_CreateNumber(probe_param->res_percent_upper));
@@ -690,7 +706,7 @@ void probe_params_to_json(struct probe_s *probe, cJSON *params)
     }
     if (probe_type == PROBE_IO || probe_type == PROBE_KAFKA || probe_type == PROBE_KSLI ||
         probe_type == PROBE_POSTGRE_SLI || probe_type == PROBE_BASEINFO || probe_type == PROBE_TCP) {
-        cJSON_AddStringToObject(params, DEV_NAME, probe_param->target_dev);
+        cJSON_AddStringToObject(params, DEV_NAME_KEY, probe_param->target_dev);
     }
     if (probe_type == PROBE_KSLI) {
         cJSON_AddItemToObject(params, CONTINUOUS_SAMPLING, cJSON_CreateNumber(probe_param->continuous_sampling_flag));

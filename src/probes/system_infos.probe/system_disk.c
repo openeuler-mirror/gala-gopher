@@ -133,7 +133,7 @@ static int init_fs_inode_info(void)
     df_stats *fsItem;
     df_stats stats;
 
-    f = popen(SYSTEM_INODE_COMMAND, "r");
+    f = popen_chroot(SYSTEM_INODE_COMMAND, "r");
     if (f == NULL) {
         return -1;
     }
@@ -191,7 +191,7 @@ static int init_fs_block_info(void)
     df_stats *fsItem;
     df_stats stats;
 
-    f = popen(SYSTEM_BLOCK_CMD, "r");
+    f = popen_chroot(SYSTEM_BLOCK_CMD, "r");
     if (f == NULL) {
         return -1;
     }
