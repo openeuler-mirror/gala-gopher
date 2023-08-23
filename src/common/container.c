@@ -35,6 +35,8 @@
 #define ISULAD "isula"
 #define CONTAINERD "crictl"
 
+#define DRIVER_BTRFS "btrfs"
+#define BTRFS_DOCKER_DIR "/var/lib/docker"
 
 #define CONTAINERD_NAME_COMMAND "--output go-template --template='{{.status.metadata.name}}'"
 #define CONTAINERD_PID_COMMAND "--output go-template --template='{{.info.pid}}'"
@@ -75,9 +77,13 @@
 #define DOCKER_MNTNS_COMMAND "/usr/bin/ls -l /proc/%u/ns/mnt | /usr/bin/awk -F '[' '{print $2}' "\
         "| /usr/bin/awk -F ']' '{print $1}'"
 
+#define DOCKER_DRIVER_COMMAND "%s info -f '{{ .Driver }}'"
+#define DOCKER_BTRFS_SUBVOL_COMMAND "cat /proc/%u/mounts"
+
 #define PLDD_LIB_COMMAND "pldd %u 2>/dev/null | grep \"%s\""
 
 static char *current_docker_command = NULL;
+static char current_docker_driver[CONTAINER_DRIVER_LEN] = {0};
 
 #if 0
 static bool __is_install_rpm(const char* command)
@@ -191,6 +197,49 @@ static const char *get_current_command()
     (void)__is_containerd();
 
     return (const char *)current_docker_command;
+}
+
+static const char *get_docker_driver()
+{
+    FILE *f;
+    char command[COMMAND_LEN];
+    char line[LINE_BUF_LEN];
+
+    command[0] = 0;
+    (void)snprintf(command, sizeof(command), DOCKER_DRIVER_COMMAND, DOCKER);
+    f = popen_chroot(command, "r");
+    if (!f) {
+        return NULL;
+    }
+
+    line[0] = 0;
+    if (!fgets(line, sizeof(line), f)) {
+        (void)pclose(f);
+        return NULL;
+    }
+    SPLIT_NEWLINE_SYMBOL(line);
+    (void)snprintf(current_docker_driver, sizeof(current_docker_driver), "%s", line);
+
+    (void)pclose(f);
+    return (const char *)current_docker_driver;
+}
+
+static const char *get_current_driver()
+{
+    if (*current_docker_driver != '\0') {
+        return (const char *)current_docker_driver;
+    }
+
+    if (!current_docker_command) {
+        return NULL;
+    }
+
+    // Currently support docker, other container runtimes can be expanded here.
+    if (strcmp(current_docker_command, DOCKER) == 0) {
+        return get_docker_driver();
+    } else {
+        return NULL;
+    }
 }
 
 static int __get_container_count(const char *command_s)
@@ -432,26 +481,11 @@ void free_container_tbl(container_tbl **pcstbl)
     *pcstbl = NULL;
 }
 
-/*
-parse string
-[root@node2 ~]# docker inspect 92a7a60249cb | grep MergedDir | awk -F '"' '{print $4}'
-                /var/lib/docker/overlay2/82c62b73874d9a17a78958d5e13af478b1185db6fa614a72e0871c1b7cd107f5/merged
-*/
-int get_container_merged_path(const char *abbr_container_id, char *path, unsigned int len)
+static int get_container_merged_path_general(const char *abbr_container_id, char *path, unsigned int len)
 {
     char command[COMMAND_LEN];
 
-    if (!get_current_command()) {
-        return -1;
-    }
-
-    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
-        return -1;
-    }
-
     command[0] = 0;
-    path[0] = 0;
-
     if (__is_containerd()) {
         (void)snprintf(command, COMMAND_LEN, "%s %s", \
             CONTAINERD_MERGED_COMMAND, abbr_container_id);
@@ -461,6 +495,136 @@ int get_container_merged_path(const char *abbr_container_id, char *path, unsigne
     }
 
     return exec_cmd_chroot((const char *)command, path, len);
+}
+
+static int read_subvol_from_fs_mntops(const char *fs_mntops, char *subvol, unsigned int size)
+{
+    char *subvol_start, *subvol_end;
+    unsigned int subvol_len;
+
+#define __SUBVOL_KEYWORD "subvol="
+    subvol_start = strstr(fs_mntops, __SUBVOL_KEYWORD);
+    if (!subvol_start) {
+        return -1;
+    }
+    subvol_start += strlen(__SUBVOL_KEYWORD);
+
+    subvol_end = strchr(subvol_start, ',');
+    if (!subvol_end) {
+        subvol_end = subvol_start + strlen(subvol_start);
+    }
+
+    subvol_len = subvol_end - subvol_start;
+    if (subvol_len == 0 || subvol_len >= size) {
+        return -1;
+    }
+    memcpy(subvol, subvol_start, subvol_len);
+    subvol[subvol_len] = '\0';
+    return 0;
+}
+
+static int get_container_btrfs_subvol(unsigned int pid, char *subvol, unsigned int size)
+{
+    FILE *f;
+    char command[COMMAND_LEN];
+    char line[LINE_BUF_LEN];
+    char fs_file[PATH_LEN];
+    char fs_type[PATH_LEN];
+    char fs_mntops[PATH_LEN];
+    int ret;
+
+    command[0] = 0;
+    (void)snprintf(command, sizeof(command), DOCKER_BTRFS_SUBVOL_COMMAND, pid);
+    f = popen_chroot(command, "r");
+    if (!f) {
+        return -1;
+    }
+
+    while (!feof(f)) {
+        line[0] = 0;
+        if (fgets(line, sizeof(line), f) == NULL) {
+            break;
+        }
+        fs_file[0] = 0;
+        fs_type[0] = 0;
+        fs_mntops[0] = 0;
+        ret = sscanf(line, "%*s %s %s %s", fs_file, fs_type, fs_mntops);
+        if (ret != 3) {
+            break;
+        }
+        if (strcmp(fs_file, "/") != 0) {
+            continue;
+        }
+        if (strcmp(fs_type, DRIVER_BTRFS) != 0) {
+            break;
+        }
+        if (read_subvol_from_fs_mntops(fs_mntops, subvol, size)) {
+            break;
+        }
+        (void)pclose(f);
+        return 0;
+    }
+
+    (void)pclose(f);
+    return -1;
+}
+
+static int get_container_merged_path_btrfs(const char *abbr_container_id, char *path, unsigned int len)
+{
+    unsigned int pid = 0;
+    char *btrfs_root_dir = NULL;
+    char btrfs_subvol[PATH_LEN];
+    int ret;
+
+    // Currently support docker, other container runtimes can be expanded here.
+    if (strcmp(current_docker_command, DOCKER) == 0) {
+        btrfs_root_dir = BTRFS_DOCKER_DIR;
+    } else {
+        return -1;
+    }
+
+    ret = __get_container_pid(abbr_container_id, &pid);
+    if (ret || pid == 0) {
+        return -1;
+    }
+
+    btrfs_subvol[0] = 0;
+    ret = get_container_btrfs_subvol(pid, btrfs_subvol, sizeof(btrfs_subvol));
+    if (ret) {
+        return -1;
+    }
+    ret = snprintf(path, len, "%s%s", btrfs_root_dir, btrfs_subvol);
+    if (ret < 0 || ret >= len) {
+        return -1;
+    }
+
+    return 0;
+}
+
+/*
+parse string
+[root@node2 ~]# docker inspect 92a7a60249cb | grep MergedDir | awk -F '"' '{print $4}'
+                /var/lib/docker/overlay2/82c62b73874d9a17a78958d5e13af478b1185db6fa614a72e0871c1b7cd107f5/merged
+*/
+int get_container_merged_path(const char *abbr_container_id, char *path, unsigned int len)
+{
+    const char *current_driver = NULL;
+
+    if (!get_current_command()) {
+        return -1;
+    }
+
+    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+        return -1;
+    }
+
+    path[0] = 0;
+    current_driver = get_current_driver();
+    if (current_driver && strcmp(current_driver, DRIVER_BTRFS) == 0) {
+        return get_container_merged_path_btrfs(abbr_container_id, path, len);
+    }
+
+    return get_container_merged_path_general(abbr_container_id, path, len);
 }
 
 /* docker exec -it 92a7a60249cb [xxx] */
