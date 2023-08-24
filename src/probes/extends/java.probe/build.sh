@@ -2,6 +2,23 @@
 PROGRAM=$0
 PRJ_DIR=$(dirname $(readlink -f "$0"))
 JAVA_TAILOR_PROBES=$EXTEND_PROBES
+JAVA_VER=$(java -version 2>&1 |awk 'NR==1{gsub(/"/,"");print $3}')
+JAVA_VER_MAJOR=$(echo ${JAVA_VER} | awk -F'.' '{print $1}')
+JAVA_VER_MINOR=$(echo ${JAVA_VER} | awk -F'.' '{print $2}')
+
+# java version > 8u272
+function check_jfr_supported()
+{
+    if [ "$JAVA_VER_MAJOR" -gt 1 ] || [ "$JAVA_VER_MINOR" -gt 8 ];then
+        return 1
+    fi
+
+    if [ "$JAVA_VER_MINOR" -eq 8 ] && [ "$(echo ${JAVA_VER} | awk -F'_' '{print $2}')" -ge 272 ];then
+        return 1
+    fi
+
+    return 0
+}
 
 function find_cmd_jar()
 {
@@ -14,14 +31,14 @@ function find_cmd_jar()
     fi
 }
 
-function make_jstackprobe_agent_jar()
+function make_jstackprobe_jar()
 {
     mkdir -p tmp
     cd tmp
     javac ../src/*.java -d ./ || return 1
     cd ..
-    jar cfm JstackProbeAgent.jar config/META-INF/MANIFEST.MF -C tmp/ . || return 1
-
+    jar cfm JstackProbeAgent.jar config/META-INF/MANIFEST_AGENT.MF -C tmp/ . || return 1
+    jar cfm JstackPrinter.jar config/META-INF/MANIFEST_PRINTER.MF -C tmp/ . || return 1
     rm -rf tmp 2>/dev/null
     return 0
 }
@@ -30,7 +47,7 @@ function compile_jstackprobe()
 {
     cd ${PRJ_DIR}/jstack.probe
     echo "Compile JstackProbeAgent...."
-    make_jstackprobe_agent_jar || return 1
+    make_jstackprobe_jar || return 1
     echo "JstackProbeAgent compiling completed."
     cd ${PRJ_DIR}
     return 0
@@ -131,7 +148,14 @@ else
     fi
 
     if ! [[ $JAVA_TAILOR_PROBES =~ "stackprobe" ]] ; then
-        compile_jstackprobe || exit 1
+        check_jfr_supported
+        if [ $? -eq 1 ];
+        then
+            compile_jstackprobe || exit 1
+        else
+            echo "JFR not supoprted in ${JAVA_VER}. Won't compile the jstackprobe."
+        fi
+        
     fi
 
     compile_clean

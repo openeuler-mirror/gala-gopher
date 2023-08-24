@@ -60,6 +60,8 @@
 #else
 #define MEM_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/mem_fp.bpf.o"
 #endif
+#define CHECK_JRE "java -version >/dev/null 2>&1"
+#define CHECK_JSTACK_PROBE "/opt/gala-gopher/extend_probes/JstackProbeAgent.jar"
 #define RM_STACK_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__stack*"
 #define STACK_PROC_MAP_PATH     "/sys/fs/bpf/gala-gopher/__stack_proc_map"
 #define STACK_CONVERT_PATH      "/sys/fs/bpf/gala-gopher/__stack_convert"
@@ -119,6 +121,7 @@ int g_post_max = POST_MAX_STEP_SIZE;
 static struct ipc_body_s g_ipc_body;
 static volatile sig_atomic_t g_stop;
 static struct stack_trace_s *g_st = NULL;
+int g_use_jstack_agent;
 
 static void sig_int(int signo)
 {
@@ -632,11 +635,14 @@ static int add_stack_histo_from_file(struct stack_trace_s *st, struct proc_histo
     char stack_file[LINE_BUF_LEN];
     FILE *stack_fp;
 
+    // Only try once within 30s. If the file reading fails, read again in the next cycle
+    proc_histo->proc_stack_type = PROC_STACK_STORE_READED;
+
     // /proc/<pid>/root/tmp/java-data-<pid>/stacks-mem.txt
     int ret = get_host_java_tmp_file(proc_symbs->proc_id,
         stack_tmp_files[en_type], stack_file, LINE_BUF_LEN);
     if (ret != 0) {
-        ERROR("[FLAMEGRAPH]: get java proc stack tmp file failed: %s\n", stack_file);
+        DEBUG("[FLAMEGRAPH]: get java proc stack tmp file failed: %s\n", stack_file);
         return -1;
     }
 
@@ -646,7 +652,6 @@ static int add_stack_histo_from_file(struct stack_trace_s *st, struct proc_histo
         return -1;
     }
 
-    proc_histo->proc_stack_type = PROC_STACK_STORE_READED;
     int len;
     char line[STACK_SYMBS_LEN];
     line[0] = 0;
@@ -687,8 +692,6 @@ static int add_stack_histo_from_hash(struct stack_trace_s *st, struct stack_symb
 
     s64 count = convert_real_count(st, en_type, origin_count);
     if (str[0] == 0) {
-        DEBUG("[STACKPROBE]: symbs2str is null(proc = %d).\n",
-                stack_symbs->pid.proc_id);
         return -1;
     }
 
@@ -755,7 +758,6 @@ static int stack_id2symbs_user(struct stack_trace_s *st, struct stack_id_s *stac
     int fd = get_stack_map_fd(st);
 
     if (bpf_map_lookup_elem(fd, &(stack_id->user_stack_id), ip) != 0) {
-        DEBUG("[STACKPROBE]: Failed to id2symbs user stack(map_lkup).\n");
         st->stats.count[STACK_STATS_MAP_LKUP_ERR]++;
         return -1;
     }
@@ -763,8 +765,6 @@ static int stack_id2symbs_user(struct stack_trace_s *st, struct stack_id_s *stac
     for (int i = PERF_MAX_STACK_DEPTH - 1; (i >= 0 && index < size); i--) {
         if (ip[i] != 0 && IS_IEG_ADDR(ip[i])) {
             if (search_user_addr_symb(ip[i], &(usr_stack_symbs[index]), proc_cache, stack_id->comm)) {
-                DEBUG("[STACKPROBE]: Failed to id2symbs user stack(%s[0x%llx]).\n",
-                    stack_id->comm, ip[i]);
                 st->stats.count[STACK_STATS_USR_ADDR_ERR]++;
                 usr_stack_symbs[index].mod = stack_id->comm;
             } else {
@@ -1864,6 +1864,24 @@ static void add_java_proc_histo_item(unsigned int pid)
     }
 }
 
+#define JSTACK_PRINTER_PATH "/opt/gala-gopher/extend_probes/JstackPrinter.jar"
+static void print_jstack(u32 pid, struct java_attach_args *args)
+{
+    char cmd[LINE_BUF_LEN];
+    cmd[0] = 0;
+    char ns_java_data_path[PATH_LEN]; 
+
+    set_ns_java_data_dir(pid, ns_java_data_path, PATH_LEN);
+    // java -jar /opt/gala-gopher/extend_probes/JstackPrinter.jar "/tmp/java-data-$PID" "oncpu|offcpu|mem|"
+    (void)snprintf(cmd, LINE_BUF_LEN, "java -jar %s \"%s\" \"%s\"", JSTACK_PRINTER_PATH, ns_java_data_path, args->action);
+
+    FILE *fp = popen(cmd, "r");
+    if (fp != NULL) {
+        (void)pclose(fp);
+        fp = NULL;
+    }
+}
+
 // load cmd example: 
 // jvm_attach 123456 1 load instrument false "/tmp/JstackProbeAgent.jar=123456,/tmp/java-data-123456,oncpu|offcpu|mem|,10"
 static void load_jstack_agent()
@@ -1898,6 +1916,9 @@ static void load_jstack_agent()
         if (ret == 0) {
             continue;
         }
+
+        print_jstack(pid, (void *)&attach_args);
+
         ret = java_load(pid, (void *)&attach_args);
         if (ret == 0) {
             add_java_proc_histo_item(pid);
@@ -1928,7 +1949,7 @@ static void switch_stackmap()
      *  different processes cannot be merged, meanwhile, the call stack of the JVM itself (that is, the local language
      *  stack part of the process) cannot be obtained.
      */
-    if (st->multi_instance_flag && !st->native_stack_flag) {
+    if (g_use_jstack_agent) {
         load_jstack_agent();
     }
 
@@ -2064,7 +2085,7 @@ static void reload_observation_range(struct ipc_body_s *ipc_body)
     }
 
     if (ipc_body->probe_flags & IPC_FLAGS_PARAMS_CHG || ipc_body->probe_flags == 0) {
-        if (!g_st->multi_instance_flag || g_st->native_stack_flag) {
+        if (!g_use_jstack_agent) {
             load_jvm_agent();
         }
     }
@@ -2098,6 +2119,33 @@ static int reload_probe_params(struct ipc_body_s *ipc_body)
     }
 
     return 0;
+}
+
+static void set_java_agent_type()
+{
+    g_use_jstack_agent = 0;
+
+    FILE *file = fopen(CHECK_JSTACK_PROBE, "r");
+    if (file == NULL) {
+        goto out;
+    } else {
+        fclose(file);
+    }
+
+    int err = system(CHECK_JRE);
+    if (err >= 0) {
+        err = WEXITSTATUS(err);
+        if (err == 0 && g_st->multi_instance_flag && !g_st->native_stack_flag) {
+            g_use_jstack_agent = 1;
+        }
+    }
+
+out:
+    if (g_use_jstack_agent == 1) {
+        INFO("[STACKPROBE]: java agent is jstack agent\n");
+    } else {
+        INFO("[STACKPROBE]: java agent is jvm agent\n");
+    }
 }
 
 #ifdef EBPF_RLIM_LIMITED
@@ -2138,6 +2186,7 @@ int main(int argc, char **argv)
             if (reload_probe_params(&ipc_body) != 0) {
                 goto out;
             }
+            set_java_agent_type();
             reload_observation_range(&ipc_body);
             destroy_ipc_body(&g_ipc_body);
             (void)memcpy(&g_ipc_body, &ipc_body, sizeof(g_ipc_body));
