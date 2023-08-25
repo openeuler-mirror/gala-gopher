@@ -41,21 +41,41 @@ struct {
     __uint(max_entries, __PERF_OUT_MAX);
 } snooper_proc_channel SEC(".maps");
 
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
-KRAWTRACE(sched_process_fork, bpf_raw_tracepoint_args)
+static __always_inline void process_new_forked_task(struct task_struct *child, void *ctx)
 {
     struct snooper_proc_evt_s event = {0};
-    struct task_struct *child = (struct task_struct *)ctx->args[1];
+    pid_t pid = _(child->pid);
+    pid_t tgid = _(child->tgid);
 
-    event.pid = _(child->pid);
+    if (pid != tgid) {
+        return;
+    }
+
+    event.pid = pid;
     event.proc_event = PROC_EXEC;
     bpf_probe_read_str(event.filename, sizeof(child->comm), child->comm);
 
     bpf_perf_event_output(ctx, &snooper_proc_channel, BPF_F_ALL_CPU,
                           &event, sizeof(event));
+}
+
+#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
+KRAWTRACE(sched_process_fork, bpf_raw_tracepoint_args)
+{
+    struct task_struct *child = (struct task_struct *)ctx->args[1];
+
+    process_new_forked_task(child, ctx);
     return 0;
 }
 #else
+KPROBE(wake_up_new_task, pt_regs)
+{
+    struct task_struct *child = (struct task_struct *)PT_REGS_PARM1(ctx);
+
+    process_new_forked_task(child, ctx);
+    return 0;
+}
+
 SEC("tracepoint/sched/sched_process_fork")
 int bpf_trace_sched_process_fork_func(struct trace_event_raw_sched_process_fork *ctx)
 {
