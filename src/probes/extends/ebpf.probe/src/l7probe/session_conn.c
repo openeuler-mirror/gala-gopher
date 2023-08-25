@@ -125,7 +125,7 @@ static int cmp_sock_conn(struct conn_info_s *conn_info, struct session_data_args
     if (conn_info->id.tgid != args->session_conn_id.tgid) {
         return -1;
     }
-    
+
     u16 family = strlen(args->ip) == IP6_LEN ? AF_INET6 : AF_INET;
     if (conn_info->remote_addr.family != family) {
         return -1;
@@ -158,7 +158,7 @@ static int find_session_sock(struct l7_mng_s *l7_mng, struct session_data_args_s
             key = next_key;
             continue;
         }
-    
+
         if (cmp_sock_conn(&sock_conn.info, args) == 0){
             matched_conn_id->tgid = key.tgid;
             matched_conn_id->fd = key.fd;
@@ -177,7 +177,7 @@ void clean_pid_session_hash(int tgid)
     if (session_head == NULL) {
         return;
     }
-    
+
     H_ITER(session_head, item, tmp) {
         if (item->session_conn_id.tgid == tgid) {
             H_DEL(session_head, item);
@@ -251,7 +251,9 @@ void submit_sock_data_by_session(void *ctx, struct session_data_args_s *args)
         return;
     }
 
-    update_sock_conn_proto(&sock_conn, args->direct, args->buf, args->bytes_count);
+    if (update_sock_conn_proto(&sock_conn, args->direct, args->buf, args->bytes_count)) {
+        return;
+    }
 
     struct conn_data_s conn_data = {0};
     set_conn_data(args->direct, &sock_conn, &conn_data);
