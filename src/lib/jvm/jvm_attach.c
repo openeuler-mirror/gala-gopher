@@ -135,24 +135,29 @@ static int __write_cmd(int fd, int argc, char** argv)
     return 0;
 }
 
-static void __read_rsp(int fd, int argc, char** argv)
+#define RET_CODE "return code:"
+static int __read_rsp(int fd, int argc, char** argv)
 {
-    char buf[MAX_PATH_LEN];
-    ssize_t bytes = read(fd, buf, sizeof(buf) - 1);
-    if (bytes <= 0) {
-        fprintf(stderr, "[JVM_ATTACH]Error reading response\n");
-        return;
+    FILE *fp = fdopen(fd, "r");
+    if (fp == NULL) {
+        fprintf(stderr, "[JVM_ATTACH] Error reading response\n");
+        close(fd);
+        return -1;
     }
 
-    buf[bytes] = 0;
+    char line[LINE_BUF_LEN];
+    line[0] = 0;
+    while (fgets(line, LINE_BUF_LEN, fp) != NULL) {
+    }
+    (void)fclose(fp);
 
-    printf("[JVM_ATTACH]: JVM response code = ");
-    do {
-        (void)fwrite(buf, 1, bytes, stdout);
-        bytes = read(fd, buf, sizeof(buf));
-    } while (bytes > 0);
+    // split_newline_symbol
+    int len = strlen(line);
+    if (len > 0 && line[len - 1] == '\n') {
+        line[len - 1] = 0;
+    }
 
-    return;
+    return atoi(strstr(line, RET_CODE) != NULL ? line + sizeof(RET_CODE) : line);
 }
 
 static void alarm_handler(int signo) {}
@@ -220,46 +225,55 @@ int __jattach(int pid, int nspid, int argc, char** argv)
         return -1;
     }
 
-    __read_rsp(fd, argc, argv);
+    int ret = __read_rsp(fd, argc, argv);
     
     close(fd);
-    return 0;
+    return ret;
 }
 
 int main(int argc, char** argv)
 {
-    int ret;
+    int ret = 0;
     if (argc < ARGS_NUM) {
         fprintf(stderr, "[JVM_ATTACH]: wrong argv\n");
-        return -1;
+        ret = -1;
+        goto out;
     }
 
     int pid = atoi(argv[1]);
     if (pid <= 0) {
         fprintf(stderr, "[JVM_ATTACH]: %s is not a valid process ID\n", argv[1]);
-        return 1;
+        ret = -1;
+        goto out;
     }
     int cur_pid = pid;
 
     int nspid = atoi(argv[2]);
     if (nspid <= 0) {
         fprintf(stderr, "[JVM_ATTACH]: %s is not a valid ns process ID\n", argv[2]); // argv 2 is pid
-        return 1;
+        ret = -1;
+        goto out;
     }
 
     ret = __ns_enter(pid, nspid, "mnt", &cur_pid);
     if (ret != 0) {
         fprintf(stderr, "[JVM_ATTACH]: nsenter fail");
-        return -1;
+        ret = -1;
+        goto out;
     }
 
     ret = get_tmp_path_r(cur_pid, tmp_path, sizeof(tmp_path));
     if (ret != 0) {
         fprintf(stderr, "[JVM_ATTACH]: get_tmp_path_r %s fail", tmp_path);
-        return -1;
+        ret = -1;
+        goto out;
     }
 
     (void)signal(SIGPIPE, SIG_IGN);
 
-    return __jattach(pid, nspid, argc - 3, argv + 3); // argv 3 is cmd str
+    ret = __jattach(pid, nspid, argc - 3, argv + 3); // argv 3 is cmd str
+
+out:
+    printf("%d", ret);
+    return ret;
 }

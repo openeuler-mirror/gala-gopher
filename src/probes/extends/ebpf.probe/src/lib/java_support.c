@@ -40,6 +40,7 @@ struct jvm_process_info {
 static char jvm_agent_file[FILENAME_LEN];
 static char jvm_tmp_file[FILENAME_LEN];
 static char attach_type[ATTACH_TYPE_LEN];   // start | stop
+static int agentfile_copy_done;
 
 #define ATTACH_BIN_PATH "/opt/gala-gopher/lib/jvm_attach"
 #define HOST_SO_DIR "/opt/gala-gopher/extend_probes"
@@ -124,6 +125,20 @@ static int __mkdir(char dst_dir[])
     return 0;
 }
 
+int set_ns_java_data_dir(u32 pid, char *ns_java_data_path, int path_len)
+{
+    if (ns_java_data_path == NULL || path_len <= 0) {
+        return -1;
+    }
+
+    int ret = snprintf(ns_java_data_path, path_len, "/tmp/java-data-%u", pid);
+    if (ret < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
 /*
     https://github.com/frohoff/jdk8u-jdk/blob/master/src/share/classes/sun/tools/attach/HotSpotVirtualMachine.java
     private void loadAgentLibrary()
@@ -149,7 +164,7 @@ static int _set_attach_argv(u32 pid, struct jvm_process_info *v)
     char host_agent_file_path[LINE_BUF_LEN];
     (void)snprintf(host_agent_file_path, LINE_BUF_LEN, "%s%s", v->host_proc_dir, ns_agent_path);
 
-    if (access(host_agent_file_path, 0) != 0) {
+    if ((access(host_agent_file_path, 0) != 0) || (agentfile_copy_done == 0)) {
         char src_agent_file[PATH_LEN] = {0};
         (void)snprintf(src_agent_file, PATH_LEN, "%s/%s", HOST_SO_DIR, jvm_agent_file);
         ret = copy_file(host_agent_file_path, src_agent_file); // overwrite is ok.
@@ -157,6 +172,7 @@ static int _set_attach_argv(u32 pid, struct jvm_process_info *v)
             ERROR("[JAVA_SUPPORT]: proc %u copy %s from %s file fail \n", pid, host_agent_file_path, src_agent_file);
             return ret;
         }
+        agentfile_copy_done = 1;
     }
 
     ret = chown(host_agent_file_path, v->eUid, v->eGid);
@@ -166,7 +182,7 @@ static int _set_attach_argv(u32 pid, struct jvm_process_info *v)
         return ret;
     }
 
-    (void)snprintf(v->ns_java_data_path, NS_PATH_LEN, "/tmp/java-data-%u", pid); // TODO: add start_time_ticks?
+    set_ns_java_data_dir(pid, v->ns_java_data_path, NS_PATH_LEN);
 
     char host_java_data_dir[LINE_BUF_LEN];
     host_java_data_dir[0] = 0;

@@ -44,7 +44,7 @@ struct file_ref_s {
 };
 
 typedef void (*java_msg_handler_cb)(void *ctx, struct file_ref_s *file_ref);
-
+int set_ns_java_data_dir(u32 pid, char *ns_java_data_path, int path_len);
 int get_host_java_tmp_file(u32 pid, const char *file_name, char *file_path, int path_len);
 int detect_proc_is_java(u32 pid, char *comm, int comm_len);
 int java_load(u32 pid, struct java_attach_args *args);

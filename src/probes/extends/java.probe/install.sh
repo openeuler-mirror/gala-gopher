@@ -29,6 +29,7 @@ fi
 # tailor jstackprobe jar when tailoring stackprobe
 if ! [[ $JAVA_TAILOR_PROBES =~ "stackprobe" ]] ; then
     INSTALL_FILES+=" jstack.probe/JstackProbeAgent.jar"
+    INSTALL_FILES+=" jstack.probe/JstackPrinter.jar"
 fi
 
 if [ ${INSTALL_PATH} ]; then
