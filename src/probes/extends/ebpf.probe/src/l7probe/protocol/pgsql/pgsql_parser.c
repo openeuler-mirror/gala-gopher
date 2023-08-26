@@ -31,7 +31,7 @@ parse_state_t pgsql_parse_regular_msg(struct raw_data_s *raw_data, struct pgsql_
 
     // 校验raw_data缓存长度是否合法
     if (CHECK_RAW_DATA_LEN) {
-        ERROR("[Pgsql parser] The raw_data length is insufficient.");
+        ERROR("[Pgsql parser] The raw_data length is insufficient.\n");
         return STATE_NEEDS_MORE_DATA;
     }
 
@@ -45,7 +45,7 @@ parse_state_t pgsql_parse_regular_msg(struct raw_data_s *raw_data, struct pgsql_
     }
 
     if (msg->len < REGULAR_MSG_MIN_LEN) {
-        ERROR("[Pgsql parser] Failed to parse regular msg, msg.len is less than 4.");
+        WARN("[Pgsql parser] Failed to parse regular msg, msg.len is less than 4.\n");
         return STATE_INVALID;
     }
 
@@ -59,27 +59,49 @@ parse_state_t pgsql_parse_regular_msg(struct raw_data_s *raw_data, struct pgsql_
 
 parse_state_t pgsql_parse_startup_name_value(struct raw_data_s *raw_data_buf)
 {
+    parse_state_t parse_state;
+    char *name = NULL;
+    char *value = NULL;
     while (raw_data_buf->current_pos < raw_data_buf->data_len) {
-        char *name = NULL;
-        char *value = NULL;
-        parse_state_t parse_state;
-
         // 当前对于消息体中的name-value对只作解析，不作保存，可按需扩展
         parse_state = decoder_extract_str_until_char(raw_data_buf, &name, '\0');
         if (parse_state != STATE_SUCCESS) {
+            if (name != NULL) {
+                free(name);
+            }
             return parse_state;
         }
         if (strlen(name) == 0) {
+            if (name != NULL) {
+                free(name);
+                name = NULL;
+            }
             break;
+        }
+        if (name != NULL) {
+            free(name);
+            name = NULL;
         }
 
         parse_state = decoder_extract_str_until_char(raw_data_buf, &value, '\0');
         if (parse_state != STATE_SUCCESS) {
+            if (value != NULL) {
+                free(value);
+                value = NULL;
+            }
             return parse_state;
         }
         if (strlen(value) == 0) {
-            ERROR("[Pgsql parser] Failed to parse startup msg , not enough data to extract payload value.");
+            if (value != NULL) {
+                free(value);
+                value = NULL;
+            }
+            ERROR("[Pgsql parser] Failed to parse startup msg , not enough data to extract payload value.\n");
             return STATE_INVALID;
+        }
+        if (value != NULL) {
+            free(value);
+            value = NULL;
         }
     }
     return STATE_SUCCESS;
@@ -91,7 +113,7 @@ parse_state_t pgsql_parse_startup_msg(struct raw_data_s *raw_data, struct pgsql_
 
     // 校验raw_data缓存长度是否合法
     if (CHECK_RAW_DATA_LEN) {
-        ERROR("[Pgsql parser] The raw_data length is insufficient.");
+        ERROR("[Pgsql parser] The raw_data length is insufficient.\n");
         return STATE_NEEDS_MORE_DATA;
     }
 
@@ -113,7 +135,7 @@ parse_state_t pgsql_parse_startup_msg(struct raw_data_s *raw_data, struct pgsql_
 
     // 校验缓存区剩余容量是否足够获取payload
     if ((raw_data->data_len - raw_data->current_pos) < (msg->len - PGSQL_MSG_HEADER_SIZE)) {
-        ERROR("[Pgsql parser] Failed to parse startup msg, not enough data.");
+        ERROR("[Pgsql parser] Failed to parse startup msg, not enough data.\n");
         return STATE_INVALID;
     }
 
@@ -132,6 +154,9 @@ parse_state_t pgsql_parse_cmd_complete(struct pgsql_regular_msg_s *msg, struct p
     // 反向寻找'\0'字符并切割，c字符串以'\0'结束，直接赋值即可
     size_t cmd_tag_len = strlen(msg->payload_data->data);
     cmd_complete->cmd_tag = malloc(cmd_tag_len);
+    if (cmd_complete->cmd_tag == NULL) {
+        return STATE_INVALID;
+    }
     memcpy(cmd_complete->cmd_tag, msg->payload_data->data, cmd_tag_len);
     return STATE_SUCCESS;
 }
@@ -179,7 +204,7 @@ parse_state_t pgsql_parse_row_desc(struct pgsql_regular_msg_s *msg, struct pgsql
 
     if (msg->payload_data == NULL || msg->payload_data->data_len == 0) {
         ERROR(
-            "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.");
+            "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.\n");
         return STATE_INVALID;
     }
     msg->payload_data->current_pos = 0;
@@ -193,7 +218,7 @@ parse_state_t pgsql_parse_row_desc(struct pgsql_regular_msg_s *msg, struct pgsql
         parse_state_t parse_state;
         field = init_pgsql_row_desc_field();
         if (field == NULL) {
-            ERROR("[Pgsql parser] Failed to malloc struct pgsql_row_desc_field_s*.");
+            ERROR("[Pgsql parser] Failed to malloc struct pgsql_row_desc_field_s*.\n");
             return STATE_INVALID;
         }
         parse_state = pgsql_extract_row_desc_field(msg->payload_data, field);
@@ -211,14 +236,17 @@ parse_state_t pgsql_parse_row_desc(struct pgsql_regular_msg_s *msg, struct pgsql
 
 parse_state_t pgsql_parse_data_row(struct pgsql_regular_msg_s *msg, struct pgsql_data_row_s *data_row)
 {
-    int16_t field_count;
+    int16_t field_count = 0;
     parse_state_t field_count_state;
+    int32_t value_len = 0;
+    parse_state_t value_len_state;
+    parse_state_t col_values_state;
     data_row->timestamp_ns = msg->timestamp_ns;
     data_row->colum_values_len = 0;
 
     if (msg->payload_data == NULL || msg->payload_data->data_len == 0) {
         ERROR(
-            "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.");
+            "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.\n");
         return STATE_INVALID;
     }
     msg->payload_data->current_pos = 0;
@@ -228,9 +256,7 @@ parse_state_t pgsql_parse_data_row(struct pgsql_regular_msg_s *msg, struct pgsql
         return field_count_state;
     }
     for (int i = 0; i < field_count; ++i) {
-        int32_t value_len;
-        parse_state_t value_len_state;
-        parse_state_t col_values_state;
+        value_len = 0;
         value_len_state = decoder_extract_int32_t(msg->payload_data, &value_len);
         if (value_len_state != STATE_SUCCESS) {
             return value_len_state;
@@ -263,12 +289,14 @@ parse_state_t pgsql_parse_bind_req(struct pgsql_regular_msg_s *msg, struct pgsql
     parse_state_t stat_name_state;
     int16_t fmt_code_count = 0;
     parse_state_t count_state;
+    int16_t fmt_code = 0;
+    parse_state_t fmt_code_state;
 
     bind_req->timestamp_ns = msg->timestamp_ns;
 
     if (msg->payload_data == NULL || msg->payload_data->data_len == 0) {
         ERROR(
-            "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.");
+            "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.\n");
         return STATE_INVALID;
     }
     msg->payload_data->current_pos = 0;
@@ -288,8 +316,6 @@ parse_state_t pgsql_parse_bind_req(struct pgsql_regular_msg_s *msg, struct pgsql
     }
     for (int i = 0; i < fmt_code_count; ++i) {
         // 当前未解析fmt信息
-        int16_t fmt_code;
-        parse_state_t fmt_code_state;
         fmt_code_state = decoder_extract_int16_t(msg->payload_data, &fmt_code);
         if (fmt_code_state != STATE_SUCCESS) {
             return fmt_code_state;
@@ -304,12 +330,13 @@ parse_state_t pgsql_parse_param_desc(struct pgsql_regular_msg_s *msg, struct pgs
 {
     int16_t param_count = 0;
     parse_state_t extract_count_state;
+    int32_t type_oid;
 
     param_desc->timestamp_ns = msg->timestamp_ns;
 
     if (msg->payload_data == NULL || msg->payload_data->data_len == 0) {
         ERROR(
-            "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.");
+            "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.\n");
         return STATE_INVALID;
     }
     msg->payload_data->current_pos = 0;
@@ -320,7 +347,6 @@ parse_state_t pgsql_parse_param_desc(struct pgsql_regular_msg_s *msg, struct pgs
     }
     for (int i = 0; i < param_count; ++i) {
         // type_oid字段尚未使用，仅做解析不保存
-        int32_t type_oid;
         parse_state_t extract_oid_state = decoder_extract_int32_t(msg->payload_data, &type_oid);
         if (extract_oid_state != STATE_SUCCESS) {
             return extract_oid_state;
@@ -337,11 +363,12 @@ parse_state_t pgsql_parse_parse_msg(struct pgsql_regular_msg_s *msg, struct pgsq
     parse_state_t query_state;
     int16_t param_count_count = 0;
     parse_state_t param_count_state;
+    int32_t type_oid = 0;
     parse_req->timestamp_ns = msg->timestamp_ns;
 
     if (msg->payload_data == NULL || msg->payload_data->data_len == 0) {
         ERROR(
-            "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.");
+            "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.\n");
         return STATE_INVALID;
     }
     msg->payload_data->current_pos = 0;
@@ -361,7 +388,6 @@ parse_state_t pgsql_parse_parse_msg(struct pgsql_regular_msg_s *msg, struct pgsq
     }
     for (int i = 0; i < param_count_count; ++i) {
         // 当前保存消息体，未维护oid列表
-        int32_t type_oid = 0;
         parse_state_t type_oid_state = decoder_extract_int32_t(msg->payload_data, &type_oid);
         if (type_oid_state != STATE_SUCCESS) {
             return type_oid_state;
@@ -374,22 +400,22 @@ parse_state_t pgsql_parse_parse_msg(struct pgsql_regular_msg_s *msg, struct pgsq
 
 parse_state_t pgsql_parse_err_resp(struct pgsql_regular_msg_s *msg, struct pgsql_err_resp_s *err_resp)
 {
+    char code;
+    parse_state_t extract_code_state;
+    parse_state_t parse_state;
+    char *value = NULL;
+    parse_state_t extract_value_state;
     err_resp->timestamp_ns = msg->timestamp_ns;
     if (msg->payload_data == NULL || msg->payload_data->data_len == 0) {
         ERROR(
-            "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.");
+            "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.\n");
         return STATE_INVALID;
     }
     msg->payload_data->current_pos = 0;
 
     // 解析payload所有字节
     while (msg->payload_data->current_pos < msg->payload_data->data_len) {
-        char code;
-        parse_state_t extract_code_state;
-        parse_state_t parse_state;
-        char *value = NULL;
-        parse_state_t extract_value_state;
-
+        value = NULL;
         extract_code_state = decoder_extract_char(msg->payload_data, &code);
         if (extract_code_state != STATE_SUCCESS) {
             return extract_code_state;
@@ -404,6 +430,9 @@ parse_state_t pgsql_parse_err_resp(struct pgsql_regular_msg_s *msg, struct pgsql
 
         extract_value_state = decoder_extract_str_until_char(msg->payload_data, &value, '\0');
         if (extract_value_state != STATE_SUCCESS) {
+            if (value != NULL) {
+                free(value);
+            }
             return extract_value_state;
         }
 
@@ -414,6 +443,7 @@ parse_state_t pgsql_parse_err_resp(struct pgsql_regular_msg_s *msg, struct pgsql
         }
         if (value != NULL) {
             free(value);
+            value = NULL;
         }
     }
     msg->payload_data->current_pos = 0;
@@ -428,7 +458,7 @@ parse_state_t pgsql_parse_describe(struct pgsql_regular_msg_s *msg, struct pgsql
     desc_req->timestamp_ns = msg->timestamp_ns;
     if (msg->payload_data == NULL || msg->payload_data->data_len == 0) {
         ERROR(
-            "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.");
+            "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.\n");
         return STATE_INVALID;
     }
     msg->payload_data->current_pos = 0;
@@ -449,7 +479,9 @@ parse_state_t pgsql_parse_describe(struct pgsql_regular_msg_s *msg, struct pgsql
 size_t pgsql_find_frame_boundary(struct raw_data_s *raw_data)
 {
     for (size_t i = raw_data->current_pos; i < raw_data->data_len; ++i) {
-        if (contains_pgsql_tag(raw_data->data[i])) {
+        if (contains_pgsql_tag(raw_data->data[i]) &&
+        ((i == 0 && raw_data->data[i + 1] == '\0') ||
+        (i != 0 && raw_data->data[i - 1] == '\0' && raw_data->data[i + 1] == '\0'))) {
             return i;
         }
     }
@@ -464,7 +496,7 @@ parse_state_t pgsql_parse_frame(struct raw_data_s *raw_data, struct frame_data_s
 
     // 校验raw_data缓存长度是否合法
     if (CHECK_RAW_DATA_LEN) {
-        ERROR("[Pgsql parser] The raw_data length is insufficient.");
+        ERROR("[Pgsql parser] The raw_data length is insufficient.\n");
         return STATE_NEEDS_MORE_DATA;
     }
 
@@ -472,18 +504,7 @@ parse_state_t pgsql_parse_frame(struct raw_data_s *raw_data, struct frame_data_s
     if ((*frame_data) == NULL) {
         return STATE_INVALID;
     }
-
-    start_msg = init_pgsql_startup_msg();
-    if (start_msg == NULL) {
-        ERROR("[Pgsql parser] Failed to init pgsql_startup_msg.");
-        return STATE_INVALID;
-    }
-    if (pgsql_parse_startup_msg(raw_data, start_msg) == STATE_SUCCESS && start_msg->name_value_pair_len != 0) {
-        if (raw_data->current_pos == raw_data->data_len) {
-            return STATE_INVALID;
-        }
-    }
-    free_pgsql_startup_msg(start_msg);
+    memset(*frame_data, 0, sizeof(struct frame_data_s));
 
     regular_msg = init_pgsql_regular_msg();
     if (regular_msg == NULL) {
@@ -492,5 +513,10 @@ parse_state_t pgsql_parse_frame(struct raw_data_s *raw_data, struct frame_data_s
     regular_msg->timestamp_ns = raw_data->timestamp_ns;
     (*frame_data)->frame = regular_msg;
     parse_msg_state = pgsql_parse_regular_msg(raw_data, regular_msg);
-    return parse_msg_state;
+    if (parse_msg_state != STATE_SUCCESS) {
+        free_pgsql_regular_msg(regular_msg);
+        free(*frame_data);
+        return parse_msg_state;
+    }
+    return STATE_SUCCESS;
 }

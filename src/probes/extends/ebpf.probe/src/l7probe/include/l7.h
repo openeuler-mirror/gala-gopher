@@ -59,6 +59,12 @@ enum message_type_t {
     MESSAGE_RESPONSE
 };
 
+enum l7_direction_t {
+    L7_EGRESS,
+    L7_INGRESS,
+    L7_DIRECT_UNKNOW
+};
+
 struct l7_proto_s {
     enum proto_type_t proto;
     enum message_type_t type;
@@ -95,6 +101,26 @@ static __inline enum message_type_t __get_http_type(const char* buf, size_t coun
     if (buf[0] == 'D' && buf[1] == 'E' && buf[2] == 'L'
         && buf[3] == 'E' && buf[4] == 'T' && buf[5] == 'E') {
         return MESSAGE_REQUEST;
+    }
+
+    // http connect
+    if (buf[0] == 'C' && buf[1] == 'O' && buf[2] == 'N' && buf[3] == 'N' && buf[4] == 'E' && buf[5] == 'C'  && buf[6] == 'T') {
+        return MESSAGE_RESPONSE;
+    }
+
+    // http options
+    if (buf[0] == 'O' && buf[1] == 'P' && buf[2] == 'T' && buf[3] == 'I' && buf[4] == 'O' && buf[5] == 'N'  && buf[6] == 'S') {
+        return MESSAGE_RESPONSE;
+    }
+
+    // http trace
+    if (buf[0] == 'T' && buf[1] == 'R' && buf[2] == 'A' && buf[3] == 'C' && buf[4] == 'E') {
+        return MESSAGE_RESPONSE;
+    }
+
+    // http patch
+    if (buf[0] == 'P' && buf[1] == 'A' && buf[2] == 'T' && buf[3] == 'C' && buf[4] == 'H') {
+        return MESSAGE_RESPONSE;
     }
 
     // http response
@@ -535,7 +561,18 @@ static __inline enum message_type_t get_mysql_type(const char* buf, size_t count
     return MESSAGE_UNKNOW;
 }
 
-static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, struct l7_proto_s* l7pro)
+static __inline enum message_type_t __get_pgsql_type(const char* buf, size_t count, enum l7_direction_t direction)
+{
+    if (direction == L7_INGRESS && buf[0] == 'Q') {
+        return MESSAGE_REQUEST;
+    }
+    if (direction == L7_EGRESS && buf[0] == 'I' && buf[0] == 'E' && buf[0] == 'T' && buf[0] == 'D' && buf[0] == 'C' && buf[0] == 'Z') {
+        return MESSAGE_RESPONSE;
+    }
+    return MESSAGE_UNKNOW;
+}
+
+static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, enum l7_direction_t direction, struct l7_proto_s* l7pro)
 {
     enum message_type_t type;
 
@@ -543,6 +580,14 @@ static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, st
         return -1;
     }
 
+    if (flags & PGSQL_ENABLE) {
+        type = __get_pgsql_type(buf, count, direction);
+        if (type != MESSAGE_UNKNOW) {
+            l7pro->proto = PROTO_PGSQL;
+            l7pro->type = type;
+            return 0;
+        }
+    }
 
     if (flags & HTTP_ENABLE) { // TODO: add && condition
         type = __get_http_type(buf, count);
@@ -553,14 +598,15 @@ static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, st
         }
     }
 
-    if (flags & DNS_ENABLE) {
-        type = __get_dns_type(buf, count);
-        if (type != MESSAGE_UNKNOW) {
-            l7pro->proto = PROTO_DNS;
-            l7pro->type = type;
-            return 0;
-        }
-    }
+    // note: 暂时先注释掉，影响定位
+//    if (flags & DNS_ENABLE) {
+//        type = __get_dns_type(buf, count);
+//        if (type != MESSAGE_UNKNOW) {
+//            l7pro->proto = PROTO_DNS;
+//            l7pro->type = type;
+//            return 0;
+//        }
+//    }
 
     if (flags & REDIS_ENABLE) {
         type = __get_redis_type(buf, count);

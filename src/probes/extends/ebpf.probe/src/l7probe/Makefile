@@ -1,6 +1,7 @@
 include ../mk/var.mk
 INCLUDES = $(BASE_INC)
 INCLUDES += -I$(ROOT_DIR)/../l7probe
+INCLUDES += -I$(ROOT_DIR)/../l7probe/3rd_party/pico
 INSTALL_DIR=/opt/gala-gopher/extend_probes
 LINK_TARGET += -lcjson
 APP := l7probe
@@ -17,6 +18,7 @@ SRC_C := $(filter-out $(BPF_C), $(wildcard *.c))
 PROTOCOL_DIR = $(shell find ./protocol -maxdepth 3 -type d)
 SRC_C += $(foreach dir, $(PROTOCOL_DIR), $(wildcard $(dir)/*.c))
 SRC_C += $(CFILES)
+SRC_C += $(wildcard $(ROOT_DIR)/../l7probe/3rd_party/pico/*.c)
 
 .PHONY: all clean install
 

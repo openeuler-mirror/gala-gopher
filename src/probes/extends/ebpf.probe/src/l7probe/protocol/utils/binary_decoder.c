@@ -47,7 +47,7 @@ parse_state_t decoder_extract_bool(struct raw_data_s *raw_data, bool *res)
 }
 
 /**
- * 大端法提取字符串中的整形数据。
+ * 大端法提取字符串中的整型数据。
  *
  * @param data_stream_buf 字符串缓存
  * @return int(u_int8_t, u_int16_t, u_int32_t)
