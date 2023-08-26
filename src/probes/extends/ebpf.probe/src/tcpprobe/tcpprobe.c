@@ -46,8 +46,9 @@ static volatile sig_atomic_t g_stop;
 static struct tcp_mng_s g_tcp_mng;
 
 #define RM_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__tcplink_*"
+#define RM_COMMON_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__tcpprobe_*"
 
-void load_established_tcps(struct ipc_body_s *ipc_body, int map_fd);
+int load_established_tcps(int proc_obj_map_fd, int map_fd);
 int tcp_load_probe(struct tcp_mng_s *tcp_mng, struct ipc_body_s *ipc_body, struct bpf_prog_s **new_prog);
 void scan_tcp_trackers(struct tcp_mng_s *tcp_mng);
 void scan_tcp_flow_trackers(struct tcp_mng_s *tcp_mng);
@@ -161,16 +162,56 @@ static void deinit_tcp_historm(struct tcp_mng_s *tcp_mng)
     }
 }
 
+static void empty_tcp_fd_map(int map_fd)
+{
+    u32 key = 0, next_key = 0;
+
+    while (bpf_map_get_next_key(map_fd, &key, &next_key) != -1) {
+        (void)bpf_map_delete_elem(map_fd, &next_key);
+        key = next_key;
+    }
+}
+
+static int load_established_tcps_mngt(int proc_obj_map_fd, int tcp_fd_map_fd)
+{
+    static time_t last_load_time;
+    time_t now;
+    int estab_loaded;
+
+    time(&now);
+    estab_loaded = load_established_tcps(proc_obj_map_fd, tcp_fd_map_fd);
+    if (estab_loaded > 0) {
+        if (!is_tcp_fd_probe_loaded()) {
+            if (tcp_load_fd_probe()) {
+                ERROR("[TCPPROBE] Load tcp fd ebpf prog failed.\n");
+                return -1;
+            }
+        }
+        last_load_time = now;
+    } else {
+        if (now > last_load_time + UNLOAD_TCP_FD_PROBE) {
+            tcp_unload_fd_probe();
+            empty_tcp_fd_map(tcp_fd_map_fd);
+        }
+    }
+
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     int err = -1, ret;
     int tcp_fd_map_fd = -1, proc_obj_map_fd = -1;
-    int start_time_second;
     struct tcp_mng_s *tcp_mng = &g_tcp_mng;
     FILE *fp = NULL;
     struct ipc_body_s ipc_body;
 
     fp = popen(RM_MAP_PATH, "r");
+    if (fp != NULL) {
+        (void)pclose(fp);
+        fp = NULL;
+    }
+    fp = popen(RM_COMMON_MAP_PATH, "r");
     if (fp != NULL) {
         (void)pclose(fp);
         fp = NULL;
@@ -199,15 +240,21 @@ int main(int argc, char **argv)
 #endif
     INFO("[TCPPROBE]: Starting to load established tcp...\n");
 
-    ret = tcp_load_fd_probe(&tcp_fd_map_fd, &proc_obj_map_fd);
+    ret = tcp_load_fd_probe();
     if (ret) {
         fprintf(stderr, "Load tcp fd ebpf prog failed.\n");
         goto err;
     }
 
+    tcp_fd_map_fd = bpf_obj_get(TCP_LINK_FD_PATH);
+    proc_obj_map_fd = bpf_obj_get(GET_PROC_MAP_PIN_PATH(tcpprobe));
+    if (tcp_fd_map_fd <= 0 || proc_obj_map_fd <= 0) {
+        ERROR("[TCPPROBE]: Failed to get bpf map fd\n");
+        goto err;
+    }
+
     INFO("[TCPPROBE]: Successfully started!\n");
 
-    start_time_second = 0;
     tcp_mng->last_aging = (time_t)time(NULL);
     while (!g_stop) {
         ret = recv_ipc_msg(msq_id, (long)PROBE_TCP, &ipc_body);
@@ -233,13 +280,11 @@ int main(int argc, char **argv)
         }
 
         if (tcp_mng->tcp_progs) {
-            load_established_tcps(&(tcp_mng->ipc_body), tcp_fd_map_fd);
-
-            start_time_second++;
-            if (start_time_second > UNLOAD_TCP_FD_PROBE) {
-                tcp_unload_fd_probe();
-                start_time_second = 0;
+            ret = load_established_tcps_mngt(proc_obj_map_fd, tcp_fd_map_fd);
+            if (ret) {
+                goto err;
             }
+
             for (int i = 0; i < tcp_mng->tcp_progs->num && i < SKEL_MAX_NUM; i++) {
                 if (tcp_mng->tcp_progs->pbs[i] && ((err = perf_buffer__poll(tcp_mng->tcp_progs->pbs[i], THOUSAND)) < 0)) {
                     if (err != -EINTR) {

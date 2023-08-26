@@ -97,7 +97,7 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
                     __MAP_SET_PIN_PATH(probe_name, proc_obj_map, "/sys/fs/bpf/gala-gopher/__"#app_name"_proc_map"); \
                 } while (0)
 
-#define GET_PROC_MAP_PIN_PATH(app_name) (PROC_MAP_PATH#app_name)
+#define GET_PROC_MAP_PIN_PATH(app_name) ("/sys/fs/bpf/gala-gopher/__"#app_name"_proc_map")
 
 #define INIT_BPF_APP(app_name, limit) \
     static char __init = 0; \

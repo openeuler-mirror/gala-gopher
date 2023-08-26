@@ -25,6 +25,7 @@
 #define TCP_LINK_ARGS_PATH      "/sys/fs/bpf/gala-gopher/__tcplink_args"
 #define TCP_LINK_SOCKS_PATH     "/sys/fs/bpf/gala-gopher/__tcplink_socks"
 #define TCP_LINK_TCP_PATH       "/sys/fs/bpf/gala-gopher/__tcplink_tcp"
+#define TCP_LINK_FD_PATH        "/sys/fs/bpf/gala-gopher/__tcplink_tcp_fd"
 
 #define TCP_PROBE_ABN       (u32)(1)
 #define TCP_PROBE_WINDOWS   (u32)(1 << 1)
@@ -237,14 +238,16 @@ struct tcp_args_s {
 
 void lkup_established_tcp(int proc_map_fd, struct ipc_body_s *ipc_body);
 void destroy_established_tcps(void);
-int tcp_load_fd_probe(int *tcp_fd_map_fd, int *proc_obj_map_fd);
+int tcp_load_fd_probe(void);
 void tcp_unload_fd_probe(void);
+int is_tcp_fd_probe_loaded(void);
 
 #define __LOAD_PROBE(probe_name, end, load) \
     OPEN(probe_name, end, load); \
     MAP_SET_PIN_PATH(probe_name, args_map, TCP_LINK_ARGS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, tcp_link_map, TCP_LINK_TCP_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, sock_map, TCP_LINK_SOCKS_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, tcp_fd_map, TCP_LINK_FD_PATH, load); \
     LOAD_ATTACH(tcpprobe, probe_name, end, load)
 
 #endif

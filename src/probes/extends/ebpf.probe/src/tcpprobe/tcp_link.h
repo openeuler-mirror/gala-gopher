@@ -63,6 +63,16 @@ struct {
     __uint(max_entries, 64);
 } tcp_output SEC(".maps");
 
+#define __TCP_FD_MAX (50)
+// Used to identifies the TCP pid and fd.
+// Temporary MAP. Data exists only in the startup phase.
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(u32)); // tgid
+    __uint(value_size, sizeof(struct tcp_fd_info));
+    __uint(max_entries, __TCP_FD_MAX);
+} tcp_fd_map SEC(".maps");
+
 #define __PERIOD    NS(30)
 static __always_inline __maybe_unused u64 get_period()
 {

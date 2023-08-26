@@ -36,7 +36,7 @@
 
 static struct bpf_prog_s* fd_probe = NULL;
 
-int tcp_load_fd_probe(int *tcp_fd_map_fd, int *proc_obj_map_fd)
+int tcp_load_fd_probe(void)
 {
     struct bpf_prog_s *prog;
 
@@ -51,8 +51,6 @@ int tcp_load_fd_probe(int *tcp_fd_map_fd, int *proc_obj_map_fd)
     prog->num++;
 
     fd_probe = prog;
-    *tcp_fd_map_fd = GET_MAP_FD(tcp_fd, tcp_fd_map);
-    *proc_obj_map_fd = GET_MAP_FD(tcp_fd, proc_obj_map);
     return 0;
 err:
     UNLOAD(tcp_fd);
@@ -68,3 +66,10 @@ void tcp_unload_fd_probe(void)
     }
 }
 
+int is_tcp_fd_probe_loaded(void)
+{
+    if (fd_probe) {
+        return 1;
+    }
+    return 0;
+}
