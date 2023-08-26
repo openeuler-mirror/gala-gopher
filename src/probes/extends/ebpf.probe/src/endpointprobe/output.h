@@ -24,10 +24,7 @@
 #include <bpf/bpf_core_read.h>
 
 #include "bpf.h"
-#include "endpoint.h"
 
-#define BPF_F_INDEX_MASK    0xffffffffULL
-#define BPF_F_ALL_CPU   BPF_F_INDEX_MASK
 
 #define __ENDPOINT_MAX (10 * 1024)
 // Used to identifies the TCP listen/connect and UDP sock object.
@@ -39,13 +36,6 @@ struct {
     __uint(max_entries, __ENDPOINT_MAX);
 } g_endpoint_map SEC(".maps");
 
-#define __PERF_OUT_MAX (64)
-struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, __PERF_OUT_MAX);
-} g_ep_output SEC(".maps");
 
 
 // Data collection args

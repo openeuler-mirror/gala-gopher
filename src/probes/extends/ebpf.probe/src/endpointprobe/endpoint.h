@@ -4,8 +4,11 @@
 #ifndef __ENDPOINT_H__
 #define __ENDPOINT_H__
 
-enum {
-    // tcp listen statistic value
+#define BPF_F_INDEX_MASK    0xffffffffULL
+#define BPF_F_ALL_CPU   BPF_F_INDEX_MASK
+
+enum socket_evt_e {
+    // tcp event
     EP_STATS_LISTEN_DROPS = 0,
     EP_STATS_ACCEPT_OVERFLOW,   // alarm accpet queue full
     EP_STATS_SYN_OVERFLOW,      // alarm syn queue full
@@ -13,12 +16,11 @@ enum {
     EP_STATS_PASSIVE_FAILS,
     EP_STATS_RETRANS_SYNACK,
     EP_STATS_LOST_SYNACK,
-
-    // tcp connect statistic value
+    EP_STATS_REQ_DROP,
     EP_STATS_ACTIVE_OPENS,
     EP_STATS_ACTIVE_FAILS,
 
-    // udp statistic value
+    // udp event
     EP_STATS_QUE_RCV_FAILED,
     EP_STATS_UDP_SENDS,
     EP_STATS_UDP_RCVS,
@@ -26,74 +28,39 @@ enum {
     EP_STATS_MAX
 };
 
-struct endpoint_stats {
-    unsigned long stats[EP_STATS_MAX];
+#ifdef IP6_LEN
+#undef IP6_LEN
+#endif
+#define IP6_LEN                 16
+
+enum socket_role_e {
+    TCP_CLIENT = 0,
+    TCP_SERVER
 };
 
-enum endpoint_t {
-    SK_TYPE_LISTEN_TCP = 1,
-    SK_TYPE_LISTEN_UDP,
-    SK_TYPE_CLIENT_TCP,
-    SK_TYPE_CLIENT_UDP,
-};
-
-struct endpoint_v {
-    enum endpoint_t type;
-    __u32 tgid;
-};
-
-struct ip {
+struct conn_addr_s {
+    u16 family;
+    u16 port;                   // TCP server port or client connect port
     union {
-        unsigned int ip4;               /* IPv4 地址 */
-        unsigned char ip6[IP6_LEN];     /* IPv6 地址 */
-    } ip;
-    int family;                         /* 地址族 */
+        u32 ip;
+        char ip6[IP6_LEN];
+    };
 };
 
-struct listen_sockfd_key_t {
-    int tgid;               /* 用户进程 ID */
-    int fd;                 /* socket的文件描述符 */
-};
-
-struct udp_client_key_t {
+struct tcp_socket_event_s {
     int tgid;                   // process id
-    struct ip ip_addr;          // udp source address
+    struct conn_addr_s client_ipaddr;
+    struct conn_addr_s server_ipaddr;
+    enum socket_evt_e evt;
+    enum socket_role_e role;
 };
 
-struct udp_server_key_t {
+struct udp_socket_event_s {
     int tgid;                   // process id
-    struct ip ip_addr;          // udp source address
-};
-
-struct tcp_listen_key_t {
-    int tgid;                   // process id
-    int port;                   // tcp listen port
-};
-
-struct tcp_connect_key_t {
-    int tgid;                   // process id
-    struct ip ip_addr;          // tcp listen ip address
-};
-
-struct endpoint_key_t {
-    enum endpoint_t type;
-    union {
-        struct udp_client_key_t udp_client_key;
-        struct udp_server_key_t udp_server_key;
-        struct tcp_listen_key_t tcp_listen_key;
-        struct tcp_connect_key_t tcp_connect_key;
-    } key;
-};
-
-struct endpoint_val_t {
-    __u64 ts;
-    int udp_err_code;
-    struct endpoint_key_t key;
-    struct endpoint_stats ep_stats;
-};
-
-struct endpoint_args_s {
-    __u64 period;               // Sampling period, unit ns
+    struct conn_addr_s local_ipaddr;
+    struct conn_addr_s remote_ipaddr;
+    enum socket_evt_e evt;
+    u64 val;
 };
 
 #endif
