@@ -570,7 +570,7 @@ void wr_raw_logs(const char* format, ...)
         reappend_raw_logger(local);
         LOG4CPLUS_DEBUG(g_raw_logger, buf);
     } else {
-        printf(buf);
+        printf("%s", buf);
     }
 }
 
@@ -678,7 +678,7 @@ void convert_output_to_log(char *buffer, int bufferSize)
     }
 
     buffer[bufferSize - 1] = 0;
-    if (strncmp(buffer, DEBUG_STR, sizeof(DEBUG_STR) - 1) == 0) { 
+    if (strncmp(buffer, DEBUG_STR, sizeof(DEBUG_STR) - 1) == 0) {
         reappend_debug_logger(local);
         LOG4CPLUS_DEBUG(g_debug_logger, buffer);
     } else if (strncmp(buffer, INFO_STR, sizeof(INFO_STR) - 1) == 0) {

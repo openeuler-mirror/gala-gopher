@@ -306,7 +306,7 @@ static void TestIMDB_DataBaseMgrData2String(void)
     ret = IMDB_DataBase2Prometheus(mgr, buffer, 2048, &buf_len);
     CU_ASSERT(ret >= 0);
     printf("DatabaseMgr2String: \n");
-    printf(buffer);
+    printf("%s", buffer);
 
     IMDB_DataBaseMgrDestroy(mgr);
 }
