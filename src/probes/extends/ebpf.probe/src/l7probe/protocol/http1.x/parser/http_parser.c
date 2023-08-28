@@ -134,7 +134,7 @@ static parse_state_t parse_request_body(struct raw_data_s *raw_data, struct http
 //    frame_data->body = "";
     frame_data->body_size = 0;
     raw_data->current_pos += offset;
-    return STATE_UNKNOWN;
+    return STATE_SUCCESS;
 }
 
 /**
@@ -424,7 +424,7 @@ size_t http_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s 
         for (int i = 0; i < patterns_len; i++) {
             const char *start_pattern = start_patterns[i];
             size_t current_substr_pos = rfind_str(buf_substr, start_pattern);
-            INFO("[HTTP1.x PARSER][Find Frame Boundary] Find frame start boundary, pos: %d\n", current_substr_pos);
+            DEBUG("[HTTP1.x PARSER][Find Frame Boundary] Find frame start boundary, pos: %d\n", current_substr_pos);
             if (current_substr_pos != -1) {
                 // 寻找一个最接近\r\n标志位置的起始位置，这个起始位置才是最可靠的帧边界，因此每个start_pattern都要找一遍
                 size_t max_pos = substr_pos;

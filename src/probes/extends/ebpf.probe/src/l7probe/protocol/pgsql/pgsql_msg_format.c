@@ -14,6 +14,7 @@
  ******************************************************************************/
 
 #include <stdlib.h>
+#include <string.h>
 #include "pgsql_msg_format.h"
 
 struct pgsql_tag_enum_value_s pgsql_tag_enum_values[64] = {
@@ -69,6 +70,7 @@ struct pgsql_regular_msg_s *init_pgsql_regular_msg()
     if (msg == NULL) {
         return NULL;
     }
+    memset(msg, 0, sizeof(struct pgsql_regular_msg_s));
     return msg;
 }
 
@@ -91,6 +93,7 @@ struct pgsql_row_desc_field_s *init_pgsql_row_desc_field(void)
     if (field == NULL) {
         return NULL;
     }
+    memset(field, 0, sizeof(struct pgsql_row_desc_field_s));
     field->name = NULL;
     return field;
 }
@@ -112,12 +115,14 @@ struct pgsql_startup_msg_s *init_pgsql_startup_msg(void)
     if (msg == NULL) {
         return NULL;
     }
+    memset(msg, 0, sizeof(struct pgsql_startup_msg_s));
 
     msg->protocol_ver = (struct pgsql_protocol_version_s *) malloc(sizeof(struct pgsql_protocol_version_s));
     if (msg->protocol_ver == NULL) {
         free(msg);
         return NULL;
     }
+    memset(msg->protocol_ver, 0, sizeof(struct pgsql_protocol_version_s));
     return msg;
 }
 
@@ -138,6 +143,7 @@ struct pgsql_parse_req_s *init_pgsql_parse_req(void)
     if (req == NULL) {
         return NULL;
     }
+    memset(req, 0, sizeof(struct pgsql_parse_req_s));
     req->stmt_name = NULL;
     req->query = NULL;
     return req;
@@ -163,6 +169,7 @@ struct pgsql_combo_resp_s *init_pgsql_combo_resp(void)
     if (rsp == NULL) {
         return NULL;
     }
+    memset(rsp, 0, sizeof(struct pgsql_combo_resp_s));
     return rsp;
 }
 
@@ -181,6 +188,7 @@ struct pgsql_parse_req_resp_s *init_pgsql_parse_req_resp(void)
     if (req_rsp == NULL) {
         return NULL;
     }
+    memset(req_rsp, 0, sizeof(struct pgsql_parse_req_resp_s));
 
     req_rsp->req = init_pgsql_parse_req();
     if (req_rsp->req == NULL) {
@@ -216,6 +224,7 @@ struct pgsql_bind_req_s *init_pgsql_bind_req(void)
     if (req == NULL) {
         return NULL;
     }
+    memset(req, 0, sizeof(struct pgsql_bind_req_s));
     req->dest_portal_name = NULL;
     req->src_prepared_stat_name = NULL;
     return req;
@@ -242,6 +251,7 @@ struct pgsql_bind_req_resp_s *init_pgsql_bind_req_resp(void)
     if (req_rsp == NULL) {
         return NULL;
     }
+    memset(req_rsp, 0, sizeof(struct pgsql_bind_req_resp_s));
 
     req_rsp->req = init_pgsql_bind_req();
     if (req_rsp->req == NULL) {
@@ -276,6 +286,7 @@ struct pgsql_describe_req_s *init_pgsql_describe_req(void)
     if (req == NULL) {
         return NULL;
     }
+    memset(req, 0, sizeof(struct pgsql_describe_req_s));
     req->name = NULL;
     return req;
 }
@@ -298,6 +309,7 @@ struct pgsql_param_description_s *init_pgsql_param_description(void)
     if (param_desc == NULL) {
         return NULL;
     }
+    memset(param_desc, 0, sizeof(struct pgsql_param_description_s));
     return param_desc;
 }
 
@@ -317,6 +329,7 @@ struct pgsql_row_description_s *init_pgsql_row_description(void)
     if (row_desc == NULL) {
         return NULL;
     }
+    memset(row_desc, 0, sizeof(struct pgsql_row_description_s));
     return row_desc;
 }
 
@@ -335,6 +348,7 @@ struct pgsql_err_resp_s *init_pgsql_err_resp(void)
     if (err_rsp == NULL) {
         return NULL;
     }
+    memset(err_rsp, 0, sizeof(struct pgsql_err_resp_s));
     err_rsp->pgsql_err_code = NULL;
     return err_rsp;
 }
@@ -356,6 +370,7 @@ struct pgsql_describe_resp_s *init_pgsql_describe_resp(void)
     if (rsp == NULL) {
         return NULL;
     }
+    memset(rsp, 0, sizeof(struct pgsql_describe_resp_s));
 
     rsp->param_desc = init_pgsql_param_description();
     if (rsp->param_desc == NULL) {
@@ -392,7 +407,6 @@ void free_pgsql_describe_resp(struct pgsql_describe_resp_s *desc_rsp)
     free(desc_rsp);
 }
 
-
 struct pgsql_describe_req_resp_s *init_pgsql_describe_req_resp(void)
 {
     struct pgsql_describe_req_resp_s *desc_req_rsp = (struct pgsql_describe_req_resp_s *) malloc(
@@ -400,6 +414,7 @@ struct pgsql_describe_req_resp_s *init_pgsql_describe_req_resp(void)
     if (desc_req_rsp == NULL) {
         return NULL;
     }
+    memset(desc_req_rsp, 0, sizeof(struct pgsql_describe_resp_s));
 
     desc_req_rsp->req = init_pgsql_describe_req();
     if (desc_req_rsp->req == NULL) {
@@ -434,6 +449,7 @@ struct pgsql_execute_req_s *init_pgsql_execute_req(void)
     if (exec_req == NULL) {
         return NULL;
     }
+    memset(exec_req, 0, sizeof(struct pgsql_execute_req_s));
     exec_req->query = NULL;
     return exec_req;
 }
@@ -455,6 +471,7 @@ struct pgsql_cmd_complete_s *init_pgsql_cmd_complete(void)
     if (cmd_cmpl == NULL) {
         return NULL;
     }
+    memset(cmd_cmpl, 0, sizeof(struct pgsql_cmd_complete_s));
     cmd_cmpl->cmd_tag = NULL;
     return cmd_cmpl;
 }
@@ -476,6 +493,7 @@ struct pgsql_query_resp_s *init_pgsql_query_resp(void)
     if (rsp == NULL) {
         return NULL;
     }
+    memset(rsp, 0, sizeof(struct pgsql_query_resp_s));
 
     rsp->row_desc = init_pgsql_row_description();
     if (rsp->row_desc == NULL) {
@@ -519,6 +537,7 @@ struct pgsql_execute_req_resp_s *init_pgsql_execute_req_resp(void)
     if (exec_req_rsp == NULL) {
         return NULL;
     }
+    memset(exec_req_rsp, 0, sizeof(struct pgsql_execute_req_resp_s));
     exec_req_rsp->req = init_pgsql_execute_req();
     if (exec_req_rsp->req == NULL) {
         free(exec_req_rsp);
@@ -553,6 +572,7 @@ struct pgsql_query_req_s *init_pgsql_query_req(void)
     if (req == NULL) {
         return NULL;
     }
+    memset(req, 0, sizeof(struct pgsql_query_req_s));
     req->query = NULL;
     return req;
 }
@@ -575,6 +595,7 @@ struct pgsql_query_req_resp_s *init_pgsql_query_req_resp(void)
     if (req_rsp == NULL) {
         return NULL;
     }
+    memset(req_rsp, 0, sizeof(struct pgsql_query_req_resp_s));
     req_rsp->req = init_pgsql_query_req();
     if (req_rsp->req == NULL) {
         free(req_rsp);
@@ -607,12 +628,12 @@ void free_pgsql_record(struct pgsql_record_s *record)
     if (record == NULL) {
         return;
     }
-    if (record->req_msg != NULL) {
-        free_pgsql_regular_msg(record->req_msg);
-    }
-    if (record->resp_msg != NULL) {
-        free_pgsql_regular_msg(record->resp_msg);
-    }
+//    if (record->req_msg != NULL) {
+//        free_pgsql_regular_msg(record->req_msg);
+//    }
+//    if (record->resp_msg != NULL) {
+//        free_pgsql_regular_msg(record->resp_msg);
+//    }
 
     free(record);
 }

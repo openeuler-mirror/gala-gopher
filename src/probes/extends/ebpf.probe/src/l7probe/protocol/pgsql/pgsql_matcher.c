@@ -25,6 +25,11 @@ parse_state_t pgsql_handle_query(struct pgsql_regular_msg_s *msg, struct frame_b
     bool found_rsp = false;
     size_t rsp_index = rsp_frames->current_pos;
 
+    if (req_rsp->req == NULL) {
+        ERROR("[PGSQL MATCHER] Handling query, but req_rsp->req is null.\n");
+        return STATE_INVALID;
+    }
+
     // msg.payload中的信息不做保存
     req_rsp->req->timestamp_ns = msg->timestamp_ns;
     for (; rsp_index < rsp_frames->frame_buf_size; ++rsp_index) {
@@ -32,6 +37,10 @@ parse_state_t pgsql_handle_query(struct pgsql_regular_msg_s *msg, struct frame_b
         struct pgsql_regular_msg_s *rsp_msg;
         rsp_frame = rsp_frames->frames[rsp_index];
         rsp_msg = (struct pgsql_regular_msg_s *) rsp_frame->frame;
+        if (req_rsp->resp == NULL) {
+            ERROR("[PGSQL MATCHER] Handling query, but req_rsp->resp is null.\n");
+            return STATE_INVALID;
+        }
         if (rsp_msg->tag == PGSQL_EMPTY_QUERY_RESP) {
             found_rsp = true;
             req_rsp->resp->timestamp_ns = rsp_msg->timestamp_ns;
@@ -162,6 +171,10 @@ parse_state_t set_cmd_cmpl_msg(void *req_rsp, enum pgsql_tag_t req_rsp_type, con
 
     if (req_rsp_type == PGSQL_PARSE_COMPLETE) {
         struct pgsql_parse_req_resp_s *convert_req_rsp = (struct pgsql_parse_req_resp_s *) req_rsp;
+        if (convert_req_rsp->resp == NULL) {
+            ERROR("[PGSQL MATCHER] Set cmd complete message, but convert_req_rsp->resp is null.\n");
+            return STATE_INVALID;
+        }
         convert_req_rsp->resp->msg_type = CMD_CMPL_MSG;
         cmd_cmpl_msg->timestamp_ns = convert_req_rsp->resp->timestamp_ns;
         convert_req_rsp->resp->cmd_cmpl_msg = cmd_cmpl_msg;
@@ -169,6 +182,10 @@ parse_state_t set_cmd_cmpl_msg(void *req_rsp, enum pgsql_tag_t req_rsp_type, con
     }
     if (req_rsp_type == PGSQL_BIND_COMPLETE) {
         struct pgsql_bind_req_resp_s *convert_req_rsp = (struct pgsql_bind_req_resp_s *) req_rsp;
+        if (convert_req_rsp->resp == NULL) {
+            ERROR("[PGSQL MATCHER] Set cmd complete message, but convert_req_rsp->resp is null.\n");
+            return STATE_INVALID;
+        }
         convert_req_rsp->resp->msg_type = CMD_CMPL_MSG;
         cmd_cmpl_msg->timestamp_ns = convert_req_rsp->resp->timestamp_ns;
         convert_req_rsp->resp->cmd_cmpl_msg = cmd_cmpl_msg;
@@ -196,12 +213,20 @@ parse_state_t set_error_msg(void *req_rsp, enum pgsql_tag_t req_rsp_type, struct
 
     if (req_rsp_type == PGSQL_PARSE_COMPLETE) {
         struct pgsql_parse_req_resp_s *convert_req_rsp = (struct pgsql_parse_req_resp_s *) req_rsp;
+        if (convert_req_rsp->resp == NULL) {
+            ERROR("[PGSQL MATCHER] Set error message, but convert_req_rsp->resp is null.\n");
+            return STATE_INVALID;
+        }
         convert_req_rsp->resp->msg_type = ERR_RESP_MSG;
         convert_req_rsp->resp->err_resp_msg = err_rsp;
         return STATE_SUCCESS;
     }
     if (req_rsp_type == PGSQL_BIND_COMPLETE) {
         struct pgsql_bind_req_resp_s *convert_req_rsp = (struct pgsql_bind_req_resp_s *) req_rsp;
+        if (convert_req_rsp->resp == NULL) {
+            ERROR("[PGSQL MATCHER] Set error message, but convert_req_rsp->resp is null.\n");
+            return STATE_INVALID;
+        }
         convert_req_rsp->resp->msg_type = ERR_RESP_MSG;
         convert_req_rsp->resp->err_resp_msg = err_rsp;
         return STATE_SUCCESS;
@@ -266,6 +291,10 @@ parse_state_t pgsql_handle_parse(struct pgsql_regular_msg_s *msg, struct frame_b
     rsp_frames->current_pos = rsp_index + 1;
 
     req_rsp->req = parse;
+    if (req_rsp->resp == NULL) {
+        ERROR("[PGSQL MATCHER] Handling parse, but req_rsp->resp is null.\n");
+        return STATE_INVALID;
+    }
     req_rsp->resp->timestamp_ns = parse_rsp->timestamp_ns;
     if (parse_rsp->tag == PGSQL_PARSE_COMPLETE) {
         // parse消息中携带的sql预处理查询语句当前不做解析，后续可按需保存至pgsql_state_s进行上下文传递
@@ -370,10 +399,10 @@ parse_state_t pgsql_handle_describe(struct pgsql_regular_msg_s *msg, struct fram
     if (parse_parse_desc != STATE_SUCCESS) {
         return parse_parse_desc;
     }
-    if (req_rsp->req->desc_type == PGSQL_DESCRIBE_TYPE_STATEMENT) {
+    if (req_rsp->req != NULL && req_rsp->req->desc_type == PGSQL_DESCRIBE_TYPE_STATEMENT) {
         return pgsql_fill_stmt_desc_resp(rsp_frames, req_rsp->resp);
     }
-    if (req_rsp->req->desc_type == PGSQL_DESCRIBE_TYPE_PORTAL) {
+    if (req_rsp->resp != NULL && req_rsp->req->desc_type == PGSQL_DESCRIBE_TYPE_PORTAL) {
         return pgsql_fill_portal_desc_resp(rsp_frames, req_rsp->resp);
     }
     ERROR("[PGSQL MATCHER] Invalid describe target type: %c.\n", req_rsp->req->desc_type);
@@ -392,6 +421,10 @@ parse_state_t pgsql_handle_bind(struct pgsql_regular_msg_s *msg, struct frame_bu
     enum pgsql_tag_t tags[] = {PGSQL_BIND_COMPLETE, PGSQL_ERR_RETURN};
 
     bind_req = init_pgsql_bind_req();
+    if (bind_req == NULL) {
+        ERROR("[PGSQL MATCHER] Failed to malloc bind_req.\n");
+        return STATE_INVALID;
+    }
     parse_state = pgsql_parse_bind_req(msg, bind_req);
     if (parse_state != STATE_SUCCESS) {
         return parse_state;
@@ -406,6 +439,11 @@ parse_state_t pgsql_handle_bind(struct pgsql_regular_msg_s *msg, struct frame_bu
 
     // 刷新rsp_frames当前位置
     rsp_frames->current_pos = rsp_index + 1;
+
+    if (req_rsp->resp == NULL) {
+        ERROR("[PGSQL MATCHER] Handling bind message, req_rsp->resp is null.\n");
+        return STATE_INVALID;
+    }
 
     req_rsp->resp->timestamp_ns = bind_rsp->timestamp_ns;
     if (bind_rsp->tag == PGSQL_BIND_COMPLETE) {
@@ -429,6 +467,11 @@ parse_state_t pgsql_handle_bind(struct pgsql_regular_msg_s *msg, struct frame_bu
 parse_state_t pgsql_handle_execute(struct pgsql_regular_msg_s *msg, struct frame_buf_s *req_frames,
                                    struct frame_buf_s *rsp_frames, struct pgsql_execute_req_resp_s *req_rsp)
 {
+    if (req_rsp->req == NULL) {
+        ERROR("[PGSQL MATCHER] Handling execute message, req_rsp.req is null.\n");
+        return STATE_INVALID;
+    }
+
     // msg.payload中的信息不做保存
     req_rsp->req->timestamp_ns = msg->timestamp_ns;
     return pgsql_fill_query_resp(rsp_frames, req_rsp->resp);
@@ -445,20 +488,28 @@ void pgsql_matcher_add_record(struct pgsql_regular_msg_s *req, uint64_t resp_tim
         ++record_buf->err_count;
         return;
     }
+    memset(resp, 0, sizeof(struct pgsql_regular_msg_s));
 
     // req、resp的payload字段均为作保存
     req->consumed = true;
     resp = (struct pgsql_regular_msg_s *) malloc(sizeof(struct pgsql_regular_msg_s));
     if (resp == NULL) {
         ERROR("[PGSQL MATCHER] Failed to malloc pgsql_regular_msg_s for resp_msg.\n");
+        free_pgsql_regular_msg(resp);
         return;
     }
+    memset(pgsql_record, 0, sizeof(struct pgsql_record_s));
+
     resp->timestamp_ns = resp_timestamp_ns;
     pgsql_record = (struct pgsql_record_s *) malloc(sizeof(struct pgsql_record_s));
     if (pgsql_record == NULL) {
         ERROR("[PGSQL MATCHER] Failed to malloc pgsql_record_s for pgsql_record.\n");
+        free_pgsql_regular_msg(resp);
+        free_pgsql_record(pgsql_record);
         return;
     }
+    memset(record_data, 0, sizeof(struct record_data_s));
+
     pgsql_record->req_msg = req;
     pgsql_record->resp_msg = resp;
     record_data = (struct record_data_s *) malloc(sizeof(struct record_data_s));
@@ -478,6 +529,9 @@ void handle_simple_query(struct pgsql_regular_msg_s *req, struct frame_buf_s *re
     struct pgsql_query_req_resp_s *req_rsp;
     parse_state_t parse_query_state;
     req_rsp = init_pgsql_query_req_resp();
+    if (req_rsp == NULL) {
+        return;
+    }
     parse_query_state = pgsql_handle_query(req, req_frames, rsp_frames, req_rsp);
     if (parse_query_state != STATE_SUCCESS) {
         INFO("[PGSQL MATCHER] An error occurred while processing a simple query, state: %d.\n", parse_query_state);
@@ -494,6 +548,9 @@ void handle_parse_req(struct pgsql_regular_msg_s *req, struct frame_buf_s *req_f
     struct pgsql_parse_req_resp_s *req_rsp;
     parse_state_t parse_parse_state;
     req_rsp = init_pgsql_parse_req_resp();
+    if (req_rsp == NULL) {
+        return;
+    }
     parse_parse_state = pgsql_handle_parse(req, req_frames, rsp_frames, req_rsp);
     if (parse_parse_state != STATE_SUCCESS) {
         INFO("[PGSQL MATCHER] An error occurred while processing a parse request, state: %d.\n", parse_parse_state);
@@ -510,10 +567,18 @@ void handle_bind_req(struct pgsql_regular_msg_s *req, struct frame_buf_s *req_fr
     struct pgsql_bind_req_resp_s *req_rsp;
     parse_state_t parse_bind_state;
     req_rsp = init_pgsql_bind_req_resp();
+    if (req_rsp == NULL) {
+        ERROR("[PGSQL MATCHER] Handling bind req message, but req_rsp is null.\n");
+        return;
+    }
     parse_bind_state = pgsql_handle_bind(req, req_frames, rsp_frames, req_rsp);
     if (parse_bind_state != STATE_SUCCESS) {
         INFO("[PGSQL MATCHER] An error occurred while processing a bind request, state: %d.\n", parse_bind_state);
         ++record_buf->err_count;
+        return;
+    }
+    if (req_rsp->resp == NULL) {
+        ERROR("[PGSQL MATCHER] Handling bind req message, but req_rsp->resp is null.\n");
         return;
     }
     pgsql_matcher_add_record(req, req_rsp->resp->timestamp_ns, record_buf);
@@ -526,6 +591,9 @@ void handle_describe_req(struct pgsql_regular_msg_s *req, struct frame_buf_s *re
     struct pgsql_describe_req_resp_s *req_rsp;
     parse_state_t parse_desc_state;
     req_rsp = init_pgsql_describe_req_resp();
+    if (req_rsp == NULL) {
+        return;
+    }
     parse_desc_state = pgsql_handle_describe(req, req_frames, rsp_frames, req_rsp);
     if (parse_desc_state != STATE_SUCCESS) {
         INFO("[PGSQL MATCHER] An error occurred while processing a describe request, state: %d.\n", parse_desc_state);
@@ -542,6 +610,9 @@ void handle_execute_req(struct pgsql_regular_msg_s *req, struct frame_buf_s *req
     struct pgsql_execute_req_resp_s *req_rsp;
     parse_state_t parse_exe_state;
     req_rsp = init_pgsql_execute_req_resp();
+    if (req_rsp == NULL) {
+        return;
+    }
     parse_exe_state = pgsql_handle_execute(req, req_frames, rsp_frames, req_rsp);
     if (parse_exe_state != STATE_SUCCESS) {
         INFO("[PGSQL MATCHER] An error occurred while processing a execute request, state: %d.\n", parse_exe_state);
@@ -555,6 +626,11 @@ void handle_execute_req(struct pgsql_regular_msg_s *req, struct frame_buf_s *req
 void pgsql_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *rsp_frames,
                         struct record_buf_s *record_buf)
 {
+    if (req_frames == NULL || rsp_frames == NULL) {
+        DEBUG("[PGSQL MATCHER] Req or resp frames is null.\n");
+        return;
+    }
+    DEBUG("[PGSQL MATCHER] Req frames size: %d, resp frames size: %d\n", req_frames->frame_buf_size, rsp_frames->frame_buf_size);
     size_t req_index, resp_index;
     size_t unconsumed_index;
     record_buf->err_count = 0;
@@ -567,8 +643,14 @@ void pgsql_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *rsp_
         struct frame_data_s *req_frame;
         struct pgsql_regular_msg_s *req_msg;
         req_frame = req_frames->frames[req_index];
+        if (req_frames == NULL) {
+            break;
+        }
         req_msg = (struct pgsql_regular_msg_s *) req_frame->frame;
         ++req_index;
+        if (req_msg == NULL) {
+            break;
+        }
         switch (req_msg->tag) {
             case PGSQL_READY_FOR_QUERY:
             case PGSQL_SYNC:
@@ -593,6 +675,7 @@ void pgsql_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *rsp_
                 handle_execute_req(req_msg, req_frames, rsp_frames, record_buf);
                 break;
             default:
+                req_msg->consumed = true;
                 ERROR("[PGSQL MATCHER] Unresolvable or invalid tag: %c.\n", req_msg->tag);
                 break;
         }
@@ -604,8 +687,13 @@ void pgsql_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *rsp_
         struct frame_data_s *req_frame;
         struct pgsql_regular_msg_s *req_msg;
         req_frame = req_frames->frames[unconsumed_index];
+        if (req_frame == NULL) {
+            break;
+        }
         req_msg = (struct pgsql_regular_msg_s *) req_frame->frame;
-        if (!req_msg->consumed) {
+
+        // 终结帧: req(X)无响应报文，直接当作consumed处理
+        if (!req_msg->consumed && req_msg->tag != PGSQL_TERMINATE) {
             break;
         }
         unconsumed_index++;
@@ -614,4 +702,6 @@ void pgsql_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *rsp_
         req_frames->current_pos = unconsumed_index;
         rsp_frames->current_pos = rsp_frames->frame_buf_size;
     }
+    DEBUG("[PGSQL MATCHER] Finished matching, records size: %d, req current position: %d, resp current position: %d\n",
+          record_buf->record_buf_size, req_frames->current_pos, rsp_frames->current_pos);
 }

@@ -33,12 +33,6 @@
 
 #define L7_CONN_BPF_PATH          "/sys/fs/bpf/gala-gopher/__l7_connect"
 
-enum l7_direction_t {
-    L7_EGRESS,
-    L7_INGRESS,
-    L7_DIRECT_UNKNOW
-};
-
 enum l4_role_t {
     L4_UNKNOW = 0,              // udp
     L4_CLIENT,
@@ -203,7 +197,7 @@ static __always_inline __maybe_unused int update_sock_conn_proto(struct sock_con
     }
 
     struct l7_proto_s l7pro = {0};
-    if (get_l7_protocol(buf, count, PROTO_ALL_ENABLE, &l7pro)) {
+    if (get_l7_protocol(buf, count, PROTO_ALL_ENABLE, direction, &l7pro)) {
         return -1;
     }
 

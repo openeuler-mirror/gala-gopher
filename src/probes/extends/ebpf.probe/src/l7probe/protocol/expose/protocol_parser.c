@@ -114,18 +114,25 @@ size_t proto_find_frame_boundary(enum proto_type_t type, enum message_type_t msg
             ret = http_find_frame_boundary(msg_type, raw_data);
             break;
         case PROTO_HTTP2:
+            break;
         case PROTO_REDIS:
-            ret = redis_find_frame_boundary(raw_data);
+//            ret = redis_find_frame_boundary(raw_data);
             break;
         case PROTO_KAFKA:
-            ret = kafka_find_frame_boundary(msg_type, raw_data);
+//            ret = kafka_find_frame_boundary(msg_type, raw_data);
             break;
         case PROTO_MYSQL:
+            break;
         case PROTO_MONGO:
+            break;
         case PROTO_DNS:
+            break;
         case PROTO_NATS:
+            break;
         case PROTO_CQL:
+            break;
         default:
+            WARN("[PROTOCOL FIND BOUNDARY] Not Supported Protocol.\n");
             break;
     }
     return ret;
@@ -143,18 +150,25 @@ parse_state_t proto_parse_frame(enum proto_type_t type, enum message_type_t msg_
             state = http_parse_frame(msg_type, raw_data, frame_data);
             break;
         case PROTO_HTTP2:
+            break;
         case PROTO_REDIS:
-            state = redis_parse_frame(msg_type, raw_data, frame_data);
+//            state = redis_parse_frame(msg_type, raw_data, frame_data);
             break;
         case PROTO_KAFKA:
-            state = kafka_parse_frame(msg_type, raw_data, frame_data);
+//            state = kafka_parse_frame(msg_type, raw_data, frame_data);
             break;
         case PROTO_MYSQL:
+            break;
         case PROTO_MONGO:
+            break;
         case PROTO_DNS:
+            break;
         case PROTO_NATS:
+            break;
         case PROTO_CQL:
+            break;
         default:
+            WARN("[PROTOCOL PARSER] Not Supported Protocol.\n");
             break;
     }
     return state;
@@ -171,18 +185,25 @@ void proto_match_frames(enum proto_type_t type, struct frame_buf_s *req_frame, s
             http_match_frames(req_frame, resp_frame, record_buf);
             break;
         case PROTO_HTTP2:
+            break;
         case PROTO_REDIS:
-            redis_match_frames(req_frame, resp_frame, record_buf);
+//            redis_match_frames(req_frame, resp_frame, record_buf);
             break;
         case PROTO_KAFKA:
-            kafka_match_frames(req_frame, resp_frame, record_buf);
+//            kafka_match_frames(req_frame, resp_frame, record_buf);
             break;
         case PROTO_MYSQL:
+            break;
         case PROTO_MONGO:
+            break;
         case PROTO_DNS:
+            break;
         case PROTO_NATS:
+            break;
         case PROTO_CQL:
+            break;
         default:
+            WARN("[PROTOCOL MATCHER] Not Supported Protocol.\n");
             break;
     }
 }
