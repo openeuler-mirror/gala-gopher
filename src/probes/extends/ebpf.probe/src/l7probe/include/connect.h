@@ -144,7 +144,8 @@ struct conn_stats_s {
 // 'conn_data_events' perf channel.
 #define LOOP_LIMIT 4
 #define CONN_DATA_MAX_SIZE  (8 * 1024 - 1)
-struct conn_data_s {
+
+struct conn_data_msg_s {
     enum tracker_evt_e evt; // Head field must be placed
     struct conn_id_s conn_id;
 
@@ -156,7 +157,15 @@ struct conn_data_s {
 
     u64 offset_pos;     // The position is for the first data of this message.
     size_t data_size;   // The actually data size, maybe less than msg_size.
+};
+
+struct conn_data_buf_s {
     char data[CONN_DATA_MAX_SIZE];
+};
+
+struct conn_data_s {
+    struct conn_data_msg_s msg;
+    struct conn_data_buf_s buf;
 };
 
 static inline enum message_type_t  get_message_type(enum l7_role_t l7_role, enum l7_direction_t direction)

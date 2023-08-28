@@ -150,22 +150,22 @@ static __always_inline void submit_perf_buf(void* ctx, char *buf, size_t bytes_c
     }
 
     copied_size = (bytes_count > CONN_DATA_MAX_SIZE) ? CONN_DATA_MAX_SIZE : bytes_count;
-    conn_data->data_size = copied_size;
+    conn_data->msg.data_size = copied_size;
 
 #ifdef __USE_RING_BUF
-    struct conn_data_s *conn_data_tmp = bpf_ringbuf_reserve(&conn_tracker_events, sizeof(struct conn_data_s), 0);
+    struct conn_data_s *conn_data_tmp = bpf_ringbuf_reserve(&conn_tracker_events, sizeof(struct conn_data_msg_s) + copied_size, 0);
     if (conn_data_tmp == NULL) {
         return;
     }
-    __builtin_memcpy(conn_data_tmp, conn_data, (char *)&conn_data->data - (char *)conn_data);
-    bpf_probe_read(&conn_data_tmp->data, copied_size & CONN_DATA_MAX_SIZE, buf);
+    __builtin_memcpy(&(conn_data_tmp->msg), &(conn_data->msg), sizeof(conn_data->msg));
+    bpf_probe_read(conn_data_tmp->buf.data, copied_size & CONN_DATA_MAX_SIZE, buf);
 
-    conn_data_tmp->evt = TRACKER_EVT_DATA;
+    conn_data_tmp->msg.evt = TRACKER_EVT_DATA;
     bpf_ringbuf_submit(conn_data_tmp, 0);
 #else
-    bpf_probe_read(&conn_data->data, copied_size & CONN_DATA_MAX_SIZE, buf);
-    conn_data->evt = TRACKER_EVT_DATA;
-    (void)bpf_perf_event_output(ctx, &conn_tracker_events, BPF_F_CURRENT_CPU, conn_data, sizeof(struct conn_data_s));
+    bpf_probe_read(conn_data->buf.data, copied_size & CONN_DATA_MAX_SIZE, buf);
+    conn_data->msg.evt = TRACKER_EVT_DATA;
+    (void)bpf_perf_event_output(ctx, &conn_tracker_events, BPF_F_CURRENT_CPU, conn_data, sizeof(struct conn_data_msg_s) + copied_size);
 #endif
     return;
 }
@@ -179,12 +179,12 @@ static __always_inline __maybe_unused struct conn_data_s* store_conn_data_buf(en
         return NULL;
     }
 
-    conn_data->timestamp_ns = bpf_ktime_get_ns();
-    conn_data->direction = direction;
-    conn_data->conn_id = sock_conn->info.id;
-    conn_data->proto = sock_conn->info.protocol;
-    conn_data->l7_role = sock_conn->info.l7_role;
-    conn_data->offset_pos = (direction == L7_EGRESS) ? sock_conn->wr_bytes : sock_conn->rd_bytes;
+    conn_data->msg.timestamp_ns = bpf_ktime_get_ns();
+    conn_data->msg.direction = direction;
+    conn_data->msg.conn_id = sock_conn->info.id;
+    conn_data->msg.proto = sock_conn->info.protocol;
+    conn_data->msg.l7_role = sock_conn->info.l7_role;
+    conn_data->msg.offset_pos = (direction == L7_EGRESS) ? sock_conn->wr_bytes : sock_conn->rd_bytes;
     return conn_data;
 }
 
@@ -242,7 +242,7 @@ static __always_inline __maybe_unused void submit_conn_data(void* ctx, struct so
             submit_perf_buf(ctx, args->buf + bytes_sent, (size_t)bytes_truncated, conn_data);
             bytes_sent += bytes_truncated;
 
-            conn_data->offset_pos += (u64)bytes_truncated;
+            conn_data->msg.offset_pos += (u64)bytes_truncated;
         }
     } else if (args->iov) {
         #pragma unroll
@@ -259,7 +259,7 @@ static __always_inline __maybe_unused void submit_conn_data(void* ctx, struct so
             submit_perf_buf(ctx, (char *)iov_cpy.iov_base, iov_len, conn_data);
             bytes_sent += iov_len;
 
-            conn_data->offset_pos += (u64)iov_len;
+            conn_data->msg.offset_pos += (u64)iov_len;
         }
     }
 }

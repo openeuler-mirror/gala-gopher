@@ -164,7 +164,7 @@ static __always_inline void get_connect_sockaddr(struct tcp_socket_event_s* evt,
     evt->client_ipaddr.family = family;
     evt->server_ipaddr.family = family;
 
-    server_port = BPF_CORE_READ(inet, __sk_common.skc_dport);
+    server_port = BPF_CORE_READ(sk, __sk_common.skc_dport);
     server_port = bpf_ntohs(server_port);
     client_port = BPF_CORE_READ(sk, __sk_common.skc_num);
 

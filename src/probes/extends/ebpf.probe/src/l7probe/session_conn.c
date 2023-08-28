@@ -46,12 +46,12 @@ static void set_conn_data(enum l7_direction_t direction, struct sock_conn_s* soc
         return;
     }
 
-    conn_data->timestamp_ns = (u64)time(NULL);
-    conn_data->direction = direction;
-    conn_data->conn_id = sock_conn->info.id;
-    conn_data->proto = sock_conn->info.protocol;
-    conn_data->l7_role = sock_conn->info.l7_role;
-    conn_data->offset_pos = (direction == L7_EGRESS) ? sock_conn->wr_bytes : sock_conn->rd_bytes;
+    conn_data->msg.timestamp_ns = (u64)time(NULL);
+    conn_data->msg.direction = direction;
+    conn_data->msg.conn_id = sock_conn->info.id;
+    conn_data->msg.proto = sock_conn->info.protocol;
+    conn_data->msg.l7_role = sock_conn->info.l7_role;
+    conn_data->msg.offset_pos = (direction == L7_EGRESS) ? sock_conn->wr_bytes : sock_conn->rd_bytes;
 
     return;
 }
@@ -64,10 +64,10 @@ static void submit_perf_buf_user(void *ctx, char *buf, size_t bytes_count, struc
     }
 
     copied_size = (bytes_count > CONN_DATA_MAX_SIZE) ? CONN_DATA_MAX_SIZE : bytes_count;
-    memcpy(&conn_data->data, buf, copied_size);
-    conn_data->data_size = copied_size;
-    conn_data->evt = TRACKER_EVT_DATA;
-    trakcer_msg_pb(ctx, 0, conn_data, sizeof(struct conn_data_s));
+    memcpy(conn_data->buf.data, buf, copied_size);
+    conn_data->msg.data_size = copied_size;
+    conn_data->msg.evt = TRACKER_EVT_DATA;
+    trakcer_msg_pb(ctx, 0, conn_data, sizeof(struct conn_data_msg_s) + copied_size);
     return;
 }
 
@@ -90,7 +90,7 @@ static void submit_conn_data_user(void *ctx, struct session_data_args_s *args,
         submit_perf_buf_user(ctx, args->buf + bytes_sent, (size_t)bytes_truncated, conn_data);
         bytes_sent += bytes_truncated;
 
-        conn_data->offset_pos += (u64)bytes_truncated;
+        conn_data->msg.offset_pos += (u64)bytes_truncated;
     }
 }
 
@@ -253,10 +253,10 @@ void submit_sock_data_by_session(void *ctx, struct session_data_args_s *args)
 
     update_sock_conn_proto(&sock_conn, args->direct, args->buf, args->bytes_count);
 
-    struct conn_data_s conn_data = {0};
-    set_conn_data(args->direct, &sock_conn, &conn_data);
+    struct conn_data_s *conn_data = &(((struct l7_mng_s *)ctx)->conn_data);
+    set_conn_data(args->direct, &sock_conn, conn_data);
 
-    submit_conn_data_user(ctx, args, &conn_data, args->bytes_count);
+    submit_conn_data_user(ctx, args, conn_data, args->bytes_count);
     submit_sock_conn_stats(ctx, &sock_conn, args->direct, args->bytes_count);
 
     return;
