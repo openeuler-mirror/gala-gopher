@@ -49,6 +49,7 @@ struct l7_mng_s {
     struct l7_java_prog_s java_progs;
     struct conn_tracker_s *trackers;
     struct l7_link_s *l7_links;
+    struct conn_data_s conn_data;
 };
 
 #endif

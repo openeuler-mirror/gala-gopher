@@ -439,7 +439,7 @@ static int proc_conn_stats_msg(struct l7_mng_s *l7_mng, struct conn_stats_s *con
     return 0;
 }
 
-static int proc_conn_data_msg(struct l7_mng_s *l7_mng, struct conn_data_s *conn_data_msg)
+static int proc_conn_data_msg(struct l7_mng_s *l7_mng, struct conn_data_msg_s *conn_data_msg, char *conn_data_buf)
 {
     int ret = 0;
     struct conn_tracker_s* tracker;
@@ -474,7 +474,7 @@ static int proc_conn_data_msg(struct l7_mng_s *l7_mng, struct conn_data_s *conn_
         {
             link->stats[DATA_EVT_SENT]++;
             ret = data_stream_add_raw_data(&(tracker->send_stream),
-                                            (const char *)conn_data_msg->data,
+                                            (const char *)conn_data_buf,
                                             conn_data_msg->data_size,
                                             conn_data_msg->timestamp_ns);
             break;
@@ -483,7 +483,7 @@ static int proc_conn_data_msg(struct l7_mng_s *l7_mng, struct conn_data_s *conn_
         {
             link->stats[DATA_EVT_RECV]++;
             ret = data_stream_add_raw_data(&(tracker->recv_stream),
-                                            (const char *)conn_data_msg->data,
+                                            (const char *)conn_data_buf,
                                             conn_data_msg->data_size,
                                             conn_data_msg->timestamp_ns);
             break;
@@ -783,9 +783,11 @@ static void trakcer_msg(struct l7_mng_s *l7_mng, void *data, unsigned int size)
     char *p = data;
     int remain_size = (int)size, step_size = 0, walk_size = 0, offset = 0;
     enum tracker_evt_e *evt;
+    struct conn_data_msg_s *conn_data_msg;
+    char *conn_data_buf;
 
     step_size = min(sizeof(struct conn_stats_s), sizeof(struct conn_ctl_s));
-    step_size = min(step_size, sizeof(struct conn_data_s));
+    step_size = min(step_size, sizeof(struct conn_data_msg_s));
 
     do {
         if (remain_size < step_size) {
@@ -818,12 +820,14 @@ static void trakcer_msg(struct l7_mng_s *l7_mng, void *data, unsigned int size)
             }
             case TRACKER_EVT_DATA:
             {
-                if (remain_size < sizeof(struct conn_data_s)) {
+                if (remain_size < sizeof(struct conn_data_msg_s)) {
                     ERROR("[L7Probe]: Invalid conn tracker data msg.\n");
                     return;
                 }
-                (void)proc_conn_data_msg(l7_mng, (struct conn_data_s *)p);
-                walk_size = sizeof(struct conn_data_s);
+                conn_data_msg = (struct conn_data_msg_s *)p;
+                conn_data_buf = p + sizeof(struct conn_data_msg_s);
+                (void)proc_conn_data_msg(l7_mng, conn_data_msg, conn_data_buf);
+                walk_size = sizeof(struct conn_data_msg_s) + conn_data_msg->data_size;
                 break;
             }
             default:
