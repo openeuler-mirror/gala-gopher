@@ -1,10 +1,12 @@
-# Rest API设计
-
- WEB server端口可配置（缺省9999），URL组织方式 http://[gala-gopher所在节点ip] + [端口号] + function（采集特性），比如火焰图的URL：http://localhost:9999/flamegraph
 
 
+# Rest API说明
 
-## 探针监控范围API
+WEB server端口可配置（缺省9999），URL组织方式 http://[gala-gopher所在节点ip] + [端口号] + function（采集特性），比如火焰图的URL：http://localhost:9999/flamegraph（以下文档均以火焰图举例）
+
+
+
+## 配置探针监控范围
 
 探针默认关闭，可以通过API动态开启、设置监控范围。以火焰图为例，通过REST分别开启oncpu/offcpu/mem火焰图能力。并且监控范围支持进程ID、进程名、容器ID、POD四个维度来设置。
 
@@ -48,27 +50,10 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
         ]
     }
 }'
-```
-
-通过REST开启、关闭火焰图的采集能力
 
 ```
-curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
-{
-    "state": "running" // optional: running,stopped
-}'
-```
 
-详细采集能力REST接口定义如下：
-
-```
-1. 接口为无状态形式，每次上传的设置为该探针的最终运行结果，包括状态、参数、监控范围。
-2. 监控对象可以任意组合，监控范围取合集。
-3. 启动文件必须真实有效。
-4. 采集特性可以按需开启全部/部分能力，关闭时只能整体关闭某个采集特性。
-5. opengauss监控对象是DB实例（IP/Port/dbname/user/password）
-6. 接口每次最多接收2048长度的数据
-```
+全量采集特性说明如下：
 
 | 采集特性      | 采集特性说明                          | 采集子项范围                                                 | 监控对象                                 | 启动文件                           | 启动条件                  |
 | ------------- | ------------------------------------- | ------------------------------------------------------------ | ---------------------------------------- | ---------------------------------- | ------------------------- |
@@ -90,9 +75,9 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 | baseinfo      | 系统基础信息                          | cpu, mem, nic, disk, net, fs, proc,host                      | proc_id, proc_name, pod_id, container_id | system_infos                       | NA                        |
 | virt          | 虚拟化管理信息                        | NA                                                           | NA                                       | virtualized_infos                  | NA                        |
 | tprofiling    | 线程级性能profiling观测能力           | oncpu, syscall_file, syscall_net, syscall_lock, syscall_sched | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/tprofiling        | NA                        |
-| container    | 容器信息          | NA | proc_id, proc_name, container_id                      | $gala-gopher-dir/cadvisor_probe.py        | NA                        |
+| container     | 容器信息                              | NA                                                           | proc_id, proc_name, container_id         | $gala-gopher-dir/cadvisor_probe.py | NA                        |
 
-## 探针运行参数
+## 配置探针运行参数
 
 探针在运行期间还需要设置一些参数设置，例如：设置火焰图的采样周期、上报周期
 
@@ -143,7 +128,31 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 
 
 
-## 探针运行状态
+## 启动、停止探针
+
+```
+curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
+{
+    "state": "running" // optional: running,stopped
+}'
+```
+
+
+
+## 约束与限制说明
+
+```
+1. 接口为无状态形式，每次上传的设置为该探针的最终运行结果，包括状态、参数、监控范围。
+2. 监控对象可以任意组合，监控范围取合集。
+3. 启动文件必须真实有效。
+4. 采集特性可以按需开启全部/部分能力，关闭时只能整体关闭某个采集特性。
+5. opengauss监控对象是DB实例（IP/Port/dbname/user/password）
+6. 接口每次最多接收2048长度的数据
+```
+
+
+
+## 获取探针配置与运行状态
 
 ```
 curl -X GET http://localhost:9999/flamegraph
@@ -181,39 +190,15 @@ curl -X GET http://localhost:9999/flamegraph
             "container1",
             "container2"
         ]
-    }
+    },
+    "params": {
+        "report_period": 180,
+        "sample_period": 180,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ]
+    },
+    "state": "running"
 }
 ```
-
-
-
-
-
-# 代码框架设计
-
-src
-
-   | --- api
-
-​         | --- rest_server.c   // rest 服务端
-
-   | --- lib
-
-​         | --- probe
-
-​                     | --- probe_mng.c  	// 探针生命周期管理
-
-​                     | --- snooper.c  	// 监控对象管理，包括处理内核侧收集的动态生成的监控对象信息
-
-​                     | --- snooper.bpf.c  // 内核侧eBPF代码，用于侦听动态生成的监控对象
-
-
-
-# 逻辑设计
-
-
-
-![](./design.png)
-
-
-

@@ -169,83 +169,65 @@ linux社区提供的解决方案是CO-RE技术（Compile Once Run Everywhere）�
 
   - 获取官方容器镜像
 
-    在docker配置文件/etc/docker/daemon.json（文件不存在则需要新建）中追加如下内容来添加hub.oepkgs.net镜像仓库
-
-    ```json
-    {
-      "insecure-registries" : [ "hub.oepkgs.net" ]
-    }
-    ```
-
-    完成后通过如下命令重启docker服务使配置生效：
-
-    ```bash
-    systemctl daemon-reload
-    systemctl restart docker
-    ```
-
+    根据系统架构和版本从官方仓库拉取对应tag的gala-gopher官方容器镜像（以openEuler 22.03 LTS SP1为例），目前支持的镜像版本tag有：20.03-lts-sp1，22.03-lts，22.03-lts-sp1，kylin-v10-sp1(仅支持x86_64)，kylin-v10-sp3(仅支持x86_64)：
 
     ```
-    根据系统架构从对应仓库拉取指定版本的gala-gopher官方容器镜像（以openEuler 20.03 LTS SP1为例）：
-    
-    ​```
     # x86
-    docker pull hub.oepkgs.net/a-ops/gala-gopher-x86_64:20.03-lts-sp1
+    docker pull hub.oepkgs.net/a-ops/gala-gopher-x86_64:22.03-lts-sp1
     
     # aarch64
-    docker pull hub.oepkgs.net/a-ops/gala-gopher-aarch64:20.03-lts-sp1
-    ​```
-    
-    目前支持的镜像版本tag有：20.03-lts-sp1，22.03-lts，22.03-lts-sp1，kylin-v10（x86）
+    docker pull hub.oepkgs.net/a-ops/gala-gopher-aarch64:22.03-lts-sp1
     ```
     
-     <a id="docker2"></a>
-
+    注：如果拉取镜像的过程中出现"X509: certificate signed by unknown authority"错误，则需要将"hub.oepkgs.net"加入到/etc/docker/daemon.json中的"insecure-registries"项后重启docker服务再重试。
+  
+  <a id="docker2"></a>
+  
   - 构建容器镜像
-
+  
     获取gala-gopher的rpm包，获取方式详见[RPM方式部署](#RPM方式部署)。
-
+  
     用于生成容器镜像的Dockerfile文件归档在[build目录](https://gitee.com/openeuler/gala-gopher/tree/dev/build)，生成方法详见[如何生成gala-gopher容器镜像](https://gitee.com/openeuler/gala-gopher/blob/dev/doc/how_to_build_docker_image.md)。
-
+  
 - 创建并运行容器
 
-  - 容器配置
+  - 启动容器
 
-    gala-gopher配置文件为gala-gopher.conf。其主要用于配置探针的数据上报开关、探针参数、探针是否开启等。
+    执行如下命令（以创建openEuler 22.03 LTS SP1 x86版本、名字为gala-gopher的容器为例）：
 
-    容器启动前需要用户自定义配置这个文件，请在宿主机创建配置文件目录，并将[config目录](https://gitee.com/openeuler/gala-gopher/tree/dev/config)下的配置文件保存到该目录，示例如下：
-
-    ```shell
-    [root@localhost ~]# mkdir gopher_user_conf
-    [root@localhost gopher_user_conf]# ll
-    total 8.0K
-    -rw-r--r--. 1 root root 3.2K Jun 28 09:43 gala-gopher.conf
+    ```
+    docker run -d --name gala-gopher --privileged --pid=host --network=host \
+    -v /:/host -v /etc/localtime:/etc/localtime:ro -v /sys:/sys \
+    -v /usr/lib/debug:/usr/lib/debug -v /var/lib/docker:/var/lib/docker \
+    -e GOPHER_HOST_PATH=/host \
+    hub.oepkgs.net/a-ops/gala-gopher-x86_64:22.03-lts-sp1
     ```
 
-    请按照[配置文件及参数](#config)自定义修改配置文件。在执行docker run命令时，需要将宿主机上自定义的配置文件目录和容器内/gala-gopher/user_conf目录映射，从而将自定义的配置信息同步到容器内。
+    其中，GOPHER_HOST_PATH环境变量用于指定容器外根目录"/"映射到gala-gopher容器内的目录，以便gala-gopher能够正常访问宿主机上的关键文件，必配且建议保持默认/host。
 
-  - 启动容器：
+    另外可通过如下环境变量配置gala-gopher，若不指定，则使用配置文件默认配置：
 
-    ```shell
-    docker run -d --name xxx --privileged -v /etc/os-release:/etc/os-release:ro -v /etc/localtime:/etc/localtime:ro -v /sys:/sys  -v /boot:/boot:ro -v /usr/lib/debug:/usr/lib/debug -v /var/run/docker.sock:/var/run/docker.sock -v /var/lib/docker:/var/lib/docker -v /opt/gala/gopher_conf/:/gala-gopher/user_conf/ -v /:/host --pid=host --network=host  gala-gopher:1.0.1
+    - GOPHER_EVENT_CHANNEL：gala-gopher亚健康巡检异常事件输出方式
+    - GOPHER_META_CHANNEL：gala-gopher观测对象元数据metadata输出方式
+    - GOPHER_KAKFA_SERVER：gala-gopher上报亚健康巡检异常事件、观测对象元数据metadata的kafka服务端IP地址
+    - GOPHER_METRIC_PORT：gala-gopher作为prometheus exporter输出指标数据的监听端口
+    - GOPHER_REST_PORT：动态配置RESTful API端口号
+    - GOPHER_PROBES_INIT：控制gala-gopher启动后默认开启的探针以及其配置（采集子项、监控对象、参数），每个探针单独一行，每行内容为[采集特性名] [动态配置json]，特性名和json格式参照[REST API说明](https://gitee.com/openeuler/gala-gopher/blob/dev/config/gala-gopher支持动态配置接口设计_v0.3.md)，不配置则启动gala-gopher容器后不开启任何探针。
+
+  - 通过docker ps查看容器是否运行成功：
+
     ```
-
-    注：容器名可以更改，上述为xxx；镜像地址可以更改，上述为gala-gopher:1.0.1
-
-  - 检验是否启动成功，通过docker ps可以看到正在运行的容器：
-
-    ```shell
-    [root@localhost build]# docker ps
-    CONTAINER ID   IMAGE               COMMAND                  CREATED              STATUS              PORTS                    NAMES
-    eaxxxxxxxx02   gala-gopher:1.0.1   "/bin/sh -c 'cp -f /…"   About a minute ago   Up About a minute   0.0.0.0:8888->8888/tcp   xxx
+    [root@localhost]# docker ps
+    CONTAINER ID        IMAGE                                                   COMMAND                  CREATED             STATUS                     PORTS                    NAMES
+    0fb3cad0df40        hub.oepkgs.net/a-ops/gala-gopher-x86_64:22.03-lts-sp1   "/entrypoint.sh /usr…"   6 days ago          3 days ago                             gala-gopher
     ```
 
 - 获取数据
 
-  如上步骤docker run命令中所示，因而可以通过8888端口获取数据来验证gala-gopher是否运行成功：
+  容器启动后，通过默认的8888端口获取数据来验证gala-gopher是否运行成功，如果启动容器时未通过GOPHER_PROBES_INIT参数指定默认开启的探针，则需要通过[REST API](https://gitee.com/openeuler/gala-gopher/blob/dev/config/gala-gopher支持动态配置接口设计_v0.3.md)开启探针后再获取数据：
 
-  ```shell
-  [root@localhost build]# curl http://localhost:8888
+  ```
+  [root@localhost]# curl http://localhost:8888
   ...
   gala_gopher_udp_que_rcv_drops{tgid="1234",s_addr="192.168.12.34",machine_id="xxxxx",hostname="eaxxxxxxxx02"} 0 1656383357000
   ...
