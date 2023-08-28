@@ -77,7 +77,6 @@ int system_tcp_probe(void)
     FILE* f = NULL;
     char line[LINE_BUF_LEN];
     net_snmp_stat temp = {0};
-    int ret;
 
     f = fopen(SYSTEM_NET_SNMP_PATH, "r");
     if (f == NULL) {
