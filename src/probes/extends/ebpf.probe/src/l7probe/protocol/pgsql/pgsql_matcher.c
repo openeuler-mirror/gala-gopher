@@ -488,7 +488,6 @@ void pgsql_matcher_add_record(struct pgsql_regular_msg_s *req, uint64_t resp_tim
         ++record_buf->err_count;
         return;
     }
-    memset(resp, 0, sizeof(struct pgsql_regular_msg_s));
 
     // req、resp的payload字段均为作保存
     req->consumed = true;
@@ -498,7 +497,7 @@ void pgsql_matcher_add_record(struct pgsql_regular_msg_s *req, uint64_t resp_tim
         free_pgsql_regular_msg(resp);
         return;
     }
-    memset(pgsql_record, 0, sizeof(struct pgsql_record_s));
+    memset(resp, 0, sizeof(struct pgsql_regular_msg_s));
 
     resp->timestamp_ns = resp_timestamp_ns;
     pgsql_record = (struct pgsql_record_s *) malloc(sizeof(struct pgsql_record_s));
@@ -508,7 +507,7 @@ void pgsql_matcher_add_record(struct pgsql_regular_msg_s *req, uint64_t resp_tim
         free_pgsql_record(pgsql_record);
         return;
     }
-    memset(record_data, 0, sizeof(struct record_data_s));
+    memset(pgsql_record, 0, sizeof(struct pgsql_record_s));
 
     pgsql_record->req_msg = req;
     pgsql_record->resp_msg = resp;
@@ -517,6 +516,7 @@ void pgsql_matcher_add_record(struct pgsql_regular_msg_s *req, uint64_t resp_tim
         ERROR("[PGSQL MATCHER] Failed to malloc record_data_s for record_data.\n");
         return;
     }
+    memset(record_data, 0, sizeof(struct record_data_s));
     record_data->record = pgsql_record;
     record_data->latency = resp_timestamp_ns - req->timestamp_ns;
     record_buf->records[record_buf->record_buf_size] = record_data;

@@ -414,7 +414,7 @@ struct pgsql_describe_req_resp_s *init_pgsql_describe_req_resp(void)
     if (desc_req_rsp == NULL) {
         return NULL;
     }
-    memset(desc_req_rsp, 0, sizeof(struct pgsql_describe_resp_s));
+    memset(desc_req_rsp, 0, sizeof(struct pgsql_describe_req_resp_s));
 
     desc_req_rsp->req = init_pgsql_describe_req();
     if (desc_req_rsp->req == NULL) {
