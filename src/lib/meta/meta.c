@@ -637,6 +637,10 @@ static int ReportMeteData(const MeasurementMgr *mgr)
 int ReportMetaDataMain(const MeasurementMgr *mgr)
 {
     int ret;
+    if (mgr->meta_out_channel == OUT_CHNL_NULL) {
+        INFO("[META] metadata out channel is null, skip creating metadata report thread\n");
+        return 0;
+    }
 
     if (mgr->meta_out_channel != OUT_CHNL_LOGS && mgr->meta_out_channel != OUT_CHNL_KAFKA) {
         ERROR("[META] metadata out channel isn't logs or kafka, break.\n");
