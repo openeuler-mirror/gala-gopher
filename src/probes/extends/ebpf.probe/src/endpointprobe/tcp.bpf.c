@@ -16,126 +16,99 @@
 #undef BPF_PROG_USER
 #endif
 #define BPF_PROG_KERN
-#include <bpf/bpf_endian.h>
+
 #include "bpf.h"
-#include "output.h"
 
-#define rsk_listener    __req_common.skc_listener
+#include <bpf/bpf_helpers.h>
+#include <bpf/bpf_tracing.h>
+#include <bpf/bpf_core_read.h>
+#include <bpf/bpf_endian.h>
 
+#include "endpoint.h"
+
+
+#define __KPROBE_SYSCALL(arch, func) KPROBE(arch##func, pt_regs)
+
+#if defined(__TARGET_ARCH_x86)
+#define KPROBE_SYSCALL(func) __KPROBE_SYSCALL(__x64_sys_, func)
+#elif defined(__TARGET_ARCH_arm64)
+#define KPROBE_SYSCALL(func)  __KPROBE_SYSCALL(__arm64_sys_, func)
+#endif
+
+#define __KRETPROBE_SYSCALL(arch, func) KRETPROBE(arch##func, pt_regs)
+
+#if defined(__TARGET_ARCH_x86)
+#define KRETPROBE_SYSCALL(func) __KRETPROBE_SYSCALL(__x64_sys_, func)
+#elif defined(__TARGET_ARCH_arm64)
+#define KRETPROBE_SYSCALL(func) __KRETPROBE_SYSCALL(__arm64_sys_, func)
+#endif
 
 char g_license[] SEC("license") = "GPL";
+#define ETH_P_IP	0x0800		/* Internet Protocol packet	*/
 
-#define __ENDPOINT_STAT_MAX (1024)
-// Used to identifies the TCP listen object.
+#define __MAX_CONCURRENCY   1000
+typedef u64 conn_ctx_t;         // pid & tgid
+
+struct tcp_connect_args_s {
+    struct sock *sk;
+};
+
+struct tcp_check_req_args_s {
+    struct sock *sk;
+    struct request_sock *req;
+};
+
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(key_size, sizeof(struct tcp_listen_key_t));
-    __uint(value_size, sizeof(struct endpoint_val_t));
-    __uint(max_entries, __ENDPOINT_STAT_MAX);
-} listen_sock_map SEC(".maps");
+    __uint(key_size, sizeof(conn_ctx_t));
+    __uint(value_size, sizeof(struct tcp_connect_args_s));
+    __uint(max_entries, __MAX_CONCURRENCY);
+} tcp_connect_args SEC(".maps");
 
-
-// Used to identifies the TCP connect object.
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(key_size, sizeof(struct tcp_connect_key_t));
-    __uint(value_size, sizeof(struct endpoint_val_t));
-    __uint(max_entries, __ENDPOINT_STAT_MAX);
-} conn_sock_map SEC(".maps");
+    __uint(key_size, sizeof(conn_ctx_t));
+    __uint(value_size, sizeof(struct tcp_check_req_args_s));
+    __uint(max_entries, __MAX_CONCURRENCY);
+} tcp_check_req_args SEC(".maps");
 
-
-#define __LISTEN_FD_MAX (1024)
+#define __PERF_OUT_MAX (64)
 struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(key_size, sizeof(struct listen_sockfd_key_t));
-    __uint(value_size, sizeof(int));
-    __uint(max_entries, __LISTEN_FD_MAX);
-} listen_sockfd_map SEC(".maps");
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, __PERF_OUT_MAX);
+} tcp_evt_map SEC(".maps");
 
-static __always_inline int create_tcp_obj(struct endpoint_key_t *key)
+
+static __always_inline unsigned char *skb_network_header(const struct sk_buff *skb)
 {
-    struct endpoint_val_t value = {0};
+    unsigned char *skb_hdr = _(skb->head);
+    u16 network_header_offset = _(skb->network_header);
 
-    value.ts = bpf_ktime_get_ns();
-    __builtin_memcpy(&(value.key), key, sizeof(struct endpoint_key_t));
-
-    if (key->type == SK_TYPE_LISTEN_TCP) {
-        return bpf_map_update_elem(&listen_sock_map, &(key->key.tcp_listen_key), &value, BPF_ANY);
-    } else if (key->type == SK_TYPE_CLIENT_TCP) {
-        return bpf_map_update_elem(&conn_sock_map, &(key->key.tcp_connect_key), &value, BPF_ANY);
-    }
-
-    return -1;
+	return (skb_hdr + network_header_offset);
 }
 
-static __always_inline struct endpoint_val_t* get_tcp_obj(struct endpoint_key_t *key)
+static __always_inline struct iphdr *ip_hdr(const struct sk_buff *skb)
 {
-    if (key->type == SK_TYPE_LISTEN_TCP) {
-        return bpf_map_lookup_elem(&listen_sock_map, &(key->key.tcp_listen_key));
-    } else if (key->type == SK_TYPE_CLIENT_TCP) {
-        return bpf_map_lookup_elem(&conn_sock_map, &(key->key.tcp_connect_key));
-    }
-
-    return 0;
+	return (struct iphdr *)skb_network_header(skb);
 }
 
-static void get_tcp_key(struct sock *sk, struct endpoint_key_t *key, u32 tgid)
+static __always_inline struct ipv6hdr *ipv6_hdr(const struct sk_buff *skb)
 {
-    if (key->type == SK_TYPE_LISTEN_TCP) {
-        key->key.tcp_listen_key.tgid = tgid;
-        key->key.tcp_listen_key.port = (int)_(sk->sk_num);
-    } else if (key->type == SK_TYPE_CLIENT_TCP) {
-        key->key.tcp_connect_key.tgid = tgid;
-        init_ip(&key->key.tcp_connect_key.ip_addr, sk);
-    }
-    return;
+	return (struct ipv6hdr *)skb_network_header(skb);
 }
 
-static struct endpoint_val_t* get_tcp_val(struct sock *sk, int *new_entry)
+static __always_inline unsigned char *skb_transport_header(const struct sk_buff *skb)
 {
-    int ret;
-    struct endpoint_v *epv;
-    enum endpoint_t type;
-    struct endpoint_key_t key = {0};
-    struct endpoint_val_t *value;
-
-    *new_entry = 0;
-
-    if (sk == 0)
-        return 0;
-
-    // get endpoint val
-    epv = get_endpoint_val(sk);
-    if (epv == 0)
-        return 0;
-    type = epv->type;
-
-    // get tcp key by sock type
-    key.type = epv->type;
-    get_tcp_key(sk, &key, epv->tgid);
-
-    // get tcp obj
-    value = get_tcp_obj(&key);
-    if (value != 0)
-        return value;
-
-    // create tcp obj
-    ret = create_tcp_obj(&key);
-    if (ret < 0)
-        return 0;
-
-    *new_entry = 1;
-    return get_tcp_obj(&key);
+    unsigned char *skb_hdr = _(skb->head);
+    u16 transport_header_offset = _(skb->transport_header);
+	return (skb_hdr + transport_header_offset);
 }
 
-static void report_tcp(struct pt_regs *ctx, struct sock *sk)
+static __always_inline struct tcphdr *tcp_hdr(const struct sk_buff *skb)
 {
-    int new_entry;
-    struct endpoint_val_t* value;
-
-    value = get_tcp_val(sk, &new_entry);
-    if (new_entry && value)
-        report(ctx, value, new_entry);
+	return (struct tcphdr *)skb_transport_header(skb);
 }
 
 static __always_inline bool sk_acceptq_is_full(const struct sock *sk)
@@ -158,222 +131,425 @@ static __always_inline bool sk_synq_is_full(const struct sock *sk)
     return syn_qlen >= max_ack_backlog;
 }
 
-static __always_inline struct sock *listen_sock(struct sock *sk)
-{
-    struct request_sock *req = (struct request_sock *)sk;
-    struct sock *lsk = _(req->rsk_listener);
+#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
 
-    return lsk;
+static __always_inline void get_check_req_sockaddr(struct tcp_socket_event_s* evt, const struct sock* sk, const struct request_sock *req)
+{
+    u16 family, server_port, client_port;
+
+    family = BPF_CORE_READ(sk, __sk_common.skc_family);
+
+    server_port = BPF_CORE_READ(sk, __sk_common.skc_num);
+    client_port = BPF_CORE_READ(req, __req_common.skc_dport);
+    client_port = bpf_ntohs(client_port);
+
+    evt->client_ipaddr.port = client_port;
+    evt->server_ipaddr.port = server_port;
+
+    if (family == AF_INET) {
+        evt->server_ipaddr.ip = BPF_CORE_READ(req, __req_common.skc_rcv_saddr);
+        evt->client_ipaddr.ip = BPF_CORE_READ(req, __req_common.skc_daddr);
+    } else {
+        BPF_CORE_READ_INTO(&(evt->server_ipaddr.ip6), req, __req_common.skc_v6_rcv_saddr);
+        BPF_CORE_READ_INTO(&(evt->client_ipaddr.ip6), req, __req_common.skc_v6_daddr);
+    }
+    return;
 }
 
-KPROBE(__sock_release, pt_regs)
+static __always_inline void get_connect_sockaddr(struct tcp_socket_event_s* evt, const struct sock* sk)
 {
-    struct socket* socket = (struct socket *)PT_REGS_PARM1(ctx);
-    struct sock *sk = _(socket->sk);
-    (void)delete_sock_map(sk);
+    u16 family, server_port, client_port;
+
+    family = BPF_CORE_READ(sk, __sk_common.skc_family);
+    evt->client_ipaddr.family = family;
+    evt->server_ipaddr.family = family;
+
+    server_port = BPF_CORE_READ(inet, __sk_common.skc_dport);
+    server_port = bpf_ntohs(server_port);
+    client_port = BPF_CORE_READ(sk, __sk_common.skc_num);
+
+    evt->client_ipaddr.port = client_port;
+    evt->server_ipaddr.port = server_port;
+
+    if (family == AF_INET) {
+        evt->client_ipaddr.ip = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr);
+        evt->server_ipaddr.ip = BPF_CORE_READ(sk, __sk_common.skc_daddr);
+    } else {
+        BPF_CORE_READ_INTO(&(evt->client_ipaddr.ip6), sk, __sk_common.skc_v6_rcv_saddr);
+        BPF_CORE_READ_INTO(&(evt->server_ipaddr.ip6), sk, __sk_common.skc_v6_daddr);
+    }
+    return;
+}
+
+static __always_inline void get_accept_sockaddr(struct tcp_socket_event_s* evt, const struct sock* sk)
+{
+    u16 family, server_port, client_port;
+
+    family = BPF_CORE_READ(sk, __sk_common.skc_family);
+
+    evt->client_ipaddr.family = family;
+    evt->server_ipaddr.family = family;
+
+    server_port = BPF_CORE_READ(sk, __sk_common.skc_num);
+    client_port = BPF_CORE_READ(sk, __sk_common.skc_dport);
+    client_port = bpf_ntohs(client_port);
+
+    evt->client_ipaddr.port = client_port;
+    evt->server_ipaddr.port = server_port;
+
+    if (family == AF_INET) {
+        evt->client_ipaddr.ip = BPF_CORE_READ(sk, __sk_common.skc_daddr);
+        evt->server_ipaddr.ip = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr);
+    } else {
+        BPF_CORE_READ_INTO(&(evt->client_ipaddr.ip6), sk, __sk_common.skc_v6_daddr);
+        BPF_CORE_READ_INTO(&(evt->server_ipaddr.ip6), sk, __sk_common.skc_v6_rcv_saddr);
+    }
+    return;
+}
+#else
+static __always_inline void get_check_req_sockaddr(struct tcp_socket_event_s* evt, const struct sock* sk, const struct request_sock *req)
+{
+    u16 family, server_port, client_port;
+
+    family = _(sk->__sk_common.skc_family);
+
+    server_port = _(sk->sk_num);
+    client_port = bpf_ntohs(_(req->__req_common.skc_dport));
+
+    evt->client_ipaddr.port = client_port;
+    evt->server_ipaddr.port = server_port;
+
+    if (family == AF_INET) {
+        evt->server_ipaddr.ip = _(req->__req_common.skc_rcv_saddr);
+        evt->client_ipaddr.ip = _(req->__req_common.skc_daddr);
+    } else {
+        (void)bpf_probe_read(&(evt->server_ipaddr.ip6), IP6_LEN, &req->__req_common.skc_v6_rcv_saddr);
+        (void)bpf_probe_read(&(evt->client_ipaddr.ip6), IP6_LEN, &req->__req_common.skc_v6_daddr);
+    }
+    return;
+}
+
+static __always_inline void get_connect_sockaddr(struct tcp_socket_event_s* evt, const struct sock* sk)
+{
+    u16 family, server_port, client_port;
+
+    family = _(sk->__sk_common.skc_family);
+    evt->client_ipaddr.family = family;
+    evt->server_ipaddr.family = family;
+
+    server_port = bpf_ntohs(_(sk->sk_dport));
+    client_port = _(sk->sk_num);
+
+    evt->client_ipaddr.port = client_port;
+    evt->server_ipaddr.port = server_port;
+
+    if (family == AF_INET) {
+        evt->client_ipaddr.ip = _(sk->sk_rcv_saddr);
+        evt->server_ipaddr.ip = _(sk->sk_daddr);
+    } else {
+        (void)bpf_probe_read(&(evt->client_ipaddr.ip6), IP6_LEN, &sk->sk_v6_rcv_saddr);
+        (void)bpf_probe_read(&(evt->server_ipaddr.ip6), IP6_LEN, &sk->sk_v6_daddr);
+    }
+    return;
+}
+
+static __always_inline void get_accept_sockaddr(struct tcp_socket_event_s* evt, const struct sock* sk)
+{
+    u16 family, server_port, client_port;
+
+    family = _(sk->__sk_common.skc_family);
+
+    evt->client_ipaddr.family = family;
+    evt->server_ipaddr.family = family;
+
+    server_port = _(sk->sk_num);
+    client_port = bpf_ntohs(_(sk->sk_dport));
+
+    evt->client_ipaddr.port = client_port;
+    evt->server_ipaddr.port = server_port;
+
+    if (family == AF_INET) {
+        evt->server_ipaddr.ip = _(sk->sk_rcv_saddr);
+        evt->client_ipaddr.ip = _(sk->sk_daddr);
+    } else {
+        (void)bpf_probe_read(&(evt->server_ipaddr.ip6), IP6_LEN, &sk->sk_v6_rcv_saddr);
+        (void)bpf_probe_read(&(evt->client_ipaddr.ip6), IP6_LEN, &sk->sk_v6_daddr);
+    }
+    return;
+}
+#endif
+
+// int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+KRETPROBE_SYSCALL(accept)
+{
+    int tgid = (int)(bpf_get_current_pid_tgid() >> INT_LEN);
+    int new_fd = (int)PT_REGS_RC(ctx);
+    if (new_fd < 0) {
+        goto end;
+    }
+
+    struct sock *sk = sock_get_by_fd(new_fd, (struct task_struct *)bpf_get_current_task());
+    if (!sk) {
+        goto end;
+    }
+
+    struct tcp_socket_event_s evt = {0};
+
+    get_accept_sockaddr(&evt, (const struct sock *)sk);
+    evt.evt = EP_STATS_PASSIVE_OPENS;
+    evt.tgid = tgid;
+
+    // report;
+    evt.role = TCP_SERVER;
+    (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+end:
+
     return 0;
 }
 
-KPROBE(inet_listen, pt_regs)
+// int accept4(int sockfd, struct sockaddr *addr, socklen_t *addrlen, int flags);
+KRETPROBE_SYSCALL(accept4)
 {
-    struct socket* socket = (struct socket *)PT_REGS_PARM1(ctx);
-    struct sock *sk = _(socket->sk);
-    (void)create_sock_map(sk, SK_TYPE_LISTEN_TCP, (bpf_get_current_pid_tgid() >> INT_LEN));
-    report_tcp(ctx, sk);
+    int tgid = (int)(bpf_get_current_pid_tgid() >> INT_LEN);
+    int new_fd = (int)PT_REGS_RC(ctx);
+    if (new_fd < 0) {
+        goto end;
+    }
+
+    struct sock *sk = sock_get_by_fd(new_fd, (struct task_struct *)bpf_get_current_task());
+    if (!sk) {
+        goto end;
+    }
+
+    struct tcp_socket_event_s evt = {0};
+
+    get_accept_sockaddr(&evt, (const struct sock *)sk);
+    evt.evt = EP_STATS_PASSIVE_OPENS;
+    evt.tgid = tgid;
+
+    // report;
+    evt.role = TCP_SERVER;
+    (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+end:
+
     return 0;
 }
 
-KPROBE(__sys_accept4, pt_regs)
+KPROBE(tcp_v4_connect, pt_regs)
 {
-    int new_entry;
-    struct endpoint_val_t* value;
-    struct sock *sk;
-    int fd = PT_REGS_PARM1(ctx);
-    u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;
-    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
-    struct listen_sockfd_key_t listen_sockfd_key = {0};
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    conn_ctx_t id = bpf_get_current_pid_tgid();
 
-    listen_sockfd_key.tgid = tgid;
-    listen_sockfd_key.fd = fd;
-    if (bpf_map_lookup_elem(&listen_sockfd_map, &listen_sockfd_key) == (void *)0) {
-        return 0;
-    }
+    struct tcp_connect_args_s args = {0};
+    args.sk = sk;
+    bpf_map_update_elem(&tcp_connect_args, &id, &args, BPF_ANY);
 
-    if (task == (void *)0) {
-        return 0;
-    }
-
-    sk = sock_get_by_fd(fd, task);
-    if (sk == (void *)0) {
-        return 0;
-    }
-
-    (void)bpf_map_delete_elem(&listen_sockfd_map, &listen_sockfd_key);
-
-    (void)create_sock_map(sk, SK_TYPE_LISTEN_TCP, (bpf_get_current_pid_tgid() >> INT_LEN));
-    value = get_tcp_val(sk, &new_entry);
-    if (value) {
-        ATOMIC_INC_EP_STATS(value, EP_STATS_PASSIVE_OPENS, 1);
-        report(ctx, value, new_entry);
-    }
     return 0;
 }
 
-KPROBE_RET(tcp_connect, pt_regs, CTX_KERNEL)
+KRETPROBE(tcp_v4_connect, pt_regs)
 {
-    int new_entry;
-    struct endpoint_val_t* value;
+    conn_ctx_t id = bpf_get_current_pid_tgid();
     int ret = (int)PT_REGS_RC(ctx);
-    struct sock *sk;
-    struct probe_val val;
 
-    if (PROBE_GET_PARMS(tcp_connect, ctx, val, CTX_KERNEL) < 0)
-        return 0;
+    struct tcp_connect_args_s* args = bpf_map_lookup_elem(&tcp_connect_args, &id);
+    if (args == NULL) {
+        goto end;
+    }
 
-    sk = (struct sock *)PROBE_PARM1(val);
-    if (sk == (void *)0) {
-        return 0;
+    struct sock *sk = args->sk;
+    if (sk == NULL) {
+        goto end;
     }
-    (void)create_sock_map(sk, SK_TYPE_CLIENT_TCP, (bpf_get_current_pid_tgid() >> INT_LEN));
-    value = get_tcp_val(sk, &new_entry);
-    if (value) {
-        if (ret == 0) {
-            ATOMIC_INC_EP_STATS(value, EP_STATS_ACTIVE_OPENS, 1);
-        } else {
-            ATOMIC_INC_EP_STATS(value, EP_STATS_ACTIVE_FAILS, 1);
-        }
-        report(ctx, value, new_entry);
+
+    struct tcp_socket_event_s evt = {0};
+    get_connect_sockaddr(&evt, (const struct sock *)sk);
+    evt.evt = (ret == 0) ? EP_STATS_ACTIVE_OPENS : EP_STATS_ACTIVE_FAILS;
+    evt.tgid = (int)(id >> INT_LEN);
+
+    // report;
+    evt.role = TCP_CLIENT;
+    (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+
+end:
+    bpf_map_delete_elem(&tcp_connect_args, &id);
+    return 0;
+}
+
+KPROBE(tcp_check_req, pt_regs)
+{
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    struct request_sock *req = (struct request_sock *)PT_REGS_PARM3(ctx);
+    conn_ctx_t id = bpf_get_current_pid_tgid();
+
+    struct tcp_check_req_args_s args = {0};
+    args.sk = sk;
+    args.req = req;
+    bpf_map_update_elem(&tcp_check_req_args, &id, &args, BPF_ANY);
+
+    return 0;
+}
+
+KRETPROBE(tcp_check_req, pt_regs)
+{
+    struct sock *new_sk = (struct sock *)PT_REGS_RC(ctx);
+    conn_ctx_t id = bpf_get_current_pid_tgid();
+
+    if (new_sk != NULL) {
+        goto end;
     }
+
+    struct tcp_check_req_args_s* args = bpf_map_lookup_elem(&tcp_check_req_args, &id);
+    if (args == NULL) {
+        goto end;
+    }
+
+    struct sock *sk = args->sk;
+    struct request_sock *req = args->req;
+    if (sk == NULL || req == NULL) {
+        goto end;
+    }
+
+    struct tcp_socket_event_s evt = {0};
+    get_check_req_sockaddr(&evt, (const struct sock *)sk, (const struct request_sock *)req);
+    evt.evt = EP_STATS_PASSIVE_FAILS;
+    evt.tgid = (int)(id >> INT_LEN);
+
+    // report;
+    evt.role = TCP_SERVER;
+    (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+
+end:
+    bpf_map_delete_elem(&tcp_check_req_args, &id);
     return 0;
 }
 
 KPROBE(tcp_conn_request, pt_regs)
 {
-    int new_entry;
-    struct endpoint_val_t* value;
     struct sock *sk = (struct sock *)PT_REGS_PARM3(ctx);
-    bool flag = 0;
-    
-    value = get_tcp_val(sk, &new_entry);
-    if (value) {
-        if (sk_acceptq_is_full((const struct sock *)sk)) {
-            ATOMIC_INC_EP_STATS(value, EP_STATS_ACCEPT_OVERFLOW, 1);
-            flag = 1;
-        }
-        if (sk_synq_is_full((const struct sock *)sk)) {
-            ATOMIC_INC_EP_STATS(value, EP_STATS_SYN_OVERFLOW, 1);
-            flag = 1;
-        }
-        if (flag) {
-            report(ctx, value, new_entry);
-        }
+    struct sk_buff *skb = (struct sk_buff *)PT_REGS_PARM4(ctx);
+    struct tcp_socket_event_s evt = {0};
+
+    if (sk == NULL || skb == NULL) {
+        goto end;
     }
 
+    evt.evt = EP_STATS_MAX;
+    if (sk_acceptq_is_full((const struct sock *)sk)) {
+        evt.evt = EP_STATS_ACCEPT_OVERFLOW;
+    }
+    if (sk_synq_is_full((const struct sock *)sk)) {
+        evt.evt = EP_STATS_SYN_OVERFLOW;
+    }
+
+    if (evt.evt == EP_STATS_MAX) {
+        goto end;
+    }
+
+    struct tcphdr *tcp_head = NULL;
+    u16 port = 0;
+    u16 protocol = 0;
+
+    bpf_probe_read(&protocol, sizeof(protocol), &(skb->protocol));
+
+    if (protocol == bpf_htons(ETH_P_IP)) {
+        u32 ipaddr = 0;
+        struct iphdr *iph = NULL;
+        iph = ip_hdr((const struct sk_buff *)skb);
+        if (iph == NULL) {
+            goto end;
+        }
+        bpf_probe_read(&ipaddr, sizeof(ipaddr), &(iph->daddr));
+        evt.server_ipaddr.ip = bpf_ntohl(ipaddr);
+        bpf_probe_read(&ipaddr, sizeof(ipaddr), &(iph->saddr));
+        evt.client_ipaddr.ip = bpf_ntohl(ipaddr);
+        tcp_head = tcp_hdr((const struct sk_buff *)skb);
+        if (tcp_head == NULL) {
+            goto end;
+        }
+        bpf_probe_read(&port, sizeof(port), &(tcp_head->source));
+        evt.client_ipaddr.port = bpf_ntohs(port);
+        bpf_probe_read(&port, sizeof(port), &(tcp_head->dest));
+        evt.server_ipaddr.port = bpf_ntohs(port);
+    } else {
+        struct ipv6hdr *ip6_hdr = NULL;
+        ip6_hdr = ipv6_hdr((const struct sk_buff *)skb);
+        if (ip6_hdr == NULL) {
+            goto end;
+        }
+        bpf_probe_read(&(evt.client_ipaddr.ip6), IP6_LEN, &(ip6_hdr->saddr));
+        bpf_probe_read(&(evt.server_ipaddr.ip6), IP6_LEN, &(ip6_hdr->daddr));
+
+        tcp_head = tcp_hdr((const struct sk_buff *)skb);
+        if (tcp_head == NULL) {
+            goto end;
+        }
+        bpf_probe_read(&port, sizeof(port), &(tcp_head->source));
+        evt.client_ipaddr.port = bpf_ntohs(port);
+        bpf_probe_read(&port, sizeof(port), &(tcp_head->dest));
+        evt.server_ipaddr.port = bpf_ntohs(port);
+    }
+
+    evt.role = TCP_SERVER;
+    evt.tgid = (int)(bpf_get_current_pid_tgid() >> INT_LEN);
+    // report;
+    evt.role = TCP_SERVER;
+    (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+
+end:
     return 0;
 }
 
 KPROBE(tcp_req_err, pt_regs)
 {
-    int new_entry;
-    struct endpoint_val_t* value;
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     bool abort = (bool)PT_REGS_PARM3(ctx);
-    struct sock *lsk = listen_sock(sk);
+    struct tcp_socket_event_s evt = {0};
 
-    if (!abort)
-        return 0;
-
-     value = get_tcp_val(lsk, &new_entry);
-
-     if (value) {
-         ATOMIC_INC_EP_STATS(value, EP_STATS_LISTEN_DROPS, 1);
-         report(ctx, value, new_entry);
-     }
-
-    return 0;
-}
-
-KPROBE_RET(tcp_create_openreq_child, pt_regs, CTX_KERNEL)
-{
-    struct sock *new_sk = (struct sock *)PT_REGS_RC(ctx);
-    struct sock *sk;
-    struct probe_val val;
-    int new_entry;
-    struct endpoint_val_t* value;
-
-    if (PROBE_GET_PARMS(tcp_create_openreq_child, ctx, val, CTX_KERNEL) < 0)
-        return 0;
-
-    sk = (struct sock *)PROBE_PARM1(val);
-    if (sk == (void *)0) {
-        return 0 ;
+    if (!abort) {
+        goto end;
     }
-    value = get_tcp_val(sk, &new_entry);
-    if (value == 0)
-        return 0;
 
-    if (new_sk) {
-        ATOMIC_INC_EP_STATS(value, EP_STATS_PASSIVE_OPENS, 1);
-    } else {
-        ATOMIC_INC_EP_STATS(value, EP_STATS_LISTEN_DROPS, 1);
-    }
-    return 0;
-}
+    get_accept_sockaddr(&evt, (const struct sock *)sk);
+    evt.evt = EP_STATS_LISTEN_DROPS;
+    evt.tgid = (int)(bpf_get_current_pid_tgid() >> INT_LEN);
 
-
-KPROBE_RET(tcp_check_req, pt_regs, CTX_KERNEL)
-{
-    struct sock *new_sk = (struct sock *)PT_REGS_RC(ctx);
-    struct sock *sk;
-    struct probe_val val;
-    int new_entry;
-    struct endpoint_val_t* value;
-
-    if (PROBE_GET_PARMS(tcp_check_req, ctx, val, CTX_KERNEL) < 0)
-        return 0;
-
-    sk = (struct sock *)PROBE_PARM1(val);
-    if (sk == (void *)0) {
-        return 0;
-    }
-    value = get_tcp_val(sk, &new_entry);
-    if (value == 0)
-        return 0;
-
-    if (!new_sk) {
-        ATOMIC_INC_EP_STATS(value, EP_STATS_PASSIVE_FAILS, 1);
-    }
+    // report;
+    evt.role = TCP_SERVER;
+    (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+end:
     return 0;
 }
 
 #if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(tcp_retransmit_synack, bpf_raw_tracepoint_args)
 {
-    int new_entry;
-    struct endpoint_val_t* value;
     struct sock *sk = (struct sock *)ctx->args[0];
-    
-    value = get_tcp_val(sk, &new_entry);
-    if (value) {
-        ATOMIC_INC_EP_STATS(value, EP_STATS_RETRANS_SYNACK, 1);
-        report(ctx, value, new_entry);
-    }
+    struct tcp_socket_event_s evt = {0};
 
+    get_accept_sockaddr(&evt, (const struct sock *)sk);
+    evt.evt = EP_STATS_RETRANS_SYNACK;
+    evt.tgid = (int)(bpf_get_current_pid_tgid() >> INT_LEN);
+
+    // report;
+    evt.role = TCP_SERVER;
+    (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
     return 0;
 }
 #else
 SEC("tracepoint/tcp/tcp_retransmit_synack")
 int bpf_trace_tcp_retransmit_synack_func(struct trace_event_raw_tcp_retransmit_synack *ctx)
 {
-    int new_entry;
-    struct endpoint_val_t* value;
     struct sock *sk = (struct sock *)ctx->skaddr;
-    
-    value = get_tcp_val(sk, &new_entry);
-    if (value) {
-        ATOMIC_INC_EP_STATS(value, EP_STATS_RETRANS_SYNACK, 1);
-        report(ctx, value, new_entry);
-    }
+    struct tcp_socket_event_s evt = {0};
+
+    get_accept_sockaddr(&evt, (const struct sock *)sk);
+    evt.evt = EP_STATS_RETRANS_SYNACK;
+    evt.tgid = (int)(bpf_get_current_pid_tgid() >> INT_LEN);
+
+    // report;
+    evt.role = TCP_SERVER;
+    (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
 
     return 0;
 }
@@ -381,35 +557,33 @@ int bpf_trace_tcp_retransmit_synack_func(struct trace_event_raw_tcp_retransmit_s
 
 KPROBE(inet_csk_reqsk_queue_drop_and_put, pt_regs)
 {
-    int new_entry;
     u8 num_timeout;
-    struct endpoint_val_t* value;
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     struct request_sock *req = (struct request_sock *)PT_REGS_PARM2(ctx);
     struct inet_connection_sock *icsk = (struct inet_connection_sock *)sk;
     struct net * net = _(sk->__sk_common.skc_net.net);
     int sysctl_tcp_synack_retries = _(net->ipv4.sysctl_tcp_synack_retries);
     int icsk_syn_retries = _(icsk->icsk_syn_retries);
-
     int max_retries = icsk_syn_retries ? : sysctl_tcp_synack_retries;
 
-    value = get_tcp_val(sk, &new_entry);
-    if (value) {
-        bpf_probe_read(&num_timeout, sizeof(u8), (char *)&(req->num_retrans) + sizeof(u8));
-        num_timeout &= 0x7F;
-        if (num_timeout >= max_retries) {
-            ATOMIC_INC_EP_STATS(value, EP_STATS_LOST_SYNACK, 1);
-            report(ctx, value, new_entry);
-        }
+    bpf_probe_read(&num_timeout, sizeof(u8), (char *)&(req->num_retrans) + sizeof(u8));
+    num_timeout &= 0x7F;
+    if (num_timeout >= max_retries) {
+        struct tcp_socket_event_s evt = {0};
+        get_accept_sockaddr(&evt, (const struct sock *)sk);
+        evt.evt = EP_STATS_REQ_DROP;
+        evt.tgid = (int)(bpf_get_current_pid_tgid() >> INT_LEN);
+
+        // report;
+        evt.role = TCP_SERVER;
+        (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
     }
     return 0;
 }
 
 KPROBE(tcp_retransmit_timer, pt_regs)
 {
-    int new_entry;
     u8 num_timeout;
-    struct endpoint_val_t* value;
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     struct inet_connection_sock *icsk = (struct inet_connection_sock *)sk;
     struct net * net = _(sk->__sk_common.skc_net.net);
@@ -421,17 +595,20 @@ KPROBE(tcp_retransmit_timer, pt_regs)
 
     int sysctl_tcp_synack_retries = _(net->ipv4.sysctl_tcp_synack_retries);
     int icsk_syn_retries = _(icsk->icsk_syn_retries);
-
     int max_retries = icsk_syn_retries ? : sysctl_tcp_synack_retries + 1;
 
-    value = get_tcp_val(sk, &new_entry);
-    if (value) {
-        bpf_probe_read(&num_timeout, sizeof(u8), (char *)&(req->num_retrans) + sizeof(u8));
-        num_timeout &= 0x7F;
-        if (num_timeout >= max_retries) {
-            ATOMIC_INC_EP_STATS(value, EP_STATS_LOST_SYNACK, 1);
-            report(ctx, value, new_entry);
-        }
+    bpf_probe_read(&num_timeout, sizeof(u8), (char *)&(req->num_retrans) + sizeof(u8));
+    num_timeout &= 0x7F;
+    if (num_timeout >= max_retries) {
+        struct tcp_socket_event_s evt = {0};
+        get_accept_sockaddr(&evt, (const struct sock *)sk);
+        evt.evt = EP_STATS_LOST_SYNACK;
+        evt.tgid = (int)(bpf_get_current_pid_tgid() >> INT_LEN);
+
+        // report;
+        evt.role = TCP_SERVER;
+        (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+
     }
     return 0;
 }

@@ -3,195 +3,131 @@ version = "1.0.0"
 measurements:
 (
     {
-        table_name: "udp",
-        entity_name: "endpoint",
+        table_name: "endpoint_tcp",
+        entity_name: "endpoint_tcp",
         fields:
         (
             {
-                description: "tgid of the process",
+                description: "id of process",
                 type: "key",
                 name: "tgid",
             },
-	        {
-                description: "socket address of the endpoint",
-                type: "key",
-                name: "s_addr",
-            },
-	        {
-                description: "socket port of the endpoint",
-                type: "key",
-                name: "s_port",
-            },
-	        {
-                description: "Type of the endpoint(include tcp, udp, connect and bind)",
-                type: "key",
-                name: "ep_type",
-            },
-	        {
-                description: "rcv queue drops of the endpoint",
-                type: "gauge",
-                name: "udp_rcv_drops",
-            },
-	        {
-                description: "sends of the endpoint",
-                type: "gauge",
-                name: "udp_sends",
-            },
-	        {
-                description: "rcvs of the endpoint",
-                type: "gauge",
-                name: "udp_rcvs",
-            },
-	        {
-                description: "rcv queue drops err code",
-                type: "gauge",
-                name: "udp_err",
-            }
-        )
-    },
-    {
-        table_name: "listen",
-        entity_name: "endpoint",
-        fields:
-        (
             {
-                description: "tgid of the process",
+                description: "role",
                 type: "key",
-                name: "tgid",
+                name: "role",
+            },
+            {
+                description: "client ip",
+                type: "key",
+                name: "client_ip",
+            },
+            {
+                description: "server ip",
+                type: "key",
+                name: "server_ip",
+            },
+            {
+                description: "server port",
+                type: "key",
+                name: "server_port",
+            },
+            {
+                description: "protocol",
+                type: "key",
+                name: "protocol",
             },
 	        {
-                description: "socket address of the endpoint",
-                type: "key",
-                name: "s_addr",
-            },
-	        {
-                description: "socket port of the endpoint",
-                type: "key",
-                name: "s_port",
-            },
-	        {
-                description: "Type of the endpoint(include tcp, udp, connect and bind)",
-                type: "key",
-                name: "ep_type",
-            },
-	        {
-                description: "listen drops of the endpoint",
+                description: "listen drops of the tcp socket.",
                 type: "gauge",
                 name: "listendrop",
             },
 	        {
-                description: "listen overflows of accepted queue",
+                description: "accepted queue overflows of tcp socket.",
                 type: "gauge",
                 name: "accept_overflow",
             },
-            {
-                description: "listen overflows of syn queue",
+	        {
+                description: "syn queue overflows of tcp socket.",
                 type: "gauge",
                 name: "syn_overflow",
             },
 	        {
-                description: "passive opens of the endpoint",
+                description: "passive opens of the tcp.",
                 type: "gauge",
                 name: "passive_open",
             },
 	        {
-                description: "failed passive opens of the endpoint",
+                description: "failed passive opens of the tcp.",
                 type: "gauge",
                 name: "passive_open_failed",
             },
-            {
-                description: "synack retrans",
+	        {
+                description: "synack retrans of the tcp socket.",
                 type: "gauge",
                 name: "retran_synacks",
             },
-            {
-                description: "synack lost",
+	        {
+                description: "synack lost of the tcp socket.",
                 type: "gauge",
                 name: "lost_synacks",
-            }
-        )
-    },
-    {
-        table_name: "connect",
-        entity_name: "endpoint",
-        fields:
-        (
-            {
-                description: "tgid of the process",
-                type: "key",
-                name: "tgid",
             },
 	        {
-                description: "socket address of the endpoint",
-                type: "key",
-                name: "s_addr",
+                description: "req drops of the tcp socket.",
+                type: "gauge",
+                name: "req_drops",
             },
 	        {
-                description: "socket port of the endpoint",
-                type: "key",
-                name: "s_port",
-            },
-	        {
-                description: "Type of the endpoint(include tcp, udp, connect and bind)",
-                type: "key",
-                name: "ep_type",
-            },
-	        {
-                description: "active opens of the endpoint",
+                description: "active opens of the tcp.",
                 type: "gauge",
                 name: "active_open",
             },
 	        {
-                description: "failed active opens of the endpoint",
+                description: "failed active opens of the tcp.",
                 type: "gauge",
                 name: "active_open_failed",
             }
         )
     },
     {
-        table_name: "bind",
-        entity_name: "endpoint",
+        table_name: "endpoint_udp",
+        entity_name: "endpoint_udp",
         fields:
         (
             {
-                description: "tgid of the process",
+                description: "id of process",
                 type: "key",
                 name: "tgid",
             },
-	        {
-                description: "socket address of the endpoint",
+            {
+                description: "local ip of udp socket.",
                 type: "key",
-                name: "s_addr",
+                name: "local_ip",
+            },
+            {
+                description: "remote ip of udp socket.",
+                type: "key",
+                name: "remote_ip",
+            },
+            {
+                description: "protocol",
+                type: "key",
+                name: "protocol",
             },
 	        {
-                description: "socket port of the endpoint",
-                type: "key",
-                name: "s_port",
-            },
-	        {
-                description: "Type of the endpoint(include tcp, udp, connect and bind)",
-                type: "key",
-                name: "ep_type",
-            },
-	        {
-                description: "rcv queue drops of the endpoint",
+                description: "Bytes discarded by the UDP socket.",
                 type: "gauge",
-                name: "bind_rcv_drops",
+                name: "udp_rcv_drops",
             },
 	        {
-                description: "sends of the endpoint",
+                description: "Bytes sent by the UDP socket.",
                 type: "gauge",
                 name: "bind_sends",
             },
 	        {
-                description: "rcvs of the endpoint",
+                description: "Bytes received by the UDP socket.",
                 type: "gauge",
                 name: "bind_rcvs",
-            },
-	        {
-                description: "rcv queue drops err code",
-                type: "gauge",
-                name: "bind_err",
             }
         )
     }
