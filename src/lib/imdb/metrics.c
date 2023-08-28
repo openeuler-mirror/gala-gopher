@@ -72,11 +72,10 @@ void WriteMetricsLogsMain(IMDB_DataBaseMgr *mgr)
     }
 
     for (;;) {
+        sleep(METRIC_LOG_WRITE_INTERVAL);
         ret = WriteMetricsLogs(mgr);
         if (ret < 0) {
             ERROR("[METRICLOG] write buffer error.\n");
-            return;
         }
-        sleep(METRIC_LOG_WRITE_INTERVAL);
     }
 }

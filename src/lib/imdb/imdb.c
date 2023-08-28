@@ -1152,6 +1152,7 @@ int IMDB_DataBase2Prometheus(IMDB_DataBaseMgr *mgr, char *buffer, uint32_t maxLe
     for (int i = 0; i < mgr->tablesNum; i++) {
         ret = IMDB_Tbl2Prometheus(mgr, mgr->tables[i], cursor, curMaxLen);
         if (ret < 0 || ret >= curMaxLen) {
+            ERROR("[IMDB] Failed to transfer tables to prometheus, ret=%d.\n", ret);
             goto ERR;
         }
 
