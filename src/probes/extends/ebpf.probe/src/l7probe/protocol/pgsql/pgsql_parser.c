@@ -490,7 +490,6 @@ size_t pgsql_find_frame_boundary(struct raw_data_s *raw_data)
 
 parse_state_t pgsql_parse_frame(struct raw_data_s *raw_data, struct frame_data_s **frame_data)
 {
-    struct pgsql_startup_msg_s *start_msg;
     struct pgsql_regular_msg_s *regular_msg;
     parse_state_t parse_msg_state;
 
