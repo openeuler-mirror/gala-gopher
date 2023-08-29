@@ -244,11 +244,12 @@ static int _exe_attach_cmd(char *cmd)
         ERROR("[JAVA_SUPPORT]: attach fail, popen error.\n");
         return -1;
     }
-    DEBUG("[JAVA_SUPPORT]: __do_attach %s\n", cmd);
+    DEBUG("[JAVA_SUPPORT]: do attach %s\n", cmd);
     while(fgets(result_buf, sizeof(result_buf), f) != NULL) {
         DEBUG("%s", result_buf);
         /* 判断load指令执行返回结果，非0表示失败 */
         if (isdigit(result_buf[0]) && atoi(result_buf) != 0) {
+            ERROR("[JAVA_SUPPORT]: attach failed, cmd: %s, ret code: %s\n", cmd, result_buf);
             (void)pclose(f);
             return -1;
         }
