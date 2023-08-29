@@ -287,7 +287,9 @@ static __always_inline __maybe_unused void submit_sock_data(void *ctx, struct so
         if (!buffer) {
             return;
         }
-        update_sock_conn_proto(sock_conn, direction, buffer, bytes_count);
+        if (update_sock_conn_proto(sock_conn, direction, buffer, bytes_count)) {
+            return;
+        }
     } else if (args->iov) {
         struct iovec iov_cpy = {0};
         bpf_probe_read(&iov_cpy, sizeof(iov_cpy), &args->iov[0]);
@@ -296,7 +298,9 @@ static __always_inline __maybe_unused void submit_sock_data(void *ctx, struct so
             return;
         }
         size_t iov_len = (size_t)min(iov_cpy.iov_len, bytes_count);
-        update_sock_conn_proto(sock_conn, direction, buffer, iov_len);
+        if (update_sock_conn_proto(sock_conn, direction, buffer, iov_len)) {
+            return;
+        }
     } else {
         return;
     }

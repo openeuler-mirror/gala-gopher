@@ -105,7 +105,7 @@ enum id_ret_t get_pod_container_id(char *cgrp_path, char *pod_id, char *con_id)
          * /docker/<con_id>
          */
         // set fake pod id
-        
+
         i = 8; // "/docker/"
         (void)snprintf(pod_id, POD_ID_LEN + 1, "%s", FAKE_POD_ID);
         ret = ID_CON_ONLY;
@@ -168,12 +168,12 @@ static void set_con_info(struct pod_info_s *pod_info, char *con_id,  struct cont
 
     int ret = get_container_cpucg_inode((const char *)con_id, &con->con_info.cpucg_inode);
     if (ret) {
-        ERROR("[L7PROBE]: Failed to get cpucg inode of container %s.\n", con_id);
+        ERROR("Failed to get cpucg inode of container %s.\n", con_id);
     }
 
     ret = get_container_name(con_id, con->con_info.container_name, CONTAINER_NAME_LEN);
     if (ret) {
-        ERROR("[L7PROBE]: Failed to get container name of container %s.\n", con_id);
+        ERROR("Failed to get container name of container %s.\n", con_id);
     }
 
     get_elf_path_by_con_id(con_id, con->con_info.libc_path, PATH_LEN, "libc.so");
@@ -188,18 +188,18 @@ static struct containers_hash_t *add_one_con(struct pod_info_s *pod_info, char *
     int ret;
 
     if (con_id == NULL || con_id[0] == 0) {
-        ERROR("[L7PROBE]: Failed to add one container. container id is null\n");
+        ERROR("Failed to add one container. container id is null\n");
         return NULL;
     }
 
     if (add_con_hash(&pod_info->con_head, con_id) != 0) {
-        ERROR("[L7PROBE]: Failed to malloc container %s hash.\n", con_id);
+        ERROR("Failed to malloc container %s hash.\n", con_id);
         return NULL;
     }
 
     H_FIND_S(pod_info->con_head, con_id, con);
     if (con == NULL) {
-        ERROR("[L7PROBE]: Failed to add container %s hash.\n", con_id);
+        ERROR("Failed to add container %s hash.\n", con_id);
         return NULL;
     }
 
@@ -231,7 +231,7 @@ static void del_cons(struct containers_hash_t **con_head)
     if (*con_head == NULL) {
         return;
     }
-    
+
     if (H_COUNT(*con_head) > 0) {
         H_ITER(*con_head, con, tmp) {
             H_DEL(*con_head, con);
@@ -286,20 +286,20 @@ static struct pods_hash_t *add_one_pod(char *pod_id, char *con_id, enum id_ret_t
     struct pods_hash_t *pod = NULL;
 
     if (pod_id == NULL || pod_id[0] == 0) {
-        ERROR("[L7PROBE]: Failed to add one pod. pod id is null\n");
+        ERROR("Failed to add one pod. pod id is null\n");
         return NULL;
     }
 
     H_FIND_S(pod_head, pod_id, pod);
     if (pod == NULL) {
         if (add_pod_hash(pod_id) != 0) {
-            ERROR("[L7PROBE]: Failed to malloc pod %s hash.\n", pod_id);
+            ERROR("Failed to malloc pod %s hash.\n", pod_id);
             return NULL;
         }
 
         H_FIND_S(pod_head, pod_id, pod);
         if (pod == NULL) {
-            ERROR("[L7PROBE]: Failed to add pod %s hash.\n", pod_id);
+            ERROR("Failed to add pod %s hash.\n", pod_id);
             return NULL;
         }
     }
@@ -497,7 +497,7 @@ static cb_rslt container_filter_op(struct containers_hash_t *con, cb_params *par
     }
 
     if (ret < 0) {
-        ERROR("[L7PROBE]: Failed to op container filter[op_code = %d, id = %s] .\n", params->flags, con->con_id);
+        ERROR("Failed to op container filter[op_code = %d, id = %s] .\n", params->flags, con->con_id);
     }
     params->result = ret;
     update_container_filter(con, op);
@@ -534,7 +534,7 @@ static cb_rslt single_container_filter_op(struct containers_hash_t *con, cb_para
     }
 
     if (ret < 0) {
-        ERROR("[L7PROBE]: Failed to op container filter[op_code = %d, id = %s] .\n", params->flags, con->con_id);
+        ERROR("Failed to op container filter[op_code = %d, id = %s] .\n", params->flags, con->con_id);
     }
     params->result = ret;
     update_container_filter(con, op);
@@ -551,7 +551,7 @@ static cb_rslt walk_container_tbl(const char *container_id, struct containers_ha
     if (con_head == NULL) {
         goto end;
     }
-    
+
     H_ITER(con_head, con, tmp) {
         if ((container_id != NULL) && (strcmp((const char*)con->con_id, container_id) == 0)) {
             rslt = cb(con, params);

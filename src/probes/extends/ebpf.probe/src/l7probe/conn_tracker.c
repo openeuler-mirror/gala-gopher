@@ -450,7 +450,7 @@ static int proc_conn_data_msg(struct l7_mng_s *l7_mng, struct conn_data_msg_s *c
     tracker_id.tgid = conn_data_msg->conn_id.tgid;
     tracker = lkup_conn_tracker(l7_mng, (const struct tracker_id_s *)&tracker_id);
     if (tracker == NULL) {
-        ERROR("[L7Probe]: Conn trakcer[%d:%d] is not found when proc data msg.\n", tracker_id.tgid, tracker_id.fd);
+        ERROR("[L7Probe]: Conn tracker[%d:%d] is not found when proc data msg.\n", tracker_id.tgid, tracker_id.fd);
         return -1;
     }
     if (tracker->protocol == PROTO_UNKNOW) {
