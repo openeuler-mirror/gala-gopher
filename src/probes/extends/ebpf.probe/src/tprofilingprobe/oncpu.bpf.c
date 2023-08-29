@@ -154,10 +154,17 @@ static __always_inline void process_offcpu(struct task_struct *task, struct pt_r
     (void)bpf_map_delete_elem(&oncpu_enter_map, &pid);
 }
 
+#if (CURRENT_KERNEL_VERSION == KERNEL_VERSION(6, 4, 0))
+KRAWTRACE(sched_switch, bpf_raw_tracepoint_args)
+{
+    struct task_struct *prev = (struct task_struct *)ctx->args[1];
+    struct task_struct *current = (struct task_struct *)ctx->args[2];
+#else
 KPROBE(finish_task_switch, pt_regs)
 {
     struct task_struct *prev = (struct task_struct *)PT_REGS_PARM1(ctx);
     struct task_struct *current = (struct task_struct *)bpf_get_current_task();
+#endif
 
     process_offcpu(prev, ctx);
     process_oncpu(current);
