@@ -66,6 +66,7 @@ static void submit_perf_buf_user(void *ctx, char *buf, size_t bytes_count, struc
     copied_size = (bytes_count > CONN_DATA_MAX_SIZE) ? CONN_DATA_MAX_SIZE : bytes_count;
     memcpy(conn_data->buf.data, buf, copied_size);
     conn_data->msg.data_size = copied_size;
+    conn_data->msg.payload_size = copied_size;
     conn_data->msg.evt = TRACKER_EVT_DATA;
     trakcer_msg_pb(ctx, 0, conn_data, sizeof(struct conn_data_msg_s) + copied_size);
     return;
