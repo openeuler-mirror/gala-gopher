@@ -231,6 +231,38 @@ int __jattach(int pid, int nspid, int argc, char** argv)
     return ret;
 }
 
+void __get_euid_egid(int pid, uid_t *targetUid, gid_t *targetGid)
+{
+    uid_t eUid = geteuid();
+    gid_t eGid = getegid();
+    char path[PATH_LEN];
+
+    snprintf(path, sizeof(path), "/proc/%d/status", pid);
+    FILE* status_file = fopen(path, "r");
+    if (status_file == NULL) {
+        goto out;
+    }
+
+    char* line = NULL;
+    size_t size;
+    while (getline(&line, &size, status_file) != -1) {
+        if (strncmp(line, "Uid:", 4) == 0 && strtok(line + 4, "\t ") != NULL) {
+            eUid = (uid_t)atoi(strtok(NULL, "\t "));
+        } else if (strncmp(line, "Gid:", 4) == 0 && strtok(line + 4, "\t ") != NULL) {
+            eGid = (gid_t)atoi(strtok(NULL, "\t "));
+        }
+    }
+
+    if (line != NULL) {
+        free(line);
+    }
+    fclose(status_file);
+
+out:
+    *targetUid = eUid;
+    *targetGid = eGid;
+}
+
 int main(int argc, char** argv)
 {
     int ret = 0;
@@ -255,16 +287,26 @@ int main(int argc, char** argv)
         goto out;
     }
 
+    uid_t targetUid;
+    gid_t targetGid;
+    __get_euid_egid(pid, &targetUid, &targetGid);
+
     ret = __ns_enter(pid, nspid, "mnt", &cur_pid);
     if (ret != 0) {
-        fprintf(stderr, "[JVM_ATTACH]: nsenter fail");
+        fprintf(stderr, "[JVM_ATTACH]: nsenter fail\n");
+        ret = -1;
+        goto out;
+    }
+
+    if ((setegid(targetGid) != 0) || (seteuid(targetUid) != 0)) {
+        fprintf(stderr, "[JVM_ATTACH]: setegid %d or seteuid %d fail\n", targetGid, targetUid);
         ret = -1;
         goto out;
     }
 
     ret = get_tmp_path_r(cur_pid, tmp_path, sizeof(tmp_path));
     if (ret != 0) {
-        fprintf(stderr, "[JVM_ATTACH]: get_tmp_path_r %s fail", tmp_path);
+        fprintf(stderr, "[JVM_ATTACH]: get_tmp_path_r %s fail\n", tmp_path);
         ret = -1;
         goto out;
     }
