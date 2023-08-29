@@ -285,49 +285,7 @@ int DaemonRun(ResourceMgr *mgr)
     }
     INFO("[DAEMON] create metadata_report thread success.\n");
 
-#if 0
-    // 5. start probe thread
-    for (int i = 0; i < mgr->probeMgr->probesNum; i++) {
-        Probe *_probe = mgr->probeMgr->probes[i];
-        if (_probe->probeSwitch != PROBE_SWITCH_ON) {
-            INFO("[DAEMON] probe %s switch is off, skip create thread for it.\n", _probe->name);
-            continue;
-        }
-        ret = pthread_create(&mgr->probeMgr->probes[i]->tid, NULL, DaemonRunSingleProbe, _probe);
-        if (ret != 0) {
-            ERROR("[DAEMON] create probe thread failed. probe name: %s errno: %d\n", _probe->name, errno);
-            return -1;
-        }
-        INFO("[DAEMON] create probe %s thread success.\n", mgr->probeMgr->probes[i]->name);
-    }
-
-    // 6. start extend probe thread
-    INFO("[DAEMON] start extend probe(%u) thread.\n", mgr->extendProbeMgr->probesNum);
-    for (int i = 0; i < mgr->extendProbeMgr->probesNum; i++) {
-        ExtendProbe *_extendProbe = mgr->extendProbeMgr->probes[i];
-        if (_extendProbe->probeSwitch == PROBE_SWITCH_OFF) {
-            INFO("[DAEMON] extend probe %s switch is off, skip create thread for it.\n", _extendProbe->name);
-            continue;
-        }
-
-        if (_extendProbe->probeSwitch == PROBE_SWITCH_AUTO) {
-            ret = DaemonCheckProbeNeedStart(_extendProbe->startChkCmd, _extendProbe->chkType);
-            if (ret != 1) {
-                INFO("[DAEMON] extend probe %s start check failed, skip create thread for it.\n", _extendProbe->name);
-                continue;
-            }
-        }
-
-        ret = pthread_create(&mgr->extendProbeMgr->probes[i]->tid, NULL, DaemonRunSingleExtendProbe, _extendProbe);
-        if (ret != 0) {
-            ERROR("[DAEMON] create extend probe thread failed. probe name: %s errno: %d\n", _extendProbe->name, errno);
-            return -1;
-        }
-        mgr->extendProbeMgr->probes[i]->is_running = 1;
-        INFO("[DAEMON] create extend probe %s thread success.\n", mgr->extendProbeMgr->probes[i]->name);
-    }
-#endif
-    // 6. start probe manager thread
+    // 5. start probe manager thread
     ret = pthread_create(&mgr->probe_mng->tid, NULL, DaemonRunProbeMng, mgr->probe_mng);
     if (ret != 0) {
         ERROR("[DAEMON] create probe_mng thread failed.(errno:%d, %s)\n", errno, strerror(errno));
@@ -335,7 +293,7 @@ int DaemonRun(ResourceMgr *mgr)
     }
     INFO("[DAEMON] create probe_mng thread success.\n");
 
-    // 7. start write metricsLogs thread
+    // 6. start write metricsLogs thread
     ret = pthread_create(&mgr->imdbMgr->metrics_tid, NULL, DaemonRunMetricsWriteLogs, mgr->imdbMgr);
     if (ret != 0) {
         ERROR("[DAEMON] create metrics_write_logs thread failed.(errno:%d, %s)\n", errno, strerror(errno));
@@ -343,7 +301,7 @@ int DaemonRun(ResourceMgr *mgr)
     }
     INFO("[DAEMON] create metrics_write_logs thread success.\n");
 
-    // 8. start CmdServer thread
+    // 7. start CmdServer thread
     ret = pthread_create(&mgr->ctl_tid, NULL, CmdServer, NULL);
     if (ret != 0) {
         ERROR("[DAEMON] create cmd_server thread failed.(errno:%d, %s)\n", errno, strerror(errno));
@@ -351,17 +309,7 @@ int DaemonRun(ResourceMgr *mgr)
     }
     INFO("[DAEMON] create cmd_server thread success.\n");
 
-#if 0
-    // 9. create keeplive timer
-    ret = DaemonCreateTimer((ResourceMgr *)mgr);
-    if (ret != 0) {
-        ERROR("[DAEMON] create keeplive timer failed. errno: %d\n", ret);
-        return -1;
-    }
-    INFO("[DAEMON] create keeplive timer success.\n");
-#endif
-
-    // 10. start rest_api_server thread
+    // 8. start rest_api_server thread
     ret = RestServerStartDaemon(mgr->restServer);
     if (ret != 0) {
         ERROR("[DAEMON] create rest api server daemon failed.(errno:%d, %s)\n", errno, strerror(errno));;
