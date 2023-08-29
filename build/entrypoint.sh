@@ -6,18 +6,6 @@ GOPHER_CONF="$GOPHER_CONF_DIR/gala-gopher.conf"
 GOPHER_PROBES_INIT_FILE="$GOPHER_CONF_DIR/probes.init"
 INIT_PROBES_SCRIPT="/usr/libexec/gala-gopher/init_probes.sh"
 
-if [ -f $WORKDIR/user_conf/gala-gopher.conf ] ; then
-    /usr/bin/cp -f $WORKDIR/user_conf/gala-gopher.conf $GOPHER_CONF_DIR
-fi
-
-if [ -f $WORKDIR/user_conf/gala-gopher-app.conf ] ; then
-    /usr/bin/cp -f $WORKDIR/user_conf/gala-gopher-app.conf $GOPHER_CONF_DIR
-fi
-
-if [ -d $WORKDIR/user_conf/extend_probes ] ; then
-    /usr/bin/cp -f $WORKDIR/user_conf/extend_probes/*.conf $GOPHER_CONF_DIR/extend_probes/
-fi
-
 if [[ -n "$GOPHER_LOG_LEVEL" ]]; then
     sed -i "s/log_level =.*/log_level = \"${GOPHER_LOG_LEVEL}\";/g" $GOPHER_CONF
 fi
