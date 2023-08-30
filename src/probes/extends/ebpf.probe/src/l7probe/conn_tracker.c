@@ -827,7 +827,7 @@ static void trakcer_msg(struct l7_mng_s *l7_mng, void *data, unsigned int size)
                 conn_data_msg = (struct conn_data_msg_s *)p;
                 conn_data_buf = p + sizeof(struct conn_data_msg_s);
                 (void)proc_conn_data_msg(l7_mng, conn_data_msg, conn_data_buf);
-                walk_size = sizeof(struct conn_data_msg_s) + conn_data_msg->data_size;
+                walk_size = sizeof(struct conn_data_msg_s) + conn_data_msg->payload_size;
                 break;
             }
             default:

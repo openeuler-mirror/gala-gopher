@@ -153,17 +153,19 @@ static __always_inline void submit_perf_buf(void* ctx, char *buf, size_t bytes_c
     conn_data->msg.data_size = copied_size;
 
 #ifdef __USE_RING_BUF
-    struct conn_data_s *conn_data_tmp = bpf_ringbuf_reserve(&conn_tracker_events, sizeof(struct conn_data_msg_s) + copied_size, 0);
+    struct conn_data_s *conn_data_tmp = bpf_ringbuf_reserve(&conn_tracker_events, sizeof(struct conn_data_s), 0);
     if (conn_data_tmp == NULL) {
         return;
     }
     __builtin_memcpy(&(conn_data_tmp->msg), &(conn_data->msg), sizeof(conn_data->msg));
     bpf_probe_read(conn_data_tmp->buf.data, copied_size & CONN_DATA_MAX_SIZE, buf);
 
+    conn_data_tmp->msg.payload_size = sizeof(conn_data->buf);
     conn_data_tmp->msg.evt = TRACKER_EVT_DATA;
     bpf_ringbuf_submit(conn_data_tmp, 0);
 #else
     bpf_probe_read(conn_data->buf.data, copied_size & CONN_DATA_MAX_SIZE, buf);
+    conn_data->msg.payload_size = copied_size;
     conn_data->msg.evt = TRACKER_EVT_DATA;
     (void)bpf_perf_event_output(ctx, &conn_tracker_events, BPF_F_CURRENT_CPU, conn_data, sizeof(struct conn_data_msg_s) + copied_size);
 #endif
