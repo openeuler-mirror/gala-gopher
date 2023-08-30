@@ -1093,6 +1093,12 @@ static int IMDB_Tbl2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Table *table, char *b
     uint32_t period_records = DEFAULT_PERIOD_RECORD_NUM;
     uint32_t index = 0;
 
+#define __RESERVED_BUF_SIZE 2
+    if (curMaxLen < __RESERVED_BUF_SIZE) {
+        return 0;
+    }
+    curMaxLen -= __RESERVED_BUF_SIZE;
+
     if (HASH_recordCount((const IMDB_Record **)table->records) == 0) {
         return 0;
     }
@@ -1129,9 +1135,13 @@ static int IMDB_Tbl2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Table *table, char *b
         index++;
     }
 
+    if (total == 0) {   // no record written
+        return 0;
+    }
+    curMaxLen += __RESERVED_BUF_SIZE;
     ret = snprintf(curBuffer, curMaxLen, "\n");
-    if (ret < 0) {
-        ERROR("[IMDB] table(%s) add endsym fail.\n", table->name);
+    if (ret < 0 || ret >= curMaxLen) {
+        ERROR("[IMDB] table(%s) add endsym fail, ret=%d.\n", table->name, ret);
         return -1;
     }
     curBuffer += 1;

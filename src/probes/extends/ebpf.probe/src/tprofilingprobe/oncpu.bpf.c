@@ -44,7 +44,7 @@ static __always_inline void init_oncpu_event_common(trace_event_data_t *evt_data
 }
 
 static __always_inline void emit_incomming_oncpu_event(oncpu_m_enter_t *oncpu_enter, struct task_struct *task,
-                                                       struct pt_regs *ctx)
+                                                       void *ctx)
 {
     trace_event_data_t evt_data = {0};
 
@@ -59,7 +59,7 @@ static __always_inline void emit_incomming_oncpu_event(oncpu_m_enter_t *oncpu_en
 }
 
 static __always_inline void emit_oncpu_event_stashed(oncpu_data_t *oncpu_stash, struct task_struct *task,
-                                                     struct pt_regs *ctx)
+                                                     void *ctx)
 {
     trace_event_data_t evt_data = {0};
 
@@ -69,8 +69,7 @@ static __always_inline void emit_oncpu_event_stashed(oncpu_data_t *oncpu_stash, 
     bpf_perf_event_output(ctx, &event_map, BPF_F_CURRENT_CPU, &evt_data, sizeof(evt_data));
 }
 
-static __always_inline void stash_incomming_oncpu_event(oncpu_m_enter_t *oncpu_enter, struct task_struct *task,
-                                                        struct pt_regs *ctx)
+static __always_inline void stash_incomming_oncpu_event(oncpu_m_enter_t *oncpu_enter, struct task_struct *task)
 {
     oncpu_data_t oncpu_d = {0};
     
@@ -83,7 +82,7 @@ static __always_inline void stash_incomming_oncpu_event(oncpu_m_enter_t *oncpu_e
 }
 
 static __always_inline void process_oncpu_event(oncpu_m_enter_t *oncpu_enter, struct task_struct *task,
-                                                struct pt_regs *ctx)
+                                                void *ctx)
 {
     oncpu_data_t *oncpu_stash;
     u32 pid;
@@ -95,7 +94,7 @@ static __always_inline void process_oncpu_event(oncpu_m_enter_t *oncpu_enter, st
         if (can_emit(oncpu_enter->start_time, oncpu_enter->end_time)) {
             emit_incomming_oncpu_event(oncpu_enter, task, ctx);
         } else {
-            stash_incomming_oncpu_event(oncpu_enter, task, ctx);
+            stash_incomming_oncpu_event(oncpu_enter, task);
         }
         return;
     }
@@ -107,7 +106,7 @@ static __always_inline void process_oncpu_event(oncpu_m_enter_t *oncpu_enter, st
         if (can_emit(oncpu_enter->start_time, oncpu_enter->end_time)) {
             emit_incomming_oncpu_event(oncpu_enter, task, ctx);
         } else {
-            stash_incomming_oncpu_event(oncpu_enter, task, ctx);
+            stash_incomming_oncpu_event(oncpu_enter, task);
         }
     } else {
         // merge event
@@ -134,7 +133,7 @@ static __always_inline void process_oncpu(struct task_struct *task)
     (void)bpf_map_update_elem(&oncpu_enter_map, &oncpu_enter.pid, &oncpu_enter, BPF_ANY);
 }
 
-static __always_inline void process_offcpu(struct task_struct *task, struct pt_regs *ctx)
+static __always_inline void process_offcpu(struct task_struct *task, void *ctx)
 {
     u32 pid = _(task->pid);
     oncpu_m_enter_t *oncpu_enter;
@@ -166,7 +165,7 @@ KPROBE(finish_task_switch, pt_regs)
     struct task_struct *current = (struct task_struct *)bpf_get_current_task();
 #endif
 
-    process_offcpu(prev, ctx);
+    process_offcpu(prev, (void *)ctx);
     process_oncpu(current);
 
     return 0;
