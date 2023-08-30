@@ -15,6 +15,7 @@
 #ifndef __POD_MNG_H__
 #define __POD_MNG_H__
 
+#include <utlist.h>
 #include "hash.h"
 
 #define MAX_CGRP_PATH 512
@@ -37,6 +38,11 @@ struct con_info_s {
     char libc_path[PATH_LEN];
     char libssl_path[PATH_LEN];
 };
+
+typedef struct _con_id_elem {
+    char *con_id;
+    struct _con_id_elem *next;
+} con_id_element;
 
 struct containers_hash_t {
     H_HANDLE;
@@ -69,4 +75,6 @@ enum filter_op_t {
 int filter_pod_op(const char *pod_id, enum filter_op_t op);
 int filter_container_op(const char *container_id, enum filter_op_t op);
 
+void free_con_id_list(con_id_element *con_id_list);
+int append_con_id_list(con_id_element **con_id_list, struct con_info_s *con_info);
 #endif
