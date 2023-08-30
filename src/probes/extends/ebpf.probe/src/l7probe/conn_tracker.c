@@ -659,6 +659,8 @@ static void reprot_l7_link(struct l7_link_s *link)
         link->stats[BYTES_RECV],
         link->stats[DATA_EVT_SENT],
         link->stats[DATA_EVT_RECV]);
+
+    (void)fflush(stdout);
 }
 
 static void reprot_l7_rpc(struct l7_link_s *link)
@@ -698,6 +700,8 @@ static void reprot_l7_rpc(struct l7_link_s *link)
 
         link->err_ratio,
         link->stats[ERR_COUNT]);
+
+    (void)fflush(stdout);
 }
 
 static void report_l7_stats(struct l7_mng_s *l7_mng)

@@ -47,10 +47,10 @@ static void add_http_record_into_buf(http_record *record, struct record_buf_s *r
 // Note: http消息队列若中间丢失req或resp，导致不能match正确到record，则结果不准确
 void http_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *resp_frames, struct record_buf_s *record_buf)
 {
-    DEBUG("[HTTP1.x MATCHER] Start to match http req and resp into record.\n");
     if (req_frames == NULL || req_frames->frame_buf_size == 0 || resp_frames == NULL || resp_frames->frame_buf_size == 0) {
         return;
     }
+    DEBUG("[HTTP1.x MATCHER] Start to match http req and resp into record.\n");
     record_buf->err_count = 0;
     record_buf->record_buf_size = 0;
     record_buf->req_count = req_frames->frame_buf_size;
@@ -71,7 +71,7 @@ void http_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *resp_
 
         // 处理req，添加到record中
         if (req_msg->timestamp_ns < resp_msg->timestamp_ns) {
-            DEBUG("[HTTP1.x MATCHER] Add req into record, req.timestamp: %d, resq.timestamp: %d\n",
+            DEBUG("[HTTP1.x MATCHER] Add req into record, req.timestamp: %lu, resq.timestamp: %lu\n",
                  req_msg->timestamp_ns, resp_msg->timestamp_ns);
             memset(&record, 0, sizeof(http_record));
 
@@ -90,7 +90,7 @@ void http_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *resp_
         // 两种情况分别处理
         // 如果现存record中的req是ok的，则匹配，放入record_buf中，并重新分配record内存
         if (record.req->timestamp_ns != 0) {
-            DEBUG("[HTTP1.x MATCHER] Record->req->timestamp: %d\n", record.req->timestamp_ns);
+            DEBUG("[HTTP1.x MATCHER] Record->req->timestamp: %lu\n", record.req->timestamp_ns);
             record.resp = resp_msg;
             ++resp_frames->current_pos;
             add_http_record_into_buf(&record, record_buf);
