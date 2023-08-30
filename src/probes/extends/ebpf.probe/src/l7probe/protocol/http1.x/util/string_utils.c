@@ -154,28 +154,6 @@ bool contains(char *str, char *substr)
     return 0;
 }
 
-char **str_split(const char *str, const char *delim, int skip_empty)
-{
-    char **result = NULL;
-    size_t count = 0;
-    char *tmp = strdup(str);
-    char *token = strtok(tmp, delim);
-
-    while (token != NULL) {
-        if (!skip_empty || strlen(token) > 0) {
-            result = realloc(result, sizeof(char *) + count);
-            result[count - 1] = strdup(token);
-        }
-        token = strtok(NULL, delim);
-    }
-
-    result = realloc(result, sizeof(char *) * (count + 1));
-    result[count] = NULL;
-
-    free(tmp);
-    return result;
-}
-
 char **max_split(const char *str, const char *delim, int max_count)
 {
     // 计算分隔符的长度

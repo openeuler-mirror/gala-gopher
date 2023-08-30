@@ -45,10 +45,6 @@ typedef struct http_request {
     size_t num_headers;
 } http_request;
 
-http_request *init_http_request(void);
-
-void free_http_request(http_request* req);
-
 /**
  * HTTP Response
  */
@@ -60,10 +56,6 @@ typedef struct http_response {
     struct phr_header headers[MAX_HEADERS_SIZE];
     size_t num_headers;
 } http_response;
-
-http_response *init_http_response(void);
-
-void free_http_response(http_response* resp);
 
 /**
  * Parse http request header

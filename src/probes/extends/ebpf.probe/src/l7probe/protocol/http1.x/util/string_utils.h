@@ -100,16 +100,6 @@ size_t get_array_len(const char *arr[]);
 bool contains(char *str, char *substr);
 
 /**
- * split string by delimiter and decrease blank
- *
- * @param str src string
- * @param delim delimiter
- * @param skip_empty is needed to decrease blank
- * @return
- */
-char** str_split(const char* str, const char* delim, int skip_empty);
-
-/**
  * split string by delimiter
  *
  * @param str

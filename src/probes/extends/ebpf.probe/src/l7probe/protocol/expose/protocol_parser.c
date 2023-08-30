@@ -203,7 +203,6 @@ void proto_match_frames(enum proto_type_t type, struct frame_buf_s *req_frame, s
         case PROTO_CQL:
             break;
         default:
-            WARN("[PROTOCOL MATCHER] Not Supported Protocol.\n");
             break;
     }
 }

@@ -343,21 +343,20 @@ parse_state_t http_parse_frame(enum message_type_t msg_type, struct raw_data_s *
             break;
     }
     if (state != STATE_SUCCESS) {
-        WARN("[HTTP1.x PARSER] Parsing Failed.\n");
         free_http_msg(http_msg);
         return state;
     }
 
     *frame_data = (struct frame_data_s *) malloc(sizeof(struct frame_data_s));
     if ((*frame_data) == NULL) {
-        WARN("[HTTP1.x PARSER] Failed to malloc frame_data.\n");
+        ERROR("[HTTP1.x PARSER] Failed to malloc frame_data.\n");
         free_http_msg(http_msg);
         return STATE_INVALID;
     }
     (*frame_data)->frame = http_msg;
     (*frame_data)->msg_type = msg_type;
     (*frame_data)->timestamp_ns = http_msg->timestamp_ns;
-    DEBUG("[HTTP1.x PARSER] Parse frame finished, msg_type: %s, ts: %d\n", msg_type, http_msg->timestamp_ns);
+    DEBUG("[HTTP1.x PARSER] Parse frame finished, msg_type: %d, ts: %lu\n", msg_type, http_msg->timestamp_ns);
     return state;
 }
 
