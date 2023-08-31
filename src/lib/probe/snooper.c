@@ -42,6 +42,8 @@
 #define SNOOPER_OBJNAME_PODID       "pod_id"
 #define SNOOPER_OBJNAME_CONTAINERID "container_id"
 #define SNOOPER_OBJNAME_GAUSSDB     "gaussdb"
+#define SNOOPER_OBJNAME_CUSTOM_LABELS "custom_labels"
+#define SNOOPER_OBJNAME_POD_LABELS  "pod_labels"
 
 // 'proc_name' snooper subobj name define'
 /*
@@ -335,6 +337,123 @@ static int parse_snooper_procid(struct probe_s *probe, const cJSON *json)
     return 0;
 }
 
+static struct custom_label_elem *dup_custom_labels_from_json(const cJSON *labelItems, int num)
+{
+    struct custom_label_elem *custom_labels;
+    cJSON *labelItem;
+    char *labelVal;
+    int i;
+
+    custom_labels = (struct custom_label_elem *)calloc(num, sizeof(struct custom_label_elem));
+    if (!custom_labels) {
+        return NULL;
+    }
+
+    i = 0;
+    cJSON_ArrayForEach(labelItem, labelItems) {
+        labelVal = cJSON_GetStringValue(labelItem);
+        if (!labelVal) {
+            free_custom_labels(custom_labels, num);
+            return NULL;
+        }
+        custom_labels[i].key = strdup(labelItem->string);
+        custom_labels[i].val = strdup(labelVal);
+        if (!custom_labels[i].key || !custom_labels[i].val) {
+            free_custom_labels(custom_labels, num);
+            return NULL;
+        }
+        i++;
+    }
+
+    return custom_labels;
+}
+
+static int parse_snooper_custom_labels(struct probe_s *probe, const cJSON *json)
+{
+    int ret;
+    cJSON *labelItems;
+    int custom_label_num;
+    struct custom_label_elem *custom_labels;
+
+    labelItems = cJSON_GetObjectItem(json, SNOOPER_OBJNAME_CUSTOM_LABELS);
+    if (!labelItems) {
+        return 0;
+    }
+    if (!cJSON_IsObject(labelItems)) {
+        return -1;
+    }
+
+    custom_label_num = cJSON_GetArraySize(labelItems);
+    if (custom_label_num == 0) {
+        return 0;
+    }
+    custom_labels = dup_custom_labels_from_json(labelItems, custom_label_num);
+    if (!custom_labels) {
+        return -1;
+    }
+    update_custom_labels_locked(&probe->ext_label_conf, custom_labels, custom_label_num);
+
+    return 0;
+}
+
+static struct pod_label_elem *dup_pod_labels_from_json(const cJSON *labelItems, int num)
+{
+    struct pod_label_elem *pod_labels;
+    cJSON *labelItem;
+    char *labelKey;
+    int i;
+
+    pod_labels = (struct pod_label_elem *)calloc(num, sizeof(struct pod_label_elem));
+    if (!pod_labels) {
+        return NULL;
+    }
+
+    i = 0;
+    cJSON_ArrayForEach(labelItem, labelItems) {
+        labelKey = cJSON_GetStringValue(labelItem);
+        if (!labelKey) {
+            free_pod_labels(pod_labels, num);
+            return NULL;
+        }
+        pod_labels[i].key = strdup(labelKey);
+        if (!pod_labels[i].key) {
+            free_pod_labels(pod_labels, num);
+            return NULL;
+        }
+        i++;
+    }
+
+    return pod_labels;
+}
+
+static int parse_snooper_pod_labels(struct probe_s *probe, const cJSON *json)
+{
+    int ret;
+    cJSON *labelItems;
+    int pod_label_num;
+    struct pod_label_elem *pod_labels;
+
+    labelItems = cJSON_GetObjectItem(json, SNOOPER_OBJNAME_POD_LABELS);
+    if (!labelItems) {
+        return 0;
+    }
+    if (!cJSON_IsArray(labelItems)) {
+        return -1;
+    }
+
+    pod_label_num = cJSON_GetArraySize(labelItems);
+    if (pod_label_num == 0) {
+        return 0;
+    }
+    pod_labels = dup_pod_labels_from_json(labelItems, pod_label_num);
+    if (!pod_labels) {
+        return -1;
+    }
+    update_pod_labels_locked(&probe->ext_label_conf, pod_labels, pod_label_num);
+
+    return 0;
+}
+
 static void print_snooper_procname(struct probe_s *probe, cJSON *json)
 {
     cJSON *procname_item, *object;
@@ -608,6 +727,16 @@ int parse_snooper(struct probe_s *probe, const cJSON *json)
 
     if (parse_snooper_gaussdb(probe, json)) {
         PARSE_ERR("Error occurs when parsing snooper %s", SNOOPER_OBJNAME_GAUSSDB);
+        return -1;
+    }
+
+    if (parse_snooper_custom_labels(probe, json)) {
+        PARSE_ERR("Error occurs when parsing snooper %s", SNOOPER_OBJNAME_CUSTOM_LABELS);
+        return -1;
+    }
+
+    if (parse_snooper_pod_labels(probe, json)) {
+        PARSE_ERR("Error occurs when parsing snooper %s", SNOOPER_OBJNAME_POD_LABELS);
         return -1;
     }
 

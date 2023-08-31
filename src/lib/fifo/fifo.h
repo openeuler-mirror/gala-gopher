@@ -24,6 +24,7 @@ typedef struct {
     uint32_t out;
 
     int triggerFd;
+    void *probe;    // pointed to the probe who creates it
 } Fifo;
 
 typedef struct {

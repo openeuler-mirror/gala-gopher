@@ -59,6 +59,7 @@ SET(SOURCES main.c daemon.c
     ${PROBE_DIR}/probe_mng.c
     ${PROBE_DIR}/snooper.c
     ${PROBE_DIR}/probe_params_parser.c
+    ${PROBE_DIR}/ext_label.c
     ${IMDB_DIR}/imdb.c
     ${IMDB_DIR}/metrics.c
 

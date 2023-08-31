@@ -311,7 +311,7 @@ static int ProcessEventData(IngressMgr *mgr, const char *content)
     return 0;
 }
 
-static int ProcessMetricData(IngressMgr *mgr, const char *content, const char *tblName)
+static int ProcessMetricData(IngressMgr *mgr, const char *content, const char *tblName, struct probe_s *probe)
 {
     IMDB_Table* table;
     IMDB_Record* rec = NULL;
@@ -320,6 +320,9 @@ static int ProcessMetricData(IngressMgr *mgr, const char *content, const char *t
     table = IMDB_DataBaseMgrFindTable(mgr->imdbMgr, tblName);
     if (table == NULL || table->recordKeySize == 0)
         return -1;
+    if (probe) {
+        IMDB_TableUpdateExtLabelConf(table, &probe->ext_label_conf);
+    }
 
     if (mgr->imdbMgr->writeLogsOn) {
         // save metric to imdb
@@ -376,7 +379,7 @@ static int IngressDataProcesssInput(Fifo *fifo, IngressMgr *mgr)
         } else if (strcmp(tblName, "event") == 0) {
             (void)ProcessEventData(mgr, content);
         } else {
-            (void)ProcessMetricData(mgr, content, tblName);
+            (void)ProcessMetricData(mgr, content, tblName, (struct probe_s *)fifo->probe);
         }
 
         free(dataStr);

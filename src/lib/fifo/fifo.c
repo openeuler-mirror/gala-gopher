@@ -75,6 +75,8 @@ void FifoDestroy(Fifo *fifo)
         fifo->triggerFd = 0;
     }
 
+    fifo->probe = NULL;
+
     free(fifo);
     return;
 }

@@ -19,8 +19,10 @@
 
 #include <stdint.h>
 #include <pthread.h>
+
 #include "base.h"
 #include "hash.h"
+#include "ext_label.h"
 
 #define MAX_IMDB_DATABASEMGR_CAPACITY   256
 // metric specification
@@ -85,6 +87,7 @@ typedef struct {
     uint32_t recordsCapability;     // Capability for records count in one table
     uint32_t recordKeySize;
     IMDB_Record **records;
+    struct ext_label_conf ext_label_conf;
 } IMDB_Table;
 
 typedef struct {
@@ -137,6 +140,7 @@ void IMDB_TableSetEntityName(IMDB_Table *table, char *entity_name);
 int IMDB_TableSetMeta(IMDB_Table *table, IMDB_Record *metaRecord);
 int IMDB_TableSetRecordKeySize(IMDB_Table *table, uint32_t keyNum);
 int IMDB_TableAddRecord(IMDB_Table *table, IMDB_Record *record);
+void IMDB_TableUpdateExtLabelConf(IMDB_Table *table, const struct ext_label_conf *conf);
 void IMDB_TableDestroy(IMDB_Table *table);
 
 IMDB_DataBaseMgr *IMDB_DataBaseMgrCreate(uint32_t capacity);

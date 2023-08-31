@@ -22,6 +22,7 @@
 #include "base.h"
 #include "fifo.h"
 #include "ipc.h"
+#include "ext_label.h"
 
 #include "args.h"
 
@@ -81,6 +82,7 @@ struct probe_s {
     struct snooper_obj_s *snooper_objs[SNOOPER_MAX];    // snooper object, wr&rd by rest/probe-mng thread
 
     struct probe_params probe_param;                    // params for probe
+    struct ext_label_conf ext_label_conf;
 };
 
 struct probe_mng_s {
