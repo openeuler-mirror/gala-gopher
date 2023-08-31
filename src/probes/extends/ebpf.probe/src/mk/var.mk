@@ -53,6 +53,9 @@ endif
 
 BTF_ENABLE = $(shell if [ -f /sys/kernel/btf/vmlinux ]; then echo "ON" ; else echo "OFF"; fi)
 
+BTFHUB_REPO=https://gitee.com/openeuler/btfhub-archive.git,https://github.com/eunomia-bpf/btfhub-archive.git
+BTFHUB_CACHE=$(abspath ../btfhub-cache)
+
 LINK_TARGET ?= -lpthread -lbpf -lelf -llog4cplus -lz -lconfig
 EXTRA_CFLAGS ?= -g -O2 -Wall -fPIC -std=gnu11
 EXTRA_CDEFINE ?= -D__TARGET_ARCH_$(TYPE)
