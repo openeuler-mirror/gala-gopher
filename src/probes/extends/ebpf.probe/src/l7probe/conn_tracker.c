@@ -618,7 +618,7 @@ static void aging_l7_stats(struct l7_mng_s *l7_mng)
 
 static void calc_link_stats(struct l7_link_s *link, struct probe_params *probe_param)
 {
-    link->err_ratio = (float)((float)link->stats[ERR_COUNT] / (float)link->stats[REQ_COUNT]);
+    link->err_ratio = link->stats[REQ_COUNT] == 0 ? 0.00f : (float)((float)link->stats[ERR_COUNT] / (float)link->stats[REQ_COUNT]);
 
     link->throughput[THROUGHPUT_REQ] = (float)((float)link->stats[REQ_COUNT] / (float)probe_param->period);
     link->throughput[THROUGHPUT_RESP] = (float)((float)link->stats[REQ_COUNT] / (float)probe_param->period);
@@ -638,7 +638,7 @@ static void calc_l7_stats(struct l7_mng_s *l7_mng)
 }
 
 
-static void reprot_l7_link(struct l7_link_s *link)
+static void report_l7_link(struct l7_link_s *link)
 {
     (void)fprintf(stdout, "|%s|%u|%s|%s|%u"
         "|%s|%s|%s|%s"
@@ -663,7 +663,7 @@ static void reprot_l7_link(struct l7_link_s *link)
     (void)fflush(stdout);
 }
 
-static void reprot_l7_rpc(struct l7_link_s *link)
+static void report_l7_rpc(struct l7_link_s *link)
 {
     char latency_historm[MAX_HISTO_SERIALIZE_SIZE];
 
@@ -694,7 +694,7 @@ static void reprot_l7_rpc(struct l7_link_s *link)
         link->stats[REQ_COUNT],
         link->stats[RSP_COUNT],
 
-        (float)((float)link->latency_sum / (float)link->stats[REQ_COUNT]),
+        link->stats[REQ_COUNT] == 0 ? 0.00f :(float)((float)link->latency_sum / (float)link->stats[REQ_COUNT]),
         latency_historm,
         link->latency_sum,
 
@@ -709,8 +709,8 @@ static void report_l7_stats(struct l7_mng_s *l7_mng)
     struct l7_link_s *link, *tmp;
 
     H_ITER(l7_mng->l7_links, link, tmp) {
-        reprot_l7_link(link);
-        reprot_l7_rpc(link);
+        report_l7_link(link);
+        report_l7_rpc(link);
     }
 
     return;
