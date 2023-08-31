@@ -323,15 +323,20 @@ static void get_curr_timestamp_ms(time_t *timestamp)
 }
 
 // format: <machine_id>_<entity_name>_<orig_entity_id>
-static int get_entityId(char *entityId, int size, const char *machineId, strbuf_t *entityName, strbuf_t *origEntityId)
+static int get_entityId(char *entityId, int size, IMDB_NodeInfo *nodeInfo, strbuf_t *entityName, strbuf_t *origEntityId)
 {
     int requiredSize;
+#define __MAX_MACHINE_ID_LEN (MAX_IMDB_SYSTEM_UUID_LEN + MAX_IMDB_HOSTIP_LEN)
+    char machineId[__MAX_MACHINE_ID_LEN];
     int machineIdLen;
     char *entityIdPos = NULL;
     strbuf_t sbuf = {
         .buf = entityId,
         .size = size
     };
+
+    machineId[0] = 0;
+    (void)snprintf(machineId, sizeof(machineId), "%s-%s", nodeInfo->systemUuid, nodeInfo->hostIP);
 
     machineIdLen = strlen(machineId);
     requiredSize = machineIdLen + entityName->len + origEntityId->len + 3;
@@ -575,7 +580,7 @@ int EventData2Json(IngressMgr *mgr, const char *evtData, char *jsonFmt, int json
     }
 
     get_curr_timestamp_ms(&timestamp);
-    if (get_entityId(entityId, sizeof(entityId), mgr->imdbMgr->nodeInfo.systemUuid,
+    if (get_entityId(entityId, sizeof(entityId), &mgr->imdbMgr->nodeInfo,
                      &evtFields[EVT_ORIG_FIELD_ENTITY_NAME], &evtFields[EVT_ORIG_FIELD_ENTITY_ID])) {
         return -1;
     }
