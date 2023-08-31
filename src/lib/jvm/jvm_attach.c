@@ -36,13 +36,21 @@ char tmp_path[PATH_LEN];
 
 int get_tmp_path_r(int cur_pid, char* buf, size_t bufsize)
 {
-    if (snprintf(buf, bufsize, "/proc/%d/root/tmp", cur_pid) >= bufsize) {
+    int ret = snprintf(buf, bufsize, "/proc/%d/root/tmp", cur_pid);
+    if (ret < 0 || ret >= bufsize) {
         return -1;
     }
 
     // Check if the remote /tmp can be accessed via /proc/[pid]/root
     struct stat stats;
-    return stat(buf, &stats);
+    if (stat(buf, &stats) != 0) {
+        ret = snprintf(buf, bufsize, "/tmp");
+        if (ret < 0 || ret >= bufsize) {
+            return -1;
+        }
+    }
+
+    return 0;
 }
 
 static int get_netns_fd(pid_t pid, const char* type)
@@ -92,16 +100,28 @@ static int __check_attach_listener(int nspid)
     return stat(path, &stats) == 0 && S_ISSOCK(stats.st_mode) ? 0 : -1;
 }
 
+static uid_t get_file_owner(const char* path) {
+    struct stat stats;
+    return stat(path, &stats) == 0 ? stats.st_uid : (uid_t)-1;
+}
+
 static int __start_attach(int pid, int nspid)
 {
     int result = 0;
     char path[MAX_PATH_LEN];
     (void)snprintf(path, sizeof(path), "/proc/%d/cwd/.attach_pid%d", nspid, nspid);
     int fd = creat(path, 0660);
-    if (fd == -1) {
-        result = -1;
-        fprintf(stderr, "[JVM_ATTACH]: tgid(%d) start attach failed when creat attach file.\n", pid);
-        goto out;
+
+    // "/tmp" or "/proc/<pid>/cwd/" can be location for .attach_pid<pid>.
+    if (fd == -1 || (close(fd) == 0 && get_file_owner(path) != geteuid())) {
+        unlink(path);
+        snprintf(path, sizeof(path), "%s/.attach_pid%d", tmp_path, nspid);
+        fd = creat(path, 0660);
+        if (fd == -1) {
+            fprintf(stderr, "[JVM_ATTACH]: tgid(%d) start attach failed when creat attach file.\n", pid);
+            return -1;
+        }
+        close(fd);
     }
 
     kill(pid, SIGQUIT);
@@ -112,9 +132,7 @@ static int __start_attach(int pid, int nspid)
         result = __check_attach_listener(nspid);
     } while (result != 0 && (ts.tv_nsec += 20000000) < 5000000000); // 20000000 ns 检查一次直至 5000000000 ns
 
-out:
     unlink(path);
-    close(fd);
     return result;
 }
 
