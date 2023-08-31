@@ -103,7 +103,7 @@ URETPROBE(SSL_read, pt_regs)
     conn_ctx_t id = bpf_get_current_pid_tgid();
 
     struct sock_data_args_s* args = bpf_map_lookup_elem(&sock_data_args, &id);
-    if (args != NULL && args->is_socket_op) {
+    if (args != NULL) {
         size_t bytes_count = (size_t)PT_REGS_RC(ctx);
         if (bytes_count <= 0) {
             goto end;
@@ -151,7 +151,7 @@ URETPROBE(SSL_write, pt_regs)
     conn_ctx_t id = bpf_get_current_pid_tgid();
 
     struct sock_data_args_s* args = bpf_map_lookup_elem(&sock_data_args, &id);
-    if (args != NULL && args->is_socket_op) {
+    if (args != NULL) {
         size_t bytes_count = (size_t)PT_REGS_RC(ctx);
         if (bytes_count <= 0) {
             goto end;
