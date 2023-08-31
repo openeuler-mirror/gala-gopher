@@ -57,63 +57,69 @@ L7Probe
 
 ### l7_link
 
-| metrics_name   | table_name | metrics_type | unit  | metrics description |
-| -------------- | ---------- | ------------ | ----- | ------------------- |
-| tgid           |            | key          |       | 进程ID              |
-| remote_ip      |            | key          |       |                     |
-| remote_port    |            | key          |       |                     |
-| endpoint_ip    |            | key          |       |                     |
-| endpoint_port  |            | key          |       |                     |
-| comm           |            | label        |       | 进程名              |
-| container_id   |            | label        |       | 容器ID              |
-| pod_name       |            | label        |       | k8s POD名           |
-| pod_ip         |            | label        |       | k8s POD IP          |
-| role           |            | label        |       | 客户端/服务端       |
-| protocol       |            | label        |       | L7协议类型          |
-| ssl            |            | label        |       | 是否是SSL加密连接   |
-| bytes_sent     |            | Gauge        | bytes | L7连接发生字节数量  |
-| bytes_received |            | Gauge        | bytes | L7连接接收字节数量  |
+| metrics_name | table_name | metrics_type | unit  | metrics description                               |
+|--------------| ---------- | ------------ | ----- |---------------------------------------------------|
+| tgid         |            | key          |       | 进程ID                                              |
+| client_ip    |            | key          |       | 客户端IP                                             |
+| server_ip    |            | key          |       | 服务端IP<br/>备注：k8s场景支持Cluster IP转换成Backend IP       |
+| server_port  |            | key          |       | 服务端Port<br/>备注：k8s场景支持Cluster Port转换成Backend Port |
+| l4_role      |            | key          |       | l4角色（tcp_client/tcp_server/udp                    |
+| l7_role      |            | key          |       | l7角色（client/server)                               |
+| protocol     |            | key          |       | l7协议（http/http2/pgsql/mysql/...）                  |
+| comm         |            | label        |       | 进程名                                               |
+| container_id |            | label        |       | 容器ID                                              |
+| pod_name     |            | label        |       | k8s POD名                                          |
+| pod_ip       |            | label        |       | k8s POD IP                                        |
+| ssl          |            | label        |       | 是否是SSL加密连接                                        |
+| machine_id   |            | label        |       | 节点实例id                                            |
+| bytes_sent   |            | Gauge        | bytes | L7连接发送字节数量                                        |
+| bytes_recv   |            | Gauge        | bytes | L7连接接收字节数量                                        |
+| segs_sent    |            | label        |       | l7连接发送segs数量                                      |
+| segs_recv    |            | label        |       | l7连接接收segs数量                                      |
 
 ### l7_rpc
 
-| metrics_name   | table_name | metrics_type | unit | metrics description                            |
-| -------------- | ---------- | ------------ | ---- | ---------------------------------------------- |
-| tgid           |            | key          |      | 进程ID                                         |
-| remote_ip      |            | key          |      |                                                |
-| remote_port    |            | key          |      |                                                |
-| endpoint_ip    |            | key          |      |                                                |
-| endpoint_port  |            | key          |      |                                                |
-| comm           |            | label        |      | 进程名                                         |
-| container_id   |            | label        |      | 容器ID                                         |
-| pod_name       |            | label        |      | k8s POD名                                      |
-| pod_ip         |            | label        |      | k8s POD IP                                     |
-| role           |            | label        |      | 客户端/服务端                                  |
-| protocol       |            | label        |      | L7协议类型                                     |
-| ssl            |            | label        |      | 是否是SSL加密连接                              |
-| req_throughput |            | Gauge        | x/s  | L7连接request吞吐量（包括HTTP/DB/REDIS）       |
-| rsp_throughput |            | Gauge        | x/s  | L7连接response吞吐量（包括HTTP/DB/REDIS）      |
-| latency        |            | Gauge        | ms   | L7连接request访问时延（包括HTTP/DB/REDIS）     |
-| p50_latency    |            | Gauge        | ms   | L7连接P50 request访问时延（包括HTTP/DB/REDIS） |
-| p90_latency    |            | Gauge        | ms   | L7连接P90 request访问时延（包括HTTP/DB/REDIS） |
-| p99_latency    |            | Gauge        | ms   | L7连接P99 request访问时延（包括HTTP/DB/REDIS） |
-| error_rate     |            | Gauge        | %    | L7连接Request访问错误率（包括HTTP/DB/REDIS）   |
+| metrics_name   | table_name | metrics_type | unit | metrics description                               |
+|----------------| ---------- |--------------|------|---------------------------------------------------|
+| tgid           |            | key          |      | 进程ID                                              |
+| client_ip      |            | key          |      | 客户端IP                                             |
+| server_ip      |            | key          |      | 服务端IP<br/>备注：k8s场景支持Cluster IP转换成Backend IP       |
+| server_port    |            | key          |      | 服务端Port<br/>备注：k8s场景支持Cluster Port转换成Backend Port |
+| l4_role        |            | key          |      | l4角色（tcp_client/tcp_server/udp                    |
+| l7_role        |            | key          |      | l7角色（client/server)                               |
+| protocol       |            | key          |      | l7协议（http/http2/pgsql/mysql/...）                  |
+| comm           |            | label        |      | 进程名                                               |
+| container_id   |            | label        |      | 容器ID                                              |
+| pod_name       |            | label        |      | k8s POD名                                          |
+| pod_ip         |            | label        |      | k8s POD IP                                        |
+| ssl            |            | label        |      | 是否是SSL加密连接                                        |
+| machine_id     |            | label        |      | 节点实例id                                            |
+| req_throughput |            | Gauge        | qps  | L7连接request吞吐量（包括HTTP/DB/REDIS）                   |
+| rsp_throughput |            | Gauge        | qps  | L7连接response吞吐量（包括HTTP/DB/REDIS）                  |
+| latency_avg    |            | Gauge        | ns   | L7连接request平均访问时延（包括HTTP/DB/REDIS）                |
+| latency        |            | Histogram    | ns   | L7连接request访问时延（包括HTTP/DB/REDIS）                  |
+| latency_sum    |            | Gauge        | ns   | L7连接P50 request访问时延总和（包括HTTP/DB/REDIS）            |
+| error_ratio    |            | Gauge        | %    | L7连接Request访问错误率（包括HTTP/DB/REDIS）                 |
+| error_count    |            | Gauge        |      | L7连接Request访问错误总数（包括HTTP/DB/REDIS）                |
+
 
 ### l7_trace
 
 | metrics_name  | table_name | metrics_type | unit | metrics description                      |
 | ------------- | ---------- | ------------ | ---- | ---------------------------------------- |
-| tgid          |            | key          |      | 进程ID                                   |
-| remote_ip     |            | key          |      |                                          |
-| remote_port   |            | key          |      |                                          |
-| endpoint_ip   |            | key          |      |                                          |
-| endpoint_port |            | key          |      |                                          |
-| comm          |            | label        |      | 进程名                                   |
-| container_id  |            | label        |      | 容器ID                                   |
-| pod_name      |            | label        |      | k8s POD名                                |
-| pod_ip        |            | label        |      | k8s POD IP                               |
-| role          |            | label        |      | 客户端/服务端                            |
-| protocol      |            | label        |      | L7协议类型                               |
-| ssl           |            | label        |      | 是否是SSL加密连接                        |
+| tgid           |            | key          |      | 进程ID                                              |
+| client_ip      |            | key          |      | 客户端IP                                             |
+| server_ip      |            | key          |      | 服务端IP<br/>备注：k8s场景支持Cluster IP转换成Backend IP       |
+| server_port    |            | key          |      | 服务端Port<br/>备注：k8s场景支持Cluster Port转换成Backend Port |
+| l4_role        |            | key          |      | l4角色（tcp_client/tcp_server/udp                    |
+| l7_role        |            | key          |      | l7角色（client/server)                               |
+| protocol       |            | key          |      | l7协议（http/http2/pgsql/mysql/...）                  |
+| comm           |            | label        |      | 进程名                                               |
+| container_id   |            | label        |      | 容器ID                                              |
+| pod_name       |            | label        |      | k8s POD名                                          |
+| pod_ip         |            | label        |      | k8s POD IP                                        |
+| ssl            |            | label        |      | 是否是SSL加密连接                                        |
+| machine_id     |            | label        |      | 节点实例id                                            |
 | req_method    |            | label        |      | L7连接request方法名（包括HTTP/DB/REDIS） |
 | req_path      |            | label        |      | L7连接request path（包括HTTP/DB/REDIS）  |
 | resp_code     |            | label        |      | L7连接response code（包括HTTP/DB/REDIS） |

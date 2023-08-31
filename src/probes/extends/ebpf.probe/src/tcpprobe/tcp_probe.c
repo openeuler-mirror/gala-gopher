@@ -65,7 +65,8 @@ static void output_tcp_abn(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
     report_tcp_abn_evt(&(tcp_mng->ipc_body.probe_param), tracker);
 
     if (tracker->stats[RETRANS] > 0) {
-        retrans_ratio = (float)((float)tracker->stats[RETRANS] / (float)tracker->stats[SEGS_SENT]);
+        retrans_ratio = tracker->stats[SEGS_SENT] == 0 ? 0.00f : (float) ((float) tracker->stats[RETRANS] /
+                                                                          (float) tracker->stats[SEGS_SENT]);
     }
 
     (void)fprintf(stdout,
@@ -215,11 +216,13 @@ static void output_tcp_win(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
     }
 
     if (tracker->stats[ZERO_WIN_RX] > 0) {
-        tracker->zero_win_rx_ratio = (float)((float)tracker->stats[ZERO_WIN_RX] / (float)tracker->stats[BYTES_RECV]);
+        tracker->zero_win_rx_ratio = tracker->stats[BYTES_RECV] == 0 ? 0.00f :
+                                     (float) ((float) tracker->stats[ZERO_WIN_RX] / (float) tracker->stats[BYTES_RECV]);
     }
 
     if (tracker->stats[ZERO_WIN_TX] > 0) {
-        tracker->zero_win_tx_ratio = (float)((float)tracker->stats[ZERO_WIN_TX] / (float)tracker->stats[BYTES_SENT]);
+        tracker->zero_win_tx_ratio = tracker->stats[BYTES_SENT] == 0 ? 0.00f :
+                                     (float) ((float) tracker->stats[ZERO_WIN_TX] / (float) tracker->stats[BYTES_SENT]);
     }
 
     report_tcp_win_evt(&(tcp_mng->ipc_body.probe_param), tracker);
