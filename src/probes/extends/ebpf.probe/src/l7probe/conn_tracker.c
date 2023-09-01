@@ -43,17 +43,18 @@
 
 struct latency_histo_s {
     enum latency_range_t range;
-    int min, max;
+    u64 min, max;
 };
 
+// unit: ns
 struct latency_histo_s latency_histios[__MAX_LT_RANGE] = {
-    {LT_RANGE_1, 0, 3},
-    {LT_RANGE_2, 3, 10},
-    {LT_RANGE_3, 10, 50},
-    {LT_RANGE_4, 50, 100},
-    {LT_RANGE_5, 100, 500},
-    {LT_RANGE_6, 500, 1000},
-    {LT_RANGE_7, 1000, 10000}
+    {LT_RANGE_1, 0,          3000000},
+    {LT_RANGE_2, 3000000,    10000000},
+    {LT_RANGE_3, 10000000,   50000000},
+    {LT_RANGE_4, 50000000,   100000000},
+    {LT_RANGE_5, 100000000,  500000000},
+    {LT_RANGE_6, 500000000,  1000000000},
+    {LT_RANGE_7, 1000000000, 10000000000}
 };
 
 const char *proto_name[PROTO_MAX] = {
@@ -517,7 +518,7 @@ static void add_tracker_stats(struct l7_mng_s *l7_mng, struct conn_tracker_s* tr
             ret = histo_bucket_add_value(link->latency_buckets,
                             __MAX_LT_RANGE, tracker->records.records[i]->latency);
             if (ret) {
-                // TODO: debuging
+                ERROR("[L7PROBE] Failed to add latency to histo bucket, value: %lu\n", tracker->records.records[i]->latency);
             }
         }
     }
