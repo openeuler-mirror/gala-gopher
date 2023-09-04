@@ -182,10 +182,8 @@ static char __is_exist_libssl_prog(struct l7_mng_s *l7_mng, const char *libssl)
     return 0;
 }
 
-static void unload_l7_prog(struct l7_mng_s *l7_mng)
+static void unload_libssl_prog(struct l7_mng_s *l7_mng)
 {
-    unload_bpf_prog(&(l7_mng->bpf_progs.kern_sock_prog));
-
     for (int i = 0; i < LIBSSL_EBPF_PROG_MAX; i++) {
         unload_bpf_prog(&(l7_mng->bpf_progs.libssl_progs[i].prog));
         if (l7_mng->bpf_progs.libssl_progs[i].libssl_path != NULL) {
@@ -196,34 +194,35 @@ static void unload_l7_prog(struct l7_mng_s *l7_mng)
     return;
 }
 
-static int load_l7_prog(struct l7_mng_s *l7_mng)
+static void unload_kern_sock_prog(struct l7_mng_s *l7_mng)
 {
+    unload_bpf_prog(&(l7_mng->bpf_progs.kern_sock_prog));
+}
+
+static void unload_l7_prog(struct l7_mng_s *l7_mng)
+{
+    unload_libssl_prog(l7_mng);
+    unload_kern_sock_prog(l7_mng);
+
+    return;
+}
+
+int load_libssl_prog(struct l7_mng_s *l7_mng, struct ipc_body_s *ipc_body) {
     int ret;
     struct bpf_prog_s *prog;
-    struct ipc_body_s *ipc_body = &(l7_mng->ipc_body);
     char libssl[PATH_LEN];
     char *path;
-
-    prog = alloc_bpf_prog();
-    if (prog == NULL) {
-        goto err;
-    }
-
-    ret = l7_load_probe_kern_sock(l7_mng, prog);
-    if (ret) {
-        goto err;
-    }
-    l7_mng->bpf_progs.kern_sock_prog = prog;
 
     for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
         path = NULL;
         if (ipc_body->snooper_objs[i].type == SNOOPER_OBJ_CON) {
             path = ipc_body->snooper_objs[i].obj.con_info.libssl_path;
         }
+
         if (ipc_body->snooper_objs[i].type == SNOOPER_OBJ_PROC) {
             u32 proc_id = ipc_body->snooper_objs[i].obj.proc.proc_id;
             libssl[0] = 0;
-            ret = get_elf_path(proc_id, libssl, PATH_LEN, "libc\\.so");
+            ret = get_elf_path(proc_id, libssl, PATH_LEN, "libssl\\.so");
             if (ret) {
                 continue;
             }
@@ -251,7 +250,27 @@ static int load_l7_prog(struct l7_mng_s *l7_mng)
             }
         }
     }
+    return 0;
+err:
+    unload_bpf_prog(&prog); // unload libssl
+    return -1;
+}
 
+static int load_kern_sock_prog(struct l7_mng_s *l7_mng)
+{
+    int ret;
+    struct bpf_prog_s *prog;
+
+    prog = alloc_bpf_prog();
+    if (prog == NULL) {
+        goto err;
+    }
+
+    ret = l7_load_probe_kern_sock(l7_mng, prog);
+    if (ret) {
+        goto err;
+    }
+    l7_mng->bpf_progs.kern_sock_prog = prog;
     l7_mng->last_report = (time_t)time(NULL);
     return 0;
 err:
@@ -376,12 +395,20 @@ int main(int argc, char **argv)
         ret = recv_ipc_msg(msq_id, (long)PROBE_L7, &ipc_body);
         if (ret == 0) {
             if (ipc_body.probe_flags & IPC_FLAGS_PARAMS_CHG || ipc_body.probe_flags == 0) {
-                unload_l7_prog(l7_mng);
-                ret = load_l7_prog(l7_mng);
+                unload_kern_sock_prog(l7_mng);
+                ret = load_kern_sock_prog(l7_mng);
                 if (ret) {
                     destroy_ipc_body(&ipc_body);
                     break;
                 }
+            }
+
+            // IPC_FLAGS_PARAMS_CHG || IPC_FLAGS_SNOOPER_CHG
+            unload_libssl_prog(l7_mng);
+            ret = load_libssl_prog(l7_mng, &ipc_body);
+            if (ret) {
+                destroy_ipc_body(&ipc_body);
+                break;
             }
 
             unload_l7_snoopers(l7_mng->bpf_progs.proc_obj_map_fd, &(l7_mng->ipc_body));
