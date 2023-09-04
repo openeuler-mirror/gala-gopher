@@ -182,7 +182,7 @@ static int add_snooper_conf_procname(struct probe_s *probe,
     }
 
     (void)snprintf(snooper_conf->conf.app.comm, sizeof(snooper_conf->conf.app.comm), "%s", comm);
-    if (cmdline && comm[0] != 0) {
+    if (cmdline && cmdline[0] != 0) {
         snooper_conf->conf.app.cmdline = strdup(cmdline);
     }
     if (dbgdir && dbgdir[0] != 0) {
@@ -925,17 +925,15 @@ static int add_snooper_obj_gaussdb(struct probe_s *probe, struct snooper_gaussdb
     return 0;
 }
 
-static int gen_snooper_by_procname(struct probe_s *probe, struct snooper_conf_s *snooper_conf)
+static int gen_snooper_by_procname(struct probe_s *probe)
 {
     int ret;
+    int cmdline_obtained = 0;
     DIR *dir = NULL;
     struct dirent *entry;
+    struct snooper_conf_s * snooper_conf;
     char comm[__PROC_NAME_MAX];
     char cmdline[__PROC_CMDLINE_MAX];
-
-    if (snooper_conf->type != SNOOPER_CONF_APP) {
-        return 0;
-    }
 
     dir = opendir(__SYS_PROC_DIR);
     if (dir == NULL) {
@@ -957,38 +955,65 @@ static int gen_snooper_by_procname(struct probe_s *probe, struct snooper_conf_s 
             continue;
         }
 
-        if (!__chk_snooper_pattern((const char *)snooper_conf->conf.app.comm, (const char *)comm)) {
-            // 'comm' Unmatched
-            continue;
-        }
+        for (int i = 0; i < probe->snooper_conf_num; i++) {
+            snooper_conf = probe->snooper_confs[i];
+            if (snooper_conf->type != SNOOPER_CONF_APP) {
+                continue;
+            }
+            if (!__chk_snooper_pattern((const char *)snooper_conf->conf.app.comm, (const char *)comm)) {
+                // 'comm' Unmatched
+                continue;
+            }
 
-        if (__chk_cmdline_matched((const char *)snooper_conf->conf.app.cmdline, entry->d_name) < 0) {
-            // 'cmdline' Unmatched
-            continue;
-        }
+            if (snooper_conf->conf.app.cmdline) {
+                if (!cmdline_obtained) {
+                    cmdline[0] = 0;
+                    ret = __read_proc_cmdline(entry->d_name, cmdline, __PROC_CMDLINE_MAX);
+                    if (ret) {
+                        break;
+                    }
+                    cmdline_obtained = 1;
+                }
 
-        // Well matched
-        (void)add_snooper_obj_procid(probe, (u32)atoi(entry->d_name));
+                if (strstr(cmdline, snooper_conf->conf.app.cmdline) == NULL) {
+                    // 'cmdline' Unmatched
+                    continue;
+                }
+            }
+            // Well matched
+            (void)add_snooper_obj_procid(probe, (u32)atoi(entry->d_name));
+            break;
+        }
+        cmdline_obtained = 0;
     } while (1);
 
     closedir(dir);
     return 0;
 }
 
-static int gen_snooper_by_procid(struct probe_s *probe, struct snooper_conf_s *snooper_conf)
+static int gen_snooper_by_procid(struct probe_s *probe)
 {
-    if (snooper_conf->type != SNOOPER_CONF_PROC_ID) {
-        return 0;
-    }
+    struct snooper_conf_s * snooper_conf;
 
-    return add_snooper_obj_procid(probe, snooper_conf->conf.proc_id);
+    for (int i = 0; i < probe->snooper_conf_num; i++) {
+        snooper_conf = probe->snooper_confs[i];
+        if (snooper_conf->type != SNOOPER_CONF_PROC_ID) {
+            continue;
+        }
+
+        if (add_snooper_obj_procid(probe, snooper_conf->conf.proc_id)) {
+            return -1;
+        }
+    }
+    return 0;
 }
 
-static int __gen_snooper_by_container(struct probe_s *probe, const char *target_container_id)
+static int __gen_snooper_by_container(struct probe_s *probe, con_id_element *con_id_list)
 {
     DIR *dir = NULL;
     struct dirent *entry;
     char container_id[CONTAINER_ABBR_ID_LEN + 1];
+    con_id_element *con_info_elem, *tmp;
 
     dir = opendir(__SYS_PROC_DIR);
     if (dir == NULL) {
@@ -1005,11 +1030,18 @@ static int __gen_snooper_by_container(struct probe_s *probe, const char *target_
         }
 
         container_id[0] = 0;
+        // TODO: recomplement this func to shorten executing time
         (void)get_container_id_by_pid_cpuset((const char *)(entry->d_name), container_id, CONTAINER_ABBR_ID_LEN + 1);
+        if (container_id[0] == 0) {
+            continue;
+        }
 
-        if (strcmp((const char *)container_id, target_container_id) == 0) {
-            // Well matched
-            (void)add_snooper_obj_procid(probe, (u32)atoi(entry->d_name));
+        LL_FOREACH_SAFE(con_id_list, con_info_elem, tmp) {
+            if (strcmp((const char *)container_id, con_info_elem->con_id) == 0) {
+                // Well matched
+                (void)add_snooper_obj_procid(probe, (u32)atoi(entry->d_name));
+                break;
+            }
         }
     } while (1);
 
@@ -1017,58 +1049,98 @@ static int __gen_snooper_by_container(struct probe_s *probe, const char *target_
     return 0;
 }
 
-static int gen_snooper_by_container(struct probe_s *probe, struct snooper_conf_s *snooper_conf)
+
+static int gen_snooper_by_container(struct probe_s *probe)
 {
-    if (snooper_conf->type != SNOOPER_CONF_CONTAINER_ID || snooper_conf->conf.container_id[0] == 0) {
-        return 0;
+    struct snooper_conf_s * snooper_conf;
+    struct con_info_s *con_info;
+    con_id_element *con_id_list = NULL;
+
+    for (int i = 0; i < probe->snooper_conf_num; i++) {
+        snooper_conf = probe->snooper_confs[i];
+        if (snooper_conf->type != SNOOPER_CONF_CONTAINER_ID || snooper_conf->conf.container_id[0] == 0) {
+            continue;
+        }
+
+        con_info = get_and_add_con_info(FAKE_POD_ID, snooper_conf->conf.container_id);
+        if (con_info == NULL) {
+            free_con_id_list(con_id_list);
+            return -1;
+        }
+        if (append_con_id_list(&con_id_list, con_info)) {
+            free_con_id_list(con_id_list);
+            return -1;
+        }
+        (void)add_snooper_obj_con_info(probe, con_info);
     }
 
-    struct con_info_s *con_info = get_and_add_con_info(FAKE_POD_ID, snooper_conf->conf.container_id);
-    if (con_info == NULL) {
-        return -1;
+    if (con_id_list) {
+        (void)__gen_snooper_by_container(probe, con_id_list);
     }
-
-    (void)__gen_snooper_by_container(probe, (const char *)(con_info->con_id));
-
-    return add_snooper_obj_con_info(probe, con_info);
+    free_con_id_list(con_id_list);
+    return 0;
 }
 
-static int gen_snooper_by_pod(struct probe_s *probe, struct snooper_conf_s *snooper_conf)
+static int gen_snooper_by_pod(struct probe_s *probe)
 {
-    if (snooper_conf->type != SNOOPER_CONF_POD_ID) {
-        return 0;
+    struct snooper_conf_s * snooper_conf;
+    struct pod_info_s *pod_info;
+    con_id_element *con_id_list = NULL;
+
+    for (int i = 0; i < probe->snooper_conf_num; i++) {
+        snooper_conf = probe->snooper_confs[i];
+        if (snooper_conf->type != SNOOPER_CONF_POD_ID || snooper_conf->conf.pod_id[0] == 0) {
+            continue;
+        }
+
+        pod_info = get_and_add_pod_info(snooper_conf->conf.pod_id);
+        if (pod_info == NULL) {
+            free_con_id_list(con_id_list);
+            return -1;
+        }
+
+        if (pod_info->con_head == NULL) {
+            continue;
+        }
+
+        struct containers_hash_t *con, *tmp;
+        if (H_COUNT(pod_info->con_head) > 0) {
+            H_ITER(pod_info->con_head, con, tmp) {
+                if (append_con_id_list(&con_id_list, &con->con_info)) {
+                    free_con_id_list(con_id_list);
+                    return -1;
+                }
+                (void)add_snooper_obj_con_info(probe, &con->con_info);
+            }
+        }
     }
 
-    struct pod_info_s *pod_info = get_and_add_pod_info(snooper_conf->conf.pod_id);
-    if (pod_info == NULL) {
-        return -1;
+    if (con_id_list) {
+        (void)__gen_snooper_by_container(probe, con_id_list);
     }
+    free_con_id_list(con_id_list);
+    return 0;
+}
 
-    if (pod_info->con_head == NULL) {
-        return 0;
-    }
+static int gen_snooper_by_gaussdb(struct probe_s *probe)
+{
+    struct snooper_conf_s * snooper_conf;
 
-    struct containers_hash_t *con, *tmp;
-    if (H_COUNT(pod_info->con_head) > 0) {
-        H_ITER(pod_info->con_head, con, tmp) {
-            (void)__gen_snooper_by_container(probe, (const char *)(con->con_info.con_id));
-            (void)add_snooper_obj_con_info(probe, &con->con_info);
+    for (int i = 0; i < probe->snooper_conf_num; i++) {
+        snooper_conf = probe->snooper_confs[i];
+        if (snooper_conf->type != SNOOPER_CONF_GAUSSDB) {
+            continue;
+        }
+
+        if (add_snooper_obj_gaussdb(probe, &(snooper_conf->conf.gaussdb))) {
+            return -1;
         }
     }
 
     return 0;
 }
 
-static int gen_snooper_by_gaussdb(struct probe_s *probe, struct snooper_conf_s *snooper_conf)
-{
-    if (snooper_conf->type != SNOOPER_CONF_GAUSSDB) {
-        return 0;
-    }
-
-    return add_snooper_obj_gaussdb(probe, &(snooper_conf->conf.gaussdb));
-}
-
-typedef int (*probe_snooper_generator)(struct probe_s *, struct snooper_conf_s *);
+typedef int (*probe_snooper_generator)(struct probe_s *);
 struct snooper_generator_s {
     enum snooper_conf_e type;
     probe_snooper_generator generator;
@@ -1084,7 +1156,7 @@ struct snooper_generator_s snooper_generators[] = {
 /* Flush current snooper obj and re-generate */
 static void refresh_snooper_obj(struct probe_s *probe)
 {
-    int i,j;
+    int i;
     struct snooper_conf_s * snooper_conf;
     struct snooper_generator_s *generator;
     size_t size = sizeof(snooper_generators) / sizeof(struct snooper_generator_s);
@@ -1094,18 +1166,11 @@ static void refresh_snooper_obj(struct probe_s *probe)
         probe->snooper_objs[i] = NULL;
     }
 
-    for (i = 0; i < probe->snooper_conf_num; i++) {
-        snooper_conf = probe->snooper_confs[i];
-        for (j = 0; j < size ; j++) {
-            if (snooper_conf->type == snooper_generators[j].type) {
-                generator = &(snooper_generators[j]);
-                if (generator->generator(probe, snooper_conf)) {
-                    return;
-                }
-                break;
-            }
+    for (i = 0; i < size; i++) {
+        generator = &(snooper_generators[i]);
+        if (generator->generator(probe)) {
+            return;
         }
-
     }
 }
 

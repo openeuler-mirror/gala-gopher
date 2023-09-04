@@ -601,3 +601,31 @@ int filter_container_op(const char *container_id, enum filter_op_t op)
     return rslt;
 }
 
+void free_con_id_list(con_id_element *con_id_list)
+{
+    con_id_element *con_info_elem, *tmp;
+
+    if (con_id_list == NULL) {
+        return;
+    }
+
+    LL_FOREACH_SAFE(con_id_list, con_info_elem, tmp) {
+        LL_DELETE(con_id_list, con_info_elem);
+        free(con_info_elem);
+    }
+}
+
+int append_con_id_list(con_id_element **con_id_list, struct con_info_s *con_info)
+{
+    con_id_element *con_info_elem, *tmp;
+
+    con_info_elem = (con_id_element *)malloc(sizeof(con_id_element));
+    if (con_info_elem == NULL) {
+        return -1;
+    }
+
+    con_info_elem->con_id = con_info->con_id;
+    LL_APPEND(*con_id_list, con_info_elem);
+    return 0;
+}
+
