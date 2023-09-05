@@ -167,7 +167,9 @@ static __always_inline void submit_perf_buf(void* ctx, char *buf, size_t bytes_c
     bpf_probe_read(conn_data->buf.data, copied_size & CONN_DATA_MAX_SIZE, buf);
     conn_data->msg.payload_size = copied_size;
     conn_data->msg.evt = TRACKER_EVT_DATA;
-    (void)bpf_perf_event_output(ctx, &conn_tracker_events, BPF_F_CURRENT_CPU, conn_data, sizeof(struct conn_data_msg_s) + copied_size);
+    (void)bpf_perf_event_output(ctx, &conn_tracker_events, BPF_F_CURRENT_CPU, conn_data,
+        sizeof(struct conn_data_msg_s) + copied_size & CONN_DATA_MAX_SIZE);
+
 #endif
     return;
 }

@@ -232,7 +232,7 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
             succeed = 0; \
             break; \
         } \
-        INFO("Success to attach uprobe(" #probe_name "): to elf: %s\n", elf_path); \
+        DEBUG("Success to attach uprobe(" #probe_name "): to elf: %s\n", elf_path); \
         probe_name##_link_current += 1; \
         succeed = 1; \
     } while (0)
@@ -257,7 +257,7 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
             succeed = 0; \
             break; \
         } \
-        INFO("Success to attach uretprobe(" #probe_name ") to elf: %s\n", elf_path); \
+        DEBUG("Success to attach uretprobe(" #probe_name ") to elf: %s\n", elf_path); \
         probe_name##_link_current += 1; \
         succeed = 1; \
     } while (0)
@@ -291,7 +291,7 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
             succeed = 0; \
             break; \
         } \
-        INFO("Success to attach URETBPF_ATTACH(" #probe_name ") to elf: %s\n", elf_path); \
+        DEBUG("Success to attach URETBPF_ATTACH(" #probe_name ") to elf: %s\n", elf_path); \
         probe_name##_link_current += 1; \
         succeed = 1; \
     } while (0)
@@ -317,7 +317,7 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
             succeed = 0; \
             break; \
         } \
-        INFO("Success to attach uprobe(" #probe_name ") sec(" #sec "): to elf: %s\n", elf_path); \
+        DEBUG("Success to attach uprobe(" #probe_name ") sec(" #sec "): to elf: %s\n", elf_path); \
         succeed = 1; \
     } while (0)
 
@@ -341,7 +341,7 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
             succeed = 0; \
             break; \
         } \
-        INFO("Success to attach uretprobe(" #probe_name ") sec(" #sec ") to elf: %s\n", elf_path); \
+        DEBUG("Success to attach uretprobe(" #probe_name ") sec(" #sec ") to elf: %s\n", elf_path); \
         succeed = 1; \
     } while (0)
 

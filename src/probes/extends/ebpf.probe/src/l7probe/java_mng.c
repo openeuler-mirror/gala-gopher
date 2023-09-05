@@ -287,9 +287,9 @@ int l7_load_probe_jsse(struct l7_mng_s *l7_mng)
 
     // 1. load agent, action: start
     if (!l7_load_jsse_agent(&attach_args)) {
-        INFO("[L7PROBE]: jsseagent load(action:start) succeed.\n");
+        DEBUG("[L7PROBE]: jsseagent load(action:start) succeed.\n");
     } else {
-        INFO("[L7PROBE]: jsseagent load(action:start) end and some proc load failed.\n");
+        DEBUG("[L7PROBE]: jsseagent load(action:start) end and some proc load failed.\n");
     }
 
     // 2. create msg_handler thread
@@ -300,7 +300,7 @@ int l7_load_probe_jsse(struct l7_mng_s *l7_mng)
     }
     l7_mng->java_progs.jss_msg_hd_thd = msg_hd_thd;
     (void)pthread_detach(msg_hd_thd);
-    INFO("[L7PROBE]: jsse_msg_handler thread create succeed.\n");
+    DEBUG("[L7PROBE]: jsse_msg_handler thread create succeed.\n");
 
     return 0;
 }
@@ -316,9 +316,9 @@ void l7_unload_probe_jsse(struct l7_mng_s *l7_mng)
 
     // 1. load agent, action: stop
     if (!l7_load_jsse_agent(&attach_args)) {
-        INFO("[L7PROBE]: jsseagent unload(action:stop) succeed.\n");
+        DEBUG("[L7PROBE]: jsseagent unload(action:stop) succeed.\n");
     } else {
-        INFO("[L7PROBE]: jsseagent unload(action:stop) end and some proc unload failed.\n");
+        DEBUG("[L7PROBE]: jsseagent unload(action:stop) end and some proc unload failed.\n");
     }
 
     // 2. kill msg_handler thread
@@ -326,7 +326,7 @@ void l7_unload_probe_jsse(struct l7_mng_s *l7_mng)
         if (pthread_cancel(l7_mng->java_progs.jss_msg_hd_thd) != 0) {
             ERROR("[L7PROBE] Fail to kill jsse_msg_handler thread.\n");
         } else {
-            INFO("[L7PROBE]: jsse_msg_handler thread kill succeed.\n");
+            DEBUG("[L7PROBE]: jsse_msg_handler thread kill succeed.\n");
         }
     }
 
