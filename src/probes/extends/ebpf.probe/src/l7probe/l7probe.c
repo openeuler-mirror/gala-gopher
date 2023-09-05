@@ -429,7 +429,7 @@ int main(int argc, char **argv)
 
         if (is_load_prog) {
             ret = poll_l7_pb(&(l7_mng->bpf_progs));
-            if (ret) {
+            if (ret && !g_stop) {
                 ERROR("[L7Probe]: perf poll failed(%d).\n", ret);
                 break;
             }

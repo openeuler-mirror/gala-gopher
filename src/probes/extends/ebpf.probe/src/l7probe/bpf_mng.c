@@ -139,7 +139,7 @@ int l7_load_probe_libssl(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog, const
         l7_mng->bpf_progs.proc_obj_map_fd = GET_MAP_FD(libssl, proc_obj_map);
     }
 
-    INFO("[L7PROBE]: init lib_ssl bpf prog succeed.\n");
+    DEBUG("[L7PROBE]: init lib_ssl bpf prog succeed.\n");
     return 0;
 err:
     UNLOAD(libssl);
