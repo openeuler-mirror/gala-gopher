@@ -77,6 +77,30 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 | tprofiling    | 线程级性能profiling观测能力           | oncpu, syscall_file, syscall_net, syscall_lock, syscall_sched | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/tprofiling        | NA                        |
 | container     | 容器信息                              | NA                                                           | proc_id, proc_name, container_id         | $gala-gopher-dir/cadvisor_probe.py | NA                        |
 
+## 配置探针扩展标签
+
+探针上报指标数据时会根据meta文件上报相应的标签信息。此外，用户也可以通过动态配置接口增加一些扩展的标签信息进行上报。当前支持的拓展标签有：
+
+- 固定标签
+
+  固定标签是指具有固定值的标签，用户可以在 `snoopers` 配置选项中添加 `custom_labels` 进行配置，该标签会在探针的指标数据上报时填充进去。
+
+  例如，通过下面的配置为 proc 探针添加一个 `task="task1"` 的标签。
+
+  ```
+  curl -X PUT http://localhost:9999/proc --data-urlencode json='
+  {
+      "snoopers": {
+          "custom_labels": {
+          	"task": "task1"
+          }
+      }
+  }'
+
+- Pod级标签
+
+  TODO
+
 ## 配置探针运行参数
 
 探针在运行期间还需要设置一些参数设置，例如：设置火焰图的采样周期、上报周期

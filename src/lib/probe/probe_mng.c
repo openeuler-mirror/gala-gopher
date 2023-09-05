@@ -254,6 +254,9 @@ static void destroy_probe(struct probe_s *probe)
     probe->snooper_conf_num = 0;
     (void)pthread_rwlock_destroy(&probe->rwlock);
 
+    destroy_ext_label_conf_locked(&probe->ext_label_conf);
+    (void)pthread_rwlock_destroy(&probe->ext_label_conf.rwlock);
+
     free(probe);
     probe = NULL;
 }
@@ -275,11 +278,16 @@ static struct probe_s* new_probe(const char* name, enum probe_type_e probe_type)
     if (ret) {
         goto err;
     }
+    ret = pthread_rwlock_init(&probe->ext_label_conf.rwlock, NULL);
+    if (ret) {
+        goto err;
+    }
 
     probe->fifo = FifoCreate(MAX_FIFO_SIZE);
     if (probe->fifo == NULL) {
         goto err;
     }
+    probe->fifo->probe = probe;
     probe->probe_type = probe_type;
     set_default_params(probe);
 

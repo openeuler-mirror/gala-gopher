@@ -193,6 +193,12 @@ IMDB_Table *IMDB_TableCreate(char *name, uint32_t capacity)
     }
     *(table->records) = NULL;     // necessary
 
+    if (pthread_rwlock_init(&table->ext_label_conf.rwlock, NULL)) {
+        free(table->records);
+        free(table);
+        return NULL;
+    }
+
     table->recordsCapability = capacity;
     (void)snprintf(table->name, sizeof(table->name), "%s", name);
     return table;
@@ -236,6 +242,20 @@ int IMDB_TableAddRecord(IMDB_Table *table, IMDB_Record *record)
     return 0;
 }
 
+void IMDB_TableUpdateExtLabelConf(IMDB_Table *table, const struct ext_label_conf *conf)
+{
+    (void)pthread_rwlock_rdlock(&conf->rwlock);
+    (void)pthread_rwlock_wrlock(&table->ext_label_conf.rwlock);
+    if (table->ext_label_conf.last_update_time < conf->last_update_time) {
+        table->ext_label_conf.last_update_time = conf->last_update_time;
+        if (copy_ext_label_conf(&table->ext_label_conf, conf)) {
+            WARN("[IMDB] Can not update extend label config to table %s.\n", table->name);
+        }
+    }
+    (void)pthread_rwlock_unlock(&table->ext_label_conf.rwlock);
+    (void)pthread_rwlock_unlock(&conf->rwlock);
+}
+
 void IMDB_TableDestroy(IMDB_Table *table)
 {
     if (table == NULL) {
@@ -250,6 +270,9 @@ void IMDB_TableDestroy(IMDB_Table *table)
     if (table->meta != NULL) {
         IMDB_RecordDestroy(table->meta);
     }
+
+    destroy_ext_label_conf_locked(&table->ext_label_conf);
+    (void)pthread_rwlock_destroy(&table->ext_label_conf.rwlock);
 
     free(table);
     return;
@@ -789,10 +812,28 @@ static int IMDB_BuildPrometheusMetrics(const IMDB_Metric *metric, char *buffer, 
     return (int)((int)maxLen - size);   // Returns the number of printed characters
 }
 
+static int append_custom_labels(IMDB_Table *table, char **buffer_ptr, int *size_ptr)
+{
+    struct custom_label_elem *custom_label;
+    int ret;
+    int i;
+
+    (void)pthread_rwlock_rdlock(&table->ext_label_conf.rwlock);
+    for (i = 0; i < table->ext_label_conf.custom_label_num; i++) {
+        custom_label = &table->ext_label_conf.custom_labels[i];
+        ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"", custom_label->key, custom_label->val);
+        if (ret < 0) {
+            (void)pthread_rwlock_unlock(&table->ext_label_conf.rwlock);
+            return ret;
+        }
+    }
+    (void)pthread_rwlock_unlock(&table->ext_label_conf.rwlock);
+    return 0;
+}
 
 static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
                                      IMDB_Record *record,
-                                     const char *entity_name,
+                                     IMDB_Table *table,
                                      char *buffer,
                                      uint32_t maxLen)
 {
@@ -801,8 +842,9 @@ static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
     int size = maxLen;
     char first_flag = 1;
     int tgid_idx = -1;
+    int i;
 
-    for (int i = 0; i < record->metricsNum; i++) {
+    for (i = 0; i < record->metricsNum; i++) {
         if (MetricNameIsTgid(record->metrics[i]) == 1) {
             tgid_idx = i;
         }
@@ -867,7 +909,7 @@ static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
             }
         }
 
-        if (is_entity_proc(entity_name)) {
+        if (is_entity_proc(table->entity_name)) {
             ret = __snprintf(&p, size, &size, ",%s=\"%s\"",
                 META_PROC_LABEL_CMDLINE, tgidRecord->cmdline);
             if (ret < 0) {
@@ -881,7 +923,10 @@ static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
         }
     }
 
-out:
+    ret = append_custom_labels(table, &p, &size);
+    if (ret < 0) {
+        goto err;
+    }
     // Append 'machine_id' label for ALL metrics.
     if (mgr->nodeInfo.hostIP[0] == 0) {
         ret = get_system_ip(mgr->nodeInfo.hostIP, MAX_IMDB_HOSTIP_LEN);
@@ -1034,7 +1079,7 @@ static int IMDB_BuildPrometheusHistoMetrics(const IMDB_Metric *metric, char *buf
     return (int)((int)maxLen - size);   // Returns the number of printed characters
 }
 
-static int IMDB_Rec2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Record *record, char *entity_name,
+static int IMDB_Rec2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Record *record, IMDB_Table *table,
                                char *buffer, uint32_t maxLen)
 {
     int ret = 0;
@@ -1044,9 +1089,9 @@ static int IMDB_Rec2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Record *record, char 
     strbuf_t labels_buf;
 
     char labels[MAX_LABELS_BUFFER_SIZE] = {0};
-    ret = IMDB_BuildPrometheusLabel(mgr, record, entity_name, labels, MAX_LABELS_BUFFER_SIZE);
+    ret = IMDB_BuildPrometheusLabel(mgr, record, table, labels, MAX_LABELS_BUFFER_SIZE);
     if (ret < 0) {
-        ERROR("[IMDB] table of (%s) build label fail, ret: %d\n", entity_name, ret);
+        ERROR("[IMDB] table of (%s) build label fail, ret: %d\n", table->entity_name, ret);
         goto ERR;
     }
     labels_buf.buf = labels;
@@ -1065,9 +1110,9 @@ static int IMDB_Rec2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Record *record, char 
         }
 
         if (strcmp(record->metrics[i]->type, "histogram") == 0) {
-            ret = IMDB_BuildPrometheusHistoMetrics(record->metrics[i], curBuffer, curMaxLen, entity_name, &labels_buf);
+            ret = IMDB_BuildPrometheusHistoMetrics(record->metrics[i], curBuffer, curMaxLen, table->entity_name, &labels_buf);
         } else {
-            ret = IMDB_BuildPrometheusMetrics(record->metrics[i], curBuffer, curMaxLen, entity_name, labels);
+            ret = IMDB_BuildPrometheusMetrics(record->metrics[i], curBuffer, curMaxLen, table->entity_name, labels);
         }
 
         if (ret < 0) {
@@ -1115,7 +1160,7 @@ static int IMDB_Tbl2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Table *table, char *b
             continue;
         }
 
-        ret = IMDB_Rec2Prometheus(mgr, record, table->entity_name, curBuffer, curMaxLen);
+        ret = IMDB_Rec2Prometheus(mgr, record, table, curBuffer, curMaxLen);
         if (ret < 0) {
             ERROR("[IMDB] table(%s) record to string fail.\n", table->name);
             return -1;
