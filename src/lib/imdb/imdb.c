@@ -242,7 +242,7 @@ int IMDB_TableAddRecord(IMDB_Table *table, IMDB_Record *record)
     return 0;
 }
 
-void IMDB_TableUpdateExtLabelConf(IMDB_Table *table, const struct ext_label_conf *conf)
+void IMDB_TableUpdateExtLabelConf(IMDB_Table *table, struct ext_label_conf *conf)
 {
     (void)pthread_rwlock_rdlock(&conf->rwlock);
     (void)pthread_rwlock_wrlock(&table->ext_label_conf.rwlock);
@@ -358,15 +358,57 @@ TGID_Record* IMDB_TgidLkupRecord(const IMDB_DataBaseMgr *mgr, const char* tgid)
     return record;
 }
 
-static TGID_Record* IMDB_TgidCreateRecord(const IMDB_DataBaseMgr *mgr, const char* tgid)
+static void tgid_record_set_cmdline(TGID_Record *record, int pid)
+{
+    struct java_property_s java_prop;
+    int ret;
+
+    if (strcmp(record->comm, "java") == 0) {
+        memset(&java_prop, 0, sizeof(java_prop));
+        ret = get_java_property(pid, &java_prop);
+        if (ret == 0) {
+            (void)snprintf(record->cmdline, sizeof(record->cmdline), "%s", java_prop.mainClassName);
+        } else {
+            (void)get_proc_cmdline(pid, record->cmdline, sizeof(record->cmdline));
+        }
+    } else {
+        (void)get_proc_cmdline(pid, record->cmdline, sizeof(record->cmdline));
+    }
+}
+
+static void tgid_record_set_container_info(TGID_Record *record, IMDB_DataBaseMgr *mgr)
+{
+    char container_id[CONTAINER_ABBR_ID_LEN + 1];
+    struct container_cache *con_cache = NULL;
+    int ret;
+
+    container_id[0] = 0;
+    ret = get_container_id_by_pid_cpuset(record->key.tgid, container_id, CONTAINER_ABBR_ID_LEN + 1);
+    if (ret == 0) {
+        strncpy(record->container_id, container_id, CONTAINER_ABBR_ID_LEN);
+    }
+    // add container cache and pod cache
+    if (container_id[0]) {
+        con_cache = lkup_container_cache(mgr->container_caches, container_id);
+        if (!con_cache) {
+            con_cache = create_container_cache(&mgr->container_caches, container_id);
+        }
+    }
+    if (con_cache && con_cache->pod_id[0]) {
+        if (!lkup_pod_cache(mgr->pod_caches, con_cache->pod_id)) {
+            (void)create_pod_cache(&mgr->pod_caches, con_cache->pod_id, con_cache->container_id);
+        }
+    }
+}
+
+static TGID_Record* IMDB_TgidCreateRecord(IMDB_DataBaseMgr *mgr, const char* tgid)
 {
     int ret;
     int pid, startup_ts;
-    char container_id[CONTAINER_ABBR_ID_LEN + 1];
-    char pod_id[POD_ID_LEN + 1];
     char comm[TASK_COMM_LEN + 1];
     TGID_Record *record;
-    struct java_property_s java_prop;
+    char container_id[CONTAINER_ABBR_ID_LEN + 1];
+    struct container_cache *container_cache;
 
     comm[0] = 0;
     pid = atoi(tgid);
@@ -388,28 +430,8 @@ static TGID_Record* IMDB_TgidCreateRecord(const IMDB_DataBaseMgr *mgr, const cha
     record->key.startup_ts = startup_ts;
     strncpy(record->key.tgid, tgid, INT_LEN);
     strncpy(record->comm, comm, TASK_COMM_LEN);
-
-    if (strcmp(comm, "java") == 0) {
-        memset(&java_prop, 0, sizeof(java_prop));
-        ret = get_java_property(pid, &java_prop);
-        if (ret == 0) {
-            (void)snprintf(record->cmdline, sizeof(record->cmdline), "%s", java_prop.mainClassName);
-        }
-    } else {
-        (void)get_proc_cmdline(pid, record->cmdline, sizeof(record->cmdline));
-    }
-
-    container_id[0] = 0;
-    ret = get_container_id_by_pid_cpuset(tgid, container_id, CONTAINER_ABBR_ID_LEN + 1);
-    if (ret == 0) {
-        strncpy(record->container_id, container_id, CONTAINER_ABBR_ID_LEN);
-    }
-
-    pod_id[0] = 0;
-    if (container_id[0] != 0) {
-        (void)get_container_pod_id((const char *)container_id, pod_id, POD_ID_LEN + 1);
-        strncpy(record->pod_id, pod_id, POD_ID_LEN);
-    }
+    tgid_record_set_cmdline(record, pid);
+    tgid_record_set_container_info(record, mgr);
 
     IMDB_TgidAddRecord(mgr, record);
     return record;
@@ -455,6 +477,13 @@ void IMDB_DataBaseMgrDestroy(IMDB_DataBaseMgr *mgr)
         IMDB_deleteAndFreeTgids(mgr->tgids);
         free(mgr->tgids);
         mgr->tgids = NULL;
+    }
+
+    if (mgr->container_caches != NULL) {
+        free_container_caches(&mgr->container_caches);
+    }
+    if (mgr->pod_caches != NULL) {
+        free_pod_caches(&mgr->pod_caches);
     }
 
     (void)pthread_rwlock_destroy(&mgr->rwlock);
@@ -761,13 +790,20 @@ static int MetricTypeIsLabel(IMDB_Metric *metric)
 
 static int MetricNameIsTgid(IMDB_Metric *metric)
 {
-    const char *tgid = "tgid";
-    if (strcasecmp(metric->name, tgid) == 0) {
+    if (strcasecmp(metric->name, META_FIELD_NAME_PROC) == 0) {
         return 1;
     }
-
     return 0;
 }
+
+static int MetricNameIsContainerId(IMDB_Metric *metric)
+{
+    if (strcasecmp(metric->name, META_FIELD_NAME_CONTAINER_ID) == 0) {
+        return 1;
+    }
+    return 0;
+}
+
 #if 1
 
 // eg: gala_gopher_tcp_link_rx_bytes
@@ -812,6 +848,148 @@ static int IMDB_BuildPrometheusMetrics(const IMDB_Metric *metric, char *buffer, 
     return (int)((int)maxLen - size);   // Returns the number of printed characters
 }
 
+static int append_pod_level_labels(struct container_cache *con_cache, char **buffer_ptr, int *size_ptr,
+    IMDB_DataBaseMgr *mgr, IMDB_Table *table)
+{
+    int ret = 0;
+    struct pod_cache *pod_cache = NULL;
+    struct pod_label_cache *pod_label_cache = NULL;
+    struct pod_label_elem *pod_label;
+    int i;
+
+    if (con_cache->pod_id[0] == 0) {
+        return 0;
+    }
+    pod_cache = lkup_pod_cache(mgr->pod_caches, con_cache->pod_id);
+    if (!pod_cache) {
+        pod_cache = create_pod_cache(&mgr->pod_caches, con_cache->pod_id, con_cache->container_id);
+        if (!pod_cache) {
+            WARN("[IMDB] Failed to create pod cache(pod_id=%s)\n", con_cache->pod_id);
+            return -1;
+        }
+    }
+
+    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
+        META_COMMON_LABEL_POD_ID, pod_cache->pod_id);
+    if (ret < 0) {
+        return ret;
+    }
+    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s/%s\"",
+        META_COMMON_LABEL_POD_NAME, pod_cache->pod_namespace, pod_cache->pod_name);
+    if (ret < 0) {
+        return ret;
+    }
+    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
+        META_COMMON_LABEL_POD_NAMESPACE, pod_cache->pod_namespace);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // append user-defined pod labels
+#define __POD_LABEL_DEFAULT_VAL "not found"
+    (void)pthread_rwlock_rdlock(&table->ext_label_conf.rwlock);
+    for (i = 0; i < table->ext_label_conf.pod_label_num; i++) {
+        pod_label = &table->ext_label_conf.pod_labels[i];
+        pod_label_cache = lkup_pod_label_cache(pod_cache->pod_labels, pod_label->key);
+
+        if (pod_label_cache) {
+            ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
+                pod_label->key, pod_label_cache->val);
+        } else {
+            ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
+                pod_label->key, __POD_LABEL_DEFAULT_VAL);
+        }
+        if (ret < 0) {
+            (void)pthread_rwlock_unlock(&table->ext_label_conf.rwlock);
+            return ret;
+        }
+    }
+    (void)pthread_rwlock_unlock(&table->ext_label_conf.rwlock);
+
+    return 0;
+}
+
+static int append_container_level_labels(const char *container_id, char **buffer_ptr, int *size_ptr,
+    IMDB_DataBaseMgr *mgr, IMDB_Table *table)
+{
+    int ret = 0;
+    struct container_cache *con_cache = NULL;
+
+    if (!container_id || container_id[0] == 0) {
+        return 0;
+    }
+    con_cache = lkup_container_cache(mgr->container_caches, container_id);
+    if (!con_cache) {
+        con_cache = create_container_cache(&mgr->container_caches, container_id);
+        if (!con_cache) {
+            WARN("[IMDB] Failed to create container cache(container_id=%s)\n", container_id);
+            return -1;
+        }
+    }
+
+    if (!is_entity_container(table->entity_name)) {
+        ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
+            META_COMMON_LABEL_CONTAINER_ID, con_cache->container_id);
+        if (ret < 0) {
+            return ret;
+        }
+    }
+    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
+        META_COMMON_LABEL_CONTAINER_NAME, con_cache->container_name);
+    if (ret < 0) {
+        return ret;
+    }
+
+    ret = append_pod_level_labels(con_cache, buffer_ptr, size_ptr, mgr, table);
+    if (ret < 0) {
+        return ret;
+    }
+
+    return 0;
+}
+
+static int append_proc_level_labels(const char *tgid_str, char **buffer_ptr, int *size_ptr,
+    IMDB_DataBaseMgr *mgr, IMDB_Table *table)
+{
+    TGID_Record *tgidRecord;
+    int ret = 0;
+
+    tgidRecord = IMDB_TgidLkupRecord(mgr, tgid_str);
+    if (tgidRecord == NULL) {
+        tgidRecord = IMDB_TgidCreateRecord(mgr, tgid_str);
+    }
+    if (tgidRecord == NULL) {
+        return -1;
+    }
+
+    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
+        META_COMMON_LABEL_PROC_COMM, tgidRecord->comm);
+    if (ret < 0) {
+        return ret;
+    }
+
+    if (is_entity_proc(table->entity_name)) {
+        ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
+            META_PROC_LABEL_CMDLINE, tgidRecord->cmdline);
+        if (ret < 0) {
+            return ret;
+        }
+        ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%d\"",
+            META_PROC_LABEL_START_TIME, tgidRecord->key.startup_ts);
+        if (ret < 0) {
+            return ret;
+        }
+    }
+
+    ret = append_container_level_labels(tgidRecord->container_id, buffer_ptr, size_ptr, mgr, table);
+    if (ret < 0) {
+        ERROR("[IMDB] Failed to append container-level labels(container_id=%s)\n", tgidRecord->container_id);
+        return ret;
+    }
+
+    return 0;
+}
+
 static int append_custom_labels(IMDB_Table *table, char **buffer_ptr, int *size_ptr)
 {
     struct custom_label_elem *custom_label;
@@ -831,6 +1009,23 @@ static int append_custom_labels(IMDB_Table *table, char **buffer_ptr, int *size_
     return 0;
 }
 
+static int append_machine_id_label(IMDB_DataBaseMgr *mgr, char **buffer_ptr, int *size_ptr)
+{
+    int ret;
+
+    if (mgr->nodeInfo.hostIP[0] == 0) {
+        ret = get_system_ip(mgr->nodeInfo.hostIP, MAX_IMDB_HOSTIP_LEN);
+        if (ret) {
+            ERROR("[IMDB] Can not get system ip\n");
+            return -1;
+        }
+    }
+
+    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s-%s\"",
+                     META_COMMON_KEY_HOST_ID, mgr->nodeInfo.systemUuid, mgr->nodeInfo.hostIP);
+    return ret;
+}
+
 static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
                                      IMDB_Record *record,
                                      IMDB_Table *table,
@@ -842,11 +1037,17 @@ static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
     int size = maxLen;
     char first_flag = 1;
     int tgid_idx = -1;
+    char *tgid_str = NULL;
+    int con_id_idx = -1;
+    char *con_id = NULL;
     int i;
 
     for (i = 0; i < record->metricsNum; i++) {
         if (MetricNameIsTgid(record->metrics[i]) == 1) {
             tgid_idx = i;
+        }
+        if (MetricNameIsContainerId(record->metrics[i])) {
+            con_id_idx = i;
         }
 
         if (MetricTypeIsLabel(record->metrics[i]) == 0) {
@@ -878,67 +1079,31 @@ static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
 
     // Append 'COMM, Container and POD' label for ALL process-level metrics.
     if (tgid_idx >= 0) {
-        TGID_Record *tgidRecord = IMDB_TgidLkupRecord(mgr, (const char *)record->metrics[tgid_idx]->val);
-        if (tgidRecord == NULL) {
-            tgidRecord = IMDB_TgidCreateRecord(mgr, (const char *)record->metrics[tgid_idx]->val);
-        }
-
-        if (tgidRecord == NULL) {
-            DEBUG("[IMDB] append proc(PID = %s) common label fail.\n", record->metrics[tgid_idx]->val);
+        tgid_str = (char *)(record->metrics[tgid_idx]->val);
+        ret = append_proc_level_labels(tgid_str, &p, &size, mgr, table);
+        if (ret < 0) {
+            ERROR("[IMDB] Failed to append process-level labels(tgid=%s, ret=%d)\n", tgid_str, ret);
             goto err;
         }
+    }
 
-        if (tgidRecord->comm[0] != 0) {
-            ret = __snprintf(&p, size, &size, ",%s=\"%s\"", META_COMMON_LABEL_PROC_COMM, tgidRecord->comm);
-            if (ret < 0) {
-                goto err;
-            }
-        }
-
-        if (tgidRecord->container_id[0] != 0) {
-            ret = __snprintf(&p, size, &size, ",%s=\"%s\"", META_COMMON_LABEL_CONTAINER_ID, tgidRecord->container_id);
-            if (ret < 0) {
-                goto err;
-            }
-        }
-
-        if (tgidRecord->pod_id[0] != 0) {
-            ret = __snprintf(&p, size, &size, ",%s=\"%s\"", META_COMMON_LABEL_POD_ID, tgidRecord->pod_id);
-            if (ret < 0) {
-                goto err;
-            }
-        }
-
-        if (is_entity_proc(table->entity_name)) {
-            ret = __snprintf(&p, size, &size, ",%s=\"%s\"",
-                META_PROC_LABEL_CMDLINE, tgidRecord->cmdline);
-            if (ret < 0) {
-                goto err;
-            }
-            ret = __snprintf(&p, size, &size, ",%s=\"%d\"",
-                META_PROC_LABEL_START_TIME, tgidRecord->key.startup_ts);
-            if (ret < 0) {
-                goto err;
-            }
+    if (con_id_idx >= 0 && is_entity_container(table->entity_name)) {
+        con_id = (char *)(record->metrics[con_id_idx]->val);
+        ret = append_container_level_labels(con_id, &p, &size, mgr, table);
+        if (ret < 0) {
+            ERROR("[IMDB] Failed to append container-level labels(container_id=%s, ret=%d)\n", con_id, ret);
+            goto err;
         }
     }
 
     ret = append_custom_labels(table, &p, &size);
     if (ret < 0) {
+        ERROR("[IMDB] Failed to append custom labels(ret=%d)\n", ret);
         goto err;
     }
-    // Append 'machine_id' label for ALL metrics.
-    if (mgr->nodeInfo.hostIP[0] == 0) {
-        ret = get_system_ip(mgr->nodeInfo.hostIP, MAX_IMDB_HOSTIP_LEN);
-        if (ret) {
-            ERROR("[IMDB] Can not get system ip\n");
-            goto err;
-        }
-    }
-
-    ret = __snprintf(&p, size, &size, ",%s=\"%s-%s\"",
-                     META_COMMON_KEY_HOST_ID, mgr->nodeInfo.systemUuid, mgr->nodeInfo.hostIP);
+    ret = append_machine_id_label(mgr, &p, &size);
     if (ret < 0) {
+        ERROR("[IMDB] Failed to append machine_id label(ret=%d)\n", ret);
         goto err;
     }
 

@@ -45,6 +45,7 @@
         "| /usr/bin/grep -w %u | /usr/bin/awk -F ', ' '{print $2}'"
 #define CONTAINERD_POD_COMMAND "--output go-template --template='{{index .status.labels \"io.kubernetes.pod.name\"}}'"
 #define CONTAINERD_PODID_COMMAND "--output go-template --template='{{index .status.labels \"io.kubernetes.pod.uid\"}}'"
+#define CONTAINERD_POD_LABELS_COMMAND "--output go-template --template='{{json .status.labels}}'"
 #define CONTAINERD_MERGED_COMMAND "mount | grep %s | grep rootfs | awk '{print $3}'"
 #define CONTAINERD_IP_CMD "%s ps | grep %s | awk '{print $NF}' | xargs %s inspectp --output go-template --template='{{.status.network.ip}}'"
 #define CONTAINERD_LIST_CONTAINER_COMMAND "%s ps -q | xargs  %s inspect --output go-template "\
@@ -59,6 +60,7 @@
         "| /usr/bin/grep -w %u | /usr/bin/awk -F ', ' '{print $2}'"
 #define DOCKER_POD_COMMAND "--format '{{index .Config.Labels \"io.kubernetes.pod.name\"}}'"
 #define DOCKER_PODID_COMMAND "--format '{{index .Config.Labels \"io.kubernetes.pod.uid\"}}'"
+#define DOCKER_POD_LABELS_COMMAND "--format '{{json .Config.Labels}}'"
 #define DOCKER_MERGED_COMMAND "--format '{{.GraphDriver.Data.MergedDir}}'"
 #define DOCKER_IP_CMD "--format '{{ .NetworkSettings.IPAddress }}' 2>/dev/null"
 #define DOCKER_LIST_CONTAINER_COMMAND "%s ps -q | xargs  %s inspect --format "\
@@ -415,6 +417,28 @@ static int __get_container_pod(const char *abbr_container_id, char pod[], unsign
         return -1;
     }
 
+    return 0;
+}
+
+static int __get_container_pod_labels(const char *abbr_container_id, char pod_labels[], unsigned int len)
+{
+    char command[COMMAND_LEN];
+
+    if (!get_current_command()) {
+        return -1;
+    }
+    command[0] = 0;
+    if (__is_containerd()) {
+        (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
+            get_current_command(), CONTAINERD_POD_LABELS_COMMAND, abbr_container_id);
+    } else {
+        (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
+            get_current_command(), abbr_container_id, DOCKER_POD_LABELS_COMMAND);
+    }
+
+    if (exec_cmd_chroot((const char *)command, pod_labels, len) < 0) {
+        return -1;
+    }
     return 0;
 }
 
@@ -1059,6 +1083,14 @@ int get_container_pod_id(const char *abbr_container_id, char pod_id[], unsigned 
     }
 
     return ret;
+}
+
+int get_container_pod_labels(const char *abbr_container_id, char pod_labels[], unsigned int len)
+{
+    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+        return -1;
+    }
+    return __get_container_pod_labels(abbr_container_id, pod_labels, len);
 }
 
 int get_pod_ip(const char *abbr_container_id, char *pod_ip_str, int len)

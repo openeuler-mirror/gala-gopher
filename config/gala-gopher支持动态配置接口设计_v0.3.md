@@ -99,7 +99,19 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 
 - Pod级标签
 
-  TODO
+  Pod级标签是指 k8s 附加到 Pod 对象上的键值对，一个 Pod 对象一般包含多个 Pod 标签。用户可以在 `snoopers` 配置选项中添加 `pod_labels` 配置项来指定需要上报哪些 Pod 标签。
+  
+  例如，通过下面的配置为 proc 探针指定需要上报的 Pod 标签包括 "app" 和 "test"。如果配置的 Pod 标签不存在，则填充一个默认值 "not found" 。
+  
+  ```
+  curl -X PUT http://localhost:9999/proc --data-urlencode json='
+  {
+      "snoopers": {
+          "pod_labels": ["app", "test"]
+      }
+  }'
+  ```
+
 
 ## 配置探针运行参数
 

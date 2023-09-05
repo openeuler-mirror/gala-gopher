@@ -668,4 +668,12 @@ int is_entity_proc(const char *entity_name)
     return 0;
 }
 
+int is_entity_container(const char *entity_name)
+{
+    if (strcmp(entity_name, ENTITY_CONTAINER) == 0) {
+        return 1;
+    }
+    return 0;
+}
+
 #endif

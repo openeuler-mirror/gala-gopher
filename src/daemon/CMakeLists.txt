@@ -62,6 +62,7 @@ SET(SOURCES main.c daemon.c
     ${PROBE_DIR}/ext_label.c
     ${IMDB_DIR}/imdb.c
     ${IMDB_DIR}/metrics.c
+    ${IMDB_DIR}/container_cache.c
 
     ${CMD_DIR}/server.c
     ${COMMON_DIR}/kern_config.c

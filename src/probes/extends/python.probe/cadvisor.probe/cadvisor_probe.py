@@ -122,11 +122,6 @@ class BasicLabelProbe(Probe):
         self.container_lib.get_container_pid(container_id, pid)
         return str(pid[0])
 
-    def get_container_name(self, container_id):
-        name = create_string_buffer(CONTAINER_NAME_LEN)
-        self.container_lib.get_container_name(container_id, name, CONTAINER_NAME_LEN)
-        return str(name.value, encoding='utf-8')
-
     def get_container_cpucg_inode(self, container_id):
         inode = pointer(c_uint(0))
         self.container_lib.get_container_cpucg_inode(container_id, inode)
@@ -188,7 +183,6 @@ class BasicLabelProbe(Probe):
             g_metric[table_name][container_id] = dict()
             g_metric[table_name][container_id]['container_id'] = container_id
             g_metric[table_name][container_id]['proc_id'] = self.get_container_pid(container_id_bytes)
-            g_metric[table_name][container_id]['name'] = self.get_container_name(container_id_bytes)
             g_metric[table_name][container_id]['cpucg_inode'] = self.get_container_cpucg_inode(container_id_bytes)
             g_metric[table_name][container_id]['memcg_inode'] = self.get_container_memcg_inode(container_id_bytes)
             g_metric[table_name][container_id]['pidcg_inode'] = self.get_container_pidcg_inode(container_id_bytes)
