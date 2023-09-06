@@ -12,7 +12,7 @@ BPFTOOL_FOLDER=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/tools
 VMLINUX_DIR=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/src/include
 EXT_PROBE_BUILD_LIST=`find ${EXT_PROBE_FOLDER} -maxdepth 2 | grep "\<build.sh\>"`
 DEP_LIST=(cmake librdkafka-devel libmicrohttpd-devel libconfig-devel uthash-devel log4cplus-devel\
-          libbpf-devel clang llvm java-1.8.0-openjdk-devel cjson-devel gnutls-devel)
+          libbpf-devel clang llvm java-1.8.0-openjdk-devel cjson-devel gnutls-devel libcurl-devel)
 PROBES_LIST=""
 PROBES_C_LIST=""
 PROBES_META_LIST=""
@@ -251,7 +251,7 @@ function compile_extend_probes_debug()
     for BUILD_PATH in ${EXT_PROBE_BUILD_LIST}
     do
         echo "==== BUILD_PATH: " ${BUILD_PATH}
-        ${BUILD_PATH} --build --debug
+        ${BUILD_PATH} --build --debug || return 1
     done
 }
 

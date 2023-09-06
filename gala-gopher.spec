@@ -98,7 +98,7 @@ EOF
 
 pushd build
 export PATH=$PATH:/usr/lib64/llvm12/bin
-sh build.sh --release %{vmlinux_ver}
+sh build.sh --debug %{vmlinux_ver}
 popd
 
 %check
