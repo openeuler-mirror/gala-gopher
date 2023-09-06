@@ -11,7 +11,7 @@ JVM_FOLDER=${PROJECT_FOLDER}/src/lib/jvm
 BPFTOOL_FOLDER=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/tools
 VMLINUX_DIR=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/src/include
 EXT_PROBE_BUILD_LIST=`find ${EXT_PROBE_FOLDER} -maxdepth 2 | grep "\<build.sh\>"`
-DEP_LIST=(cmake librdkafka-devel libmicrohttpd-devel libconfig-devel uthash-devel log4cplus-devel\
+DEP_LIST=(cmake git librdkafka-devel libmicrohttpd-devel libconfig-devel uthash-devel log4cplus-devel\
           libbpf-devel clang llvm java-1.8.0-openjdk-devel cjson-devel gnutls-devel libcurl-devel)
 PROBES_LIST=""
 PROBES_C_LIST=""
@@ -317,9 +317,9 @@ fi
 if [ "$1" = "--debug" ];then
     load_tailor
     prepare_probes
-    compile_lib
-    compile_daemon_debug
-    compile_extend_probes_debug
+    compile_lib || exit 1
+    compile_daemon_debug || exit 1
+    compile_extend_probes_debug || exit 1
     clean_env
     exit
 fi

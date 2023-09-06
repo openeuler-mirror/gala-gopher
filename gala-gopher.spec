@@ -35,7 +35,7 @@ BuildRoot:     %{_builddir}/%{name}-%{version}
 BuildRequires: systemd cmake gcc-c++ elfutils-devel (clang >= 10.0.1 or clang12) llvm
 BuildRequires: libconfig-devel librdkafka-devel libmicrohttpd-devel
 BuildRequires: libbpf-devel >= 2:0.3 uthash-devel log4cplus-devel
-BuildRequires: cjson-devel gnutls-devel
+BuildRequires: cjson-devel gnutls-devel git
 %if !0%{?without_flamegraph}
 BuildRequires: libcurl-devel
 %endif
