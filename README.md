@@ -207,6 +207,7 @@ linux社区提供的解决方案是CO-RE技术（Compile Once Run Everywhere）�
 
     另外可通过如下环境变量配置gala-gopher，若不指定，则使用配置文件默认配置：
 
+    - GOPHER_LOG_LEVEL：gala-gopher日志输出级别
     - GOPHER_EVENT_CHANNEL：gala-gopher亚健康巡检异常事件输出方式
     - GOPHER_META_CHANNEL：gala-gopher观测对象元数据metadata输出方式
     - GOPHER_KAKFA_SERVER：gala-gopher上报亚健康巡检异常事件、观测对象元数据metadata的kafka服务端IP地址

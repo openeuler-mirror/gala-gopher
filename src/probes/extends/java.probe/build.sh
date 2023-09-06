@@ -155,7 +155,7 @@ else
         else
             echo "JFR not supoprted in ${JAVA_VER}. Won't compile the jstackprobe."
         fi
-        
+
     fi
 
     compile_clean

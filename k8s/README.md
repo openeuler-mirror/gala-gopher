@@ -35,6 +35,7 @@ yaml文件中env条目下的环境变量用于控制gala-gopher运行时的各�
 | 变量名                  | 变量作用                                                     | 配置值说明                                                   |
 | ----------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | GOPHER_HOST_PATH        | 容器外根目录"/"映射到gala-gopher容器内的目录，以便gala-gopher能够正常访问宿主机上的关键文件（例如内核debug文件、glibc动态库、httpd等二进制可执行文件）进行数据采集。 | 保持默认值，不建议修改                                       |
+| GOPHER_LOG_LEVEL        | 控制gala-gopher日志输出级别                                  | 可配置如下值：debug/info/warn/error                          |
 | GOPHER_EVENT_CHANNEL    | gala-gopher亚健康巡检异常事件输出方式                        | kafka：通过kafka上报（默认）<br/>logs：输出至本地日志        |
 | GOPHER_META_CHANNEL     | gala-gopher观测对象元数据metadata输出方式                    | kafka：通过kafka上报（默认）<br/>logs：输出至本地日志        |
 | GOPHER_KAKFA_SERVER     | gala-gopher上报亚健康巡检异常事件、观测对象元数据metadata的kafka服务端IP地址 | GOPHER_EVENT_CHANNEL和GOPHER_META_CHANNEL都设为logs时可设置为空，否则需要设置为有效的kafka服务端IP地址，例如1.2.3.4 |

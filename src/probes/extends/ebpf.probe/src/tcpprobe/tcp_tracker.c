@@ -23,6 +23,10 @@
 #include <sys/resource.h>
 #include <time.h>
 
+#ifdef GOPHER_DEBUG
+#include <arpa/inet.h>
+#endif
+
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
 #endif

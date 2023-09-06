@@ -605,7 +605,7 @@ static int report_one_metadata(const MeasurementMgr *mgr, const Measurement *mm)
     if (mgr->meta_out_channel == OUT_CHNL_LOGS) {
         // Write meta to log
         wr_meta_logs(json_str);
-        DEBUG("[META] write metadata to logs fail.\n");
+        DEBUG("[META] write metadata to logs: %s\n", json_str);
         (void)free(json_str);
     }
 
