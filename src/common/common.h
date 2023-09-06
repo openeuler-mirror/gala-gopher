@@ -58,6 +58,10 @@
 #define DOMAIN_LEN                 64
 #define POD_NAME_LEN            64
 #define POD_ID_LEN              36 // Pod id len may be 32 or 36
+#define POD_NAMESPACE_LEN       64
+#define POD_LABEL_KEY_LEN       64
+#define POD_LABEL_VAL_LEN       128
+#define POD_LABELS_BUF_SIZE     4096
 
 #define COMMAND_LEN             256
 #define LINE_BUF_LEN            512

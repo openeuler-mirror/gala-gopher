@@ -23,6 +23,7 @@
 #include "base.h"
 #include "hash.h"
 #include "ext_label.h"
+#include "container_cache.h"
 
 #define MAX_IMDB_DATABASEMGR_CAPACITY   256
 // metric specification
@@ -98,7 +99,6 @@ typedef struct {
 typedef struct {
     TGID_RecordKey key;
     char container_id[CONTAINER_ABBR_ID_LEN + 1];
-    char pod_id[POD_ID_LEN + 1];
     char comm[TASK_COMM_LEN + 1];
     char cmdline[PROC_CMDLINE_LEN];
     H_HANDLE;
@@ -114,6 +114,8 @@ typedef struct {
     uint32_t writeLogsOn;
 
     TGID_Record **tgids;
+    struct container_cache *container_caches;
+    struct pod_cache *pod_caches;
 
     pthread_t metrics_tid;
 } IMDB_DataBaseMgr;
@@ -140,7 +142,7 @@ void IMDB_TableSetEntityName(IMDB_Table *table, char *entity_name);
 int IMDB_TableSetMeta(IMDB_Table *table, IMDB_Record *metaRecord);
 int IMDB_TableSetRecordKeySize(IMDB_Table *table, uint32_t keyNum);
 int IMDB_TableAddRecord(IMDB_Table *table, IMDB_Record *record);
-void IMDB_TableUpdateExtLabelConf(IMDB_Table *table, const struct ext_label_conf *conf);
+void IMDB_TableUpdateExtLabelConf(IMDB_Table *table, struct ext_label_conf *conf);
 void IMDB_TableDestroy(IMDB_Table *table);
 
 IMDB_DataBaseMgr *IMDB_DataBaseMgrCreate(uint32_t capacity);
