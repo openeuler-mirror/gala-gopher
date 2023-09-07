@@ -94,11 +94,11 @@ struct __tcp_histo_s tcp_rto_histios[__MAX_RTO_SIZE] = {
 };
 
 struct __tcp_histo_s tcp_delay_histios[__MAX_DELAY_SIZE] = {
-    {DELAY_SIZE_1, 0, 1},
-    {DELAY_SIZE_2, 1, 10},
-    {DELAY_SIZE_3, 10, 100},
-    {DELAY_SIZE_4, 100, 1000},
-    {DELAY_SIZE_5, 1000, 10000}
+    {DELAY_SIZE_1, 0, 1000000},
+    {DELAY_SIZE_2, 1000000, 10000000},
+    {DELAY_SIZE_3, 10000000, 100000000},
+    {DELAY_SIZE_4, 100000000, 1000000000},
+    {DELAY_SIZE_5, 1000000000, 10000000000}
 };
 
 #define HISTO_BUCKET_INIT(buckets, size, histios) \

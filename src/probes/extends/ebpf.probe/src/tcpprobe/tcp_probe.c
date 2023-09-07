@@ -547,10 +547,10 @@ static void proc_tcp_flow_delay(struct tcp_mng_s *tcp_mng, struct tcp_flow_track
     const struct tcp_delay *data)
 {
     if (data->recv_state == DELAY_SAMP_FINISH) {
-        (void)histo_bucket_add_value(tracker->recv_delay_buckets, __MAX_DELAY_SIZE, NS2MS(data->net_recv_delay));
+        (void)histo_bucket_add_value(tracker->recv_delay_buckets, __MAX_DELAY_SIZE, data->net_recv_delay);
     }
     if (data->send_state == DELAY_SAMP_FINISH) {
-        (void)histo_bucket_add_value(tracker->send_delay_buckets, __MAX_DELAY_SIZE, NS2MS(data->net_send_delay));
+        (void)histo_bucket_add_value(tracker->send_delay_buckets, __MAX_DELAY_SIZE, data->net_send_delay);
     }
     tracker->report_flags |= TCP_PROBE_DELAY;
     return;

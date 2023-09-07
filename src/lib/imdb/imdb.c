@@ -353,6 +353,9 @@ TGID_Record* IMDB_TgidLkupRecord(const IMDB_DataBaseMgr *mgr, const char* tgid)
 
     strncpy(key.tgid, tgid, INT_LEN);
     key.startup_ts = get_proc_startup_ts(atoi(tgid));
+    if (key.startup_ts == 0) {
+        return NULL;
+    }
 
     H_FIND(*(mgr->tgids), &key, sizeof(TGID_RecordKey), record);
     return record;
@@ -404,7 +407,8 @@ static void tgid_record_set_container_info(TGID_Record *record, IMDB_DataBaseMgr
 static TGID_Record* IMDB_TgidCreateRecord(IMDB_DataBaseMgr *mgr, const char* tgid)
 {
     int ret;
-    int pid, startup_ts;
+    int pid;
+    u64 startup_ts;
     char comm[TASK_COMM_LEN + 1];
     TGID_Record *record;
     char container_id[CONTAINER_ABBR_ID_LEN + 1];
@@ -418,7 +422,7 @@ static TGID_Record* IMDB_TgidCreateRecord(IMDB_DataBaseMgr *mgr, const char* tgi
     }
 
     startup_ts = get_proc_startup_ts(pid);
-    if (startup_ts < 0) {
+    if (startup_ts == 0) {
         return NULL;
     }
 
@@ -974,7 +978,7 @@ static int append_proc_level_labels(const char *tgid_str, char **buffer_ptr, int
         if (ret < 0) {
             return ret;
         }
-        ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%d\"",
+        ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%llu\"",
             META_PROC_LABEL_START_TIME, tgidRecord->key.startup_ts);
         if (ret < 0) {
             return ret;
