@@ -1082,7 +1082,7 @@ static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
         tgid_str = (char *)(record->metrics[tgid_idx]->val);
         ret = append_proc_level_labels(tgid_str, &p, &size, mgr, table);
         if (ret < 0) {
-            ERROR("[IMDB] Failed to append process-level labels(tgid=%s, ret=%d)\n", tgid_str, ret);
+            DEBUG("[IMDB] Failed to append process-level labels(tgid=%s, ret=%d)\n", tgid_str, ret);
             goto err;
         }
     }
@@ -1256,7 +1256,7 @@ static int IMDB_Rec2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Record *record, IMDB_
     char labels[MAX_LABELS_BUFFER_SIZE] = {0};
     ret = IMDB_BuildPrometheusLabel(mgr, record, table, labels, MAX_LABELS_BUFFER_SIZE);
     if (ret < 0) {
-        ERROR("[IMDB] table of (%s) build label fail, ret: %d\n", table->entity_name, ret);
+        DEBUG("[IMDB] table of (%s) build label fail, ret: %d\n", table->entity_name, ret);
         goto ERR;
     }
     labels_buf.buf = labels;
