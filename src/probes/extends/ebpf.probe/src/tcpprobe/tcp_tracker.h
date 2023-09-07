@@ -61,13 +61,13 @@ enum rto_size_t {
     __MAX_RTO_SIZE
 };
 
-// unit: millisecond
+// unit: nanosecond
 enum delay_size_t {
-    DELAY_SIZE_1 = 0,       // (0, 1]
-    DELAY_SIZE_2,           // (1, 10]
-    DELAY_SIZE_3,           // (10, 100]
-    DELAY_SIZE_4,           // (100, 1000]
-    DELAY_SIZE_5,           // (1000, 10000]
+    DELAY_SIZE_1 = 0,       // (0, 1000000]
+    DELAY_SIZE_2,           // (1000000, 10000000]
+    DELAY_SIZE_3,           // (10000000, 100000000]
+    DELAY_SIZE_4,           // (100000000, 1000000000]
+    DELAY_SIZE_5,           // (1000000000, 10000000000]
     __MAX_DELAY_SIZE
 };
 
