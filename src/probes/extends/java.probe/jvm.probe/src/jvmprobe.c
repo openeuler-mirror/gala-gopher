@@ -58,14 +58,14 @@ static struct proc_hash_t *hash_find_key(u32 pid, u64 stime)
 
 static int check_proc_start_time(struct proc_key_t *proc_key)
 {
-    int ret;
+    u64 startup_ts;
 
-    ret = get_proc_startup_ts(proc_key->pid);
-    if (ret <= 0) {
+    startup_ts = get_proc_startup_ts(proc_key->pid);
+    if (startup_ts == 0) {
         WARN("[JVMPROBE] Gets proc %u start time failed\n", proc_key->pid);
         return -1;
     }
-    if (proc_key->start_time != ret) {
+    if (proc_key->start_time != startup_ts) {
         INFO("[JVMPROBE] Proc %u start time changed\n", proc_key->pid);
         return -1;
     }

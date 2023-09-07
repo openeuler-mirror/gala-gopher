@@ -93,7 +93,7 @@ typedef struct {
 
 typedef struct {
     char tgid[INT_LEN + 1];
-    int startup_ts;
+    u64 startup_ts;
 } TGID_RecordKey;
 
 typedef struct {

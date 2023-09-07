@@ -383,7 +383,7 @@ int get_proc_start_time(u32 pid, char *buf, int buf_len)
     return read_starttime_from_procstat(line, buf, buf_len);
 }
 
-int get_proc_startup_ts(int pid)
+u64 get_proc_startup_ts(int pid)
 {
     int ret;
     char startup_ts[INT_LEN];
@@ -391,10 +391,10 @@ int get_proc_startup_ts(int pid)
     startup_ts[0] = 0;
     ret = get_proc_start_time(pid, startup_ts, INT_LEN);
     if (ret) {
-        return -1;
+        return 0;
     }
 
-    return atoi(startup_ts);
+    return strtoull(startup_ts, NULL, 10);
 }
 
 int get_proc_comm(u32 pid, char *buf, int buf_len)
