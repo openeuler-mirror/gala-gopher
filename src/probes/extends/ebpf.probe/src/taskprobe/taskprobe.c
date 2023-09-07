@@ -159,7 +159,8 @@ static int taskprobe_load_glibc_bpf(struct task_probe_s *task_probe, struct ipc_
             continue;
         }
         glibc = ipc_body->snooper_objs[i].obj.con_info.libc_path;
-        if (glibc == NULL) {
+        if (glibc == NULL || strlen(glibc) == 0) {
+            WARN("[TASKPROBE] Empty glibc path for container %s, skip loading\n", ipc_body->snooper_objs[i].obj.con_info.con_id);
             continue;
         }
         if (__is_exist_glibc_ebpf(task_probe, (const char *)glibc)) {
