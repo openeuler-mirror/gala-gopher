@@ -94,6 +94,15 @@ if("${GOPHER_DEBUG}" EQUAL 1)
 add_definitions(-DGOPHER_DEBUG)
 endif()
 
+execute_process(
+    COMMAND bash "-c" "echo -n $(git rev-parse --short HEAD 2>/dev/null)"
+    OUTPUT_VARIABLE GOPHER_COMMIT_SHA1
+)
+
+if(GOPHER_COMMIT_SHA1)
+add_definitions(-DGOPHER_COMMIT_SHA1="${GOPHER_COMMIT_SHA1}")
+endif()
+
 ADD_EXECUTABLE(${EXECUTABLE_TARGET} ${SOURCES})
 ADD_EXECUTABLE(${EXECUTABLE_TARGET_CMD} ${SOURCE_CMD})
 

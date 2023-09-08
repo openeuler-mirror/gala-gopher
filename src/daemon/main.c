@@ -25,6 +25,10 @@
 #define GOPHER_CMD_MAX                    3
 #define GOPHER_CMD_MIN                    1
 
+#ifndef GOPHER_COMMIT_SHA1
+#define GOPHER_COMMIT_SHA1             "unknown"
+#endif
+
 char *g_galaConfPath;
 
 static void ShowUsage(void)
@@ -37,6 +41,11 @@ static void ShowUsage(void)
                  "                                config file location\n"
                  "    -h, --help                  show command help\n"
     );
+}
+
+static void PrintVersion(void)
+{
+    (void)printf("COMMIT_SHA1=%s\n", GOPHER_COMMIT_SHA1);
 }
 
 static int ParseConfigPath(const char *path)
@@ -67,12 +76,14 @@ static int CmdProcessing(int argc, char *argv[])
     static struct option long_options[] = {
         {"help",        no_argument,       0, 'h'},
         {"config_path", required_argument, 0, 'c'},
+        {"version",     no_argument,       0, 'v'},
         {0,             0,                 0, 0}
     };
 
     char short_options[] = {
         "h"
         "c:"
+        "v"
     };
 
     if (argc > GOPHER_CMD_MAX) {
@@ -93,13 +104,17 @@ static int CmdProcessing(int argc, char *argv[])
 
         switch (cmd) {
             case 'h':
-                // print usage later
+                ShowUsage();
                 return -1;
             case 'c':
                 ret = ParseConfigPath(optarg);
                 return ret;
+            case 'v':
+                PrintVersion();
+                return -1;
             default:
                 printf("command error!\n");
+                ShowUsage();
                 return -1;
         }
     }
@@ -139,7 +154,6 @@ int main(int argc, char *argv[])
 
     ret = CmdProcessing(argc, argv);
     if (ret != 0) {
-        ShowUsage();
         goto err;
     }
 
