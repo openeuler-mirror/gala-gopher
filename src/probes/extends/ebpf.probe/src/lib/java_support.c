@@ -319,7 +319,7 @@ int java_load(u32 pid, struct java_attach_args *args)
 
     if (!is_valid_proc(pid)) {
         WARN("[JAVA_SUPPORT] java_load to proc: %d break because proc is invalid.\n", pid);
-        return 0;
+        return -1;
     }
     (void)_set_effective_id(pid, &v);
     if (_set_attach_argv(pid, &v) != 0) {
