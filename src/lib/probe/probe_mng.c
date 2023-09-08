@@ -613,6 +613,7 @@ static struct probe_s *get_probe_by_name(const char *probe_name)
 {
     enum probe_type_e probe_type = get_probe_type_by_name(probe_name);
     if (probe_type >= PROBE_TYPE_MAX) {
+        PARSE_ERR("invalid probe name");
         return NULL;
     }
 
@@ -999,12 +1000,12 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
 
     get_probemng_lock();
 
+    PARSE_ERR("Bad request");
     struct probe_s *probe = get_probe_by_name(probe_name);
     if (probe == NULL) {
         goto end;
     }
 
-    PARSE_ERR("Bad request");
     json = cJSON_Parse(probe_content);
     if (json == NULL) {
         PARSE_ERR("invalid json format");
