@@ -157,6 +157,11 @@ struct l7_link_s {
     time_t last_rcv_data;
 };
 
+struct java_proc_s {
+    H_HANDLE;
+    int proc_id;
+};
+
 void destroy_trackers(void *ctx);
 void destroy_links(void *ctx);
 void l7_parser(void *ctx);
