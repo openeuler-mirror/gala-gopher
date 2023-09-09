@@ -260,11 +260,13 @@ int get_cluster_ip_backend(struct tcp_connect_s *connect, int *transform)
 
     cip[0] = 0;
     if (inet_ntop(connect->family, (const void *)&(connect->cip_addr), cip, IP6_LEN) == NULL) {
+        ERROR("[CLUSTERIP] inet_ntop failed for src ip\n");
         return -1;
     }
 
     sip[0] = 0;
     if (inet_ntop(connect->family, (const void *)&(connect->sip_addr), sip, IP6_LEN) == NULL) {
+        ERROR("[CLUSTERIP] inet_ntop failed for dst ip\n");
         return -1;
     }
 
@@ -273,6 +275,7 @@ int get_cluster_ip_backend(struct tcp_connect_s *connect, int *transform)
 
     // No net namespace switch is required.
     // K8S cluster IP conntrack entries are deployed in the node namespace.
+    DEBUG("[CLUSTERIP] Begin to parse conntrack info:famliy(%u), src(%s:%u), dst(%s:%u)\n", connect->family, cip, connect->c_port, sip, connect->s_port);
     f = popen(command, "r");
     if (f == NULL) {
         return -1;
@@ -286,6 +289,7 @@ int get_cluster_ip_backend(struct tcp_connect_s *connect, int *transform)
 
         conntrack = parse_conntrack_tcp((const char *)line);
         if (conntrack == NULL) {
+            DEBUG("[CLUSTERIP] failed to parse conntrack info: %s\n", line);
             continue;
         }
 
