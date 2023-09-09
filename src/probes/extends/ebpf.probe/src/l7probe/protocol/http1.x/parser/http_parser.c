@@ -30,6 +30,10 @@
  */
 static parse_state_t parse_chunked(struct raw_data_s *raw_data, size_t *offset, char **body)
 {
+    if (raw_data->current_pos == raw_data->data_len) {
+        return STATE_NEEDS_MORE_DATA;
+    }
+
     const int search_window = 2048;
     const size_t delimiter_len = 2;
     char *data = raw_data->data + raw_data->current_pos;
@@ -39,24 +43,31 @@ static parse_state_t parse_chunked(struct raw_data_s *raw_data, size_t *offset, 
         size_t chunked_len = 0;
 
         size_t deli_pos = find_str(substr(data, 0,search_window), "\r\n", 0);
-        if (deli_pos == data_len) {
+        if (deli_pos == -1 || deli_pos == data_len) {
             return data_len > search_window ? STATE_INVALID : STATE_NEEDS_MORE_DATA;
         }
 
-        // chunked数据每个分片都在开头设置分片数据长度，用";"和数据隔开
+        // chunked数据每个分片都在开头设置分片数据长度，用";"和数据隔开，extension不一定存在，如果存在则刷新len的值
         // 格式： chunked_data_len ; extension | \r\n | data
+        // 样例：
+        // 5
+        // hello
+        // 0
         char *chunked_str_len = substr(data, 0, deli_pos);
-        size_t chunked_ext_pos = find_str(chunked_str_len, ";", 0);
-        if (chunked_ext_pos != strlen(chunked_str_len) -1) {
-            chunked_str_len = substr(chunked_str_len, 0, chunked_ext_pos);
+        char *ext = strchr(chunked_str_len, ';');
+        if (ext != NULL) {
+            chunked_str_len = substr(chunked_str_len, 0, ext - chunked_str_len);
         }
 
         chunked_len = simple_hex_atoi(chunked_str_len);
+        if (data - raw_data->data == raw_data->data_len) {
+            return STATE_NEEDS_MORE_DATA;
+        }
 
         // 指针偏移deli_pos + delimiter_len
         data += deli_pos + delimiter_len;
 
-//        total_size += chunked_len;
+        // 分块结束时末尾结束符为0，如果碰到结束符则退出
         if (chunked_len == 0) {
             break;
         }
@@ -67,20 +78,24 @@ static parse_state_t parse_chunked(struct raw_data_s *raw_data, size_t *offset, 
             return STATE_NEEDS_MORE_DATA;
         }
         chunked_data = substr(data, 0, chunked_len);
+
+        // 指针偏移chunked_len，跳过内容，正常时内容行结尾是\r\n
         data += chunked_len;
+
+        // 判断行末是否为\r\n换行符，如果不是，则数据错误
+        if (data - raw_data->data == raw_data->data_len) {
+            return STATE_NEEDS_MORE_DATA;
+        }
         if (data[0] != '\r' || data[1] != '\n') {
             return STATE_INVALID;
         }
         data += delimiter_len;
 
-        // 仅偏移chunk_data长度的指针
-        data += chunked_len + delimiter_len;
-
-        // 计算总长度
+        // 提取完chunked data之后再累计total_size
         total_size += strlen(chunked_data);
     }
 
-    raw_data->current_pos += data + raw_data->current_pos - raw_data->data;
+    raw_data->current_pos += data - raw_data->data;
 
     // Note: 暂不计算body
 //    *body = data;
@@ -124,7 +139,7 @@ static parse_state_t parse_request_body(struct raw_data_s *raw_data, struct http
 
     // 2. Transfer-Encoding: Chunked
     char *transfer_encoding = get_1st_value_by_key(frame_data->headers, KEY_TRANSFER_ENCODING);
-    if (transfer_encoding != NULL && strcmp(transfer_encoding, "chunked")) {
+    if (transfer_encoding != NULL && strcmp(transfer_encoding, "chunked") == 0) {
         parse_state_t state = parse_chunked(raw_data, &offset, &(frame_data->body));
         frame_data->body_size = offset;
         return state;
@@ -187,7 +202,7 @@ static parse_state_t parse_response_body(struct raw_data_s *raw_data, struct htt
 
     // 3. 有Transfer-Encoding
     char *transfer_encoding = get_1st_value_by_key(frame_data->headers, KEY_TRANSFER_ENCODING);
-    if (transfer_encoding != NULL && strcmp(transfer_encoding, "chunked")) {
+    if (transfer_encoding != NULL && strcmp(transfer_encoding, "chunked") == 0) {
         parse_state_t state = parse_chunked(raw_data, &offset, &(frame_data->body));
 
         // note: 暂不需要解析body内容，仅拿到body长度即可
