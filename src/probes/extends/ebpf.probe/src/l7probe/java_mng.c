@@ -18,6 +18,7 @@
 #include <pthread.h>
 #include <sys/types.h>
 #include <sys/file.h>
+#include <sys/prctl.h>
 
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
@@ -49,7 +50,30 @@ struct file_conn_hash_t {
 static struct file_conn_hash_t *file_conn_head = NULL;
 static int g_proc_obj_map_fd = -1;
 
-static int l7_load_jsse_agent(struct java_attach_args *args)
+static int add_java_proc(struct l7_mng_s *l7_mng, int proc_id)
+{
+    struct java_proc_s *new_item = (struct java_proc_s *)malloc(sizeof(struct java_proc_s));
+    if (!new_item) {
+        return -1;
+    }
+    new_item->proc_id = proc_id;
+    H_ADD_I(l7_mng->java_procs, proc_id, new_item);
+
+    return 0;
+}
+
+static void clear_java_proc(struct l7_mng_s *l7_mng)
+{
+    struct java_proc_s *item, *tmp;
+    if (H_COUNT(l7_mng->java_procs) > 0) {
+        H_ITER(l7_mng->java_procs, item, tmp) {
+            H_DEL(l7_mng->java_procs, item);
+            free(item);
+        }
+    }
+}
+
+static int l7_load_jsse_agent(struct l7_mng_s *l7_mng, struct java_attach_args *args)
 {
     int result = 0;
     struct proc_s key = {0};
@@ -79,6 +103,7 @@ static int l7_load_jsse_agent(struct java_attach_args *args)
             ERROR("[L7Probe]: execute java_load to proc: %d failed.\n", next_key.proc_id);
             result = -1;
         }
+        add_java_proc(l7_mng, next_key.proc_id);
         key = next_key;
     }
 
@@ -253,21 +278,24 @@ static void clear_pids_noexit()
 
 static void* l7_jsse_msg_handler(void *ctx)
 {
-    struct proc_s key = {0};
-    struct proc_s next_key = {0};
-    struct obj_ref_s obj;
     struct java_attach_args args = {0};
     (void)snprintf(args.tmp_file_name, FILENAME_LEN, JSSE_TMP_FILE);
+    prctl(PR_SET_NAME, "[JSSEMSG]");
+
+    struct l7_mng_s *l7_mng = (struct l7_mng_s *)ctx;
+    if (l7_mng == NULL) {
+        ERROR("[L7PROBE]: l7_mng is NULL.\n");
+        return NULL;
+    }
 
     while (1) {
         sleep(DEFAULT_PERIOD);
-        (void)memset(&key, 0, sizeof(key));
         set_pids_noexit();
-        while (bpf_map_get_next_key(g_proc_obj_map_fd, &key, &next_key) != -1) {
-            if (bpf_map_lookup_elem(g_proc_obj_map_fd, &next_key, &obj) == 0) {
-                java_msg_handler(next_key.proc_id, (void *)&args, parse_java_msg, ctx);
+        struct java_proc_s *item, *tmp;
+        if (H_COUNT(l7_mng->java_procs) > 0) {
+            H_ITER(l7_mng->java_procs, item, tmp) {
+                java_msg_handler(item->proc_id, (void *)&args, parse_java_msg, ctx);
             }
-            key = next_key;
         }
         clear_pids_noexit();
     }
@@ -286,7 +314,7 @@ int l7_load_probe_jsse(struct l7_mng_s *l7_mng)
     g_proc_obj_map_fd = l7_mng->bpf_progs.proc_obj_map_fd;
 
     // 1. load agent, action: start
-    if (!l7_load_jsse_agent(&attach_args)) {
+    if (!l7_load_jsse_agent(l7_mng, &attach_args)) {
         DEBUG("[L7PROBE]: jsseagent load(action:start) succeed.\n");
     } else {
         DEBUG("[L7PROBE]: jsseagent load(action:start) end and some proc load failed.\n");
@@ -314,8 +342,10 @@ void l7_unload_probe_jsse(struct l7_mng_s *l7_mng)
 
     g_proc_obj_map_fd = l7_mng->bpf_progs.proc_obj_map_fd;
 
+    clear_java_proc(l7_mng);
+
     // 1. load agent, action: stop
-    if (!l7_load_jsse_agent(&attach_args)) {
+    if (!l7_load_jsse_agent(l7_mng, &attach_args)) {
         DEBUG("[L7PROBE]: jsseagent unload(action:stop) succeed.\n");
     } else {
         DEBUG("[L7PROBE]: jsseagent unload(action:stop) end and some proc unload failed.\n");
