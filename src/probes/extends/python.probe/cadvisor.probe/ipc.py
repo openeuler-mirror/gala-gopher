@@ -35,6 +35,7 @@ class ProbeParams(Structure):
         ("continuous_sampling_flag", c_char),
         ("multi_instance_flag", c_char),
         ("native_stack_flag", c_char),
+        ("cluster_ip_backend", c_char),
         ("target_dev", c_char * DEV_NAME),
         ("elf_path", c_char * MAX_PATH_LEN),
         ("l7_probe_proto_flags", c_uint),

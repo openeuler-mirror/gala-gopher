@@ -149,7 +149,7 @@ class BasicLabelProbe(Probe):
 
     def get_container_id_by_pid(self, pid):
         container_id = create_string_buffer(CONTAINER_ID_LEN)
-        self.container_lib.get_container_id_by_pid(pid, container_id, CONTAINER_ID_LEN)
+        self.container_lib.get_container_id_by_pid_cpuset(str(pid).encode(), container_id, CONTAINER_ID_LEN)
         return str(container_id.value, encoding='utf-8')
 
     def get_all_containers(self):
