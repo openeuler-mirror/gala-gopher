@@ -176,7 +176,7 @@ static void set_con_info(struct pod_info_s *pod_info, char *con_id,  struct cont
         ERROR("Failed to get container name of container %s.\n", con_id);
     }
 
-    get_elf_path_by_con_id(con_id, con->con_info.libc_path, PATH_LEN, "libc.so");
+    get_elf_path_by_con_id(con_id, con->con_info.libc_path, PATH_LEN, "libc");
     get_elf_path_by_con_id(con_id, con->con_info.libssl_path, PATH_LEN, "libssl");
 
     return;

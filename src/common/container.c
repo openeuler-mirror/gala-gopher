@@ -82,7 +82,7 @@
 #define DOCKER_DRIVER_COMMAND "%s info -f '{{ .Driver }}'"
 #define DOCKER_BTRFS_SUBVOL_COMMAND "cat /proc/%u/mounts"
 
-#define PLDD_LIB_COMMAND "cat /proc/%u/maps 2>/dev/null | grep \"%s\" | awk 'NR==1{print $6}'"
+#define PLDD_LIB_COMMAND "cat /proc/%u/maps 2>/dev/null | grep \"%s[^a-zA-Z]\" | awk 'NR==1{print $6}'"
 
 static char *current_docker_command = NULL;
 static char current_docker_driver[CONTAINER_DRIVER_LEN] = {0};

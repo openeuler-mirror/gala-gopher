@@ -1457,7 +1457,7 @@ static int add_bpf_link(unsigned int pidd)
         return -1;
     }
     (void)memset(item, 0, sizeof(struct bpf_link_hash_t));
-    if (get_elf_path(pidd, item->v.elf_path, MAX_PATH_LEN, "libc\\.so") != CONTAINER_OK) {
+    if (get_elf_path(pidd, item->v.elf_path, MAX_PATH_LEN, "libc") != CONTAINER_OK) {
         free(item);
         return -1;
     }

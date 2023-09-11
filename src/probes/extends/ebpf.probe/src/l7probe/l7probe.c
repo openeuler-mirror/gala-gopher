@@ -222,7 +222,7 @@ int load_libssl_prog(struct l7_mng_s *l7_mng, struct ipc_body_s *ipc_body) {
         if (ipc_body->snooper_objs[i].type == SNOOPER_OBJ_PROC) {
             u32 proc_id = ipc_body->snooper_objs[i].obj.proc.proc_id;
             libssl[0] = 0;
-            ret = get_elf_path(proc_id, libssl, PATH_LEN, "libssl\\.so");
+            ret = get_elf_path(proc_id, libssl, PATH_LEN, "libssl");
             if (ret) {
                 continue;
             }
