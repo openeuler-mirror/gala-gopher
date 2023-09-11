@@ -38,7 +38,6 @@ typedef struct container_tbl_s {
 } container_tbl;
 
 container_tbl* get_all_container(void);
-int get_container_id_by_pid(unsigned int pid, char *container_id, unsigned int buf_len);
 int get_container_id_by_pid_cpuset(const char *pid, char *container_id, unsigned int buf_len);
 int get_elf_path(unsigned int pid, char elf_path[], int max_path_len, const char *comm);
 int get_elf_path_by_con_id(char *container_id, char elf_path[], int max_path_len, const char *comm);
