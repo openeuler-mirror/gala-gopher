@@ -526,12 +526,12 @@ static int read_subvol_from_fs_mntops(const char *fs_mntops, char *subvol, unsig
     char *subvol_start, *subvol_end;
     unsigned int subvol_len;
 
-#define __SUBVOL_KEYWORD "subvol="
+    // subvol=<path>/btrfs/subvolumes/<uuid>, <path> may be null
+#define __SUBVOL_KEYWORD "/btrfs/subvolumes/"
     subvol_start = strstr(fs_mntops, __SUBVOL_KEYWORD);
     if (!subvol_start) {
         return -1;
     }
-    subvol_start += strlen(__SUBVOL_KEYWORD);
 
     subvol_end = strchr(subvol_start, ',');
     if (!subvol_end) {
