@@ -47,7 +47,7 @@
 #define CONTAINERD_PODID_COMMAND "--output go-template --template='{{index .status.labels \"io.kubernetes.pod.uid\"}}'"
 #define CONTAINERD_POD_LABELS_COMMAND "--output go-template --template='{{json .status.labels}}'"
 #define CONTAINERD_MERGED_COMMAND "mount | grep %s | grep rootfs | awk '{print $3}'"
-#define CONTAINERD_IP_CMD "%s ps | grep %s | awk '{print $NF}' | xargs %s inspectp --output go-template --template='{{.status.network.ip}}'"
+#define CONTAINERD_IP_CMD "%s ps | grep %s | awk '{print $NF}' | xargs %s inspect --output go-template --template='{{.status.network.ip}}'"
 #define CONTAINERD_LIST_CONTAINER_COMMAND "%s ps -q | xargs  %s inspect --output go-template "\
     "--template='{{.status.id}}, {{index .status.labels \"io.kubernetes.pod.uid\"}}' | /usr/bin/grep %s |  /usr/bin/awk -F ', ' '{print $1}' 2>/dev/null"
 #define CONTAINERD_LIST_COUNT_COMMAND "%s ps -q | xargs  %s inspect --output go-template "\
@@ -85,6 +85,7 @@
 #define PLDD_LIB_COMMAND "cat /proc/%u/maps 2>/dev/null | grep \"%s[^a-zA-Z]\" | awk 'NR==1{print $6}'"
 
 static char *current_docker_command = NULL;
+static char current_docker_command_chroot[COMMAND_LEN];
 static char current_docker_driver[CONTAINER_DRIVER_LEN] = {0};
 
 #if 0
@@ -199,6 +200,15 @@ static const char *get_current_command()
     (void)__is_containerd();
 
     return (const char *)current_docker_command;
+}
+
+static const char *get_current_command_chroot()
+{
+    if (current_docker_command_chroot[0] != 0) {
+        return (const char *)current_docker_command_chroot;
+    }
+
+    return get_cmd_chroot(get_current_command(), current_docker_command_chroot, COMMAND_LEN);
 }
 
 static const char *get_docker_driver()
@@ -1100,7 +1110,7 @@ int get_container_pod_labels(const char *abbr_container_id, char pod_labels[], u
 
 int get_pod_ip(const char *abbr_container_id, char *pod_ip_str, int len)
 {
-    char command[COMMAND_LEN] = {0};
+    char command[CHROOT_COMMAND_LEN] = {0};
 
     if (!get_current_command()) {
         return -1;
@@ -1113,13 +1123,13 @@ int get_pod_ip(const char *abbr_container_id, char *pod_ip_str, int len)
     command[0] = 0;
     if (__is_containerd()) {
         (void)snprintf(command, COMMAND_LEN, CONTAINERD_IP_CMD,
-            get_current_command(), abbr_container_id, get_current_command());
+            get_current_command_chroot(), abbr_container_id, get_current_command_chroot());
     } else {
         (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
-            get_current_command(), abbr_container_id, DOCKER_IP_CMD);
+            get_current_command_chroot(), abbr_container_id, DOCKER_IP_CMD);
     }
 
-    int ret = exec_cmd_chroot((const char *)command, pod_ip_str, len);
+    int ret = exec_cmd((const char *)command, pod_ip_str, len);
     if (ret) {
         pod_ip_str[0] = 0;
     }
@@ -1129,20 +1139,20 @@ int get_pod_ip(const char *abbr_container_id, char *pod_ip_str, int len)
 
 static int __list_containers_count_by_pod_id(const char *pod_id)
 {
-    char command[COMMAND_LEN];
+    char command[CHROOT_COMMAND_LEN];
     char line[INT_LEN];
 
     command[0] = 0;
     if (__is_containerd()) {
-        (void)snprintf(command, COMMAND_LEN, CONTAINERD_LIST_COUNT_COMMAND,
-            get_current_command(), get_current_command(), pod_id);
+        (void)snprintf(command, sizeof(command), CONTAINERD_LIST_COUNT_COMMAND,
+            get_current_command_chroot(), get_current_command_chroot(), pod_id);
     } else {
-        (void)snprintf(command, COMMAND_LEN, DOCKER_LIST_COUNT_COMMAND,
-            get_current_command(), get_current_command(), pod_id);
+        (void)snprintf(command, sizeof(command), DOCKER_LIST_COUNT_COMMAND,
+            get_current_command_chroot(), get_current_command_chroot(), pod_id);
     }
 
     line[0] = 0;
-    int ret = exec_cmd_chroot((const char *)command, line, INT_LEN);
+    int ret = exec_cmd((const char *)command, line, INT_LEN);
     if (ret) {
         return 0;
     }
@@ -1160,13 +1170,13 @@ static int __list_containers_by_pod_id(const char *pod_id, container_tbl *cstbl)
     command[0] = 0;
     if (__is_containerd()) {
         (void)snprintf(command, COMMAND_LEN, CONTAINERD_LIST_CONTAINER_COMMAND,
-            get_current_command(), get_current_command(), pod_id);
+            get_current_command_chroot(), get_current_command_chroot(), pod_id);
     } else {
         (void)snprintf(command, COMMAND_LEN, DOCKER_LIST_CONTAINER_COMMAND,
-            get_current_command(), get_current_command(), pod_id);
+            get_current_command_chroot(), get_current_command_chroot(), pod_id);
     }
 
-    f = popen_chroot(command, "r");
+    f = popen(command, "r");
     if (f == NULL) {
         return -1;
     }

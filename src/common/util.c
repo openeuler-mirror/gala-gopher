@@ -175,7 +175,18 @@ char is_exist_mod(const char *mod)
     return (char)(cnt > 0);
 }
 
-#define CHROOT_COMMAND_LEN  (2 * COMMAND_LEN)
+const char *get_cmd_chroot(const char *orig_cmd, char *chroot_cmd, unsigned int buf_len)
+{
+    char *host_path = get_host_path_prefix();
+    if (orig_cmd == NULL || host_path == NULL) {
+        return orig_cmd;
+    }
+
+    chroot_cmd[0] = 0;
+    (void)snprintf(chroot_cmd, buf_len, CHROOT_CMD, host_path, orig_cmd);
+    return chroot_cmd;
+}
+
 void *popen_chroot(const char *command, const char *modes) {
     char *host_path = get_host_path_prefix();
     char chroot_cmd[CHROOT_COMMAND_LEN];

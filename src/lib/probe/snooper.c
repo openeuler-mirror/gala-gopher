@@ -995,6 +995,7 @@ static int add_snooper_obj_con_info(struct probe_s *probe, struct con_info_s *co
     if (snooper_obj == NULL) {
         return -1;
     }
+    DEBUG("[SNOOPER] Adding container %s to snooper obj\n", con_info->con_id ?:"unknown");
     snooper_obj->type = SNOOPER_OBJ_CON;
     snooper_obj->obj.con_info.flags = con_info->flags;
     snooper_obj->obj.con_info.cpucg_inode = con_info->cpucg_inode;
@@ -1193,6 +1194,7 @@ static int gen_snooper_by_container(struct probe_s *probe)
 
         con_info = get_and_add_con_info(FAKE_POD_ID, snooper_conf->conf.container_id);
         if (con_info == NULL) {
+            ERROR("[SNOOPER] Fail to get info of container %s\n", snooper_conf->conf.container_id);
             free_con_id_list(con_id_list);
             return -1;
         }
@@ -1224,6 +1226,7 @@ static int gen_snooper_by_pod(struct probe_s *probe)
 
         pod_info = get_and_add_pod_info(snooper_conf->conf.pod_id);
         if (pod_info == NULL) {
+            ERROR("[SNOOPER] Fail to get info of pod %s\n", snooper_conf->conf.pod_id);
             free_con_id_list(con_id_list);
             return -1;
         }
