@@ -74,6 +74,7 @@ static int check_proc_start_time(struct proc_key_t *proc_key)
 }
 
 #define _PROC_START_TIME_CHECK_PERIOD 60
+#define _FAIL_SUPPRESS_COUNT 20
 
 static void load_jvm_probe(struct java_attach_args *args)
 {
@@ -99,10 +100,14 @@ static void load_jvm_probe(struct java_attach_args *args)
             }
         }
 
-        ret = java_load(r->key.pid, (void *)args);
-        if (ret != 0) {
-            WARN("[JVMPROBE]: Attach to proc %d failed\n", r->key.pid);
-            remove_proc(r);
+        if (r->failed_count == 0) {
+            ret = java_load(r->key.pid, (void *)args);
+            if (ret != 0) {
+                r->failed_count++;
+                WARN("[JVMPROBE]: Attach to proc %d failed\n", r->key.pid);
+            }
+        } else {
+            r->failed_count = (r->failed_count + 1) % _FAIL_SUPPRESS_COUNT;
         }
     }
 }
@@ -133,6 +138,7 @@ static int add_to_hash_t(int pid, u64 stime)
         (void)memset(item, 0, sizeof(struct proc_hash_t));
         item->key.pid = pid;
         item->key.start_time = stime;
+        item->failed_count = 0;
         HASH_ADD(hh, g_procmap, key, sizeof(struct proc_key_t), item);
     }
 
