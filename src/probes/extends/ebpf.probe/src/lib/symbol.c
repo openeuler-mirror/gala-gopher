@@ -581,7 +581,7 @@ static int get_mod_elf_so_offset(struct mod_s* mod)
         return 0;
     }
 
-    if (gopher_get_elf_text_section((const char *)mod->mod_path, 
+    if (gopher_get_elf_text_section((const char *)mod->mod_path,
         &mod->mod_elf_so_addr, &mod->mod_elf_so_offset)) {
         ERROR("[SYMBOL]: Get elf offset failed(%s).\n", mod->mod_path);
         return GET_ELF_OFFSET;
@@ -618,7 +618,7 @@ static int add_mod(void *elf_reader, struct proc_symbs_s* proc_symbs, struct mod
         ret = 0;
         goto err;
     }
-    
+
     if (new_mod->mod_type == MODULE_JVM) {
         if (new_mod->mod_symbs != NULL && new_mod->symbs_count != 0)
             proc_symbs->need_update = 0;
@@ -920,6 +920,7 @@ next:
     return is_over ? ret : 0;
 }
 
+#if 0
 #define __GET_CONTAINER_ID_CMD  "/usr/bin/cat /proc/%d/cpuset 2>/dev/null | awk -F '/' '{print $NF}'"
 static int __get_container_id_by_pid(int pid, char container_id[], size_t len)
 {
@@ -949,17 +950,21 @@ static int __get_container_id_by_pid(int pid, char container_id[], size_t len)
     (void)snprintf(container_id, CONTAINER_ABBR_ID_LEN + 1, "%s", buf);
     return 0;
 }
+#endif
 
 void __get_proc_info(struct proc_symbs_s* proc_symbs, int proc_id)
 {
     int ret = 0;
-    proc_symbs->proc_id = proc_id;
+    char pid_str[INT_LEN];
 
-    if (proc_id == 0) {
+    if (proc_id <= 0) {
         return;
     }
 
-    if (__get_container_id_by_pid(proc_id, proc_symbs->container_id, CONTAINER_ABBR_ID_LEN + 1) >= 0 &&
+    proc_symbs->proc_id = proc_id;
+    pid_str[0] = 0;
+    (void)snprintf(pid_str, sizeof(pid_str), "%d", proc_id);
+    if (get_container_id_by_pid_cpuset(pid_str, proc_symbs->container_id, CONTAINER_ABBR_ID_LEN + 1) == 0 &&
         proc_symbs->container_id[0] != 0 &&
         get_container_name(proc_symbs->container_id, proc_symbs->container_name, CONTAINER_NAME_LEN) >= 0) {
         ret = get_container_pod(proc_symbs->container_id, proc_symbs->pod, POD_NAME_LEN);
@@ -1051,7 +1056,7 @@ int proc_search_addr_symb(struct proc_symbs_s *proc_symbs,
     addr_symb->orign_addr = addr;
     for (int i = 0; i < proc_symbs->mods_count; i++) {
         target_addr = 0;
-        
+
         if (proc_symbs->mods[i]) {
             // search jvm mods
             if (proc_symbs->mods[i]->mod_type == MODULE_JVM) {

@@ -673,6 +673,7 @@ int exec_container_command(const char *abbr_container_id, const char *exec, char
     return exec_cmd_chroot((const char *)command, buf, len);
 }
 
+#if 0
 /*
 [root@localhost /]# docker ps -q | xargs docker inspect --format '{{.State.Pid}}, {{.Id}}' | grep -w 3013984 | awk -F ', ' '{print $2}'
 f2e933da43a7e2cff0e36e1726cb91eb45a0959b02fd9b39e2dbc67022f4a88c
@@ -709,6 +710,7 @@ int get_container_id_by_pid(unsigned int pid, char *container_id, unsigned int b
     container_id[CONTAINER_ABBR_ID_LEN] = 0;
     return 0;
 }
+#endif
 
 #define __PROC_CPUSET           "/proc/%s/cpuset"
 #define __CAT_PROC_CPUSET_CMD   "/usr/bin/cat %s 2>/dev/null | awk -F '/' '{print $NF}'"
@@ -737,14 +739,14 @@ int get_container_id_by_pid_cpuset(const char *pid, char *container_id, unsigned
 {
     int ret;
     char cmd[COMMAND_LEN];
-    char proc_cpuset[LINE_BUF_LEN];
+    char proc_cpuset[PATH_LEN];
 
     if (buf_len <= CONTAINER_ABBR_ID_LEN) {
         return -1;
     }
 
     proc_cpuset[0] = 0;
-    (void)snprintf(proc_cpuset, LINE_BUF_LEN, __PROC_CPUSET, pid);
+    (void)snprintf(proc_cpuset, PATH_LEN, __PROC_CPUSET, pid);
     if (access((const char *)proc_cpuset, 0) != 0) {
         return -1;
     }
@@ -772,6 +774,7 @@ int get_elf_path(unsigned int pid, char elf_path[], int max_path_len, const char
     char elf_relative_path[PATH_LEN] = {0};
     char container_id[CONTAINER_ABBR_ID_LEN + 1] = {0};
     char container_path[PATH_LEN] = {0};
+    char pid_str[INT_LEN];
 
     // 1. get elf_path
     (void)snprintf(cmd, COMMAND_LEN, PLDD_LIB_COMMAND, pid, comm);
@@ -780,7 +783,9 @@ int get_elf_path(unsigned int pid, char elf_path[], int max_path_len, const char
     }
 
     // If the container id is not found, it means that gaussdb is a process on the host
-    if ((get_container_id_by_pid(pid, container_id, CONTAINER_ABBR_ID_LEN + 1) >= 0) &&
+    pid_str[0] = 0;
+    (void)snprintf(pid_str, sizeof(pid_str), "%d", pid);
+    if ((get_container_id_by_pid_cpuset(pid_str, container_id, CONTAINER_ABBR_ID_LEN + 1) == 0) &&
         (container_id[0] != 0)) {
         if (get_container_merged_path(container_id, container_path, PATH_LEN) < 0) {
             fprintf(stderr, "get container %s merged path failed\n", container_id);
