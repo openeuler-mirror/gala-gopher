@@ -368,7 +368,7 @@ int main(int argc, char **argv)
     struct l7_mng_s *l7_mng = &g_l7_mng;
     struct ipc_body_s ipc_body;
     FILE *fp = NULL;
-
+    struct timespec ts = {0, 1}; // 1 ns
     fp = popen(RM_L7_MAP_PATH, "r");
     if (fp != NULL) {
         (void)pclose(fp);
@@ -392,6 +392,7 @@ int main(int argc, char **argv)
     printf("Successfully started!\n");
 
     while (!g_stop) {
+        nanosleep(&ts, NULL);
         ret = recv_ipc_msg(msq_id, (long)PROBE_L7, &ipc_body);
         if (ret == 0) {
             if (ipc_body.probe_flags & IPC_FLAGS_PARAMS_CHG || ipc_body.probe_flags == 0) {
