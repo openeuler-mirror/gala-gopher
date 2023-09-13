@@ -64,6 +64,7 @@
 #define POD_LABELS_BUF_SIZE     4096
 
 #define COMMAND_LEN             256
+#define CHROOT_COMMAND_LEN      512
 #define LINE_BUF_LEN            512
 #define PATH_LEN                256
 
@@ -208,6 +209,7 @@ char *get_cur_date(void);
 char *get_cur_time(void);
 
 void ip_str(unsigned int family, unsigned char *ip, unsigned char *ip_str, unsigned int ip_str_size);
+const char *get_cmd_chroot(const char *orig_cmd, char *chroot_cmd, unsigned int buf_len);
 void *popen_chroot(const char *command, const char *modes);
 int exec_cmd(const char *cmd, char *buf, unsigned int buf_len);
 int exec_cmd_chroot(const char *cmd, char *buf, unsigned int buf_len);
