@@ -14,9 +14,18 @@ SELECT_PG_STAT_DATABASE = "select * from pg_stat_database where datname NOT IN (
 g_metric = dict()
 g_servers = []
 g_period = 5
+g_chroot = ""
+
+
+def set_chroot():
+    global g_chroot
+    host_path = os.getenv('GOPHER_HOST_PATH')
+    if  host_path is not None:
+        g_chroot = "/usr/sbin/chroot " + host_path
 
 
 def get_tgid(port):
+    global g_chroot
     # for host process
     command = "netstat -natp | grep LISTEN | grep gaussdb | grep %s | \
         awk -F ' ' 'NR ==1{print $7}' | awk -F '/' '{print $1}'" % (port)
@@ -26,8 +35,9 @@ def get_tgid(port):
         return rawout.rstrip().decode()
 
     # for docker process
-    command = "docker ps -q | xargs  docker inspect --format='{{.State.Pid}}, {{range $p, $conf := \
-        .HostConfig.PortBindings}}{{$p}}{{end}}' | grep -w %s | awk -F ', ' 'NR ==1{print $1}'" % port
+    command = "%s docker ps -q | xargs %s docker inspect --format='{{.State.Pid}}, {{range $p, $conf := \
+        .HostConfig.PortBindings}}{{$p}}{{end}}' | grep -w %s | awk -F ', ' 'NR ==1{print $1}'" \
+         % (g_chroot, g_chroot, port)
     p = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
     (rawout, serr) = p.communicate(timeout=5)
     if len(rawout) != 0:
@@ -108,6 +118,8 @@ class Connection(object):
 
 def init_param():
     global g_period
+    global g_chroot
+    set_chroot()
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "-d:")
     for opt, arg in opts:
