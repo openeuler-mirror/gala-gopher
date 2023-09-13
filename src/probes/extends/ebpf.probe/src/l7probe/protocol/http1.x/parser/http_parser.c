@@ -95,7 +95,7 @@ static parse_state_t parse_chunked(struct raw_data_s *raw_data, size_t *offset, 
         total_size += strlen(chunked_data);
     }
 
-    raw_data->current_pos += data - raw_data->data;
+    raw_data->current_pos = data - raw_data->data;
 
     // Note: 暂不计算body
 //    *body = data;
