@@ -928,6 +928,28 @@ static int __read_proc_cmdline(const char *dir_name, char *cmdline, u32 size)
     return 0;
 }
 
+#define PROC_STAT_CMD  "cat /proc/%s/stat 2>/dev/null"
+static int __need_to_add_proc(const char *pid)
+{
+    char cmd[LINE_BUF_LEN];
+    char line[LINE_BUF_LEN];
+    cmd[0] = 0;
+    line[0] = 0;
+
+    (void)snprintf(cmd, LINE_BUF_LEN, PROC_STAT_CMD, pid);
+    if (exec_cmd(cmd, line, LINE_BUF_LEN) != 0) {
+        return 0;
+    }
+
+    cmd[0] = 0;
+    (void)snprintf(cmd, LINE_BUF_LEN, "%u", getpid());
+    if (strstr(line, cmd) != NULL) {
+        return 0;
+    }
+
+    return 1;
+}
+
 static int __chk_cmdline_matched(const char *cmdline, const char *pid)
 {
     int ret;
@@ -1092,6 +1114,10 @@ static int gen_snooper_by_procname(struct probe_s *probe)
             }
             if (!__chk_snooper_pattern((const char *)snooper_conf->conf.app.comm, (const char *)comm)) {
                 // 'comm' Unmatched
+                continue;
+            }
+
+            if (!__need_to_add_proc(entry->d_name)) {
                 continue;
             }
 
@@ -1319,7 +1345,8 @@ static char __rcv_snooper_proc_exec_sub(struct probe_s *probe, const char *comm,
             if (__chk_snooper_pattern((const char *)(snooper_conf->conf.app.comm), comm)) {
                 pid_str[0] = 0;
                 (void)snprintf(pid_str, sizeof(pid_str), "%d", proc_id);
-                if (__chk_cmdline_matched((const char *)(snooper_conf->conf.app.cmdline), (const char *)pid_str) == 0) {
+                if (__chk_cmdline_matched((const char *)(snooper_conf->conf.app.cmdline), (const char *)pid_str) == 0 &&
+                    __need_to_add_proc(pid_str)) {
                     (void)add_snooper_obj_procid(probe, proc_id);
                     snooper_obj_added = 1;
                 }

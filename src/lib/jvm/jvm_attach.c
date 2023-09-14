@@ -334,6 +334,13 @@ int main(int argc, char** argv)
     ret = __jattach(pid, nspid, argc - 3, argv + 3); // argv 3 is cmd str
 
 out:
+/*
+    ret error code may be：
+    private static final int JNI_ENOMEM                 = -4
+    private static final int ATTACH_ERROR_BADJAR        = 100
+    private static final int ATTACH_ERROR_NOTONCP       = 101
+    private static final int ATTACH_ERROR_STARTFAIL     = 102
+*/
     printf("%d", ret);
     return ret;
 }

@@ -169,8 +169,12 @@ static int _set_attach_argv(u32 pid, struct jvm_process_info *v)
         (void)snprintf(src_agent_file, PATH_LEN, "%s/%s", HOST_SO_DIR, jvm_agent_file);
         ret = copy_file(host_agent_file_path, src_agent_file); // overwrite is ok.
         if (ret != 0) {
-            ERROR("[JAVA_SUPPORT]: proc %u copy %s from %s file fail \n", pid, host_agent_file_path, src_agent_file);
-            return ret;
+            if (agentfile_copy_done == 0) {
+                DEBUG("[JAVA_SUPPORT]: proc %u copy %s from %s file fail \n", pid, host_agent_file_path, src_agent_file);
+            } else {
+                ERROR("[JAVA_SUPPORT]: proc %u copy %s from %s file fail \n", pid, host_agent_file_path, src_agent_file);
+                return ret;
+            }
         }
         agentfile_copy_done = 1;
     }
