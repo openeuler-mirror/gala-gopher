@@ -46,7 +46,7 @@ BuildRequires: java-1.8.0-openjdk-devel
 BuildRequires: cjson-devel java-1.8.0-openjdk-devel
 %endif
 
-Requires:      bash glibc elfutils bpftool dmidecode libbpf >= 2:0.3
+Requires:      bash glibc elfutils bpftool libbpf >= 2:0.3
 Requires:      log4cplus librdkafka libmicrohttpd libconfig
 Requires:      iproute cjson gnutls
 %if !0%{?without_systeminfo}
