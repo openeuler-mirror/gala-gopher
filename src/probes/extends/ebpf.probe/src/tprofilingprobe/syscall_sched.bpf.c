@@ -54,6 +54,7 @@ SET_SYSCALL_META(wait4)
     scm->flag = SYSCALL_FLAG_STACK;
 }
 
+#if defined(__TARGET_ARCH_x86)
 SET_SYSCALL_PARAMS(waitpid) { return; }
 
 SET_SYSCALL_META(waitpid)
@@ -61,6 +62,7 @@ SET_SYSCALL_META(waitpid)
     scm->nr = SYSCALL_WAITPID_ID;
     scm->flag = SYSCALL_FLAG_STACK;
 }
+#endif
 
 SET_SYSCALL_PARAMS(select) { return; }
 
@@ -118,7 +120,6 @@ KPROBE_SYSCALL(__arm64_sys_, sched_yield)
 KPROBE_SYSCALL(__arm64_sys_, nanosleep)
 KPROBE_SYSCALL(__arm64_sys_, clock_nanosleep)
 KPROBE_SYSCALL(__arm64_sys_, wait4)
-KPROBE_SYSCALL(__arm64_sys_, waitpid)
 KPROBE_SYSCALL(__arm64_sys_, select)
 KPROBE_SYSCALL(__arm64_sys_, pselect6)
 KPROBE_SYSCALL(__arm64_sys_, poll)
