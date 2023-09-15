@@ -135,7 +135,7 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 
 | 参数               | 含义                                                   | 缺省值&范围                                                  | 单位    | 支持的监控范围           | gala-gopher是否支持 |
 | ------------------ | ------------------------------------------------------ | ------------------------------------------------------------ | ------- | ------------------------ | ------------------- |
-| sample_period      | 采样周期                                               | 100, [100~10000]                                             | ms      | io, tcp                  | Y                   |
+| sample_period      | 采样周期                                               | 5000, [100~10000]                                             | ms      | io, tcp                  | Y                   |
 | report_period      | 上报周期                                               | 60, [5~600]                                                 | s       | ALL                      | Y                   |
 | latency_thr        | 时延上报门限                                           | 0, [10~100000]                                               | ms      | tcp, io, proc, ksli      | Y |
 | offline_thr | 进程离线上报门限 | 0, [10~100000] | ms | proc | Y |
@@ -146,7 +146,7 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 | metrics_type       | 上报telemetry metrics                                  | raw, [raw, telemetry]                                        |         | ALL                      | N                   |
 | env                | 工作环境类型                                           | node, [node, container, kubenet]                             |         | ALL                      | N                   |
 | report_source_port | 是否上报源端口                                         | 0, [0, 1]                                                    |         | tcp                      | Y                   |
-| l7_protocol        | L7层协议范围                                           | http, [http, postgresql, mysql, redis, kafka,  mongodb, rocketmq, dns] |         | l7                       | Y                   |
+| l7_protocol        | L7层协议范围                                           | http, [http, pgsql, mysql, redis, kafka,  mongo, rocketmq, dns] |         | l7                       | Y                   |
 | support_ssl        | 支持SSL加密协议观测                                    | 0, [0, 1]                                                    |         | l7                       | Y                   |
 | multi_instance | 是否每个进程输出独立火焰图 | 0, [0, 1] |  | flamegraph | Y |
 | native_stack | 是否显示本地语言堆栈(针对JAVA进程) | 0, [0, 1] | | flamegraph | Y |
