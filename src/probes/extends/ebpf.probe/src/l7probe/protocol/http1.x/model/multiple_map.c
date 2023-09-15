@@ -58,9 +58,11 @@ void insert_into_multiple_map(http_headers_map **map, const char *key, const cha
     if (!found) {
         kv = init_http_headers_map();
         kv->key = strdup(key);
+        H_ADD_S(*map, key, kv);
     }
+
     if (kv->val_len == MAX_HEADERS_SIZE) {
-        WARN("[HTTP1.x PARSER] headers len: %d, exceeds MAX_HEADERS_SIZE(50).\n");
+        WARN("[HTTP1.x PARSER] headers map len exceeds limit(%d).\n", MAX_HEADERS_SIZE);
         if (!found) {
             free_http_headers_map(&kv);
         }
@@ -68,7 +70,6 @@ void insert_into_multiple_map(http_headers_map **map, const char *key, const cha
     }
     kv->values[kv->val_len] = strdup(value);
     kv->val_len++;
-    H_ADD_S(*map, key, kv);
 }
 
 http_headers_map *get_values_by_key(http_headers_map *map, const char *key)
