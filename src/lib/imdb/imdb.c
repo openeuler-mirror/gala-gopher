@@ -914,7 +914,7 @@ static int append_pod_level_labels(struct container_cache *con_cache, char **buf
 }
 
 static int append_container_level_labels(const char *container_id, char **buffer_ptr, int *size_ptr,
-    IMDB_DataBaseMgr *mgr, IMDB_Table *table)
+    IMDB_DataBaseMgr *mgr, IMDB_Table *table, char is_con_id_appended)
 {
     int ret = 0;
     struct container_cache *con_cache = NULL;
@@ -931,7 +931,7 @@ static int append_container_level_labels(const char *container_id, char **buffer
         }
     }
 
-    if (!is_entity_container(table->entity_name)) {
+    if (!is_con_id_appended) {
         ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
             META_COMMON_LABEL_CONTAINER_ID, con_cache->container_id);
         if (ret < 0) {
@@ -985,7 +985,7 @@ static int append_proc_level_labels(const char *tgid_str, char **buffer_ptr, int
         }
     }
 
-    ret = append_container_level_labels(tgidRecord->container_id, buffer_ptr, size_ptr, mgr, table);
+    ret = append_container_level_labels(tgidRecord->container_id, buffer_ptr, size_ptr, mgr, table, 0);
     if (ret < 0) {
         ERROR("[IMDB] Failed to append container-level labels(container_id=%s)\n", tgidRecord->container_id);
         return ret;
@@ -1091,9 +1091,9 @@ static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
         }
     }
 
-    if (con_id_idx >= 0 && is_entity_container(table->entity_name)) {
+    if (con_id_idx >= 0) {
         con_id = (char *)(record->metrics[con_id_idx]->val);
-        ret = append_container_level_labels(con_id, &p, &size, mgr, table);
+        ret = append_container_level_labels(con_id, &p, &size, mgr, table, 1);
         if (ret < 0) {
             ERROR("[IMDB] Failed to append container-level labels(container_id=%s, ret=%d)\n", con_id, ret);
             goto err;
