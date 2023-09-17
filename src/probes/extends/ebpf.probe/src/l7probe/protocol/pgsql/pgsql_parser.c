@@ -28,20 +28,21 @@ parse_state_t pgsql_parse_regular_msg(struct raw_data_s *raw_data, struct pgsql_
     parse_state_t msg_len_state;
     size_t payload_len;
     parse_state_t extract_payload_state;
+    size_t old_pos = raw_data->current_pos;
 
     // 校验raw_data缓存长度是否合法
     if (CHECK_RAW_DATA_LEN) {
         DEBUG("[Pgsql parser] The raw_data length is insufficient.\n");
-        return STATE_NEEDS_MORE_DATA;
+        goto more_data;
     }
 
     extract_tag_state = decoder_extract_char(raw_data, &msg->tag);
     if (extract_tag_state != STATE_SUCCESS) {
-        return STATE_NEEDS_MORE_DATA;
+        goto more_data;
     }
     msg_len_state = decoder_extract_int32_t(raw_data, &msg->len);
     if (msg_len_state != STATE_SUCCESS) {
-        return STATE_NEEDS_MORE_DATA;
+        goto more_data;
     }
 
     if (msg->len < PGSQL_REGULAR_MSG_MIN_LEN) {
@@ -52,9 +53,13 @@ parse_state_t pgsql_parse_regular_msg(struct raw_data_s *raw_data, struct pgsql_
     payload_len = msg->len - PGSQL_REGULAR_MSG_MIN_LEN;
     extract_payload_state = decoder_extract_raw_data_with_len(raw_data, payload_len, &msg->payload_data);
     if (extract_payload_state != STATE_SUCCESS) {
-        return STATE_NEEDS_MORE_DATA;
+        goto more_data;
     }
     return STATE_SUCCESS;
+
+more_data:
+    raw_data->current_pos = old_pos;
+    return STATE_NEEDS_MORE_DATA;
 }
 
 parse_state_t pgsql_parse_startup_name_value(struct raw_data_s *raw_data_buf)
@@ -478,11 +483,20 @@ parse_state_t pgsql_parse_describe(struct pgsql_regular_msg_s *msg, struct pgsql
 
 size_t pgsql_find_frame_boundary(struct raw_data_s *raw_data)
 {
+    if (raw_data->data_len < PGSQL_REGULAR_PACKET_MIN_LEN) {
+        return PARSER_INVALID_BOUNDARY_INDEX;
+    }
+
     for (size_t i = raw_data->current_pos; i < raw_data->data_len; ++i) {
-        if (contains_pgsql_tag(raw_data->data[i]) &&
-        ((i == 0 && raw_data->data[i + 1] == '\0') ||
-        (i != 0 && raw_data->data[i - 1] == '\0' && raw_data->data[i + 1] == '\0'))) {
-            return i;
+        if (contains_pgsql_tag(raw_data->data[i])) {
+            if (i == raw_data->current_pos && raw_data->data[i + 1] == '\0') {
+                return i;
+            }
+
+            if ((i != raw_data->current_pos) && (i != raw_data->data_len - 1) &&
+                 raw_data->data[i - 1] == '\0' && raw_data->data[i + 1] == '\0') {
+                return i;
+            }
         }
     }
     return PARSER_INVALID_BOUNDARY_INDEX;
