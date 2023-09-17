@@ -30,6 +30,7 @@ struct proc_key_t {
 
 struct proc_hash_t {
     struct proc_key_t key;
+    u32 failed_count;
     UT_hash_handle hh;
 };
 
