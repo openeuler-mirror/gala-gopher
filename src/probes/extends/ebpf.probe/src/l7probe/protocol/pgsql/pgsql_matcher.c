@@ -488,8 +488,8 @@ void pgsql_matcher_add_record(struct pgsql_regular_msg_s *req, uint64_t resp_tim
     struct pgsql_regular_msg_s *resp;
     struct pgsql_record_s *pgsql_record;
     struct record_data_s *record_data;
-    if (record_buf->record_buf_size > RECORD_BUF_SIZE) {
-        INFO("[PGSQL MATCHER] The record buffer is full.\n");
+    if (record_buf->record_buf_size >= RECORD_BUF_SIZE) {
+        WARN("[PGSQL MATCHER] The record buffer is full.\n");
         ++record_buf->err_count;
         return;
     }
