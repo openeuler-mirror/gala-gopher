@@ -34,6 +34,8 @@
 #include "snooper.h"
 #include "probe_params_parser.h"
 
+static int set_probe_bin(struct probe_s *probe, const char *bin);
+
 struct probe_define_s probe_define[] = {
     {"baseinfo",            "system_infos",                         PROBE_BASEINFO},
     {"virt",                "virtualized_infos",                    PROBE_VIRT},
@@ -289,6 +291,7 @@ static struct probe_s* new_probe(const char* name, enum probe_type_e probe_type)
     }
     probe->fifo->probe = probe;
     probe->probe_type = probe_type;
+    (void)set_probe_bin(probe, probe_define[probe_type - 1].bin);
     set_default_params(probe);
 
     ret = attach_probe_fd(g_probe_mng, probe);
@@ -407,11 +410,13 @@ static int set_probe_bin(struct probe_s *probe, const char *bin)
 
     if (is_extend_probe(probe)) {
         probe->is_extend_probe = 1;
+        probe->cb = extend_probe_thread_cb;
     } else {
         int ret = set_probe_entry(probe);
         if (ret) {
             return ret;
         }
+        probe->cb = native_probe_thread_cb;
     }
 
     return 0;
@@ -675,23 +680,14 @@ static int probe_parser_cmd(struct probe_s *probe, const cJSON *item)
     bin_object = cJSON_GetObjectItem(item, "bin");
     if ((bin_object != NULL) && (bin_object->type == cJSON_String) && (bin_object->valuestring[0] != 0)) {
         bin_string = (const char *)bin_object->valuestring;
-    } else {
-        bin_string = probe_define[probe->probe_type - 1].bin;
-    }
-
-    if (set_probe_bin(probe, bin_string)) {
-        return -1;
+        if (set_probe_bin(probe, bin_string)) {
+            return -1;
+        }
     }
 
     chkcmd_object = cJSON_GetObjectItem(item, "check_cmd");
     if ((chkcmd_object != NULL) && (chkcmd_object->type == cJSON_String)) {
         set_probe_chk_cmd(probe, (const char *)chkcmd_object->valuestring);
-    }
-
-    if (IS_EXTEND_PROBE(probe)) {
-        probe->cb = extend_probe_thread_cb;
-    } else {
-        probe->cb = native_probe_thread_cb;
     }
 
     probe_object = cJSON_GetObjectItem(item, "probe");
