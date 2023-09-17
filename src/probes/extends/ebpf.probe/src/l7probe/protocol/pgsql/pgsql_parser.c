@@ -44,12 +44,12 @@ parse_state_t pgsql_parse_regular_msg(struct raw_data_s *raw_data, struct pgsql_
         return STATE_NEEDS_MORE_DATA;
     }
 
-    if (msg->len < REGULAR_MSG_MIN_LEN) {
+    if (msg->len < PGSQL_REGULAR_MSG_MIN_LEN) {
         WARN("[Pgsql parser] Failed to parse regular msg, msg.len is less than 4.\n");
         return STATE_INVALID;
     }
 
-    payload_len = msg->len - REGULAR_MSG_MIN_LEN;
+    payload_len = msg->len - PGSQL_REGULAR_MSG_MIN_LEN;
     extract_payload_state = decoder_extract_raw_data_with_len(raw_data, payload_len, &msg->payload_data);
     if (extract_payload_state != STATE_SUCCESS) {
         return STATE_NEEDS_MORE_DATA;
