@@ -4,7 +4,14 @@
 #if defined(BPF_PROG_KERN) || defined(BPF_PROG_USER)
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
-#else
+#endif
+
+#ifdef BPF_PROG_KERN
+#include "vmlinux.h"
+#endif
+
+#if !defined(BPF_PROG_KERN) && !defined(BPF_PROG_USER)
+#include <bpf/bpf.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/utsname.h>
@@ -89,6 +96,25 @@ static inline int probe_kernel_version()
     }
 
     return __parse_normal_kernel_version(&uts);
+}
+#endif
+
+#ifdef BPF_PROG_KERN
+static inline bool probe_ringbuf()
+{
+    return bpf_core_type_exists(struct bpf_ringbuf);
+}
+#endif
+#if !defined(BPF_PROG_KERN) && !defined(BPF_PROG_USER)
+static inline bool probe_ringbuf() {
+    int map_fd;
+
+    if ((map_fd = bpf_map_create(BPF_MAP_TYPE_RINGBUF, NULL, 0, 0, getpagesize(), NULL)) < 0) {
+        return false;
+    }
+
+    close(map_fd);
+    return true;
 }
 #endif
 
