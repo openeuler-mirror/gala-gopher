@@ -35,7 +35,7 @@ static __always_inline char is_tmout_delay(struct sock_stats_s *sock_stats)
 static __always_inline void report_delay(void *ctx, struct tcp_metrics_s *metrics)
 {
     metrics->report_flags |= TCP_PROBE_DELAY;
-    (void)bpf_perf_event_output(ctx, &tcp_output, BPF_F_CURRENT_CPU, metrics, sizeof(struct tcp_metrics_s));
+    (void)bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
     metrics->report_flags &= ~TCP_PROBE_DELAY;
     metrics->delay_stats.send_state = DELAY_SAMP_INIT;
     metrics->delay_stats.recv_state = DELAY_SAMP_INIT;
