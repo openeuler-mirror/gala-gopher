@@ -28,9 +28,6 @@
 
 #define PGSQL_MSG_HEADER_SIZE (2 * sizeof(int32_t))
 
-// regular msg最小长度
-#define REGULAR_MSG_MIN_LEN 4
-
 // Tag: The first field of the regular message.
 // References pgsql spec:
 // https://www.postgresql.org/docs/15/protocol-message-formats.html
@@ -80,10 +77,6 @@ struct pgsql_tag_enum_value_s {
 };
 
 #define PGSQL_TAG_ENUM_VALUE(x, y) {x, y}
-
-extern struct pgsql_tag_enum_value_s pgsql_tag_enum_values[64];
-
-extern const int pgsql_tag_enum_values_count;
 
 bool contains_pgsql_tag(char tag);
 

@@ -17,7 +17,7 @@
 #include <string.h>
 #include "pgsql_msg_format.h"
 
-struct pgsql_tag_enum_value_s pgsql_tag_enum_values[64] = {
+struct pgsql_tag_enum_value_s pgsql_tag_enum_values[] = {
     PGSQL_TAG_ENUM_VALUE(true, PGSQL_COPY_DATA),
     PGSQL_TAG_ENUM_VALUE(true, PGSQL_COPY_DONE),
     PGSQL_TAG_ENUM_VALUE(true, PGSQL_SIMPLE_QUERY),

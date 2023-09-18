@@ -561,14 +561,21 @@ static __inline enum message_type_t get_mysql_type(const char* buf, size_t count
     return MESSAGE_UNKNOW;
 }
 
+
+#define PGSQL_REGULAR_MSG_MIN_LEN         4   // sizeof(int32_t)
+#define PGSQL_REGULAR_PACKET_MIN_LEN      (1 + PGSQL_REGULAR_MSG_MIN_LEN) // sizeof(char tag) + sizeof(int32_t)
 static __inline enum message_type_t __get_pgsql_type(const char* buf, size_t count, enum l7_direction_t direction)
 {
-    if (direction == L7_INGRESS && buf[0] == 'Q') {
+    if (count < PGSQL_REGULAR_PACKET_MIN_LEN) {
+        return MESSAGE_UNKNOW;
+    }
+
+    // A complete flow starts with simple/extend query, so we can only judge query message here
+    // TODO: infer pgsql startup message
+    if ((buf[0] == 'Q' || buf[0] == 'P') && buf[1] == '\0') {
         return MESSAGE_REQUEST;
     }
-    if (direction == L7_EGRESS && buf[0] == 'I' && buf[0] == 'E' && buf[0] == 'T' && buf[0] == 'D' && buf[0] == 'C' && buf[0] == 'Z') {
-        return MESSAGE_RESPONSE;
-    }
+
     return MESSAGE_UNKNOW;
 }
 
@@ -580,19 +587,19 @@ static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, en
         return -1;
     }
 
-    if (flags & PGSQL_ENABLE) {
-        type = __get_pgsql_type(buf, count, direction);
+    if (flags & HTTP_ENABLE) { // TODO: add && condition
+        type = __get_http_type(buf, count);
         if (type != MESSAGE_UNKNOW) {
-            l7pro->proto = PROTO_PGSQL;
+            l7pro->proto = PROTO_HTTP;
             l7pro->type = type;
             return 0;
         }
     }
 
-    if (flags & HTTP_ENABLE) { // TODO: add && condition
-        type = __get_http_type(buf, count);
+    if (flags & PGSQL_ENABLE) {
+        type = __get_pgsql_type(buf, count, direction);
         if (type != MESSAGE_UNKNOW) {
-            l7pro->proto = PROTO_HTTP;
+            l7pro->proto = PROTO_PGSQL;
             l7pro->type = type;
             return 0;
         }
