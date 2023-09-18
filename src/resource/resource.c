@@ -16,6 +16,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <sys/stat.h>
 #include "base.h"
 #include "config.h"
 #include "args.h"
@@ -638,6 +639,7 @@ static int LogsMgrInit(ResourceMgr *resourceMgr)
         return -1;
     }
 
+    mode_t old_mask = umask(S_IWGRP | S_IROTH | S_IWOTH | S_IXOTH);
     (void)snprintf(logsMgr->debug_path, sizeof(logsMgr->debug_path), "%s", configMgr->logsConfig->debugDir);
     (void)snprintf(logsMgr->metrics_path, sizeof(logsMgr->metrics_path), "%s", configMgr->logsConfig->metricDir);
     (void)snprintf(logsMgr->event_path, sizeof(logsMgr->event_path), "%s", configMgr->logsConfig->eventDir);
@@ -653,6 +655,7 @@ static int LogsMgrInit(ResourceMgr *resourceMgr)
             resourceMgr->imdbMgr->writeLogsOn = 1;
         }
     }
+    umask(old_mask);
     return 0;
 }
 

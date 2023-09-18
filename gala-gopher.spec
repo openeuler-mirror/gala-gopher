@@ -27,7 +27,7 @@
 Summary:       Intelligent ops toolkit for openEuler
 Name:          gala-gopher
 Version:       1.0.2
-Release:       2
+Release:       3
 License:       Mulan PSL v2
 URL:           https://gitee.com/openeuler/gala-gopher
 Source:        %{name}-%{version}.tar.gz
@@ -116,6 +116,14 @@ popd
 
 %post
 %systemd_post gala-gopher.service
+if [ -d /var/log/gala-gopher ]; then
+  othermode=$(expr $(stat -L -c "%a" /var/log/gala-gopher) % 10)
+  if [ $othermode -ne 0 ]; then
+    chmod 750 /var/log/gala-gopher
+    chmod 750 /var/log/gala-gopher/debug
+    chmod 640 /var/log/gala-gopher/debug/gopher.log
+  fi
+fi
 
 %preun
 %systemd_preun gala-gopher.service
@@ -127,21 +135,20 @@ fi
 %systemd_postun_with_restart gala-gopher.service
 
 %files
-%defattr(-,root,root)
-%dir /opt/gala-gopher
-%dir /opt/gala-gopher/extend_probes
-%dir /opt/gala-gopher/meta
-%dir /opt/gala-gopher/lib
-%{_bindir}/*
-/opt/gala-gopher/extend_probes/*
-/opt/gala-gopher/meta/*
-/opt/gala-gopher/lib/*
-/etc/gala-gopher/res/event_multy_language.rc
-%config(noreplace) /etc/gala-gopher/probes.init
-%config(noreplace) /etc/gala-gopher/*.conf
-%config(noreplace) /etc/gala-gopher/extend_probes/*.conf
-/usr/lib/systemd/system/gala-gopher.service
-%attr(0700,root,root) /usr/libexec/gala-gopher/init_probes.sh
+%attr(0750,root,root) %dir /opt/gala-gopher
+%attr(0550,root,root) %dir /opt/gala-gopher/extend_probes
+%attr(0750,root,root) %dir /opt/gala-gopher/meta
+%attr(0550,root,root) %dir /opt/gala-gopher/lib
+%attr(0550,root,root) %{_bindir}/*
+%attr(0550,root,root) /opt/gala-gopher/extend_probes/*
+%attr(0640,root,root) /opt/gala-gopher/meta/*
+%attr(0550,root,root) /opt/gala-gopher/lib/*
+%attr(0640,root,root) /etc/gala-gopher/res/event_multy_language.rc
+%attr(0640,root,root) %config(noreplace) /etc/gala-gopher/probes.init
+%attr(0640,root,root) %config(noreplace) /etc/gala-gopher/*.conf
+%attr(0640,root,root) %config(noreplace) /etc/gala-gopher/extend_probes/*.conf
+%attr(0600,root,root) /usr/lib/systemd/system/gala-gopher.service
+%attr(0550,root,root) /usr/libexec/gala-gopher/init_probes.sh
 
 %changelog
 
