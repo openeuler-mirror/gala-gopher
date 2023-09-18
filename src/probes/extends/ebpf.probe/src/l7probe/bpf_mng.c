@@ -161,19 +161,19 @@ int l7_load_probe_kern_sock(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog)
         return -1;
     }
 
-    if (l7_mng->bpf_progs.conn_tbl_fd == 0) {
+    if (l7_mng->bpf_progs.conn_tbl_fd <= 0) {
         l7_mng->bpf_progs.conn_tbl_fd = GET_MAP_FD(kern_sock, conn_tbl);
     }
 
-    if (l7_mng->bpf_progs.l7_tcp_fd == 0) {
+    if (l7_mng->bpf_progs.l7_tcp_fd <= 0) {
         l7_mng->bpf_progs.l7_tcp_fd = GET_MAP_FD(kern_sock, l7_tcp);
     }
 
-    if (l7_mng->bpf_progs.filter_args_fd == 0) {
+    if (l7_mng->bpf_progs.filter_args_fd <= 0) {
         l7_mng->bpf_progs.filter_args_fd = GET_MAP_FD(kern_sock, filter_args_tbl);
     }
 
-    if (l7_mng->bpf_progs.proc_obj_map_fd == 0) {
+    if (l7_mng->bpf_progs.proc_obj_map_fd <= 0) {
         l7_mng->bpf_progs.proc_obj_map_fd = GET_MAP_FD(kern_sock, proc_obj_map);
     }
 

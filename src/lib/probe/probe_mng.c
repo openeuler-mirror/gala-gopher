@@ -536,7 +536,6 @@ static int start_probe(struct probe_s *probe)
         return 0;
     }
 
-    probe->is_restart = 0;
     if (IS_STOPPED_PROBE(probe) || IS_STOPPING_PROBE(probe)) {
         probe->is_restart = 1;
     }
@@ -1046,6 +1045,7 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
         }
     }
 
+    probe->is_restart = 0;
     destroy_probe(probe_backup);
 end:
     put_probemng_lock();
