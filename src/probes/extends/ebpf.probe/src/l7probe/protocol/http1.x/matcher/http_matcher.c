@@ -18,7 +18,14 @@
 static void add_http_record_into_buf(http_record *record, struct record_buf_s *record_buf)
 {
     // 复制record内容
-    http_record *rcd_cp = (http_record *) malloc(sizeof(http_record));
+    http_record *rcd_cp;
+
+    if (record_buf->record_buf_size >= RECORD_BUF_SIZE) {
+        WARN("[HTTP1.x MATCHER] The record buffer is full.\n");
+        return;
+    }
+
+    rcd_cp = (http_record *) malloc(sizeof(http_record));
     if (rcd_cp == NULL) {
         ERROR("[HTTP1.x MATCHER] Failed to malloc http_record.\n");
         return;
