@@ -48,10 +48,10 @@
 #define L7PROBE_TRACING_REDIS   0x0004
 #define L7PROBE_TRACING_MYSQL   0x0008
 #define L7PROBE_TRACING_PGSQL   0x0010
-#define L7PROBE_TRACING_KAFKA   0x0012
-#define L7PROBE_TRACING_MONGO   0x0014
-#define L7PROBE_TRACING_CQL     0x0018
-#define L7PROBE_TRACING_NATS    0x0020
+#define L7PROBE_TRACING_KAFKA   0x0020
+#define L7PROBE_TRACING_MONGO   0x0040
+#define L7PROBE_TRACING_CQL     0x0080
+#define L7PROBE_TRACING_NATS    0x0100
 
 #define __OPT_S "t:s:T:J:O:D:F:lU:L:c:p:w:d:P:Ck:i:m:e:f:A"
 struct probe_params_deprecated {
@@ -88,10 +88,10 @@ struct probe_params_deprecated {
         0x0004  REDIS
         0x0008  MYSQL
         0x0010  PGSQL
-        0x0012  KAFKA
-        0x0014  MONGODB
-        0x0018  Cassandra
-        0x0020  NATS
+        0x0020  KAFKA
+        0x0040  MONGODB
+        0x0080  Cassandra
+        0x0100  NATS
     */
     unsigned int l7_probe_proto_flags;
     unsigned int enable_all_thrds; // [-A] Enable all threads, default is 0

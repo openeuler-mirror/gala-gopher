@@ -582,7 +582,7 @@ struct param_key_s param_keys[] = {
     {REPORT_EVENT,       {0, 0, 1, ""},                           parser_report_event, set_default_params_char_logs, cJSON_Number},
     {METRICS_TYPE,       {SUPPORT_METRICS_RAW | SUPPORT_METRICS_TELEM, 0, 0, "raw"}, parser_metrics_type, set_default_params_char_metrics_flags, cJSON_Array},
     {ENV,                {SUPPORT_NODE_ENV, 0, 0, "node"},        parser_work_env, set_default_params_char_env_flags, cJSON_Array},
-    {L7_PROTOCOL,        {0, 0, 0, "http"},                       parser_l7pro, set_default_params_inter_l7_probe_proto_flags, cJSON_Array},
+    {L7_PROTOCOL,        {L7PROBE_TRACING_HTTP, 0, 0, "http"},    parser_l7pro, set_default_params_inter_l7_probe_proto_flags, cJSON_Array},
     {SUPPORT_SSL,        {0, 0, 1, ""},                           parser_support_ssl, set_default_params_char_support_ssl, cJSON_Number},
     {PYROSCOPE_SERVER,   {0, 0, 0, "localhost:4040"},             parser_pyscope_server, set_default_params_str_pyroscope_server, cJSON_String},
     {SVG_PERIOD,         {180, 30, 600, ""},                      parser_svg_period, set_default_params_inter_svg_period, cJSON_Number},
