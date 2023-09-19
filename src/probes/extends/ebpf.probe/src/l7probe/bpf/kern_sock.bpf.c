@@ -356,7 +356,10 @@ static __always_inline __maybe_unused int submit_conn_close(void *ctx, conn_ctx_
 #ifdef __USE_RING_BUF
 end:
 #endif
-    bpf_map_delete_elem(&conn_tbl, &conn_id);
+    
+    /* We should do "bpf_map_delete_elem(&conn_tbl, &conn_id)" here,
+       but due to the lag in processing jsse messages, if the connection is deleted now,
+       the connection will not be found in the cmp_sock_conn(). */
 
     return 0;
 }
@@ -480,9 +483,11 @@ KRETPROBE_SYSCALL(connect)
 
         struct sock_conn_s* sock_conn = lkup_sock_conn((int)(id >> INT_LEN), args->fd);
         // new sock connection
-        if (!sock_conn) {
-            sock_conn = new_sock_conn(ctx, (int)(id >> INT_LEN), args->fd, L4_CLIENT, args->addr, NULL);
+        if (sock_conn) {
+            struct conn_id_s conn_id = {.fd = args->fd, .tgid = (int)(id >> INT_LEN)};
+            bpf_map_delete_elem(&conn_tbl, &conn_id);
         }
+        sock_conn = new_sock_conn(ctx, (int)(id >> INT_LEN), args->fd, L4_CLIENT, args->addr, NULL);
 
         submit_conn_open(ctx, sock_conn);
     }
@@ -575,13 +580,15 @@ KRETPROBE_SYSCALL(accept)
         if (new_fd < 0) {
             goto end;
         }
-
         struct sock_conn_s* sock_conn = lkup_sock_conn((int)(id >> INT_LEN), new_fd);
         // new sock connection
-        if (!sock_conn) {
-            sock_conn = new_sock_conn(ctx, (int)(id >> INT_LEN), new_fd, L4_SERVER, args->addr, NULL);
+        if (sock_conn) {
+            struct conn_id_s conn_id = {.fd = new_fd, .tgid = (int)(id >> INT_LEN)};
+            bpf_map_delete_elem(&conn_tbl, &conn_id);
         }
 
+        sock_conn = new_sock_conn(ctx, (int)(id >> INT_LEN), new_fd, L4_SERVER, args->addr, NULL);
+        
         submit_conn_open(ctx, sock_conn);
     }
 end:
@@ -624,9 +631,11 @@ KRETPROBE_SYSCALL(accept4)
 
         struct sock_conn_s* sock_conn = lkup_sock_conn((int)(id >> INT_LEN), new_fd);
         // new sock connection
-        if (!sock_conn) {
-            sock_conn = new_sock_conn(ctx, (int)(id >> INT_LEN), new_fd, L4_SERVER, args->addr, args->newsock);
+        if (sock_conn) {
+            struct conn_id_s conn_id = {.fd = new_fd, .tgid = (int)(id >> INT_LEN)};
+            bpf_map_delete_elem(&conn_tbl, &conn_id);
         }
+        sock_conn = new_sock_conn(ctx, (int)(id >> INT_LEN), new_fd, L4_SERVER, args->addr, args->newsock);
 
         submit_conn_open(ctx, sock_conn);
     }

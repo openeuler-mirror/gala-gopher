@@ -44,7 +44,6 @@ struct file_conn_hash_t {
     H_HANDLE;
     u32 pid; // key
     int pid_exits;
-    struct session_data_args_s args;
 };
 
 static struct file_conn_hash_t *file_conn_head = NULL;
@@ -73,6 +72,7 @@ static void clear_java_proc(struct l7_mng_s *l7_mng)
     }
 }
 
+// /opt/gala-gopher/lib/jvm_attach <pid> <pid> load instrument false "/tmp/JSSEProbeAgent.jar=<pid>,/tmp/java-data-<pid>,start"
 static int l7_load_jsse_agent(struct l7_mng_s *l7_mng, struct java_attach_args *args)
 {
     int result = 0;
@@ -110,32 +110,16 @@ static int l7_load_jsse_agent(struct l7_mng_s *l7_mng, struct java_attach_args *
     return result;
 }
 
-static int set_session_data_args(struct session_data_args_s *args)
-{
-    if (args->session_conn_id.tgid == 0) {
-        struct file_conn_hash_t *file_conn_hash;
-        H_FIND_I(file_conn_head, &args->session_conn_id.tgid, file_conn_hash);
-        if (file_conn_hash != NULL) {
-            (void)memcpy(args, &file_conn_hash->args, sizeof(struct session_data_args_s));
-            args->buf = NULL;
-        } else {
-            return -1;
-        }
-    }
-
-    return 0;
-}
-
 #define DELIM "|"
 #define JSSE_MSG "jsse_msg"
 #define SESSION_MSG "Session("
-#define JAVA_MSG_START_SEG 0
-#define JAVA_MSG_JSSE_SEG 1             // jsse_msg
-#define JAVA_MSG_PID_SEG 2              // <pid>
-#define JAVA_MSG_SESSIONID_SEG 3        // <session_id>
-#define JAVA_MSG_RWTYPE_SEG 6           // Read/Write
-#define JAVA_MSG_REMOTE_IP_SEG 7        // <IP>
-#define JAVA_MSG_REMOTE_PORT_SEG 8      // <port>
+#define JAVA_MSG_JSSE_SEG 2             // jsse_msg
+#define JAVA_MSG_PID_SEG 3              // <pid>
+#define JAVA_MSG_SESSIONID_SEG 4        // <session_id>
+#define JAVA_MSG_RWTYPE_SEG 7           // Read/Write
+#define JAVA_MSG_ROLE_SEG 8             // s/c, which means server or client
+#define JAVA_MSG_REMOTE_IP_SEG 9        // <IP>
+#define JAVA_MSG_REMOTE_PORT_SEG 10     // <port>
 
 /*
     java msg line may look like this:
@@ -146,12 +130,15 @@ static int set_session_data_args(struct session_data_args_s *args)
         testmessage second line....
 */
 // TODO: 考虑字符串里包含|的情况
-static int parse_java_msg_line(char *buffer, struct session_data_args_s *args)
+static int parse_java_msg_line(char *buf, struct session_data_args_s *args)
 {
+    int ret;
     char *token;
     int index = 0;
-
+    char *buffer = buf;
+    // buf is origin line. token is before DELIM. buffer is after DELIM.
     for (token = strsep(&buffer, DELIM); token != NULL; token = strsep(&buffer, DELIM)) {
+        index += 1;
         if (strcmp(token, "\n") == 0) {
             break;
         }
@@ -161,16 +148,6 @@ static int parse_java_msg_line(char *buffer, struct session_data_args_s *args)
         }
 
         switch (index) {
-            case JAVA_MSG_START_SEG:
-                if (token[0] != 0) {
-                    if (set_session_data_args(args) != 0) {
-                        return -1;
-                    }
-                    args->buf = token;
-                    args->bytes_count = strlen(token) + 1;
-                    return 0;
-                }
-                break;
             case JAVA_MSG_JSSE_SEG:
                 if (strncmp(token, JSSE_MSG, sizeof(JSSE_MSG) - 1) != 0) {
                     ERROR("[L7Probe]: parse java msg failed. %s\n", token);
@@ -192,18 +169,29 @@ static int parse_java_msg_line(char *buffer, struct session_data_args_s *args)
                     args->direct = L7_DIRECT_UNKNOW;
                 }
                 break;
+            case JAVA_MSG_ROLE_SEG:
+                if (token[0] == 's') {
+                    args->role = L4_SERVER;
+                } else if (token[0] == 'c'){
+                    args->role = L4_CLIENT;
+                } else {
+                    args->role = L4_UNKNOW;
+                }
+                break;
             case JAVA_MSG_REMOTE_IP_SEG:
                 (void)snprintf(args->ip, IP6_LEN, "%s", token);
                 break;
             case JAVA_MSG_REMOTE_PORT_SEG:
                 args->port = (int)atoi(token);
-                args->buf = buffer;
-                args->bytes_count = strlen(buffer) + 1;
-                return 0;
+                ret = snprintf(args->buf, CONN_DATA_MAX_SIZE, "%s", buffer);
+                if (ret < 1 || ret >= CONN_DATA_MAX_SIZE) {
+                    return -1;
+                }
+                args->bytes_count = ret;
+                return ret;
             default:
                 continue;
         }
-        index += 1;
     }
 
     return -1;
@@ -212,6 +200,11 @@ static int parse_java_msg_line(char *buffer, struct session_data_args_s *args)
 static void record_last_conn(struct file_ref_s *file_ref, struct session_data_args_s *args)
 {
     struct file_conn_hash_t *file_conn;
+
+    if (args == NULL) {
+        return;
+    }
+
     H_FIND_I(file_conn_head, &args->session_conn_id.tgid, file_conn);
     if (!file_conn) {
         file_conn = malloc(sizeof(struct file_conn_hash_t));
@@ -219,18 +212,17 @@ static void record_last_conn(struct file_ref_s *file_ref, struct session_data_ar
             ERROR("[L7PROBE]: record last conn malloc failed\n");
             return;
         }
+		(void)memset(file_conn, 0, sizeof(struct file_conn_hash_t));
+        H_ADD_I(file_conn_head, pid, file_conn);
     }
 
-    (void)memset(file_conn, 0, sizeof(struct file_conn_hash_t));
-    (void)memcpy(&file_conn->args, args, sizeof(struct session_data_args_s));
     file_conn->pid = args->session_conn_id.tgid;
     file_conn->pid_exits = 1;
-    file_conn->args.buf = NULL;
-    H_ADD_I(file_conn_head, pid, file_conn);
 }
 
 static void parse_java_msg(void *ctx, struct file_ref_s *file_ref)
 {
+    int ret, remain_len;
     if (ctx == NULL || file_ref == NULL) {
         return;
     }
@@ -238,9 +230,33 @@ static void parse_java_msg(void *ctx, struct file_ref_s *file_ref)
     struct session_data_args_s data_args = {.is_ssl = 1, .session_conn_id.tgid = file_ref->pid};
     char line[LINE_BUF_LEN];
     line[0] = 0;
+    char *pos;
     while (fgets(line, LINE_BUF_LEN, file_ref->fp) != NULL) {
-        if (parse_java_msg_line(line, &data_args) == 0) {
-            submit_sock_data_by_session(ctx, &data_args);
+        DEBUG("[L7PROBE]: to parse java msg: %s", line);
+        if (line[0] == '|') { // this is the beginning or end of the message
+            if (strlen(line) > 5 && line[1] == 'j' && line[2] == 's' && line[3] == 's' && line[4] == 'e') { // beginning
+                remain_len = CONN_DATA_MAX_SIZE;
+                pos = data_args.buf;
+                ret = parse_java_msg_line(line, &data_args);
+                if (ret < 1) {
+                    ERROR("[L7PROBE]: parse java msg failed: %s", line);
+                    continue;
+                }
+                remain_len -= ret;
+                pos += ret;
+            } else { // end
+                submit_sock_data_by_session(ctx, &data_args);
+                continue;
+            }
+        } else if (line[0] == 0){
+            continue;
+        } else {
+            ret = __snprintf(&pos, remain_len, &remain_len, "%s", line);
+            if (ret < 0) {
+                ERROR("[L7PROBE]: append java msg failed: %s", line);
+                continue;
+            }
+            data_args.bytes_count = CONN_DATA_MAX_SIZE - remain_len;
         }
         line[0] = 0;
     }
@@ -289,7 +305,7 @@ static void* l7_jsse_msg_handler(void *ctx)
     }
 
     while (1) {
-        sleep(DEFAULT_PERIOD);
+        sleep(1);
         set_pids_noexit();
         struct java_proc_s *item, *tmp;
         if (H_COUNT(l7_mng->java_procs) > 0) {
