@@ -67,8 +67,9 @@ static parse_state_t parse_chunked(struct raw_data_s *raw_data, size_t *offset, 
         // 指针偏移deli_pos + delimiter_len
         data += deli_pos + delimiter_len;
 
-        // 分块结束时末尾结束符为0，如果碰到结束符则退出
+        // 分块结束时末尾结束符为0，如果碰到结束符则退出，刷新指针位置
         if (chunked_len == 0) {
+            raw_data->current_pos = data - raw_data->data;
             break;
         }
 
@@ -128,7 +129,7 @@ static parse_state_t parse_request_body(struct raw_data_s *raw_data, struct http
             return STATE_INVALID;
         }
         if (content_len > raw_data->data_len - raw_data->current_pos) {
-            WARN("[HTTP1.x PARSER] Parsing request body needs more data.\n");
+            DEBUG("[HTTP1.x PARSER] Parsing request body needs more data.\n");
             return STATE_NEEDS_MORE_DATA;
         }
 //        frame_data->body = substr(raw_data->data, raw_data->current_pos, raw_data->current_pos + content_len);
@@ -191,7 +192,7 @@ static parse_state_t parse_response_body(struct raw_data_s *raw_data, struct htt
             return STATE_INVALID;
         }
         if (content_len > raw_data->data_len - raw_data->current_pos) {
-            WARN("[HTTP1.x PARSE] Parsing response body needs more data.\n");
+            DEBUG("[HTTP1.x PARSE] Parsing response body needs more data.\n");
             return STATE_NEEDS_MORE_DATA;
         }
 //        frame_data->body = substr(raw_data->data, raw_data->current_pos, raw_data->current_pos + content_len);
@@ -220,9 +221,9 @@ static parse_state_t parse_response_body(struct raw_data_s *raw_data, struct htt
         if (frame_data->resp_status == 101) {
             char *upgrade_str = get_1st_value_by_key(frame_data->headers, KEY_UPGRADE);
             if (upgrade_str == NULL) {
-                WARN("[HTTP1.x PARSER] Expected an Upgrade header with http status code 101.\n");
+                DEBUG("[HTTP1.x PARSER] Expected an Upgrade header with http status code 101.\n");
             }
-            WARN("[HTTP1.x PARSER] Http Upgrades are not supported yet.\n");
+            DEBUG("[HTTP1.x PARSER] Http Upgrades are not supported yet.\n");
             return STATE_EOS;
         }
         return STATE_SUCCESS;
@@ -252,7 +253,7 @@ static parse_state_t parse_request_frame(struct raw_data_s *raw_data, http_messa
 
     // 返回的retval若为-2，则表示部分解析成功，但需要更多数据来完成解析，指针不偏移
     if (offset == -2) {
-        WARN("[HTTP1.x PARSER] Parser needs more data.\n");
+        DEBUG("[HTTP1.x PARSER] Parser needs more data.\n");
         return STATE_NEEDS_MORE_DATA;
     }
 
@@ -300,7 +301,7 @@ static parse_state_t parse_response_frame(struct raw_data_s *raw_data, struct ht
 
     // 返回的offset若为-2，则表示部分解析成功，但需要更多数据来完成解析，指针不偏移
     if (offset == -2) {
-        WARN("[HTTP1.x PARSER] Parser needs more data.\n");
+        DEBUG("[HTTP1.x PARSER] Parser needs more data.\n");
         return STATE_NEEDS_MORE_DATA;
     }
 
@@ -354,7 +355,7 @@ parse_state_t http_parse_frame(enum message_type_t msg_type, struct raw_data_s *
             state = parse_response_frame(raw_data, http_msg);
             break;
         default:
-            WARN("[HTTP1.x PARSER] Message type invalid.\n");
+            DEBUG("[HTTP1.x PARSER] Message type invalid.\n");
             break;
     }
     if (state != STATE_SUCCESS) {
@@ -364,7 +365,7 @@ parse_state_t http_parse_frame(enum message_type_t msg_type, struct raw_data_s *
 
     *frame_data = (struct frame_data_s *) malloc(sizeof(struct frame_data_s));
     if ((*frame_data) == NULL) {
-        ERROR("[HTTP1.x PARSER] Failed to malloc frame_data.\n");
+        WARN("[HTTP1.x PARSER] Failed to malloc frame_data.\n");
         free_http_msg(http_msg);
         return STATE_INVALID;
     }
@@ -406,7 +407,7 @@ size_t http_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s 
             DEBUG("[HTTP1.x PARSER][Find Frame Boundary] Finding response boundary.\n");
             break;
         case MESSAGE_UNKNOW:
-            WARN("[HTTP1.x PARSER][Find Frame Boundary] Message type unknown, ignore it.\n");
+            DEBUG("[HTTP1.x PARSER][Find Frame Boundary] Message type unknown, ignore it.\n");
             return PARSER_INVALID_BOUNDARY_INDEX;
     }
 
@@ -425,7 +426,7 @@ size_t http_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s 
 
         // 如果pos数值不正确，返回-1
         if (marker_pos == -1) {
-            WARN("[HTTP1.x PARSER][Find Frame Boundary] Message marker CRLF not found , return INVALID state.\n");
+            DEBUG("[HTTP1.x PARSER][Find Frame Boundary] Message marker CRLF not found , return INVALID state.\n");
             return PARSER_INVALID_BOUNDARY_INDEX;
         }
 
@@ -458,6 +459,6 @@ size_t http_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s 
         // 5.找不到帧边界时，将指针移至 "\r\n\r\n" 标志的末尾，进行下一个帧边界的寻找
         // Couldn't find a start position. Move to the marker, and search for another marker.
         raw_data->current_pos = marker_pos + strlen(kBoundaryMarker);
-        WARN("[HTTP1.x PARSER][Find Frame Boundary] Frame boundary not found, move current_pos to the end of current marker, then find the next boundary.\n");
+        DEBUG("[HTTP1.x PARSER][Find Frame Boundary] Frame boundary not found, move current_pos to the end of current marker, then find the next boundary.\n");
     }
 }

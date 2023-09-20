@@ -26,7 +26,7 @@ parse_state_t pgsql_handle_query(struct pgsql_regular_msg_s *msg, struct frame_b
     size_t rsp_index = rsp_frames->current_pos;
 
     if (req_rsp->req == NULL) {
-        ERROR("[PGSQL MATCHER] Handling query, but req_rsp->req is null.\n");
+        WARN("[PGSQL MATCHER] Handling query, but req_rsp->req is null.\n");
         return STATE_INVALID;
     }
 
@@ -38,7 +38,7 @@ parse_state_t pgsql_handle_query(struct pgsql_regular_msg_s *msg, struct frame_b
         rsp_frame = rsp_frames->frames[rsp_index];
         rsp_msg = (struct pgsql_regular_msg_s *) rsp_frame->frame;
         if (req_rsp->resp == NULL) {
-            ERROR("[PGSQL MATCHER] Handling query, but req_rsp->resp is null.\n");
+            WARN("[PGSQL MATCHER] Handling query, but req_rsp->resp is null.\n");
             return STATE_INVALID;
         }
         if (rsp_msg->tag == PGSQL_EMPTY_QUERY_RESP) {
@@ -92,7 +92,7 @@ parse_state_t pgsql_handle_query(struct pgsql_regular_msg_s *msg, struct frame_b
         ++rsp_frames->current_pos;
     }
     if (!found_rsp) {
-        ERROR("[PGSQL MATCHER] Query response not found.\n");
+        WARN("[PGSQL MATCHER] Query response not found.\n");
         return STATE_INVALID;
     }
     return STATE_SUCCESS;
@@ -148,7 +148,7 @@ parse_state_t pgsql_fill_query_resp(struct frame_buf_s *rsp_frames, struct pgsql
         ++rsp_frames->current_pos;
     }
     if (!found_row_desc && !(found_cmd_complete || found_err_rsp)) {
-        ERROR("[PGSQL MATCHER] Did not find one of row description, error return or cmd complete.\n");
+        WARN("[PGSQL MATCHER] Did not find one of row description, error return or cmd complete.\n");
         return STATE_INVALID;
     }
     return STATE_SUCCESS;
@@ -163,7 +163,7 @@ parse_state_t set_cmd_cmpl_msg(void *req_rsp, enum pgsql_tag_t req_rsp_type, con
 
     convert_req_rsp = (struct pgsql_bind_req_resp_s *) req_rsp;
     if (convert_req_rsp->resp == NULL) {
-        ERROR("[PGSQL MATCHER] Set cmd complete message, but convert_req_rsp->resp is null.\n");
+        WARN("[PGSQL MATCHER] Set cmd complete message, but convert_req_rsp->resp is null.\n");
         return STATE_INVALID;
     }
 
@@ -215,7 +215,7 @@ parse_state_t set_error_msg(void *req_rsp, enum pgsql_tag_t req_rsp_type, struct
     if (req_rsp_type == PGSQL_PARSE_COMPLETE) {
         struct pgsql_parse_req_resp_s *convert_req_rsp = (struct pgsql_parse_req_resp_s *) req_rsp;
         if (convert_req_rsp->resp == NULL) {
-            ERROR("[PGSQL MATCHER] Set error message, but convert_req_rsp->resp is null.\n");
+            WARN("[PGSQL MATCHER] Set error message, but convert_req_rsp->resp is null.\n");
             return STATE_INVALID;
         }
         convert_req_rsp->resp->msg_type = ERR_RESP_MSG;
@@ -225,7 +225,7 @@ parse_state_t set_error_msg(void *req_rsp, enum pgsql_tag_t req_rsp_type, struct
     if (req_rsp_type == PGSQL_BIND_COMPLETE) {
         struct pgsql_bind_req_resp_s *convert_req_rsp = (struct pgsql_bind_req_resp_s *) req_rsp;
         if (convert_req_rsp->resp == NULL) {
-            ERROR("[PGSQL MATCHER] Set error message, but convert_req_rsp->resp is null.\n");
+            WARN("[PGSQL MATCHER] Set error message, but convert_req_rsp->resp is null.\n");
             return STATE_INVALID;
         }
         convert_req_rsp->resp->msg_type = ERR_RESP_MSG;
@@ -295,7 +295,7 @@ parse_state_t pgsql_handle_parse(struct pgsql_regular_msg_s *msg, struct frame_b
 
     req_rsp->req = parse;
     if (req_rsp->resp == NULL) {
-        ERROR("[PGSQL MATCHER] Handling parse, but req_rsp->resp is null.\n");
+        WARN("[PGSQL MATCHER] Handling parse, but req_rsp->resp is null.\n");
         return STATE_INVALID;
     }
     req_rsp->resp->timestamp_ns = parse_rsp->timestamp_ns;
@@ -351,7 +351,7 @@ parse_state_t pgsql_fill_stmt_desc_resp(struct frame_buf_s *rsp_frames, struct p
         return parse_param_desc;
     }
     if (++rsp_index == rsp_frames->frame_buf_size) {
-        ERROR("[PGSQL MATCHER] The buffer after parameter description msg is empty.\n");
+        WARN("[PGSQL MATCHER] The buffer after parameter description msg is empty.\n");
         return STATE_INVALID;
     }
 
@@ -370,7 +370,7 @@ parse_state_t pgsql_fill_stmt_desc_resp(struct frame_buf_s *rsp_frames, struct p
         return STATE_SUCCESS;
     }
 
-    ERROR("[PGSQL MATCHER] Row description or no data msg can not be found after parameter description msg.\n");
+    WARN("[PGSQL MATCHER] Row description or no data msg can not be found after parameter description msg.\n");
     return STATE_INVALID;
 }
 
@@ -408,7 +408,7 @@ parse_state_t pgsql_handle_describe(struct pgsql_regular_msg_s *msg, struct fram
     if (req_rsp->resp != NULL && req_rsp->req->desc_type == PGSQL_DESCRIBE_TYPE_PORTAL) {
         return pgsql_fill_portal_desc_resp(rsp_frames, req_rsp->resp);
     }
-    ERROR("[PGSQL MATCHER] Invalid describe target type: %c.\n", req_rsp->req->desc_type);
+    WARN("[PGSQL MATCHER] Invalid describe target type: %c.\n", req_rsp->req->desc_type);
     return STATE_INVALID;
 }
 
@@ -425,7 +425,7 @@ parse_state_t pgsql_handle_bind(struct pgsql_regular_msg_s *msg, struct frame_bu
 
     bind_req = init_pgsql_bind_req();
     if (bind_req == NULL) {
-        ERROR("[PGSQL MATCHER] Failed to malloc bind_req.\n");
+        WARN("[PGSQL MATCHER] Failed to malloc bind_req.\n");
         return STATE_INVALID;
     }
     parse_state = pgsql_parse_bind_req(msg, bind_req);
@@ -446,7 +446,7 @@ parse_state_t pgsql_handle_bind(struct pgsql_regular_msg_s *msg, struct frame_bu
 
     req_rsp->req = bind_req;
     if (req_rsp->resp == NULL) {
-        ERROR("[PGSQL MATCHER] Handling bind message, req_rsp->resp is null.\n");
+        WARN("[PGSQL MATCHER] Handling bind message, req_rsp->resp is null.\n");
         return STATE_INVALID;
     }
 
@@ -473,7 +473,7 @@ parse_state_t pgsql_handle_execute(struct pgsql_regular_msg_s *msg, struct frame
                                    struct frame_buf_s *rsp_frames, struct pgsql_execute_req_resp_s *req_rsp)
 {
     if (req_rsp->req == NULL) {
-        ERROR("[PGSQL MATCHER] Handling execute message, req_rsp.req is null.\n");
+        WARN("[PGSQL MATCHER] Handling execute message, req_rsp.req is null.\n");
         return STATE_INVALID;
     }
 
@@ -539,7 +539,7 @@ void handle_simple_query(struct pgsql_regular_msg_s *req, struct frame_buf_s *re
     }
     parse_query_state = pgsql_handle_query(req, req_frames, rsp_frames, req_rsp);
     if (parse_query_state != STATE_SUCCESS) {
-        INFO("[PGSQL MATCHER] An error occurred while processing a simple query, state: %d.\n", parse_query_state);
+        DEBUG("[PGSQL MATCHER] An error occurred while processing a simple query, state: %d.\n", parse_query_state);
         ++record_buf->err_count;
         free_pgsql_query_req_resp(req_rsp);
         return;
@@ -559,7 +559,7 @@ void handle_parse_req(struct pgsql_regular_msg_s *req, struct frame_buf_s *req_f
     }
     parse_parse_state = pgsql_handle_parse(req, req_frames, rsp_frames, req_rsp);
     if (parse_parse_state != STATE_SUCCESS) {
-        INFO("[PGSQL MATCHER] An error occurred while processing a parse request, state: %d.\n", parse_parse_state);
+        WARN("[PGSQL MATCHER] An error occurred while processing a parse request, state: %d.\n", parse_parse_state);
         ++record_buf->err_count;
         free_pgsql_parse_req_resp(req_rsp);
         return;
@@ -575,18 +575,18 @@ void handle_bind_req(struct pgsql_regular_msg_s *req, struct frame_buf_s *req_fr
     parse_state_t parse_bind_state;
     req_rsp = init_pgsql_bind_req_resp();
     if (req_rsp == NULL) {
-        ERROR("[PGSQL MATCHER] Handling bind req message, but req_rsp is null.\n");
+        DEBUG("[PGSQL MATCHER] Handling bind req message, but req_rsp is null.\n");
         return;
     }
     parse_bind_state = pgsql_handle_bind(req, req_frames, rsp_frames, req_rsp);
     if (parse_bind_state != STATE_SUCCESS) {
-        INFO("[PGSQL MATCHER] An error occurred while processing a bind request, state: %d.\n", parse_bind_state);
+        WARN("[PGSQL MATCHER] An error occurred while processing a bind request, state: %d.\n", parse_bind_state);
         ++record_buf->err_count;
         free_pgsql_bind_req_resp(req_rsp);
         return;
     }
     if (req_rsp->resp == NULL) {
-        ERROR("[PGSQL MATCHER] Handling bind req message, but req_rsp->resp is null.\n");
+        WARN("[PGSQL MATCHER] Handling bind req message, but req_rsp->resp is null.\n");
         free_pgsql_bind_req_resp(req_rsp);
         return;
     }
@@ -605,7 +605,7 @@ void handle_describe_req(struct pgsql_regular_msg_s *req, struct frame_buf_s *re
     }
     parse_desc_state = pgsql_handle_describe(req, req_frames, rsp_frames, req_rsp);
     if (parse_desc_state != STATE_SUCCESS) {
-        INFO("[PGSQL MATCHER] An error occurred while processing a describe request, state: %d.\n", parse_desc_state);
+        WARN("[PGSQL MATCHER] An error occurred while processing a describe request, state: %d.\n", parse_desc_state);
         ++record_buf->err_count;
         free_pgsql_describe_req_resp(req_rsp);
         return;
@@ -625,7 +625,7 @@ void handle_execute_req(struct pgsql_regular_msg_s *req, struct frame_buf_s *req
     }
     parse_exe_state = pgsql_handle_execute(req, req_frames, rsp_frames, req_rsp);
     if (parse_exe_state != STATE_SUCCESS) {
-        INFO("[PGSQL MATCHER] An error occurred while processing a execute request, state: %d.\n", parse_exe_state);
+        WARN("[PGSQL MATCHER] An error occurred while processing a execute request, state: %d.\n", parse_exe_state);
         ++record_buf->err_count;
         free_pgsql_execute_req_resp(req_rsp);
         return;
@@ -669,7 +669,7 @@ void pgsql_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *rsp_
             case PGSQL_CLOSE:
             case PGSQL_PASSWD:
                 req_msg->consumed = true;
-                INFO("[PGSQL MATCHER] Ignore tag: %c.\n", req_msg->tag);
+                DEBUG("[PGSQL MATCHER] Ignore tag: %c.\n", req_msg->tag);
                 break;
             case PGSQL_SIMPLE_QUERY:
                 handle_simple_query(req_msg, req_frames, rsp_frames, record_buf);
