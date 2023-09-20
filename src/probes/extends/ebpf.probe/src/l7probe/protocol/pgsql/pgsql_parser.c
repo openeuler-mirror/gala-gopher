@@ -31,7 +31,7 @@ parse_state_t pgsql_parse_regular_msg(struct raw_data_s *raw_data, struct pgsql_
 
     // 校验raw_data缓存长度是否合法
     if (CHECK_RAW_DATA_LEN) {
-        ERROR("[Pgsql parser] The raw_data length is insufficient.\n");
+        DEBUG("[Pgsql parser] The raw_data length is insufficient.\n");
         return STATE_NEEDS_MORE_DATA;
     }
 
@@ -96,7 +96,7 @@ parse_state_t pgsql_parse_startup_name_value(struct raw_data_s *raw_data_buf)
                 free(value);
                 value = NULL;
             }
-            ERROR("[Pgsql parser] Failed to parse startup msg , not enough data to extract payload value.\n");
+            WARN("[Pgsql parser] Failed to parse startup msg , not enough data to extract payload value.\n");
             return STATE_INVALID;
         }
         if (value != NULL) {
@@ -113,7 +113,7 @@ parse_state_t pgsql_parse_startup_msg(struct raw_data_s *raw_data, struct pgsql_
 
     // 校验raw_data缓存长度是否合法
     if (CHECK_RAW_DATA_LEN) {
-        ERROR("[Pgsql parser] The raw_data length is insufficient.\n");
+        DEBUG("[Pgsql parser] The raw_data length is insufficient.\n");
         return STATE_NEEDS_MORE_DATA;
     }
 
@@ -135,7 +135,7 @@ parse_state_t pgsql_parse_startup_msg(struct raw_data_s *raw_data, struct pgsql_
 
     // 校验缓存区剩余容量是否足够获取payload
     if ((raw_data->data_len - raw_data->current_pos) < (msg->len - PGSQL_MSG_HEADER_SIZE)) {
-        ERROR("[Pgsql parser] Failed to parse startup msg, not enough data.\n");
+        WARN("[Pgsql parser] Failed to parse startup msg, not enough data.\n");
         return STATE_INVALID;
     }
 
@@ -203,7 +203,7 @@ parse_state_t pgsql_parse_row_desc(struct pgsql_regular_msg_s *msg, struct pgsql
     row_desc->timestamp_ns = msg->timestamp_ns;
 
     if (msg->payload_data == NULL || msg->payload_data->data_len == 0) {
-        ERROR(
+        WARN(
             "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.\n");
         return STATE_INVALID;
     }
@@ -218,7 +218,7 @@ parse_state_t pgsql_parse_row_desc(struct pgsql_regular_msg_s *msg, struct pgsql
         parse_state_t parse_state;
         field = init_pgsql_row_desc_field();
         if (field == NULL) {
-            ERROR("[Pgsql parser] Failed to malloc struct pgsql_row_desc_field_s*.\n");
+            WARN("[Pgsql parser] Failed to malloc struct pgsql_row_desc_field_s*.\n");
             return STATE_INVALID;
         }
         parse_state = pgsql_extract_row_desc_field(msg->payload_data, field);
@@ -245,7 +245,7 @@ parse_state_t pgsql_parse_data_row(struct pgsql_regular_msg_s *msg, struct pgsql
     data_row->colum_values_len = 0;
 
     if (msg->payload_data == NULL || msg->payload_data->data_len == 0) {
-        ERROR(
+        WARN(
             "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.\n");
         return STATE_INVALID;
     }
@@ -295,7 +295,7 @@ parse_state_t pgsql_parse_bind_req(struct pgsql_regular_msg_s *msg, struct pgsql
     bind_req->timestamp_ns = msg->timestamp_ns;
 
     if (msg->payload_data == NULL || msg->payload_data->data_len == 0) {
-        ERROR(
+        WARN(
             "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.\n");
         return STATE_INVALID;
     }
@@ -335,7 +335,7 @@ parse_state_t pgsql_parse_param_desc(struct pgsql_regular_msg_s *msg, struct pgs
     param_desc->timestamp_ns = msg->timestamp_ns;
 
     if (msg->payload_data == NULL || msg->payload_data->data_len == 0) {
-        ERROR(
+        WARN(
             "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.\n");
         return STATE_INVALID;
     }
@@ -367,7 +367,7 @@ parse_state_t pgsql_parse_parse_msg(struct pgsql_regular_msg_s *msg, struct pgsq
     parse_req->timestamp_ns = msg->timestamp_ns;
 
     if (msg->payload_data == NULL || msg->payload_data->data_len == 0) {
-        ERROR(
+        WARN(
             "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.\n");
         return STATE_INVALID;
     }
@@ -407,7 +407,7 @@ parse_state_t pgsql_parse_err_resp(struct pgsql_regular_msg_s *msg, struct pgsql
     parse_state_t extract_value_state;
     err_resp->timestamp_ns = msg->timestamp_ns;
     if (msg->payload_data == NULL || msg->payload_data->data_len == 0) {
-        ERROR(
+        WARN(
             "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.\n");
         return STATE_INVALID;
     }
@@ -457,7 +457,7 @@ parse_state_t pgsql_parse_describe(struct pgsql_regular_msg_s *msg, struct pgsql
     parse_state_t extract_name_state;
     desc_req->timestamp_ns = msg->timestamp_ns;
     if (msg->payload_data == NULL || msg->payload_data->data_len == 0) {
-        ERROR(
+        WARN(
             "[Pgsql parser] Failed to get payload_data of msg, msg->payload_data is null or msg->payload_data->data_len is 0.\n");
         return STATE_INVALID;
     }
@@ -495,7 +495,7 @@ parse_state_t pgsql_parse_frame(struct raw_data_s *raw_data, struct frame_data_s
 
     // 校验raw_data缓存长度是否合法
     if (CHECK_RAW_DATA_LEN) {
-        ERROR("[Pgsql parser] The raw_data length is insufficient.\n");
+        DEBUG("[Pgsql parser] The raw_data length is insufficient.\n");
         return STATE_NEEDS_MORE_DATA;
     }
 

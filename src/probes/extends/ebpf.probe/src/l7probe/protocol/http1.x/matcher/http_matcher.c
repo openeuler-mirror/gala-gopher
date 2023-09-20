@@ -90,7 +90,7 @@ void http_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *resp_
 
         // 循环默认假定req的数量一定大于等于resp，这也符合正常情况。此处异常分支处理跳出循环
         if (record.req == NULL) {
-            WARN("[HTTP1.x MATCHER] There's no req in the record, break the cycle.\n");
+            DEBUG("[HTTP1.x MATCHER] There's no req in the record, break the cycle.\n");
             break;
         }
 
