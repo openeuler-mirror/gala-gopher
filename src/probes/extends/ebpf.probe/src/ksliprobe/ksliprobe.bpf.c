@@ -30,6 +30,27 @@
 
 char g_license[] SEC("license") = "GPL";
 
+struct stash_args {
+    unsigned int fd;
+    char *buf;
+};
+
+// cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_read/format
+struct sys_enter_read_args {
+    unsigned long long __unused__;
+    long __syscall_nr;
+    unsigned int fd;
+    char *buf;
+    u64 count;
+};
+
+// cat /sys/kernel/debug/tracing/events/syscalls/sys_exit_read/format
+struct sys_exit_read_args {
+    unsigned long long __unused__;
+    long __syscall_nr;
+    int ret;
+};
+
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(key_size, sizeof(struct conn_key_t));
@@ -50,6 +71,13 @@ struct {
     __uint(value_size, sizeof(struct ksli_args_s)); // args
     __uint(max_entries, 1);
 } args_map SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(u64));
+    __uint(value_size, sizeof(struct stash_args));
+    __uint(max_entries, 10 * 1024);
+} stash_args_map SEC(".maps");
 
 enum samp_status_t {
     SAMP_INIT = 0,
@@ -257,7 +285,7 @@ static __always_inline int parse_req(struct conn_data_t *conn_data, const unsign
     return PROTOCOL_NO_REDIS;
 }
 
-static __always_inline int periodic_report(u64 ts_nsec, struct conn_data_t *conn_data, struct pt_regs *ctx)
+static __always_inline int periodic_report(u64 ts_nsec, struct conn_data_t *conn_data, void *ctx)
 {
     long err;
     int ret = 0;
@@ -320,7 +348,7 @@ static __always_inline void mark_no_redis_conn(struct conn_data_t *conn_data)
 }
 
 static __always_inline void process_rd_msg(u32 tgid, int fd, const char *buf, const unsigned int count,
-                                             struct pt_regs *ctx)
+                                           void *ctx)
 {
     struct conn_key_t conn_key = {0};
     struct conn_data_t *conn_data;
@@ -389,11 +417,17 @@ static __always_inline void process_rd_msg(u32 tgid, int fd, const char *buf, co
     return;
 }
 
-KPROBE(ksys_read, pt_regs)
+bpf_section("tracepoint/syscalls/sys_enter_read")
+int function_sys_enter_read(struct sys_enter_read_args *ctx)
 {
-    int fd = (int)PT_REGS_PARM1(ctx);
+    int fd = ctx->fd;
+    if (fd == 0) {
+        return 0;
+    }
+
     struct conn_key_t conn_key = {0};
-    u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;
+    u64 key = bpf_get_current_pid_tgid();
+    u32 tgid = (u32)(key >> INT_LEN);
     init_conn_key(&conn_key, fd, tgid);
 
     struct conn_data_t * conn_data = (struct conn_data_t *)bpf_map_lookup_elem(&conn_map, &conn_key);
@@ -413,29 +447,31 @@ KPROBE(ksys_read, pt_regs)
             return 0;
     }
 
-    KPROBE_PARMS_STASH(ksys_read, ctx, CTX_USER);
+    struct stash_args in_params = {0};
+    in_params.fd = fd;
+    in_params.buf = ctx->buf;
+    (void)bpf_map_update_elem(&stash_args_map, &key, &in_params, BPF_ANY);
     return 0;
 }
 
-// 跟踪连接 read 读消息
-KRETPROBE(ksys_read, pt_regs)
+bpf_section("tracepoint/syscalls/sys_exit_read")
+int function_sys_exit_read(struct sys_exit_read_args *ctx)
 {
-    struct probe_val val;
-    int err;
-
-    err = PROBE_GET_PARMS(ksys_read, ctx, val, CTX_USER);
-    if (err < 0) {
+    u64 key = bpf_get_current_pid_tgid();
+    struct stash_args *in_params = (struct stash_args *)bpf_map_lookup_elem(&stash_args_map, &key);
+    if (in_params == (void *)0) {
         return 0;
     }
+    int fd = in_params->fd;
+    char *buf = in_params->buf;
+    (void)bpf_map_delete_elem(&stash_args_map, &key);
 
-    int count = PT_REGS_RC(ctx);
+    int count = ctx->ret;
     if (count <= 0) {
         return 0;
     }
 
-    int fd = (int)PROBE_PARM1(val);
-    char *buf = (char *)PROBE_PARM2(val);
-    u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;
+    u32 tgid = (u32)(key >> INT_LEN);
     process_rd_msg(tgid, fd, buf, count, ctx);
 
     return 0;
