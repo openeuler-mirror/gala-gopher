@@ -127,18 +127,23 @@ static int cmp_sock_conn(struct conn_info_s *conn_info, struct session_data_args
         return -1;
     }
 
-    u16 family = strlen(args->ip) == IP6_LEN ? AF_INET6 : AF_INET;
-    if (conn_info->remote_addr.family != family) {
-        return -1;
-    }
-
-    if (ntohs(conn_info->remote_addr.port) != args->port) {
-        return -1;
-    }
-
     char ip_s[INET6_ADDRSTRLEN];
-    (void)ip_str(conn_info->remote_addr.family, (unsigned char *)&(conn_info->remote_addr.ip),
-                 (unsigned char *)ip_s, INET6_ADDRSTRLEN);
+    if (args->role == L4_SERVER) {
+        if (conn_info->client_addr.port != args->port) {
+            return -1;
+        }
+        (void)ip_str(conn_info->client_addr.family, (unsigned char *)&(conn_info->client_addr.ip),
+                    (unsigned char *)ip_s, INET6_ADDRSTRLEN);
+    } else if (args->role == L4_CLIENT) {
+        if (conn_info->server_addr.port != args->port) {
+            return -1;
+        }
+        (void)ip_str(conn_info->server_addr.family, (unsigned char *)&(conn_info->server_addr.ip),
+                    (unsigned char *)ip_s, INET6_ADDRSTRLEN);
+    } else {
+        return -1;
+    }
+
     if (strncmp(ip_s, args->ip, INET6_ADDRSTRLEN) != 0) {
         return -1;
     }
@@ -161,9 +166,9 @@ static int find_session_sock(struct l7_mng_s *l7_mng, struct session_data_args_s
         }
 
         if (cmp_sock_conn(&sock_conn.info, args) == 0){
-            matched_conn_id->tgid = key.tgid;
-            matched_conn_id->fd = key.fd;
-            return 0;
+            matched_conn_id->tgid = next_key.tgid;
+            matched_conn_id->fd = next_key.fd;
+            return 0;  
         }
 
         key = next_key;
@@ -232,7 +237,7 @@ err:
     if (session_hash != NULL) {
         H_DEL(session_head, session_hash);
     }
-    ERROR("[L7PROBE]: Unable to match session connection and socket connection.");
+    ERROR("[L7PROBE]: Unable to match session connection and socket connection.\n");
     return -1;
 }
 
@@ -247,11 +252,7 @@ void submit_sock_data_by_session(void *ctx, struct session_data_args_s *args)
     if (ret) {
         return;
     }
-
-    if (sock_conn.info.is_ssl != args->is_ssl) {
-        return;
-    }
-
+    sock_conn.info.is_ssl = 1;
     if (update_sock_conn_proto(&sock_conn, args->direct, args->buf, args->bytes_count)) {
         return;
     }
@@ -261,7 +262,7 @@ void submit_sock_data_by_session(void *ctx, struct session_data_args_s *args)
 
     submit_conn_data_user(ctx, args, conn_data, args->bytes_count);
     submit_sock_conn_stats(ctx, &sock_conn, args->direct, args->bytes_count);
-
+    bpf_map_update_elem(((struct l7_mng_s *)ctx)->bpf_progs.conn_tbl_fd, &sock_conn.info, &sock_conn, BPF_ANY);
     return;
 }
 

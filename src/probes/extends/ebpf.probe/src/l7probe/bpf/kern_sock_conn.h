@@ -24,7 +24,7 @@
 #define __MAX_CONN_COUNT    1000
 
 struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(type, BPF_MAP_TYPE_LRU_HASH);
     __uint(key_size, sizeof(struct conn_id_s));
     __uint(value_size, sizeof(struct sock_conn_s));
     __uint(max_entries, __MAX_CONN_COUNT);

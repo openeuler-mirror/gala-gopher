@@ -28,7 +28,8 @@ struct session_data_args_s {
     int port;
     char ip[INET6_ADDRSTRLEN];
     enum l7_direction_t direct;
-    char *buf;
+    enum l4_role_t role;
+    char buf[CONN_DATA_MAX_SIZE];
     size_t bytes_count;
     char is_ssl;
 };
