@@ -197,6 +197,10 @@ static void unload_libssl_prog(struct l7_mng_s *l7_mng)
 static void unload_kern_sock_prog(struct l7_mng_s *l7_mng)
 {
     unload_bpf_prog(&(l7_mng->bpf_progs.kern_sock_prog));
+    l7_mng->bpf_progs.conn_tbl_fd = -1;
+    l7_mng->bpf_progs.l7_tcp_fd = -1;
+    l7_mng->bpf_progs.filter_args_fd = -1;
+    l7_mng->bpf_progs.proc_obj_map_fd = -1;
 }
 
 static void unload_l7_prog(struct l7_mng_s *l7_mng)
@@ -412,6 +416,7 @@ int main(int argc, char **argv)
                 break;
             }
 
+            l7_unload_probe_jsse(l7_mng);
             unload_l7_snoopers(l7_mng->bpf_progs.proc_obj_map_fd, &(l7_mng->ipc_body));
             destroy_ipc_body(&(l7_mng->ipc_body));
 
@@ -420,8 +425,8 @@ int main(int argc, char **argv)
             (void)l7_load_tcp_fd(l7_mng);
             load_l7_snoopers(l7_mng->bpf_progs.proc_obj_map_fd, &(l7_mng->ipc_body));
 
-            l7_unload_probe_jsse(l7_mng);
             if (l7_load_probe_jsse(l7_mng) < 0) {
+                destroy_ipc_body(&ipc_body);
                 break;
             }
 
