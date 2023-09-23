@@ -150,12 +150,15 @@ struct conn_data_msg_s {
     enum proto_type_t proto;
     enum l7_role_t l7_role;     // RPC client or server
     enum l7_direction_t direction;
+    char is_ssl;
+    char pad[3];
+
     struct conn_id_s conn_id;
 
     u64 timestamp_ns;    // The timestamp when syscall completed.
     u64 offset_pos;      // The position is for the first data of this message.
-    size_t data_size;    // The actually data size, maybe less than msg_size.
-    size_t payload_size; // The size that bpf will submit to the map.
+    u32 data_size;       // The actually data size, maybe less than msg_size.
+    u32 payload_size;    // The size that bpf will submit to the map.
 };
 
 struct conn_data_buf_s {
