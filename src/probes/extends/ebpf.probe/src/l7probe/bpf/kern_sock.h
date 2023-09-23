@@ -150,7 +150,7 @@ static __always_inline void submit_perf_buf(void* ctx, char *buf, size_t bytes_c
     }
 
     copied_size = (bytes_count > CONN_DATA_MAX_SIZE) ? CONN_DATA_MAX_SIZE : bytes_count;
-    conn_data->msg.data_size = copied_size;
+    conn_data->msg.data_size = (u32)copied_size;
 
 #ifdef __USE_RING_BUF
     struct conn_data_s *conn_data_tmp = bpf_ringbuf_reserve(&conn_tracker_events, sizeof(struct conn_data_s), 0);
@@ -160,12 +160,12 @@ static __always_inline void submit_perf_buf(void* ctx, char *buf, size_t bytes_c
     __builtin_memcpy(&(conn_data_tmp->msg), &(conn_data->msg), sizeof(conn_data->msg));
     bpf_probe_read(conn_data_tmp->buf.data, copied_size & CONN_DATA_MAX_SIZE, buf);
 
-    conn_data_tmp->msg.payload_size = sizeof(conn_data->buf);
+    conn_data_tmp->msg.payload_size = (u32)sizeof(conn_data->buf);
     conn_data_tmp->msg.evt = TRACKER_EVT_DATA;
     bpf_ringbuf_submit(conn_data_tmp, 0);
 #else
     bpf_probe_read(conn_data->buf.data, copied_size & CONN_DATA_MAX_SIZE, buf);
-    conn_data->msg.payload_size = copied_size;
+    conn_data->msg.payload_size = (u32)copied_size;
     conn_data->msg.evt = TRACKER_EVT_DATA;
     (void)bpf_perf_event_output(ctx, &conn_tracker_events, BPF_F_CURRENT_CPU, conn_data,
         sizeof(struct conn_data_msg_s) + copied_size & CONN_DATA_MAX_SIZE);
@@ -187,6 +187,7 @@ static __always_inline __maybe_unused struct conn_data_s* store_conn_data_buf(en
     conn_data->msg.direction = direction;
     conn_data->msg.conn_id = sock_conn->info.id;
     conn_data->msg.proto = sock_conn->info.protocol;
+    conn_data->msg.is_ssl = sock_conn->info.is_ssl;
     conn_data->msg.l7_role = sock_conn->info.l7_role;
     conn_data->msg.offset_pos = (direction == L7_EGRESS) ? sock_conn->wr_bytes : sock_conn->rd_bytes;
     return conn_data;

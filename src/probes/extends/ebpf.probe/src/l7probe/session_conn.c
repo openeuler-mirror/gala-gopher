@@ -50,6 +50,7 @@ static void set_conn_data(enum l7_direction_t direction, struct sock_conn_s* soc
     conn_data->msg.direction = direction;
     conn_data->msg.conn_id = sock_conn->info.id;
     conn_data->msg.proto = sock_conn->info.protocol;
+    conn_data->msg.is_ssl = sock_conn->info.is_ssl;
     conn_data->msg.l7_role = sock_conn->info.l7_role;
     conn_data->msg.offset_pos = (direction == L7_EGRESS) ? sock_conn->wr_bytes : sock_conn->rd_bytes;
 
@@ -65,8 +66,8 @@ static void submit_perf_buf_user(void *ctx, char *buf, size_t bytes_count, struc
 
     copied_size = (bytes_count > CONN_DATA_MAX_SIZE) ? CONN_DATA_MAX_SIZE : bytes_count;
     memcpy(conn_data->buf.data, buf, copied_size);
-    conn_data->msg.data_size = copied_size;
-    conn_data->msg.payload_size = copied_size;
+    conn_data->msg.data_size = (u32)copied_size;
+    conn_data->msg.payload_size = (u32)copied_size;
     conn_data->msg.evt = TRACKER_EVT_DATA;
     trakcer_msg_pb(ctx, 0, conn_data, sizeof(struct conn_data_msg_s) + copied_size);
     return;
@@ -168,7 +169,7 @@ static int find_session_sock(struct l7_mng_s *l7_mng, struct session_data_args_s
         if (cmp_sock_conn(&sock_conn.info, args) == 0){
             matched_conn_id->tgid = next_key.tgid;
             matched_conn_id->fd = next_key.fd;
-            return 0;  
+            return 0;
         }
 
         key = next_key;
