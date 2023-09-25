@@ -158,7 +158,7 @@ static int add_con_hash(struct containers_hash_t **con_head, char *con_id)
     return 0;
 }
 
-static void set_con_info(struct pod_info_s *pod_info, char *con_id,  struct containers_hash_t *con)
+static int set_con_info(struct pod_info_s *pod_info, char *con_id,  struct containers_hash_t *con)
 {
     con->con_info.pod_info_ptr = pod_info;
 
@@ -169,17 +169,35 @@ static void set_con_info(struct pod_info_s *pod_info, char *con_id,  struct cont
     int ret = get_container_cpucg_inode((const char *)con_id, &con->con_info.cpucg_inode);
     if (ret) {
         ERROR("Failed to get cpucg inode of container %s.\n", con_id);
+        return -1;
     }
 
     ret = get_container_name(con_id, con->con_info.container_name, CONTAINER_NAME_LEN);
     if (ret) {
         ERROR("Failed to get container name of container %s.\n", con_id);
+        return -1;
     }
 
     get_elf_path_by_con_id(con_id, con->con_info.libc_path, PATH_LEN, "libc");
     get_elf_path_by_con_id(con_id, con->con_info.libssl_path, PATH_LEN, "libssl");
 
-    return;
+    return 0;
+}
+
+static void del_one_con(struct pod_info_s *pod_info, char *con_id)
+{
+    struct containers_hash_t *con;
+
+    if (pod_info->con_head == NULL) {
+        return;
+    }
+
+    H_FIND_S(pod_info->con_head, con_id, con);
+    if (con != NULL) {
+        //print_pod_state_metrics(pod_info, con, "destroy_container");
+        H_DEL(pod_info->con_head, con);
+        (void)free(con);
+    }
 }
 
 static struct containers_hash_t *add_one_con(struct pod_info_s *pod_info, char *con_id)
@@ -203,26 +221,13 @@ static struct containers_hash_t *add_one_con(struct pod_info_s *pod_info, char *
         return NULL;
     }
 
-    set_con_info(pod_info, con_id, con);
+    if (set_con_info(pod_info, con_id, con) != 0) {
+        del_one_con(pod_info, con_id);
+        return NULL;
+    }
     // print_pod_state_metrics(pod_info, con, "create_container");
 
     return con;
-}
-
-static void del_one_con(struct pod_info_s *pod_info, char *con_id)
-{
-    struct containers_hash_t *con;
-
-    if (pod_info->con_head == NULL) {
-        return;
-    }
-
-    H_FIND_S(pod_info->con_head, con_id, con);
-    if (con != NULL) {
-        //print_pod_state_metrics(pod_info, con, "destroy_container");
-        H_DEL(pod_info->con_head, con);
-        (void)free(con);
-    }
 }
 
 static void del_cons(struct containers_hash_t **con_head)
@@ -365,18 +370,20 @@ void existing_pod_mk_process(char *pod_id)
     return;
 }
 
-void add_pod_con_map(char *pod_id, char *con_id, enum id_ret_t id_ret)
+int add_pod_con_map(char *pod_id, char *con_id, enum id_ret_t id_ret)
 {
     struct pods_hash_t *pod = add_one_pod(pod_id, con_id, id_ret);
     if (pod == NULL) {
-        return;
+        return -1;
     }
 
     if (id_ret == ID_CON_POD || id_ret == ID_CON_ONLY) {
-        add_one_con(&pod->pod_info, con_id);
+        if (!add_one_con(&pod->pod_info, con_id)) {
+            return -1;
+        }
     }
 
-    return;
+    return 0;
 }
 
 void del_pod_con_map(char *pod_id, char *con_id, enum id_ret_t id_ret)
@@ -411,7 +418,9 @@ struct con_info_s *get_and_add_con_info(char *pod_id, char *container_id)
     }
 
     // add_con_info
-    add_pod_con_map(pod_id, con_id, ID_CON_ONLY);
+    if (add_pod_con_map(pod_id, con_id, ID_CON_ONLY) != 0) {
+        return NULL;
+    }
 
     return get_con_info(pod_id, con_id);
 }
