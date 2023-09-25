@@ -1252,9 +1252,8 @@ static int gen_snooper_by_pod(struct probe_s *probe)
 
         pod_info = get_and_add_pod_info(snooper_conf->conf.pod_id);
         if (pod_info == NULL) {
-            ERROR("[SNOOPER] Fail to get info of pod %s\n", snooper_conf->conf.pod_id);
-            free_con_id_list(con_id_list);
-            return -1;
+            WARN("[SNOOPER] Fail to get info of pod %s\n", snooper_conf->conf.pod_id);
+            continue;
         }
 
         if (pod_info->con_head == NULL) {
