@@ -123,7 +123,7 @@ static int l7_load_jsse_agent(struct l7_mng_s *l7_mng, struct java_attach_args *
 
 /*
     java msg line may look like this:
-        |jsse_msg|662220|Session(1688648699909|TLS_AES_256_GCM_SHA384)|1688648699989|Write|127.0.0.1|58302|This is test message|
+        |jsse_msg|662220|Session(1688648699909|TLS_AES_256_GCM_SHA384)|1688648699989|Write|s|127.0.0.1|58302|This is test message|
     or this:
         |
     or this:
@@ -232,11 +232,12 @@ static void parse_java_msg(void *ctx, struct file_ref_s *file_ref)
     line[0] = 0;
     char *pos;
     while (fgets(line, LINE_BUF_LEN, file_ref->fp) != NULL) {
-        DEBUG("[L7PROBE]: to parse java msg: %s", line);
+        DEBUG("[L7PROBE]: to parse java msg: %c,%s", line[0],line);
         if (line[0] == '|') { // this is the beginning or end of the message
+            submit_sock_data_by_session(ctx, &data_args);
+            remain_len = CONN_DATA_MAX_SIZE;
+            pos = data_args.buf;
             if (strlen(line) > 5 && line[1] == 'j' && line[2] == 's' && line[3] == 's' && line[4] == 'e') { // beginning
-                remain_len = CONN_DATA_MAX_SIZE;
-                pos = data_args.buf;
                 ret = parse_java_msg_line(line, &data_args);
                 if (ret < 1) {
                     ERROR("[L7PROBE]: parse java msg failed: %s", line);
@@ -244,11 +245,10 @@ static void parse_java_msg(void *ctx, struct file_ref_s *file_ref)
                 }
                 remain_len -= ret;
                 pos += ret;
-            } else { // end
-                submit_sock_data_by_session(ctx, &data_args);
+            } else {
                 continue;
             }
-        } else if (line[0] == 0){
+        } else if (line[0] == 0) {
             continue;
         } else {
             ret = __snprintf(&pos, remain_len, &remain_len, "%s", line);
@@ -260,7 +260,7 @@ static void parse_java_msg(void *ctx, struct file_ref_s *file_ref)
         }
         line[0] = 0;
     }
-
+    submit_sock_data_by_session(ctx, &data_args);
     record_last_conn(file_ref, &data_args);
     return;
 }
