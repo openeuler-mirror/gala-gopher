@@ -570,9 +570,11 @@ static __inline enum message_type_t __get_pgsql_type(const char* buf, size_t cou
         return MESSAGE_UNKNOW;
     }
 
-    // A complete flow starts with simple/extend query, so we can only judge query message here
+    // A complete flow starts with simple query('Q') or extend query('P') so we can infer by query tag here.
+    // We also noticed that the flow may reuse the 'P' each query and starts with Bind('B'), so add this condition
+    // in order to infer the protocol ASAP.
     // TODO: infer pgsql startup message
-    if ((buf[0] == 'Q' || buf[0] == 'P') && buf[1] == '\0') {
+    if ((buf[0] == 'Q' || buf[0] == 'P' || buf[0] == 'B') && buf[1] == '\0') {
         return MESSAGE_REQUEST;
     }
 

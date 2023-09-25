@@ -103,6 +103,7 @@ parse_state_t pgsql_fill_query_resp(struct frame_buf_s *rsp_frames, struct pgsql
     bool found_row_desc = false;
     bool found_cmd_complete = false;
     bool found_err_rsp = false;
+    bool found_empty_rsp = false;
     size_t rsp_index = rsp_frames->current_pos;
     for (; rsp_index < rsp_frames->frame_buf_size; ++rsp_index) {
         struct frame_data_s *rsp_frame;
@@ -131,6 +132,12 @@ parse_state_t pgsql_fill_query_resp(struct frame_buf_s *rsp_frames, struct pgsql
             rsp_msg->consumed = true;
             break;
         }
+        if (rsp_msg->tag == PGSQL_EMPTY_QUERY_RESP) {
+            found_empty_rsp = true;
+            query_rsp->timestamp_ns = rsp_msg->timestamp_ns;
+            rsp_msg->consumed = true;
+            break;
+        }
         if (rsp_msg->tag == PGSQL_ROW_DESCRIPTION) {
             // req_rsp->resp->row_desc内容不做解析，后续有需要可调用pgsql_parse_row_desc()
             found_row_desc = true;
@@ -147,8 +154,8 @@ parse_state_t pgsql_fill_query_resp(struct frame_buf_s *rsp_frames, struct pgsql
     if (rsp_frames->current_pos != rsp_frames->frame_buf_size) {
         ++rsp_frames->current_pos;
     }
-    if (!found_row_desc && !(found_cmd_complete || found_err_rsp)) {
-        WARN("[PGSQL MATCHER] Did not find one of row description, error return or cmd complete.\n");
+    if (!found_row_desc && !(found_cmd_complete || found_err_rsp || found_empty_rsp)) {
+        WARN("[PGSQL MATCHER] Did not find one of row description, error return, empty response or cmd complete.\n");
         return STATE_INVALID;
     }
     return STATE_SUCCESS;
@@ -323,7 +330,7 @@ parse_state_t pgsql_fill_stmt_desc_resp(struct frame_buf_s *rsp_frames, struct p
     struct pgsql_regular_msg_s *param_desc_rsp;
     parse_state_t parse_param_desc;
     struct pgsql_regular_msg_s *row_desc;
-    enum pgsql_tag_t tags[] = {PGSQL_ROW_DESCRIPTION, PGSQL_ERR_RETURN};
+    enum pgsql_tag_t tags[] = {PGSQL_ROW_DESCRIPTION, PGSQL_NO_DATA, PGSQL_ERR_RETURN};
     rsp_index = pgsql_find_first_tag(rsp_frames, tags, sizeof(tags) / sizeof(enum pgsql_tag_t));
     if (rsp_index == rsp_frames->frame_buf_size) {
         ERROR("[PGSQL MATCHER] Did not find row description for statement or error response message.\n");
@@ -335,6 +342,12 @@ parse_state_t pgsql_fill_stmt_desc_resp(struct frame_buf_s *rsp_frames, struct p
     rsp_frames->current_pos = rsp_index + 1;
 
     desc_rsp->timestamp_ns = param_desc_rsp->timestamp_ns;
+    if (param_desc_rsp->tag == PGSQL_NO_DATA) {
+        desc_rsp->is_no_data = true;
+        param_desc_rsp->consumed = true;
+        return STATE_SUCCESS;
+    }
+
     if (param_desc_rsp->tag == PGSQL_ERR_RETURN) {
         parse_state_t parse_state;
         desc_rsp->is_err_resp = true;
@@ -378,7 +391,7 @@ parse_state_t pgsql_fill_portal_desc_resp(struct frame_buf_s *rsp_frames, struct
 {
     size_t rsp_index;
     struct pgsql_regular_msg_s *param_desc_rsp;
-    enum pgsql_tag_t tags[] = {PGSQL_ROW_DESCRIPTION, PGSQL_ERR_RETURN};
+    enum pgsql_tag_t tags[] = {PGSQL_ROW_DESCRIPTION, PGSQL_NO_DATA, PGSQL_ERR_RETURN};
     rsp_index = pgsql_find_first_tag(rsp_frames, tags, sizeof(tags) / sizeof(enum pgsql_tag_t));
     if (rsp_index == rsp_frames->frame_buf_size) {
         ERROR("[PGSQL MATCHER] Did not find row description for portal or error response message.\n");
@@ -388,6 +401,13 @@ parse_state_t pgsql_fill_portal_desc_resp(struct frame_buf_s *rsp_frames, struct
 
     // 刷新rsp_frames当前位置
     rsp_frames->current_pos = rsp_index + 1;
+    desc_rsp->timestamp_ns = param_desc_rsp->timestamp_ns;
+    if (param_desc_rsp->tag == PGSQL_NO_DATA) {
+        desc_rsp->is_no_data = true;
+        param_desc_rsp->consumed = true;
+        return STATE_SUCCESS;
+    }
+
     if (param_desc_rsp->tag == PGSQL_ERR_RETURN) {
         desc_rsp->is_err_resp = true;
         return pgsql_parse_err_resp(param_desc_rsp, desc_rsp->err_resp);
