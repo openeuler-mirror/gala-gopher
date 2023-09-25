@@ -868,8 +868,8 @@ static int append_pod_level_labels(struct container_cache *con_cache, char **buf
     if (!pod_cache) {
         pod_cache = create_pod_cache(&mgr->pod_caches, con_cache->pod_id, con_cache->container_id);
         if (!pod_cache) {
-            WARN("[IMDB] Failed to create pod cache(pod_id=%s)\n", con_cache->pod_id);
-            return -1;
+            DEBUG("[IMDB] Failed to create pod cache(pod_id=%s)\n", con_cache->pod_id);
+            return 0;
         }
     }
 
@@ -926,8 +926,8 @@ static int append_container_level_labels(const char *container_id, char **buffer
     if (!con_cache) {
         con_cache = create_container_cache(&mgr->container_caches, container_id);
         if (!con_cache) {
-            WARN("[IMDB] Failed to create container cache(container_id=%s)\n", container_id);
-            return -1;
+            DEBUG("[IMDB] Failed to create container cache(container_id=%s)\n", container_id);
+            return 0;
         }
     }
 
@@ -946,6 +946,7 @@ static int append_container_level_labels(const char *container_id, char **buffer
 
     ret = append_pod_level_labels(con_cache, buffer_ptr, size_ptr, mgr, table);
     if (ret < 0) {
+        DEBUG("[IMDB] Failed to append pod-level labels(pod_id=%s)\n", con_cache->pod_id);
         return ret;
     }
 
@@ -963,7 +964,8 @@ static int append_proc_level_labels(const char *tgid_str, char **buffer_ptr, int
         tgidRecord = IMDB_TgidCreateRecord(mgr, tgid_str);
     }
     if (tgidRecord == NULL) {
-        return -1;
+        DEBUG("[IMDB] Failed to create tgid cache(tgid=%s)\n", tgid_str);
+        return 0;
     }
 
     ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
@@ -1095,7 +1097,7 @@ static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
         con_id = (char *)(record->metrics[con_id_idx]->val);
         ret = append_container_level_labels(con_id, &p, &size, mgr, table, 1);
         if (ret < 0) {
-            ERROR("[IMDB] Failed to append container-level labels(container_id=%s, ret=%d)\n", con_id, ret);
+            DEBUG("[IMDB] Failed to append container-level labels(container_id=%s, ret=%d)\n", con_id, ret);
             goto err;
         }
     }
