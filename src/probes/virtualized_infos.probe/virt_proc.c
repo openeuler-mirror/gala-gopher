@@ -173,7 +173,7 @@ int virt_proc_probe(void)
     }
     cmd[0] = 0;
     (void)snprintf(cmd, COMMAND_LEN, VIRT_GET_ALL_VM);
-    f = popen(cmd, "r");
+    f = popen_chroot(cmd, "r");
     if (f == NULL) {
         return -1;
     }
