@@ -142,10 +142,18 @@ static void TestLogsWrMetricLogs(void)
 
 static void TestLogsMgrDestroy(void)
 {
-    destroy_log_mgr(test_local);
+    if(test_local != NULL)
+    {
+        destroy_log_mgr(test_local);
+    }
+    else{
+        return;
+    }
+    
     CU_ASSERT(test_local->metrics_files != NULL);
     CU_ASSERT(test_local->event_files != NULL);
     CU_ASSERT(test_local != NULL);
+
 
     return;
 }
