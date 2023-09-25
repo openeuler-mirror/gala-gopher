@@ -1220,9 +1220,8 @@ static int gen_snooper_by_container(struct probe_s *probe)
 
         con_info = get_and_add_con_info(FAKE_POD_ID, snooper_conf->conf.container_id);
         if (con_info == NULL) {
-            ERROR("[SNOOPER] Fail to get info of container %s\n", snooper_conf->conf.container_id);
-            free_con_id_list(con_id_list);
-            return -1;
+            WARN("[SNOOPER] Fail to get info of container %s\n", snooper_conf->conf.container_id);
+            continue;
         }
         if (append_con_id_list(&con_id_list, con_info)) {
             free_con_id_list(con_id_list);
