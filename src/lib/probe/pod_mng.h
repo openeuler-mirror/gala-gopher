@@ -62,7 +62,7 @@ enum id_ret_t get_pod_container_id(char *cgrp_path, char *pod_id, char *con_id);
 struct con_info_s *get_con_info(char *pod_id, char *con_id);
 struct pod_info_s *get_pod_info(char *pod_id);
 void del_pods();
-void add_pod_con_map(char *pod_id, char *con_id, enum id_ret_t id_ret);
+int add_pod_con_map(char *pod_id, char *con_id, enum id_ret_t id_ret);
 void del_pod_con_map(char *pod_id, char *con_id, enum id_ret_t id_ret);
 struct con_info_s *get_and_add_con_info(char *pod_id, char *container_id);
 struct pod_info_s *get_and_add_pod_info(char *pod_id);
