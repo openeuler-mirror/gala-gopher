@@ -116,12 +116,29 @@ public class ProfilingTransformer implements ClassFileTransformer {
             this.Pid = ArgsParse.getArgPid();
         }
 
-        // eg. |jsse_msg|662220|Session(1688648699909|TLS_AES_256_GCM_SHA384)|1688648699989|Write|127.0.0.1|58302|This is test message|
+        // eg. |jsse_msg|662220|Session(1688648699909|TLS_AES_256_GCM_SHA384)|1688648699989|Write|s|127.0.0.1|58302|This is test message|
         @Override
         protected void onMethodExit(int opcode) {
+            // char mode = getUseClientMode() ? 'c' : 's';
+            mv.visitVarInsn(ALOAD, 0);
+            mv.visitFieldInsn(GETFIELD, this.className, "this$0", "Lsun/security/ssl/SSLSocketImpl;");
+            mv.visitMethodInsn(INVOKEVIRTUAL, "sun/security/ssl/SSLSocketImpl",  "getUseClientMode", "()Z", false);
+            Label l1 = new Label();
+            mv.visitJumpInsn(IFEQ, l1);
+            mv.visitIntInsn(BIPUSH, 99); // 99 = 'c'
+            Label l2 = new Label();
+            mv.visitJumpInsn(GOTO, l2);
+            mv.visitLabel(l1);
+            mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+            mv.visitIntInsn(BIPUSH, 115); // 115 = 's'
+            mv.visitLabel(l2);
+            mv.visitFrame(Opcodes.F_SAME1, 0, null, 1, new Object[]{Opcodes.INTEGER});
+            mv.visitVarInsn(ISTORE, maxLocalSlot + 1);
+
             // create labels
             Label labelIf = new Label();
             Label labelEnd = new Label();
+
             // if new File(this.metricTmpFile).exists()
             mv.visitTypeInsn(NEW, "java/io/File");
             mv.visitInsn(DUP);
@@ -138,25 +155,25 @@ public class ProfilingTransformer implements ClassFileTransformer {
             mv.visitLdcInsn(this.metricTmpFile);
             mv.visitLdcInsn("rw");
             mv.visitMethodInsn(INVOKESPECIAL, "java/io/RandomAccessFile", "<init>", "(Ljava/lang/String;Ljava/lang/String;)V", false);
-            mv.visitVarInsn(ASTORE, maxLocalSlot + 1);
-            // FileChannel fileChannel = raf.getChannel();
-            mv.visitVarInsn(ALOAD, maxLocalSlot + 1);
-            mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/RandomAccessFile", "getChannel", "()Ljava/nio/channels/FileChannel;", false);
             mv.visitVarInsn(ASTORE, maxLocalSlot + 2);
-            // FileLock lock = fileChannel.lock(); (will block until holding the lock)
+            // FileChannel fileChannel = raf.getChannel();
             mv.visitVarInsn(ALOAD, maxLocalSlot + 2);
-            mv.visitMethodInsn(INVOKEVIRTUAL, "java/nio/channels/FileChannel", "lock", "()Ljava/nio/channels/FileLock;", false);
+            mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/RandomAccessFile", "getChannel", "()Ljava/nio/channels/FileChannel;", false);
             mv.visitVarInsn(ASTORE, maxLocalSlot + 3);
+            // FileLock lock = fileChannel.lock(); (will block until holding the lock)
+            mv.visitVarInsn(ALOAD, maxLocalSlot + 3);
+            mv.visitMethodInsn(INVOKEVIRTUAL, "java/nio/channels/FileChannel", "lock", "()Ljava/nio/channels/FileLock;", false);
+            mv.visitVarInsn(ASTORE, maxLocalSlot + 4);
             // raf.seek(raf.length());
-            mv.visitVarInsn(ALOAD, maxLocalSlot + 1);
-            mv.visitVarInsn(ALOAD, maxLocalSlot + 1);
+            mv.visitVarInsn(ALOAD, maxLocalSlot + 2);
+            mv.visitVarInsn(ALOAD, maxLocalSlot + 2);
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/RandomAccessFile", "length", "()J", false);
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/RandomAccessFile", "seek", "(J)V", false);
 
-            // raf.write(String.format("|jsse_msg|%s|%s|%d|%s|%s|%d|", this.Pid, getSession(), System.currentTimeMillis(), "Read", getInetAddress().getHostAddress(), getPeerPort()).getBytes());
-            mv.visitVarInsn(ALOAD, this.maxLocalSlot + 1);
-            mv.visitLdcInsn("|jsse_msg|%s|%s|%d|%s|%s|%d|");
-            mv.visitIntInsn(BIPUSH, 6);
+            // raf.write(String.format("|jsse_msg|%s|%s|%d|%s|%c|%s|%d|", this.Pid, getSession(), System.currentTimeMillis(), "Read", mode, getInetAddress().getHostAddress(), getPeerPort()).getBytes());
+            mv.visitVarInsn(ALOAD, this.maxLocalSlot + 2);
+            mv.visitLdcInsn("|jsse_msg|%s|%s|%d|%s|%c|%s|%d|");
+            mv.visitIntInsn(BIPUSH, 7);
             mv.visitTypeInsn(ANEWARRAY, "java/lang/Object");
 
             mv.visitInsn(DUP);
@@ -185,6 +202,12 @@ public class ProfilingTransformer implements ClassFileTransformer {
 
             mv.visitInsn(DUP);
             mv.visitInsn(ICONST_4);
+            mv.visitVarInsn(ILOAD, maxLocalSlot + 1);
+            mv.visitMethodInsn(INVOKESTATIC, "java/lang/Character", "valueOf", "(C)Ljava/lang/Character;", false);
+            mv.visitInsn(AASTORE);
+
+            mv.visitInsn(DUP);
+            mv.visitInsn(ICONST_5);
             mv.visitVarInsn(ALOAD, 0);
             mv.visitFieldInsn(GETFIELD, this.className, "this$0", "Lsun/security/ssl/SSLSocketImpl;");
             mv.visitMethodInsn(INVOKEVIRTUAL, "sun/security/ssl/SSLSocketImpl", "getInetAddress", "()Ljava/net/InetAddress;", false);
@@ -192,7 +215,7 @@ public class ProfilingTransformer implements ClassFileTransformer {
             mv.visitInsn(AASTORE);
 
             mv.visitInsn(DUP);
-            mv.visitInsn(ICONST_5);
+            mv.visitIntInsn(BIPUSH, 6);
             mv.visitVarInsn(ALOAD, 0);
             mv.visitFieldInsn(GETFIELD, this.className, "this$0", "Lsun/security/ssl/SSLSocketImpl;");
             mv.visitMethodInsn(INVOKEVIRTUAL, "sun/security/ssl/SSLSocketImpl", "getPeerPort", "()I", false);
@@ -203,7 +226,7 @@ public class ProfilingTransformer implements ClassFileTransformer {
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "getBytes", "()[B", false);
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/RandomAccessFile", "write", "([B)V", false);
             // raf.write(b, off, len);
-            mv.visitVarInsn(ALOAD, this.maxLocalSlot + 1);
+            mv.visitVarInsn(ALOAD, this.maxLocalSlot + 2);
             mv.visitVarInsn(ALOAD, this.slotOfb);
             mv.visitVarInsn(ILOAD, this.slotOfoff);
             mv.visitVarInsn(ILOAD, this.slotOflen);
@@ -211,15 +234,15 @@ public class ProfilingTransformer implements ClassFileTransformer {
             // New Metrics can be added here if exist
 
             // raf.write("|\r\n".getBytes());
-            mv.visitVarInsn(ALOAD, this.maxLocalSlot + 1);
+            mv.visitVarInsn(ALOAD, this.maxLocalSlot + 2);
             mv.visitLdcInsn("|\n");
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "getBytes", "()[B", false);
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/RandomAccessFile", "write", "([B)V", false);
             // lock.release();
-            mv.visitVarInsn(ALOAD, maxLocalSlot + 3);
+            mv.visitVarInsn(ALOAD, maxLocalSlot + 4);
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/nio/channels/FileLock", "release", "()V", false);
             // raf.close();
-            mv.visitVarInsn(ALOAD, this.maxLocalSlot + 1);
+            mv.visitVarInsn(ALOAD, this.maxLocalSlot + 2);
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/RandomAccessFile", "close", "()V", false);
 
             // End

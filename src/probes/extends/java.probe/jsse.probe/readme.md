@@ -37,13 +37,14 @@ JSSE为基于SSL和TLS协议的Java网络应用提供了Java API，JSSEProbe基�
   private class AppOutputStream2 extends OutputStream {
       @Override
       public void write(byte[] b, int off, int len) throws IOException {
+          char mode = getUseClientMode() ? 'c' : 's';
           RandomAccessFile raf = new RandomAccessFile("metricTmpFile", "rw");
           FileChannel fileChannel = raf.getChannel();
           FileLock lock = fileChannel.lock();
           raf.seek(raf.length());
   
-          raf.write(String.format("|jsse_msg|%s|%s|%d|%s|%s|%d|", "pid",
-                  getSession(), System.currentTimeMillis(), "Read",
+          raf.write(String.format("|jsse_msg|%s|%s|%d|%s|%c|%s|%d|", "pid",
+                  getSession(), System.currentTimeMillis(), "Read", mode,
                   getInetAddress().getHostAddress(), getPeerPort()).getBytes());
           raf.write(b, off, len);
   
@@ -72,3 +73,5 @@ JSSE为基于SSL和TLS协议的Java网络应用提供了Java API，JSSEProbe基�
 - 获取解析metrics
 
   JSSEProbeAgent 中将获取到的明文信息等信息存储到 `/tmp/java-data-<pid>/jsse-metrics.txt` 中，主进程解析文件并做下一步处理。
+  输出示例：
+  |jsse_msg|662220|Session(1688648699909|TLS_AES_256_GCM_SHA384)|1688648699989|Write|s|127.0.0.1|58302|This is test message|

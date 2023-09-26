@@ -262,7 +262,7 @@ l7_jsse_msg_handler线程中处理JSSEProbe消息。
 #### 1. 解析jsse读写信息
 
 jsse-metrics.txt的输出格式如下，从中解析出一次jsse请求的pid, sessionId, time, read/write操作, IP, port, payload信息：
-```|jsse_msg|662220|Session(1688648699909|TLS_AES_256_GCM_SHA384)|1688648699989|Write|127.0.0.1|58302|This is test message|```
+```|jsse_msg|662220|Session(1688648699909|TLS_AES_256_GCM_SHA384)|1688648699989|Write|s|127.0.0.1|58302|This is test message|```
 
 解析出的原始信息存储于session_data_args_s中。
 

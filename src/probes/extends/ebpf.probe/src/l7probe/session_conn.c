@@ -244,7 +244,7 @@ err:
 
 void submit_sock_data_by_session(void *ctx, struct session_data_args_s *args)
 {
-    if (!args || !args->buf) {
+    if (!args || !args->buf || args->buf[0] == 0 || args->bytes_count == 0) {
         return;
     }
 
@@ -264,6 +264,9 @@ void submit_sock_data_by_session(void *ctx, struct session_data_args_s *args)
     submit_conn_data_user(ctx, args, conn_data, args->bytes_count);
     submit_sock_conn_stats(ctx, &sock_conn, args->direct, args->bytes_count);
     bpf_map_update_elem(((struct l7_mng_s *)ctx)->bpf_progs.conn_tbl_fd, &sock_conn.info, &sock_conn, BPF_ANY);
+
+    args->buf[0] = 0;
+    args->bytes_count = 0;
     return;
 }
 
