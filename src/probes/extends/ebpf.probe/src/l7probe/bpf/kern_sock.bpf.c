@@ -39,6 +39,14 @@ char g_license[] SEC("license") = "GPL";
 #define KRETPROBE_SYSCALL(func) __KRETPROBE_SYSCALL(__arm64_sys_, func)
 #endif
 
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+#define SK_FL_TYPE_SHIFT           16
+#define SK_FL_TYPE_MASK            0xffff0000
+#else
+#define SK_FL_TYPE_SHIFT           0
+#define SK_FL_TYPE_MASK            0x0000ffff
+#endif
+
 static __always_inline char is_tracing_udp(void)
 {
     u32 proto = get_filter_proto();
@@ -246,8 +254,8 @@ static __always_inline __maybe_unused struct sock_conn_s* get_sock_conn(void *ct
     u16 sk_type = BPF_CORE_READ(sk, sk_type);
 #else
     u32 sk_type;
-    bpf_probe_read(&sk_type, sizeof(u32), (char *)&(sk->sk_txhash) + sizeof(sk->sk_txhash));
-    sk_type = sk_type & 0x0000FFFFF;
+    bpf_probe_read(&sk_type, sizeof(u32), sk->__sk_flags_offset);
+    sk_type = (sk_type & SK_FL_TYPE_MASK) >> SK_FL_TYPE_SHIFT;
 #endif
     if (sk_type != SOCK_STREAM) {
         l4_role = L4_UNKNOW;
@@ -356,7 +364,7 @@ static __always_inline __maybe_unused int submit_conn_close(void *ctx, conn_ctx_
 #ifdef __USE_RING_BUF
 end:
 #endif
-    
+
     /* We should do "bpf_map_delete_elem(&conn_tbl, &conn_id)" here,
        but due to the lag in processing jsse messages, if the connection is deleted now,
        the connection will not be found in the cmp_sock_conn(). */
@@ -588,7 +596,7 @@ KRETPROBE_SYSCALL(accept)
         }
 
         sock_conn = new_sock_conn(ctx, (int)(id >> INT_LEN), new_fd, L4_SERVER, args->addr, NULL);
-        
+
         submit_conn_open(ctx, sock_conn);
     }
 end:
