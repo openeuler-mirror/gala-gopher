@@ -121,7 +121,7 @@ static bool is_kernel_support_tc_bps_load()
 
     ret = WEXITSTATUS(ret);
     if (ret) {
-        printf("kernel don't support tc bps prog loading\n");
+        INFO("kernel don't support tc bps prog loading\n");
         return false;
     }
     return true;
@@ -183,7 +183,7 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    printf("arg parse interval time:%us\n", params.period);
+    INFO("arg parse interval time:%us\n", params.period);
 
     INIT_BPF_APP(nsprobe, EBPF_RLIM_LIMITED);
     __LOAD_NS_PROBE(qdisc, err, 1);
@@ -207,7 +207,7 @@ int main(int argc, char **argv)
         }
     }
 
-    printf("Successfully started!\n");
+    INFO("Successfully started!\n");
     obj_module_init();
 
     while (!g_stop) {

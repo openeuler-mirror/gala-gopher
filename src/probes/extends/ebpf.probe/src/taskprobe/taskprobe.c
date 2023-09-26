@@ -276,7 +276,7 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    printf("Successfully started!\n");
+    INFO("Successfully started!\n");
     INIT_BPF_APP(taskprobe, EBPF_RLIM_LIMITED);
 
     while (!stop) {

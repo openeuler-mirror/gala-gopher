@@ -148,7 +148,7 @@ static int __do_get_path_from_host(const char *binary_file, char **res_buf, int 
         (void)snprintf((char *)abs_path, PATH_LEN, "%s/%s", path_buf, binary_file);
         if (__is_exec_file(abs_path)) {
             if (r_len >= res_len) {
-                printf("host abs_path's num[%d] beyond res_buf's size[%d].\n", r_len, res_len);
+                INFO("host abs_path's num[%d] beyond res_buf's size[%d].\n", r_len, res_len);
                 break;
             }
             res_buf[r_len] = (char *)malloc(PATH_LEN * sizeof(char));
@@ -171,13 +171,13 @@ static int __do_get_path_from_container(const char *binary_file, const char *con
 
     ret = get_container_merged_path(container_id, container_abs_path, PATH_LEN);
     if (ret < 0) {
-        printf("get container merged_path fail.\n");
+        INFO("get container merged_path fail.\n");
         return ret;
     }
 
     ret = exec_container_command(container_id, COMMAND_ENV_PATH, syspath, PATH_LEN);
     if (ret < 0) {
-        printf("get container's env PATH fail.\n");
+        INFO("get container's env PATH fail.\n");
         return ret;
     }
 
@@ -190,7 +190,7 @@ static int __do_get_path_from_container(const char *binary_file, const char *con
         (void)snprintf((char *)abs_path, PATH_LEN, "%s%s/%s", container_abs_path, p, binary_file);
         if (__is_exec_file(abs_path)) {
             if (r_len >= res_len) {
-                printf("container abs_path's num[%d] beyond res_buf's size[%d].\n", r_len, res_len);
+                INFO("container abs_path's num[%d] beyond res_buf's size[%d].\n", r_len, res_len);
                 break;
             }
             res_buf[r_len] = (char *)malloc(PATH_LEN * sizeof(char));
@@ -210,14 +210,14 @@ int get_exec_file_path(const char *binary_file, const char *specified_path, cons
     char specified_host_path[PATH_LEN];
 
     if (binary_file == NULL || !strcmp(binary_file, "NULL")) {
-        printf("please input binary_file name.\n");
+        INFO("please input binary_file name.\n");
         return -1;
     }
     /* specified file path */
     if (specified_path != NULL && strlen(specified_path)) {
         convert_to_host_path(specified_host_path, specified_path, PATH_LEN);
         if (!__is_exec_file(specified_host_path)) {
-            printf("specified path check error[%d].\n", errno);
+            INFO("specified path check error[%d].\n", errno);
             return -1;
         }
         res_buf[0] = (char *)malloc(PATH_LEN * sizeof(char));
@@ -234,7 +234,7 @@ int get_exec_file_path(const char *binary_file, const char *specified_path, cons
     }
 
     if (ret_path_num == 0) {
-        printf("no executable in system default path, please specify abs_path.\n");
+        INFO("no executable in system default path, please specify abs_path.\n");
         return -1;
     }
     return ret_path_num;

@@ -178,7 +178,7 @@ static int init_conn_mgt_process()
         return -1;
     }
     (void)pthread_detach(msg_evt_hdl_thd);
-    printf("Connection read/write message event handler thread successfully started!\n");
+    INFO("Connection read/write message event handler thread successfully started!\n");
 
     return 0;
 }
