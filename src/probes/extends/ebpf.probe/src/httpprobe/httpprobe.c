@@ -154,7 +154,7 @@ int main(int argc, char **argv)
     if (err != 0) {
         goto err1;
     }
-    printf("arg parse interval time:%us\n", params.period);
+    INFO("arg parse interval time:%us\n", params.period);
 
     fp = popen(RM_HTTP_PATH, "r");
     if (fp != NULL) {

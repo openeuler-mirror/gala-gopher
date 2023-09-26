@@ -87,7 +87,7 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    printf("arg parse interval time:%us\n", params.period);
+    INFO("arg parse interval time:%us\n", params.period);
 
     INIT_BPF_APP(cgprobe, EBPF_RLIM_LIMITED);
     __LOAD_CG_PROBE(cgprobe, err, 1);
@@ -98,7 +98,7 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    printf("Successfully started!\n");
+    INFO("Successfully started!\n");
     poll_pb(pb, params.period * THOUSAND);
 
 err:

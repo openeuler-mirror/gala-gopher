@@ -393,7 +393,7 @@ int main(int argc, char **argv)
     }
 
     INIT_BPF_APP(l7probe, EBPF_RLIM_LIMITED);
-    printf("Successfully started!\n");
+    INFO("Successfully started!\n");
 
     while (!g_stop) {
         nanosleep(&ts, NULL);

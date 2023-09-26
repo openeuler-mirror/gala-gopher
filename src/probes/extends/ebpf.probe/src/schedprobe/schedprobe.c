@@ -367,7 +367,7 @@ int main(int argc, char **argv)
 
     INIT_BPF_APP(schedprobe, EBPF_RLIM_LIMITED);
 
-    printf("Successfully started!\n");
+    INFO("Successfully started!\n");
 
     while (!stop) {
         ret = recv_ipc_msg(msq_id, (long)PROBE_SCHED, &ipc_body);
