@@ -555,6 +555,14 @@ int bpf_trace_tcp_retransmit_synack_func(struct trace_event_raw_tcp_retransmit_s
 }
 #endif
 
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+#define NUM_TIMEOUT_SHIFT           1
+#define NUM_TIMEOUT_MASK            0xFE
+#else
+#define NUM_TIMEOUT_SHIFT           0
+#define NUM_TIMEOUT_MASK            0x7F
+#endif
+
 KPROBE(inet_csk_reqsk_queue_drop_and_put, pt_regs)
 {
     u8 num_timeout;
@@ -567,7 +575,8 @@ KPROBE(inet_csk_reqsk_queue_drop_and_put, pt_regs)
     int max_retries = icsk_syn_retries ? : sysctl_tcp_synack_retries;
 
     bpf_probe_read(&num_timeout, sizeof(u8), (char *)&(req->num_retrans) + sizeof(u8));
-    num_timeout &= 0x7F;
+    num_timeout = (num_timeout & NUM_TIMEOUT_MASK) >> NUM_TIMEOUT_SHIFT;
+
     if (num_timeout >= max_retries) {
         struct tcp_socket_event_s evt = {0};
         get_accept_sockaddr(&evt, (const struct sock *)sk);
@@ -598,7 +607,8 @@ KPROBE(tcp_retransmit_timer, pt_regs)
     int max_retries = icsk_syn_retries ? : sysctl_tcp_synack_retries + 1;
 
     bpf_probe_read(&num_timeout, sizeof(u8), (char *)&(req->num_retrans) + sizeof(u8));
-    num_timeout &= 0x7F;
+    num_timeout = (num_timeout & NUM_TIMEOUT_MASK) >> NUM_TIMEOUT_SHIFT;
+
     if (num_timeout >= max_retries) {
         struct tcp_socket_event_s evt = {0};
         get_accept_sockaddr(&evt, (const struct sock *)sk);
