@@ -229,9 +229,9 @@ static void output_tcp_win(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
 
     (void)fprintf(stdout,
         "|%s|%u|%s|%s|%s|%u|%u"
-        "|%s|%s|%s|%s|%s|%s|%s|"
+        "|%s|%s|%s|%s|%s|%s|%s"
 
-        "|%llu|%llu|"
+        "|%llu|%llu"
 
         "|%.2f|%.2f|\n",
         TCP_TBL_WIN,
