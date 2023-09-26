@@ -342,6 +342,7 @@ void java_msg_handler(u32 pid, struct java_attach_args *args, java_msg_handler_c
 
     tmp_file_path[0] = 0;
     if (get_host_java_tmp_file(pid, args->tmp_file_name, tmp_file_path, PATH_LEN) < 0) {
+        DEBUG("[JAVA_MSG_HANDLER]: get_host_java_tmp_file %u failed.\n", pid);
         return;
     }
 
