@@ -939,7 +939,7 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    printf("Successfully started!\n");
+    INFO("Successfully started!\n");
     INIT_BPF_APP(ioprobe, EBPF_RLIM_LIMITED);
 
     init_blk_tbl(&g_blk_tbl);

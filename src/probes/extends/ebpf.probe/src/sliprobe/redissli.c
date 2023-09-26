@@ -73,7 +73,7 @@ static int init_rds_elf_path(char *rds_elf_path, unsigned int size, const char *
         return -1;
     }
 
-    printf("Redis executable file of 'redis-server' not specified, use default file [%s] instead.\n", rds_elf_path);
+    INFO("Redis executable file of 'redis-server' not specified, use default file [%s] instead.\n", rds_elf_path);
     return 0;
 }
 
@@ -132,7 +132,7 @@ static int init_conn_mgt_process(int cmd_evt_map_fd)
         return -1;
     }
     (void)pthread_detach(cmd_evt_hdl_thd);
-    printf("Connection command event handler thread successfully started!\n");
+    INFO("Connection command event handler thread successfully started!\n");
 
     return 0;
 }
@@ -146,7 +146,7 @@ int main(int argc, char **argv)
     if (err != 0) {
         return -1;
     }
-    printf("arg parse interval time:%us, elf's path:%s\n", params.period, params.elf_path);
+    INFO("arg parse interval time:%us, elf's path:%s\n", params.period, params.elf_path);
 
     err = init_rds_elf_path(rds_elf_path, MAX_PATH_LEN, params.elf_path);
     if (err < 0) {
@@ -195,7 +195,7 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    printf("Redis SLI probe successfully started!\n");
+    INFO("Redis SLI probe successfully started!\n");
 
     err = init_conn_mgt_process(GET_MAP_FD(redissli, conn_cmd_evt_map));
     if (err != 0) {
