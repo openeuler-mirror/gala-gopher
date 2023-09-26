@@ -454,6 +454,8 @@ static int proc_conn_data_msg(struct l7_mng_s *l7_mng, struct conn_data_msg_s *c
         ERROR("[L7Probe]: Conn tracker[%d:%d] is not found when proc data msg.\n", tracker_id.tgid, tracker_id.fd);
         return -1;
     }
+
+    tracker->is_ssl = conn_data_msg->is_ssl;
     if (tracker->protocol == PROTO_UNKNOW) {
         tracker->protocol = conn_data_msg->proto;
         tracker->send_stream.type = tracker->protocol;
@@ -476,7 +478,7 @@ static int proc_conn_data_msg(struct l7_mng_s *l7_mng, struct conn_data_msg_s *c
             link->stats[DATA_EVT_SENT]++;
             ret = data_stream_add_raw_data(&(tracker->send_stream),
                                             (const char *)conn_data_buf,
-                                            conn_data_msg->data_size,
+                                            (size_t)conn_data_msg->data_size,
                                             conn_data_msg->timestamp_ns);
             break;
         }
@@ -485,7 +487,7 @@ static int proc_conn_data_msg(struct l7_mng_s *l7_mng, struct conn_data_msg_s *c
             link->stats[DATA_EVT_RECV]++;
             ret = data_stream_add_raw_data(&(tracker->recv_stream),
                                             (const char *)conn_data_buf,
-                                            conn_data_msg->data_size,
+                                            (size_t)conn_data_msg->data_size,
                                             conn_data_msg->timestamp_ns);
             break;
         }
