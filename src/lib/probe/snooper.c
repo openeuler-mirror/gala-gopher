@@ -687,7 +687,10 @@ int send_snooper_obj(struct probe_s *probe)
 {
     struct ipc_body_s ipc_body; // Initialized at '__build_ipc_body' function
 
-    if (!probe || !IS_STARTED_PROBE(probe)) {
+    // To prevent ipc queue full, we only send ipc msg to running probes.
+    // However, the "RUNNING" flag may not be set by probe->cb thread when we get here in starting,
+    // so take probe->resnd_snooper_for_restart into consideration as well.
+    if (!probe || (!IS_RUNNING_PROBE(probe) && !probe->resnd_snooper_for_restart)) {
         return 0;
     }
 
