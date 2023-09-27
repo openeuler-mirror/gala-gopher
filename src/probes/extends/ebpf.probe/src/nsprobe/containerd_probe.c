@@ -276,7 +276,7 @@ static void init_bps_map(struct container_hash_t *item)
     if (set_net_classid(item->v.proc_id, (const char *)item->v.netcg_dir) == 0) {
         struct egress_bandwidth_s bps = {0};
         (void)bpf_map_update_elem(egress_map_fd, &classid, &bps, BPF_ANY);
-        printf("set net_cls classid of proc %llu success\n", classid);
+        INFO("set net_cls classid of proc %llu success\n", classid);
     }
 }
 

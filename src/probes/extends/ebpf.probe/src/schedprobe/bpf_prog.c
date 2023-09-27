@@ -48,7 +48,7 @@ int load_create_pb(struct bpf_prog_s *prog, int fd)
             return -1;
         }
         prog->pb = pb;
-        printf("INFO: Success to create sched perf buffer.\n");
+        INFO("INFO: Success to create sched perf buffer.\n");
     }
 
     return 0;
