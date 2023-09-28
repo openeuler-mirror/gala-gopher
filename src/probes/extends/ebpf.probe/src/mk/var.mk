@@ -12,6 +12,7 @@ LIBBPF_DIR = $(ROOT_DIR)/../.output
 LIBELF_DIR = /usr/include/libelf
 GOPHER_COMMON_DIR = $(ROOT_DIR)/../../../../../common
 BPF_COMPATIBLE_DIR = $(ROOT_DIR)/../../../../../../third_party/bpf-compatible
+BTFHUB_CACHE_DIR = $(ROOT_DIR)/../../../../../../.cache/btfhub
 
 LIB_DIR ?= $(ROOT_DIR)../lib
 CFILES ?= $(wildcard $(LIB_DIR)/*.c)
@@ -59,7 +60,7 @@ endif
 BTF_ENABLE = $(shell if [ -n "$(BTF_ENABLE_OVERRIDE)" ]; then echo "$(BTF_ENABLE_OVERRIDE)"; elif [ -f /sys/kernel/btf/vmlinux ]; then echo "ON" ; else echo "OFF"; fi)
 
 BTFHUB_REPO=https://gitee.com/openeuler/btfhub-archive.git,https://github.com/eunomia-bpf/btfhub-archive.git
-BTFHUB_CACHE=$(abspath ../btfhub-cache)
+BTFHUB_CACHE := $(abspath $(BTFHUB_CACHE_DIR))
 BTFGEN := $(BPF_COMPATIBLE_DIR)/bin/btfgen
 
 LINK_TARGET ?= -lpthread -lbpf -lelf -llog4cplus -lz -lconfig -lbpf_compatible
