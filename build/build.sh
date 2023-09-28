@@ -10,6 +10,7 @@ PROBE_MNG_FOLDER=${PROJECT_FOLDER}/src/lib/probe
 JVM_FOLDER=${PROJECT_FOLDER}/src/lib/jvm
 BPFTOOL_FOLDER=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/tools
 VMLINUX_DIR=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/src/include
+BPF_COMPATIBLE_DIR=${PROJECT_FOLDER}/third_party/bpf-compatible
 EXT_PROBE_BUILD_LIST=`find ${EXT_PROBE_FOLDER} -maxdepth 2 | grep "\<build.sh\>"`
 DEP_LIST=(cmake librdkafka-devel libmicrohttpd-devel libconfig-devel uthash-devel log4cplus-devel\
           libbpf-devel clang llvm java-1.8.0-openjdk-devel cjson-devel gnutls-devel)
@@ -123,6 +124,14 @@ function __rm_jvm_attach()
     make clean
 }
 
+function __ensure_libbpf_compatible()
+{
+    cd "${BPF_COMPATIBLE_DIR}/lib"
+    if [[ ! -f libbpf_compatible.a ]]; then
+        ln -s "libbpf_compatible.a.$(uname -m)" libbpf_compatible.a
+    fi
+}
+
 function prepare_probes()
 {
 	__build_bpf
@@ -188,6 +197,8 @@ function compile_lib_clean()
 
 function compile_daemon_release()
 {
+    __ensure_libbpf_compatible
+
     cd ${DAEMON_FOLDER}
     rm -rf build
     mkdir build
@@ -200,6 +211,8 @@ function compile_daemon_release()
 
 function compile_daemon_debug()
 {
+    __ensure_libbpf_compatible
+
     cd ${DAEMON_FOLDER}
     rm -rf build
     mkdir build

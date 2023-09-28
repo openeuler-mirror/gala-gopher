@@ -31,8 +31,10 @@ SET(COMMON_DIR      ${SRC_DIR}/common)
 SET(RESTAPI_DIR     ${SRC_DIR}/api)
 SET(EBPF_PROBE_DIR  ${SRC_DIR}/probes/extends/ebpf.probe)
 
+SET(THIRD_PARTY_DIR ../../third_party)
 SET(LIBRDKAFKA_DIR /usr/include/librdkafka)
 SET(LIBELF_DIR /usr/include/libelf)
+SET(BPF_COMPATIBLE_DIR ${THIRD_PARTY_DIR}/bpf-compatible)
 
 SET(CMAKE_C_FLAGS "-rdynamic -std=gnu11 -g -Wl,-z,relro,-z,now -DNATIVE_PROBE_FPRINTF \
     -DPROBES_LIST=\"${PROBES_LIST}\" \
@@ -116,9 +118,14 @@ TARGET_INCLUDE_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE
     ${CMD_DIR}
     ${COMMON_DIR}
     ${EBPF_PROBE_DIR}/src/include
+
+    ${BPF_COMPATIBLE_DIR}/include
+)
+TARGET_LINK_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE
+    ${BPF_COMPATIBLE_DIR}/lib
 )
 
 TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE config pthread rt dl bpf rdkafka microhttpd elf log4cplus gnutls
-cjson)
+cjson bpf_compatible)
 
 

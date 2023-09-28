@@ -45,7 +45,7 @@ deps: $(DEPS)
 $(TAR_BTF): $(patsubst %.bpf.c, %.bpf.o, $(BPF_C))
 	BTFHUB_CACHE=$(BTFHUB_CACHE) \
 	BTFHUB_REPO=$(BTFHUB_REPO) \
-	btfgen btfgen -o $@ $^
+	$(BTFGEN) btfgen -o $@ $^
 
 $(OBJ_BTF): $(TAR_BTF)
 	$(LD) -r -b binary -o $@ -b binary $<
