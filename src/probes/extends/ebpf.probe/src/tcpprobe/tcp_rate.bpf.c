@@ -58,10 +58,8 @@ static void tcp_compute_busy_time(struct tcp_sock *tcp_sk, struct tcp_rate* rate
     u64 ms = bpf_ktime_get_ns() >> 6; // ns -> ms
 
     chrono_start = _(tcp_sk->chrono_start);
-    bpf_probe_read(chrono_stat, (__TCP_CHRONO_MAX - 1) * sizeof(u32), &(tcp_sk->chrono_stat));
-    bpf_probe_read(&chrono_type, sizeof(u8), (char *)&(tcp_sk->chrono_stat) + (__TCP_CHRONO_MAX - 1) * sizeof(u32));
-
-    chrono_type &= 0xC0;
+    BPF_CORE_READ_INTO(chrono_stat, tcp_sk, chrono_stat);
+    chrono_type = BPF_CORE_READ_BITFIELD_PROBED(tcp_sk, chrono_type);
 
 #pragma clang loop unroll(full)
     for (i = TCP_CHRONO_BUSY; i < __TCP_CHRONO_MAX; ++i) {

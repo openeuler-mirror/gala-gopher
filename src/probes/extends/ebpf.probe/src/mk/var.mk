@@ -51,7 +51,7 @@ ifeq ($(wildcard $(BPFTOOL)), )
     else ln -s bpftool_${ARCH} bpftool; fi; )
 endif
 
-BTF_ENABLE = $(shell if [ -f /sys/kernel/btf/vmlinux ]; then echo "ON" ; else echo "OFF"; fi)
+BTF_ENABLE = $(shell if [ -n "$(BTF_ENABLE_OVERRIDE)" ]; then echo "$(BTF_ENABLE_OVERRIDE)"; elif [ -f /sys/kernel/btf/vmlinux ]; then echo "ON" ; else echo "OFF"; fi)
 
 BTFHUB_REPO=https://gitee.com/openeuler/btfhub-archive.git,https://github.com/eunomia-bpf/btfhub-archive.git
 BTFHUB_CACHE=$(abspath ../btfhub-cache)
