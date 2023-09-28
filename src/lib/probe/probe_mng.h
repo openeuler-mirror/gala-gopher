@@ -61,11 +61,10 @@ struct probe_s {
     char *name;                                         // Name for probe
     char *bin;                                          // Execute bin file for probe
     char *chk_cmd;                                      // Startup precondition for probe
-    int is_extend_probe;                                // 0: Native probe, otherwise extend probe
+    char is_extend_probe;                               // 0: Native probe, otherwise extend probe
     char is_params_chg;                                 // Probe params changed
     char is_snooper_chg;                                // Probe snoopers changed
-    char is_restart;                                    // Probe restart
-    char pad;
+    char resnd_snooper_for_restart;                     // Need to resend snooper obj after probe is restarted
     enum probe_type_e probe_type;
     u32 probe_range_flags;                              // Refer to flags defined [PROBE_RANGE_XX_XX]
     ProbeMain probe_entry;                              // Main function for native probe
