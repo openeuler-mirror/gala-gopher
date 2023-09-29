@@ -857,6 +857,8 @@ static int tcp_load_probe_abn(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog
     if (is_load) {
         __SELECT_RCV_ESTABLISHED_HOOKPOINT(tcp_abn);
         __SELECT_RESET_HOOKPOINTS(tcp_abn);
+
+        PROG_ENABLE_ONLY_IF(tcp_abn, bpf_tcp_write_err, probe_kernel_version() != KERNEL_VERSION(5, 10, 0));
     }
 
     __LOAD_PROBE(tcp_abn, err, is_load);
