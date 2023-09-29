@@ -95,7 +95,7 @@ static inline struct bpf_buffer *bpf_buffer__new(struct bpf_map *map, struct bpf
         bpf_map__set_autocreate(heap, true);
         bpf_map__set_type(map, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
         bpf_map__set_key_size(map, sizeof(int));
-        /* It is assumed that the value size has been correctly set by the user */
+        bpf_map__set_value_size(map, sizeof(int));
         type = BPF_MAP_TYPE_PERF_EVENT_ARRAY;
     }
 
