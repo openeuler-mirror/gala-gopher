@@ -46,10 +46,6 @@
 #endif
 
 #define TC_PROG "tcp_bpf/tc_tstamp.bpf.o"
-#if ((CURRENT_KERNEL_VERSION == KERNEL_VERSION(4, 18, 0)) || (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(5, 10, 0)))
-#define KERNEL_SUPPORT_TSTAMP
-#endif
-
 #define BPF_F_INDEX_MASK    0xffffffffULL
 #define BPF_F_CURRENT_CPU   BPF_F_INDEX_MASK
 

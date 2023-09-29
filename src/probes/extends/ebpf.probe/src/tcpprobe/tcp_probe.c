@@ -29,6 +29,7 @@
 #endif
 
 #include "bpf.h"
+#include "feat_probe.h"
 #include "ipc.h"
 #include "tcpprobe.h"
 #include "tcp_tracker.h"
@@ -914,7 +915,14 @@ static int tcp_load_probe_delay(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *pr
     int err;
     struct bpf_buffer *buffer = NULL;
 
-    __OPEN_LOAD_PROBE_WITH_OUTPUT(tcp_delay, err, is_load, buffer);
+    __OPEN_PROBE_WITH_OUTPUT(tcp_delay, err, is_load, buffer);
+
+    if (is_load) {
+        PROG_ENABLE_ONLY_IF(tcp_delay, bpf_tcp_recvmsg, probe_tstamp());
+    }
+
+    __LOAD_PROBE(tcp_delay, err, is_load);
+
     if (is_load) {
         prog->skels[prog->num].skel = tcp_delay_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_delay_bpf__destroy;
