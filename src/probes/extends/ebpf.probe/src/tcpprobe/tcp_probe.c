@@ -720,7 +720,14 @@ static int tcp_load_probe_sockbuf(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *
     int err;
     struct bpf_buffer *buffer = NULL;
 
-    __LOAD_PROBE_WITH_OUTPUT(tcp_sockbuf, err, is_load, buffer);
+    __OPEN_PROBE_WITH_OUTPUT(tcp_sockbuf, err, is_load, buffer);
+
+    if (is_load) {
+        __SELECT_RCV_ESTABLISHED_HOOKPOINT(tcp_sockbuf);
+    }
+
+    __LOAD_PROBE(tcp_sockbuf, err, is_load);
+
     if (is_load) {
         prog->skels[prog->num].skel = tcp_sockbuf_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_sockbuf_bpf__destroy;
@@ -746,7 +753,14 @@ static int tcp_load_probe_rtt(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog
     int err;
     struct bpf_buffer *buffer = NULL;
 
-    __LOAD_PROBE_WITH_OUTPUT(tcp_rtt, err, is_load, buffer);
+    __OPEN_PROBE_WITH_OUTPUT(tcp_rtt, err, is_load, buffer);
+
+    if (is_load) {
+        __SELECT_RCV_ESTABLISHED_HOOKPOINT(tcp_rtt);
+    }
+
+    __LOAD_PROBE(tcp_rtt, err, is_load);
+
     if (is_load) {
         prog->skels[prog->num].skel = tcp_rtt_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_rtt_bpf__destroy;
@@ -772,7 +786,14 @@ static int tcp_load_probe_win(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog
     int err;
     struct bpf_buffer *buffer = NULL;
 
-    __LOAD_PROBE_WITH_OUTPUT(tcp_windows, err, is_load, buffer);
+    __OPEN_PROBE_WITH_OUTPUT(tcp_windows, err, is_load, buffer);
+
+    if (is_load) {
+        __SELECT_SPACE_ADJUST_HOOKPOINT(tcp_windows);
+    }
+
+    __LOAD_PROBE(tcp_windows, err, is_load);
+
     if (is_load) {
         prog->skels[prog->num].skel = tcp_windows_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_windows_bpf__destroy;
@@ -798,7 +819,14 @@ static int tcp_load_probe_rate(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *pro
     int err;
     struct bpf_buffer *buffer = NULL;
 
-    __LOAD_PROBE_WITH_OUTPUT(tcp_rate, err, is_load, buffer);
+    __OPEN_PROBE_WITH_OUTPUT(tcp_rate, err, is_load, buffer);
+
+    if (is_load) {
+        __SELECT_SPACE_ADJUST_HOOKPOINT(tcp_rate);
+    }
+
+    __LOAD_PROBE(tcp_rate, err, is_load);
+
     if (is_load) {
         prog->skels[prog->num].skel = tcp_rate_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_rate_bpf__destroy;
@@ -824,7 +852,15 @@ static int tcp_load_probe_abn(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog
     int err;
     struct bpf_buffer *buffer = NULL;
 
-    __LOAD_PROBE_WITH_OUTPUT(tcp_abn, err, is_load, buffer);
+    __OPEN_PROBE_WITH_OUTPUT(tcp_abn, err, is_load, buffer);
+
+    if (is_load) {
+        __SELECT_RCV_ESTABLISHED_HOOKPOINT(tcp_abn);
+        __SELECT_RESET_HOOKPOINTS(tcp_abn);
+    }
+
+    __LOAD_PROBE(tcp_abn, err, is_load);
+
     if (is_load) {
         prog->skels[prog->num].skel = tcp_abn_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_abn_bpf__destroy;
@@ -850,7 +886,7 @@ static int tcp_load_probe_txrx(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *pro
     int err;
     struct bpf_buffer *buffer = NULL;
 
-    __LOAD_PROBE_WITH_OUTPUT(tcp_tx_rx, err, is_load, buffer);
+    __OPEN_LOAD_PROBE_WITH_OUTPUT(tcp_tx_rx, err, is_load, buffer);
     if (is_load) {
         prog->skels[prog->num].skel = tcp_tx_rx_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_tx_rx_bpf__destroy;
@@ -876,7 +912,7 @@ static int tcp_load_probe_delay(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *pr
     int err;
     struct bpf_buffer *buffer = NULL;
 
-    __LOAD_PROBE_WITH_OUTPUT(tcp_delay, err, is_load, buffer);
+    __OPEN_LOAD_PROBE_WITH_OUTPUT(tcp_delay, err, is_load, buffer);
     if (is_load) {
         prog->skels[prog->num].skel = tcp_delay_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_delay_bpf__destroy;
@@ -912,7 +948,10 @@ static int tcp_load_probe_link(struct tcp_mng_s *tcp_mng, struct probe_params *a
     int err;
     struct bpf_buffer *buffer = NULL;
 
-    __LOAD_PROBE_WITH_OUTPUT(tcp_link, err, 1, buffer);
+    __OPEN_PROBE_WITH_OUTPUT(tcp_link, err, 1, buffer);
+    __SELECT_DESTROY_SOCK_HOOKPOINT(tcp_link);
+    __LOAD_PROBE(tcp_link, err, 1);
+
     prog->skels[prog->num].skel = tcp_link_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)tcp_link_bpf__destroy;
     prog->custom_btf_paths[prog->num] = tcp_link_open_opts.btf_custom_path;

@@ -115,28 +115,26 @@ KPROBE(tcp_set_state, pt_regs)
     return 0;
 }
 
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(tcp_destroy_sock, bpf_raw_tracepoint_args)
 {
     struct sock *sk = (struct sock *)ctx->args[0];
     delete_sock_obj(sk);
     return 0;
 }
-#elif (CURRENT_KERNEL_VERSION < KERNEL_VERSION(4, 13, 0))
+
 KPROBE(tcp_v4_destroy_sock, pt_regs)
 {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     delete_sock_obj(sk);
     return 0;
 }
-#else
+
 SEC("tracepoint/tcp/tcp_destroy_sock")
 void bpf_trace_tcp_destroy_sock_func(struct trace_event_raw_tcp_event_sk *ctx)
 {
     struct sock *sk = (struct sock *)ctx->skaddr;
     delete_sock_obj(sk);
 }
-#endif
 
 KPROBE(tcp_sendmsg, pt_regs)
 {

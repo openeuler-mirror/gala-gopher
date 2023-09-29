@@ -45,7 +45,7 @@ int tcp_load_fd_probe(void)
         return -1;
     }
 
-    __LOAD_PROBE(tcp_fd, err, 1);
+    __OPEN_LOAD_PROBE(tcp_fd, err, 1);
     prog->skels[prog->num].skel = tcp_fd_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)tcp_fd_bpf__destroy;
     prog->custom_btf_paths[prog->num] = tcp_fd_open_opts.btf_custom_path;
