@@ -16,18 +16,19 @@ public class ProfilingTransformer implements ClassFileTransformer {
     @Override
     public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined, ProtectionDomain protectionDomain, byte[] classfileBuffer) throws IllegalClassFormatException {
         try {
+            if (className == null) {
+                return classfileBuffer;
+            }
             className = className.replace("/", ".");
+
             if ("sun.security.ssl.SSLSocketImpl$AppOutputStream".equals(className)) {
-                createTmpFile();
-                if (!isWriteTransformed) {
-                    // ensure only transform once even if javaagent be loaded multiple times.
+                if (createTmpFile() && !isWriteTransformed) {
                     isWriteTransformed = true;
                     return getBytes(loader, className, classfileBuffer);
                 }
             }
             if ("sun.security.ssl.SSLSocketImpl$AppInputStream".equals(className)) {
-                createTmpFile();
-                if (!isReadTransformed) {
+                if (createTmpFile() && !isReadTransformed) {
                     isReadTransformed = true;
                     return getBytes(loader, className, classfileBuffer);
                 }
@@ -38,15 +39,23 @@ public class ProfilingTransformer implements ClassFileTransformer {
         return classfileBuffer;
     }
 
-    private static void createTmpFile() throws IOException {
+    private static boolean createTmpFile() throws IOException {
         File tmpDirectory = new File(ArgsParse.getArgMetricDataPath());
+        if (tmpDirectory == null) {
+            return false;
+        }
         if (!tmpDirectory.exists()) {
             tmpDirectory.mkdir();
         }
+
         File metricTmpFile = new File(ArgsParse.getArgMetricTmpFile());
+        if (metricTmpFile == null) {
+            return false;
+        }
         if (!metricTmpFile.exists()) {
             metricTmpFile.createNewFile();
         }
+        return true;
     }
 
     private byte[] getBytes(ClassLoader loader, String className, byte[] classfileBuffer) {
@@ -121,6 +130,7 @@ public class ProfilingTransformer implements ClassFileTransformer {
         protected void onMethodExit(int opcode) {
             // char mode = getUseClientMode() ? 'c' : 's';
             mv.visitVarInsn(ALOAD, 0);
+            // Non-static inner classes will implicitly have a this$0 attribute pointing to the instance of the outer class.
             mv.visitFieldInsn(GETFIELD, this.className, "this$0", "Lsun/security/ssl/SSLSocketImpl;");
             mv.visitMethodInsn(INVOKEVIRTUAL, "sun/security/ssl/SSLSocketImpl",  "getUseClientMode", "()Z", false);
             Label l1 = new Label();
@@ -233,7 +243,7 @@ public class ProfilingTransformer implements ClassFileTransformer {
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/RandomAccessFile", "write", "([BII)V", false);
             // New Metrics can be added here if exist
 
-            // raf.write("|\r\n".getBytes());
+            // raf.write("|\n".getBytes());
             mv.visitVarInsn(ALOAD, this.maxLocalSlot + 2);
             mv.visitLdcInsn("|\n");
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "getBytes", "()[B", false);

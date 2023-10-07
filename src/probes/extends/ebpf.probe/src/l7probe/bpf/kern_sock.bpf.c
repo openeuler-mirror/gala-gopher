@@ -331,7 +331,6 @@ static __always_inline __maybe_unused int submit_conn_open(void *ctx, struct soc
 static __always_inline __maybe_unused int submit_conn_close(void *ctx, conn_ctx_t id, int fd)
 {
     int tgid = (int)(id >> INT_LEN);
-    struct conn_id_s conn_id = {.tgid = tgid, .fd = fd};
     struct sock_conn_s* sock_conn = lkup_sock_conn(tgid, fd);
     if (sock_conn == NULL) {
         return 0;

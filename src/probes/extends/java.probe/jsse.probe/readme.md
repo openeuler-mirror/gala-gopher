@@ -48,7 +48,7 @@ JSSE为基于SSL和TLS协议的Java网络应用提供了Java API，JSSEProbe基�
                   getInetAddress().getHostAddress(), getPeerPort()).getBytes());
           raf.write(b, off, len);
   
-          raf.write("|\r\n".getBytes());
+          raf.write("|\n".getBytes());
           lock.release();
           raf.close();
       }
