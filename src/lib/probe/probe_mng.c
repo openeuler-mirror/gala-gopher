@@ -527,6 +527,7 @@ static int try_start_probe(struct probe_s *probe)
         return -1;
     }
 
+    probe->resnd_snooper_for_restart = 1;  // must be reset when start ends
     return 0;
 }
 
@@ -534,10 +535,6 @@ static int start_probe(struct probe_s *probe)
 {
     if (IS_RUNNING_PROBE(probe)) {
         return 0;
-    }
-
-    if (IS_STOPPED_PROBE(probe) || IS_STOPPING_PROBE(probe)) {
-        probe->is_restart = 1;
     }
 
     SET_PROBE_FLAGS(probe, PROBE_FLAGS_STARTED);
@@ -1036,16 +1033,16 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
         set_probe_modify(probe, probe_backup, parse_flag);
     }
 
-    /* Send snooper obj after parsing successfully, except when the probe was deleted */
+    /* Send snooper obj after parsing successfully */
     if (ret == 0 && (IS_STARTED_PROBE(probe) || IS_RUNNING_PROBE(probe))
-        && (probe->is_params_chg || probe->is_snooper_chg || probe->is_restart)) {
+        && (probe->is_params_chg || probe->is_snooper_chg || probe->resnd_snooper_for_restart)) {
         ret = send_snooper_obj(probe);
         if (ret) {
             PARSE_ERR("failed to send ipc msg to probe");
         }
     }
 
-    probe->is_restart = 0;
+    probe->resnd_snooper_for_restart = 0;
     destroy_probe(probe_backup);
 end:
     put_probemng_lock();
@@ -1210,11 +1207,16 @@ static void keeplive_probes(struct probe_mng_s *probe_mng)
             continue;
         }
 
-        (void)try_start_probe(probe);
+        if (try_start_probe(probe) == 0 && probe->resnd_snooper_for_restart) {
+            probe->is_params_chg = 0;
+            probe->is_snooper_chg = 0;
+            (void)send_snooper_obj(probe);
+            probe->resnd_snooper_for_restart = 0;
+        }
     }
 }
 
-#define __PROBE_KEEPLIVE_TIMEOUT    (120) // 120 Seconds
+#define __PROBE_KEEPLIVE_TIMEOUT    (60) // 60 Seconds
 static char is_keeplive_tmout(struct probe_mng_s *probe_mng)
 {
     time_t current = (time_t)time(NULL);
