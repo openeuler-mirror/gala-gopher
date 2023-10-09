@@ -32,20 +32,21 @@ image: hub.oepkgs.net/a-ops/gala-gopher-{{ARCH}}:{{TAG}}
 
 yaml文件中env条目下的环境变量用于控制gala-gopher运行时的各类配置，按如下说明进行修改：
 
-| 变量名                  | 变量作用                                                     | 配置值说明                                                   |
-| ----------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| GOPHER_HOST_PATH        | 容器外根目录"/"映射到gala-gopher容器内的目录，以便gala-gopher能够正常访问宿主机上的关键文件（例如内核debug文件、glibc动态库、httpd等二进制可执行文件）进行数据采集。 | 保持默认值，不建议修改                                       |
-| GOPHER_LOG_LEVEL        | 控制gala-gopher日志输出级别                                  | 可配置如下值：debug/info/warn/error                          |
-| GOPHER_EVENT_CHANNEL    | gala-gopher亚健康巡检异常事件输出方式                        | kafka：通过kafka上报（默认）<br/>logs：输出至本地日志        |
-| GOPHER_META_CHANNEL     | gala-gopher观测对象元数据metadata输出方式                    | kafka：通过kafka上报（默认）<br/>logs：输出至本地日志        |
-| GOPHER_KAKFA_SERVER     | gala-gopher上报亚健康巡检异常事件、观测对象元数据metadata的kafka服务端IP地址 | GOPHER_EVENT_CHANNEL和GOPHER_META_CHANNEL都设为logs时可设置为空，否则需要设置为有效的kafka服务端IP地址，例如1.2.3.4 |
-| GOPHER_METRIC_PORT      | gala-gopher作为prometheus exporter输出指标数据的监听端口     | 配置有效且未被其他程序占用的端口号，默认为8888               |
-| GOPHER_REST_PORT        | 动态配置RESTful API端口号                                    | 配置有效且未被其他程序占用的端口号，默认为9999               |
-| GOPHER_REST_AUTH        | 控制动态配置RESTful接口是否开启https以及证书鉴权             | no：不开启（默认）<br/>yes：开启                             |
-| GOPHER_REST_PRIVATE_KEY | 动态配置RESTful API开启https的私钥文件路径                   | GOPHER_REST_AUTH为yes时必配，路径为绝对路径                  |
-| GOPHER_REST_CERT        | 动态配置RESTful API开启https的证书文件路径                   | GOPHER_REST_AUTH为yes时必配，路径为绝对路径                  |
-| GOPHER_REST_CAFILE      | 动态配置RESTful API开启鉴权的CA证书文件路径                  | GOPHER_REST_AUTH为yes时必配，路径为绝对路径                  |
-| GOPHER_PROBES_INIT      | 控制gala-gopher启动后默认开启的探针以及其配置（采集子项、监控对象、参数） | 每个探针单独一行，每行内容为[采集特性名] [动态配置json]，特性名和json格式参照[动态配置接口说明](../config/gala-gopher支持动态配置接口设计_v0.3.md)<br/>无需默认开启探针时配置为空 |
+| 变量名                        | 变量作用                                                     | 配置值说明                                                   |
+| ----------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| GOPHER_HOST_PATH              | 容器外根目录"/"映射到gala-gopher容器内的目录，以便gala-gopher能够正常访问宿主机上的关键文件（例如内核debug文件、glibc动态库、httpd等二进制可执行文件）进行数据采集。 | 保持默认值，不建议修改                                       |
+| GOPHER_LOG_LEVEL              | 控制gala-gopher日志输出级别                                  | 可配置如下值：debug/info/warn/error                          |
+| GOPHER_EVENT_CHANNEL          | gala-gopher亚健康巡检异常事件输出方式                        | kafka：通过kafka上报（默认）<br/>logs：输出至本地日志        |
+| GOPHER_META_CHANNEL           | gala-gopher观测对象元数据metadata输出方式                    | kafka：通过kafka上报（默认）<br/>logs：输出至本地日志        |
+| GOPHER_KAKFA_SERVER           | gala-gopher上报亚健康巡检异常事件、观测对象元数据metadata的kafka服务端IP地址 | GOPHER_EVENT_CHANNEL和GOPHER_META_CHANNEL都设为logs时可设置为空，否则需要设置为有效的kafka服务端IP地址，例如1.2.3.4 |
+| GOPHER_METRIC_PORT            | gala-gopher作为prometheus exporter输出指标数据的监听端口     | 配置有效且未被其他程序占用的端口号，默认为8888               |
+| GOPHER_REST_PORT              | 动态配置RESTful API端口号                                    | 配置有效且未被其他程序占用的端口号，默认为9999               |
+| GOPHER_REST_AUTH              | 控制动态配置RESTful接口是否开启https以及证书鉴权             | no：不开启（默认）<br/>yes：开启                             |
+| GOPHER_REST_PRIVATE_KEY       | 动态配置RESTful API开启https的私钥文件路径                   | GOPHER_REST_AUTH为yes时必配，路径为绝对路径                  |
+| GOPHER_REST_CERT              | 动态配置RESTful API开启https的证书文件路径                   | GOPHER_REST_AUTH为yes时必配，路径为绝对路径                  |
+| GOPHER_REST_CAFILE            | 动态配置RESTful API开启鉴权的CA证书文件路径                  | GOPHER_REST_AUTH为yes时必配，路径为绝对路径                  |
+| GOPHER_METRIC_LOGS_TOTAL_SIZE | metrics指标数据日志文件总大小的上限，单位为MB                | 需为正整数，默认为100                                        |
+| GOPHER_PROBES_INIT            | 控制gala-gopher启动后默认开启的探针以及其配置（采集子项、监控对象、参数） | 每个探针单独一行，每行内容为[采集特性名] [动态配置json]，特性名和json格式参照[动态配置接口说明](../config/gala-gopher支持动态配置接口设计_v0.3.md)<br/>无需默认开启探针时配置为空 |
 
 ### 修改其他daemonset配置项（可选）
 

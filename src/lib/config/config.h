@@ -74,6 +74,7 @@ typedef struct {
 } RestServerConfig;
 
 typedef struct {
+    uint32_t metricTotalSize;
     char metricDir[PATH_LEN];
     char eventDir[PATH_LEN];
     char metaDir[PATH_LEN];

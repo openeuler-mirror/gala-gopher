@@ -94,7 +94,6 @@ static void sendOutputToIngresss(struct probe_s *probe, char *buffer, uint32_t b
             }
 
             // reset dataStr
-            DEBUG("[E-PROBE %s] send data to ingresss succeed.(content=%s)\n", probe->name, dataStr);
             dataStr = NULL;
         } else {
             dataStr[index] = buffer[i];

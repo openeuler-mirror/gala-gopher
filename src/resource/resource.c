@@ -640,6 +640,9 @@ static int LogsMgrInit(ResourceMgr *resourceMgr)
     }
 
     mode_t old_mask = umask(S_IWGRP | S_IROTH | S_IWOTH | S_IXOTH);
+
+    // metricTotalSize divided by 2 because there is a backup file
+    logsMgr->metrics_logs_filesize = configMgr->logsConfig->metricTotalSize * 1024 * 1024 / 2;
     (void)snprintf(logsMgr->debug_path, sizeof(logsMgr->debug_path), "%s", configMgr->logsConfig->debugDir);
     (void)snprintf(logsMgr->metrics_path, sizeof(logsMgr->metrics_path), "%s", configMgr->logsConfig->metricDir);
     (void)snprintf(logsMgr->event_path, sizeof(logsMgr->event_path), "%s", configMgr->logsConfig->eventDir);

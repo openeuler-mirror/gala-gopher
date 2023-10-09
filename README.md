@@ -213,6 +213,7 @@ linux社区提供的解决方案是CO-RE技术（Compile Once Run Everywhere）�
     - GOPHER_KAKFA_SERVER：gala-gopher上报亚健康巡检异常事件、观测对象元数据metadata的kafka服务端IP地址
     - GOPHER_METRIC_PORT：gala-gopher作为prometheus exporter输出指标数据的监听端口
     - GOPHER_REST_PORT：动态配置RESTful API端口号
+    - GOPHER_METRIC_LOGS_TOTAL_SIZE：metrics指标数据日志文件总大小的上限，单位为MB
     - GOPHER_PROBES_INIT：控制gala-gopher启动后默认开启的探针以及其配置（采集子项、监控对象、参数），每个探针单独一行，每行内容为[采集特性名] [动态配置json]，特性名和json格式参照[REST API说明](https://gitee.com/openeuler/gala-gopher/blob/dev/config/gala-gopher支持动态配置接口设计_v0.3.md)，不配置则启动gala-gopher容器后不开启任何探针。
 
   - 通过docker ps查看容器是否运行成功：

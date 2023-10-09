@@ -53,6 +53,7 @@ typedef struct log_mgr_s {
     char is_metric_out_log;
     char is_event_out_log;
     char is_meta_out_log;
+    long metrics_logs_filesize;
 } LogsMgr;
 
 void wr_raw_logs(const char* format, ...);

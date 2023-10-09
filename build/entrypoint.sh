@@ -39,6 +39,10 @@ if [[ "x$GOPHER_REST_AUTH" == "xyes" ]]; then
     sed -i "s/ca_file =.*/ca_file =\"${GOPHER_REST_CAFILE}\";/g" $GOPHER_CONF
 fi
 
+if [[ -n "$GOPHER_METRIC_LOGS_TOTAL_SIZE" ]]; then
+    sed -i "s/metric_total_size =.*/metric_total_size = ${GOPHER_METRIC_LOGS_TOTAL_SIZE};/g" $GOPHER_CONF
+fi
+
 if [[ -n "$GOPHER_PROBES_INIT" ]] ; then
     echo "$GOPHER_PROBES_INIT" > $GOPHER_PROBES_INIT_FILE;
 else
