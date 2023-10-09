@@ -122,11 +122,9 @@ static int EgressDataProcesssInput(Fifo *fifo, const EgressMgr *mgr)
 
         if ((mkafkaMgr != NULL) && (fifo->triggerFd == mgr->metric_fifo->triggerFd)) {
             KafkaMsgProduce(mkafkaMgr, dataStr, strlen(dataStr));
-            DEBUG("[EGRESS] kafka metric_topic produce one data: %s\n", dataStr);
         }
         if ((ekafkaMgr != NULL) && (fifo->triggerFd == mgr->event_fifo->triggerFd)) {
             KafkaMsgProduce(ekafkaMgr, dataStr, strlen(dataStr));
-            DEBUG("[EGRESS] kafka event_topic produce one data: %s\n", dataStr);
         }
     }
 

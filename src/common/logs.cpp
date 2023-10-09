@@ -30,6 +30,7 @@
 #define IS_VALID_FILE_ID(id)    ((id) != INVALID_FILE_ID)
 
 #if !defined(UTEST)
+#define METRICS_LOGS_FILESIZE_MAX   (1024 * 1024 * 1024)
 #define METRICS_LOGS_FILESIZE   (100 * 1024 * 1024)
 #define EVENT_LOGS_FILESIZE     (100 * 1024 * 1024)
 #define DEBUG_LOGS_FILESIZE     (100 * 1024 * 1024)
@@ -51,17 +52,41 @@
 #define DEBUG_LOGS_FILE_NAME    "gopher_debug.log"
 #define META_LOGS_FILE_NAME    "gopher_meta.log"
 
-#define RM_COMMAND      "/usr/bin/rm -rf %s"
+#define RM_COMMAND          "/usr/bin/rm -rf %s && /usr/bin/rm -rf %s.1"
+#define RM_DIR_COMMAND      "/usr/bin/rm -rf %s"
 
 static struct log_mgr_s *local = NULL;
 
+// RollingFileAppender may generate a backup file with the suffix ".1" (even if maxBackupIndex is set to 0),
+// which needs to be deleted together.
 void rm_log_file(char full_path[])
 {
     FILE *fp = NULL;
     char command[COMMAND_LEN];
+    if (full_path == NULL || full_path[0] == 0) {
+        return;
+    }
 
     command[0] = 0;
-    (void)snprintf(command, COMMAND_LEN, RM_COMMAND, full_path);
+    (void)snprintf(command, COMMAND_LEN, RM_COMMAND, full_path, full_path);
+    fp = popen(command, "r");
+    if (fp != NULL) {
+        (void)pclose(fp);
+        fp = NULL;
+    }
+    return;
+}
+
+void clear_log_dir(char full_path[])
+{
+    FILE *fp = NULL;
+    char command[COMMAND_LEN];
+    if (full_path == NULL || full_path[0] == 0) {
+        return;
+    }
+
+    command[0] = 0;
+    (void)snprintf(command, COMMAND_LEN, RM_DIR_COMMAND, full_path);
     fp = popen(command, "r");
     if (fp != NULL) {
         (void)pclose(fp);
@@ -407,7 +432,7 @@ static int append_metrics_logger(struct log_mgr_s * mgr)
     g_metrics_logger.removeAllAppenders();
 
     rm_log_file(full_path);
-    SharedAppenderPtr append(new RollingFileAppender(full_path, METRICS_LOGS_FILESIZE, 1, true, true));
+    SharedAppenderPtr append(new RollingFileAppender(full_path, mgr->metrics_logs_filesize, 1, true, true));
     log4cplus::tstring pattern = LOG4CPLUS_TEXT("%m");
     append->setLayout(std::unique_ptr<log4cplus::Layout>(new log4cplus::PatternLayout(pattern)));
     g_metrics_logger.addAppender(append);
@@ -496,7 +521,18 @@ static void set_debug_log_level(char *logLevel)
 
 int init_log_mgr(struct log_mgr_s* mgr, int is_meta_out_log, char *logLevel)
 {
+    clear_log_dir(mgr->metrics_path);
     init_all_logger();
+
+    if (mgr->metrics_logs_filesize <= 0) { 
+        mgr->metrics_logs_filesize = METRICS_LOGS_FILESIZE;
+        (void)fprintf(stderr, "metric_total_size is invalid. metrics_logs_filesize will reset to 100MB.\n");
+    }
+
+    if (mgr->metrics_logs_filesize > METRICS_LOGS_FILESIZE_MAX) { 
+        mgr->metrics_logs_filesize = METRICS_LOGS_FILESIZE_MAX;
+        (void)fprintf(stderr, "metric_total_size is too large. metrics_logs_filesize will reset to 1GB.\n");
+    }
 
     if ((mgr->debug_path[0] != 0) && append_debug_logger(mgr)) {
         (void)fprintf(stderr, "Append debug logger failed.\n");

@@ -19,7 +19,7 @@ extend探针配置文件归档在探针同级目录下。目前有配置文件�
 
 - global：gala-gopher全局配置信息
   - log_file_name：gala-gopher日志文件名
-  - log_level：gala-gopher日志级别（暂未开放此功能）
+  - log_level：gala-gopher日志级别
   - pin_path：ebpf探针共享map存放路径（建议维持默认配置）
 - metric：指标数据metrics输出方式配置
   - out_channel：metrics输出通道，支持配置web_server|logs|kafka，配置为空则输出通道关闭
@@ -58,6 +58,7 @@ extend探针配置文件归档在探针同级目录下。目前有配置文件�
   - queue_buffering_max_kbytes：生产者缓冲区中允许的最大字节数
   - queue_buffering_max_ms：生产者在发送批次之前等待更多消息加入的最大时间
 - logs：输出通道logs配置
+  - metric_total_size：metrics指标数据日志文件总大小的上限，单位为MB
   - metric_dir：metrics指标数据日志路径
   - event_dir：异常事件数据日志路径
   - meta_dir：metadata元数据日志路径
