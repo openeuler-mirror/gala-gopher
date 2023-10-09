@@ -116,6 +116,23 @@ int l7_load_probe_libssl(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog, const
     }
     prog->skels[prog->num]._link[link_num++] = (void *)libssl_link[libssl_link_current - 1];
 
+    UBPF_ATTACH(libssl, SSL_set_fd, libssl_path, SSL_set_fd, succeed);
+    if (!succeed) {
+        goto err;
+    }
+    prog->skels[prog->num]._link[link_num++] = (void *)libssl_link[libssl_link_current - 1];
+
+    UBPF_ATTACH(libssl, SSL_set_rfd, libssl_path, SSL_set_rfd, succeed);
+    if (!succeed) {
+        goto err;
+    }
+    prog->skels[prog->num]._link[link_num++] = (void *)libssl_link[libssl_link_current - 1];
+    UBPF_ATTACH(libssl, SSL_set_wfd, libssl_path, SSL_set_wfd, succeed);
+    if (!succeed) {
+        goto err;
+    }
+    prog->skels[prog->num]._link[link_num++] = (void *)libssl_link[libssl_link_current - 1];
+
     // libssl bpf prog create pb for 'conn_tracker_events'
     fd = GET_MAP_FD(libssl, conn_tracker_events);
     if (l7_prog_create_pb(prog, fd, get_tracker_msg_cb(), l7_mng)) {
