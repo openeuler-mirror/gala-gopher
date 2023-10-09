@@ -17,6 +17,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <time.h>
+
 #include "ipc.h"
 #include "system_disk.h"
 #include "system_net.h"
@@ -26,6 +28,7 @@
 #include "system_os.h"
 
 static struct ipc_body_s g_ipc_body;
+time_t last_report;
 
 static int system_probe_init(void)
 {
@@ -79,6 +82,27 @@ static char is_load_probe(unsigned int ipc_probe_flags, unsigned int probe)
     return 0;
 }
 
+static char is_report_tmout()
+{
+    time_t current = time(NULL);
+    time_t secs;
+
+    // skip when no ipc msg is received
+    if (g_ipc_body.probe_param.period == 0) {
+        return 0;
+    }
+
+    if (current > last_report) {
+        secs = current -last_report;
+        if (secs >= g_ipc_body.probe_param.period) {
+            last_report = current;
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 int main(void)
 {
     int ret;
@@ -113,6 +137,11 @@ int main(void)
             is_load_proc = is_load_probe(g_ipc_body.probe_range_flags, PROBE_RANGE_SYS_PROC);
             is_load_host = is_load_probe(g_ipc_body.probe_range_flags, PROBE_RANGE_SYS_HOST);
             is_need_refresh_proc = 1;
+        }
+
+        if (!is_report_tmout()) {
+            sleep(1);
+            continue;
         }
 
         if (is_load_cpu && system_cpu_probe(&g_ipc_body) < 0) {
@@ -154,7 +183,6 @@ int main(void)
             ERROR("[SYSTEM_PROBE] system os probe fail.\n");
             goto err;
         }
-        sleep(g_ipc_body.probe_param.period);
     }
 
 err:
