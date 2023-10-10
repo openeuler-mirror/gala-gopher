@@ -83,7 +83,8 @@ static MHD_Result WebRequestCallback(void *cls,
         return MHD_NO;
     }
 
-    if (ReadMetricsLogs(log_file_name) < 0) {
+    // The log file may has not been created if we get here between que_get_next_file() and LOG4CPLUS_DEBUG_FMT()
+    if (ReadMetricsLogs(log_file_name) < 0 || access(log_file_name, F_OK) == -1) {
         return WebResponseEmptyMetric(connection);
     }
 
@@ -92,6 +93,7 @@ static MHD_Result WebRequestCallback(void *cls,
         ERROR("Failed to open '%s': %s\n", log_file_name, strerror(errno));
         return WebResponseEmptyMetric(connection);
     }
+
     if ((fstat(fd, &buf) == -1) || !S_ISREG(buf.st_mode)) {
         (void)close(fd);
         return WebResponseEmptyMetric(connection);
