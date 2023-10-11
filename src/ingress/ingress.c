@@ -303,8 +303,6 @@ static int ProcessEventData(IngressMgr *mgr, const char *content)
         if (ret != 0) {
             ERROR("[INGRESS] send event data to egress failed.\n");
             return -1;
-        } else {
-            DEBUG("[INGRESS] send event data to egress succeed.(content=%s)\n", content);
         }
     }
 

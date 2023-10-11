@@ -388,6 +388,14 @@ static int ConfigMgrLoadLogsConfig(void *config, config_setting_t *settings)
     LogsConfig *logsConfig = (LogsConfig *)config;
     uint32_t ret = 0;
     const char *strVal = NULL;
+    uint32_t intVal = 0;
+
+    ret = config_setting_lookup_int(settings, "metric_total_size", &intVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for metric_total_size failed.\n");
+        return -1;
+    }
+    logsConfig->metricTotalSize = intVal;
 
     ret = config_setting_lookup_string(settings, "metric_dir", &strVal);
     if (ret == 0) {
