@@ -66,6 +66,8 @@ spec:
           value: ""
         - name: GOPHER_REST_CAFILE
           value: ""
+        - name: GOPHER_METRIC_LOGS_TOTAL_SIZE
+          value: "100"
         - name: GOPHER_PROBES_INIT
           value: |
             baseinfo {"cmd":{"probe":["cpu","mem","nic","net","disk","fs","proc","host"]},"snoopers":{"proc_name":[{"comm":"^java$","cmdline":""}]},"params":{"report_event":1,"report_period":60},"state":"running"}
