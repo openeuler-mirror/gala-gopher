@@ -84,6 +84,17 @@
 
 #define PLDD_LIB_COMMAND "cat /proc/%u/maps 2>/dev/null | grep \"%s[^a-zA-Z]\" | awk 'NR==1{print $6}'"
 
+// cgroupdriver=cgroupfs
+#define KUBEPODS_PREFIX_CGRPFS    "/kubepods/"
+#define DOCKER_PREFIX_CGRPFS      "/docker/"
+#define PODID_PREFIX_CGRPFS       "/pod"
+
+// cgroupdriver=systemd
+#define KUBEPODS_PREFIX_SYSTEMD   "/kubepods.slice/"
+#define DOCKER_PREFIX_SYSTEMD     "/system.slice/docker-"
+#define PODID_PREFIX_SYSTEMD      "-pod"
+#define POD_DOCKER_DELIM_SYSTEMD  "slice/docker-"
+
 static char *current_docker_command = NULL;
 static char current_docker_command_chroot[COMMAND_LEN];
 static char current_docker_driver[CONTAINER_DRIVER_LEN] = {0};
@@ -722,8 +733,113 @@ int get_container_id_by_pid(unsigned int pid, char *container_id, unsigned int b
 }
 #endif
 
+
+static enum cgrp_driver_t get_cgroup_drvier(const char *cgrp_path)
+{
+    if (strncmp(cgrp_path, KUBEPODS_PREFIX_CGRPFS, strlen(KUBEPODS_PREFIX_CGRPFS)) == 0 ||
+        strncmp(cgrp_path, DOCKER_PREFIX_CGRPFS, strlen(DOCKER_PREFIX_CGRPFS)) == 0) {
+        return CGRP_DRIVER_CGRPFS;
+    }
+
+    if (strncmp(cgrp_path, KUBEPODS_PREFIX_SYSTEMD, strlen(KUBEPODS_PREFIX_SYSTEMD)) == 0 ||
+        strncmp(cgrp_path, DOCKER_PREFIX_SYSTEMD, strlen(DOCKER_PREFIX_SYSTEMD)) == 0) {
+        return CGRP_DRIVER_SYSTEMD;
+    }
+
+    return CGRP_DRIVER_UNKNOWN;
+}
+
+static enum id_ret_t get_pod_container_id_by_type(const char *cgrp_path, char *pod_id, char *con_id, enum cgrp_driver_t type)
+{
+    enum id_ret_t ret;
+    int full_path_len;
+    char *p, *kube_prefix, *podid_prefix, *docker_prefix;
+    char delim;
+    int i,j;
+
+    if (type == CGRP_DRIVER_CGRPFS) {
+        /* cgroupf driver is cgroupfs
+         * k8s scenario, cgrp_path is like: /kubepods/besteffort/pod<pod_id>/<con_id>
+         * docker scenario, cgrp_path is like: /docker/<con_id>
+         */
+        kube_prefix = KUBEPODS_PREFIX_CGRPFS;
+        podid_prefix = PODID_PREFIX_CGRPFS;
+        docker_prefix = DOCKER_PREFIX_CGRPFS;
+        delim = '/';
+    } else if (type == CGRP_DRIVER_SYSTEMD) {
+        /* cgroupf driver is systemd
+         * k8s scenario, cgrp_path is like: /kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod<pod_id>.slice/docker-<con_id>.scope
+         * docker scenario, cgrp_path is like: /system.slice/docker-<con_id>.scope
+         */
+        kube_prefix = KUBEPODS_PREFIX_SYSTEMD;
+        podid_prefix = PODID_PREFIX_SYSTEMD;
+        docker_prefix = DOCKER_PREFIX_SYSTEMD;
+        delim = '.';
+    } else {
+        return ID_FAILED;
+    }
+
+    full_path_len = strlen(cgrp_path);
+    if (strstr(cgrp_path, kube_prefix) != NULL) {
+        p = strstr(cgrp_path, podid_prefix);
+        if (p == NULL) {
+            return ID_FAILED;
+        }
+        p += strlen(podid_prefix);
+        i = 0;
+        while (i < POD_ID_LEN && i + p - cgrp_path < full_path_len) {
+            if (p[i] == delim) {
+                pod_id[i++] = 0;
+                break;
+            }
+            // format pod id to xxxx-xxxx-xxxxx
+            (p[i] == '_') ? (pod_id[i] = '-') : (pod_id[i] = p[i]);
+            i++;
+        }
+        pod_id[POD_ID_LEN] = 0;
+        if (strlen(pod_id) == POD_ID_LEN) {
+            i++;         // reach the '/' or '.'
+        }
+        if (type == CGRP_DRIVER_SYSTEMD) {
+            i += strlen(POD_DOCKER_DELIM_SYSTEMD);
+        }
+        if (i + p - cgrp_path >= full_path_len) {
+            return ID_POD_ONLY;
+        }
+        ret = ID_CON_POD;
+    } else if ((p = strstr(cgrp_path, docker_prefix)) != NULL) {
+        i = strlen(docker_prefix);
+        (void)snprintf(pod_id, POD_ID_LEN + 1, "%s", FAKE_POD_ID);
+        ret = ID_CON_ONLY;
+    } else {
+        return ID_FAILED;
+    }
+
+    // get container id
+    p += i;
+    j = 0;
+    while (j < CONTAINER_ABBR_ID_LEN && j + p - cgrp_path < full_path_len) {
+        if (p[j] == delim) {
+            con_id[j++] = 0;
+            break;
+        }
+        con_id[j] = p[j];
+        j++;
+    }
+    con_id[CONTAINER_ABBR_ID_LEN] = 0;
+    return ret;
+}
+
+enum id_ret_t get_pod_container_id(const char *cgrp_path, char *pod_id, char *con_id)
+{
+    if (!cgrp_path) {
+        return ID_FAILED;
+    }
+
+    return get_pod_container_id_by_type(cgrp_path, pod_id, con_id, get_cgroup_drvier(cgrp_path));
+}
+
 #define __PROC_CPUSET           "/proc/%s/cpuset"
-#define __CAT_PROC_CPUSET_CMD   "/usr/bin/cat %s 2>/dev/null | awk -F '/' '{print $NF}'"
 static int __is_container_id(char *container_id)
 {
     int len = strlen(container_id);
@@ -747,9 +863,10 @@ static int __is_container_id(char *container_id)
 
 int get_container_id_by_pid_cpuset(const char *pid, char *container_id, unsigned int buf_len)
 {
-    int ret;
-    char cmd[COMMAND_LEN];
+    FILE *f = NULL;
     char proc_cpuset[PATH_LEN];
+    char cpuset_buf[MAX_CGRP_PATH];
+    char pod_id[POD_ID_LEN + 1];
 
     if (buf_len <= CONTAINER_ABBR_ID_LEN) {
         return -1;
@@ -757,16 +874,23 @@ int get_container_id_by_pid_cpuset(const char *pid, char *container_id, unsigned
 
     proc_cpuset[0] = 0;
     (void)snprintf(proc_cpuset, PATH_LEN, __PROC_CPUSET, pid);
-    if (access((const char *)proc_cpuset, 0) != 0) {
+    f = fopen(proc_cpuset, "r");
+    if (!f) {
         return -1;
     }
+    cpuset_buf[0] = 0;
+    if (fgets(cpuset_buf, sizeof(cpuset_buf), f) == NULL) {
+        (void)fclose(f);
+        return -1;
+    }
+    (void)fclose(f);
+    SPLIT_NEWLINE_SYMBOL(cpuset_buf);
 
-    cmd[0] = 0;
-    (void)snprintf(cmd, COMMAND_LEN, __CAT_PROC_CPUSET_CMD, proc_cpuset);
+    pod_id[0] = 0;
     container_id[0] = 0;
-    ret = exec_cmd((const char *)cmd, container_id, buf_len);
-    if (ret) {
-        return ret;
+    if (get_pod_container_id(cpuset_buf, pod_id, container_id) == ID_FAILED) {
+        container_id[0] = 0;
+        return 0;
     }
 
     if (!__is_container_id(container_id)) {

@@ -21,6 +21,23 @@
 #define CONTAINER_ERR      (-1)
 #define CONTAINER_NOTOK     (-2)
 
+#define MAX_CGRP_PATH 512
+
+#define FAKE_POD_ID "-no-pod" // fake pod id for host container
+
+enum id_ret_t {
+    ID_FAILED = -1,
+    ID_CON_POD = 0, // pod with containers
+    ID_CON_ONLY = 1, // host container
+    ID_POD_ONLY = 2  // pod without containers for now
+};
+
+enum cgrp_driver_t {
+    CGRP_DRIVER_UNKNOWN = 0,
+    CGRP_DRIVER_CGRPFS = 1,
+    CGRP_DRIVER_SYSTEMD = 2
+};
+
 enum container_status_e {
     CONTAINER_STATUS_RUNNING = 0,
     CONTAINER_STATUS_RESTARTING,
@@ -38,6 +55,7 @@ typedef struct container_tbl_s {
 } container_tbl;
 
 container_tbl* get_all_container(void);
+enum id_ret_t get_pod_container_id(const char *cgrp_path, char *pod_id, char *con_id);
 int get_container_id_by_pid_cpuset(const char *pid, char *container_id, unsigned int buf_len);
 int get_elf_path(unsigned int pid, char elf_path[], int max_path_len, const char *comm);
 int get_elf_path_by_con_id(char *container_id, char elf_path[], int max_path_len, const char *comm);
