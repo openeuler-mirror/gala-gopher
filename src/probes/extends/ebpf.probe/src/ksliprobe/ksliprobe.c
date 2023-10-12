@@ -193,10 +193,10 @@ static void load_args(int args_fd, struct ipc_body_s* ipc_body)
     (void)bpf_map_update_elem(args_fd, &key, &args, BPF_ANY);
 }
 
-static void reload_tc_bpf(struct ipc_body_s* ipc_body)
+static void reload_tc_bpf(struct ipc_body_s* ipc_body, bool is_first_load)
 {
 #ifdef KERNEL_SUPPORT_TSTAMP
-    if (strcmp(g_ksli_probe.ipc_body.probe_param.target_dev, ipc_body->probe_param.target_dev) != 0) {
+    if (strcmp(g_ksli_probe.ipc_body.probe_param.target_dev, ipc_body->probe_param.target_dev) != 0 || is_first_load) {
         offload_tc_bpf(TC_TYPE_INGRESS);
         load_tc_bpf(ipc_body->probe_param.target_dev, TC_PROG, TC_TYPE_INGRESS);
     }
@@ -286,7 +286,7 @@ int main(int argc, char **argv)
     while (!stop) {
         err = recv_ipc_msg(msq_id, (long)PROBE_KSLI, &ipc_body);
         if (err == 0) {
-            reload_tc_bpf(&ipc_body);
+            reload_tc_bpf(&ipc_body, is_first_load);
 
             err = init_probe_first_load(is_first_load);
             if (err) {
