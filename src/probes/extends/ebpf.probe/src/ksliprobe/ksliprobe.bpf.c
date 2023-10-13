@@ -408,7 +408,7 @@ static __always_inline void process_rd_msg(u32 tgid, int fd, const char *buf, co
 #ifndef KERNEL_SUPPORT_TSTAMP
     csd->start_ts_nsec = ts_nsec;
 #else
-    if (csd->start_ts_nsec == 0) {
+    if (csd->start_ts_nsec == 0 || csd->start_ts_nsec > ts_nsec) {
         csd->start_ts_nsec = ts_nsec;
     }
 #endif
@@ -514,10 +514,12 @@ KPROBE(tcp_clean_rtx_queue, pt_regs)
             u64 end_ts_nsec = bpf_ktime_get_ns();
             if (end_ts_nsec < csd->start_ts_nsec) {
                 csd->status = SAMP_INIT;
+                csd->start_ts_nsec = 0;
                 return 0;
             }
             csd->rtt_ts_nsec = end_ts_nsec - csd->start_ts_nsec;
             csd->status = SAMP_FINISHED;
+            csd->start_ts_nsec = 0;
         }
     }
     return 0;
