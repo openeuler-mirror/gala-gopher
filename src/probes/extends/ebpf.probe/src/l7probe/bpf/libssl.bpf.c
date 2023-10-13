@@ -55,6 +55,25 @@ struct ssl_st {
 #define __PERF_OUT_MAX (64)
 #endif
 
+struct {
+    __uint(type, BPF_MAP_TYPE_LRU_HASH);
+    __uint(key_size, sizeof(u64));
+    __uint(value_size, sizeof(int));
+    __uint(max_entries, __MAX_CONCURRENCY);
+} ssl_fd_map SEC(".maps");
+
+static __always_inline int get_fd_from_ssl_fd_map(u64 ssl_addr)
+{
+    int *fd_ptr;
+
+    fd_ptr = (int *)bpf_map_lookup_elem(&ssl_fd_map, &ssl_addr);
+    if (fd_ptr) {
+        return *fd_ptr;
+    }
+
+    return 0;
+}
+
 static __always_inline int get_fd_from_ssl(struct ssl_st* ssl_st_p, enum l7_direction_t rw_type)
 {
     int fd;
@@ -69,6 +88,11 @@ static __always_inline int get_fd_from_ssl(struct ssl_st* ssl_st_p, enum l7_dire
     }
 
     fd = _(bio_p->num);
+
+    if (fd == 0) {
+        fd = get_fd_from_ssl_fd_map((u64)ssl_st_p);
+    }
+
     return fd;
 }
 
@@ -168,4 +192,40 @@ end:
     return 0;
 }
 
+static __always_inline void process_ssl_set_fd(struct pt_regs *ctx)
+{
+    conn_ctx_t id = bpf_get_current_pid_tgid();
+    int proc_id = (int)(id >> INT_LEN);
+    u64 ssl_addr;
+    int fd;
+
+    if (!is_filter_id(FILTER_TGID, proc_id)) {
+        return;
+    }
+
+    ssl_addr = (u64)PT_REGS_PARM1(ctx);
+    fd = (int)PT_REGS_PARM2(ctx);
+    bpf_map_update_elem(&ssl_fd_map, &ssl_addr, &fd, BPF_ANY);
+}
+
+// int SSL_set_fd(SSL *s, int fd)
+UPROBE(SSL_set_fd, pt_regs)
+{
+    process_ssl_set_fd(ctx);
+    return 0;
+}
+
+// int SSL_set_rfd(SSL *s, int fd)
+UPROBE(SSL_set_rfd, pt_regs)
+{
+    process_ssl_set_fd(ctx);
+    return 0;
+}
+
+// int SSL_set_wfd(SSL *s, int fd)
+UPROBE(SSL_set_wfd, pt_regs)
+{
+    process_ssl_set_fd(ctx);
+    return 0;
+}
 
