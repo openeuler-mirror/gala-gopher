@@ -30,12 +30,6 @@ function add_bpftool()
     fi
 }
 
-function gen_vmlinux_header_file()
-{
-    add_bpftool
-    ./gen_vmlinux_h.sh
-}
-
 function check_dep()
 {
     for dep in "${DEP_LIST[@]}" ; do
@@ -74,27 +68,6 @@ function compile_probe_end()
 
 function compile_probe()
 {
-    MATCH_VMLINUX=linux_${LINUX_VER}.h
-
-    cd ${VMLINUX_DIR}
-    if [ -f ${MATCH_VMLINUX} ];then
-        rm -f vmlinux.h
-        ln -s ${MATCH_VMLINUX} vmlinux.h
-        echo "debug: match vmlinux :" ${MATCH_VMLINUX}
-    elif [ -f "vmlinux.h" ];then
-        echo "debug: vmlinux.h is already here, continue compile."
-    else
-        echo "======================================ERROR==============================================="
-        echo "there no match vmlinux :" ${MATCH_VMLINUX}
-        echo "please create vmlinux.h manually."
-        echo "methods:"
-        echo "  1. generate linux_xxx.h by compile the kernel, refer to gen_vmlinux_h.sh;"
-        echo "  2. ln -s linux_xxx.h vmlinux.h, (there are some include files in directory src/include)"
-        echo "     if your kernel version is similar to the include files provided, you can use method 2"
-        echo "=========================================================================================="
-        exit
-    fi
-
     cd ${SRC_DIR}
     echo "=======Begin to compile ebpf-based probes======:" ${EBPF_PROBES}
     make
@@ -110,7 +83,6 @@ if [ -z "$1"  -o  "$1" == "-h"  -o  "$1" == "--help" ];
 then
     echo build.sh -h/--help : Show this message.
     echo build.sh    --check: Check the environment including arch/os/kernel/packages.
-    echo build.sh -g/--gen  : Generate the linux header file.
     echo build.sh -c/--clean: Clean the built binary.
     echo build.sh -b/--build: Build all the probes.
     exit
@@ -123,12 +95,6 @@ then
 fi
 
 add_bpftool
-
-if [ "$1" == "-g"  -o  "$1" == "--gen" ];
-then
-    gen_vmlinux_header_file
-    exit
-fi
 
 if [ "$1" == "-b"  -o  "$1" == "--build" ];
 then
