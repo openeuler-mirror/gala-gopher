@@ -85,14 +85,15 @@ struct bpf_buffer
 
 static void __perfbuf_sample_fn(void *ctx, int cpu, void *data, __u32 size)
 {
-	struct bpf_buffer *buffer = (struct bpf_buffer *)ctx;
-	bpf_buffer_sample_fn fn;
+    struct bpf_buffer *buffer = (struct bpf_buffer *)ctx;
+    bpf_buffer_sample_fn fn;
 
-	fn = buffer->fn;
-	if (!fn)
-		return;
+    fn = buffer->fn;
+    if (!fn) {
+        return;
+    }
 
-	(void)fn(buffer->ctx, data, size);
+    (void)fn(buffer->ctx, data, size);
 }
 
 static inline struct bpf_buffer *bpf_buffer__new(struct bpf_map *map, struct bpf_map *heap)
