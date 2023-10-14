@@ -59,7 +59,7 @@ endif
 
 BTF_ENABLE = $(shell if [ -n "$(BTF_ENABLE_OVERRIDE)" ]; then echo "$(BTF_ENABLE_OVERRIDE)"; elif [ -f /sys/kernel/btf/vmlinux ]; then echo "ON" ; else echo "OFF"; fi)
 
-BTFHUB_REPO=https://gitee.com/openeuler/btfhub-archive.git,https://github.com/eunomia-bpf/btfhub-archive.git
+BTFHUB_REPO := https://gitee.com/openeuler/btfhub-archive.git
 BTFHUB_CACHE := $(abspath $(BTFHUB_CACHE_DIR))
 BTFGEN := $(BPF_COMPATIBLE_DIR)/bin/btfgen
 
