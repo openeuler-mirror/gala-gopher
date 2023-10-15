@@ -115,17 +115,7 @@ gala-gopher提供的微服务访问性能监控可以非侵入、多语言的完
 
 ## 如何解决跨版本兼容性问题
 
-### 问题说明
-
-gala-gopher大量使用了eBPF技术，eBPF Program存在访问内核数据行为，所以其存在与内核版本兼容配套的问题。
-
-![eBPF兼容性问题](./doc/pic/eBPF-1.png)
-
-linux社区提供的解决方案是CO-RE技术（Compile Once Run Everywhere），但CO-RE技术只有在kernel >5.4版本才能使用，且依赖运行环境开启CONFIG_DEBUG_INFO_BTF。这些局限性会导致gala-gopher在集群式部署时面临版本管理复杂的问题。
-
-### 解决方案
-
-敬请期待...
+参考[这里](https://gitee.com/openeuler/gala-gopher/blob/dev/doc/compatible.md)。
 
 ## 安装指南
 
