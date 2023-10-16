@@ -724,6 +724,7 @@ static int tcp_load_probe_sockbuf(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *
     if (is_load) {
         prog->skels[prog->num].skel = tcp_sockbuf_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_sockbuf_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = tcp_sockbuf_open_opts.btf_custom_path;
 
         fd = GET_MAP_FD(tcp_sockbuf, tcp_output);
         pb = create_pref_buffer3(fd, proc_tcp_metrics_evt, NULL, tcp_mng);
@@ -737,7 +738,7 @@ static int tcp_load_probe_sockbuf(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *
 
     return 0;
 err:
-    UNLOAD(tcp_sockbuf);
+    __UNLOAD_PROBE(tcp_sockbuf);
     return -1;
 }
 
@@ -750,6 +751,7 @@ static int tcp_load_probe_rtt(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog
     if (is_load) {
         prog->skels[prog->num].skel = tcp_rtt_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_rtt_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = tcp_rtt_open_opts.btf_custom_path;
 
         fd = GET_MAP_FD(tcp_rtt, tcp_output);
         pb = create_pref_buffer3(fd, proc_tcp_metrics_evt, NULL, tcp_mng);
@@ -763,7 +765,7 @@ static int tcp_load_probe_rtt(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog
 
     return 0;
 err:
-    UNLOAD(tcp_rtt);
+    __UNLOAD_PROBE(tcp_rtt);
     return -1;
 }
 
@@ -776,6 +778,7 @@ static int tcp_load_probe_win(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog
     if (is_load) {
         prog->skels[prog->num].skel = tcp_windows_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_windows_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = tcp_windows_open_opts.btf_custom_path;
 
         fd = GET_MAP_FD(tcp_windows, tcp_output);
         pb = create_pref_buffer3(fd, proc_tcp_metrics_evt, NULL, tcp_mng);
@@ -789,7 +792,7 @@ static int tcp_load_probe_win(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog
 
     return 0;
 err:
-    UNLOAD(tcp_windows);
+    __UNLOAD_PROBE(tcp_windows);
     return -1;
 }
 
@@ -802,6 +805,7 @@ static int tcp_load_probe_rate(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *pro
     if (is_load) {
         prog->skels[prog->num].skel = tcp_rate_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_rate_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = tcp_rate_open_opts.btf_custom_path;
 
         fd = GET_MAP_FD(tcp_rate, tcp_output);
         pb = create_pref_buffer3(fd, proc_tcp_metrics_evt, NULL, tcp_mng);
@@ -815,7 +819,7 @@ static int tcp_load_probe_rate(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *pro
 
     return 0;
 err:
-    UNLOAD(tcp_rate);
+    __UNLOAD_PROBE(tcp_rate);
     return -1;
 }
 
@@ -828,6 +832,7 @@ static int tcp_load_probe_abn(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog
     if (is_load) {
         prog->skels[prog->num].skel = tcp_abn_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_abn_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = tcp_abn_open_opts.btf_custom_path;
 
         fd = GET_MAP_FD(tcp_abn, tcp_output);
         pb = create_pref_buffer3(fd, proc_tcp_metrics_evt, NULL, tcp_mng);
@@ -841,7 +846,7 @@ static int tcp_load_probe_abn(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog
 
     return 0;
 err:
-    UNLOAD(tcp_abn);
+    __UNLOAD_PROBE(tcp_abn);
     return -1;
 }
 
@@ -854,6 +859,7 @@ static int tcp_load_probe_txrx(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *pro
     if (is_load) {
         prog->skels[prog->num].skel = tcp_tx_rx_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_tx_rx_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = tcp_tx_rx_open_opts.btf_custom_path;
 
         fd = GET_MAP_FD(tcp_tx_rx, tcp_output);
         pb = create_pref_buffer3(fd, proc_tcp_metrics_evt, NULL, tcp_mng);
@@ -867,7 +873,7 @@ static int tcp_load_probe_txrx(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *pro
 
     return 0;
 err:
-    UNLOAD(tcp_tx_rx);
+    __UNLOAD_PROBE(tcp_tx_rx);
     return -1;
 }
 
@@ -880,6 +886,7 @@ static int tcp_load_probe_delay(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *pr
     if (is_load) {
         prog->skels[prog->num].skel = tcp_delay_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_delay_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = tcp_delay_open_opts.btf_custom_path;
 
         fd = GET_MAP_FD(tcp_delay, tcp_output);
         pb = create_pref_buffer3(fd, proc_tcp_metrics_evt, NULL, tcp_mng);
@@ -893,7 +900,7 @@ static int tcp_load_probe_delay(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *pr
 
     return 0;
 err:
-    UNLOAD(tcp_delay);
+    __UNLOAD_PROBE(tcp_delay);
     return -1;
 }
 
@@ -915,6 +922,7 @@ static int tcp_load_probe_link(struct tcp_mng_s *tcp_mng, struct probe_params *a
     __LOAD_PROBE(tcp_link, err, 1);
     prog->skels[prog->num].skel = tcp_link_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)tcp_link_bpf__destroy;
+    prog->custom_btf_paths[prog->num] = tcp_link_open_opts.btf_custom_path;
 
     fd = GET_MAP_FD(tcp_link, tcp_output);
     pb = create_pref_buffer3(fd, proc_tcp_metrics_evt, NULL, tcp_mng);
@@ -929,7 +937,7 @@ static int tcp_load_probe_link(struct tcp_mng_s *tcp_mng, struct probe_params *a
 
     return 0;
 err:
-    UNLOAD(tcp_link);
+    __UNLOAD_PROBE(tcp_link);
     return -1;
 }
 

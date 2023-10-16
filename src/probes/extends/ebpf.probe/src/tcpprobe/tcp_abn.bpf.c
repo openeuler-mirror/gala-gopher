@@ -234,9 +234,7 @@ static __always_inline int tcp_abn_snd_rsts_probe_precheck(struct sock *sk, stru
     }
 
     th = __tcp_hdr(skb);
-    /* rst is the llth bit of the byte after tcphdr:ack_seq */
-    bpf_probe_read(&rst_flag, sizeof(rst_flag), (char *)&(th->ack_seq) + sizeof(th->ack_seq));
-    rst_flag = (rst_flag >> 10) & 0x1;
+    rst_flag = BPF_CORE_READ_BITFIELD_PROBED(th, rst);
 
     /* Will not send a reset in response to a reset. */
     if (rst_flag) {
