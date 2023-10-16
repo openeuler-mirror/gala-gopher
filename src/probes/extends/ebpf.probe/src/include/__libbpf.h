@@ -377,6 +377,17 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
 #define CLEANUP_CUSTOM_BTF(probe_name) \
     cleanup_core_btf(&probe_name##_open_opts)
 
+#define PROG_ENABLE_ONLY_IF(probe_name, prog_name, condition) \
+    do { \
+        int err; \
+        typeof(condition) __condition = (condition); \
+        if ((err = bpf_program__set_autoload(probe_name##_skel->progs.prog_name, __condition))) { \
+            WARN("Failed to %s BPF " #probe_name " program " #prog_name " (%d)\n", __condition ? "enable" : "disable", err); \
+        } else { \
+            DEBUG("%s BPF " #probe_name " program " #prog_name "\n", __condition ? "Enabled" : "Disabled"); \
+        } \
+    } while (0)
+
 static __always_inline __maybe_unused struct perf_buffer* __do_create_pref_buffer2(int map_fd,
                 perf_buffer_sample_fn cb, perf_buffer_lost_fn lost_cb, void *ctx)
 {

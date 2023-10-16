@@ -77,19 +77,18 @@ static void tcp_rtt_probe_func(void *ctx, struct sock *sk)
         report_rtt(ctx, metrics);
     }
 }
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
+
 KRAWTRACE(tcp_probe, bpf_raw_tracepoint_args)
 {
     struct sock *sk = (struct sock*)ctx->args[0];
     tcp_rtt_probe_func(ctx, sk);
     return 0;
 }
-#else
+
 KPROBE(tcp_rcv_established, pt_regs)
 {
     struct sock *sk = (struct sock*)PT_REGS_PARM1(ctx);
     tcp_rtt_probe_func(ctx, sk);
     return 0;
 }
-#endif
 

@@ -45,15 +45,7 @@
 #define TCP_FD_PER_PROC_MAX (100)
 #endif
 
-#if (CURRENT_KERNEL_VERSION == KERNEL_VERSION(5, 10, 0))
-#define TCP_WRITE_ERR_PROBE_OFF 1
-#endif
-
 #define TC_PROG "tcp_bpf/tc_tstamp.bpf.o"
-#if ((CURRENT_KERNEL_VERSION == KERNEL_VERSION(4, 18, 0)) || (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(5, 10, 0)))
-#define KERNEL_SUPPORT_TSTAMP
-#endif
-
 #define BPF_F_INDEX_MASK    0xffffffffULL
 #define BPF_F_CURRENT_CPU   BPF_F_INDEX_MASK
 
@@ -242,17 +234,16 @@ int tcp_load_fd_probe(void);
 void tcp_unload_fd_probe(void);
 int is_tcp_fd_probe_loaded(void);
 
-#define __LOAD_PROBE(probe_name, end, load) \
+#define __OPEN_PROBE(probe_name, end, load) \
     INIT_OPEN_OPTS(probe_name); \
     PREPARE_CUSTOM_BTF(probe_name); \
     OPEN_OPTS(probe_name, end, load); \
     MAP_SET_PIN_PATH(probe_name, args_map, TCP_LINK_ARGS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, tcp_link_map, TCP_LINK_TCP_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, sock_map, TCP_LINK_SOCKS_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, tcp_fd_map, TCP_LINK_FD_PATH, load); \
-    LOAD_ATTACH(tcpprobe, probe_name, end, load)
+    MAP_SET_PIN_PATH(probe_name, tcp_fd_map, TCP_LINK_FD_PATH, load)
 
-#define __LOAD_PROBE_WITH_OUTPUT(probe_name, end, load, buffer) \
+#define __OPEN_PROBE_WITH_OUTPUT(probe_name, end, load, buffer) \
     INIT_OPEN_OPTS(probe_name); \
     PREPARE_CUSTOM_BTF(probe_name); \
     OPEN_OPTS(probe_name, end, load); \
@@ -263,9 +254,59 @@ int is_tcp_fd_probe_loaded(void);
     MAP_SET_PIN_PATH(probe_name, tcp_fd_map, TCP_LINK_FD_PATH, load); \
     LOAD_ATTACH(tcpprobe, probe_name, end, load)
 
+#define __LOAD_PROBE(probe_name, end, load) \
+    LOAD_ATTACH(tcpprobe, probe_name, end, load)
+
+#define __OPEN_LOAD_PROBE(probe_name, end, load) \
+    __OPEN_PROBE(probe_name, end, load); \
+    __LOAD_PROBE(probe_name, end, load)
+
+#define __OPEN_LOAD_PROBE_WITH_OUTPUT(probe_name, end, load, buffer) \
+    __OPEN_PROBE_WITH_OUTPUT(probe_name, end, load, buffer); \
+    __LOAD_PROBE(probe_name, end, load)
+
 #define __UNLOAD_PROBE(probe_name) \
     UNLOAD(probe_name); \
-    CLEANUP_CUSTOM_BTF(probe_name) \
+    CLEANUP_CUSTOM_BTF(probe_name)
+
+#define __SELECT_RCV_ESTABLISHED_HOOKPOINT(probe_name) \
+    do { \
+        bool use_raw_tracepoint = probe_kernel_version() > KERNEL_VERSION(4, 18, 0); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_raw_trace_tcp_probe, use_raw_tracepoint); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_tcp_rcv_established, !use_raw_tracepoint); \
+    } while (0)
+
+#define __SELECT_SPACE_ADJUST_HOOKPOINT(probe_name) \
+    do { \
+        int kernel_version = probe_kernel_version(); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_raw_trace_tcp_rcv_space_adjust, kernel_version > KERNEL_VERSION(4, 18, 0)); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_tcp_rcv_space_adjust, kernel_version < KERNEL_VERSION(4, 13, 0)); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_trace_tcp_rcv_space_adjust_func, kernel_version >= KERNEL_VERSION(4, 13, 0) && kernel_version <= KERNEL_VERSION(4, 18, 0)); \
+    } while (0)
+
+#define __SELECT_DESTROY_SOCK_HOOKPOINT(probe_name) \
+    do { \
+        int kernel_version = probe_kernel_version(); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_raw_trace_tcp_destroy_sock, kernel_version > KERNEL_VERSION(4, 18, 0)); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_tcp_v4_destroy_sock, kernel_version < KERNEL_VERSION(4, 13, 0)); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_trace_tcp_destroy_sock_func, kernel_version >= KERNEL_VERSION(4, 13, 0) && kernel_version <= KERNEL_VERSION(4, 18, 0)); \
+    } while (0)
+
+#define __SELECT_RESET_HOOKPOINTS(probe_name) \
+    do { \
+        int kernel_version = probe_kernel_version(); \
+        bool use_raw_tracepoint = kernel_version > KERNEL_VERSION(4, 18, 0); \
+        bool use_kprobe = kernel_version < KERNEL_VERSION(4, 13, 0); \
+        bool use_tracepoint = !use_raw_tracepoint && !use_kprobe; \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_raw_trace_tcp_send_reset, use_raw_tracepoint); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_raw_trace_tcp_receive_reset, use_raw_tracepoint); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_tcp_v4_send_reset, use_kprobe); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_tcp_v6_send_reset, use_kprobe); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_tcp_send_active_reset, use_kprobe); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_tcp_reset, use_kprobe); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_trace_tcp_send_reset_func, use_tracepoint); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_trace_tcp_receive_reset_func, use_tracepoint); \
+    } while (0)
 
 #endif
 
