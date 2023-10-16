@@ -42,7 +42,7 @@ static __always_inline void report_rtt(void *ctx, struct tcp_metrics_s *metrics)
 {
     metrics->report_flags |= TCP_PROBE_RTT;
 
-    (void)bpf_perf_event_output(ctx, &tcp_output, BPF_F_CURRENT_CPU, metrics, sizeof(struct tcp_metrics_s));
+    (void)bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
 
     metrics->report_flags &= ~TCP_PROBE_RTT;
     //__builtin_memset(&(metrics->rtt_stats), 0x0, sizeof(metrics->rtt_stats));

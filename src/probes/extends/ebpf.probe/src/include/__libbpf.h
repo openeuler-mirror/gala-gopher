@@ -29,6 +29,8 @@
 #include "object.h"
 #include "common.h"
 
+#include "__compat.h"
+
 #define EBPF_RLIM_LIMITED  100*1024*1024 // 100M
 #define EBPF_RLIM_INFINITY (~0UL)
 static __always_inline int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
@@ -169,6 +171,16 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
         if (load) \
         { \
             __MAP_SET_PIN_PATH(probe_name, map_name, map_path); \
+        } \
+    } while (0)
+
+#define MAP_INIT_BPF_BUFFER(probe_name, map_name, buffer, load) \
+    do { \
+        if (load) { \
+            buffer = bpf_buffer__new(probe_name##_skel->maps.map_name, probe_name##_skel->maps.heap); \
+            if (buffer == NULL) { \
+                ERROR("Failed to initialize bpf_buffer for " #map_name " in " #probe_name "\n"); \
+            } \
         } \
     } while (0)
 
@@ -467,8 +479,10 @@ struct __bpf_skel_s {
 struct bpf_prog_s {
     struct perf_buffer* pb;
     struct ring_buffer* rb;
+    struct bpf_buffer *buffer;
     struct perf_buffer* pbs[SKEL_MAX_NUM];
     struct ring_buffer* rbs[SKEL_MAX_NUM];
+    struct bpf_buffer *buffers[SKEL_MAX_NUM];
     struct __bpf_skel_s skels[SKEL_MAX_NUM];
     const char *custom_btf_paths[SKEL_MAX_NUM];
     size_t num;
@@ -520,6 +534,10 @@ static __always_inline __maybe_unused void unload_bpf_prog(struct bpf_prog_s **u
         }
 #endif
 
+        if (prog->buffers[i]) {
+            bpf_buffer__free(prog->buffers[i]);
+        }
+
         clean_core_btf_rs(prog->custom_btf_paths[i]);
     }
 
@@ -532,6 +550,10 @@ static __always_inline __maybe_unused void unload_bpf_prog(struct bpf_prog_s **u
         ring_buffer__free(prog->rb);
     }
 #endif
+
+    if (prog->buffer) {
+        bpf_buffer__free(prog->buffer);
+    }
 
     free_bpf_prog(prog);
     return;

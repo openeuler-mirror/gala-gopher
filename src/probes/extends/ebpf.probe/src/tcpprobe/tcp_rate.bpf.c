@@ -41,7 +41,7 @@ static __always_inline char is_tmout_rate(struct sock *sk)
 static __always_inline void report_rate(void *ctx, struct tcp_metrics_s *metrics)
 {
     metrics->report_flags |= TCP_PROBE_RATE;
-    (void)bpf_perf_event_output(ctx, &tcp_output, BPF_F_CURRENT_CPU, metrics, sizeof(struct tcp_metrics_s));
+    (void)bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
     metrics->report_flags &= ~TCP_PROBE_RATE;
     //__builtin_memset(&(metrics->rate_stats), 0x0, sizeof(metrics->rate_stats));
 }

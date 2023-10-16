@@ -50,7 +50,7 @@ static __always_inline void report_abn(void *ctx, struct tcp_metrics_s *metrics,
     u32 last_time_lost_out = metrics->abn_stats.lost_out;
     u32 last_time_sacked_out = metrics->abn_stats.sacked_out;
 
-    (void)bpf_perf_event_output(ctx, &tcp_output, BPF_F_CURRENT_CPU, metrics, sizeof(struct tcp_metrics_s));
+    (void)bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
 
     __builtin_memset(&(metrics->abn_stats), 0x0, sizeof(metrics->abn_stats));
     metrics->abn_stats.last_time_sk_drops = last_time_sk_drops;

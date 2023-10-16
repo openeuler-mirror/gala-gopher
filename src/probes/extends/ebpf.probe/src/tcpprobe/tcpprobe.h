@@ -252,6 +252,17 @@ int is_tcp_fd_probe_loaded(void);
     MAP_SET_PIN_PATH(probe_name, tcp_fd_map, TCP_LINK_FD_PATH, load); \
     LOAD_ATTACH(tcpprobe, probe_name, end, load)
 
+#define __LOAD_PROBE_WITH_OUTPUT(probe_name, end, load, buffer) \
+    INIT_OPEN_OPTS(probe_name); \
+    PREPARE_CUSTOM_BTF(probe_name); \
+    OPEN_OPTS(probe_name, end, load); \
+    MAP_INIT_BPF_BUFFER(probe_name, tcp_output, buffer, load); \
+    MAP_SET_PIN_PATH(probe_name, args_map, TCP_LINK_ARGS_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, tcp_link_map, TCP_LINK_TCP_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, sock_map, TCP_LINK_SOCKS_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, tcp_fd_map, TCP_LINK_FD_PATH, load); \
+    LOAD_ATTACH(tcpprobe, probe_name, end, load)
+
 #define __UNLOAD_PROBE(probe_name) \
     UNLOAD(probe_name); \
     CLEANUP_CUSTOM_BTF(probe_name) \

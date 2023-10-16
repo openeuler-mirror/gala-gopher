@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright (c) Huawei Technologies Co., Ltd. 2021. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2023. All rights reserved.
  * gala-gopher licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -8,28 +8,27 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Author: Mr.lu
- * Create: 2021-09-28
- * Description: bpf header
+ * Author: Yang Hanlin
+ * Create: 2023-09-19
+ * Description: Kernel feature probes
  ******************************************************************************/
-#ifndef __GOPHER_BPF_H__
-#define __GOPHER_BPF_H__
 
-#pragma once
+#ifndef __FEAT_PROBE_H
+#define __FEAT_PROBE_H
 
-#include "common.h"
+#ifdef BPF_PROG_KERN
+#include <bpf/bpf_core_read.h>
 
-#define CURRENT_KERNEL_VERSION KERNEL_VERSION(KER_VER_MAJOR, KER_VER_MINOR, KER_VER_PATCH)
+#include "vmlinux.h"
 
-#define LIBBPF_VERSION(a, b) (((a) << 8) + (b))
-#define CURRENT_LIBBPF_VERSION LIBBPF_VERSION(LIBBPF_VER_MAJOR, LIBBPF_VER_MINOR)
+static inline bool probe_tstamp()
+{
+    return bpf_core_field_exists(((struct sk_buff *)0)->tstamp);
+}
+#endif
 
-#include "__bpf_kern.h"
-#include "__bpf_usr.h"
-#include "__libbpf.h"
-#include "__share_map_match.h"
-#include "__obj_map.h"
-#include "__feat_probe.h"
-#include "__compat.h"
+#if !defined(BPF_PROG_KERN) && !defined(BPF_PROG_USER)
+bool probe_tstamp();
+#endif
 
 #endif

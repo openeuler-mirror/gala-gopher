@@ -688,7 +688,7 @@ static void process_tcp_flow_tracker_metrics(struct tcp_mng_s *tcp_mng, struct t
     return;
 }
 
-static void proc_tcp_metrics_evt(void *ctx, int cpu, void *data, u32 size)
+static int proc_tcp_metrics_evt(void *ctx, void *data, u32 size)
 {
     char *p = data;
     int remain_size = (int)size, step_size = sizeof(struct tcp_metrics_s), offset = 0;
@@ -710,29 +710,28 @@ static void proc_tcp_metrics_evt(void *ctx, int cpu, void *data, u32 size)
         remain_size -= step_size;
     } while (1);
 
-    return;
+    return 0;
 }
 
 #endif
 
 static int tcp_load_probe_sockbuf(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
 {
-    int fd;
-    struct perf_buffer *pb = NULL;
+    int err;
+    struct bpf_buffer *buffer = NULL;
 
-    __LOAD_PROBE(tcp_sockbuf, err, is_load);
+    __LOAD_PROBE_WITH_OUTPUT(tcp_sockbuf, err, is_load, buffer);
     if (is_load) {
         prog->skels[prog->num].skel = tcp_sockbuf_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_sockbuf_bpf__destroy;
         prog->custom_btf_paths[prog->num] = tcp_sockbuf_open_opts.btf_custom_path;
 
-        fd = GET_MAP_FD(tcp_sockbuf, tcp_output);
-        pb = create_pref_buffer3(fd, proc_tcp_metrics_evt, NULL, tcp_mng);
-        if (pb == NULL) {
-            ERROR("[TCPPROBE] Crate 'tcp_sockbuf' perf buffer failed.\n");
+        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+        if (err) {
+            ERROR("[TCPPROBE] Open 'tcp_sockbuf' bpf_buffer failed.\n");
             goto err;
         }
-        prog->pbs[prog->num] = pb;
+        prog->buffers[prog->num] = buffer;
         prog->num++;
     }
 
@@ -744,22 +743,21 @@ err:
 
 static int tcp_load_probe_rtt(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
 {
-    int fd;
-    struct perf_buffer *pb = NULL;
+    int err;
+    struct bpf_buffer *buffer = NULL;
 
-    __LOAD_PROBE(tcp_rtt, err, is_load);
+    __LOAD_PROBE_WITH_OUTPUT(tcp_rtt, err, is_load, buffer);
     if (is_load) {
         prog->skels[prog->num].skel = tcp_rtt_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_rtt_bpf__destroy;
         prog->custom_btf_paths[prog->num] = tcp_rtt_open_opts.btf_custom_path;
 
-        fd = GET_MAP_FD(tcp_rtt, tcp_output);
-        pb = create_pref_buffer3(fd, proc_tcp_metrics_evt, NULL, tcp_mng);
-        if (pb == NULL) {
-            ERROR("[TCPPROBE] Crate 'tcp_rtt' perf buffer failed.\n");
+        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+        if (err) {
+            ERROR("[TCPPROBE] Open 'tcp_rtt' bpf_buffer failed.\n");
             goto err;
         }
-        prog->pbs[prog->num] = pb;
+        prog->buffers[prog->num] = buffer;
         prog->num++;
     }
 
@@ -771,22 +769,21 @@ err:
 
 static int tcp_load_probe_win(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
 {
-    int fd;
-    struct perf_buffer *pb = NULL;
+    int err;
+    struct bpf_buffer *buffer = NULL;
 
-    __LOAD_PROBE(tcp_windows, err, is_load);
+    __LOAD_PROBE_WITH_OUTPUT(tcp_windows, err, is_load, buffer);
     if (is_load) {
         prog->skels[prog->num].skel = tcp_windows_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_windows_bpf__destroy;
         prog->custom_btf_paths[prog->num] = tcp_windows_open_opts.btf_custom_path;
 
-        fd = GET_MAP_FD(tcp_windows, tcp_output);
-        pb = create_pref_buffer3(fd, proc_tcp_metrics_evt, NULL, tcp_mng);
-        if (pb == NULL) {
-            ERROR("[TCPPROBE] Crate 'tcp_windows' perf buffer failed.\n");
+        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+        if (err) {
+            ERROR("[TCPPROBE] Open 'tcp_windows' bpf_buffer failed.\n");
             goto err;
         }
-        prog->pbs[prog->num] = pb;
+        prog->buffers[prog->num] = buffer;
         prog->num++;
     }
 
@@ -798,22 +795,21 @@ err:
 
 static int tcp_load_probe_rate(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
 {
-    int fd;
-    struct perf_buffer *pb = NULL;
+    int err;
+    struct bpf_buffer *buffer = NULL;
 
-    __LOAD_PROBE(tcp_rate, err, is_load);
+    __LOAD_PROBE_WITH_OUTPUT(tcp_rate, err, is_load, buffer);
     if (is_load) {
         prog->skels[prog->num].skel = tcp_rate_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_rate_bpf__destroy;
         prog->custom_btf_paths[prog->num] = tcp_rate_open_opts.btf_custom_path;
 
-        fd = GET_MAP_FD(tcp_rate, tcp_output);
-        pb = create_pref_buffer3(fd, proc_tcp_metrics_evt, NULL, tcp_mng);
-        if (pb == NULL) {
-            ERROR("[TCPPROBE] Crate 'tcp_rate' perf buffer failed.\n");
+        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+        if (err) {
+            ERROR("[TCPPROBE] Open 'tcp_rate' bpf_buffer failed.\n");
             goto err;
         }
-        prog->pbs[prog->num] = pb;
+        prog->buffers[prog->num] = buffer;
         prog->num++;
     }
 
@@ -825,22 +821,21 @@ err:
 
 static int tcp_load_probe_abn(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
 {
-    int fd;
-    struct perf_buffer *pb = NULL;
+    int err;
+    struct bpf_buffer *buffer = NULL;
 
-    __LOAD_PROBE(tcp_abn, err, is_load);
+    __LOAD_PROBE_WITH_OUTPUT(tcp_abn, err, is_load, buffer);
     if (is_load) {
         prog->skels[prog->num].skel = tcp_abn_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_abn_bpf__destroy;
         prog->custom_btf_paths[prog->num] = tcp_abn_open_opts.btf_custom_path;
 
-        fd = GET_MAP_FD(tcp_abn, tcp_output);
-        pb = create_pref_buffer3(fd, proc_tcp_metrics_evt, NULL, tcp_mng);
-        if (pb == NULL) {
-            ERROR("[TCPPROBE] Crate 'tcp_abn' perf buffer failed.\n");
+        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+        if (err) {
+            ERROR("[TCPPROBE] Open 'tcp_abn' bpf_buffer failed.\n");
             goto err;
         }
-        prog->pbs[prog->num] = pb;
+        prog->buffers[prog->num] = buffer;
         prog->num++;
     }
 
@@ -852,22 +847,21 @@ err:
 
 static int tcp_load_probe_txrx(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
 {
-    int fd;
-    struct perf_buffer *pb = NULL;
+    int err;
+    struct bpf_buffer *buffer = NULL;
 
-    __LOAD_PROBE(tcp_tx_rx, err, is_load);
+    __LOAD_PROBE_WITH_OUTPUT(tcp_tx_rx, err, is_load, buffer);
     if (is_load) {
         prog->skels[prog->num].skel = tcp_tx_rx_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_tx_rx_bpf__destroy;
         prog->custom_btf_paths[prog->num] = tcp_tx_rx_open_opts.btf_custom_path;
 
-        fd = GET_MAP_FD(tcp_tx_rx, tcp_output);
-        pb = create_pref_buffer3(fd, proc_tcp_metrics_evt, NULL, tcp_mng);
-        if (pb == NULL) {
-            ERROR("[TCPPROBE] Crate 'tcp_tx_rx' perf buffer failed.\n");
+        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+        if (err) {
+            ERROR("[TCPPROBE] Open 'tcp_tx_rx' bpf_buffer failed.\n");
             goto err;
         }
-        prog->pbs[prog->num] = pb;
+        prog->buffers[prog->num] = buffer;
         prog->num++;
     }
 
@@ -879,22 +873,21 @@ err:
 
 static int tcp_load_probe_delay(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
 {
-    int fd;
-    struct perf_buffer *pb = NULL;
+    int err;
+    struct bpf_buffer *buffer = NULL;
 
-    __LOAD_PROBE(tcp_delay, err, is_load);
+    __LOAD_PROBE_WITH_OUTPUT(tcp_delay, err, is_load, buffer);
     if (is_load) {
         prog->skels[prog->num].skel = tcp_delay_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_delay_bpf__destroy;
         prog->custom_btf_paths[prog->num] = tcp_delay_open_opts.btf_custom_path;
 
-        fd = GET_MAP_FD(tcp_delay, tcp_output);
-        pb = create_pref_buffer3(fd, proc_tcp_metrics_evt, NULL, tcp_mng);
-        if (pb == NULL) {
-            ERROR("[TCPPROBE] Crate 'tcp_delay' perf buffer failed.\n");
+        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+        if (err) {
+            ERROR("[TCPPROBE] Open 'tcp_delay' bpf_buffer failed.\n");
             goto err;
         }
-        prog->pbs[prog->num] = pb;
+        prog->buffers[prog->num] = buffer;
         prog->num++;
     }
 
@@ -916,21 +909,20 @@ static void load_args(int args_fd, struct probe_params* params)
 
 static int tcp_load_probe_link(struct tcp_mng_s *tcp_mng, struct probe_params *args, struct bpf_prog_s *prog)
 {
-    int fd;
-    struct perf_buffer *pb = NULL;
+    int err;
+    struct bpf_buffer *buffer = NULL;
 
-    __LOAD_PROBE(tcp_link, err, 1);
+    __LOAD_PROBE_WITH_OUTPUT(tcp_link, err, 1, buffer);
     prog->skels[prog->num].skel = tcp_link_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)tcp_link_bpf__destroy;
     prog->custom_btf_paths[prog->num] = tcp_link_open_opts.btf_custom_path;
 
-    fd = GET_MAP_FD(tcp_link, tcp_output);
-    pb = create_pref_buffer3(fd, proc_tcp_metrics_evt, NULL, tcp_mng);
-    if (pb == NULL) {
-        ERROR("[TCPPROBE] Crate 'tcp_link' perf buffer failed.\n");
+    err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+    if (err) {
+        ERROR("[TCPPROBE] Open 'tcp_link' bpf_buffer failed.\n");
         goto err;
     }
-    prog->pbs[prog->num] = pb;
+    prog->buffers[prog->num] = buffer;
     prog->num++;
 
     load_args(GET_MAP_FD(tcp_link, args_map), args);
