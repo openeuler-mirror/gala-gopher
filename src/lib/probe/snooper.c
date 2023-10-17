@@ -1184,12 +1184,11 @@ static int __gen_snooper_by_container(struct probe_s *probe, con_id_element *con
         if (entry == NULL) {
             break;
         }
-        if (!__is_proc_dir(entry->d_name) == -1) {
+        if (!__is_proc_dir(entry->d_name)) {
             continue;
         }
 
         container_id[0] = 0;
-        // TODO: recomplement this func to shorten executing time
         (void)get_container_id_by_pid_cpuset((const char *)(entry->d_name), container_id, CONTAINER_ABBR_ID_LEN + 1);
         if (container_id[0] == 0) {
             continue;
@@ -1581,7 +1580,6 @@ static void rcv_snooper_cgrp_evt(void *ctx, int cpu, void *data, __u32 size)
             __rcv_snooper_cgrp_exit(__probe_mng_snooper, pod_id, con_id, id_ret);
             put_probemng_lock();
         }
-
     }
 
     return;

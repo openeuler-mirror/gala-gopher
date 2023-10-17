@@ -31,9 +31,6 @@
 #include "pod_mng.h"
 
 #define POD_TBL_NAME "pod_state"
-#define KUBEPODS_PREFIX "/kubepods/"
-#define DOCKER_PREFIX "/docker/"
-#define PODID_PREFIX "/pod"
 
 #define FILTER_FLAGS_IGNORE 0x0000  // default value
 #define FILTER_FLAGS_NORMAL 0x0001
@@ -62,6 +59,7 @@ static void print_pod_state_metrics(struct pod_info_s *pod_info, struct containe
 }
 #endif
 
+#if 0
 enum id_ret_t get_pod_container_id(char *cgrp_path, char *pod_id, char *con_id)
 {
     int full_path_len;
@@ -127,6 +125,7 @@ enum id_ret_t get_pod_container_id(char *cgrp_path, char *pod_id, char *con_id)
     con_id[CONTAINER_ABBR_ID_LEN] = 0;
     return ret;
 }
+#endif
 
 struct con_info_s *get_con_info(char *pod_id, char *con_id)
 {

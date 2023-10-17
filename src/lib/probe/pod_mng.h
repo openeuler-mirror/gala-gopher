@@ -17,17 +17,7 @@
 
 #include <utlist.h>
 #include "hash.h"
-
-#define MAX_CGRP_PATH 512
-
-#define FAKE_POD_ID "-no-pod" // fake pod id for host container
-
-enum id_ret_t {
-    ID_FAILED = -1,
-    ID_CON_POD = 0, // pod with containers
-    ID_CON_ONLY = 1, // host container
-    ID_POD_ONLY = 2  // pod without containers for now
-};
+#include "container.h"
 
 struct con_info_s {
     u32 flags;
@@ -58,7 +48,6 @@ struct pod_info_s {
 
 struct pod_info_s *get_pod_info_from_pod_id(char *pod_id);
 void existing_pod_mk_process(char *pod_id);
-enum id_ret_t get_pod_container_id(char *cgrp_path, char *pod_id, char *con_id);
 struct con_info_s *get_con_info(char *pod_id, char *con_id);
 struct pod_info_s *get_pod_info(char *pod_id);
 void del_pods();
