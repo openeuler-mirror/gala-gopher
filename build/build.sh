@@ -11,6 +11,8 @@ JVM_FOLDER=${PROJECT_FOLDER}/src/lib/jvm
 BPFTOOL_FOLDER=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/tools
 VMLINUX_DIR=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/src/include
 BPF_COMPATIBLE_DIR=${PROJECT_FOLDER}/third_party/bpf-compatible
+BTF_BUILD_DIR=${PROJECT_FOLDER}/.cache
+BTF_SRC_DIR=${PROJECT_FOLDER}/btf
 EXT_PROBE_BUILD_LIST=`find ${EXT_PROBE_FOLDER} -maxdepth 2 | grep "\<build.sh\>"`
 DEP_LIST=(cmake git librdkafka-devel libmicrohttpd-devel libconfig-devel uthash-devel log4cplus-devel\
           libbpf-devel clang llvm java-1.8.0-openjdk-devel cjson-devel gnutls-devel libcurl-devel)
@@ -78,29 +80,20 @@ function __add_bpftool()
     fi
 }
 
+function __create_btf_dir()
+{
+    rm -rf ${BTF_BUILD_DIR}
+    mkdir -p ${BTF_BUILD_DIR}
+    cp -r ${BTF_SRC_DIR}/* ${BTF_BUILD_DIR}
+}
+
+function __delete_btf_dir()
+{
+    rm -rf ${BTF_BUILD_DIR}
+}
+
 function __build_bpf()
 {
-	LINUX_VER="${VMLINUX_VER:-$(uname -r)}"
-	MATCH_VMLINUX=linux_${LINUX_VER}.h
-    cd ${VMLINUX_DIR}
-    if [ -f ${MATCH_VMLINUX} ];then
-        rm -f vmlinux.h
-        ln -s ${MATCH_VMLINUX} vmlinux.h
-        echo "debug: match vmlinux :" ${MATCH_VMLINUX}
-    elif [ -f "vmlinux.h" ];then
-        echo "debug: vmlinux.h is already here, continue compile."
-    else
-        echo "======================================ERROR==============================================="
-        echo "there no match vmlinux :" ${MATCH_VMLINUX}
-        echo "please create vmlinux.h manually."
-        echo "methods:"
-        echo "  1. generate linux_xxx.h by compile the kernel, refer to gen_vmlinux_h.sh;"
-        echo "  2. ln -s linux_xxx.h vmlinux.h, (there are some include files in directory src/include)"
-        echo "     if your kernel version is similar to the include files provided, you can use method 2"
-        echo "=========================================================================================="
-        exit
-    fi
-
 	__add_bpftool
     cd ${PROBE_MNG_FOLDER}
     make
@@ -134,6 +127,7 @@ function __ensure_libbpf_compatible()
 
 function prepare_probes()
 {
+    __create_btf_dir
 	__build_bpf
     if [ ${PROBES} ]; then
         # check tailor env
@@ -241,6 +235,7 @@ function clean_env()
 
         rm -f ${PROBE_PATH}/${PROBE_NAME}_daemon.c
     done
+	__delete_btf_dir
 }
 
 function compile_extend_probes_clean()
