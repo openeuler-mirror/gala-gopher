@@ -1337,6 +1337,7 @@ static int IMDB_Tbl2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Table *table, char *b
             return -1;
         }
         if (ret == 0) {
+            curBuffer[0] = 0;
             break;  /* buffer is full, break loop */
         }
 

@@ -52,6 +52,10 @@ static int WriteMetricsLogs(IMDB_DataBaseMgr *imdbMgr)
         return 0;
     }
 
+    if (g_buffer[buffer_len] != 0) {
+        ERROR("[METRICLOG] g_buffer[buffer_len] is not 0.\n");
+    }
+
     ret = wr_metrics_logs(g_buffer, buffer_len);
     if (ret < 0) {
         ERROR("[METRICLOG] write metrics logs fail.\n");
