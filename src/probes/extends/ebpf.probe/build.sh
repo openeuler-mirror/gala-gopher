@@ -8,8 +8,26 @@ SRC_DIR=${PRJ_DIR}/src
 VMLINUX_DIR=${SRC_DIR}/include
 LINUX_VER="${VMLINUX_VER:-$(uname -r)}"
 DEP_LIST=(elfutils-devel libbpf libbpf-devel llvm)
+BTF_BUILD_DIR=${PRJ_DIR}/../../../../.cache
+BTF_SRC_DIR=${PRJ_DIR}/../../../../btf
 # tailor probes
 export EBPF_TAILOR_PROBES=$(for probe in ${EXTEND_PROBES//|/ } ; do printf "./%s/ " $probe; done)
+
+function create_btf_dir()
+{
+    if [ -d ${BTF_BUILD_DIR} ]; then
+        echo "btf cache has existed."
+        return $?
+    fi
+
+    mkdir -p ${BTF_BUILD_DIR}
+    cp -r ${BTF_SRC_DIR}/* ${BTF_BUILD_DIR}
+}
+
+function delete_btf_dir()
+{
+    rm -rf ${BTF_BUILD_DIR}
+}
 
 function add_bpftool()
 {
@@ -95,6 +113,7 @@ then
 fi
 
 add_bpftool
+create_btf_dir
 
 if [ "$1" == "-b"  -o  "$1" == "--build" ];
 then
@@ -109,6 +128,7 @@ then
     then
         compile_probe_end
     fi
+    delete_btf_dir
     exit
 fi
 

@@ -17,10 +17,6 @@
 
 #ifdef BPF_PROG_KERN
 
-#if defined(__BTF_ENABLE_OFF)
-#define BPF_NO_PRESERVE_ACCESS_INDEX
-#endif
-
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
@@ -56,142 +52,47 @@
             })
 #endif
 
-#if (CURRENT_LIBBPF_VERSION  < LIBBPF_VERSION(0, 8))
-
-#undef ___rd_first
-/* "recursively" read a sequence of inner pointers using local __t var */
-#define ___rd_first(src, a) ___read(bpf_probe_read, &__t, ___type(src), src, a);
-
-#undef ___rd_last
-#define ___rd_last(...)							    \
-	___read(bpf_probe_read, &__t,					    \
-		___type(___nolast(__VA_ARGS__)), __t, ___last(__VA_ARGS__));
-
-#define ___probe_read0(fn, dst, src, a)					    \
-            ___read(fn, dst, ___type(src), src, a);
-
-#define ___probe_readN(fn, dst, src, ...)				    \
-                ___read_ptrs(src, ___nolast(__VA_ARGS__))               \
-                ___read(fn, dst, ___type(src, ___nolast(__VA_ARGS__)), __t,     \
-                    ___last(__VA_ARGS__));
-
-#define ___probe_read(fn, dst, src, a, ...)				    \
-                        ___apply(___probe_read, ___empty(__VA_ARGS__))(fn, dst,         \
-                                                  src, a, ##__VA_ARGS__)
-                    
-#define __BPF_PROBE_READ_INTO(dst, src, a, ...)				    \
-                        ({                                  \
-                            ___probe_read(bpf_probe_read, dst, (src), a, ##__VA_ARGS__)   \
-                        })
-                    
-#undef BPF_CORE_READ
-#define BPF_CORE_READ(src, a, ...)					    \
-                        ({                                  \
-                            ___type((src), a, ##__VA_ARGS__) __r;               \
-                            __BPF_PROBE_READ_INTO(&__r, (src), a, ##__VA_ARGS__);       \
-                            __r;                                \
-                        })
-/*
-usage:
-BTF_ENABLE_ON: BPF_CORE_READ_STR_INTO(dst, src, field1, field2, ...)
-BTF_ENABLE_OFF: BPF_CORE_READ_STR_INTO(dst, size, src->field)
-*/
-#undef BPF_CORE_READ_STR_INTO
-#define BPF_CORE_READ_STR_INTO(dst, sz, P)			    \
-                        ({                                         \
-                            typeof(P) val;                         \
-                            bpf_probe_read((unsigned char *)&val, sizeof(val), (const void *)&P); \
-                            (void)bpf_probe_read_str(dst, sz, val);\
-                        })
-/*
-usage:
-BTF_ENABLE_ON: BPF_CORE_READ_INTO(dst, src, field1, field2, ...)
-BTF_ENABLE_OFF: BPF_CORE_READ_INTO(dst, size, src->field)
-*/
-#undef BPF_CORE_READ_INTO
-#define BPF_CORE_READ_INTO(dst, sz, P)              \
-                        ({                                         \
-                            bpf_probe_read(dst, sz, &(P)); \
-                        })
-/*
-usage:
-BTF_ENABLE_ON: BPF_CORE_READ_BITFIELD(src, field)
-BTF_ENABLE_OFF: BPF_CORE_READ_BITFIELD(dst, sz, offset, bitmap)
-*/
-#undef BPF_CORE_READ_BITFIELD
-#define BPF_CORE_READ_BITFIELD(dst, sz, offset, bitmap)			    \
-                        ({                                         \
-                            bpf_probe_read(&dst, sz, offset); \
-                            dst &= bitmap; \
-                        })
-
-
-#else
-#if defined(__BTF_ENABLE_OFF)
-#undef BPF_CORE_READ
-#define BPF_CORE_READ BPF_PROBE_READ
-
-#undef BPF_CORE_READ
-#define BPF_CORE_READ BPF_PROBE_READ
-
-#undef BPF_CORE_READ_USER
-#define BPF_CORE_READ_USER BPF_PROBE_READ_USER
-
-#undef BPF_CORE_READ_INTO
-#define BPF_CORE_READ_INTO BPF_PROBE_READ_INTO
-
-#undef BPF_CORE_READ_USER_INTO
-#define BPF_CORE_READ_USER_INTO BPF_PROBE_READ_USER_INTO
-
-#undef BPF_CORE_READ_STR_INTO
-#define BPF_CORE_READ_STR_INTO BPF_PROBE_READ_STR_INTO
-
-#undef BPF_CORE_READ_USER_STR_INTO
-#define BPF_CORE_READ_USER_STR_INTO BPF_PROBE_READ_USER_STR_INTO
-
-#endif
-#endif
 
 #if defined(__TARGET_ARCH_x86)
 
 #define PT_REGS_PARM6(x) ((x)->r9)
 
 struct ia64_psr {
-	__u64 reserved0 : 1;
-	__u64 be : 1;
-	__u64 up : 1;
-	__u64 ac : 1;
-	__u64 mfl : 1;
-	__u64 mfh : 1;
-	__u64 reserved1 : 7;
-	__u64 ic : 1;
-	__u64 i : 1;
-	__u64 pk : 1;
-	__u64 reserved2 : 1;
-	__u64 dt : 1;
-	__u64 dfl : 1;
-	__u64 dfh : 1;
-	__u64 sp : 1;
-	__u64 pp : 1;
-	__u64 di : 1;
-	__u64 si : 1;
-	__u64 db : 1;
-	__u64 lp : 1;
-	__u64 tb : 1;
-	__u64 rt : 1;
-	__u64 reserved3 : 4;
-	__u64 cpl : 2;
-	__u64 is : 1;
-	__u64 mc : 1;
-	__u64 it : 1;
-	__u64 id : 1;
-	__u64 da : 1;
-	__u64 dd : 1;
-	__u64 ss : 1;
-	__u64 ri : 2;
-	__u64 ed : 1;
-	__u64 bn : 1;
-	__u64 reserved4 : 19;
+    __u64 reserved0 : 1;
+    __u64 be : 1;
+    __u64 up : 1;
+    __u64 ac : 1;
+    __u64 mfl : 1;
+    __u64 mfh : 1;
+    __u64 reserved1 : 7;
+    __u64 ic : 1;
+    __u64 i : 1;
+    __u64 pk : 1;
+    __u64 reserved2 : 1;
+    __u64 dt : 1;
+    __u64 dfl : 1;
+    __u64 dfh : 1;
+    __u64 sp : 1;
+    __u64 pp : 1;
+    __u64 di : 1;
+    __u64 si : 1;
+    __u64 db : 1;
+    __u64 lp : 1;
+    __u64 tb : 1;
+    __u64 rt : 1;
+    __u64 reserved3 : 4;
+    __u64 cpl : 2;
+    __u64 is : 1;
+    __u64 mc : 1;
+    __u64 it : 1;
+    __u64 id : 1;
+    __u64 da : 1;
+    __u64 dd : 1;
+    __u64 ss : 1;
+    __u64 ri : 2;
+    __u64 ed : 1;
+    __u64 bn : 1;
+    __u64 reserved4 : 19;
 };
 
 #define user_mode(regs) (((struct ia64_psr *) &(regs)->r9)->cpl != 0)
@@ -210,17 +111,17 @@ static __always_inline __maybe_unused char is_compat_task(struct task_struct *ta
 #define PSR_MODE_EL3h   0x0000000d
 #define PSR_MODE_MASK   0x0000000f
 /* AArch32 CPSR bits */
-#define PSR_MODE32_BIT		0x00000010
+#define PSR_MODE32_BIT      0x00000010
 
 #define user_mode(regs) \
     (((regs)->pstate & PSR_MODE_MASK) == PSR_MODE_EL0t)
 
-#define compat_user_mode(regs)	\
-	(((regs)->pstate & (PSR_MODE32_BIT | PSR_MODE_MASK)) == \
-	 (PSR_MODE32_BIT | PSR_MODE_EL0t))
+#define compat_user_mode(regs)  \
+    (((regs)->pstate & (PSR_MODE32_BIT | PSR_MODE_MASK)) == \
+     (PSR_MODE32_BIT | PSR_MODE_EL0t))
 
 #define TIF_32BIT       22  /* 32bit process */
-#define TIF_32BIT_AARCH64	27	/* 32 bit process on AArch64(ILP32) */
+#define TIF_32BIT_AARCH64   27  /* 32 bit process on AArch64(ILP32) */
 
 static __always_inline __maybe_unused char is_compat_task(struct task_struct *task)
 {
@@ -244,7 +145,7 @@ static __always_inline __maybe_unused struct sock *sock_get_by_fd(int fd, struct
         return 0;
     }
 
-    bpf_probe_read_kernel(&f, sizeof(struct file *), (struct file *)(ff + fd));
+    bpf_core_read(&f, sizeof(struct file *), (struct file *)(ff + fd));
     if (!f) {
         return 0;
     }

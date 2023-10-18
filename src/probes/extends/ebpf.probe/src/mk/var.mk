@@ -12,7 +12,8 @@ LIBBPF_DIR = $(ROOT_DIR)/../.output
 LIBELF_DIR = /usr/include/libelf
 GOPHER_COMMON_DIR = $(ROOT_DIR)/../../../../../common
 BPF_COMPATIBLE_DIR = $(ROOT_DIR)/../../../../../../third_party/bpf-compatible
-BTFHUB_CACHE_DIR = $(ROOT_DIR)/../../../../../../.cache/btfhub
+BTFHUB_CACHE_DIR = $(ROOT_DIR)/../../../../../../.cache
+BTFHUB_SRC_DIR = $(ROOT_DIR)../../../../../../btf
 
 LIB_DIR ?= $(ROOT_DIR)../lib
 CFILES ?= $(wildcard $(LIB_DIR)/*.c)
@@ -62,6 +63,8 @@ BTF_ENABLE = $(shell if [ -n "$(BTF_ENABLE_OVERRIDE)" ]; then echo "$(BTF_ENABLE
 BTFHUB_REPO := https://gitee.com/openeuler/btfhub-archive.git
 BTFHUB_CACHE := $(abspath $(BTFHUB_CACHE_DIR))
 BTFGEN := $(BPF_COMPATIBLE_DIR)/bin/btfgen
+
+$(shell if [ ! -d "$(BTFHUB_CACHE_DIR)" ]; then mkdir -p "$(BTFHUB_CACHE_DIR)" && cp -r "$(BTFHUB_SRC_DIR)"/* "$(BTFHUB_CACHE_DIR)"; fi)
 
 LINK_TARGET ?= -lpthread -lbpf -lelf -llog4cplus -lz -lconfig -lbpf_compatible
 EXTRA_CFLAGS ?= -g -O2 -Wall -fPIC -std=gnu11
