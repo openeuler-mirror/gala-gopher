@@ -696,7 +696,6 @@ static int proc_tcp_metrics_evt(void *ctx, void *data, u32 size)
     struct tcp_metrics_s *metrics;
     struct tcp_mng_s *tcp_mng = ctx;
 
-
     do {
         if (remain_size < step_size) {
             break;
@@ -737,6 +736,7 @@ static int tcp_load_probe_sockbuf(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *
         err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
         if (err) {
             ERROR("[TCPPROBE] Open 'tcp_sockbuf' bpf_buffer failed.\n");
+            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -770,6 +770,7 @@ static int tcp_load_probe_rtt(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog
         err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
         if (err) {
             ERROR("[TCPPROBE] Open 'tcp_rtt' bpf_buffer failed.\n");
+            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -803,6 +804,7 @@ static int tcp_load_probe_win(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog
         err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
         if (err) {
             ERROR("[TCPPROBE] Open 'tcp_windows' bpf_buffer failed.\n");
+            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -836,6 +838,7 @@ static int tcp_load_probe_rate(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *pro
         err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
         if (err) {
             ERROR("[TCPPROBE] Open 'tcp_rate' bpf_buffer failed.\n");
+            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -872,6 +875,7 @@ static int tcp_load_probe_abn(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog
         err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
         if (err) {
             ERROR("[TCPPROBE] Open 'tcp_abn' bpf_buffer failed.\n");
+            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -898,6 +902,7 @@ static int tcp_load_probe_txrx(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *pro
         err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
         if (err) {
             ERROR("[TCPPROBE] Open 'tcp_tx_rx' bpf_buffer failed.\n");
+            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -931,6 +936,7 @@ static int tcp_load_probe_delay(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *pr
         err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
         if (err) {
             ERROR("[TCPPROBE] Open 'tcp_delay' bpf_buffer failed.\n");
+            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -969,6 +975,7 @@ static int tcp_load_probe_link(struct tcp_mng_s *tcp_mng, struct probe_params *a
     err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
     if (err) {
         ERROR("[TCPPROBE] Open 'tcp_link' bpf_buffer failed.\n");
+        bpf_buffer__free(buffer);
         goto err;
     }
     prog->buffers[prog->num] = buffer;
