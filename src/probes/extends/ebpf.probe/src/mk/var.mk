@@ -64,7 +64,7 @@ BTFHUB_REPO := https://gitee.com/openeuler/btfhub-archive.git
 BTFHUB_CACHE := $(abspath $(BTFHUB_CACHE_DIR))
 BTFGEN := $(BPF_COMPATIBLE_DIR)/bin/btfgen
 
-$(shell if [ ! -d "$(BTFHUB_CACHE_DIR)" ]; then mkdir -p "$(BTFHUB_CACHE_DIR)" && cp -r "$(BTFHUB_SRC_DIR)"/* "$(BTFHUB_CACHE_DIR)"; fi)
+$(shell if [ ! -d "$(BTFHUB_CACHE_DIR)" ]; then mkdir -p "$(BTFHUB_CACHE_DIR)" && find "$(BTFHUB_SRC_DIR)" -name "*""$(ARCH)""*.btf.tar.xz" | xargs cp -t "$(BTFHUB_CACHE_DIR)"; fi)
 
 LINK_TARGET ?= -lpthread -lbpf -lelf -llog4cplus -lz -lconfig -lbpf_compatible
 EXTRA_CFLAGS ?= -g -O2 -Wall -fPIC -std=gnu11

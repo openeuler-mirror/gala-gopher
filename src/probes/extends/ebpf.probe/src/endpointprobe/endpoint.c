@@ -44,9 +44,17 @@
 #define OO_TCP_SOCK     "endpoint_tcp"
 #define OO_UDP_SOCK     "endpoint_udp"
 
-#define __LOAD_ENDPOINT_PROBE(probe_name, end, load) \
-    OPEN(probe_name, end, load); \
-    LOAD_ATTACH(endpoint, probe_name, end, load)
+#define OPEN_TCP_PROBE(probe_name, end, load, buffer) \
+    INIT_OPEN_OPTS(probe_name); \
+    PREPARE_CUSTOM_BTF(probe_name); \
+    OPEN_OPTS(probe_name, end, load); \
+    MAP_INIT_BPF_BUFFER(probe_name, tcp_evt_map, buffer, load);
+
+#define OPEN_UDP_PROBE(probe_name, end, load, buffer) \
+    INIT_OPEN_OPTS(probe_name); \
+    PREPARE_CUSTOM_BTF(probe_name); \
+    OPEN_OPTS(probe_name, end, load); \
+    MAP_INIT_BPF_BUFFER(probe_name, udp_evt_map, buffer, load);
 
 struct tcp_socket_id_s {
     int tgid;                   // process id
@@ -82,8 +90,6 @@ struct udp_socket_s {
 struct endpoint_probe_s {
     struct ipc_body_s ipc_body;
     struct bpf_prog_s* prog;
-    int tcp_output_fd;
-    int udp_output_fd;
     struct udp_socket_s *udps;
     struct tcp_socket_s *tcps;
     int tcp_socks_num;
@@ -436,7 +442,7 @@ err:
     return -1;
 }
 
-static void proc_tcp_sock_evt(void *ctx, int cpu, void *data, u32 size)
+static int proc_tcp_sock_evt(void *ctx, void *data, u32 size)
 {
     char *p = data;
     int remain_size = (int)size, step_size = sizeof(struct tcp_socket_event_s), offset = 0;
@@ -456,10 +462,10 @@ static void proc_tcp_sock_evt(void *ctx, int cpu, void *data, u32 size)
         remain_size -= step_size;
     } while (1);
 
-    return;
+    return 0;
 }
 
-static void proc_udp_sock_evt(void *ctx, int cpu, void *data, u32 size)
+static int proc_udp_sock_evt(void *ctx, void *data, u32 size)
 {
     char *p = data;
     int remain_size = (int)size, step_size = sizeof(struct udp_socket_event_s), offset = 0;
@@ -479,7 +485,7 @@ static void proc_udp_sock_evt(void *ctx, int cpu, void *data, u32 size)
         remain_size -= step_size;
     } while (1);
 
-    return;
+    return 0;
 }
 
 static void sig_int(int signo)
@@ -616,35 +622,67 @@ static void report_tcp_socks(struct endpoint_probe_s * probe)
     return;
 }
 
-static int endpoint_load_probe_tcp(struct bpf_prog_s *prog, char is_load)
+static int endpoint_load_probe_tcp(struct endpoint_probe_s *probe, struct bpf_prog_s *prog, char is_load)
 {
-    __LOAD_ENDPOINT_PROBE(tcp, err, is_load);
+    struct bpf_buffer *buffer = NULL;
+
+    OPEN_TCP_PROBE(tcp, err, is_load, buffer);
     if (is_load) {
+
+        int kernel_version = probe_kernel_version();
+        PROG_ENABLE_ONLY_IF(tcp, bpf_raw_trace_tcp_retransmit_synack, kernel_version > KERNEL_VERSION(4, 18, 0));
+        PROG_ENABLE_ONLY_IF(tcp, bpf_trace_tcp_retransmit_synack_func, kernel_version <= KERNEL_VERSION(4, 18, 0));
+
+        LOAD_ATTACH(endpoint, tcp, err, is_load);
+
         prog->skels[prog->num].skel = tcp_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = tcp_open_opts.btf_custom_path;
+
+        int ret = bpf_buffer__open(buffer, proc_tcp_sock_evt, NULL, probe);
+        if (ret) {
+            ERROR("[ENDPOINT] Open 'tcp_evt_map' bpf_buffer failed.\n");
+            bpf_buffer__free(buffer);
+            goto err;
+        }
+        prog->buffers[prog->num] = buffer;
         prog->num++;
-        g_ep_probe.tcp_output_fd = GET_MAP_FD(tcp, tcp_evt_map);
     }
 
     return 0;
 err:
     UNLOAD(tcp);
+    CLEANUP_CUSTOM_BTF(tcp);
     return -1;
 }
 
-static int endpoint_load_probe_udp(struct bpf_prog_s *prog, char is_load)
+static int endpoint_load_probe_udp(struct endpoint_probe_s *probe, struct bpf_prog_s *prog, char is_load)
 {
-    __LOAD_ENDPOINT_PROBE(udp, err, is_load);
+    struct bpf_buffer *buffer = NULL;
+
+    OPEN_UDP_PROBE(udp, err, is_load, buffer);
     if (is_load) {
+
+        LOAD_ATTACH(endpoint, udp, err, is_load);
+
         prog->skels[prog->num].skel = udp_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)udp_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = udp_open_opts.btf_custom_path;
+
+        int ret = bpf_buffer__open(buffer, proc_udp_sock_evt, NULL, probe);
+        if (ret) {
+            ERROR("[ENDPOINT] Open 'udp_evt_map' bpf_buffer failed.\n");
+            bpf_buffer__free(buffer);
+            goto err;
+        }
+        prog->buffers[prog->num] = buffer;
         prog->num++;
-        g_ep_probe.udp_output_fd = GET_MAP_FD(udp, udp_evt_map);
     }
 
     return 0;
 err:
     UNLOAD(udp);
+    CLEANUP_CUSTOM_BTF(udp);
     return -1;
 }
 
@@ -664,28 +702,12 @@ static int endpoint_load_probe(struct endpoint_probe_s *probe, struct ipc_body_s
         return -1;
     }
 
-    if (endpoint_load_probe_tcp(new_prog, is_load_tcp)) {
+    if (endpoint_load_probe_tcp(probe, new_prog, is_load_tcp)) {
         goto err;
     }
 
-    if (endpoint_load_probe_udp(new_prog, is_load_udp)) {
+    if (endpoint_load_probe_udp(probe, new_prog, is_load_udp)) {
         goto err;
-    }
-
-    if (is_load_tcp) {
-        new_prog->pbs[0] = create_pref_buffer3(probe->tcp_output_fd, proc_tcp_sock_evt, NULL, probe);
-        if (new_prog->pbs[0] == NULL) {
-            ERROR("[ENDPOINTPROBE] Create tcp sock perf buffer failed.\n");
-            goto err;
-        }
-    }
-
-    if (is_load_udp) {
-        new_prog->pbs[1] = create_pref_buffer3(probe->udp_output_fd, proc_udp_sock_evt, NULL, probe);
-        if (new_prog->pbs[1] == NULL) {
-            ERROR("[ENDPOINTPROBE] Create udp sock perf buffer failed.\n");
-            goto err;
-        }
     }
 
     probe->last_report = time(NULL);
@@ -707,8 +729,8 @@ static int poll_endpoint_pb(struct endpoint_probe_s *probe)
     }
 
     for (int i = 0; i < prog->num && i < SKEL_MAX_NUM; i++) {
-        if (prog->pbs[i]) {
-            ret = perf_buffer__poll(prog->pbs[i], THOUSAND);
+        if (prog->buffers[i]) {
+            ret = bpf_buffer__poll(prog->buffers[i], THOUSAND);
             if (ret < 0) {
                 return ret;
             }

@@ -84,7 +84,8 @@ function __create_btf_dir()
 {
     rm -rf ${BTF_BUILD_DIR}
     mkdir -p ${BTF_BUILD_DIR}
-    cp -r ${BTF_SRC_DIR}/* ${BTF_BUILD_DIR}
+    ARCH=$(uname -m)
+    find ${BTF_SRC_DIR} -name "*"${ARCH}"*.btf.tar.xz" | xargs cp -t ${BTF_BUILD_DIR}
 }
 
 function __delete_btf_dir()
