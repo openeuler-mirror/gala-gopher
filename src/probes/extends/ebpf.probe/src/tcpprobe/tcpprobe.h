@@ -39,11 +39,7 @@
                 | TCP_PROBE_RTT | TCP_PROBE_TXRX \
                 | TCP_PROBE_SOCKBUF | TCP_PROBE_RATE | TCP_PROBE_SRTT | TCP_PROBE_DELAY)
 
-#if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(5, 10, 0))
 #define TCP_FD_PER_PROC_MAX (10)
-#else
-#define TCP_FD_PER_PROC_MAX (100)
-#endif
 
 #define TC_PROG "tcp_bpf/tc_tstamp.bpf.o"
 #define BPF_F_INDEX_MASK    0xffffffffULL
@@ -251,8 +247,7 @@ int is_tcp_fd_probe_loaded(void);
     MAP_SET_PIN_PATH(probe_name, args_map, TCP_LINK_ARGS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, tcp_link_map, TCP_LINK_TCP_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, sock_map, TCP_LINK_SOCKS_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, tcp_fd_map, TCP_LINK_FD_PATH, load); \
-    LOAD_ATTACH(tcpprobe, probe_name, end, load)
+    MAP_SET_PIN_PATH(probe_name, tcp_fd_map, TCP_LINK_FD_PATH, load);
 
 #define __LOAD_PROBE(probe_name, end, load) \
     LOAD_ATTACH(tcpprobe, probe_name, end, load)
