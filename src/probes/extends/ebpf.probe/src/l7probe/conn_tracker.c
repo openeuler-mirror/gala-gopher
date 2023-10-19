@@ -420,7 +420,7 @@ static int proc_conn_stats_msg(struct l7_mng_s *l7_mng, struct conn_stats_s *con
 
     tracker = lkup_conn_tracker(l7_mng, (const struct tracker_id_s *)&tracker_id);
     if (tracker == NULL) {
-        ERROR("[L7Probe]: Conn trakcer[%d:%d] is not found when proc stats msg.\n", tracker_id.tgid, tracker_id.fd);
+        ERROR("[L7Probe]: Conn tracker[%d:%d] is not found when proc stats msg.\n", tracker_id.tgid, tracker_id.fd);
         return -1;
     }
 
@@ -775,6 +775,35 @@ void destroy_links(void *ctx)
     }
 }
 
+void destroy_unprobed_trackers_links(void *ctx)
+{
+    struct l7_mng_s *l7_mng = ctx;
+    struct conn_tracker_s *tracker, *tmp_tracker;
+    struct l7_link_s *link, *tmp_link;
+    struct obj_ref_s val = {0};
+    struct proc_s proc = {0};
+    int proc_map_fd = l7_mng->bpf_progs.proc_obj_map_fd;
+
+    if (proc_map_fd < 0) {
+        return;
+    }
+
+    H_ITER(l7_mng->trackers, tracker, tmp_tracker) {
+        proc.proc_id = tracker->id.tgid;
+        if (bpf_map_lookup_elem(proc_map_fd, &proc, &val) < 0) {
+            destroy_conn_tracker(tracker);
+        }
+    }
+
+    H_ITER(l7_mng->l7_links, link, tmp_link) {
+        proc.proc_id = link->id.tgid;
+        if (bpf_map_lookup_elem(proc_map_fd, &proc, &val) < 0) {
+            destroy_l7_link(link);
+            l7_mng->l7_links_capability--;
+        }
+    }
+}
+
 void l7_parser(void *ctx)
 {
     struct l7_mng_s *l7_mng = ctx;
@@ -785,7 +814,7 @@ void l7_parser(void *ctx)
     }
 }
 
-static void trakcer_msg(struct l7_mng_s *l7_mng, void *data, unsigned int size)
+static void tracker_msg(struct l7_mng_s *l7_mng, void *data, unsigned int size)
 {
     char *p = data;
     int remain_size = (int)size, step_size = 0, walk_size = 0, offset = 0;
@@ -850,13 +879,13 @@ static void trakcer_msg(struct l7_mng_s *l7_mng, void *data, unsigned int size)
     return;
 }
 
-void trakcer_msg_pb(void *ctx, int cpu, void *data, unsigned int size)
+void tracker_msg_pb(void *ctx, int cpu, void *data, unsigned int size)
 {
-    trakcer_msg((struct l7_mng_s *)ctx, data, size);
+    tracker_msg((struct l7_mng_s *)ctx, data, size);
 }
 
-int trakcer_msg_rb(void *ctx, void *data, unsigned int size)
+int tracker_msg_rb(void *ctx, void *data, unsigned int size)
 {
-    trakcer_msg((struct l7_mng_s *)ctx, data, size);
+    tracker_msg((struct l7_mng_s *)ctx, data, size);
     return 0;
 }
