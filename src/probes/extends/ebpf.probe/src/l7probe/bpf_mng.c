@@ -75,9 +75,9 @@ static int l7_prog_create_pb(struct bpf_prog_s *prog, int fd, void* cb, void *ct
 static void* get_tracker_msg_cb(void)
 {
 #ifdef __USE_RING_BUF
-    return (void *)trakcer_msg_rb;
+    return (void *)tracker_msg_rb;
 #else
-    return (void *)trakcer_msg_pb;
+    return (void *)tracker_msg_pb;
 #endif
 }
 
