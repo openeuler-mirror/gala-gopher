@@ -388,12 +388,12 @@ int main(int argc, char **argv)
 
     int msq_id = create_ipc_msg_queue(IPC_EXCL);
     if (msq_id < 0) {
-        fprintf(stderr, "Create ipc msg que failed.\n");
+        ERROR("[L7PROBE]: Create ipc msg que failed.\n");
         goto err;
     }
 
     INIT_BPF_APP(l7probe, EBPF_RLIM_LIMITED);
-    INFO("Successfully started!\n");
+    INFO("[L7RPOBE]: Successfully started!\n");
 
     while (!g_stop) {
         nanosleep(&ts, NULL);
@@ -424,6 +424,7 @@ int main(int argc, char **argv)
             l7_unload_tcp_fd(l7_mng);
             (void)l7_load_tcp_fd(l7_mng);
             load_l7_snoopers(l7_mng->bpf_progs.proc_obj_map_fd, &(l7_mng->ipc_body));
+            destroy_unprobed_trackers_links(l7_mng);
 
             if (l7_load_probe_jsse(l7_mng) < 0) {
                 destroy_ipc_body(&ipc_body);
