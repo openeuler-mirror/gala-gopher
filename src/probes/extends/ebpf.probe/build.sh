@@ -21,7 +21,7 @@ function create_btf_dir()
     fi
 
     mkdir -p ${BTF_BUILD_DIR}
-    cp -r ${BTF_SRC_DIR}/* ${BTF_BUILD_DIR}
+    find ${BTF_SRC_DIR} -name "*"${ARCH}"*.btf.tar.xz" | xargs cp -t ${BTF_BUILD_DIR}
 }
 
 function delete_btf_dir()

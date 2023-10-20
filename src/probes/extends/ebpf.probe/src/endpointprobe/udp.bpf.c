@@ -28,36 +28,30 @@
 
 char g_license[] SEC("license") = "GPL";
 
-#define ETH_P_IP	0x0800		/* Internet Protocol packet	*/
+#define ETH_P_IP    0x0800      /* Internet Protocol packet */
 
-
-#define __PERF_OUT_MAX (64)
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, __PERF_OUT_MAX);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } udp_evt_map SEC(".maps");
-
 
 static __always_inline unsigned char *skb_network_header(const struct sk_buff *skb)
 {
     unsigned char *skb_hdr = _(skb->head);
     u16 network_header_offset = _(skb->network_header);
 
-	return (skb_hdr + network_header_offset);
+    return (skb_hdr + network_header_offset);
 }
 
 static __always_inline struct iphdr *ip_hdr(const struct sk_buff *skb)
 {
-	return (struct iphdr *)skb_network_header(skb);
+    return (struct iphdr *)skb_network_header(skb);
 }
 
 static __always_inline struct ipv6hdr *ipv6_hdr(const struct sk_buff *skb)
 {
-	return (struct ipv6hdr *)skb_network_header(skb);
+    return (struct ipv6hdr *)skb_network_header(skb);
 }
-
 
 static __always_inline __maybe_unused void get_remote_addr(struct udp_socket_event_s* evt, const struct sockaddr* remote_addr)
 {
@@ -69,15 +63,13 @@ static __always_inline __maybe_unused void get_remote_addr(struct udp_socket_eve
         evt->remote_ipaddr.ip = _(addr_in->sin_addr.s_addr);
         evt->remote_ipaddr.port = bpf_ntohs(_(addr_in->sin_port));
     } else {
-        bpf_probe_read((unsigned char *)&evt->remote_ipaddr.ip6, IP6_LEN, &(addr_in6->sin6_addr));
+        BPF_CORE_READ_INTO(&(evt->remote_ipaddr.ip6), addr_in6, sin6_addr);
         evt->remote_ipaddr.port = bpf_ntohs(_(addr_in6->sin6_port));
     }
 
     return;
 }
 
-
-#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
 static __always_inline void get_local_sockaddr(struct udp_socket_event_s* evt, const struct sock* sk)
 {
     u16 family;
@@ -92,24 +84,7 @@ static __always_inline void get_local_sockaddr(struct udp_socket_event_s* evt, c
     }
     return;
 }
-#else
-static __always_inline void get_local_sockaddr(struct udp_socket_event_s* evt, const struct sock* sk)
-{
-    u16 family;
 
-    family = _(sk->__sk_common.skc_family);
-    evt->local_ipaddr.family = family;
-
-    if (family == AF_INET) {
-        evt->local_ipaddr.ip = _(sk->sk_rcv_saddr);
-    } else {
-        (void)bpf_probe_read(&(evt->local_ipaddr.ip6), IP6_LEN, &sk->sk_v6_rcv_saddr);
-    }
-    return;
-}
-#endif
-
-#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
 static __always_inline void get_remote_sockaddr(struct udp_socket_event_s* evt, const struct sock* sk)
 {
     u16 family;
@@ -124,22 +99,6 @@ static __always_inline void get_remote_sockaddr(struct udp_socket_event_s* evt, 
     }
     return;
 }
-#else
-static __always_inline void get_remote_sockaddr(struct udp_socket_event_s* evt, const struct sock* sk)
-{
-    u16 family;
-
-    family = _(sk->__sk_common.skc_family);
-    evt->remote_ipaddr.family = family;
-
-    if (family == AF_INET) {
-        evt->remote_ipaddr.ip = _(sk->sk_daddr);
-    } else {
-        (void)bpf_probe_read(&(evt->remote_ipaddr.ip6), IP6_LEN, &sk->sk_v6_daddr);
-    }
-    return;
-}
-#endif
 
 
 KPROBE(udp_sendmsg, pt_regs)
@@ -164,7 +123,7 @@ KPROBE(udp_sendmsg, pt_regs)
     evt.evt = EP_STATS_UDP_SENDS;
 
     // report;
-    (void)bpf_perf_event_output(ctx, &udp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct udp_socket_event_s));
+    (void)bpfbuf_output(ctx, &udp_evt_map, &evt, sizeof(struct udp_socket_event_s));
 
     return 0;
 }
@@ -173,13 +132,12 @@ KRETPROBE(__skb_recv_udp, pt_regs)
 {
     struct sk_buff *skb = (struct sk_buff *)PT_REGS_RC(ctx);
     struct udp_socket_event_s evt = {0};
-    u16 protocol = 0;
 
     if (skb == NULL) {
         goto end;
     }
 
-    bpf_probe_read(&protocol, sizeof(protocol), &(skb->protocol));
+    u16 protocol = BPF_CORE_READ(skb, protocol);
 
     if (protocol == bpf_htons(ETH_P_IP)) {
         u32 ipaddr = 0;
@@ -188,9 +146,9 @@ KRETPROBE(__skb_recv_udp, pt_regs)
         if (iph == NULL) {
             goto end;
         }
-        bpf_probe_read(&ipaddr, sizeof(ipaddr), &(iph->daddr));
+        bpf_core_read(&ipaddr, sizeof(ipaddr), &(iph->daddr));
         evt.local_ipaddr.ip = bpf_ntohl(ipaddr);
-        bpf_probe_read(&ipaddr, sizeof(ipaddr), &(iph->saddr));
+        bpf_core_read(&ipaddr, sizeof(ipaddr), &(iph->saddr));
         evt.remote_ipaddr.ip = bpf_ntohl(ipaddr);
     } else {
         struct ipv6hdr *ip6_hdr = NULL;
@@ -198,8 +156,8 @@ KRETPROBE(__skb_recv_udp, pt_regs)
         if (ip6_hdr == NULL) {
             goto end;
         }
-        bpf_probe_read(&(evt.remote_ipaddr.ip6), IP6_LEN, &(ip6_hdr->saddr));
-        bpf_probe_read(&(evt.local_ipaddr.ip6), IP6_LEN, &(ip6_hdr->daddr));
+        BPF_CORE_READ_INTO(&(evt.remote_ipaddr.ip6), ip6_hdr, saddr);
+        BPF_CORE_READ_INTO(&(evt.local_ipaddr.ip6), ip6_hdr, daddr);
     }
 
     unsigned int len = _(skb->len);
@@ -208,7 +166,7 @@ KRETPROBE(__skb_recv_udp, pt_regs)
     evt.evt = EP_STATS_UDP_RCVS;
 
     // report;
-    (void)bpf_perf_event_output(ctx, &udp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct udp_socket_event_s));
+    (void)bpfbuf_output(ctx, &udp_evt_map, &evt, sizeof(struct udp_socket_event_s));
 
 end:
     return 0;
@@ -262,8 +220,7 @@ KRETPROBE(__udp_enqueue_schedule_skb, pt_regs)
 
     struct udp_socket_event_s evt = {0};
 
-    u16 protocol = 0;
-    bpf_probe_read(&protocol, sizeof(protocol), &(skb->protocol));
+    u16 protocol = BPF_CORE_READ(skb, protocol);
 
     if (protocol == bpf_htons(ETH_P_IP)) {
         u32 ipaddr = 0;
@@ -272,9 +229,9 @@ KRETPROBE(__udp_enqueue_schedule_skb, pt_regs)
         if (iph == NULL) {
             goto end;
         }
-        bpf_probe_read(&ipaddr, sizeof(ipaddr), &(iph->daddr));
+        bpf_core_read(&ipaddr, sizeof(ipaddr), &(iph->daddr));
         evt.local_ipaddr.ip = bpf_ntohl(ipaddr);
-        bpf_probe_read(&ipaddr, sizeof(ipaddr), &(iph->saddr));
+        bpf_core_read(&ipaddr, sizeof(ipaddr), &(iph->saddr));
         evt.remote_ipaddr.ip = bpf_ntohl(ipaddr);
     } else {
         struct ipv6hdr *ip6_hdr = NULL;
@@ -282,8 +239,8 @@ KRETPROBE(__udp_enqueue_schedule_skb, pt_regs)
         if (ip6_hdr == NULL) {
             goto end;
         }
-        bpf_probe_read(&(evt.remote_ipaddr.ip6), IP6_LEN, &(ip6_hdr->saddr));
-        bpf_probe_read(&(evt.local_ipaddr.ip6), IP6_LEN, &(ip6_hdr->daddr));
+        BPF_CORE_READ_INTO(&(evt.remote_ipaddr.ip6), ip6_hdr, saddr);
+        BPF_CORE_READ_INTO(&(evt.local_ipaddr.ip6), ip6_hdr, daddr);
     }
 
     unsigned int len = _(skb->len);
@@ -292,7 +249,7 @@ KRETPROBE(__udp_enqueue_schedule_skb, pt_regs)
     evt.tgid = (int)(id >> INT_LEN);
 
     // report;
-    (void)bpf_perf_event_output(ctx, &udp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct udp_socket_event_s));
+    (void)bpfbuf_output(ctx, &udp_evt_map, &evt, sizeof(struct udp_socket_event_s));
 
 end:
     bpf_map_delete_elem(&udp_enqueue_args, &id);
