@@ -55,27 +55,28 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 
 全量采集特性说明如下：
 
-| 采集特性      | 采集特性说明                          | 采集子项范围                                                 | 监控对象                                 | 启动文件                           | 启动条件                  |
-| ------------- | ------------------------------------- | ------------------------------------------------------------ | ---------------------------------------- | ---------------------------------- | ------------------------- |
-| flamegraph    | 在线性能火焰图观测能力                | oncpu, offcpu, mem                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/stackprobe        |                           |
-| l7            | 应用7层协议观测能力                   | l7_bytes_metrics、l7_rpc_metrics、l7_rpc_trace               | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/l7probe           |                           |
-| tcp           | TCP异常、状态观测能力                 | tcp_abnormal, tcp_rtt, tcp_windows, tcp_rate, tcp_srtt, tcp_sockbuf, tcp_stats,tcp_delay | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/tcpprobe          |                           |
-| socket        | Socket(TCP/UDP)异常观测能力           | tcp_socket, udp_socket                                       | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/endpoint          |                           |
-| io            | Block层I/O观测能力                    | io_trace, io_err, io_count, page_cache                       | NA                                       | $gala-gopher-dir/ioprobe           |                           |
-| proc          | 进程系统调用、I/O、DNS、VFS等观测能力 | base_metrics, proc_syscall, proc_fs, proc_io, proc_dns,proc_pagecache | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/taskprobe         |                           |
-| jvm           | JVM层GC, 线程, 内存, 缓存等观测能力   | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/jvmprobe          |                           |
-| ksli          | Redis性能SLI（访问时延）观测能力      | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/ksliprobe         |                           |
-| postgre_sli   | PG DB性能SLI（访问时延）观测能力      | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/pgsliprobe        |                           |
-| opengauss_sli | openGauss访问吞吐量观测能力           | NA                                                           | [ip, port, dbname, user,password]        | $gala-gopher-dir/pg_stat_probe.py  |                           |
-| dnsmasq       | DNS会话观测能力                       | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/rabbitmq_probe.sh |                           |
-| lvs           | lvs会话观测能力                       | NA                                                           | NA                                       | $gala-gopher-dir/trace_lvs         | lsmod\|grep ip_vs\| wc -l |
-| nginx         | Nginx L4/L7层会话观测能力             | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/nginx_probe       |                           |
-| haproxy       | Haproxy L4/7层会话观测能力            | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/trace_haproxy     |                           |
+| 采集特性          | 采集特性说明                      | 采集子项范围                                                 | 监控对象                                 | 启动文件                               | 启动条件                  |
+|---------------|-----------------------------| ------------------------------------------------------------ | ---------------------------------------- |------------------------------------| ------------------------- |
+| flamegraph    | 在线性能火焰图观测能力                 | oncpu, offcpu, mem                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/stackprobe        |                           |
+| l7            | 应用7层协议观测能力                  | l7_bytes_metrics、l7_rpc_metrics、l7_rpc_trace               | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/l7probe           |                           |
+| tcp           | TCP异常、状态观测能力                | tcp_abnormal, tcp_rtt, tcp_windows, tcp_rate, tcp_srtt, tcp_sockbuf, tcp_stats,tcp_delay | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/tcpprobe          |                           |
+| socket        | Socket(TCP/UDP)异常观测能力       | tcp_socket, udp_socket                                       | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/endpoint          |                           |
+| io            | Block层I/O观测能力               | io_trace, io_err, io_count, page_cache                       | NA                                       | $gala-gopher-dir/ioprobe           |                           |
+| proc          | 进程系统调用、I/O、DNS、VFS等观测能力     | base_metrics, proc_syscall, proc_fs, proc_io, proc_dns,proc_pagecache | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/taskprobe         |                           |
+| jvm           | JVM层GC, 线程, 内存, 缓存等观测能力     | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/jvmprobe          |                           |
+| ksli          | Redis性能SLI（访问时延）观测能力        | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/ksliprobe         |                           |
+| postgre_sli   | PG DB性能SLI（访问时延）观测能力        | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/pgsliprobe        |                           |
+| opengauss_sli | openGauss访问吞吐量观测能力          | NA                                                           | [ip, port, dbname, user,password]        | $gala-gopher-dir/pg_stat_probe.py  |                           |
+| dnsmasq       | DNS会话观测能力                   | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/rabbitmq_probe.sh |                           |
+| lvs           | lvs会话观测能力                   | NA                                                           | NA                                       | $gala-gopher-dir/trace_lvs         | lsmod\|grep ip_vs\| wc -l |
+| nginx         | Nginx L4/L7层会话观测能力          | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/nginx_probe       |                           |
+| haproxy       | Haproxy L4/7层会话观测能力         | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/trace_haproxy     |                           |
 | kafka         | kafka 生产者/消费者topic观测能力      | NA                                                           | dev, port                                | $gala-gopher-dir/kafkaprobe        |                           |
-| baseinfo      | 系统基础信息                          | cpu, mem, nic, disk, net, fs, proc,host                      | proc_id, proc_name, pod_id, container_id | system_infos                       | NA                        |
-| virt          | 虚拟化管理信息                        | NA                                                           | NA                                       | virtualized_infos                  | NA                        |
-| tprofiling    | 线程级性能profiling观测能力           | oncpu, syscall_file, syscall_net, syscall_lock, syscall_sched | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/tprofiling        | NA                        |
-| container     | 容器信息                              | NA                                                           | proc_id, proc_name, container_id         | $gala-gopher-dir/cadvisor_probe.py | NA                        |
+| baseinfo      | 系统基础信息                      | cpu, mem, nic, disk, net, fs, proc,host                      | proc_id, proc_name, pod_id, container_id | system_infos                       | NA                        |
+| virt          | 虚拟化管理信息                     | NA                                                           | NA                                       | virtualized_infos                  | NA                        |
+| tprofiling    | 线程级性能profiling观测能力          | oncpu, syscall_file, syscall_net, syscall_lock, syscall_sched | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/tprofiling        | NA                        |
+| container     | 容器信息                        | NA                                                           | proc_id, proc_name, container_id         | $gala-gopher-dir/cadvisor_probe.py | NA                        |
+| sermant       | Java应用7层协议观测能力，当前已支持dubbo协议 | l7_bytes_metrics、l7_rpc_metrics、               | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/sermant_probe.py  |                           |
 
 ## 配置探针扩展标签
 

@@ -58,7 +58,8 @@ struct probe_define_s probe_define[] = {
     {"hw",                  "$gala-gopher-dir/hwprobe",             PROBE_HW},
     {"ksli",                "$gala-gopher-dir/ksliprobe",           PROBE_KSLI},
     {"sched",               "$gala-gopher-dir/schedprobe",          PROBE_SCHED},
-    {"container",           "$gala-gopher-dir/cadvisor_probe.py",   PROBE_CONTAINER}
+    {"container",           "$gala-gopher-dir/cadvisor_probe.py",   PROBE_CONTAINER},
+    {"sermant",             "$gala-gopher-dir/sermant_probe.py",    PROBE_SERMANT}
 
     // If you want to add a probe, add the probe define.
 };
@@ -124,6 +125,10 @@ struct probe_range_define_s probe_range_define[] = {
 
     {PROBE_SCHED,  "sched_systime",       PROBE_RANGE_SCHED_SYSTIME},
     {PROBE_SCHED,  "sched_syscall",       PROBE_RANGE_SCHED_SYSCALL},
+
+    {PROBE_SERMANT, "l7_bytes_metrics", PROBE_RANGE_SERMANT_BYTES_METRICS},
+    {PROBE_SERMANT, "l7_rpc_metrics",   PROBE_RANGE_SERMANT_RPC_METRICS},
+    {PROBE_SERMANT, "l7_rpc_trace",     PROBE_RANGE_SERMANT_RPC_TRACE},
 
     // If you want to add a probe, add the probe range.
 };
