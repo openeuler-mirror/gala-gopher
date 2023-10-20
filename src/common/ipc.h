@@ -35,6 +35,11 @@
 #define PROBE_RANGE_L7RPC_METRICS   0x00000002
 #define PROBE_RANGE_L7RPC_TRACE     0x00000004
 
+/* Sermant subprobe define */
+#define PROBE_RANGE_SERMANT_BYTES_METRICS 0x00000001
+#define PROBE_RANGE_SERMANT_RPC_METRICS   0x00000002
+#define PROBE_RANGE_SERMANT_RPC_TRACE     0x00000004
+
 /* tcp subprobe define */
 #define PROBE_RANGE_TCP_ABNORMAL    0x00000001
 #define PROBE_RANGE_TCP_WINDOWS     0x00000002
@@ -118,6 +123,7 @@ enum probe_type_e {
     PROBE_KSLI,
     PROBE_SCHED,
     PROBE_CONTAINER,
+    PROBE_SERMANT,
 
     // If you want to add a probe, add the probe type.
 
