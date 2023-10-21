@@ -164,11 +164,12 @@ struct java_proc_s {
 
 void destroy_trackers(void *ctx);
 void destroy_links(void *ctx);
+void destroy_unprobed_trackers_links(void *ctx);
 void l7_parser(void *ctx);
 void report_l7(void *ctx);
 
-void trakcer_msg_pb(void *ctx, int cpu, void *data, unsigned int size);
-int trakcer_msg_rb(void *ctx, void *data, unsigned int size);
+void tracker_msg_pb(void *ctx, int cpu, void *data, unsigned int size);
+int tracker_msg_rb(void *ctx, void *data, unsigned int size);
 
 #endif
 
