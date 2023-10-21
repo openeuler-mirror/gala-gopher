@@ -33,18 +33,20 @@ static parse_state_t parse_chunked(struct raw_data_s *raw_data, size_t *offset, 
     if (raw_data->current_pos == raw_data->data_len) {
         return STATE_NEEDS_MORE_DATA;
     }
-
-    const int search_window = 2048;
-    const size_t delimiter_len = 2;
+#define CHUNKED_SEARCH_WINDOW  2048
+#define CHUNKED_DELIMITER      "\r\n"
+    const size_t delimiter_len = strlen(CHUNKED_DELIMITER);
+    char data_search[CHUNKED_SEARCH_WINDOW + 1];
     char *data = raw_data->data + raw_data->current_pos;
     size_t data_len = raw_data->data_len - raw_data->current_pos;
     size_t total_size = 0;
-    while(true) {
+    while (true) {
         size_t chunked_len = 0;
-
-        size_t deli_pos = find_str(substr(data, 0,search_window), "\r\n", 0);
+        (void)strncpy(data_search, data, CHUNKED_SEARCH_WINDOW);
+        data_search[CHUNKED_SEARCH_WINDOW] = 0;
+        size_t deli_pos = find_str(data_search, CHUNKED_DELIMITER, 0);
         if (deli_pos == -1 || deli_pos == data_len) {
-            return data_len > search_window ? STATE_INVALID : STATE_NEEDS_MORE_DATA;
+            return data_len > CHUNKED_SEARCH_WINDOW ? STATE_INVALID : STATE_NEEDS_MORE_DATA;
         }
 
         // chunked数据每个分片都在开头设置分片数据长度，用";"和数据隔开，extension不一定存在，如果存在则刷新len的值
@@ -53,13 +55,19 @@ static parse_state_t parse_chunked(struct raw_data_s *raw_data, size_t *offset, 
         // 5
         // hello
         // 0
-        char *chunked_str_len = substr(data, 0, deli_pos);
-        char *ext = strchr(chunked_str_len, ';');
-        if (ext != NULL) {
-            chunked_str_len = substr(chunked_str_len, 0, ext - chunked_str_len);
+        char *chunked_len_str = substr(data, 0, deli_pos);
+        if (chunked_len_str == NULL) {
+            ERROR("[HTTP1.x PARSER] Failed to alloc chunked len buf\n");
+            return STATE_INVALID;
         }
 
-        chunked_len = simple_hex_atoi(chunked_str_len);
+        char *ext = strchr(chunked_len_str, ';');
+        if (ext != NULL) {
+            *ext = 0;
+        }
+
+        chunked_len = simple_hex_atoi(chunked_len_str);
+        free(chunked_len_str);
         if (data - raw_data->data == raw_data->data_len) {
             return STATE_NEEDS_MORE_DATA;
         }
@@ -73,12 +81,10 @@ static parse_state_t parse_chunked(struct raw_data_s *raw_data, size_t *offset, 
             break;
         }
 
-        // NOTE: parse chunked data, not support for now
-        char *chunked_data;
+        // NOTE: Not support for parsing chunked data now
         if (strlen(data) < chunked_len + delimiter_len) {
             return STATE_NEEDS_MORE_DATA;
         }
-        chunked_data = substr(data, 0, chunked_len);
 
         // 指针偏移chunked_len，跳过内容，正常时内容行结尾是\r\n
         data += chunked_len;
@@ -93,7 +99,7 @@ static parse_state_t parse_chunked(struct raw_data_s *raw_data, size_t *offset, 
         data += delimiter_len;
 
         // 提取完chunked data之后再累计total_size
-        total_size += strlen(chunked_data);
+        total_size += chunked_len;
     }
 
     raw_data->current_pos = data - raw_data->data;
@@ -432,6 +438,11 @@ size_t http_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s 
 
         // 2.寻找子字符串: start_pos ~ marker_pos
         char *buf_substr = substr(raw_data->data + raw_data->current_pos, start_pos, marker_pos - start_pos);
+        if (buf_substr == NULL) {
+            ERROR("[HTTP1.x PARSER][Find Frame Boundary] Failed to alloc substr buf\n");
+            return PARSER_INVALID_BOUNDARY_INDEX;
+        }
+
         DEBUG("[HTTP1.x PARSER][Find Frame Boundary] Substr from start_pos[%d]~marker_pos[]%d is: %s\n", start_pos, marker_pos, buf_substr);
 
         // 3.匹配start_pos ~ marker_pos之间子串中的start_pattern，取最后一个（最靠近 "\r\n\r\n" 标志的帧边界）
@@ -449,6 +460,7 @@ size_t http_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s 
                 substr_pos = (substr_pos == -1) ? current_substr_pos : max_pos;
             }
         }
+        free(buf_substr);
 
         // 4.返回帧边界标志匹配到的位置
         if (substr_pos != -1) {
