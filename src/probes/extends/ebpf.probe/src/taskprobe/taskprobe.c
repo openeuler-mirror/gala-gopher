@@ -33,7 +33,6 @@
 #include "ipc.h"
 #include "bpf_prog.h"
 #include "proc.h"
-#include "thread.h"
 #include "task_args.h"
 
 #define RM_TASK_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__taskprobe*"
@@ -92,7 +91,6 @@ static void unload_task_snoopers(int fd, struct ipc_body_s *ipc_body)
 
 static void taskprobe_unload_bpf(void)
 {
-    unload_bpf_prog(&(g_task_probe.thread_bpf_progs));
     unload_bpf_prog(&(g_task_probe.proc_bpf_progs));
 
     for (int i = 0; i < GLIBC_EBPF_PROG_MAX; i++) {
@@ -193,12 +191,6 @@ static int taskprobe_load_bpf(struct ipc_body_s *ipc_body)
         goto err;
     }
 
-    ret = load_thread_bpf_prog(&g_task_probe, ipc_body, &new_prog);
-    if (ret) {
-        goto err;
-    }
-    g_task_probe.thread_bpf_progs = new_prog;
-
     ret = load_proc_bpf_prog(&g_task_probe, ipc_body, &new_prog);
     if (ret) {
         goto err;
@@ -214,14 +206,6 @@ static int perf_poll(struct task_probe_s *task_probe)
 {
     int err = 0, ret;
     int ebpf_installed = 0;
-
-    if (task_probe->thread_bpf_progs && task_probe->thread_bpf_progs->pb != NULL) {
-        ebpf_installed = 1;
-        if ((ret = perf_buffer__poll(task_probe->thread_bpf_progs->pb, THOUSAND)) < 0) {
-            err = -1;
-            goto end;
-        }
-    }
 
     if (task_probe->proc_bpf_progs && task_probe->proc_bpf_progs->pb != NULL) {
         ebpf_installed = 1;

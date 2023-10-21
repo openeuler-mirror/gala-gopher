@@ -42,6 +42,7 @@
 #include "tmpfs.skel.h"
 #include "page.skel.h"
 #include "proc_io.skel.h"
+#include "cpu.skel.h"
 #include "bpf_prog.h"
 
 #ifdef OO_NAME
@@ -64,6 +65,7 @@ static struct ipc_body_s *__ipc_body = NULL;
 #define PROC_TBL_PAGE           "proc_page"
 
 #define PROC_TBL_IO             "proc_io"
+#define PROC_TBL_CPU            "proc_cpu"
 
 #define OVERLAY_MOD  "overlay"
 #define EXT4_MOD  "ext4"
@@ -115,14 +117,14 @@ static void report_proc_metrics(struct proc_data_s *proc)
                     proc->dns_op.gethostname_failed);
     }
 #endif
-    if (latency_thr_us > 0 && proc->proc_io.iowait_us > latency_thr_us) {
-        evt.metrics = "iowait_us";
+    if (latency_thr_us > 0 && (proc->proc_cpu.iowait_ns >> 3) > latency_thr_us) {
+        evt.metrics = "iowait_ns";
         report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
-                    "Process(COMM:%s PID:%u) iowait %llu us.",
+                    "Process(COMM:%s PID:%u) iowait %llu ns.",
                     proc->comm,
                     proc->proc_id,
-                    proc->proc_io.iowait_us);
+                    proc->proc_cpu.iowait_ns);
     }
 
     if (proc->proc_io.hang_count > 0) {
@@ -289,7 +291,7 @@ static void output_proc_io_stats(struct proc_data_s *proc)
     (void)fprintf(stdout,
         "|%s|%u|"
         "%u|%u|%u|%u|"
-        "%u|%u|%u|%llu|\n",
+        "%u|%u|%u|\n",
         PROC_TBL_IO,
         proc->proc_id,
 
@@ -300,8 +302,19 @@ static void output_proc_io_stats(struct proc_data_s *proc)
 
         proc->proc_io.bio_latency,
         proc->proc_io.bio_err_count,
-        proc->proc_io.hang_count,
-        proc->proc_io.iowait_us);
+        proc->proc_io.hang_count);
+}
+
+static void output_proc_cpu_stats(struct proc_data_s *proc)
+{
+    (void)fprintf(stdout,
+        "|%s|%u|"
+        "%llu|%llu|\n",
+        PROC_TBL_CPU,
+        proc->proc_id,
+
+        proc->proc_cpu.iowait_ns,
+        proc->proc_cpu.offcpu_ns);
 }
 
 void output_proc_metrics(void *ctx, int cpu, void *data, __u32 size)
@@ -331,6 +344,8 @@ void output_proc_metrics(void *ctx, int cpu, void *data, __u32 size)
         output_proc_metrics_page(proc);
     } else if (flags & TASK_PROBE_IO) {
         output_proc_io_stats(proc);
+    } else if (flags & TASK_PROBE_CPU) {
+        output_proc_cpu_stats(proc);
     }
 
     (void)fflush(stdout);
@@ -573,6 +588,28 @@ err:
     return -1;
 }
 
+static int load_proc_cpu_prog(struct task_probe_s *task_probe, struct bpf_prog_s *prog, char is_load)
+{
+    int ret = 0;
+
+    __LOAD_PROBE(cpu, err, is_load);
+    if (is_load) {
+        prog->skels[prog->num].skel = cpu_skel;
+        prog->skels[prog->num].fn = (skel_destroy_fn)cpu_bpf__destroy;
+        prog->num++;
+
+        task_probe->proc_map_fd = GET_MAP_FD(cpu, g_proc_map);
+        task_probe->args_fd = GET_MAP_FD(cpu, args_map);
+
+        ret = load_proc_create_pb(prog, GET_MAP_FD(cpu, g_proc_output));
+    }
+
+    return ret;
+err:
+    UNLOAD(cpu);
+    return -1;
+}
+
 int load_proc_bpf_prog(struct task_probe_s *task_probe, struct ipc_body_s *ipc_body, struct bpf_prog_s **new_prog)
 {
     struct bpf_prog_s *prog;
@@ -580,6 +617,7 @@ int load_proc_bpf_prog(struct task_probe_s *task_probe, struct ipc_body_s *ipc_b
     char is_load_syscall, is_load_syscall_io, is_load_syscall_net;
     char is_load_syscall_fork, is_load_syscall_sched, is_load_proc_io;
     char is_load_overlay, is_load_ext4, is_load_tmpfs, is_load_page;
+    char is_load_offcpu;
 
     *new_prog = NULL;
     __ipc_body = ipc_body;
@@ -597,9 +635,11 @@ int load_proc_bpf_prog(struct task_probe_s *task_probe, struct ipc_body_s *ipc_b
     is_load_page = ipc_body->probe_range_flags & PROBE_RANGE_PROC_PAGECACHE;
 
     is_load_proc_io = ipc_body->probe_range_flags & PROBE_RANGE_PROC_IO;
+    is_load_offcpu = ipc_body->probe_range_flags & PROBE_RANGE_PROC_OFFCPU;
 
     is_load = is_load_overlay | is_load_ext4 | is_load_syscall | is_load_syscall_io | is_load_syscall_net;
     is_load |= is_load_syscall_fork | is_load_syscall_sched | is_load_tmpfs | is_load_page | is_load_proc_io;
+    is_load |= is_load_offcpu;
     if (!is_load) {
         return 0;
     }
@@ -646,6 +686,10 @@ int load_proc_bpf_prog(struct task_probe_s *task_probe, struct ipc_body_s *ipc_b
     }
 
     if (load_proc_io_prog(task_probe, prog, is_load_proc_io)) {
+        goto err;
+    }
+
+    if (load_proc_cpu_prog(task_probe, prog, is_load_offcpu)) {
         goto err;
     }
 

@@ -18,103 +18,136 @@
 #define BPF_PROG_KERN
 #include "bpf.h"
 #include "task.h"
-#include "thread_map.h"
 #include "proc_map.h"
-#include "output_thread.h"
+#include "output_proc.h"
 
 char g_linsence[] SEC("license") = "GPL";
 
-/* Used in tsk->state: */
-#define TASK_RUNNING            0x0000
-#define TASK_INTERRUPTIBLE      0x0001
-#define TASK_UNINTERRUPTIBLE    0x0002
-#define __TASK_STOPPED          0x0004
-#define __TASK_TRACED           0x0008
+typedef u64 conn_ctx_t;         // pid & tgid
 
-static __always_inline void store_start(struct task_struct* prev, int pid, u32 cpu, u64 start)
-{
-    struct thread_data *data;
-
-    data = get_thread(pid);
-    if (data == NULL) {
-        return;
-    }
-#if (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(5, 14, 0))
-    unsigned int state = _(prev->__state);
+#if (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(5, 10, 0))
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+#define IOWAIT_SHIFT           1
+#define IOWAIT_MASK            0x00000002
 #else
-    long int state = _(prev->state);
+#define IOWAIT_SHIFT           29
+#define IOWAIT_MASK            0x20000000
 #endif
-    if (state != TASK_RUNNING) {
+#else
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+#define IOWAIT_SHIFT           2
+#define IOWAIT_MASK            0x00000004
+#else
+#define IOWAIT_SHIFT           30
+#define IOWAIT_MASK            0x40000000
+#endif
+#endif
+
+struct cpu_timestamp_s {
+    u32 is_iowait;
+    u64 offcpu_start_ts;
+};
+
+#define __PROC_MAX      1000
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(conn_ctx_t));
+    __uint(value_size, sizeof(struct cpu_timestamp_s));
+    __uint(max_entries, __PROC_MAX);
+} cpu_map SEC(".maps");
+
+static __always_inline struct cpu_timestamp_s* get_cpu_timestamp(conn_ctx_t id)
+{
+    struct cpu_timestamp_s new_proc_cpu = {0};
+    struct cpu_timestamp_s *proc_cpu = NULL;
+
+    proc_cpu = (struct cpu_timestamp_s *)bpf_map_lookup_elem(&cpu_map, &id);
+    if (proc_cpu) {
+        return proc_cpu;
+    }
+
+    (void)bpf_map_update_elem(&cpu_map, &id, &new_proc_cpu, BPF_ANY);
+
+    return  (struct cpu_timestamp_s *)bpf_map_lookup_elem(&cpu_map, &id);
+}
+
+static __always_inline struct cpu_timestamp_s* lkup_cpu_timestamp(conn_ctx_t id)
+{
+    return (struct cpu_timestamp_s *)bpf_map_lookup_elem(&cpu_map, &id);
+}
+
+static __always_inline void offcpu_start(struct task_struct* prev)
+{
+    if (prev == NULL) {
         return;
     }
 
-    data->cpu.off_cpu_start = start;
-    data->cpu.off_cpu_no = cpu;
-    data->cpu.preempt_id = bpf_get_current_pid_tgid() >> INT_LEN;
-    (void)bpf_get_current_comm(&data->cpu.preempt_comm, sizeof(data->cpu.preempt_comm));
+    int tgid = _(prev->tgid);
+    int pid = _(prev->pid);
+
+    struct proc_data_s* proc = get_proc_entry(tgid);
+    if (proc == NULL) {
+        return;
+    }
+
+    conn_ctx_t id = (conn_ctx_t)(((u64)tgid << INT_LEN) & (u64)pid);
+    struct cpu_timestamp_s *cpu_ts = get_cpu_timestamp(id);
+    if (cpu_ts == NULL) {
+        return;
+    }
+
+    u32 is_iowait = 0;
+    bpf_probe_read(&is_iowait, sizeof(u32), (char *)&(prev->personality) + 2 * sizeof(u32));
+    is_iowait = (is_iowait & IOWAIT_MASK) >> IOWAIT_SHIFT;
+
+    u64 ts = bpf_ktime_get_ns();
+
+    cpu_ts->is_iowait = is_iowait;
+    cpu_ts->offcpu_start_ts = ts;
     return;
 }
 
-static __always_inline void store_end(void *ctx, int pid, u64 end)
+static __always_inline void offcpu_end(void *ctx, conn_ctx_t id)
 {
     u64 delta;
-    struct thread_data *data;
 
-    data = get_thread(pid);
-    if (data == NULL) {
+    struct cpu_timestamp_s *cpu_ts = lkup_cpu_timestamp(id);
+    if (cpu_ts == NULL) {
         return;
     }
 
-    if (data->cpu.off_cpu_start == 0) {
-        return;
+    struct proc_data_s* proc = get_proc_entry(id >> INT_LEN);
+    if (proc == NULL) {
+        goto end;
     }
 
-    delta = (end > data->cpu.off_cpu_start) ? (end - data->cpu.off_cpu_start) : 0;
-    if (delta > get_offline_thr()) {
-        data->cpu.off_cpu_ns = delta;
-        report_thread(ctx, data, TASK_PROBE_THREAD_CPU);
+    u64 ts = bpf_ktime_get_ns();
+
+    if (cpu_ts->offcpu_start_ts < ts) {
+        delta = ts - cpu_ts->offcpu_start_ts;
+        if (cpu_ts->is_iowait) {
+            __sync_fetch_and_add(&(proc->proc_cpu.iowait_ns), delta);
+            __sync_fetch_and_add(&(proc->proc_cpu.offcpu_ns), delta);
+        } else {
+            __sync_fetch_and_add(&(proc->proc_cpu.offcpu_ns), delta);
+        }
+
+        report_proc(ctx, proc, TASK_PROBE_CPU);
     }
-    data->cpu.off_cpu_start = 0;
+
+end:
+    (void)bpf_map_delete_elem(&cpu_map, &id);
     return;
 }
-
-#if 0
-static __always_inline void update_migration(void *ctx, int pid, u32 cpu)
-{
-    struct thread_data *data;
-    data = get_thread(pid);
-    if (data == NULL) {
-        return;
-    }
-
-    if (data->cpu.current_cpu_no == 0) {
-        data->cpu.current_cpu_no = cpu;
-        data->cpu.migration_count = 0;
-        return;
-    }
-
-    if (data->cpu.current_cpu_no != cpu) {
-        data->cpu.current_cpu_no = cpu;
-        __sync_fetch_and_add(&data->cpu.migration_count, 1);
-        report_thread(ctx, data, TASK_PROBE_THREAD_CPU);
-        return;
-    }
-}
-#endif
 
 KPROBE(finish_task_switch, pt_regs)
 {
     struct task_struct* prev = (struct task_struct *)PT_REGS_PARM1(ctx);
-    int prev_pid = _(prev->pid);
+    conn_ctx_t id = (conn_ctx_t)bpf_get_current_pid_tgid();
 
-    int pid = (int)bpf_get_current_pid_tgid();
-    u64 ts = bpf_ktime_get_ns();
-    u32 cpu = bpf_get_smp_processor_id();
+    offcpu_start(prev);
+    offcpu_end(ctx, id);
 
-    store_start(prev, prev_pid, cpu, ts);
-    store_end(ctx, pid, ts);
-
-    // update_migration(ctx, pid, cpu);
     return 0;
 }
 
