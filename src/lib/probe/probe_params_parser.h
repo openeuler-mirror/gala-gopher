@@ -15,12 +15,11 @@
 #ifndef __PROBE_PARAMS_PARSER__
 #define __PROBE_PARAMS_PARSER__
 
-#include <cjson/cJSON.h>
 
-int parse_params(struct probe_s *probe, const cJSON *params_json);
+int parse_params(struct probe_s *probe, const void *params_json);
 void set_default_params(struct probe_s *probe);
 
-void probe_params_to_json(struct probe_s *probe, cJSON *json);
+void probe_params_to_json(struct probe_s *probe, void *json);
 
 #endif
 

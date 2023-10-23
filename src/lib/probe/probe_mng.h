@@ -25,6 +25,7 @@
 #include "ext_label.h"
 
 #include "args.h"
+#include "json_tool.h"
 
 #define PROBE_FLAGS_STARTED         0x00000001    // probe has been tried to start by user
 #define PROBE_FLAGS_STOPPED         0x00000002    // probe is in stopped state

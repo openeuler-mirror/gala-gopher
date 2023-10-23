@@ -23,7 +23,6 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <dlfcn.h>
-#include <cjson/cJSON.h>
 #include <sys/epoll.h>
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
@@ -33,6 +32,7 @@
 #include "pod_mng.h"
 #include "snooper.h"
 #include "probe_params_parser.h"
+#include "json_tool.h"
 
 static int set_probe_bin(struct probe_s *probe, const char *bin);
 
@@ -626,67 +626,68 @@ static struct probe_s *get_probe_by_name(const char *probe_name)
     return g_probe_mng->probes[probe_type];
 }
 
-static void probe_printer_cmd(struct probe_s *probe, cJSON *json)
+static void probe_printer_cmd(struct probe_s *probe, void *json)
 {
-    cJSON *range;
-    cJSON_AddStringToObject(json, "bin", probe->bin ? :"");
-    cJSON_AddStringToObject(json, "check_cmd", probe->chk_cmd ? :"");
+    void *range;
+    Json_AddStringToObject(json, "bin", probe->bin ? :"");
+    Json_AddStringToObject(json, "check_cmd", probe->chk_cmd ? :"");
 
     size_t size = sizeof(probe_range_define) / sizeof(struct probe_range_define_s);
 
-    range = cJSON_CreateArray();
+    range = Json_CreateArray();
     for (int i = 0; i < size; i++) {
         if (probe->probe_type == probe_range_define[i].probe_type) {
             if (probe->probe_range_flags & probe_range_define[i].flags) {
-                cJSON_AddItemToArray(range, cJSON_CreateString(probe_range_define[i].desc));
+                Json_AddStringItemToArray(range, probe_range_define[i].desc);
             }
         }
     }
-    cJSON_AddItemToObject(json, "probe", range);
+    Json_AddItemToObject(json, "probe", range);
+    Json_Delete(range);
 }
 
 /* {"probe":["XX","YY"]} , XX must be string but unsupported probe range will be ignored */
-static int probe_parser_range(struct probe_s *probe, const cJSON *probe_item)
+static int probe_parser_range(struct probe_s *probe, void *probe_item)
 {
     int range;
-    cJSON *object;
+    void *object;
 
     probe->probe_range_flags = 0;
-    size_t size = cJSON_GetArraySize(probe_item);
+    size_t size = Json_GetArraySize(probe_item);
     for (int i = 0; i < size; i++) {
-        object = cJSON_GetArrayItem(probe_item, i);
-        if (object->type != cJSON_String) {
+        object = Json_GetArrayItem(probe_item, i);
+        if (!Json_IsString(object)) {
             PARSE_ERR("invalid probe range: must be string");
             return -1;
         }
 
-        range = get_probe_range(probe->probe_type, (const char*)object->valuestring);
+        range = get_probe_range(probe->probe_type, (const char*)Json_GetValueString(object));
         probe->probe_range_flags |= (u32)range;
     }
 
     return 0;
 }
 
-static int probe_parser_cmd(struct probe_s *probe, const cJSON *item)
+static int probe_parser_cmd(struct probe_s *probe, const void *item)
 {
     int ret = 0;
-    cJSON *bin_object, *chkcmd_object, *probe_object;
+    void *bin_object, *chkcmd_object, *probe_object;
     const char *bin_string = NULL;
 
-    bin_object = cJSON_GetObjectItem(item, "bin");
-    if ((bin_object != NULL) && (bin_object->type == cJSON_String) && (bin_object->valuestring[0] != 0)) {
-        bin_string = (const char *)bin_object->valuestring;
+    bin_object = Json_GetObjectItem(item, "bin");
+    if ((bin_object != NULL) && Json_IsString(bin_object) && (!Json_IsEmptyString(bin_object))) {
+        bin_string = (const char*)Json_GetValueString(bin_object);
         if (set_probe_bin(probe, bin_string)) {
             return -1;
         }
     }
 
-    chkcmd_object = cJSON_GetObjectItem(item, "check_cmd");
-    if ((chkcmd_object != NULL) && (chkcmd_object->type == cJSON_String)) {
-        set_probe_chk_cmd(probe, (const char *)chkcmd_object->valuestring);
+    chkcmd_object = Json_GetObjectItem(item, "check_cmd");
+    if ((chkcmd_object != NULL) && (Json_IsString(chkcmd_object))) {
+        set_probe_chk_cmd(probe, (const char *)Json_GetValueString(chkcmd_object));
     }
 
-    probe_object = cJSON_GetObjectItem(item, "probe");
+    probe_object = Json_GetObjectItem(item, "probe");
     if (probe_object != NULL) {
         ret = probe_parser_range(probe, probe_object);
     }
@@ -726,26 +727,26 @@ static void probe_rollback_cmd(struct probe_s *probe, struct probe_s *probe_back
 }
 
 
-static int probe_parser_state(struct probe_s *probe, const cJSON *item)
+static int probe_parser_state(struct probe_s *probe, const void *item)
 {
-    if (item->type != cJSON_String) {
+    if (!Json_IsString(item)) {
         PARSE_ERR("invalid state: must be string");
         return -1;
     }
 
-    if (!strcasecmp(PROBE_STATE_RUNNING, (const char *)item->valuestring)) {
+    if (!strcasecmp(PROBE_STATE_RUNNING, (const char *)Json_GetValueString(item))) {
         return start_probe(probe);
     }
 
-    if (!strcasecmp(PROBE_STATE_STOPPED, (const char *)item->valuestring)) {
+    if (!strcasecmp(PROBE_STATE_STOPPED, (const char *)Json_GetValueString(item))) {
         return stop_probe(probe);
     }
 
-    PARSE_ERR("invalid state %s: must be running or stopped", (const char *)item->valuestring);
+    PARSE_ERR("invalid state %s: must be running or stopped", (const char *)Json_GetValueString(item));
     return -1;
 }
 
-static void print_state(struct probe_s *probe, cJSON *json)
+static void print_state(struct probe_s *probe, void *json)
 {
     char *state;
 
@@ -756,15 +757,15 @@ static void print_state(struct probe_s *probe, cJSON *json)
     } else {
         state = PROBE_STATE_RUNNING;
     }
-    cJSON_AddStringToObject(json, "state", state);
+    Json_AddStringToObject(json, "state", state);
 }
 
-static int probe_parser_params(struct probe_s *probe, const cJSON *item)
+static int probe_parser_params(struct probe_s *probe, const void *item)
 {
     return parse_params(probe, item);
 }
 
-static void print_params(struct probe_s *probe, cJSON *json)
+static void print_params(struct probe_s *probe, void *json)
 {
     probe_params_to_json(probe, json);
 }
@@ -779,8 +780,8 @@ static void probe_rollback_params(struct probe_s *probe, struct probe_s *probe_b
     memcpy(&probe->probe_param, &probe_backup->probe_param, sizeof(struct probe_params));
 }
 
-typedef int (*probe_json_parser)(struct probe_s *, const cJSON *);
-typedef void (*probe_json_printer)(struct probe_s *, cJSON *);
+typedef int (*probe_json_parser)(struct probe_s *, const void *);
+typedef void (*probe_json_printer)(struct probe_s *, void *);
 typedef void (*probe_backuper)(struct probe_s *, struct probe_s *);
 typedef void (*probe_rollbacker)(struct probe_s *, struct probe_s *);
 struct probe_parser_s {
@@ -988,7 +989,9 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
     u32 parse_flag = 0;
     struct probe_parser_s *parser;
     struct probe_s *probe_backup = NULL;
-    cJSON *json = NULL, *item;
+
+    void *jsonObj = NULL;
+    void *itemObj = NULL;
 
     get_probemng_lock();
 
@@ -997,9 +1000,9 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
     if (probe == NULL) {
         goto end;
     }
+    jsonObj = Json_Parse(probe_content);
 
-    json = cJSON_Parse(probe_content);
-    if (json == NULL) {
+    if (jsonObj == NULL) {
         PARSE_ERR("invalid json format");
         goto end;
     }
@@ -1013,8 +1016,10 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
     size_t size = sizeof(probe_parsers) / sizeof(struct probe_parser_s);
     for (int i = 0; i < size; i++) {
         parser = &(probe_parsers[i]);
-        item = cJSON_GetObjectItem(json, parser->item);
-        if (item == NULL) {
+
+        itemObj = Json_GetObjectItem(jsonObj, parser->item);
+
+        if (itemObj == NULL) {
             continue;
         }
 
@@ -1022,7 +1027,7 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
         if (parser->backuper) {
             parser->backuper(probe, probe_backup);
         }
-        ret = parser->parser(probe, item);
+        ret = parser->parser(probe, itemObj);
         if (ret) {
             rollback_probe(probe, probe_backup, parse_flag);
             break;
@@ -1046,15 +1051,15 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
     destroy_probe(probe_backup);
 end:
     put_probemng_lock();
-    if (json) {
-        cJSON_Delete(json);
+    if (jsonObj) {
+        Json_Delete(jsonObj);
     }
     return ret;
 }
 
 char *get_probe_json(const char *probe_name)
 {
-    cJSON *res = NULL, *item;
+    void *res = NULL, *item;
     char *buf = NULL;
     struct probe_s *probe;
     struct probe_parser_s *parser;
@@ -1066,7 +1071,7 @@ char *get_probe_json(const char *probe_name)
         goto end;
     }
 
-    res = cJSON_CreateObject();
+    res = Json_CreateObject();
     probe = g_probe_mng->probes[probe_type];
     if (probe == NULL) {
         goto end;
@@ -1079,17 +1084,18 @@ char *get_probe_json(const char *probe_name)
             if (strcmp(parser->item, "state") == 0) {
                 parser->printer(probe, res);
             } else {
-                item = cJSON_CreateObject();
+                item = Json_CreateObject();
                 parser->printer(probe, item);
-                cJSON_AddItemToObject(res, parser->item, item);
+                Json_AddItemToObject(res, parser->item, item);
+                Json_Delete(item);
             }
         }
     }
 
 end:
     if (res) {
-        buf = cJSON_PrintUnformatted(res);
-        cJSON_Delete(res);
+        buf = Json_PrintUnformatted(res);
+        Json_Delete(res);
     }
     put_probemng_lock();
     return buf;
