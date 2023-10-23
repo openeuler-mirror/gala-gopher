@@ -30,7 +30,7 @@
 #define TASK_PROBE_TMPFS_OP         (u32)(1 << 7)
 #define TASK_PROBE_PAGE_OP          (u32)(1 << 8)
 #define TASK_PROBE_IO               (u32)(1 << 9)
-#define TASK_PROBE_THREAD_CPU       (u32)(1 << 10)
+#define TASK_PROBE_CPU              (u32)(1 << 10)
 
 #define US(ms)  ((u64)(ms) * 1000)
 
@@ -38,6 +38,6 @@
                 | TASK_PROBE_NET_SYSCALL | TASK_PROBE_SCHED_SYSCALL \
                 | TASK_PROBE_FORK_SYSCALL | TASK_PROBE_EXT4_OP | TASK_PROBE_OVERLAY_OP \
                 | TASK_PROBE_TMPFS_OP | TASK_PROBE_PAGE_OP \
-                | TASK_PROBE_IO | TASK_PROBE_THREAD_CPU)
+                | TASK_PROBE_IO | TASK_PROBE_CPU)
 
 #endif
