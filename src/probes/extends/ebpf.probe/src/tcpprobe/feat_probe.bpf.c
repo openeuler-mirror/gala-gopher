@@ -21,14 +21,21 @@
 #include "bpf.h"
 #include "feat_probe.h"
 
-bool feature_probe_completed = false;
-bool supports_tstamp = false;
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(struct feature_probe));
+    __uint(max_entries, 1);
+} feature_map SEC(".maps");
+
 
 SEC("tracepoint/syscalls/sys_enter_nanosleep")
 int probe_features(void *ctx)
 {
-    supports_tstamp = probe_tstamp();
+    u32 key = 0;
+    struct feature_probe *probe = bpf_map_lookup_elem(&feature_map, &key);
 
-    feature_probe_completed = true;
+    probe->is_tstamp_enabled = probe_tstamp();
+    probe->is_probed = 1;
     return 0;
 }

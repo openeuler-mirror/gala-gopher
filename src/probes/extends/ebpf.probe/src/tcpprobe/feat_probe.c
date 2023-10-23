@@ -21,15 +21,15 @@
 
 #include "feat_probe.h"
 
-static struct {
-    bool probed;
-    bool supports_tstamp;
-} features;
+static struct feature_probe __probe = {0};
 
-static int probe_features() {
+static int probe_features()
+{
     int ret = -1;
+    u32 key = 0;
+    struct feature_probe probe = {0};
 
-    if (features.probed) {
+    if (__probe.is_probed) {
         return 0;
     }
 
@@ -39,13 +39,15 @@ static int probe_features() {
     /* Invoke feature probe BPF program */
     syscall(__NR_nanosleep, NULL, NULL);
 
-    if (!feat_probe_skel->bss->feature_probe_completed) {
+    (void)bpf_map_lookup_elem(GET_MAP_FD(feat_probe, feature_map), &key, &probe);
+
+    if (probe.is_probed == 0) {
         ERROR("[TCPPROBE] Failed to invoke feature probe BPF program\n");
         goto out;
     }
 
-    features.supports_tstamp = feat_probe_skel->bss->supports_tstamp;
-    features.probed = true;
+    __probe.is_probed = 1;
+    __probe.is_tstamp_enabled = probe.is_tstamp_enabled;
     ret = 0;
 
 out:
@@ -62,5 +64,5 @@ bool probe_tstamp() {
         return false;
     }
 
-    return features.supports_tstamp;
+    return __probe.is_tstamp_enabled;
 }
