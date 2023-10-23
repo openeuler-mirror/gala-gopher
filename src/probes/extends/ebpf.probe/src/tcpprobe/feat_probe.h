@@ -16,6 +16,12 @@
 #ifndef __FEAT_PROBE_H
 #define __FEAT_PROBE_H
 
+
+struct feature_probe {
+    bool is_probed;
+    bool is_tstamp_enabled;
+};
+
 #ifdef BPF_PROG_KERN
 #include <bpf/bpf_core_read.h>
 
