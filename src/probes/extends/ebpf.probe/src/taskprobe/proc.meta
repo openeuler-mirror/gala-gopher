@@ -308,11 +308,28 @@ measurements:
                 description: "Number of process hang times.",
                 type: "gauge",
                 name: "hang_count",
+            }
+        )
+    },
+    {
+        table_name: "proc_cpu",
+        entity_name: "proc",
+        fields:
+        (
+            {
+                description: "ID of the process",
+                type: "key",
+                name: "tgid",
             },
             {
-                description: "Process IO_wait time (unit: us).",
+                description: "Process IO_wait time (unit: ns).",
                 type: "gauge",
-                name: "iowait_us",
+                name: "iowait_ns",
+            },
+            {
+                description: "Process off_cpu time (unit: ns).",
+                type: "gauge",
+                name: "offcpu_ns",
             }
         )
     }
