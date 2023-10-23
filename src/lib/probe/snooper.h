@@ -50,8 +50,8 @@ struct snooper_conf_s {
     } conf;
 };
 
-void print_snooper(struct probe_s *probe, cJSON *json);
-int parse_snooper(struct probe_s *probe, const cJSON *json);
+void print_snooper(struct probe_s *probe, void *json);
+int parse_snooper(struct probe_s *probe, const void *json);
 void free_snooper_conf(struct snooper_conf_s* snooper_conf);
 void free_snooper_obj(struct snooper_obj_s* snooper_obj);
 int load_snooper_bpf(struct probe_mng_s *probe_mng);

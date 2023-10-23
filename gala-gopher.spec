@@ -35,7 +35,7 @@ BuildRoot:     %{_builddir}/%{name}-%{version}
 BuildRequires: systemd cmake gcc-c++ elfutils-devel (clang >= 10.0.1 or clang12) llvm
 BuildRequires: libconfig-devel librdkafka-devel libmicrohttpd-devel
 BuildRequires: libbpf-devel >= 2:0.3 uthash-devel log4cplus-devel
-BuildRequires: cjson-devel gnutls-devel git
+BuildRequires: jsoncpp-devel gnutls-devel git
 %if !0%{?without_flamegraph}
 BuildRequires: libcurl-devel
 %endif
@@ -43,12 +43,12 @@ BuildRequires: libcurl-devel
 BuildRequires: java-1.8.0-openjdk-devel
 %endif
 %if !0%{?without_l7}
-BuildRequires: cjson-devel java-1.8.0-openjdk-devel
+BuildRequires: jsoncpp-devel java-1.8.0-openjdk-devel
 %endif
 
 Requires:      bash glibc elfutils bpftool libbpf >= 2:0.3
 Requires:      log4cplus librdkafka libmicrohttpd libconfig
-Requires:      iproute cjson gnutls
+Requires:      iproute jsoncpp gnutls
 %if !0%{?without_systeminfo}
 Requires:      ethtool systemd iproute
 %endif
@@ -77,7 +77,7 @@ Requires:      iproute
 Requires:      iproute
 %endif
 %if !0%{?without_l7}
-Requires:      cjson conntrack-tools
+Requires:      jsoncpp conntrack-tools
 %endif
 %if !0%{?without_tprofiling}
 Requires:      lsof

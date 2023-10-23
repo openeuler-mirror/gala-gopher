@@ -66,7 +66,7 @@ BTFGEN := $(BPF_COMPATIBLE_DIR)/bin/btfgen
 
 $(shell if [ ! -d "$(BTFHUB_CACHE_DIR)" ]; then mkdir -p "$(BTFHUB_CACHE_DIR)" && find "$(BTFHUB_SRC_DIR)" -name "*""$(ARCH)""*.btf.tar.xz" | xargs cp -t "$(BTFHUB_CACHE_DIR)"; fi)
 
-LINK_TARGET ?= -lpthread -lbpf -lelf -llog4cplus -lz -lconfig -lbpf_compatible
+LINK_TARGET ?= -lpthread -lbpf -lelf -llog4cplus -lz -lconfig -ljsoncpp -lbpf_compatible
 EXTRA_CFLAGS ?= -g -O2 -Wall -fPIC -std=gnu11
 EXTRA_CDEFINE ?= -D__TARGET_ARCH_$(TYPE)
 EXTRA_CDEFINE += -D__BTF_ENABLE_$(BTF_ENABLE)

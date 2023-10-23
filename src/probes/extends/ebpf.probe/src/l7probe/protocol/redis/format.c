@@ -15,7 +15,7 @@
 
 #include <string.h>
 #include <stdlib.h>
-#include <cjson/cJSON.h>
+#include <json_tool.h>
 #include "../utils/string_utils.h"
 #include "common.h"
 #include "format.h"
@@ -310,13 +310,13 @@ const char *cmd[] = {
 // Returns a JSON string that formats the input arguments as a JSON array.
 static char *format_as_json_array(UT_array *args)
 {
-    cJSON *json_array = cJSON_CreateArray();
+    void *json_array = Json_CreateArray();
     for (int i = 0; i < utarray_len(args); i++) {
         char *str = *(char **) utarray_eltptr(args, i);
-        cJSON_AddItemToArray(json_array, cJSON_CreateString(str));
+        Json_AddStringItemToArray(json_array, str);
     }
-    char *json_str = cJSON_PrintUnformatted(json_array);
-    cJSON_Delete(json_array);
+    char *json_str = Json_PrintUnformatted(json_array);
+    Json_Delete(json_array);
     return json_str;
 }
 

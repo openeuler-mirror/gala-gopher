@@ -43,6 +43,14 @@ SET(CMAKE_C_FLAGS "-rdynamic -std=gnu11 -g -Wl,-z,relro,-z,now -DNATIVE_PROBE_FP
 )
 SET(CMAKE_CXX_FLAGS "-rdynamic -std=c++11 -g -Wl,-z,relro,-z,now -DNATIVE_PROBE_FPRINTF")
 
+find_package(jsoncpp REQUIRED)
+message("FOUND CONFIG: ${jsoncpp_CONFIG}")
+get_target_property(JSON_INC_PATH jsoncpp_lib INTERFACE_INCLUDE_DIRECTORIES)
+include_directories(${JSON_INC_PATH})
+
+message("JSON_INC_PATH: ${JSON_INC_PATH}")
+link_libraries(${JSONCPP_LIBRARIES})
+
 SET(SOURCES main.c daemon.c
     ${RESOURCE_DIR}/resource.c
     ${CONFIG_DIR}/config.c
@@ -74,6 +82,7 @@ SET(SOURCES main.c daemon.c
     ${COMMON_DIR}/object.c
     ${COMMON_DIR}/event.c
     ${COMMON_DIR}/logs.cpp
+    ${COMMON_DIR}/json_tool.cpp
     ${COMMON_DIR}/gopher_elf.c
     ${COMMON_DIR}/event_config.c
     ${COMMON_DIR}/kern_symb.c
@@ -128,6 +137,7 @@ TARGET_INCLUDE_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE
 
     ${CMD_DIR}
     ${COMMON_DIR}
+    ${JSON_INC_PATH}
     ${EBPF_PROBE_DIR}/src/include
 
     ${BPF_COMPATIBLE_DIR}/include
@@ -136,7 +146,6 @@ TARGET_LINK_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE
     ${BPF_COMPATIBLE_DIR}/lib
 )
 
-TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE config pthread rt dl bpf rdkafka microhttpd elf log4cplus gnutls
-cjson bpf_compatible)
+TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE config pthread rt dl bpf rdkafka microhttpd elf log4cplus gnutls jsoncpp_lib cjson bpf_compatible)
 
 
