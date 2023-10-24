@@ -73,6 +73,6 @@ void free_http_record(http_record *http_record)
         return;
     }
 
-    // NOTE：record中的req和resp复用了frame_buf中的req和resp指针，此处不释放，由frame_buf释放
+    // NOTE: the req/resp of record reused the pointer of req/resp in frame_buf, so we do not free the req/resp pointer here
     free(http_record);
 }

@@ -1,4 +1,4 @@
-/*******************************************************************************
+/******************************************************************************
  * Copyright (c) Huawei Technologies Co., Ltd. 2023. All rights reserved.
  * gala-gopher licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -39,24 +39,6 @@ char *str_to_upper(char *str);
 char *substr(char *src_str, size_t start_pos, size_t len);
 
 /**
- * find char from string
- *
- * @param str
- * @param ch
- * @return
- */
-int find(char *str, char ch);
-
-/**
- * rfind char from string
- *
- * @param str
- * @param ch
- * @return
- */
-int rfind(char *str, char ch);
-
-/**
  * find sub-string from string
  *
  * @param str
@@ -76,33 +58,6 @@ size_t find_str(const char *str, const char *sub, const size_t start_pos);
 size_t rfind_str(const char *str, const char *sub);
 
 /**
- * get char* array len
- *
- * @param arr
- * @return
- */
-size_t get_array_len(const char *arr[]);
-
-/**
- * judge str is contained substr
- *
- * @param str
- * @param substr
- * @return
- */
-bool contains(char *str, char *substr);
-
-/**
- * split string by delimiter
- *
- * @param str
- * @param delim
- * @param max_splits
- * @return
- */
-char** max_split(const char *str, const char *delim, int max_count);
-
-/**
  * start_with for string
  *
  * @param str
@@ -110,30 +65,5 @@ char** max_split(const char *str, const char *delim, int max_count);
  * @return
  */
 int starts_with(const char *str, const char *prefix);
-
-/**
- * simple atoi function
- *
- * @param str
- * @param result
- * @return
- */
-int simple_atoi(const char *str, int *result);
-
-/**
- * remove prefix
- *
- * @param str
- * @param prefix
- */
-void remove_prefix(char *str, const char *prefix);
-
-/**
- * simple hex atoi function
- *
- * @param hex_str
- * @return
- */
-int simple_hex_atoi(const char* hex_str);
 
 #endif
