@@ -47,7 +47,7 @@
 #define CONTAINERD_PODID_COMMAND "--output go-template --template='{{index .status.labels \"io.kubernetes.pod.uid\"}}'"
 #define CONTAINERD_POD_LABELS_COMMAND "--output go-template --template='{{json .status.labels}}'"
 #define CONTAINERD_MERGED_COMMAND "mount | grep %s | grep rootfs | awk '{print $3}'"
-#define CONTAINERD_IP_CMD "%s ps | grep %s | awk '{print $NF}' | xargs %s inspect --output go-template --template='{{.status.network.ip}}'"
+#define CONTAINERD_IP_CMD "%s ps | grep %s | awk '{print $NF}' | xargs %s inspectp --output go-template --template='{{.status.network.ip}}'"
 #define CONTAINERD_LIST_CONTAINER_COMMAND "%s ps -q | xargs  %s inspect --output go-template "\
     "--template='{{.status.id}}, {{index .status.labels \"io.kubernetes.pod.uid\"}}' | /usr/bin/grep %s |  /usr/bin/awk -F ', ' '{print $1}' 2>/dev/null"
 #define CONTAINERD_LIST_COUNT_COMMAND "%s ps -q | xargs  %s inspect --output go-template "\
@@ -1254,6 +1254,7 @@ int get_pod_ip(const char *abbr_container_id, char *pod_ip_str, int len)
     }
 
     int ret = exec_cmd((const char *)command, pod_ip_str, len);
+
     if (ret) {
         pod_ip_str[0] = 0;
     }
@@ -1286,17 +1287,16 @@ static int __list_containers_count_by_pod_id(const char *pod_id)
 static int __list_containers_by_pod_id(const char *pod_id, container_tbl *cstbl)
 {
     int index = 0;
-    char command[COMMAND_LEN];
+    char command[CHROOT_COMMAND_LEN];
     char line[LINE_BUF_LEN];
     FILE *f = NULL;
     container_info *p;
-
     command[0] = 0;
     if (__is_containerd()) {
-        (void)snprintf(command, COMMAND_LEN, CONTAINERD_LIST_CONTAINER_COMMAND,
+        (void)snprintf(command, CHROOT_COMMAND_LEN, CONTAINERD_LIST_CONTAINER_COMMAND,
             get_current_command_chroot(), get_current_command_chroot(), pod_id);
     } else {
-        (void)snprintf(command, COMMAND_LEN, DOCKER_LIST_CONTAINER_COMMAND,
+        (void)snprintf(command, CHROOT_COMMAND_LEN, DOCKER_LIST_CONTAINER_COMMAND,
             get_current_command_chroot(), get_current_command_chroot(), pod_id);
     }
 
