@@ -113,7 +113,7 @@ void Json_Delete(void *jsonObj);
 #define Json_ArrayForEach(kv, kv_pairs) \
     for (int idx = 0; idx < (kv_pairs)->len && ((kv) = &(kv_pairs)->kv_pairs[idx]); ++idx)
 
-#define CHECK_STRING_INPUT(inputStr) ((!inputStr) or !strlen(inputStr))
+#define CHECK_STRING_INPUT(inputStr) (!inputStr)
 
 char *Json_PrintUnformatted(void *jsonObj);
 
