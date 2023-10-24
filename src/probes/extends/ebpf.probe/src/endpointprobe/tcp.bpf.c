@@ -481,7 +481,7 @@ KPROBE(inet_csk_reqsk_queue_drop_and_put, pt_regs)
     int icsk_syn_retries = _(icsk->icsk_syn_retries);
     int max_retries = icsk_syn_retries ? : sysctl_tcp_synack_retries;
 
-    u8 num_timeout = BPF_CORE_READ_BITFIELD(req, num_timeout);
+    u8 num_timeout = BPF_CORE_READ_BITFIELD_PROBED(req, num_timeout);
 
     if (num_timeout >= max_retries) {
         struct tcp_socket_event_s evt = {0};
@@ -510,7 +510,7 @@ KPROBE(tcp_retransmit_timer, pt_regs)
     int icsk_syn_retries = _(icsk->icsk_syn_retries);
     int max_retries = icsk_syn_retries ? : sysctl_tcp_synack_retries + 1;
 
-    u8 num_timeout = BPF_CORE_READ_BITFIELD(req, num_timeout);
+    u8 num_timeout = BPF_CORE_READ_BITFIELD_PROBED(req, num_timeout);
 
     if (num_timeout >= max_retries) {
         struct tcp_socket_event_s evt = {0};
