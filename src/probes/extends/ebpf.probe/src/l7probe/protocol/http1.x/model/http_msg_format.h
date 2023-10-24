@@ -43,7 +43,8 @@ typedef struct http_message {
     char *resp_message;
 
     char *body;
-    size_t body_size;
+    size_t body_len;    // the length of body in raw_data
+    size_t body_size;   // the real length of body, it is not the same as body_len in some scenario such as chunked
 
     // The number of bytes in the HTTP header, used in ByteSize(),
     // as an approximation of the size of the non-body fields.

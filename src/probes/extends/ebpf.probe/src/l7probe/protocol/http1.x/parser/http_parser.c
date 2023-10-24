@@ -49,9 +49,10 @@ static parse_state_t parse_chunked(struct raw_data_s *raw_data, size_t *offset, 
             return data_len > CHUNKED_SEARCH_WINDOW ? STATE_INVALID : STATE_NEEDS_MORE_DATA;
         }
 
-        // chunked数据每个分片都在开头设置分片数据长度，用";"和数据隔开，extension不一定存在，如果存在则刷新len的值
-        // 格式： chunked_data_len ; extension | \r\n | data
-        // 样例：
+        // There is data length in the beginning of every chunked data, separated by ';' with extension(not necessarily present),
+        // and if it is present, then we refresh the value of 'len'
+        // Format: chunked_data_len ; extension | \r\n | data
+        // Sample:
         // 5
         // hello
         // 0
@@ -66,16 +67,16 @@ static parse_state_t parse_chunked(struct raw_data_s *raw_data, size_t *offset, 
             *ext = 0;
         }
 
-        chunked_len = simple_hex_atoi(chunked_len_str);
+        chunked_len = atoi(chunked_len_str);
         free(chunked_len_str);
         if (data - raw_data->data == raw_data->data_len) {
             return STATE_NEEDS_MORE_DATA;
         }
 
-        // 指针偏移deli_pos + delimiter_len
+        // pointer offset for the length of 'deli_pod + delimiter_len'
         data += deli_pos + delimiter_len;
 
-        // 分块结束时末尾结束符为0，如果碰到结束符则退出，刷新指针位置
+        // the chunked data ends with a character '0', exit the cycle if meets a '0', and refresh the pointer
         if (chunked_len == 0) {
             raw_data->current_pos = data - raw_data->data;
             break;
@@ -86,37 +87,38 @@ static parse_state_t parse_chunked(struct raw_data_s *raw_data, size_t *offset, 
             return STATE_NEEDS_MORE_DATA;
         }
 
-        // 指针偏移chunked_len，跳过内容，正常时内容行结尾是\r\n
+        // pointer offset for chunked_len, skip the content ended up with '\r\n'
         data += chunked_len;
 
-        // 判断行末是否为\r\n换行符，如果不是，则数据错误
+        // the pointer is at the end of the data without a '0', we need more data to continue parsing
         if (data - raw_data->data == raw_data->data_len) {
             return STATE_NEEDS_MORE_DATA;
         }
+
+        // there is '\r\n' at the end of the data line. If not, it means an ERROR of data
         if (data[0] != '\r' || data[1] != '\n') {
             return STATE_INVALID;
         }
         data += delimiter_len;
 
-        // 提取完chunked data之后再累计total_size
+        // accumulate the total_size of the chunked data
         total_size += chunked_len;
     }
 
     raw_data->current_pos = data - raw_data->data;
 
-    // Note: 暂不计算body
-//    *body = data;
-
+    // Note: we do not need body currently
     *offset = total_size;
     return STATE_SUCCESS;
 }
 
 /**
- * parse request body
- * 请求体分三种情况：
- * 1）请求头中有Content-Length字段时，该字段的值即是请求体body的长度。如果非Transfer-Encoding的请求体，客户端必须加上Content-Length字段
- * 2）请求头中有Transfer-Encoding字段时，不再有Content-Length字段，需要对Transfer-Encoding=Chunked的请求体进行解析
- * 3）请求头中既没有Content-Length也没有Transfer-Encoding字段时，即该请求没有body
+ * Parse request body
+ * There are 3 cases for request body:
+ * 1) When there is Content-Length in headers, the field means the length of the request body.
+ * If there is no Transfer-Encoding in headers, the HTTP Client must have the field of Content-Length.
+ * 2) When there is Transfer-Encoding, and no Content-Length in headers, we need to process the scenario of Transfer-Encoding=Chunked
+ * 3) When there is no Content-Length or Transfer-Encoding, it means the packet has no body.
  *
  * @param raw_data
  * @param frame_data
@@ -130,7 +132,8 @@ static parse_state_t parse_request_body(struct raw_data_s *raw_data, struct http
     char *content_len_str = get_1st_value_by_key(frame_data->headers, KEY_CONTENT_LENGTH);
     if (content_len_str != NULL) {
         size_t content_len = atoi(content_len_str);
-        if (strcmp(content_len_str, "0") != 1 && content_len == 0) {
+        // Content-Length is not 0, then return STATE_INVALID to tell failed
+        if (strcmp(content_len_str, "0") != 0 && content_len == 0) {
             WARN("[HTTP1.x PARSER] Failed to parse content-Length.\n");
             return STATE_INVALID;
         }
@@ -138,7 +141,6 @@ static parse_state_t parse_request_body(struct raw_data_s *raw_data, struct http
             DEBUG("[HTTP1.x PARSER] Parsing request body needs more data.\n");
             return STATE_NEEDS_MORE_DATA;
         }
-//        frame_data->body = substr(raw_data->data, raw_data->current_pos, raw_data->current_pos + content_len);
         frame_data->body_size = content_len;
         raw_data->current_pos += content_len;
         return STATE_SUCCESS;
@@ -152,22 +154,20 @@ static parse_state_t parse_request_body(struct raw_data_s *raw_data, struct http
         return state;
     }
 
-    // 3. 无Content-Length和Transfer-Encoding，即无请求body，直接返回successful即可
-//    frame_data->body = "";
+    // 3. No Content-Length or Transfer-Encoding, it means no packet body to parse, then return STATE_SUCCESS
     frame_data->body_size = 0;
-    raw_data->current_pos += offset;
     return STATE_SUCCESS;
 }
 
 /**
- * parse response body
- * 响应体分四种情况：
- * 1）如果时HEAD请求的响应，本身没有响应体。解析完响应头之后就直接是下一个响应了，此时指针起始点以HTTP1.x协议号开头；
- * 2）响应头中有Content-Length字段，此时直接取该length作为body长度，偏移指针即可；
- * 3）再是没有Content-Length，但是有Transfer-Encoding字段的情况，同request的处理；
- * 4）已知的没有body体的情况，状态码在 [100, 199], {204, 304} 范围内的。其中101较为特殊，是Upgrade消息，暂不支持；
- * 5）无法预知是否有body的，响应头中既没有Content-Length也没有Transfer-Encoding，这种情况应该等待连接断开
- * 注：在解析body之前，解析完header之后raw_data.current_pos指针已发生偏移。若解析body返回非SUCCESS，上层应回退指针；返回SUCCESS时，此处偏移指针。
+ * Parse response body
+ * There are 5 cases for response body:
+ * 1) If the response is for HEAD request, the response packet has no body. We judge if the follow content is start with HTTP Version such as 'HTTP'.
+ * 2) When there is Content-Length in response headers, We take it as the length of response body, just make the pointer offset.
+ * 3) When there is no Content-Length but Transfer-Encoding=chunked, We process it the same as request.
+ * 4) We have knowledge of some scenarios of no body according to the status code of response, such as [100,199], {204, 304]. And 101 UPGRADE is special, we have not support it yet.
+ * 5) When there is no Content-Length or Transfer-Encoding, we don not know if the packet has body, we skip it with no processing currently.
+ * NOTE: The pointer of raw_data.current_pos has offset after parsing headers before Parsing body. If the Parser returns non-success state, the caller should fallback the pointer, if success then offset.
  *
  * @param raw_data
  * @param frame_data
@@ -178,22 +178,22 @@ static parse_state_t parse_response_body(struct raw_data_s *raw_data, struct htt
     size_t offset = 0;
     char *buf = raw_data->data + raw_data->current_pos;
 
-    // 1. HEAD请求的响应，前面已经解析完响应头，此处是新的响应的开始，以协议号开头。此处预解析新的响应，不发生指针偏移
+    // 1. When the response is of HEAD request, we have parsed the response headers, the pointer is at the start of next frame started with HTTP Version such as HTTP.
     if (frame_data->type == MESSAGE_RESPONSE && starts_with(buf, "HTTP") == 1) {
         http_response resp = {0};
         size_t next_resp_header_offset = http_parse_response_headers(raw_data, &resp);
         if (next_resp_header_offset > 0) {
-//            frame_data->body = "";
             frame_data->body_size = 0;
             return STATE_SUCCESS;
         }
     }
 
-    // 2. 有Content-Length
+    // 2. Content-Length
     char *content_len_str = get_1st_value_by_key(frame_data->headers, KEY_CONTENT_LENGTH);
     if (content_len_str != NULL) {
         size_t content_len = atoi(content_len_str);
-        if (strcmp(content_len_str, "0") != 1 && content_len == 0) {
+        // If Content-Length is not 0, it returns invalid while parsing failed.
+        if (strcmp(content_len_str, "0") != 0 && content_len == 0) {
             WARN("[HTTP1.x PARSER] Failed to parse content-Length.\n");
             return STATE_INVALID;
         }
@@ -201,27 +201,24 @@ static parse_state_t parse_response_body(struct raw_data_s *raw_data, struct htt
             DEBUG("[HTTP1.x PARSE] Parsing response body needs more data.\n");
             return STATE_NEEDS_MORE_DATA;
         }
-//        frame_data->body = substr(raw_data->data, raw_data->current_pos, raw_data->current_pos + content_len);
         frame_data->body_size = content_len;
         raw_data->current_pos += content_len;
         return STATE_SUCCESS;
     }
 
-    // 3. 有Transfer-Encoding
+    // 3. When Transfer-Encoding = chunked
     char *transfer_encoding = get_1st_value_by_key(frame_data->headers, KEY_TRANSFER_ENCODING);
     if (transfer_encoding != NULL && strcmp(transfer_encoding, "chunked") == 0) {
         parse_state_t state = parse_chunked(raw_data, &offset, &(frame_data->body));
 
-        // note: 暂不需要解析body内容，仅拿到body长度即可
-//        frame_data->body = *body;
+        // note: we do not need body currently, just take the length of body.
         frame_data->body_size = offset;
         return state;
     }
 
-    // 4. 已知的无body情况，状态码在[100, 199], {204, 304} 范围内的。其中101较为特殊，是Upgrade消息，暂不支持；
+    // 4. When there is no body as we know according to the status code of [100, 199], {204, 304}. 101 UPGRADE is special, we do not support it yet.
     if ((frame_data->resp_status >= 100 && frame_data->resp_status < 200) || frame_data->resp_status == 204 ||
         frame_data->resp_status == 304) {
-//        frame_data->body = "";
         frame_data->body_size = 0;
 
         if (frame_data->resp_status == 101) {
@@ -235,17 +232,15 @@ static parse_state_t parse_response_body(struct raw_data_s *raw_data, struct htt
         return STATE_SUCCESS;
     }
 
-    // note: 暂不考虑该情况，直接跳过，解析下一帧
-    // 5. 无法预知是否有body的，响应头中既没有Content-Length也没有Transfer-Encoding，这种情况应该等待连接断开
+    // 5. We do not know if the frame has body, while it has neither Content-Length nor Transfer-Encoding. We skip it currently.
     frame_data->body_size = 0;
-//    frame_data->body = "";
 
     raw_data->current_pos += offset;
     return STATE_SUCCESS;
 }
 
 /**
- * parse request
+ * Parse request
  *
  * @param buf
  * @param result
@@ -254,45 +249,46 @@ static parse_state_t parse_response_body(struct raw_data_s *raw_data, struct htt
 static parse_state_t parse_request_frame(struct raw_data_s *raw_data, http_message *frame_data) {
     http_request req = {0};
 
-    // 解析 request headers
+    // Parse request headers
     size_t offset = http_parse_request_headers(raw_data, &req);
 
-    // 返回的retval若为-2，则表示部分解析成功，但需要更多数据来完成解析，指针不偏移
+    // If retval is -2, it means parsing successfully partially, but need more data to continue parsing.
     if (offset == -2) {
         DEBUG("[HTTP1.x PARSER] Parser needs more data.\n");
         return STATE_NEEDS_MORE_DATA;
     }
 
-    // -1时为解析失败
+    // If retval is -1, it means parsing failed.
     if (offset == -1) {
         WARN("[HTTP1.x PARSER] Failed to parse raw_data into request.\n");
         return STATE_INVALID;
     }
 
-    // 组装frame
+    // Generate frame
     frame_data->type = MESSAGE_REQUEST;
     frame_data->timestamp_ns = raw_data->timestamp_ns;
     frame_data->minor_version = req.minor_version;
     frame_data->headers = get_http_headers_map(req.headers, req.num_headers);
     frame_data->req_method = strndup(req.method, req.method_len);
     frame_data->req_path = strndup(req.path, req.path_len);
+
     frame_data->headers_byte_size = offset;
 
-    // raw_data指针偏移offset长度
+    // raw_data offset
     raw_data->current_pos += offset;
     DEBUG("[HTTP1.x PARSER] Parsing req, offset: %d, raw_data.current_pos: %d.\n", offset, raw_data->current_pos);
 
-    // 解析request body
+    // Parse request body
     parse_state_t state = parse_request_body(raw_data, frame_data);
     if (state != STATE_SUCCESS) {
         raw_data->current_pos -= offset;
     }
-    DEBUG("[HTTP1.x PARSER] Finished Parsing req, state: %d, current_pos: %d. \n", state, raw_data->current_pos);
+    DEBUG("[HTTP1.x PARSER] Finished Parsing req, state: %d, current_pos: %d.\n", state, raw_data->current_pos);
     return state;
 }
 
 /**
- * parse response
+ * Parse response
  *
  * @param buf
  * @param result
@@ -302,22 +298,22 @@ static parse_state_t parse_request_frame(struct raw_data_s *raw_data, http_messa
 static parse_state_t parse_response_frame(struct raw_data_s *raw_data, struct http_message *frame_data) {
     http_response resp = {0};
 
-    // 解析 response header
+    // Parse response header
     size_t offset = http_parse_response_headers(raw_data, &resp);
 
-    // 返回的offset若为-2，则表示部分解析成功，但需要更多数据来完成解析，指针不偏移
+    // If retval is -2, it means parsing successfully partially, but need more data to continue parsing.
     if (offset == -2) {
         DEBUG("[HTTP1.x PARSER] Parser needs more data.\n");
         return STATE_NEEDS_MORE_DATA;
     }
 
-    // -1时为解析失败
+    // If retval is -1, it means parsing failed.
     if (offset == -1) {
         WARN("[HTTP1.x PARSER] Failed to parse raw_data into response, offset code: %d\n", offset);
         return STATE_INVALID;
     }
 
-    // 组装frame
+    // Generate frame
     frame_data->type = MESSAGE_RESPONSE;
     frame_data->timestamp_ns = raw_data->timestamp_ns;
     frame_data->minor_version = resp.minor_version;
@@ -326,16 +322,16 @@ static parse_state_t parse_response_frame(struct raw_data_s *raw_data, struct ht
     frame_data->resp_message = strndup(resp.msg, resp.msg_len);
     frame_data->headers_byte_size = offset;
 
-    // raw_data指针偏移offset长度
+    // raw_data pointer offset
     raw_data->current_pos += offset;
 
-    // 解析response body
+    // Parse response body
     parse_state_t state = parse_response_body(raw_data, frame_data);
     if (state != STATE_SUCCESS) {
         raw_data->current_pos -= offset;
     }
 
-    DEBUG("[HTTP1.x PARSER] Finished Parsing resp, state: %d, current_pos: %d. \n", state, raw_data->current_pos);
+    DEBUG("[HTTP1.x PARSER] Finished Parsing resp, state: %d, current_pos: %d.\n", state, raw_data->current_pos);
     return state;
 }
 
@@ -386,19 +382,19 @@ size_t http_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s 
     DEBUG("[HTTP1.x PARSER] Start finding frame boundary, current_pos: %d\n", raw_data->current_pos);
     size_t start_pos = raw_data->current_pos;
 
-    // 所有的HTTP Method列表，HTTP请求都以method起始，参考：
+    // All HTTP Request Method, HTTP Request packet starts with Method. Methods Reference:
     // https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods
     static const char *HTTP_REQUEST_START_PATTERN_ARRAY[] = {
         "GET ", "HEAD ", "POST ", "PUT ", "DELETE ", "CONNECT ", "OPTIONS ", "TRACE ", "PATCH "
     };
 
-    // HTTP1.x版本号，HTTP响应都以版本号其实，参考：
+    // HTTP 1.x versions, HTTP response packet starts with Version. HTTP Version Reference:
     // https://developer.mozilla.org/en-US/docs/Web/HTTP/Messages
     static const char *HTTP_RESPONSE_START_PATTERN_ARRAY[] = {"HTTP/1.1 ", "HTTP/1.0 "};
 
-    static const char *kBoundaryMarker = "\r\n\r\n";
+    static const char* BOUNDARY_MARKER = "\r\n\r\n";
 
-    // 根据req或resp使用不同的起始规则
+    // Select packet start pattern according to req/resp
     const char **start_patterns = {0};
     size_t patterns_len = 0;
     switch (msg_type) {
@@ -418,41 +414,40 @@ size_t http_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s 
     }
 
     // 查找帧边界标识，如-HTTP Response:
+    // Find Frame Boundary Marker, take resp as sample:
     //   leftover body (from previous message)
-    //   状态行：   HTTP/1.1 ...
-    //   响应头：   headers
-    //   空行标识： \r\n\r\n
-    //   响应体：   body
-    // 首先查找\r\n\r\n的标记，然后再反过来查找状态行首的协议版本号
-    // 不直接查找协议版本号作为帧边界，是因为可能会在req/resp中找到，导致分帧错误
-    // 因此先找\r\n\r\n，再回头找最接近\r\n\r\n的协议号，这样比较准确
+    //   Status Line：           HTTP/1.1 ...
+    //   Response Headers：      headers
+    //   Blank Line Marker：     \r\n\r\n
+    //   Response Body：         body
+    // Find marker '\r\n\r\n' firstly, then reversely find the beginning of packet, HTTP Version for response.
+    // NOTE: We do not take HTTP Version as frame boundary directly, because it may be found in req/resp body, then cause error for separating frames.
     while (true) {
-        // 1.find the first "\r\n\r\n" sub-string in the raw_data.data
-        size_t marker_pos = find_str(raw_data->data, kBoundaryMarker, raw_data->current_pos);
-
-        // 如果pos数值不正确，返回-1
-        if (marker_pos == -1) {
+        // 1. Find the first "\r\n\r\n" sub-string position in the raw_data.data
+        char* sub_str = strstr(raw_data->data, BOUNDARY_MARKER);
+        if (sub_str == NULL) {
             DEBUG("[HTTP1.x PARSER][Find Frame Boundary] Message marker CRLF not found , return INVALID state.\n");
             return PARSER_INVALID_BOUNDARY_INDEX;
         }
+        size_t marker_pos = strstr(raw_data->data, BOUNDARY_MARKER) - raw_data->data;
 
-        // 2.寻找子字符串: start_pos ~ marker_pos
+        // 2. Find sub-string: raw_data.data[start_pos, marker_pos]
         char *buf_substr = substr(raw_data->data + raw_data->current_pos, start_pos, marker_pos - start_pos);
         if (buf_substr == NULL) {
             ERROR("[HTTP1.x PARSER][Find Frame Boundary] Failed to alloc substr buf\n");
             return PARSER_INVALID_BOUNDARY_INDEX;
         }
 
-        DEBUG("[HTTP1.x PARSER][Find Frame Boundary] Substr from start_pos[%d]~marker_pos[]%d is: %s\n", start_pos, marker_pos, buf_substr);
+        DEBUG("[HTTP1.x PARSER][Find Frame Boundary] Substr from start_pos[%d]~marker_pos[%d] is: \n%s\n", start_pos, marker_pos, buf_substr);
 
-        // 3.匹配start_pos ~ marker_pos之间子串中的start_pattern，取最后一个（最靠近 "\r\n\r\n" 标志的帧边界）
+        // 3. Match start_pattern in raw_data.data[start_pos, marker_pos], take the last one as frame boundary
         size_t substr_pos = -1;
         for (int i = 0; i < patterns_len; i++) {
             const char *start_pattern = start_patterns[i];
             size_t current_substr_pos = rfind_str(buf_substr, start_pattern);
             DEBUG("[HTTP1.x PARSER][Find Frame Boundary] Find frame start boundary, pos: %d\n", current_substr_pos);
             if (current_substr_pos != -1) {
-                // 寻找一个最接近\r\n标志位置的起始位置，这个起始位置才是最可靠的帧边界，因此每个start_pattern都要找一遍
+                // Find the position most next to '\r\n\r\n' as start position, this one is the most reliable. So we find for every start_pattern.
                 size_t max_pos = substr_pos;
                 if (max_pos < current_substr_pos) {
                     marker_pos = current_substr_pos;
@@ -462,15 +457,14 @@ size_t http_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s 
         }
         free(buf_substr);
 
-        // 4.返回帧边界标志匹配到的位置
+        // 4. Return the position of frame boundary.
         if (substr_pos != -1) {
             DEBUG("[HTTP1.x PARSER][Find Frame Boundary] Frame boundary found, pos: %d\n", start_pos + substr_pos);
             return start_pos + substr_pos;
         }
 
-        // 5.找不到帧边界时，将指针移至 "\r\n\r\n" 标志的末尾，进行下一个帧边界的寻找
-        // Couldn't find a start position. Move to the marker, and search for another marker.
-        raw_data->current_pos = marker_pos + strlen(kBoundaryMarker);
+        // 5. When we have not found frame boundary, we move the data pointer to the end of '\r\n\r\n', then start next finding.
+        raw_data->current_pos = marker_pos + strlen(BOUNDARY_MARKER);
         DEBUG("[HTTP1.x PARSER][Find Frame Boundary] Frame boundary not found, move current_pos to the end of current marker, then find the next boundary.\n");
     }
 }
