@@ -410,10 +410,14 @@ int main(int argc, char **argv)
 
             // IPC_FLAGS_PARAMS_CHG || IPC_FLAGS_SNOOPER_CHG
             unload_libssl_prog(l7_mng);
-            ret = load_libssl_prog(l7_mng, &ipc_body);
-            if (ret) {
-                destroy_ipc_body(&ipc_body);
-                break;
+            //MRC: Work around for disabling the ssl lookup failure during start up. 
+            if (l7_mng->filter_args.is_support_ssl)
+            {
+                ret = load_libssl_prog(l7_mng, &ipc_body);
+                if (ret) {
+                    destroy_ipc_body(&ipc_body);
+                    break;
+                }
             }
 
             l7_unload_probe_jsse(l7_mng);
