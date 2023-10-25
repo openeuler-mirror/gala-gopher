@@ -34,7 +34,9 @@ int probe_features(void *ctx)
 {
     u32 key = 0;
     struct feature_probe *probe = bpf_map_lookup_elem(&feature_map, &key);
-
+    if (probe == NULL) {
+        return 0;
+    }
     probe->is_tstamp_enabled = probe_tstamp();
     probe->is_probed = 1;
     return 0;
