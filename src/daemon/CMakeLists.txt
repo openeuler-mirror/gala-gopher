@@ -55,7 +55,7 @@ SET(SOURCES main.c daemon.c
     ${EGRESS_DIR}/egress.c
     ${INGRESS_DIR}/ingress.c
     ${INGRESS_DIR}/event2json.c
-    ${WEB_SERVER_DIR}/web_server.c
+    ${WEB_SERVER_DIR}/web_server_event2.c
 
     ${FIFO_DIR}/fifo.c
     ${META_DIR}/meta.c
@@ -139,6 +139,5 @@ TARGET_INCLUDE_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE
     ${EBPF_PROBE_DIR}/src/include
 )
 
-TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE config pthread rt dl bpf rdkafka microhttpd elf gnutls jsoncpp_lib)
-
+TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE config pthread rt dl bpf rdkafka microhttpd elf gnutls jsoncpp_lib ssl event event_openssl)
 

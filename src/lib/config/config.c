@@ -333,6 +333,45 @@ static int ConfigMgrLoadWebServerConfig(void *config, config_setting_t *settings
     }
     webServerConfig->port = (uint16_t)intVal;
 
+
+    ret = config_setting_lookup_string(settings, "bind_addr", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for webServerConfig bind_addr failed.\n");
+        return -1;
+    }
+    (void)snprintf(webServerConfig->bindAddr, sizeof(webServerConfig->bindAddr), "%s", strVal);
+
+#if 0
+    ret = config_setting_lookup_string(settings, "client_auth", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for webServerConfig client_auth failed.\n");
+        return -1;
+    }
+    if (strcmp(strVal, "on") == 0) {
+        webServerConfig->clientAuth = 1;
+    }
+
+    ret = config_setting_lookup_string(settings, "private_key", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for restServerConfig private_key failed.\n");
+        return -1;
+    }
+    (void)snprintf(webServerConfig->privateKey, sizeof(webServerConfig->privateKey), "%s", strVal);
+
+    ret = config_setting_lookup_string(settings, "cert_file", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for webServerConfig cert_file failed.\n");
+        return -1;
+    }
+    (void)snprintf(webServerConfig->certFile, sizeof(webServerConfig->certFile), "%s", strVal);
+
+    ret = config_setting_lookup_string(settings, "ca_file", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for webServerConfig ca_file failed.\n");
+        return -1;
+    }
+    (void)snprintf(webServerConfig->caFile, sizeof(webServerConfig->caFile), "%s", strVal);
+#endif
     return 0;
 }
 

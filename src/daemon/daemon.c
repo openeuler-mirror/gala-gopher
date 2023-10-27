@@ -51,6 +51,13 @@ static void *DaemonRunEgress(void *arg)
     EgressMain(mgr);
 }
 
+static void *DaemonRunWebServer(void *arg)
+{
+    web_server_mgr_s *web_server = (web_server_mgr_s *)arg;
+    prctl(PR_SET_NAME, "[WEBSERVER]");
+    run_web_server_daemon(web_server);
+}
+
 static void *DaemonRunProbeMng(void *arg)
 {
     struct probe_mng_s *probe_mng = (struct probe_mng_s *)arg;
@@ -267,15 +274,13 @@ int DaemonRun(ResourceMgr *mgr)
     }
     INFO("[DAEMON] create egress thread success.\n");
 
-    if (mgr->webServer) {
-        // 3. start web_server thread
-        ret = WebServerStartDaemon(mgr->webServer);
-        if (ret != 0) {
-            ERROR("[DAEMON] create web_server daemon failed.(errno:%d, %s)\n", errno, strerror(errno));
-            return -1;
-        }
-        INFO("[DAEMON] create web_server daemon success.\n");
+    // 3. start web_server thread
+    ret = pthread_create(&mgr->web_server_mgr->tid, NULL, DaemonRunWebServer, mgr->web_server_mgr);
+    if (ret != 0) {
+        ERROR("[DAEMON] create web_server thread failed.(errno:%d, %s)\n", errno, strerror(errno));
+        return -1;
     }
+    INFO("[DAEMON] create web_server thread success.\n");
 
     // 4. start metadata_report thread
     ret = pthread_create(&mgr->mmMgr->tid, NULL, DaemonRunMetadataReport, mgr->mmMgr);
@@ -336,6 +341,11 @@ void destroy_daemon_threads(ResourceMgr *mgr)
         pthread_join(mgr->egressMgr->tid, NULL);
     }
 
+    if (mgr->web_server_mgr != NULL && mgr->web_server_mgr->tid != 0) {
+        pthread_cancel(mgr->web_server_mgr->tid);
+        pthread_join(mgr->web_server_mgr->tid, NULL);
+    }
+
     if (mgr->mmMgr != NULL && mgr->mmMgr->tid != 0) {
         pthread_cancel(mgr->mmMgr->tid);
         pthread_join(mgr->mmMgr->tid, NULL);
@@ -365,7 +375,10 @@ int DaemonWaitDone(const ResourceMgr *mgr)
     // 2. wait egress done
     pthread_join(mgr->egressMgr->tid, NULL);
 
-    // 3. wait metadata_report done
+    // 3. wait web_server mng done
+    pthread_join(mgr->web_server_mgr->tid, NULL);
+
+    // 4. wait metadata_report done
     pthread_join(mgr->mmMgr->tid, NULL);
 
 #if 0
@@ -380,13 +393,13 @@ int DaemonWaitDone(const ResourceMgr *mgr)
     }
 #endif
 
-    // 6. wait probe mng done
+    // 5. wait probe mng done
     pthread_join(mgr->probe_mng->tid, NULL);
 
-    // 7. wait metric_write_logs done
+    // 6. wait metric_write_logs done
     pthread_join(mgr->imdbMgr->metrics_tid, NULL);
 
-    // 8.wait ctl thread done
+    // 7.wait ctl thread done
     pthread_join(mgr->ctl_tid, NULL);
 
     return 0;

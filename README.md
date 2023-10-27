@@ -250,6 +250,7 @@ gala-gopher提供的微服务访问性能监控可以非侵入、多语言的完
     - GOPHER_EVENT_CHANNEL：gala-gopher亚健康巡检异常事件输出方式
     - GOPHER_META_CHANNEL：gala-gopher观测对象元数据metadata输出方式
     - GOPHER_KAKFA_SERVER：gala-gopher上报亚健康巡检异常事件、观测对象元数据metadata的kafka服务端IP地址
+    - GOPHER_METRIC_ADDR：gala-gopher作为prometheus exporter输出指标数据的监听地址
     - GOPHER_METRIC_PORT：gala-gopher作为prometheus exporter输出指标数据的监听端口
     - GOPHER_REST_PORT：动态配置RESTful API端口号
     - GOPHER_METRIC_LOGS_TOTAL_SIZE：metrics指标数据日志文件总大小的上限，单位为MB
