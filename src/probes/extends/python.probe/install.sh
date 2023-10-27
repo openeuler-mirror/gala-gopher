@@ -26,6 +26,9 @@ for probe_dir in $(ls $PRJ_DIR | grep ".probe$") ; do
     fi
 done
 
+# copy ipc.py to /opt/gala-gopher/extend_probes/
+INSTALL_FILES+=" ${PRJ_DIR}/common/*.py"
+
 if [ ${INSTALL_PATH} ]; then
     mkdir -p ${INSTALL_PATH}
     # copy to specify dir
