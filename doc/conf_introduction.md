@@ -82,7 +82,7 @@ extend探针配置文件归档在探针同级目录下。目前有配置文件�
     - type：数据字段类型，需和cAdvisor上报数据类型一致
     - name：数据字段名称，需和cAdvisor上报数据名称一致
 
-> 说明：cadvisor_probe.conf和cadvisor_probe.meta的字段需要一致。例外：若conf中type字段为counter，在meta中对应type字段应为gauge
+> 说明：cadvisor_probe.conf和cadvisor_probe.meta的字段需要一致。例外：若conf中type字段为counter，在meta中对应type字段应为gauge；若conf中type字段为label，在meta中对应type字段应为key
 
 
 ### pg_stat_probe.conf
