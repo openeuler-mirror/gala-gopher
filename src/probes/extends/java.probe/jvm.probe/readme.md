@@ -12,7 +12,7 @@ JvmProbeAgent 利用Java的`JMX`机制来读取JVM运行时的一些监控数据
 
 jvmprobe架构图如下：
 
-![1681891119555](D:\code\gala-gopher\doc\pic\jvmprobe实现架构图.png)
+![1681891119555](../../../../../doc/pic/jvmprobe实现架构图.png)
 
 ### JavaAgent实现思路
 
