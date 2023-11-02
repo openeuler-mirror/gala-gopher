@@ -86,7 +86,7 @@ curl -X PUT http://localhost:9999/flamegraph -d json='{ "cmd": {  "check_cmd": "
   
 - 开启/关闭本地调用栈采集
   
-  通过native_stack设置，参数值为0或1，默认值为0。此参数仅对JAVA进程有效。值为0表示不采集JVM自身的调用栈，值为0表示采集JVM自身的调用栈。
+  通过native_stack设置，参数值为0或1，默认值为0。此参数仅对JAVA进程有效。值为0表示不采集JVM自身的调用栈，值为1表示采集JVM自身的调用栈。
   
   示例：
   
