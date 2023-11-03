@@ -3,7 +3,6 @@ INCLUDES = $(BASE_INC)
 INCLUDES += -I$(ROOT_DIR)/../l7probe
 INCLUDES += -I$(ROOT_DIR)/../l7probe/3rd_party/pico
 INSTALL_DIR=/opt/gala-gopher/extend_probes
-LINK_TARGET += -lcjson
 APP := l7probe
 SRC_CPLUS := $(wildcard *.cpp)
 SRC_CPLUS += $(CPLUSFILES)
