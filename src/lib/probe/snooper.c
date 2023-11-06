@@ -24,7 +24,6 @@
 #include <errno.h>
 #include <pthread.h>
 #include <regex.h>
-#include <cjson/cJSON.h>
 
 #include "bpf.h"
 #include "container.h"
@@ -294,41 +293,46 @@ static int add_snooper_conf_gaussdb(struct probe_s *probe, char *ip, char *dbnam
     return 0;
 }
 
-static void print_snooper_procid(struct probe_s *probe, cJSON *json)
+static void print_snooper_procid(struct probe_s *probe, void *json)
 {
-    cJSON *procid_item;
+    void *procid_item;
     struct snooper_conf_s *snooper_conf;
 
-    procid_item = cJSON_CreateArray();
+    procid_item = Json_CreateArray();
     for (int i = 0; i < probe->snooper_conf_num; i++) {
         snooper_conf = probe->snooper_confs[i];
         if (snooper_conf->type != SNOOPER_CONF_PROC_ID) {
             continue;
         }
 
-        cJSON_AddItemToArray(procid_item, cJSON_CreateNumber(snooper_conf->conf.proc_id));
+        Json_AddUIntItemToArray(procid_item, snooper_conf->conf.proc_id);
     }
-    cJSON_AddItemToObject(json, SNOOPER_OBJNAME_PROCID, procid_item);
+    Json_AddItemToObject(json, SNOOPER_OBJNAME_PROCID, procid_item);
+    Json_Delete(procid_item);
 }
 
-static int parse_snooper_procid(struct probe_s *probe, const cJSON *json)
+static int parse_snooper_procid(struct probe_s *probe, const void *json)
 {
     int ret;
-    cJSON *procid_item, *object;
+    void *procid_item, *object;
 
-    procid_item = cJSON_GetObjectItem(json, SNOOPER_OBJNAME_PROCID);
+    procid_item = Json_GetObjectItem(json, SNOOPER_OBJNAME_PROCID);
     if (procid_item == NULL) {
         return 0;
     }
 
-    size_t size = cJSON_GetArraySize(procid_item);
+    size_t size = Json_GetArraySize(procid_item);
     for (int i = 0; i < size; i++) {
-        object = cJSON_GetArrayItem(procid_item, i);
-        if (object->type != cJSON_Number) {
+        object = Json_GetArrayItem(procid_item, i);
+        if (!Json_IsNumeric(object)) {
             return -1;
         }
 
-        ret = add_snooper_conf_procid(probe, (u32)object->valueint);
+	int valueInt = Json_GetValueInt(object);
+	if (valueInt == INVALID_INT_NUM) {
+	    return -1;
+	}
+        ret = add_snooper_conf_procid(probe, (u32)valueInt);
         if (ret != 0) {
             return -1;
         }
@@ -337,53 +341,59 @@ static int parse_snooper_procid(struct probe_s *probe, const cJSON *json)
     return 0;
 }
 
-static struct custom_label_elem *dup_custom_labels_from_json(const cJSON *labelItems, int num)
+static struct custom_label_elem *dup_custom_labels_from_json(const void *labelItems, int num)
 {
     struct custom_label_elem *custom_labels;
-    cJSON *labelItem;
+    void *labelItem;
     char *labelVal;
-    int i;
+    char *keyValue;
 
     custom_labels = (struct custom_label_elem *)calloc(num, sizeof(struct custom_label_elem));
     if (!custom_labels) {
         return NULL;
     }
 
-    i = 0;
-    cJSON_ArrayForEach(labelItem, labelItems) {
-        labelVal = cJSON_GetStringValue(labelItem);
+    struct key_value_pairs *kv_pairs = Json_GetKeyValuePairs(labelItems);
+    if (!kv_pairs) {
+        return NULL;
+    }
+    struct key_value *kv;
+
+    int elemIdx = 0;
+    Json_ArrayForEach(kv, kv_pairs) {
+        labelVal = (char *)Json_GetValueString(kv->valuePtr);
         if (!labelVal) {
             free_custom_labels(custom_labels, num);
             return NULL;
         }
-        custom_labels[i].key = strdup(labelItem->string);
-        custom_labels[i].val = strdup(labelVal);
-        if (!custom_labels[i].key || !custom_labels[i].val) {
+        custom_labels[elemIdx].key = strdup(kv->key);
+        custom_labels[elemIdx].val = strdup(labelVal);
+        if (!custom_labels[elemIdx].key || !custom_labels[elemIdx].val) {
             free_custom_labels(custom_labels, num);
             return NULL;
         }
-        i++;
+        ++elemIdx;
     }
-
+    Json_DeleteKeyValuePairs(kv_pairs);
     return custom_labels;
 }
 
-static int parse_snooper_custom_labels(struct probe_s *probe, const cJSON *json)
+static int parse_snooper_custom_labels(struct probe_s *probe, const void *json)
 {
     int ret;
-    cJSON *labelItems;
+    void *labelItems;
     int custom_label_num;
     struct custom_label_elem *custom_labels;
 
-    labelItems = cJSON_GetObjectItem(json, SNOOPER_OBJNAME_CUSTOM_LABELS);
+    labelItems = Json_GetObjectItem(json, SNOOPER_OBJNAME_CUSTOM_LABELS);
     if (!labelItems) {
         return 0;
     }
-    if (!cJSON_IsObject(labelItems)) {
+    if (!Json_IsObject(labelItems)) {
         return -1;
     }
 
-    custom_label_num = cJSON_GetArraySize(labelItems);
+    custom_label_num = (int)Json_GetArraySize(labelItems);
     if (custom_label_num == 0) {
         return 0;
     }
@@ -396,52 +406,55 @@ static int parse_snooper_custom_labels(struct probe_s *probe, const cJSON *json)
     return 0;
 }
 
-static struct pod_label_elem *dup_pod_labels_from_json(const cJSON *labelItems, int num)
+static struct pod_label_elem *dup_pod_labels_from_json(const void *labelItems, int num)
 {
     struct pod_label_elem *pod_labels;
-    cJSON *labelItem;
     char *labelKey;
-    int i;
 
     pod_labels = (struct pod_label_elem *)calloc(num, sizeof(struct pod_label_elem));
     if (!pod_labels) {
         return NULL;
     }
 
-    i = 0;
-    cJSON_ArrayForEach(labelItem, labelItems) {
-        labelKey = cJSON_GetStringValue(labelItem);
+    struct key_value_pairs *kv_pairs = Json_GetKeyValuePairs(labelItems);
+    if (!kv_pairs) {
+        return NULL;
+    }
+    struct key_value *kv;
+    int elemIdx = 0;
+    Json_ArrayForEach(kv, kv_pairs) {
+        labelKey = (char *)Json_GetValueString(kv->valuePtr);
         if (!labelKey) {
             free_pod_labels(pod_labels, num);
             return NULL;
         }
-        pod_labels[i].key = strdup(labelKey);
-        if (!pod_labels[i].key) {
+        pod_labels[elemIdx].key = strdup(labelKey);
+        if (!pod_labels[elemIdx].key) {
             free_pod_labels(pod_labels, num);
             return NULL;
         }
-        i++;
+        ++elemIdx;
     }
-
+    Json_DeleteKeyValuePairs(kv_pairs);
     return pod_labels;
 }
 
-static int parse_snooper_pod_labels(struct probe_s *probe, const cJSON *json)
+static int parse_snooper_pod_labels(struct probe_s *probe, const void *json)
 {
     int ret;
-    cJSON *labelItems;
+    void *labelItems;
     int pod_label_num;
     struct pod_label_elem *pod_labels;
 
-    labelItems = cJSON_GetObjectItem(json, SNOOPER_OBJNAME_POD_LABELS);
+    labelItems = Json_GetObjectItem(json, SNOOPER_OBJNAME_POD_LABELS);
     if (!labelItems) {
         return 0;
     }
-    if (!cJSON_IsArray(labelItems)) {
+    if (!Json_IsArray(labelItems)) {
         return -1;
     }
 
-    pod_label_num = cJSON_GetArraySize(labelItems);
+    pod_label_num = (int)Json_GetArraySize(labelItems);
     if (pod_label_num == 0) {
         return 0;
     }
@@ -454,60 +467,62 @@ static int parse_snooper_pod_labels(struct probe_s *probe, const cJSON *json)
     return 0;
 }
 
-static void print_snooper_procname(struct probe_s *probe, cJSON *json)
+static void print_snooper_procname(struct probe_s *probe, void *json)
 {
-    cJSON *procname_item, *object;
+    void *procname_item, *object;
     struct snooper_conf_s *snooper_conf;
 
-    procname_item = cJSON_CreateArray();
+    procname_item = Json_CreateArray();
     for (int i = 0; i < probe->snooper_conf_num; i++) {
         snooper_conf = probe->snooper_confs[i];
         if (snooper_conf->type != SNOOPER_CONF_APP) {
             continue;
         }
 
-        object = cJSON_CreateObject();
-        cJSON_AddStringToObject(object, SNOOPER_OBJNAME_COMM, snooper_conf->conf.app.comm);
-        cJSON_AddStringToObject(object, SNOOPER_OBJNAME_CMDLINE, snooper_conf->conf.app.cmdline?:"");
-        cJSON_AddStringToObject(object, SNOOPER_OBJNAME_DBGDIR, snooper_conf->conf.app.debuging_dir?:"");
-        cJSON_AddItemToArray(procname_item, object);
+        object = Json_CreateObject();
+        Json_AddStringToObject(object, SNOOPER_OBJNAME_COMM, snooper_conf->conf.app.comm);
+        Json_AddStringToObject(object, SNOOPER_OBJNAME_CMDLINE, snooper_conf->conf.app.cmdline?:"");
+        Json_AddStringToObject(object, SNOOPER_OBJNAME_DBGDIR, snooper_conf->conf.app.debuging_dir?:"");
+        Json_AddItemToArray(procname_item, object);
+        Json_Delete(object);
     }
-    cJSON_AddItemToObject(json, SNOOPER_OBJNAME_PROCNAME, procname_item);
+    Json_AddItemToObject(json, SNOOPER_OBJNAME_PROCNAME, procname_item);
+    Json_Delete(procname_item);
 }
 
-static int parse_snooper_procname(struct probe_s *probe, const cJSON *json)
+static int parse_snooper_procname(struct probe_s *probe, const void *json)
 {
     int ret;
-    cJSON *procname_item, *comm_item, *cmdline_item, *dbgdir_item, *object;
+    void *procname_item, *comm_item, *cmdline_item, *dbgdir_item, *object;
     char *comm, *cmdline, *dbgdir;
 
-    procname_item = cJSON_GetObjectItem(json, SNOOPER_OBJNAME_PROCNAME);
+    procname_item = Json_GetObjectItem(json, SNOOPER_OBJNAME_PROCNAME);
     if (procname_item == NULL) {
         return 0;
     }
 
-    size_t size = cJSON_GetArraySize(procname_item);
+    size_t size = Json_GetArraySize(procname_item);
     for (int i = 0; i < size; i++) {
-        object = cJSON_GetArrayItem(procname_item, i);
+        object = Json_GetArrayItem(procname_item, i);
 
-        comm_item = cJSON_GetObjectItem(object, SNOOPER_OBJNAME_COMM);
-        cmdline_item = cJSON_GetObjectItem(object, SNOOPER_OBJNAME_CMDLINE);
-        dbgdir_item = cJSON_GetObjectItem(object, SNOOPER_OBJNAME_DBGDIR);
+        comm_item = Json_GetObjectItem(object, SNOOPER_OBJNAME_COMM);
+        cmdline_item = Json_GetObjectItem(object, SNOOPER_OBJNAME_CMDLINE);
+        dbgdir_item = Json_GetObjectItem(object, SNOOPER_OBJNAME_DBGDIR);
 
-        if ((comm_item == NULL) || (comm_item->type != cJSON_String)) {
+        if ((comm_item == NULL) || (!Json_IsString(comm_item))) {
             return -1;
         }
 
-        if (cmdline_item && (cmdline_item->type != cJSON_String)) {
+        if (cmdline_item && (!Json_IsString(cmdline_item))) {
             return -1;
         }
 
-        if (dbgdir_item && (dbgdir_item->type != cJSON_String)) {
+        if (dbgdir_item && (!Json_IsString(dbgdir_item))) {
             return -1;
         }
-        comm = (char *)comm_item->valuestring;
-        cmdline = (cmdline_item != NULL) ? (char *)cmdline_item->valuestring : NULL;
-        dbgdir = (dbgdir_item != NULL) ? (char *)dbgdir_item->valuestring : NULL;
+        comm = (char *)Json_GetValueString(comm_item);
+        cmdline = (cmdline_item != NULL) ? (char *)Json_GetValueString(cmdline_item) : NULL;
+        dbgdir = (dbgdir_item != NULL) ? (char *)Json_GetValueString(dbgdir_item) : NULL;
         ret = add_snooper_conf_procname(probe, (const char *)comm, (const char *)cmdline, (const char *)dbgdir);
         if (ret != 0) {
             return -1;
@@ -518,54 +533,56 @@ static int parse_snooper_procname(struct probe_s *probe, const cJSON *json)
 }
 
 
-static void print_snooper_pod_container(struct probe_s *probe, cJSON *json)
+static void print_snooper_pod_container(struct probe_s *probe, void *json)
 {
-    cJSON *pod_item, *cntr_item;
+    void *pod_item, *cntr_item;
     struct snooper_conf_s *snooper_conf;
 
-    pod_item = cJSON_CreateArray();
-    cntr_item = cJSON_CreateArray();
+    pod_item = Json_CreateArray();
+    cntr_item = Json_CreateArray();
     for (int i = 0; i < probe->snooper_conf_num; i++) {
         snooper_conf = probe->snooper_confs[i];
         if (snooper_conf->type == SNOOPER_CONF_POD_ID) {
-            cJSON_AddItemToArray(pod_item, cJSON_CreateString(snooper_conf->conf.pod_id));
+            Json_AddStringItemToArray(pod_item, snooper_conf->conf.pod_id);
             continue;
         }
 
         if (snooper_conf->type == SNOOPER_CONF_CONTAINER_ID) {
-            cJSON_AddItemToArray(cntr_item, cJSON_CreateString(snooper_conf->conf.container_id));
+            Json_AddStringItemToArray(cntr_item,snooper_conf->conf.container_id);
             continue;
         }
     }
-    cJSON_AddItemToObject(json, SNOOPER_OBJNAME_PODID, pod_item);
-    cJSON_AddItemToObject(json, SNOOPER_OBJNAME_CONTAINERID, cntr_item);
+    Json_AddItemToObject(json, SNOOPER_OBJNAME_PODID, pod_item);
+    Json_Delete(pod_item);
+    Json_AddItemToObject(json, SNOOPER_OBJNAME_CONTAINERID, cntr_item);
+    Json_Delete(cntr_item);
 }
 
-static int parse_snooper_pod_container(struct probe_s *probe, const cJSON *json, const char *item_name)
+static int parse_snooper_pod_container(struct probe_s *probe, const void *json, const char *item_name)
 {
     int ret;
-    cJSON *item, *object;
+    void *item, *object;
     int pod_flag = 0;
 
     if (!strcasecmp(item_name, SNOOPER_OBJNAME_PODID)) {
         pod_flag = 1;
     }
 
-    item = cJSON_GetObjectItem(json, item_name);
+    item = Json_GetObjectItem(json, item_name);
     if (item == NULL) {
         return 0;
     }
 
-    size_t size = cJSON_GetArraySize(item);
+    size_t size = Json_GetArraySize(item);
     for (int i = 0; i < size; i++) {
-        object = cJSON_GetArrayItem(item, i);
-        if (object->type != cJSON_String) {
+        object = Json_GetArrayItem(item, i);
+        if (!Json_IsString(object)) {
             return -1;
         }
         if (pod_flag) {
-            ret = add_snooper_conf_pod(probe, (const char *)object->valuestring);
+            ret = add_snooper_conf_pod(probe, (const char *)Json_GetValueString(object));
         } else {
-            ret = add_snooper_conf_container(probe, (const char *)object->valuestring);
+            ret = add_snooper_conf_container(probe, (const char *)Json_GetValueString(object));
         }
         if (ret != 0) {
             return -1;
@@ -575,71 +592,77 @@ static int parse_snooper_pod_container(struct probe_s *probe, const cJSON *json,
     return 0;
 }
 
-static void print_snooper_gaussdb(struct probe_s *probe, cJSON *json)
+static void print_snooper_gaussdb(struct probe_s *probe, void *json)
 {
-    cJSON *gaussdb_item, *object;
+    void *gaussdb_item, *object;
     struct snooper_conf_s *snooper_conf;
 
-    gaussdb_item = cJSON_CreateArray();
+    gaussdb_item = Json_CreateArray();
     for (int i = 0; i < probe->snooper_conf_num; i++) {
         snooper_conf = probe->snooper_confs[i];
         if (snooper_conf->type != SNOOPER_CONF_GAUSSDB) {
             continue;
         }
 
-        object = cJSON_CreateObject();
-        cJSON_AddStringToObject(object, SNOOPER_OBJNAME_DBIP, snooper_conf->conf.gaussdb.ip?:"");
-        cJSON_AddNumberToObject(object, SNOOPER_OBJNAME_DBPORT, snooper_conf->conf.gaussdb.port);
-        cJSON_AddStringToObject(object, SNOOPER_OBJNAME_DBNAME, snooper_conf->conf.gaussdb.dbname?:"");
-        cJSON_AddStringToObject(object, SNOOPER_OBJNAME_DBUSER, snooper_conf->conf.gaussdb.usr?:"");
-        cJSON_AddStringToObject(object, SNOOPER_OBJNAME_DBPASS, snooper_conf->conf.gaussdb.pass?:"");
-        cJSON_AddItemToArray(gaussdb_item, object);
+        object = Json_CreateObject();
+        Json_AddStringToObject(object, SNOOPER_OBJNAME_DBIP, snooper_conf->conf.gaussdb.ip?:"");
+        Json_AddUIntItemToObject(object, SNOOPER_OBJNAME_DBPORT, snooper_conf->conf.gaussdb.port);
+        Json_AddStringToObject(object, SNOOPER_OBJNAME_DBNAME, snooper_conf->conf.gaussdb.dbname?:"");
+        Json_AddStringToObject(object, SNOOPER_OBJNAME_DBUSER, snooper_conf->conf.gaussdb.usr?:"");
+        Json_AddStringToObject(object, SNOOPER_OBJNAME_DBPASS, snooper_conf->conf.gaussdb.pass?:"");
+        Json_AddItemToArray(gaussdb_item, object);
+        Json_Delete(object);
     }
-    cJSON_AddItemToObject(json, SNOOPER_OBJNAME_GAUSSDB, gaussdb_item);
+    Json_AddItemToObject(json, SNOOPER_OBJNAME_GAUSSDB, gaussdb_item);
+    Json_Delete(gaussdb_item);
 }
 
-static int parse_snooper_gaussdb(struct probe_s *probe, const cJSON *json)
+static int parse_snooper_gaussdb(struct probe_s *probe, const void *json)
 {
     int ret;
-    cJSON *gaussdb_item, *ip_item, *dbname_item, *usr_item, *pass_item, *port_item, *object;
+    void *gaussdb_item, *ip_item, *dbname_item, *usr_item, *pass_item, *port_item, *object;
     char *ip, *dbname, *usr, *pass;
 
-    gaussdb_item = cJSON_GetObjectItem(json, SNOOPER_OBJNAME_GAUSSDB);
+    gaussdb_item = Json_GetObjectItem(json, SNOOPER_OBJNAME_GAUSSDB);
     if (gaussdb_item == NULL) {
         return 0;
     }
 
-    size_t size = cJSON_GetArraySize(gaussdb_item);
+    size_t size = Json_GetArraySize(gaussdb_item);
     for (int i = 0; i < size; i++) {
-        object = cJSON_GetArrayItem(gaussdb_item, i);
+        object = Json_GetArrayItem(gaussdb_item, i);
 
-        ip_item = cJSON_GetObjectItem(object, SNOOPER_OBJNAME_DBIP);
-        dbname_item = cJSON_GetObjectItem(object, SNOOPER_OBJNAME_DBNAME);
-        usr_item = cJSON_GetObjectItem(object, SNOOPER_OBJNAME_DBUSER);
-        pass_item = cJSON_GetObjectItem(object, SNOOPER_OBJNAME_DBPASS);
-        port_item = cJSON_GetObjectItem(object, SNOOPER_OBJNAME_DBPORT);
+        ip_item = Json_GetObjectItem(object, SNOOPER_OBJNAME_DBIP);
+        dbname_item = Json_GetObjectItem(object, SNOOPER_OBJNAME_DBNAME);
+        usr_item = Json_GetObjectItem(object, SNOOPER_OBJNAME_DBUSER);
+        pass_item = Json_GetObjectItem(object, SNOOPER_OBJNAME_DBPASS);
+        port_item = Json_GetObjectItem(object, SNOOPER_OBJNAME_DBPORT);
 
-        if ((ip_item == NULL) || (ip_item->type != cJSON_String)) {
+        if ((ip_item == NULL) || (!Json_IsString(ip_item))) {
             return -1;
         }
-        if ((dbname_item == NULL) || (dbname_item->type != cJSON_String)) {
+        if ((dbname_item == NULL) || (!Json_IsString(dbname_item))) {
             return -1;
         }
-        if ((usr_item == NULL) || (usr_item->type != cJSON_String)) {
+        if ((usr_item == NULL) || (!Json_IsString(usr_item))) {
             return -1;
         }
-        if ((pass_item == NULL) || (pass_item->type != cJSON_String)) {
+        if ((pass_item == NULL) || (!Json_IsString(pass_item))) {
             return -1;
         }
-        if ((port_item == NULL) || (port_item->type != cJSON_Number)) {
+        if ((port_item == NULL) || (!Json_IsNumeric(port_item))) {
             return -1;
         }
 
-        ip = (char *)ip_item->valuestring;
-        dbname = (char *)dbname_item->valuestring;
-        usr = (char *)usr_item->valuestring;
-        pass = (char *)pass_item->valuestring;
-        ret = add_snooper_conf_gaussdb(probe, ip, dbname, usr, pass, (u32)port_item->valueint);
+        ip = (char *)Json_GetValueString(ip_item);
+        dbname = (char *)Json_GetValueString(dbname_item);
+        usr = (char *)Json_GetValueString(usr_item);
+        pass = (char *)Json_GetValueString(pass_item);
+	int valueInt = Json_GetValueInt(port_item);
+	if (valueInt == INVALID_INT_NUM) {
+	    return -1;
+	}
+        ret = add_snooper_conf_gaussdb(probe, ip, dbname, usr, pass, (u32)valueInt);
         if (ret != 0) {
             return -1;
         }
@@ -648,7 +671,7 @@ static int parse_snooper_gaussdb(struct probe_s *probe, const cJSON *json)
     return 0;
 }
 
-void print_snooper(struct probe_s *probe, cJSON *json)
+void print_snooper(struct probe_s *probe, void *json)
 {
     print_snooper_procid(probe, json);
     print_snooper_procname(probe, json);
@@ -698,7 +721,7 @@ int send_snooper_obj(struct probe_s *probe)
     return send_ipc_msg(__probe_mng_snooper->msq_id, (long)probe->probe_type, &ipc_body);
 }
 
-int parse_snooper(struct probe_s *probe, const cJSON *json)
+int parse_snooper(struct probe_s *probe, const void *json)
 {
     int i;
 

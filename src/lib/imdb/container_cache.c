@@ -14,10 +14,9 @@
  ******************************************************************************/
 #include <stdio.h>
 
-#include <cjson/cJSON.h>
-
 #include "container.h"
 #include "container_cache.h"
+#include "json_tool.h"
 
 #define __MAX_CACHE_POD_NUM         100
 #define __MAX_CACHE_POD_LABEL_NUM   100
@@ -127,7 +126,7 @@ struct pod_cache *lkup_pod_cache(struct pod_cache *caches, const char *pod_id)
 static void fill_pod_info(struct pod_cache *pod_cache, const char *container_id)
 {
     char pod_labels_buf[POD_LABELS_BUF_SIZE];
-    cJSON *pod_labels_json, *elem;
+    void *pod_labels_json;
     char *label_val;
     struct pod_label_cache *pod_label_cache;
     int ret;
@@ -139,31 +138,39 @@ static void fill_pod_info(struct pod_cache *pod_cache, const char *container_id)
         return;
     }
 
-    pod_labels_json = cJSON_Parse(pod_labels_buf);
+    pod_labels_json = Json_Parse(pod_labels_buf);
     if (!pod_labels_json) {
         return;
     }
-    if (!cJSON_IsObject(pod_labels_json)) {
-        cJSON_free(pod_labels_json);
+    if (!Json_IsObject(pod_labels_json)) {
+        Json_Delete(pod_labels_json);
         return;
     }
-    cJSON_ArrayForEach(elem, pod_labels_json) {
-        label_val = cJSON_GetStringValue(elem);
+    struct key_value_pairs *kv_pairs = Json_GetKeyValuePairs(pod_labels_json);
+    if (!kv_pairs) {
+        return;
+    }
+    struct key_value *kv;
+    Json_ArrayForEach(kv, kv_pairs) {
+        label_val = (char *)Json_GetValueString(kv->valuePtr);
         if (!label_val) {
             continue;
         }
-
-        if (strcmp(elem->string, __KW_POD_NAME) == 0) {
-            (void)snprintf(pod_cache->pod_name, sizeof(pod_cache->pod_name), label_val);
-        } else if (strcmp(elem->string, __KW_POD_NAMESPACE) == 0) {
-            (void)snprintf(pod_cache->pod_namespace, sizeof(pod_cache->pod_namespace), label_val);
+        if (!kv->key) {
+            continue;
+        }
+        if (strcmp(kv->key, __KW_POD_NAME) == 0) {
+            (void)snprintf(pod_cache->pod_name, sizeof(pod_cache->pod_name), "%s", label_val);
+        } else if (strcmp(kv->key, __KW_POD_NAMESPACE) == 0) {
+            (void)snprintf(pod_cache->pod_namespace, sizeof(pod_cache->pod_namespace), "%s", label_val);
         }
 
         pod_label_cache = (struct pod_label_cache *)calloc(1, sizeof(struct pod_label_cache));
         if (!pod_label_cache) {
             continue;
         }
-        (void)snprintf(pod_label_cache->key, sizeof(pod_label_cache->key), "%s", elem->string);
+        (void)snprintf(pod_label_cache->key, sizeof(pod_label_cache->key),
+                       "%s", kv->key);
         (void)snprintf(pod_label_cache->val, sizeof(pod_label_cache->val), "%s", label_val);
         if (H_COUNT(pod_cache->pod_labels) < __MAX_CACHE_POD_LABEL_NUM) {
             H_ADD_S(pod_cache->pod_labels, key, pod_label_cache);
@@ -171,9 +178,8 @@ static void fill_pod_info(struct pod_cache *pod_cache, const char *container_id)
             free(pod_label_cache);
         }
     }
-
-    cJSON_free(pod_labels_json);
-    return;
+    Json_DeleteKeyValuePairs(kv_pairs);
+    Json_Delete(pod_labels_json);
 }
 
 struct pod_cache *create_pod_cache(struct pod_cache **caches_ptr, const char *pod_id, const char *container_id)
