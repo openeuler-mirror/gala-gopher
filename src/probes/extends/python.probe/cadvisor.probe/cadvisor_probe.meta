@@ -13,22 +13,22 @@ measurements:
             },
             {
                 description: "device",
-                type: "label",
+                type: "key",
                 name: "device",
             },
             {
                 description: "major",
-                type: "label",
+                type: "key",
                 name: "major",
             },
             {
                 description: "minor",
-                type: "label",
+                type: "key",
                 name: "minor",
             },
             {
                 description: "operation",
-                type: "label",
+                type: "key",
                 name: "operation",
             },
             {
@@ -50,7 +50,7 @@ measurements:
             },
             {
                 description: "cpu",
-                type: "label",
+                type: "key",
                 name: "cpu",
             },
             {
@@ -87,7 +87,7 @@ measurements:
             },
             {
                 description: "device",
-                type: "label",
+                type: "key",
                 name: "device",
             },
             {
@@ -95,7 +95,6 @@ measurements:
                 type: "gauge",
                 name: "fs_inodes_free",
             },
-
             {
                 description: "Number of Inodes",
                 type: "gauge",
@@ -190,12 +189,12 @@ measurements:
             },
             {
                 description: "failure type",
-                type: "label",
+                type: "key",
                 name: "failure_type",
             },
             {
                 description: "scope",
-                type: "label",
+                type: "key",
                 name: "scope",
             },
             {
@@ -256,13 +255,8 @@ measurements:
                 name: "container_id",
             },
             {
-                description: "failure_type",
-                type: "label",
-                name: "failure_type",
-            },
-            {
                 description: "interface",
-                type: "label",
+                type: "key",
                 name: "interface",
             },
             {
@@ -389,8 +383,8 @@ measurements:
                 name: "container_id",
             },
             {
-                description: "client port",
-                type: "label",
+                description: "Task state",
+                type: "key",
                 name: "state",
             },
             {

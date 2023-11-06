@@ -61,7 +61,7 @@ def signal_handler(signum, frame):
 def convert_meta():
     '''
     Convert the meta file like the following format:
-    g_meta[container_blkio] = 
+    g_meta[container_blkio] =
     {
         'id': "key",
         'device': "label",
@@ -250,11 +250,11 @@ class CadvisorProbe(Probe):
         if len(container_id) - 1 < CONTAINER_ABBR_ID_LEN:
             return ""
         return container_id[1:CONTAINER_ABBR_ID_LEN + 1]
-    
+
     def parse_metrics(self, raw_metrics):
         '''
         Convert origin metric to the following format:
-        before: 
+        before:
             container_cpu_load_average_10s{id="/docker",image="redis",name="musing_archimedes"} 0 1658113125812
         after: g_metric['container_cpu'][container_id] = {
             'id': '/docker',
@@ -293,21 +293,28 @@ class CadvisorProbe(Probe):
                 if container_id == "" or (not self.filter_container(container_id)):
                     continue
 
-                if container_id not in g_metric[table_name]:
-                    g_metric[table_name][container_id] = dict()
-                    g_metric[table_name][container_id]['container_id'] = container_id
+                container_key = container_id
+                container_labels = {}
+                for field_name, field_type in g_meta[table_name].items():
+                    if field_type == LABEL and field_name in metric_str:
+                        container_labels[field_name] = metric_str[field_name]
+                        container_key += "_" + metric_str[field_name]
+
+                if container_key not in g_metric[table_name]:
+                    g_metric[table_name][container_key] = dict(container_labels)
+                    g_metric[table_name][container_key]['container_id'] = container_id
 
                 value_start_index = line.rfind("}") + 1
                 value_end_index = value_start_index + self.find_2nd_index(line[value_start_index:], " ")
                 value = line[value_start_index:value_end_index]
                 try:
                     if g_meta[table_name][metric_name] == COUNTER:
-                        if metric_name in g_metric[table_name][container_id]:
-                            g_metric[table_name][container_id][metric_name][1] = float(value)
+                        if metric_name in g_metric[table_name][container_key]:
+                            g_metric[table_name][container_key][metric_name][1] = float(value)
                         else:
-                            g_metric[table_name][container_id][metric_name] = [0, float(value)]
+                            g_metric[table_name][container_key][metric_name] = [0, float(value)]
                     else:
-                        g_metric[table_name][container_id][metric_name] = value
+                        g_metric[table_name][container_key][metric_name] = value
                 except KeyError:
                     # main will catch the exception
                     raise
