@@ -99,40 +99,19 @@ static int get_file_name(struct log_mgr_s* mgr, char is_metrics, int file_id, ch
 {
     size_t path_len;
     char last_symbol;
-    char ftype[COMMAND_LEN];
+    const char *ftype = is_metrics ? "metrics" : "event";
+    const char *path = is_metrics ? mgr->metrics_path : mgr->event_path;
 
-    ftype[0] = 0;
-    if (is_metrics) {
-        strcpy(ftype, "metrics");
-    } else {
-        strcpy(ftype, "event");
-    }
-
-    if (is_metrics) {
-        path_len = strlen(mgr->metrics_path);
-    } else {
-        path_len = strlen(mgr->event_path);
-    }
-
+    path_len = strlen(path);
     if (path_len == 0) {
         ERROR("Get file_name failed, path is null.\n");
         return -1;
     }
 
-    if (is_metrics) {
-        last_symbol = mgr->metrics_path[path_len - 1];
-    } else {
-        last_symbol = mgr->event_path[path_len - 1];
-    }
-
+    last_symbol = path[path_len - 1];
     full_path[0] = 0;
-    if (last_symbol == '/') {
-        (void)snprintf(full_path, size, "%sgopher_%s_%d",
-            (is_metrics ? mgr->metrics_path : mgr->event_path), ftype, file_id);
-    } else {
-        (void)snprintf(full_path, size, "%s/gopher_%s_%d",
-            (is_metrics ? mgr->metrics_path : mgr->event_path), ftype, file_id);
-    }
+    const char *format = (last_symbol == '/') ? "%sgopher_%s_%d" : "%s/gopher_%s_%d";
+    (void)snprintf(full_path, size, format, path, ftype, file_id);
 
     return 0;
 }
