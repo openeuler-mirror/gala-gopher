@@ -19,9 +19,18 @@ function compile_test()
 function run_test()
 {
     cd ${TEST_FOLDER}
-    ./submodule_test
+    ./submodule_test > test.log 2>&1
 }
 
-compile_test
-run_test
+function log_info()
+{
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"
+}
 
+log_info "Compiling test modules..."
+compile_test
+log_info "Test modules compiled successfully."
+
+log_info "Running test..."
+run_test
+log_info "Running test..."
