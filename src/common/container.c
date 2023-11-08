@@ -908,6 +908,7 @@ int get_elf_path(unsigned int pid, char elf_path[], int max_path_len, const char
     char elf_relative_path[PATH_LEN] = {0};
     char container_id[CONTAINER_ABBR_ID_LEN + 1] = {0};
     char container_path[PATH_LEN] = {0};
+    char tmp_path[PATH_LEN] = {0};
     char pid_str[INT_LEN];
 
     // 1. get elf_path
@@ -925,10 +926,12 @@ int get_elf_path(unsigned int pid, char elf_path[], int max_path_len, const char
             fprintf(stderr, "get container %s merged path failed\n", container_id);
             return CONTAINER_ERR;
         }
-        (void)snprintf(elf_path, max_path_len, "%s%s", container_path, elf_relative_path);
+        (void)snprintf(tmp_path, PATH_LEN, "%s%s", container_path, elf_relative_path);
     } else {
-        (void)snprintf(elf_path, max_path_len, "%s", elf_relative_path);
+        (void)snprintf(tmp_path, PATH_LEN, "%s", elf_relative_path);
     }
+
+    convert_to_host_path(elf_path, tmp_path, max_path_len);
 
     if (elf_path[0] != '\0') {
         if (access(elf_path, R_OK) != 0) {
