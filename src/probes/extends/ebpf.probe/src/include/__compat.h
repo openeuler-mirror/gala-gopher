@@ -16,10 +16,13 @@
 #ifndef __GOPHER_COMPAT_H__
 #define __GOPHER_COMPAT_H__
 
-#ifdef BPF_PROG_KERN
+#if defined(BPF_PROG_KERN) || defined(BPF_PROG_USER)
 #include <bpf/bpf_helpers.h>
 
+#if defined(BPF_PROG_KERN)
 #include "vmlinux.h"
+#endif
+
 #include "__feat_probe.h"
 
 #define MAX_DATA_SIZE 10240

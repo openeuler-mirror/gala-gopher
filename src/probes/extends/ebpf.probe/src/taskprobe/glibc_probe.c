@@ -36,8 +36,11 @@
 #include "glibc_bpf.h"
 #include "bpf_prog.h"
 
-#define __LOAD_PROBE(probe_name, end, load) \
-    OPEN(probe_name, end, load); \
+#define __LOAD_PROBE(probe_name, end, load, buffer) \
+    INIT_OPEN_OPTS(probe_name); \
+    PREPARE_CUSTOM_BTF(probe_name); \
+    OPEN_OPTS(probe_name, end, load); \
+    MAP_INIT_BPF_BUFFER(probe_name, dns_output, buffer, load); \
     MAP_SET_PIN_PATH(probe_name, args_map, ARGS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, g_proc_map, PROC_PATH, load); \
     LOAD_ATTACH(taskprobe, probe_name, end, load)
@@ -134,10 +137,10 @@ static char is_entry_tmout(struct task_probe_s *task_probe, struct dns_entry_s* 
     return 0;
 }
 
-void rcv_dns_cache(void *ctx, int cpu, void *data, __u32 size)
+int rcv_dns_cache(void *ctx, void *data, u32 size)
 {
     struct task_probe_s *task_probe = (struct task_probe_s *)ctx;
-    (void)add_dns_entry(task_probe, (const struct dns_cache_s *)data);
+    return add_dns_entry(task_probe, (const struct dns_cache_s *)data);
 }
 
 static void reset_dns_entry(struct dns_entry_s *entry)
@@ -239,27 +242,12 @@ void destroy_dns_entrys(struct task_probe_s *task_probe)
     }
 }
 
-static int load_glibc_create_pb(struct task_probe_s *task_probe, struct bpf_prog_s* prog, int fd)
-{
-    struct perf_buffer *pb;
-
-    if (prog->pb == NULL) {
-        pb = create_pref_buffer3(fd, rcv_dns_cache, NULL, task_probe);
-        if (pb == NULL) {
-            fprintf(stderr, "ERROR: crate perf buffer failed\n");
-            return -1;
-        }
-        prog->pb = pb;
-        INFO("Success to create glibc pb buffer.\n");
-    }
-    return 0;
-}
-
 int load_glibc_bpf_prog(struct task_probe_s *task_probe, const char *glibc_path, struct bpf_prog_s **new_prog)
 {
     int ret, succeed;
     int link_num = 0;
     struct bpf_prog_s *prog;
+    struct bpf_buffer *buffer = NULL;
 
     *new_prog = NULL;
 
@@ -268,12 +256,22 @@ int load_glibc_bpf_prog(struct task_probe_s *task_probe, const char *glibc_path,
         return -1;
     }
 
-    __LOAD_PROBE(glibc, err, 1);
+    __LOAD_PROBE(glibc, err, 1, buffer);
     prog->skels[prog->num].skel = glibc_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)glibc_bpf__destroy;
+    prog->custom_btf_paths[prog->num] = glibc_open_opts.btf_custom_path;
+
+    ret = bpf_buffer__open(buffer, rcv_dns_cache, NULL, task_probe);
+    if (ret) {
+        ERROR("[TASKPROBE] Open 'glibc' bpf_buffer failed.\n");
+        bpf_buffer__free(buffer);
+        goto err;
+    }
+    prog->buffer = buffer;
+
     prog->num++;
-    task_probe->proc_map_fd = GET_MAP_FD(glibc, g_proc_map);
     task_probe->args_fd = GET_MAP_FD(glibc, args_map);
+    task_probe->proc_map_fd = GET_MAP_FD(glibc, g_proc_map);
 
     // Glibc bpf prog attach function 'getaddrinfo'
     UBPF_ATTACH(glibc, getaddrinfo, glibc_path, getaddrinfo, succeed);
@@ -315,16 +313,12 @@ int load_glibc_bpf_prog(struct task_probe_s *task_probe, const char *glibc_path,
     prog->skels[prog->num]._link[link_num++] = (void *)glibc_link[glibc_link_current - 1];
     prog->skels[prog->num]._link_num = link_num;
 
-    ret = load_glibc_create_pb(task_probe, prog, GET_MAP_FD(glibc, dns_output));
-    if (ret) {
-        goto err;
-    }
-
     *new_prog = prog;
     return 0;
 
 err:
     UNLOAD(glibc);
+    CLEANUP_CUSTOM_BTF(glibc);
 
     if (prog) {
         free_bpf_prog(prog);

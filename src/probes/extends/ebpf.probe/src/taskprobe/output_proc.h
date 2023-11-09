@@ -25,15 +25,9 @@
 #include "args_map.h"
 #include "proc.h"
 
-#define BPF_F_INDEX_MASK    0xffffffffULL
-#define BPF_F_CURRENT_CPU   BPF_F_INDEX_MASK
-
-#define PERF_OUT_MAX (64)
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, PERF_OUT_MAX);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } g_proc_output SEC(".maps");
 
 #define IS_PROC_TMOUT(stats_ts, ts, period, type, tmout) \
@@ -130,7 +124,7 @@ static __always_inline __maybe_unused void report_proc(void *ctx, struct proc_da
     }
 
     proc->flags = flags;
-    (void)bpf_perf_event_output(ctx, &g_proc_output, BPF_F_CURRENT_CPU, proc, sizeof(struct proc_data_s));
+    (void)bpfbuf_output(ctx, &g_proc_output, proc, sizeof(struct proc_data_s));
 
     proc->flags = 0;
     reset_proc_stats(proc, flags);

@@ -114,10 +114,10 @@ static inline int probe_kernel_version()
 }
 #endif
 
-#ifdef BPF_PROG_KERN
-static inline bool probe_ringbuf()
+#if defined(BPF_PROG_KERN) || defined(BPF_PROG_USER)
+static inline char probe_ringbuf()
 {
-    return bpf_core_type_exists(struct bpf_ringbuf);
+    return (char)bpf_core_type_exists(struct bpf_ringbuf);
 }
 #endif
 #if !defined(BPF_PROG_KERN) && !defined(BPF_PROG_USER)

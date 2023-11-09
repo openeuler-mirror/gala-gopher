@@ -371,6 +371,12 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
         err = ensure_core_btf(&probe_name##_open_opts); \
         if (err) { \
             WARN("Failed to prepare custom BTF for " #probe_name ": %d; will use system BTF (if existent) instead\n", err); \
+        } else {\
+            if (probe_name##_open_opts.btf_custom_path) { \
+                INFO("Succeed to prepare custom BTF for " #probe_name ": %s\n", probe_name##_open_opts.btf_custom_path); \
+            } else { \
+                INFO("Succeed to prepare default BTF for " #probe_name "\n"); \
+            } \
         } \
     } while (0)
 
