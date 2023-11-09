@@ -6208,6 +6208,7 @@ struct request_queue {
 	struct elevator_queue *elevator;
 	struct percpu_ref q_usage_counter;
 	struct blk_queue_stats *stats;
+       struct gendisk *disk;
 	struct rq_qos *rq_qos;
 	const struct blk_mq_ops *mq_ops;
 	struct blk_mq_ctx *queue_ctx;
