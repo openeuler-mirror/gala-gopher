@@ -135,7 +135,6 @@ static __always_inline void start_bio(void *ctx, u32 proc_id, struct bio *bio)
     return;
 }
 
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 19, 0))
 KRAWTRACE(block_bio_queue, bpf_raw_tracepoint_args)
 {
     struct bio *bio = (struct bio*)ctx->args[1];
@@ -145,7 +144,7 @@ KRAWTRACE(block_bio_queue, bpf_raw_tracepoint_args)
 
     return 0;
 }
-#else
+
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(key_size, sizeof(u64));
@@ -182,7 +181,6 @@ end:
     (void)bpf_map_delete_elem(&bio_args_buffer, &key);
     return 0;
 }
-#endif
 
 // block_bio_complete, block_rq_complete exclusion, so use kprobe
 KPROBE(bio_endio, pt_regs)
@@ -192,7 +190,6 @@ KPROBE(bio_endio, pt_regs)
     return 0;
 }
 
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(sched_process_hang, bpf_raw_tracepoint_args)
 {
     struct proc_data_s *proc;
@@ -206,7 +203,7 @@ KRAWTRACE(sched_process_hang, bpf_raw_tracepoint_args)
     report_proc(ctx, proc, TASK_PROBE_IO);
     return 0;
 }
-#else
+
 SEC("tracepoint/sched/sched_process_hang")
 int bpf_trace_sched_process_hang_func(struct trace_event_raw_sched_process_hang *ctx)
 {
@@ -220,4 +217,3 @@ int bpf_trace_sched_process_hang_func(struct trace_event_raw_sched_process_hang 
     report_proc(ctx, proc, TASK_PROBE_IO);
     return 0;
 }
-#endif

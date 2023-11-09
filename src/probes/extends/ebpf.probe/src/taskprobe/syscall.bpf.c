@@ -26,7 +26,7 @@ char g_linsence[] SEC("license") = "GPL";
 #define SYSCALL_ID_MIN 1
 #define SYSCALL_ID_MAX 512
 
-#if (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(4, 18, 0))
+
 struct sys_exit_args {
     unsigned long regs;
     long ret;
@@ -49,7 +49,7 @@ static __always_inline bool is_ia32_task(void)
 #endif
 }
 
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
+
 static __always_inline long get_syscall_id(void *ctx)
 {
     struct sys_exit_args *args = (struct sys_exit_args *)ctx;
@@ -104,7 +104,7 @@ KRAWTRACE(sys_exit, sys_exit_args)
     report_proc(ctx, proc, TASK_PROBE_SYSCALL);
     return 0;
 }
-#else
+
 SEC("tracepoint/raw_syscalls/sys_exit")
 int bpf_trace_sys_exit_func(struct trace_event_raw_sys_exit *ctx)
 {
@@ -136,6 +136,4 @@ int bpf_trace_sys_exit_func(struct trace_event_raw_sys_exit *ctx)
     report_proc(ctx, proc, TASK_PROBE_SYSCALL);
     return 0;
 }
-#endif
-#endif
 

@@ -25,15 +25,9 @@
 
 char LICENSE[] SEC("license") = "GPL";
 
-#define BPF_F_INDEX_MASK    0xffffffffULL
-#define BPF_F_CURRENT_CPU   BPF_F_INDEX_MASK
-
-#define PERF_OUT_MAX (64)
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, PERF_OUT_MAX);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } dns_output SEC(".maps");
 
 struct {
@@ -45,7 +39,7 @@ struct {
 
 static __always_inline __maybe_unused void report_dns_perf_evt(void *ctx, struct dns_cache_s *cache)
 {
-    (void)bpf_perf_event_output(ctx, &dns_output, BPF_F_CURRENT_CPU, cache, sizeof(struct dns_cache_s));
+    (void)bpfbuf_output(ctx, &dns_output, cache, sizeof(struct dns_cache_s));
 }
 
 static __always_inline int start_dns(struct pt_regs* ctx)
@@ -61,7 +55,7 @@ static __always_inline int start_dns(struct pt_regs* ctx)
     const char *domain = (const char *)PT_REGS_PARM1(ctx);
 
     struct dns_cache_s cache = {0};
-    bpf_probe_read_user(cache.domain, DOMAIN_LEN, domain);
+    bpf_core_read_user(cache.domain, DOMAIN_LEN, domain);
     cache.proc_id = proc_id;
     cache.start_ts = bpf_ktime_get_ns();
     (void)bpf_map_update_elem(&dns_map, &key, &cache, BPF_ANY);

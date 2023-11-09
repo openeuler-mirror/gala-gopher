@@ -25,24 +25,6 @@ char g_linsence[] SEC("license") = "GPL";
 
 typedef u64 conn_ctx_t;         // pid & tgid
 
-#if (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(5, 10, 0))
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-#define IOWAIT_SHIFT           1
-#define IOWAIT_MASK            0x00000002
-#else
-#define IOWAIT_SHIFT           29
-#define IOWAIT_MASK            0x20000000
-#endif
-#else
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-#define IOWAIT_SHIFT           2
-#define IOWAIT_MASK            0x00000004
-#else
-#define IOWAIT_SHIFT           30
-#define IOWAIT_MASK            0x40000000
-#endif
-#endif
-
 struct cpu_timestamp_s {
     u32 is_iowait;
     u64 offcpu_start_ts;
@@ -96,13 +78,11 @@ static __always_inline void offcpu_start(struct task_struct* prev)
         return;
     }
 
-    u32 is_iowait = 0;
-    bpf_probe_read(&is_iowait, sizeof(u32), (char *)&(prev->personality) + 2 * sizeof(u32));
-    is_iowait = (is_iowait & IOWAIT_MASK) >> IOWAIT_SHIFT;
+    u64 is_iowait = BPF_CORE_READ_BITFIELD_PROBED(prev, in_iowait);
 
     u64 ts = bpf_ktime_get_ns();
 
-    cpu_ts->is_iowait = is_iowait;
+    cpu_ts->is_iowait = (u32)is_iowait;
     cpu_ts->offcpu_start_ts = ts;
     return;
 }
