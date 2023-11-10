@@ -28,10 +28,6 @@ typedef struct http_header_t {
     size_t value_len;
 } http_header;
 
-http_header *init_http_header();
-
-void free_http_header(http_header* header);
-
 /**
  * HTTP Request
  */
