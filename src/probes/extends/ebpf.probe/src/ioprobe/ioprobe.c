@@ -56,19 +56,21 @@
 
 #define RM_IO_PATH              "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__io*"
 
-#define __LOAD_IO_LATENCY(probe_name, end, load) \
-    OPEN(probe_name, end, load); \
+#define __OPEN_IO_LATENCY(probe_name, end, load) \
+    INIT_OPEN_OPTS(probe_name); \
+    PREPARE_CUSTOM_BTF(probe_name); \
+    OPEN_OPTS(probe_name, end, load); \
     MAP_SET_PIN_PATH(probe_name, io_args_map, IO_ARGS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, io_sample_map, IO_SAMPLE_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, io_latency_channel_map, IO_LATENCY_CHANNEL_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, io_trace_map, IO_TRACE_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, io_latency_map, IO_LATENCY_PATH, load); \
-    LOAD_ATTACH(ioprobe, probe_name, end, load)
+    MAP_SET_PIN_PATH(probe_name, io_latency_map, IO_LATENCY_PATH, load);
 
-#define __LOAD_IO_PROBE(probe_name, end, load) \
-    OPEN(probe_name, end, load); \
-    MAP_SET_PIN_PATH(probe_name, io_args_map, IO_ARGS_PATH, load); \
-    LOAD_ATTACH(ioprobe, probe_name, end, load)
+#define __OPEN_IO_PROBE(probe_name, end, load) \
+    INIT_OPEN_OPTS(probe_name); \
+    PREPARE_CUSTOM_BTF(probe_name); \
+    OPEN_OPTS(probe_name, end, load); \
+    MAP_SET_PIN_PATH(probe_name, io_args_map, IO_ARGS_PATH, load);
 
 static volatile sig_atomic_t g_stop;
 static int io_args_fd = -1;
@@ -480,14 +482,14 @@ static void rcv_io_latency_thr(struct io_latency_s *io_latency)
     return;
 }
 
-static void rcv_pagecache_stats(void *ctx, int cpu, void *data, __u32 size)
+static int rcv_pagecache_stats(void *ctx, void *data, __u32 size)
 {
     struct pagecache_stats_s *pagecache_stats = data;
     struct blk_cache_s *cache = NULL;
 
     cache = get_blk_cache(&g_blk_tbl, pagecache_stats->major, pagecache_stats->first_minor);
     if (cache == NULL) {
-        return;
+        return -1;
     }
 
     (void)fprintf(stdout, "|%s|%d|%d|%s|%s"
@@ -504,16 +506,17 @@ static void rcv_pagecache_stats(void *ctx, int cpu, void *data, __u32 size)
         pagecache_stats->load_page_cache,
         pagecache_stats->mark_page_dirty);
     (void)fflush(stdout);
+    return 0;
 }
 
-static void rcv_io_count(void *ctx, int cpu, void *data, __u32 size)
+static int rcv_io_count(void *ctx, void *data, __u32 size)
 {
     struct io_count_s *io_count = data;
     struct blk_cache_s *cache = NULL;
 
     cache = get_blk_cache(&g_blk_tbl, io_count->major, io_count->first_minor);
     if (cache == NULL) {
-        return;
+        return -1;
     }
 
     (void)fprintf(stdout, "|%s|%d|%d|%s|%s"
@@ -528,9 +531,10 @@ static void rcv_io_count(void *ctx, int cpu, void *data, __u32 size)
         io_count->read_bytes,
         io_count->write_bytes);
     (void)fflush(stdout);
+    return 0;
 }
 
-static void rcv_io_latency(void *ctx, int cpu, void *data, __u32 size)
+static int rcv_io_latency(void *ctx, void *data, __u32 size)
 {
     struct io_latency_s *io_latency = data;
     struct blk_cache_s *cache = NULL;
@@ -539,7 +543,7 @@ static void rcv_io_latency(void *ctx, int cpu, void *data, __u32 size)
 
     cache = get_blk_cache(&g_blk_tbl, io_latency->major, io_latency->first_minor);
     if (cache == NULL) {
-        return;
+        return -1;
     }
 
     (void)fprintf(stdout, "|%s|%d|%d|%s|%s"
@@ -571,9 +575,10 @@ static void rcv_io_latency(void *ctx, int cpu, void *data, __u32 size)
         io_latency->latency[IO_STAGE_DEVICE].jitter,
         io_latency->latency[IO_STAGE_DEVICE].count);
     (void)fflush(stdout);
+    return 0;
 }
 
-static void rcv_io_err(void *ctx, int cpu, void *data, __u32 size)
+static int rcv_io_err(void *ctx, void *data, __u32 size)
 {
     int blk_err = 0;
     char entityId[__ENTITY_ID_LEN];
@@ -582,12 +587,12 @@ static void rcv_io_err(void *ctx, int cpu, void *data, __u32 size)
     struct blk_cache_s *cache = NULL;
 
     if (g_ipc_body.probe_param.logs == 0) {
-        return;
+        return 0;
     }
 
     cache = get_blk_cache(&g_blk_tbl, io_err->major, io_err->first_minor);
     if (cache == NULL) {
-        return;
+        return -1;
     }
 
     entityId[0] = 0;
@@ -610,6 +615,7 @@ static void rcv_io_err(void *ctx, int cpu, void *data, __u32 size)
                 io_err->timestamp / 1000000.0);
 
     (void)fflush(stdout);
+    return 0;
 }
 
 #define VIRTBLK_PROBE   "virtio"
@@ -661,24 +667,33 @@ static int load_io_args(int fd, struct ipc_body_s* ipc_body)
 
 static int load_io_count_probe(struct bpf_prog_s *prog, char is_load_count)
 {
-    int fd;
-    struct perf_buffer *pb = NULL;
+    int ret;
+    struct bpf_buffer *buffer = NULL;
 
     if (is_load_count == 0) {
         return 0;
     }
 
-    __LOAD_IO_PROBE(io_count, err, 1);
+    __OPEN_IO_PROBE(io_count, err, 1);
     prog->skels[prog->num].skel = io_count_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)io_count_bpf__destroy;
+    prog->custom_btf_paths[prog->num] = io_count_open_opts.btf_custom_path;
 
-    fd = GET_MAP_FD(io_count, io_count_channel_map);
-    pb = create_pref_buffer(fd, rcv_io_count);
-    if (pb == NULL) {
-        ERROR("[IOPROBE] Crate 'io_count' perf buffer failed.\n");
+    LOAD_ATTACH(ioprobe, io_count, err, 1);
+
+    buffer = bpf_buffer__new(io_count_skel->maps.io_count_channel_map, io_count_skel->maps.heap);
+    if (buffer == NULL) {
         goto err;
     }
-    prog->pbs[prog->num] = pb;
+
+    ret = bpf_buffer__open(buffer, rcv_io_count, NULL, NULL);
+    if (ret) {
+        ERROR("[IOPROBE] Open 'io_count' bpf_buffer failed.\n");
+        bpf_buffer__free(buffer);
+        goto err;
+    }
+
+    prog->buffers[prog->num] = buffer;
     prog->num++;
 
     if (io_args_fd < 0) {
@@ -688,29 +703,53 @@ static int load_io_count_probe(struct bpf_prog_s *prog, char is_load_count)
     return 0;
 err:
     UNLOAD(io_count);
+    CLEANUP_CUSTOM_BTF(io_count);
     return -1;
 }
 
 static int load_io_err_probe(struct bpf_prog_s *prog, char is_load_err)
 {
-    int fd;
-    struct perf_buffer *pb = NULL;
+    int ret;
+    struct bpf_buffer *buffer = NULL;
 
     if (is_load_err == 0) {
         return 0;
     }
 
-    __LOAD_IO_PROBE(io_err, err, 1);
+    __OPEN_IO_PROBE(io_err, err, 1);
     prog->skels[prog->num].skel = io_err_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)io_err_bpf__destroy;
+    prog->custom_btf_paths[prog->num] = io_err_open_opts.btf_custom_path;
 
-    fd = GET_MAP_FD(io_err, io_err_channel_map);
-    pb = create_pref_buffer(fd, rcv_io_err);
-    if (pb == NULL) {
-        ERROR("[IOPROBE] Crate 'io_err' perf buffer failed.\n");
+    int kern_ver = probe_kernel_version();
+    if (kern_ver >= KERNEL_VERSION(4, 12, 0) && kern_ver < KERNEL_VERSION(6, 0, 0)) {
+        PROG_ENABLE_ONLY_IF(io_err, bpf_scsi_times_out, 1);
+    } else {
+        PROG_ENABLE_ONLY_IF(io_err, bpf_scsi_timeout, 1);
+    }
+
+    if (kern_ver >= KERNEL_VERSION(4, 12, 0) && kern_ver < KERNEL_VERSION(4, 18, 0)) {
+        PROG_ENABLE_ONLY_IF(io_err, __kprobe_bpf_scsi_dispatch_cmd, 1);
+        PROG_ENABLE_ONLY_IF(io_err, __kprobe_ret_bpf_scsi_dispatch_cmd, 1);
+    } else {
+        PROG_ENABLE_ONLY_IF(io_err, bpf_raw_trace_scsi_dispatch_cmd_error, 1);
+    }
+
+    LOAD_ATTACH(ioprobe, io_err, err, 1);
+
+    buffer = bpf_buffer__new(io_err_skel->maps.io_err_channel_map, io_err_skel->maps.heap);
+    if (buffer == NULL) {
         goto err;
     }
-    prog->pbs[prog->num] = pb;
+
+    ret = bpf_buffer__open(buffer, rcv_io_err, NULL, NULL);
+    if (ret) {
+        ERROR("[IOPROBE] Open 'io_err' bpf_buffer failed.\n");
+        bpf_buffer__free(buffer);
+        goto err;
+    }
+
+    prog->buffers[prog->num] = buffer;
     prog->num++;
 
     if (io_args_fd < 0) {
@@ -720,29 +759,37 @@ static int load_io_err_probe(struct bpf_prog_s *prog, char is_load_err)
     return 0;
 err:
     UNLOAD(io_err);
+    CLEANUP_CUSTOM_BTF(io_err);
     return -1;
 }
 
 static int load_io_pagecache_probe(struct bpf_prog_s *prog, char is_load_pagecache)
 {
-    int fd;
-    struct perf_buffer *pb = NULL;
+    int ret;
+    struct bpf_buffer *buffer = NULL;
 
     if (is_load_pagecache == 0) {
         return 0;
     }
 
-    __LOAD_IO_PROBE(page_cache, err, 1);
+    __OPEN_IO_PROBE(page_cache, err, 1);
     prog->skels[prog->num].skel = page_cache_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)page_cache_bpf__destroy;
+    prog->custom_btf_paths[prog->num] = page_cache_open_opts.btf_custom_path;
 
-    fd = GET_MAP_FD(page_cache, page_cache_channel_map);
-    pb = create_pref_buffer(fd, rcv_pagecache_stats);
-    if (pb == NULL) {
-        ERROR("[IOPROBE] Crate 'pagecache' perf buffer failed.\n");
+    LOAD_ATTACH(ioprobe, page_cache, err, 1);
+
+    buffer = bpf_buffer__new(page_cache_skel->maps.page_cache_channel_map, page_cache_skel->maps.heap);
+    if (buffer == NULL) {
         goto err;
     }
-    prog->pbs[prog->num] = pb;
+    ret = bpf_buffer__open(buffer, rcv_pagecache_stats, NULL, NULL);
+    if (ret) {
+        ERROR("[IOPROBE] Open 'page_cache' bpf_buffer failed.\n");
+        bpf_buffer__free(buffer);
+        goto err;
+    }
+    prog->buffers[prog->num] = buffer;
     prog->num++;
 
     if (io_args_fd < 0) {
@@ -752,29 +799,57 @@ static int load_io_pagecache_probe(struct bpf_prog_s *prog, char is_load_pagecac
     return 0;
 err:
     UNLOAD(page_cache);
+    CLEANUP_CUSTOM_BTF(page_cache);
     return -1;
 }
 
 static int load_io_scsi_probe(struct bpf_prog_s *prog, char scsi_probe)
 {
-    int fd;
-    struct perf_buffer *pb = NULL;
+    int ret;
+    struct bpf_buffer *buffer = NULL;
 
     if (scsi_probe == 0) {
         return 0;
     }
 
-    __LOAD_IO_LATENCY(io_trace_scsi, err, 1);
+    __OPEN_IO_LATENCY(io_trace_scsi, err, 1);
     prog->skels[prog->num].skel = io_trace_scsi_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)io_trace_scsi_bpf__destroy;
+    prog->custom_btf_paths[prog->num] = io_trace_scsi_open_opts.btf_custom_path;
 
-    fd = GET_MAP_FD(io_trace_scsi, io_latency_channel_map);
-    pb = create_pref_buffer(fd, rcv_io_latency);
-    if (pb == NULL) {
-        ERROR("[IOPROBE] Crate 'scsi' perf buffer failed.\n");
+    int kern_ver = probe_kernel_version();
+    if (kern_ver < KERNEL_VERSION(4, 18, 0) && kern_ver >= KERNEL_VERSION(4, 12, 0)) {
+        PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_scsi_dispatch_cmd, 1);
+        PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_scsi_done, 1);
+        PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_scsi_mq_done, 1);
+    }
+
+    if (kern_ver >= KERNEL_VERSION(4, 18, 0) && kern_ver <= KERNEL_VERSION(5, 14, 0)) {
+        PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_raw_trace_scsi_dispatch_cmd_start, 1);
+        PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_raw_trace_scsi_dispatch_cmd_done, 1);
+    }
+
+    if (kern_ver > KERNEL_VERSION(4, 18, 0)) {
+        PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_raw_trace_block_rq_complete, 1);
+        PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_raw_trace_block_rq_issue, 1);
+    } else {
+        PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_blk_update_request, 1);
+        PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_blk_mq_start_request, 1);
+    }
+
+    LOAD_ATTACH(ioprobe, io_trace_scsi, err, 1);
+
+    buffer = bpf_buffer__new(io_trace_scsi_skel->maps.io_latency_channel_map, io_trace_scsi_skel->maps.heap);
+    if (buffer == NULL) {
         goto err;
     }
-    prog->pbs[prog->num] = pb;
+    ret = bpf_buffer__open(buffer, rcv_io_latency, NULL, NULL);
+    if (ret) {
+        ERROR("[IOPROBE] Open 'io_trace_scsi' bpf_buffer failed.\n");
+        bpf_buffer__free(buffer);
+        goto err;
+    }
+    prog->buffers[prog->num] = buffer;
     prog->num++;
 
     if (io_args_fd < 0) {
@@ -784,29 +859,52 @@ static int load_io_scsi_probe(struct bpf_prog_s *prog, char scsi_probe)
     return 0;
 err:
     UNLOAD(io_trace_scsi);
+    CLEANUP_CUSTOM_BTF(io_trace_scsi);
     return -1;
 }
 
 static int load_io_nvme_probe(struct bpf_prog_s *prog, char nvme_probe)
 {
-    int fd;
-    struct perf_buffer *pb = NULL;
+    int ret;
+    struct bpf_buffer *buffer = NULL;
 
     if (nvme_probe == 0) {
         return 0;
     }
 
-    __LOAD_IO_LATENCY(io_trace_nvme, err, 1);
+    __OPEN_IO_LATENCY(io_trace_nvme, err, 1);
     prog->skels[prog->num].skel = io_trace_nvme_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)io_trace_nvme_bpf__destroy;
+    prog->custom_btf_paths[prog->num] = io_trace_nvme_open_opts.btf_custom_path;
 
-    fd = GET_MAP_FD(io_trace_nvme, io_latency_channel_map);
-    pb = create_pref_buffer(fd, rcv_io_latency);
-    if (pb == NULL) {
-        ERROR("[IOPROBE] Crate 'nvme' perf buffer failed.\n");
+    int kern_ver = probe_kernel_version();
+    if (kern_ver > KERNEL_VERSION(4, 18, 0)) {
+        PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_raw_trace_nvme_setup_cmd, 1);
+    } else {
+        PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_nvme_setup_cmd, 1);
+    }
+
+    if (kern_ver > KERNEL_VERSION(4, 18, 0)) {
+        PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_raw_trace_block_rq_complete, 1);
+        PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_raw_trace_block_rq_issue, 1);
+    } else {
+        PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_blk_update_request, 1);
+        PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_blk_mq_start_request, 1);
+    }
+
+    LOAD_ATTACH(ioprobe, io_trace_nvme, err, 1);
+
+    buffer = bpf_buffer__new(io_trace_nvme_skel->maps.io_latency_channel_map, io_trace_nvme_skel->maps.heap);
+    if (buffer == NULL) {
         goto err;
     }
-    prog->pbs[prog->num] = pb;
+    ret = bpf_buffer__open(buffer, rcv_io_latency, NULL, NULL);
+    if (ret) {
+        ERROR("[IOPROBE] Open 'io_trace_nvme' bpf_buffer failed.\n");
+        bpf_buffer__free(buffer);
+        goto err;
+    }
+    prog->buffers[prog->num] = buffer;
     prog->num++;
 
     if (io_args_fd < 0) {
@@ -816,29 +914,47 @@ static int load_io_nvme_probe(struct bpf_prog_s *prog, char nvme_probe)
     return 0;
 err:
     UNLOAD(io_trace_nvme);
+    CLEANUP_CUSTOM_BTF(io_trace_nvme);
     return -1;
 }
 
 static int load_io_virtblk_probe(struct bpf_prog_s *prog, char virtblk_probe)
 {
-    int fd;
-    struct perf_buffer *pb = NULL;
+    int ret;
+    struct bpf_buffer *buffer = NULL;
 
     if (virtblk_probe == 0) {
         return 0;
     }
 
-    __LOAD_IO_LATENCY(io_trace_virtblk, err, 1);
+    __OPEN_IO_LATENCY(io_trace_virtblk, err, 1);
     prog->skels[prog->num].skel = io_trace_virtblk_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)io_trace_virtblk_bpf__destroy;
+    prog->custom_btf_paths[prog->num] = io_trace_virtblk_open_opts.btf_custom_path;
 
-    fd = GET_MAP_FD(io_trace_virtblk, io_latency_channel_map);
-    pb = create_pref_buffer(fd, rcv_io_latency);
-    if (pb == NULL) {
-        ERROR("[IOPROBE] Crate 'virtblk' perf buffer failed.\n");
+    int kern_ver = probe_kernel_version();
+
+    if (kern_ver > KERNEL_VERSION(4, 18, 0)) {
+        PROG_ENABLE_ONLY_IF(io_trace_virtblk, bpf_raw_trace_block_rq_complete, 1);
+        PROG_ENABLE_ONLY_IF(io_trace_virtblk, bpf_raw_trace_block_rq_issue, 1);
+    } else {
+        PROG_ENABLE_ONLY_IF(io_trace_virtblk, bpf_blk_update_request, 1);
+        PROG_ENABLE_ONLY_IF(io_trace_virtblk, bpf_blk_mq_start_request, 1);
+    }
+
+    LOAD_ATTACH(ioprobe, io_trace_virtblk, err, 1);
+
+    buffer = bpf_buffer__new(io_trace_virtblk_skel->maps.io_latency_channel_map, io_trace_virtblk_skel->maps.heap);
+    if (buffer == NULL) {
         goto err;
     }
-    prog->pbs[prog->num] = pb;
+    ret = bpf_buffer__open(buffer, rcv_io_latency, NULL, NULL);
+    if (ret) {
+        ERROR("[IOPROBE] Open 'io_trace_virtblk' bpf_buffer failed.\n");
+        bpf_buffer__free(buffer);
+        goto err;
+    }
+    prog->buffers[prog->num] = buffer;
     prog->num++;
 
     if (io_args_fd < 0) {
@@ -848,6 +964,7 @@ static int load_io_virtblk_probe(struct bpf_prog_s *prog, char virtblk_probe)
     return 0;
 err:
     UNLOAD(io_trace_virtblk);
+    CLEANUP_CUSTOM_BTF(io_trace_virtblk);
     return -1;
 }
 
@@ -960,7 +1077,7 @@ int main(int argc, char **argv)
         }
 
         for (int i = 0; i < g_bpf_prog->num; i++) {
-            if (g_bpf_prog->pbs[i] && ((ret = perf_buffer__poll(g_bpf_prog->pbs[i], THOUSAND)) < 0)) {
+            if (g_bpf_prog->buffers[i] && ((ret = bpf_buffer__poll(g_bpf_prog->buffers[i], THOUSAND)) < 0)) {
                 if (ret != -EINTR) {
                     ERROR("[IOPROBE]: perf poll prog_%d failed.\n", i);
                 }

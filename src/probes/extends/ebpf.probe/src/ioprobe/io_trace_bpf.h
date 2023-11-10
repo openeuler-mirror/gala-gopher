@@ -153,9 +153,7 @@ static __always_inline void blk_fill_rwbs(char *rwbs, unsigned int op)
 {
     switch (op & REQ_OP_MASK) {
     case REQ_OP_WRITE:
-#if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(5, 18, 0))
     case REQ_OP_WRITE_SAME:
-#endif
         rwbs[0] = 'W';
         break;
     case REQ_OP_DISCARD:
@@ -265,13 +263,12 @@ static __always_inline struct io_trace_s* get_io_trace(struct request* req)
         return NULL;
     }
 
-
-#if (CURRENT_KERNEL_VERSION <= KERNEL_VERSION(5, 16, 0))
-    disk = _(req->rq_disk);
-#else
-    struct request_queue *q = _(req->q);
-    disk = _(q->disk);
-#endif
+    if (bpf_core_field_exists(((struct request *)0)->rq_disk)) {
+        disk = _(req->rq_disk);
+    } else {
+        struct request_queue *q = _(req->q);
+        disk = _(q->disk);
+    }
 
     if (disk == NULL) {
         return NULL;
@@ -340,24 +337,18 @@ static int bpf_trace_block_rq_issue_func(void *ctx, struct request* req)
     return 0;
 }
 
-#if (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(5, 10, 0))
-KRAWTRACE(block_rq_issue, bpf_raw_tracepoint_args)
-{
-    struct request* req = (struct request *)ctx->args[0];
-    return bpf_trace_block_rq_issue_func(ctx, req);
-}
-#elif (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(block_rq_issue, bpf_raw_tracepoint_args)
 {
     struct request* req = (struct request *)ctx->args[1];
     return bpf_trace_block_rq_issue_func(ctx, req);
 }
-#else
+
 KPROBE(blk_mq_start_request, pt_regs)
 {
     struct request* req = (struct request *)PT_REGS_PARM1(ctx);
     return bpf_trace_block_rq_issue_func(ctx, req);
 }
+#if 0
 #define list_first_entry(ptr, type, member) \
 	container_of((ptr)->next, type, member)
 
@@ -430,7 +421,6 @@ static int bpf_trace_block_rq_completet_func(void *ctx, struct request* req, int
     return 0;
 }
 
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(block_rq_complete, bpf_raw_tracepoint_args)
 {
     struct request* req = (struct request *)ctx->args[0];
@@ -438,7 +428,7 @@ KRAWTRACE(block_rq_complete, bpf_raw_tracepoint_args)
 
     return bpf_trace_block_rq_completet_func(ctx, req, error);
 }
-#else
+
 KPROBE(blk_update_request, pt_regs)
 {
     struct request* req = (struct request *)PT_REGS_PARM1(ctx);
@@ -446,7 +436,6 @@ KPROBE(blk_update_request, pt_regs)
 
     return bpf_trace_block_rq_completet_func(ctx, req, error);
 }
-#endif
 
 #endif
 
