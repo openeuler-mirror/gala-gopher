@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright (c) Huawei Technologies Co., Ltd. 2022. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2023. All rights reserved.
  * gala-gopher licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -8,27 +8,33 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Author: wo_cow
- * Create: 2022-5-13
- * Description: tc bpf prog
+ * Author: luzhihao
+ * Create: 2023-11-10
+ * Description: Kernel feature probes
  ******************************************************************************/
-#ifdef BPF_PROG_USER
-#undef BPF_PROG_USER
-#endif
-#define BPF_PROG_KERN
-#include "bpf.h"
-#include <bpf/bpf_endian.h>
 
-#include "feat_probe.h"
-#include "ksliprobe.h"
+#ifndef __FEAT_PROBE_H
+#define __FEAT_PROBE_H
 
-SEC("tc")
-int get_start_ts(struct __sk_buff *skb)
+
+struct feature_probe {
+    bool is_probed;
+    bool is_tstamp_enabled;
+};
+
+#ifdef BPF_PROG_KERN
+#include <bpf/bpf_core_read.h>
+
+#include "vmlinux.h"
+
+static inline bool probe_tstamp()
 {
-    if (probe_tstamp()) {
-        skb->tstamp = bpf_ktime_get_ns();
-    }
-	return 0;
+    return bpf_core_field_exists(((struct sk_buff *)0)->tstamp);
 }
+#endif
 
-char g_license[] SEC("license") = "GPL";
+#if !defined(BPF_PROG_KERN) && !defined(BPF_PROG_USER)
+bool probe_tstamp();
+#endif
+
+#endif
