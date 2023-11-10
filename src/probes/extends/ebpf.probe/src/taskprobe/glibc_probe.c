@@ -261,15 +261,6 @@ int load_glibc_bpf_prog(struct task_probe_s *task_probe, const char *glibc_path,
     prog->skels[prog->num].fn = (skel_destroy_fn)glibc_bpf__destroy;
     prog->custom_btf_paths[prog->num] = glibc_open_opts.btf_custom_path;
 
-    ret = bpf_buffer__open(buffer, rcv_dns_cache, NULL, task_probe);
-    if (ret) {
-        ERROR("[TASKPROBE] Open 'glibc' bpf_buffer failed.\n");
-        bpf_buffer__free(buffer);
-        goto err;
-    }
-    prog->buffer = buffer;
-
-    prog->num++;
     task_probe->args_fd = GET_MAP_FD(glibc, args_map);
     task_probe->proc_map_fd = GET_MAP_FD(glibc, g_proc_map);
 
@@ -312,6 +303,16 @@ int load_glibc_bpf_prog(struct task_probe_s *task_probe, const char *glibc_path,
     }
     prog->skels[prog->num]._link[link_num++] = (void *)glibc_link[glibc_link_current - 1];
     prog->skels[prog->num]._link_num = link_num;
+
+    ret = bpf_buffer__open(buffer, rcv_dns_cache, NULL, task_probe);
+    if (ret) {
+        ERROR("[TASKPROBE] Open 'glibc' bpf_buffer failed.\n");
+        bpf_buffer__free(buffer);
+        goto err;
+    }
+    prog->buffer = buffer;
+
+    prog->num++;
 
     *new_prog = prog;
     return 0;

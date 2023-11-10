@@ -226,6 +226,12 @@ static int load_ksli_bpf_prog()
 
     LOAD_ATTACH(ksliprobe, ksliprobe, err, 1);
 
+    g_ksli_probe.args_fd = GET_MAP_FD(ksliprobe, args_map);
+    if (g_ksli_probe.args_fd <= 0) {
+        fprintf(stderr, "ERROR: Failed to get args map fd.\n");
+        goto err;
+    }
+
     buffer = bpf_buffer__new(ksliprobe_skel->maps.msg_event_map, ksliprobe_skel->maps.heap);
     if (buffer == NULL) {
         goto err;
@@ -240,18 +246,15 @@ static int load_ksli_bpf_prog()
     prog->buffer = buffer;
     prog->num++;
 
-    g_ksli_probe.args_fd = GET_MAP_FD(ksliprobe, args_map);
-    if (g_ksli_probe.args_fd <= 0) {
-        fprintf(stderr, "ERROR: Failed to get args map fd.\n");
-        goto err;
-    }
     g_ksli_probe.ksli_bpf_prog = prog;
 
     return 0;
 err:
     UNLOAD(ksliprobe);
     CLEANUP_CUSTOM_BTF(ksliprobe);
-    unload_bpf_prog(&prog);
+    if (prog) {
+        free_bpf_prog(prog);
+    }
     return -1;
 }
 
