@@ -18,10 +18,8 @@
 #define BPF_PROG_KERN
 #include "bpf.h"
 #include <bpf/bpf_endian.h>
+#include "feat_probe.h"
 #include "ksliprobe.h"
-
-#define BPF_F_INDEX_MASK        0xffffffffULL
-#define BPF_F_CURRENT_CPU       BPF_F_INDEX_MASK
 
 #define MAX_CONN_LEN                8192
 #define MAX_CHECK_TIMES                2
@@ -59,9 +57,8 @@ struct {
 } conn_map SEC(".maps");
 
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } msg_event_map SEC(".maps");
 
 // Data collection args
@@ -312,8 +309,7 @@ static __always_inline int periodic_report(u64 ts_nsec, struct conn_data_t *conn
             msg_evt_data.client_ip_info = conn_data->id.client_ip_info;
             msg_evt_data.latency = conn_data->latency;
             msg_evt_data.max = conn_data->max;
-            err = bpf_perf_event_output(ctx, &msg_event_map, BPF_F_CURRENT_CPU,
-                                        &msg_evt_data, sizeof(struct msg_event_data_t));
+            err = bpfbuf_output(ctx, &msg_event_map, &msg_evt_data, sizeof(struct msg_event_data_t));
             if (err < 0) {
                 bpf_printk("message event sent failed.\n");
             }
@@ -405,13 +401,14 @@ static __always_inline void process_rd_msg(u32 tgid, int fd, const char *buf, co
 
     __builtin_memcpy(&csd->command, conn_data->current.command, MAX_COMMAND_REQ_SIZE);
 
-#ifndef KERNEL_SUPPORT_TSTAMP
-    csd->start_ts_nsec = ts_nsec;
-#else
-    if (csd->start_ts_nsec == 0 || csd->start_ts_nsec > ts_nsec) {
+    if (!probe_tstamp()) {
         csd->start_ts_nsec = ts_nsec;
+    } else {
+        if (csd->start_ts_nsec == 0 || csd->start_ts_nsec > ts_nsec) {
+            csd->start_ts_nsec = ts_nsec;
+        }
     }
-#endif
+
     csd->status = SAMP_READ_READY;
 
     return;
@@ -525,7 +522,6 @@ KPROBE(tcp_clean_rtx_queue, pt_regs)
     return 0;
 }
 
-#ifdef KERNEL_SUPPORT_TSTAMP
 KPROBE(tcp_recvmsg, pt_regs)
 {
     struct sock *sk;
@@ -545,4 +541,3 @@ KPROBE(tcp_recvmsg, pt_regs)
     }
     return 0;
 }
-#endif
