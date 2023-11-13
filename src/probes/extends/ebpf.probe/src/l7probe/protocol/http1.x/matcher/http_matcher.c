@@ -17,7 +17,7 @@
 
 static void add_http_record_into_buf(http_record *record, struct record_buf_s *record_buf)
 {
-    // 复制record内容
+    // copy record replica
     http_record *rcd_cp;
 
     if (record_buf->record_buf_size >= RECORD_BUF_SIZE) {
@@ -42,7 +42,7 @@ static void add_http_record_into_buf(http_record *record, struct record_buf_s *r
     record_data->record = rcd_cp;
     record_data->latency = rcd_cp->resp->timestamp_ns - rcd_cp->req->timestamp_ns;
 
-    // 计数错误个数，大于等于400均为错误，4xx为客户端错误，5xx为服务端错误
+    // Count the number of errors, the status code >= 400 means error, and 4xx means client error, 5xx means server error
     if (rcd_cp->resp->resp_status >= 400) {
         DEBUG("[HTTP1.x MATCHER] Response Status Code: %d, error count increase.\n", record->resp->resp_status);
         ++record_buf->err_count;
@@ -51,7 +51,7 @@ static void add_http_record_into_buf(http_record *record, struct record_buf_s *r
     ++record_buf->record_buf_size;
 }
 
-// Note: http消息队列若中间丢失req或resp，导致不能match正确到record，则结果不准确
+// Note: the lack of req/resp occurred in the middle of the http message queue, would lead to match incorrectly into record, then the result is not exact
 void http_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *resp_frames, struct record_buf_s *record_buf)
 {
     if (req_frames == NULL || req_frames->frame_buf_size == 0 || resp_frames == NULL || resp_frames->frame_buf_size == 0) {
@@ -65,49 +65,44 @@ void http_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *resp_
 
     http_record record = {0};
 
-    // 占位message，时间戳设置为最大
+    // define the placeholder of message, and set the timestamp to the MAX
     http_message placeholder_msg = {0};
     placeholder_msg.timestamp_ns = INT64_MAX;
 
-    // 循环处理，resp的buf中还有frame则继续循环匹配
+    // process circularly, continue matching while there is frame in resp buf
     while (resp_frames->current_pos < resp_frames->frame_buf_size) {
         http_message *req_msg = (req_frames->current_pos == req_frames->frame_buf_size) ? &placeholder_msg
                                                                       : (http_message *) ((req_frames->frames)[req_frames->current_pos]->frame);
         http_message *resp_msg = (resp_frames->current_pos == resp_frames->frame_buf_size) ? &placeholder_msg
                                                                          : (http_message *) ((resp_frames->frames)[resp_frames->current_pos]->frame);
 
-        // 处理req，添加到record中
+        // add req into record
         if (req_msg->timestamp_ns < resp_msg->timestamp_ns) {
-            DEBUG("[HTTP1.x MATCHER] Add req into record, req.timestamp: %lu, resq.timestamp: %lu\n",
+            DEBUG("[HTTP1.x MATCHER] Add req into record, req.timestamp: %lu, resp.timestamp: %lu\n",
                  req_msg->timestamp_ns, resp_msg->timestamp_ns);
             memset(&record, 0, sizeof(http_record));
-
-            // req_msg一定放入record中，只要有就放入
             record.req = req_msg;
             ++req_frames->current_pos;
             continue;
         }
 
-        // 循环默认假定req的数量一定大于等于resp，这也符合正常情况。此处异常分支处理跳出循环
+        // break the cycle if the req is NULL. We suppose the amount if req must be larger than (or equals to) the one of resp
         if (record.req == NULL) {
             DEBUG("[HTTP1.x MATCHER] There's no req in the record, break the cycle.\n");
             break;
         }
 
-        // 两种情况分别处理
-        // 如果现存record中的req是ok的，则匹配，放入record_buf中，并重新分配record内存
+        // if the req in record is a real req, then matched, and memset for record
         if (record.req->timestamp_ns != 0) {
             DEBUG("[HTTP1.x MATCHER] Record->req->timestamp: %lu\n", record.req->timestamp_ns);
             record.resp = resp_msg;
             ++resp_frames->current_pos;
             add_http_record_into_buf(&record, record_buf);
-
-            // 重新分配record的内容空间
             memset(&record, 0, sizeof(http_record));
             continue;
         }
 
-        // 如果record中现存的req是个占位的，则直接忽略继续遍历
+        // if the req in record is placeholder, then go on the cycle
         ++resp_frames->current_pos;
     }
     DEBUG("[HTTP1.x MATCHER] match finished.\n");
