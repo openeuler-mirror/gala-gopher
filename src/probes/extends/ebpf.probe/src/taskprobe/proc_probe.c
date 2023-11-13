@@ -657,12 +657,14 @@ static int load_proc_io_prog(struct task_probe_s *task_probe, struct bpf_prog_s 
 
     __OPEN_PROBE(proc_io, err, is_load, buffer);
     if (is_load) {
-        PROG_ENABLE_ONLY_IF(proc_io, bpf_raw_trace_block_bio_queue, probe_kernel_version() > KERNEL_VERSION(4, 19, 0));
-        PROG_ENABLE_ONLY_IF(proc_io, bpf_generic_make_request_checks, probe_kernel_version() < KERNEL_VERSION(4, 19, 0));
-        PROG_ENABLE_ONLY_IF(proc_io, bpf_ret_generic_make_request_checks, probe_kernel_version() < KERNEL_VERSION(4, 19, 0));
+        int is_load = (probe_kernel_version() > KERNEL_VERSION(4, 19, 0));
+        PROG_ENABLE_ONLY_IF(proc_io, bpf_raw_trace_block_bio_queue, is_load);
+        PROG_ENABLE_ONLY_IF(proc_io, bpf_generic_make_request_checks, !is_load);
+        PROG_ENABLE_ONLY_IF(proc_io, bpf_ret_generic_make_request_checks, !is_load);
 
-        PROG_ENABLE_ONLY_IF(proc_io, bpf_raw_trace_sched_process_hang, probe_kernel_version() > KERNEL_VERSION(4, 18, 0));
-        PROG_ENABLE_ONLY_IF(proc_io, bpf_trace_sched_process_hang_func, probe_kernel_version() < KERNEL_VERSION(4, 18, 0));
+        is_load = (probe_kernel_version() > KERNEL_VERSION(4, 18, 0));
+        PROG_ENABLE_ONLY_IF(proc_io, bpf_raw_trace_sched_process_hang, is_load);
+        PROG_ENABLE_ONLY_IF(proc_io, bpf_trace_sched_process_hang_func, !is_load);
     }
     LOAD_ATTACH(taskprobe, proc_io, err, is_load);
 
