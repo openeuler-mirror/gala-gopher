@@ -358,32 +358,6 @@ KPROBE(blk_mq_start_request, pt_regs)
     struct request* req = (struct request *)PT_REGS_PARM1(ctx);
     return bpf_trace_block_rq_issue_func(ctx, req);
 }
-#define list_first_entry(ptr, type, member) \
-	container_of((ptr)->next, type, member)
-
-#define list_next_entry(pos, member) \
-	container_of((pos)->member.next, typeof(*(pos)), member)
-
-#define list_for_each_entry(pos, head, member)				\
-	for (pos = list_first_entry(head, typeof(*pos), member);	\
-	     &pos->member != (head);					\
-	     pos = list_next_entry(pos, member))
-
-# define __force
-#define RQF_STARTED		((__force req_flags_t)(1 << 1))
-KPROBE(blk_peek_request, pt_regs)
-{
-    struct request_queue* req_queue = (struct request_queue *)PT_REGS_PARM1(ctx);
-    struct request* req;
-
-    list_for_each_entry(req, &req_queue->queue_head, queuelist) {
-        if ((req != NULL) && !(req->rq_flags & RQF_STARTED)) {
-            bpf_trace_block_rq_issue_func(ctx, req);
-        }
-    }
-
-    return 0;
-}
 #endif
 
 KPROBE(blk_mq_complete_request, pt_regs)
