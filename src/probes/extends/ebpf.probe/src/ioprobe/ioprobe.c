@@ -722,18 +722,15 @@ static int load_io_err_probe(struct bpf_prog_s *prog, char is_load_err)
     prog->custom_btf_paths[prog->num] = io_err_open_opts.btf_custom_path;
 
     int kern_ver = probe_kernel_version();
-    if (kern_ver >= KERNEL_VERSION(4, 12, 0) && kern_ver < KERNEL_VERSION(6, 0, 0)) {
-        PROG_ENABLE_ONLY_IF(io_err, bpf_scsi_times_out, 1);
-    } else {
-        PROG_ENABLE_ONLY_IF(io_err, bpf_scsi_timeout, 1);
-    }
+    int is_load = (kern_ver >= KERNEL_VERSION(4, 12, 0) && kern_ver < KERNEL_VERSION(6, 0, 0));
 
-    if (kern_ver >= KERNEL_VERSION(4, 12, 0) && kern_ver < KERNEL_VERSION(4, 18, 0)) {
-        PROG_ENABLE_ONLY_IF(io_err, __kprobe_bpf_scsi_dispatch_cmd, 1);
-        PROG_ENABLE_ONLY_IF(io_err, __kprobe_ret_bpf_scsi_dispatch_cmd, 1);
-    } else {
-        PROG_ENABLE_ONLY_IF(io_err, bpf_raw_trace_scsi_dispatch_cmd_error, 1);
-    }
+    PROG_ENABLE_ONLY_IF(io_err, bpf_scsi_times_out, is_load);
+    PROG_ENABLE_ONLY_IF(io_err, bpf_scsi_timeout, !is_load);
+
+    is_load = (kern_ver >= KERNEL_VERSION(4, 12, 0) && kern_ver < KERNEL_VERSION(4, 18, 0));
+    PROG_ENABLE_ONLY_IF(io_err, __kprobe_bpf_scsi_dispatch_cmd, is_load);
+    PROG_ENABLE_ONLY_IF(io_err, __kprobe_ret_bpf_scsi_dispatch_cmd, is_load);
+    PROG_ENABLE_ONLY_IF(io_err, bpf_raw_trace_scsi_dispatch_cmd_error, !is_load);
 
     LOAD_ATTACH(ioprobe, io_err, err, 1);
 
@@ -818,24 +815,20 @@ static int load_io_scsi_probe(struct bpf_prog_s *prog, char scsi_probe)
     prog->custom_btf_paths[prog->num] = io_trace_scsi_open_opts.btf_custom_path;
 
     int kern_ver = probe_kernel_version();
-    if (kern_ver < KERNEL_VERSION(4, 18, 0) && kern_ver >= KERNEL_VERSION(4, 12, 0)) {
-        PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_scsi_dispatch_cmd, 1);
-        PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_scsi_done, 1);
-        PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_scsi_mq_done, 1);
-    }
+    int is_load = (kern_ver < KERNEL_VERSION(4, 18, 0) && kern_ver >= KERNEL_VERSION(4, 12, 0));
+    PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_scsi_dispatch_cmd, is_load);
+    PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_scsi_done, is_load);
+    PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_scsi_mq_done, is_load);
 
-    if (kern_ver >= KERNEL_VERSION(4, 18, 0) && kern_ver <= KERNEL_VERSION(5, 14, 0)) {
-        PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_raw_trace_scsi_dispatch_cmd_start, 1);
-        PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_raw_trace_scsi_dispatch_cmd_done, 1);
-    }
+    is_load = (kern_ver >= KERNEL_VERSION(4, 18, 0) && kern_ver <= KERNEL_VERSION(5, 14, 0));
+    PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_raw_trace_scsi_dispatch_cmd_start, is_load);
+    PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_raw_trace_scsi_dispatch_cmd_done, is_load);
 
-    if (kern_ver > KERNEL_VERSION(4, 18, 0)) {
-        PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_raw_trace_block_rq_complete, 1);
-        PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_raw_trace_block_rq_issue, 1);
-    } else {
-        PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_blk_update_request, 1);
-        PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_blk_mq_start_request, 1);
-    }
+    is_load = (kern_ver > KERNEL_VERSION(4, 18, 0));
+    PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_raw_trace_block_rq_complete, is_load);
+    PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_raw_trace_block_rq_issue, is_load);
+    PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_blk_update_request, !is_load);
+    PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_blk_mq_start_request, !is_load);
 
     LOAD_ATTACH(ioprobe, io_trace_scsi, err, 1);
 
@@ -878,19 +871,14 @@ static int load_io_nvme_probe(struct bpf_prog_s *prog, char nvme_probe)
     prog->custom_btf_paths[prog->num] = io_trace_nvme_open_opts.btf_custom_path;
 
     int kern_ver = probe_kernel_version();
-    if (kern_ver > KERNEL_VERSION(4, 18, 0)) {
-        PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_raw_trace_nvme_setup_cmd, 1);
-    } else {
-        PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_nvme_setup_cmd, 1);
-    }
+    int is_load = (kern_ver > KERNEL_VERSION(4, 18, 0));
+    PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_raw_trace_nvme_setup_cmd, is_load);
+    PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_nvme_setup_cmd, !is_load);
 
-    if (kern_ver > KERNEL_VERSION(4, 18, 0)) {
-        PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_raw_trace_block_rq_complete, 1);
-        PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_raw_trace_block_rq_issue, 1);
-    } else {
-        PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_blk_update_request, 1);
-        PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_blk_mq_start_request, 1);
-    }
+    PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_raw_trace_block_rq_complete, is_load);
+    PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_raw_trace_block_rq_issue, is_load);
+    PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_blk_update_request, !is_load);
+    PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_blk_mq_start_request, !is_load);
 
     LOAD_ATTACH(ioprobe, io_trace_nvme, err, 1);
 
@@ -933,14 +921,12 @@ static int load_io_virtblk_probe(struct bpf_prog_s *prog, char virtblk_probe)
     prog->custom_btf_paths[prog->num] = io_trace_virtblk_open_opts.btf_custom_path;
 
     int kern_ver = probe_kernel_version();
+    int is_load = (kern_ver > KERNEL_VERSION(4, 18, 0));
 
-    if (kern_ver > KERNEL_VERSION(4, 18, 0)) {
-        PROG_ENABLE_ONLY_IF(io_trace_virtblk, bpf_raw_trace_block_rq_complete, 1);
-        PROG_ENABLE_ONLY_IF(io_trace_virtblk, bpf_raw_trace_block_rq_issue, 1);
-    } else {
-        PROG_ENABLE_ONLY_IF(io_trace_virtblk, bpf_blk_update_request, 1);
-        PROG_ENABLE_ONLY_IF(io_trace_virtblk, bpf_blk_mq_start_request, 1);
-    }
+    PROG_ENABLE_ONLY_IF(io_trace_virtblk, bpf_raw_trace_block_rq_complete, is_load);
+    PROG_ENABLE_ONLY_IF(io_trace_virtblk, bpf_raw_trace_block_rq_issue, is_load);
+    PROG_ENABLE_ONLY_IF(io_trace_virtblk, bpf_blk_update_request, !is_load);
+    PROG_ENABLE_ONLY_IF(io_trace_virtblk, bpf_blk_mq_start_request, !is_load);
 
     LOAD_ATTACH(ioprobe, io_trace_virtblk, err, 1);
 
