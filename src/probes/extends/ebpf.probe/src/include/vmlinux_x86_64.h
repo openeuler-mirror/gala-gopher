@@ -1042,6 +1042,7 @@ struct task_struct {
 	long unsigned int nivcsw;
 	u64 start_time;
 	u64 start_boottime;
+	u64 real_start_time;
 	long unsigned int min_flt;
 	long unsigned int maj_flt;
 	struct posix_cputimers posix_cputimers;

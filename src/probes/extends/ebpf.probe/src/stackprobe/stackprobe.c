@@ -92,7 +92,7 @@ typedef struct {
     char *flame_name;
     char *prog_name;
     AttachFunc func;
-    perf_buffer_sample_fn cb;
+    bpf_buffer_sample_fn cb;
 } FlameProc;
 #if 0
 static struct bpf_link_hash_t *bpf_link_head = NULL;
@@ -202,12 +202,12 @@ static int get_stack_map_fd(struct stack_trace_s *st)
     }
 }
 
-static struct perf_buffer* get_pb(struct stack_trace_s *st, struct svg_stack_trace_s *svg_st)
+static struct bpf_buffer* get_pb(struct stack_trace_s *st, struct svg_stack_trace_s *svg_st)
 {
     if (st->is_stackmap_a) {
-        return svg_st->pb_a;
+        return svg_st->perf_buff_a;
     } else {
-        return svg_st->pb_b;
+        return svg_st->perf_buff_b;
     }
 }
 
@@ -988,11 +988,11 @@ static void process_loss_data(void *ctx, int cpu, u64 cnt)
     g_st->stats.count[STACK_STATS_LOSS] += cnt;
 }
 
-static void process_oncpu_raw_stack_trace(void *ctx, int cpu, void *data, u32 size)
+static int process_oncpu_raw_stack_trace(void *ctx, void *data, u32 size)
 {
     struct raw_stack_trace_s *raw_st;
     if (!g_st || !g_st->svg_stack_traces[STACK_SVG_ONCPU] || !data) {
-        return;
+        return 0;
     }
 
     if (g_st->is_stackmap_a) {
@@ -1002,7 +1002,7 @@ static void process_oncpu_raw_stack_trace(void *ctx, int cpu, void *data, u32 si
     }
 
     if (!raw_st) {
-        return;
+        return 0;
     }
 
     if (add_raw_stack_id(raw_st, (struct raw_trace_s *)data)) {
@@ -1011,14 +1011,14 @@ static void process_oncpu_raw_stack_trace(void *ctx, int cpu, void *data, u32 si
         g_st->stats.count[STACK_STATS_RAW]++;
     }
 
-    return;
+    return 0;
 }
 
-static void process_offcpu_raw_stack_trace(void *ctx, int cpu, void *data, u32 size)
+static int process_offcpu_raw_stack_trace(void *ctx, void *data, u32 size)
 {
     struct raw_stack_trace_s *raw_st;
     if (!g_st || !g_st->svg_stack_traces[STACK_SVG_OFFCPU] || !data) {
-        return;
+        return 0;
     }
 
     if (g_st->is_stackmap_a) {
@@ -1028,7 +1028,7 @@ static void process_offcpu_raw_stack_trace(void *ctx, int cpu, void *data, u32 s
     }
 
     if (!raw_st) {
-        return;
+        return 0;
     }
 
     if (add_raw_stack_id(raw_st, (struct raw_trace_s *)data)) {
@@ -1037,15 +1037,15 @@ static void process_offcpu_raw_stack_trace(void *ctx, int cpu, void *data, u32 s
         g_st->stats.count[STACK_STATS_RAW]++;
     }
 
-    return;
+    return 0;
 }
 
 
-static void process_mem_raw_stack_trace(void *ctx, int cpu, void *data, u32 size)
+static int process_mem_raw_stack_trace(void *ctx, void *data, u32 size)
 {
     struct raw_stack_trace_s *raw_st;
     if (!g_st || !g_st->svg_stack_traces[STACK_SVG_MEM] || !data) {
-        return;
+        return 0;
     }
 
     if (g_st->is_stackmap_a) {
@@ -1055,7 +1055,7 @@ static void process_mem_raw_stack_trace(void *ctx, int cpu, void *data, u32 size
     }
 
     if (!raw_st) {
-        return;
+        return 0;
     }
 
     if (add_raw_stack_id(raw_st, (struct raw_trace_s *)data)) {
@@ -1064,7 +1064,7 @@ static void process_mem_raw_stack_trace(void *ctx, int cpu, void *data, u32 size
         g_st->stats.count[STACK_STATS_RAW]++;
     }
 
-    return;
+    return 0;
 }
 
 static void destroy_svg_stack_trace(struct svg_stack_trace_s **ptr_svg_st)
@@ -1085,15 +1085,21 @@ static void destroy_svg_stack_trace(struct svg_stack_trace_s **ptr_svg_st)
         svg_st->obj = NULL;
     }
 
-    if (svg_st->pb_a) {
-        perf_buffer__free(svg_st->pb_a);
-        svg_st->pb_a = NULL;
-        
+    if (svg_st->custom_btf_path) {
+        clean_core_btf_rs(svg_st->custom_btf_path);
+        svg_st->custom_btf_path = NULL;
     }
-    if (svg_st->pb_b) {
-        perf_buffer__free(svg_st->pb_b);
-        svg_st->pb_b = NULL;
+
+    if (svg_st->perf_buff_a) {
+        bpf_buffer__free(svg_st->perf_buff_a);
+        svg_st->perf_buff_a = NULL;
     }
+
+    if (svg_st->perf_buff_b) {
+        bpf_buffer__free(svg_st->perf_buff_b);
+        svg_st->perf_buff_b = NULL;
+    }
+
     if (svg_st->svg_mng) {
         destroy_svg_mng(svg_st->svg_mng);
         svg_st->svg_mng = NULL;
@@ -1282,16 +1288,44 @@ static void init_convert_counter()
     (void)bpf_map_update_elem(g_st->convert_map_fd, &key, &convert_data, BPF_ANY);
 }
 
+#define BPF_OBJ_CREATE_BUFFER(obj, map_name, heap_name, buffer)   \
+            ({ \
+                struct bpf_map *__map = bpf_object__find_map_by_name(obj, map_name); \
+                struct bpf_map *__heap = bpf_object__find_map_by_name(obj, heap_name); \
+                if (__map != NULL && __heap != NULL) { \
+                    buffer = bpf_buffer__new(__map, __heap); \
+                } \
+            })
+
 static int load_bpf_prog(struct svg_stack_trace_s *svg_st, const char *prog_name)
 {
     int ret;
-    struct bpf_program *prog;
+    struct bpf_program *prog, *sched_switch_prog, *trace_sched_switch_prog;
+    struct bpf_buffer *perf_buff_a = NULL, *perf_buff_b = NULL;
+    int kern_ver = probe_kernel_version();
 
-    svg_st->obj = bpf_object__open_file(prog_name, NULL);
+    LIBBPF_OPTS(bpf_object_open_opts, opts);
+    ensure_core_btf(&opts);
+
+    svg_st->obj = bpf_object__open_file(prog_name, &opts);
     ret = libbpf_get_error(svg_st->obj);
     if (ret) {
         ERROR("[STACKPROBE]: opening BPF object file failed(err = %d).\n", ret);
         goto err;
+    }
+
+    if (strcmp(prog_name, "offcpu") == 0) {
+        sched_switch_prog = bpf_object__find_program_by_name(svg_st->obj, "bpf_raw_trace_sched_switch");
+        trace_sched_switch_prog = bpf_object__find_program_by_name(svg_st->obj, "bpf_trace_sched_switch_func");
+        if (sched_switch_prog != NULL && trace_sched_switch_prog != NULL) {
+            if (kern_ver > KERNEL_VERSION(4, 18, 0)) {
+                bpf_program__set_autoload(sched_switch_prog, 1);
+                bpf_program__set_autoload(trace_sched_switch_prog, 0);
+            } else {
+                bpf_program__set_autoload(sched_switch_prog, 0);
+                bpf_program__set_autoload(trace_sched_switch_prog, 1);
+            }
+        }
     }
 
     ret = BPF_OBJ_PIN_MAP_PATH(svg_st->obj, "proc_obj_map", STACK_PROC_MAP_PATH);
@@ -1321,11 +1355,7 @@ static int load_bpf_prog(struct svg_stack_trace_s *svg_st, const char *prog_name
         goto err;
     }
 
-#if (CURRENT_LIBBPF_VERSION  < LIBBPF_VERSION(0, 7)) 
-    prog = bpf_program__next(NULL, svg_st->obj);
-#else
     prog = bpf_object__next_program(svg_st->obj, NULL);
-#endif
     if (prog == NULL) {
         ERROR("[STACKPROBE]: Cannot find bpf_prog.\n");
         goto err;
@@ -1337,28 +1367,46 @@ static int load_bpf_prog(struct svg_stack_trace_s *svg_st, const char *prog_name
         g_st->stackmap_a_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "stackmap_a");
         g_st->stackmap_b_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "stackmap_b");
     }
-    svg_st->stackmap_perf_a_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "stackmap_perf_a");
-    svg_st->stackmap_perf_b_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "stackmap_perf_b");
+
+    BPF_OBJ_CREATE_BUFFER(svg_st->obj, "stackmap_perf_a", "heap", perf_buff_a);
+    BPF_OBJ_CREATE_BUFFER(svg_st->obj, "stackmap_perf_b", "heap", perf_buff_b);
+
+    if (perf_buff_a == NULL || perf_buff_b == NULL) {
+        goto err;
+    }
+
+    svg_st->perf_buff_a = perf_buff_a;
+    svg_st->perf_buff_b = perf_buff_b;
+    svg_st->custom_btf_path = opts.btf_custom_path;
 
     INFO("[STACKPROBE]: load bpf prog succeed(%s).\n", prog_name);
     return 0;
 
 err:
+    cleanup_core_btf(&opts);
+    if (perf_buff_a) {
+        bpf_buffer__free(perf_buff_a);
+    }
+    if (perf_buff_b) {
+        bpf_buffer__free(perf_buff_b);
+    }
     return -1;
 }
 
-static int create_perf(struct svg_stack_trace_s *svg_st, perf_buffer_sample_fn cb)
+static int create_perf(struct svg_stack_trace_s *svg_st, bpf_buffer_sample_fn cb)
 {
+    int ret;
     if (cb == NULL) {
         return 0;
     }
-    svg_st->pb_a = create_pref_buffer2(svg_st->stackmap_perf_a_fd, cb, process_loss_data);
-    if (!svg_st->pb_a) {
+
+    ret = bpf_buffer__open(svg_st->perf_buff_a, cb, process_loss_data, NULL);
+    if (ret) {
         goto err;
     }
 
-    svg_st->pb_b = create_pref_buffer2(svg_st->stackmap_perf_b_fd, cb, process_loss_data);
-    if (!svg_st->pb_b) {
+    ret = bpf_buffer__open(svg_st->perf_buff_b, cb, process_loss_data, NULL);
+    if (ret) {
         goto err;
     }
     INFO("[STACKPROBE]: create perf succeed.\n");
@@ -1748,14 +1796,15 @@ static void *__running(void *arg)
 {
     int ret;
     struct svg_stack_trace_s *svg_st = arg;
-    struct perf_buffer *pb = get_pb(g_st, svg_st);
+    struct bpf_buffer *buffer = get_pb(g_st, svg_st);
 
     // Read raw stack-trace data from current data channel.
-    while ((pb != NULL) && (ret = perf_buffer__poll(pb, 0)) >= 0) {
+
+    while ((buffer != NULL) && (ret = bpf_buffer__poll(buffer, THOUSAND)) >= 0) {
         if (g_stop) {
             break;
         }
-        pb = get_pb(g_st, svg_st);
+        buffer = get_pb(g_st, svg_st);
         sleep(1);
     }
     return NULL;
