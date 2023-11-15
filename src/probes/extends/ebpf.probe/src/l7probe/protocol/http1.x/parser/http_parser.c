@@ -413,7 +413,6 @@ size_t http_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s 
             return PARSER_INVALID_BOUNDARY_INDEX;
     }
 
-    // 查找帧边界标识，如-HTTP Response:
     // Find Frame Boundary Marker, take resp as sample:
     //   leftover body (from previous message)
     //   Status Line：           HTTP/1.1 ...
@@ -424,12 +423,13 @@ size_t http_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s 
     // NOTE: We do not take HTTP Version as frame boundary directly, because it may be found in req/resp body, then cause error for separating frames.
     while (true) {
         // 1. Find the first "\r\n\r\n" sub-string position in the raw_data.data
-        char* sub_str = strstr(raw_data->data, BOUNDARY_MARKER);
-        if (sub_str == NULL) {
+        size_t marker_pos = find_str(raw_data->data, BOUNDARY_MARKER, raw_data->current_pos);
+
+        // 如果pos数值不正确，返回-1
+        if (marker_pos == -1) {
             DEBUG("[HTTP1.x PARSER][Find Frame Boundary] Message marker CRLF not found , return INVALID state.\n");
             return PARSER_INVALID_BOUNDARY_INDEX;
         }
-        size_t marker_pos = strstr(raw_data->data, BOUNDARY_MARKER) - raw_data->data;
 
         // 2. Find sub-string: raw_data.data[start_pos, marker_pos]
         char *buf_substr = substr(raw_data->data + raw_data->current_pos, start_pos, marker_pos - start_pos);
