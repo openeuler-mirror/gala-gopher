@@ -814,9 +814,10 @@ void l7_parser(void *ctx)
     }
 }
 
-static void tracker_msg(struct l7_mng_s *l7_mng, void *data, unsigned int size)
+int tracker_msg(void *ctx, void *data, u32 size)
 {
     char *p = data;
+    struct l7_mng_s *l7_mng  = ctx;
     int remain_size = (int)size, step_size = 0, walk_size = 0, offset = 0;
     enum tracker_evt_e *evt;
     struct conn_data_msg_s *conn_data_msg;
@@ -838,7 +839,7 @@ static void tracker_msg(struct l7_mng_s *l7_mng, void *data, unsigned int size)
             {
                 if (remain_size < sizeof(struct conn_stats_s)) {
                     ERROR("[L7Probe]: Invalid conn tracker stats msg.\n");
-                    return;
+                    return 0;
                 }
                 (void)proc_conn_stats_msg(l7_mng, (struct conn_stats_s *)p);
                 walk_size = sizeof(struct conn_stats_s);
@@ -848,7 +849,7 @@ static void tracker_msg(struct l7_mng_s *l7_mng, void *data, unsigned int size)
             {
                 if (remain_size < sizeof(struct conn_ctl_s)) {
                     ERROR("[L7Probe]: Invalid conn tracker ctrl msg.\n");
-                    return;
+                    return 0;
                 }
                 (void)proc_conn_ctl_msg(l7_mng, (struct conn_ctl_s *)p);
                 walk_size = sizeof(struct conn_ctl_s);
@@ -858,7 +859,7 @@ static void tracker_msg(struct l7_mng_s *l7_mng, void *data, unsigned int size)
             {
                 if (remain_size < sizeof(struct conn_data_msg_s)) {
                     ERROR("[L7Probe]: Invalid conn tracker data msg.\n");
-                    return;
+                    return 0;
                 }
                 conn_data_msg = (struct conn_data_msg_s *)p;
                 conn_data_buf = p + sizeof(struct conn_data_msg_s);
@@ -869,23 +870,12 @@ static void tracker_msg(struct l7_mng_s *l7_mng, void *data, unsigned int size)
             default:
             {
                 ERROR("[L7Probe]: Unknown conn tracker msg.\n");
-                return;
+                return 0;
             }
         }
 
         offset += walk_size;
         remain_size -= walk_size;
     } while (1);
-    return;
-}
-
-void tracker_msg_pb(void *ctx, int cpu, void *data, unsigned int size)
-{
-    tracker_msg((struct l7_mng_s *)ctx, data, size);
-}
-
-int tracker_msg_rb(void *ctx, void *data, unsigned int size)
-{
-    tracker_msg((struct l7_mng_s *)ctx, data, size);
     return 0;
 }

@@ -168,8 +168,7 @@ void destroy_unprobed_trackers_links(void *ctx);
 void l7_parser(void *ctx);
 void report_l7(void *ctx);
 
-void tracker_msg_pb(void *ctx, int cpu, void *data, unsigned int size);
-int tracker_msg_rb(void *ctx, void *data, unsigned int size);
+int tracker_msg(void *ctx, void *data, u32 size);
 
 #endif
 
