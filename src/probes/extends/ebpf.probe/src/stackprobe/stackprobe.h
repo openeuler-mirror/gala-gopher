@@ -100,12 +100,12 @@ struct stack_param_s {
 struct svg_stack_trace_s {
     int bpf_prog_fd;
     struct bpf_object *obj;
+    const char *custom_btf_path;
     pthread_t wr_flame_thd;
 
-    int stackmap_perf_a_fd;
-    int stackmap_perf_b_fd;
-    struct perf_buffer* pb_a;
-    struct perf_buffer* pb_b;
+    struct bpf_buffer *perf_buff_a;
+    struct bpf_buffer *perf_buff_b;
+
     struct raw_stack_trace_s *raw_stack_trace_a;
     struct raw_stack_trace_s *raw_stack_trace_b;
 
