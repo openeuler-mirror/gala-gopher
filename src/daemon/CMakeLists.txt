@@ -31,10 +31,8 @@ SET(COMMON_DIR      ${SRC_DIR}/common)
 SET(RESTAPI_DIR     ${SRC_DIR}/api)
 SET(EBPF_PROBE_DIR  ${SRC_DIR}/probes/extends/ebpf.probe)
 
-SET(THIRD_PARTY_DIR ../../third_party)
 SET(LIBRDKAFKA_DIR /usr/include/librdkafka)
 SET(LIBELF_DIR /usr/include/libelf)
-SET(BPF_COMPATIBLE_DIR ${THIRD_PARTY_DIR}/bpf-compatible)
 
 SET(CMAKE_C_FLAGS "-rdynamic -std=gnu11 -g -Wl,-z,relro,-z,now -DNATIVE_PROBE_FPRINTF \
     -DPROBES_LIST=\"${PROBES_LIST}\" \
@@ -89,6 +87,7 @@ SET(SOURCES main.c daemon.c
     ${COMMON_DIR}/ipc.c
     ${COMMON_DIR}/strbuf.c
     ${COMMON_DIR}/histogram.c
+    ${COMMON_DIR}/core_btf.c
 
     ${RESTAPI_DIR}/rest_server.c
     ${EBPF_PROBE_DIR}/src/lib/java_support.c
@@ -139,13 +138,8 @@ TARGET_INCLUDE_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE
     ${COMMON_DIR}
     ${JSON_INC_PATH}
     ${EBPF_PROBE_DIR}/src/include
-
-    ${BPF_COMPATIBLE_DIR}/include
-)
-TARGET_LINK_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE
-    ${BPF_COMPATIBLE_DIR}/lib
 )
 
-TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE config pthread rt dl bpf rdkafka microhttpd elf log4cplus gnutls jsoncpp_lib cjson bpf_compatible)
+TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE config pthread rt dl bpf rdkafka microhttpd elf log4cplus gnutls jsoncpp_lib cjson)
 
 

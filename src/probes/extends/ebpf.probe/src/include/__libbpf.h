@@ -22,13 +22,12 @@
 #include <stdlib.h>
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
-#include <bpf_compatible/btf_helpers.h>
 #include <sys/resource.h>
 #include "elf_reader.h"
 #include "gopher_elf.h"
 #include "object.h"
 #include "common.h"
-
+#include "core_btf.h"
 #include "__compat.h"
 
 #define EBPF_RLIM_LIMITED  100*1024*1024 // 100M
@@ -555,7 +554,7 @@ static __always_inline __maybe_unused void unload_bpf_prog(struct bpf_prog_s **u
             bpf_buffer__free(prog->buffers[i]);
         }
 
-        clean_core_btf_rs(prog->custom_btf_paths[i]);
+        free((char *)prog->custom_btf_paths[i]);
     }
 
     if (prog->pb) {

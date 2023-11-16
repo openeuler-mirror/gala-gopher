@@ -10,9 +10,6 @@ PROBE_MNG_FOLDER=${PROJECT_FOLDER}/src/lib/probe
 JVM_FOLDER=${PROJECT_FOLDER}/src/lib/jvm
 BPFTOOL_FOLDER=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/tools
 VMLINUX_DIR=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/src/include
-BPF_COMPATIBLE_DIR=${PROJECT_FOLDER}/third_party/bpf-compatible
-BTF_BUILD_DIR=${PROJECT_FOLDER}/.cache
-BTF_SRC_DIR=${PROJECT_FOLDER}/btf
 EXT_PROBE_BUILD_LIST=`find ${EXT_PROBE_FOLDER} -maxdepth 2 | grep "\<build.sh\>"`
 DEP_LIST=(cmake git librdkafka-devel libmicrohttpd-devel libconfig-devel uthash-devel log4cplus-devel\
           libbpf-devel clang llvm java-1.8.0-openjdk-devel jsoncpp-devel gnutls-devel libcurl-devel)
@@ -80,19 +77,6 @@ function __add_bpftool()
     fi
 }
 
-function __create_btf_dir()
-{
-    rm -rf ${BTF_BUILD_DIR}
-    mkdir -p ${BTF_BUILD_DIR}
-    ARCH=$(uname -m)
-    find ${BTF_SRC_DIR} -name "*"${ARCH}"*.btf.tar.xz" | xargs cp -t ${BTF_BUILD_DIR}
-}
-
-function __delete_btf_dir()
-{
-    rm -rf ${BTF_BUILD_DIR}
-}
-
 function __build_bpf()
 {
 	__add_bpftool
@@ -118,17 +102,8 @@ function __rm_jvm_attach()
     make clean
 }
 
-function __ensure_libbpf_compatible()
-{
-    cd "${BPF_COMPATIBLE_DIR}/lib"
-    if [[ ! -f libbpf_compatible.a ]]; then
-        ln -s "libbpf_compatible.a.$(uname -m)" libbpf_compatible.a
-    fi
-}
-
 function prepare_probes()
 {
-    __create_btf_dir
 	__build_bpf
     if [ ${PROBES} ]; then
         # check tailor env
@@ -192,8 +167,6 @@ function compile_lib_clean()
 
 function compile_daemon_release()
 {
-    __ensure_libbpf_compatible
-
     cd ${DAEMON_FOLDER}
     rm -rf build
     mkdir build
@@ -206,8 +179,6 @@ function compile_daemon_release()
 
 function compile_daemon_debug()
 {
-    __ensure_libbpf_compatible
-
     cd ${DAEMON_FOLDER}
     rm -rf build
     mkdir build
@@ -236,7 +207,6 @@ function clean_env()
 
         rm -f ${PROBE_PATH}/${PROBE_NAME}_daemon.c
     done
-	__delete_btf_dir
 }
 
 function compile_extend_probes_clean()
