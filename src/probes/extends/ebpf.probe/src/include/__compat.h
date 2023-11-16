@@ -134,6 +134,10 @@ static inline int bpf_buffer__open(struct bpf_buffer *buffer, bpf_buffer_sample_
     int fd, type;
     void *inner;
 
+    if (buffer == NULL) {
+        return -1;
+    }
+
     fd = bpf_map__fd(buffer->map);
     type = buffer->type;
 

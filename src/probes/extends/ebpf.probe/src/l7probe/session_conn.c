@@ -69,7 +69,7 @@ static void submit_perf_buf_user(void *ctx, char *buf, size_t bytes_count, struc
     conn_data->msg.data_size = (u32)copied_size;
     conn_data->msg.payload_size = (u32)copied_size;
     conn_data->msg.evt = TRACKER_EVT_DATA;
-    tracker_msg_pb(ctx, 0, conn_data, sizeof(struct conn_data_msg_s) + copied_size);
+    (void)tracker_msg(ctx, conn_data, sizeof(struct conn_data_msg_s) + copied_size);
     return;
 }
 
@@ -117,7 +117,7 @@ static void submit_sock_conn_stats(void *ctx, struct sock_conn_s* sock_conn,
 
     // submit conn stats event.
     e->evt = TRACKER_EVT_STATS;
-    tracker_msg_pb(ctx, 0, e, sizeof(struct conn_stats_s));
+    (void)tracker_msg(ctx, e, sizeof(struct conn_stats_s));
     return;
 }
 

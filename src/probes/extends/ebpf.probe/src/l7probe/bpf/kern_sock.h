@@ -30,9 +30,6 @@ struct iovec {
 };
 #endif
 
-#define BPF_F_INDEX_MASK        0xffffffffULL
-#define BPF_F_CURRENT_CPU       BPF_F_INDEX_MASK
-
 /*
     Used to tracing syscall 'accept/accept4' event to generate 'sock_conn_s' obj.
     Syscall function prototype:
@@ -118,22 +115,12 @@ struct {
 } sock_data_args SEC(".maps");
 
 struct {
-    __uint(type, GOPHER_BPF_MAP_TYPE_PERF);
-#ifndef __USE_RING_BUF
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-#endif
-    __uint(max_entries, GOPHER_BPF_PERF_MAP_MAX_ENTRIES);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } conn_tracker_events SEC(".maps");
 
 // Use the BPF map to cache socket data to avoid the restriction
 // that the BPF program stack does not exceed 512 bytes.
-struct {
-    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-    __uint(key_size, sizeof(int));
-    __uint(value_size, sizeof(struct conn_data_s));
-    __uint(max_entries, 1);
-} conn_data_buffer SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
@@ -152,32 +139,21 @@ static __always_inline void submit_perf_buf(void* ctx, char *buf, size_t bytes_c
     copied_size = (bytes_count > CONN_DATA_MAX_SIZE) ? CONN_DATA_MAX_SIZE : bytes_count;
     conn_data->msg.data_size = (u32)copied_size;
 
-#ifdef __USE_RING_BUF
-    struct conn_data_s *conn_data_tmp = bpf_ringbuf_reserve(&conn_tracker_events, sizeof(struct conn_data_s), 0);
-    if (conn_data_tmp == NULL) {
-        return;
+    bpf_core_read(conn_data->buf.data, copied_size & CONN_DATA_MAX_SIZE, buf);
+    if (probe_ringbuf()) {
+        conn_data->msg.payload_size = (u32)sizeof(conn_data->buf);
+    } else {
+        conn_data->msg.payload_size = (u32)copied_size;
     }
-    __builtin_memcpy(&(conn_data_tmp->msg), &(conn_data->msg), sizeof(conn_data->msg));
-    bpf_probe_read(conn_data_tmp->buf.data, copied_size & CONN_DATA_MAX_SIZE, buf);
-
-    conn_data_tmp->msg.payload_size = (u32)sizeof(conn_data->buf);
-    conn_data_tmp->msg.evt = TRACKER_EVT_DATA;
-    bpf_ringbuf_submit(conn_data_tmp, 0);
-#else
-    bpf_probe_read(conn_data->buf.data, copied_size & CONN_DATA_MAX_SIZE, buf);
-    conn_data->msg.payload_size = (u32)copied_size;
     conn_data->msg.evt = TRACKER_EVT_DATA;
-    (void)bpf_perf_event_output(ctx, &conn_tracker_events, BPF_F_CURRENT_CPU, conn_data,
-        sizeof(struct conn_data_msg_s) + copied_size & CONN_DATA_MAX_SIZE);
 
-#endif
+    bpfbuf_submit(ctx, &conn_tracker_events, conn_data, sizeof(struct conn_data_msg_s) + copied_size & CONN_DATA_MAX_SIZE);
     return;
 }
 
 static __always_inline __maybe_unused struct conn_data_s* store_conn_data_buf(enum l7_direction_t direction, struct sock_conn_s* sock_conn)
 {
-    int key = 0;
-    struct conn_data_s* conn_data = bpf_map_lookup_elem(&conn_data_buffer, &key);
+    struct conn_data_s* conn_data = bpfbuf_reserve(&conn_tracker_events, sizeof(struct conn_data_s));
 
     if (conn_data == NULL) {
         return NULL;
@@ -204,15 +180,10 @@ static __always_inline __maybe_unused void submit_sock_conn_stats(void *ctx, str
         return;
     }
 
-#ifdef __USE_RING_BUF
-    struct conn_stats_s *e = bpf_ringbuf_reserve(&conn_tracker_events, sizeof(struct conn_stats_s), 0);
+    struct conn_stats_s* e = bpfbuf_reserve(&conn_tracker_events, sizeof(struct conn_stats_s));
     if (!e) {
         return;
     }
-#else
-    struct conn_stats_s evt = {0};
-    struct conn_stats_s *e = &evt;
-#endif
 
     e->evt = TRACKER_EVT_STATS;
     e->timestamp_ns = bpf_ktime_get_ns();
@@ -221,39 +192,44 @@ static __always_inline __maybe_unused void submit_sock_conn_stats(void *ctx, str
     e->rd_bytes = sock_conn->rd_bytes;
 
     // submit conn stats event.
-#ifdef __USE_RING_BUF
-    bpf_ringbuf_submit(e, 0);
-#else
-    (void)bpf_perf_event_output(ctx, &conn_tracker_events, BPF_F_CURRENT_CPU, e, sizeof(struct conn_stats_s));
-#endif
+    bpfbuf_submit(ctx, &conn_tracker_events, e, sizeof(struct conn_stats_s));
     return;
 }
 
 static __always_inline __maybe_unused void submit_conn_data(void* ctx, struct sock_data_args_s* args,
-                                    struct conn_data_s* conn_data, size_t bytes_count)
+                                        size_t bytes_count, enum l7_direction_t direction, struct sock_conn_s* sock_conn)
 {
     int i;
     int bytes_sent = 0, bytes_remaining = 0, bytes_truncated = 0;
 
+    struct conn_data_s* conn_data;
+
     if (args->buf) {
         #pragma unroll
         for (i = 0; i < LOOP_LIMIT; ++i) {
+            conn_data = store_conn_data_buf(direction, sock_conn);
+            if (conn_data == NULL) {
+                return;
+            }
             bytes_remaining = (int)bytes_count - bytes_sent;
             bytes_truncated = (bytes_remaining > CONN_DATA_MAX_SIZE && (i != LOOP_LIMIT - 1)) ? CONN_DATA_MAX_SIZE : bytes_remaining;
             if (bytes_truncated <= 0) {
                 return;
             }
             // summit perf buf
+            conn_data->msg.offset_pos = (u64)(bytes_truncated + bytes_sent);
             submit_perf_buf(ctx, args->buf + bytes_sent, (size_t)bytes_truncated, conn_data);
             bytes_sent += bytes_truncated;
-
-            conn_data->msg.offset_pos += (u64)bytes_truncated;
         }
     } else if (args->iov) {
         #pragma unroll
         for (i = 0; i < LOOP_LIMIT && i < args->iovlen && bytes_sent < bytes_count; ++i) {
             struct iovec iov_cpy = {0};
-            bpf_probe_read(&iov_cpy, sizeof(iov_cpy), &args->iov[i]);
+            conn_data = store_conn_data_buf(direction, sock_conn);
+            if (conn_data == NULL) {
+                return;
+            }
+            bpf_core_read(&iov_cpy, sizeof(iov_cpy), &args->iov[i]);
             bytes_remaining = (int)bytes_count - bytes_sent;
             if (bytes_truncated <= 0) {
                 return;
@@ -261,10 +237,9 @@ static __always_inline __maybe_unused void submit_conn_data(void* ctx, struct so
             size_t iov_len = min(iov_cpy.iov_len, (size_t)bytes_remaining);
 
             // summit perf buf
+            conn_data->msg.offset_pos = (u64)(iov_len + bytes_sent);
             submit_perf_buf(ctx, (char *)iov_cpy.iov_base, iov_len, conn_data);
             bytes_sent += iov_len;
-
-            conn_data->msg.offset_pos += (u64)iov_len;
         }
     }
 }
@@ -275,7 +250,7 @@ static __always_inline __maybe_unused char *read_from_buf_ptr(char* buf)
     char *buffer = bpf_map_lookup_elem(&l7_data_buffer, &key);
     if (!buffer)
         return NULL;
-    bpf_probe_read_str(buffer, L7_DATA_BUFFER_MAXSIZE, buf);
+    bpf_core_read_str(buffer, L7_DATA_BUFFER_MAXSIZE, buf);
     return buffer;
 }
 
@@ -297,7 +272,7 @@ static __always_inline __maybe_unused void submit_sock_data(void *ctx, struct so
         }
     } else if (args->iov) {
         struct iovec iov_cpy = {0};
-        bpf_probe_read(&iov_cpy, sizeof(iov_cpy), &args->iov[0]);
+        bpf_core_read(&iov_cpy, sizeof(iov_cpy), &args->iov[0]);
         buffer = read_from_buf_ptr((char *)iov_cpy.iov_base);
         if (!buffer) {
             return;
@@ -310,13 +285,7 @@ static __always_inline __maybe_unused void submit_sock_data(void *ctx, struct so
         return;
     }
 
-    struct conn_data_s* conn_data;
-    conn_data = store_conn_data_buf(direction, sock_conn);
-    if (conn_data == NULL) {
-        return;
-    }
-
-    submit_conn_data(ctx, args, conn_data, bytes_count);
+    submit_conn_data(ctx, args, bytes_count, direction, sock_conn);
 
     submit_sock_conn_stats(ctx, sock_conn, direction, bytes_count);
 

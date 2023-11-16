@@ -9437,6 +9437,7 @@ struct sock {
 	u8 sk_userlocks: 4;
 	u8 sk_pacing_shift;
 	u16 sk_type;
+	u16 __sk_flags_offset;
 	u16 sk_protocol;
 	u16 sk_gso_max_segs;
 	long unsigned int sk_lingertime;

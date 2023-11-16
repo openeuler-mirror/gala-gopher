@@ -19,18 +19,6 @@
 
 #include "include/l7.h"
 
-#if ((CURRENT_KERNEL_VERSION  >= KERNEL_VERSION(5, 10, 0)) && (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(1, 0)))
-#define __USE_RING_BUF
-#endif
-
-#ifdef __USE_RING_BUF
-#define GOPHER_BPF_MAP_TYPE_PERF   BPF_MAP_TYPE_RINGBUF
-#define GOPHER_BPF_PERF_MAP_MAX_ENTRIES   (64 * 1024)
-#else
-#define GOPHER_BPF_MAP_TYPE_PERF   BPF_MAP_TYPE_PERF_EVENT_ARRAY
-#define GOPHER_BPF_PERF_MAP_MAX_ENTRIES   64
-#endif
-
 #define L7_CONN_BPF_PATH          "/sys/fs/bpf/gala-gopher/__l7_connect"
 
 enum l4_role_t {
