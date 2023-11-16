@@ -1751,7 +1751,10 @@ static void *__running(void *arg)
     struct perf_buffer *pb = get_pb(g_st, svg_st);
 
     // Read raw stack-trace data from current data channel.
-    while ((pb != NULL) && (ret = perf_buffer__poll(pb, 0)) >= 0) {
+    while (pb != NULL) {
+        if ((ret = perf_buffer__poll(pb, 0)) < 0 && ret != -EINTR) {
+            break;
+        }
         if (g_stop) {
             break;
         }

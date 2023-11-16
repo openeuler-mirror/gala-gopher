@@ -148,12 +148,12 @@ int main(int argc, char **argv)
         }
 
         if (syscall_bpf_progs && syscall_bpf_progs->pb != NULL) {
-            if (perf_buffer__poll(syscall_bpf_progs->pb, THOUSAND) < 0) {
+            if ((err = perf_buffer__poll(syscall_bpf_progs->pb, THOUSAND)) < 0 && err != -EINTR) {
                 goto cleanup;
             }
         }
         if (oncpu_bpf_progs && oncpu_bpf_progs->pb != NULL) {
-            if (perf_buffer__poll(oncpu_bpf_progs->pb, THOUSAND) < 0) {
+            if ((err = perf_buffer__poll(oncpu_bpf_progs->pb, THOUSAND)) < 0 && err != -EINTR) {
                 goto cleanup;
             }
         }

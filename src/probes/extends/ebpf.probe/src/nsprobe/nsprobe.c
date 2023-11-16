@@ -215,7 +215,7 @@ int main(int argc, char **argv)
         if ((err = perf_buffer__poll(qdisc_pb, THOUSAND)) < 0) {
             break;
         }
-        if (tc_load && ((err = perf_buffer__poll(tc_pb, THOUSAND)) < 0)) {
+        if (tc_load && ((err = perf_buffer__poll(tc_pb, THOUSAND)) < 0) && err != -EINTR) {
             break;
         }
         output_containers_metrics(&head);

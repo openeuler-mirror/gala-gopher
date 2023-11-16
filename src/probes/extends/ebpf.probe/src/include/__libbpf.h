@@ -30,6 +30,10 @@
 
 #define EBPF_RLIM_LIMITED  100*1024*1024 // 100M
 #define EBPF_RLIM_INFINITY (~0UL)
+#ifndef EINTR
+#define EINTR 4
+#endif
+
 static __always_inline int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
     if (level == LIBBPF_WARN)
@@ -430,7 +434,7 @@ static __always_inline __maybe_unused void poll_pb(struct perf_buffer *pb, int t
 {
     int ret;
 
-    while ((ret = perf_buffer__poll(pb, timeout_ms)) >= 0) {
+    while ((ret = perf_buffer__poll(pb, timeout_ms)) >= 0 || ret == -EINTR) {
         ;
     }
     return;
