@@ -9,6 +9,22 @@ SHARED_LIB_LIST=`find ${SHARED_LIB_FOLDER} -name "*.so"`
 JVM_ATTACH_BIN=${PROJECT_FOLDER}/src/lib/jvm/jvm_attach
 TAILOR_PATH=${PROJECT_FOLDER}/tailor.conf
 TAILOR_PATH_TMP=${TAILOR_PATH}.tmp
+BTF_CACHE=${PROJECT_FOLDER}/.cache
+BTF_DIR=${PROJECT_FOLDER}/btf
+
+function __create_btf_cache()
+{
+    rm -rf ${BTF_CACHE}
+    mkdir -p ${BTF_CACHE}
+    ARCH=$(uname -m)
+    find ${BTF_DIR} -name "*"${ARCH}"*.btf.tar.xz" | xargs -n1 tar -xf
+    find ./ -name "*.btf" | xargs mv -t ${BTF_CACHE}
+}
+
+function __delete_btf_cache()
+{
+    rm -rf ${BTF_CACHE}
+}
 
 function load_tailor()
 {
@@ -119,8 +135,35 @@ function install_meta()
     do
         cp ${file} ${GOPHER_META_DIR}
     done
-    echo "install meta file success."
 
+    echo "install meta file success."
+}
+
+function install_btf()
+{
+    GOPHER_BTF_DIR=/opt/gala-gopher/btf
+
+    __create_btf_cache
+
+    if [ $# -eq 1 ]; then
+        GOPHER_BTF_DIR=$1/btf
+    fi
+
+    rm -rf ${GOPHER_BTF_DIR}/*.btf
+
+    cd ${PROJECT_FOLDER}
+
+    # install btf files
+    if [ ! -d ${GOPHER_BTF_DIR} ]; then
+        mkdir -p ${GOPHER_BTF_DIR}
+    fi
+    BTF_FILES=`find ${BTF_CACHE} -name "*.btf"`
+    for file in ${BTF_FILES}
+    do
+        cp ${file} ${GOPHER_BTF_DIR}
+    done
+    __delete_btf_cache
+    echo "install btf files success."
 }
 
 function install_shared_lib()
@@ -223,3 +266,4 @@ install_shared_lib $2
 install_extend_probes $2 $3
 install_client_bin $1
 install_script $4
+install_btf $5

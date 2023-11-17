@@ -111,7 +111,7 @@ install -d %{buildroot}/usr/libexec/gala-gopher/
 mkdir -p  %{buildroot}/usr/lib/systemd/system
 install -m 0600 service/gala-gopher.service %{buildroot}/usr/lib/systemd/system/gala-gopher.service
 pushd build
-sh install.sh %{buildroot}%{_bindir} %{buildroot}/opt/gala-gopher %{buildroot}/etc/gala-gopher %{buildroot}/usr/libexec/gala-gopher/
+sh install.sh %{buildroot}%{_bindir} %{buildroot}/opt/gala-gopher %{buildroot}/etc/gala-gopher %{buildroot}/usr/libexec/gala-gopher/ %{buildroot}/opt/gala-gopher
 popd
 
 %post
@@ -138,10 +138,12 @@ fi
 %attr(0750,root,root) %dir /opt/gala-gopher
 %attr(0550,root,root) %dir /opt/gala-gopher/extend_probes
 %attr(0750,root,root) %dir /opt/gala-gopher/meta
+%attr(0750,root,root) %dir /opt/gala-gopher/btf
 %attr(0550,root,root) %dir /opt/gala-gopher/lib
 %attr(0550,root,root) %{_bindir}/*
 %attr(0550,root,root) /opt/gala-gopher/extend_probes/*
 %attr(0640,root,root) /opt/gala-gopher/meta/*
+%attr(0640,root,root) /opt/gala-gopher/btf/*
 %attr(0550,root,root) /opt/gala-gopher/lib/*
 %attr(0640,root,root) /etc/gala-gopher/res/event_multy_language.rc
 %attr(0640,root,root) %config(noreplace) /etc/gala-gopher/probes.init

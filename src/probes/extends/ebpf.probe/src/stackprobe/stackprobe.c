@@ -1086,7 +1086,7 @@ static void destroy_svg_stack_trace(struct svg_stack_trace_s **ptr_svg_st)
     }
 
     if (svg_st->custom_btf_path) {
-        clean_core_btf_rs(svg_st->custom_btf_path);
+        free((char *)svg_st->custom_btf_path);
         svg_st->custom_btf_path = NULL;
     }
 

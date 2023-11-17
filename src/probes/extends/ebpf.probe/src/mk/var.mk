@@ -11,9 +11,6 @@ INCLUDE_DIR ?= $(ROOT_DIR)/../include
 LIBBPF_DIR = $(ROOT_DIR)/../.output
 LIBELF_DIR = /usr/include/libelf
 GOPHER_COMMON_DIR = $(ROOT_DIR)/../../../../../common
-BPF_COMPATIBLE_DIR = $(ROOT_DIR)/../../../../../../third_party/bpf-compatible
-BTFHUB_CACHE_DIR = $(ROOT_DIR)/../../../../../../.cache
-BTFHUB_SRC_DIR = $(ROOT_DIR)../../../../../../btf
 
 LIB_DIR ?= $(ROOT_DIR)../lib
 CFILES ?= $(wildcard $(LIB_DIR)/*.c)
@@ -54,19 +51,9 @@ ifeq ($(wildcard $(BPFTOOL)), )
     else ln -s bpftool_${ARCH} bpftool; fi; )
 endif
 
-ifeq ($(wildcard $(BPF_COMPATIBLE_DIR)/lib/libbpf_compatible.a),)
-    $(shell ln -s $(BPF_COMPATIBLE_DIR)/lib/libbpf_compatible.a.$(ARCH) $(BPF_COMPATIBLE_DIR)/lib/libbpf_compatible.a)
-endif
-
 BTF_ENABLE = $(shell if [ -n "$(BTF_ENABLE_OVERRIDE)" ]; then echo "$(BTF_ENABLE_OVERRIDE)"; elif [ -f /sys/kernel/btf/vmlinux ]; then echo "ON" ; else echo "OFF"; fi)
 
-BTFHUB_REPO := https://gitee.com/openeuler/btfhub-archive.git
-BTFHUB_CACHE := $(abspath $(BTFHUB_CACHE_DIR))
-BTFGEN := $(BPF_COMPATIBLE_DIR)/bin/btfgen
-
-$(shell if [ ! -d "$(BTFHUB_CACHE_DIR)" ]; then mkdir -p "$(BTFHUB_CACHE_DIR)" && find "$(BTFHUB_SRC_DIR)" -name "*""$(ARCH)""*.btf.tar.xz" | xargs cp -t "$(BTFHUB_CACHE_DIR)"; fi)
-
-LINK_TARGET ?= -lpthread -lbpf -lelf -llog4cplus -lz -lconfig -ljsoncpp -lbpf_compatible
+LINK_TARGET ?= -lpthread -lbpf -lelf -llog4cplus -lz -lconfig -ljsoncpp
 EXTRA_CFLAGS ?= -g -O2 -Wall -fPIC -std=gnu11
 EXTRA_CDEFINE ?= -D__TARGET_ARCH_$(TYPE)
 EXTRA_CDEFINE += -D__BTF_ENABLE_$(BTF_ENABLE)
@@ -75,7 +62,7 @@ CFLAGS := $(EXTRA_CFLAGS) $(EXTRA_CDEFINE)
 CFLAGS += -DKER_VER_MAJOR=$(KER_VER_MAJOR) -DKER_VER_MINOR=$(KER_VER_MINOR) -DKER_VER_PATCH=$(KER_VER_PATCH)
 CFLAGS += -DKER_RELEASE=$(KER_RELEASE)
 CFLAGS += -DLIBBPF_VER_MAJOR=$(LIBBPF_VER_MAJOR) -DLIBBPF_VER_MINOR=$(LIBBPF_VER_MINOR)
-LDFLAGS += -Wl,--copy-dt-needed-entries -Wl,-z,relro,-z,now -L$(BPF_COMPATIBLE_DIR)/lib
+LDFLAGS += -Wl,--copy-dt-needed-entries -Wl,-z,relro,-z,now
 
 CXXFLAGS += -std=c++11 -g -O2 -Wall -fPIC
 C++ = g++
@@ -88,5 +75,4 @@ BASE_INC := -I/usr/include \
             -I$(ROOT_DIR)../include \
             -I$(GOPHER_COMMON_DIR) \
             -I$(LIBBPF_DIR) \
-            -I$(LIBELF_DIR) \
-            -I$(BPF_COMPATIBLE_DIR)/include
+            -I$(LIBELF_DIR)
