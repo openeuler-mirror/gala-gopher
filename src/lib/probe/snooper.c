@@ -942,7 +942,7 @@ static int __read_proc_cmdline(const char *dir_name, char *cmdline, u32 size)
             }
         } else if (cmdline[index] == '\0') {
             cmdline[index] = ' ';
-        } else if (cmdline[index] == EOF) {
+        } else if ((unsigned char)cmdline[index] == (unsigned char)EOF) {
             cmdline[index] = '\0';
         }
         index++;

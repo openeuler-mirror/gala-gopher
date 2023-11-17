@@ -430,7 +430,7 @@ int get_proc_cmdline(u32 pid, char *buf, u32 buf_len)
             }
         } else if (buf[index] == '\0') {
             buf[index] = ' ';
-        } else if (buf[index] == EOF) {
+        } else if ((unsigned char)buf[index] == (unsigned char)EOF) {
             buf[index] = '\0';
         }
         index++;
