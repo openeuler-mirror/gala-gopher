@@ -225,7 +225,7 @@ void aging_udp_socks(struct endpoint_probe_s *probe)
 }
 
 static struct tcp_socket_s* lkup_tcp_socket(struct endpoint_probe_s *probe, const struct tcp_socket_id_s *id)
-{
+{
     struct tcp_socket_s* tcp = NULL;
 
     H_FIND(probe->tcps, id, sizeof(struct tcp_socket_id_s), tcp);
@@ -233,7 +233,7 @@ static struct tcp_socket_s* lkup_tcp_socket(struct endpoint_probe_s *probe, cons
 }
 
 static struct udp_socket_s* lkup_udp_socket(struct endpoint_probe_s *probe, const struct udp_socket_id_s *id)
-{
+{
     struct udp_socket_s* udp = NULL;
 
     H_FIND(probe->udps, id, sizeof(struct udp_socket_id_s), udp);
@@ -709,7 +709,7 @@ static int poll_endpoint_pb(struct endpoint_probe_s *probe)
     for (int i = 0; i < prog->num && i < SKEL_MAX_NUM; i++) {
         if (prog->pbs[i]) {
             ret = perf_buffer__poll(prog->pbs[i], THOUSAND);
-            if (ret < 0) {
+            if (ret < 0  && ret != -EINTR) {
                 return ret;
             }
         }

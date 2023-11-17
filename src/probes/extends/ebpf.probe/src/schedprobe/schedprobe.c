@@ -386,7 +386,7 @@ int main(int argc, char **argv)
         }
 
         if (probe.sched_prog->pb != NULL) {
-            if (perf_buffer__poll(probe.sched_prog->pb, THOUSAND) < 0) {
+            if (perf_buffer__poll(probe.sched_prog->pb, THOUSAND) < 0 && ret != -EINTR) {
                 goto err;
             }
         }

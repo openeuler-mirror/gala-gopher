@@ -209,7 +209,7 @@ static int perf_poll(struct task_probe_s *task_probe)
 
     if (task_probe->proc_bpf_progs && task_probe->proc_bpf_progs->pb != NULL) {
         ebpf_installed = 1;
-        if ((ret = perf_buffer__poll(task_probe->proc_bpf_progs->pb, THOUSAND)) < 0) {
+        if ((ret = perf_buffer__poll(task_probe->proc_bpf_progs->pb, THOUSAND)) < 0 && ret != -EINTR) {
             err = -1;
             goto end;
         }
@@ -224,7 +224,7 @@ static int perf_poll(struct task_probe_s *task_probe)
             break;
         }
         ebpf_installed = 1;
-        if ((ret = perf_buffer__poll(task_probe->glibc_bpf_progs[i].prog->pb, THOUSAND)) < 0) {
+        if ((ret = perf_buffer__poll(task_probe->glibc_bpf_progs[i].prog->pb, THOUSAND)) < 0 && ret != -EINTR) {
             err = -1;
             goto end;
         }

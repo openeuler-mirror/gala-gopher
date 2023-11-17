@@ -332,7 +332,7 @@ static int __poll_l7_pb(struct bpf_prog_s* prog)
     for (int i = 0; i < prog->num && i < SKEL_MAX_NUM; i++) {
         if (prog->pbs[i]) {
             ret = perf_buffer__poll(prog->pbs[i], THOUSAND);
-            if (ret < 0) {
+            if (ret < 0 && ret != -EINTR) {
                 return ret;
             }
         }
