@@ -358,14 +358,9 @@ static int poll_l7_pb(struct l7_ebpf_prog_s* ebpf_progs)
 static void save_filter_proto(int fd, u32 proto)
 {
     u32 key = 0;
-    struct filter_args_s args;
+    struct filter_args_s args = {0};
 
-    int ret = bpf_map_lookup_elem(fd, &key, &args);
-
-    if (!ret) {
-        return ;
-    }
-
+    (void)bpf_map_lookup_elem(fd, &key, &args);
     args.proto_flags = proto;
     (void)bpf_map_update_elem(fd, &key, &args, BPF_ANY);
 }
@@ -414,9 +409,8 @@ int main(int argc, char **argv)
 
             // IPC_FLAGS_PARAMS_CHG || IPC_FLAGS_SNOOPER_CHG
             unload_libssl_prog(l7_mng);
-            //MRC: Work around for disabling the ssl lookup failure during start up. 
-            if (l7_mng->filter_args.is_support_ssl)
-            {
+            //MRC: Work around for disabling the ssl lookup failure during start up.
+            if (ipc_body.probe_param.support_ssl) {
                 ret = load_libssl_prog(l7_mng, &ipc_body);
                 if (ret) {
                     destroy_ipc_body(&ipc_body);
@@ -436,9 +430,11 @@ int main(int argc, char **argv)
             load_l7_snoopers(l7_mng->bpf_progs.proc_obj_map_fd, &(l7_mng->ipc_body));
             destroy_unprobed_trackers_links(l7_mng);
 
-            if (l7_load_probe_jsse(l7_mng) < 0) {
-                destroy_ipc_body(&ipc_body);
-                break;
+            if (l7_mng->ipc_body.probe_param.support_ssl) {
+                if (l7_load_probe_jsse(l7_mng) < 0) {
+                    destroy_ipc_body(&ipc_body);
+                    break;
+                }
             }
 
             is_load_prog = 1;
