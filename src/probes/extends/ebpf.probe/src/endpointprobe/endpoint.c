@@ -731,7 +731,7 @@ static int poll_endpoint_pb(struct endpoint_probe_s *probe)
     for (int i = 0; i < prog->num && i < SKEL_MAX_NUM; i++) {
         if (prog->buffers[i]) {
             ret = bpf_buffer__poll(prog->buffers[i], THOUSAND);
-            if (ret < 0) {
+            if (ret < 0 && ret != -EINTR) {
                 return ret;
             }
         }

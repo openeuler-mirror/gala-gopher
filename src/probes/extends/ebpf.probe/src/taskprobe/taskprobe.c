@@ -209,11 +209,11 @@ static int perf_poll(struct task_probe_s *task_probe)
 
     for (int i = 0; i < task_probe->proc_bpf_progs->num && i < SKEL_MAX_NUM; i++) {
         ebpf_installed = 1;
-        if (task_probe->proc_bpf_progs->buffers[i] && ((err = bpf_buffer__poll(task_probe->proc_bpf_progs->buffers[i], THOUSAND)) < 0)) {
-            if (err != -EINTR) {
+        if (task_probe->proc_bpf_progs->buffers[i]) {
+            if ((err = bpf_buffer__poll(task_probe->proc_bpf_progs->buffers[i], THOUSAND)) < 0 && err != -EINTR) {
                 ERROR("[TASKPROBE]: perf poll prog_%d failed.\n", i);
+                break;
             }
-            break;
         }
     }
 
@@ -226,7 +226,7 @@ static int perf_poll(struct task_probe_s *task_probe)
             break;
         }
         ebpf_installed = 1;
-        if ((ret = bpf_buffer__poll(task_probe->glibc_bpf_progs[i].prog->buffer, THOUSAND)) < 0) {
+        if ((ret = bpf_buffer__poll(task_probe->glibc_bpf_progs[i].prog->buffer, THOUSAND)) < 0 && ret != -EINTR) {
             err = -1;
             goto end;
         }
