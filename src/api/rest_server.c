@@ -230,6 +230,10 @@ static MHD_Result RestPostIterator(void *cls, enum MHD_ValueKind kind, const cha
             request->post_data = post_data;
         }
 
+        if (size == 0) {
+            return MHD_YES;
+        }
+
         if (strlen(request->post_data) + size > POST_BUFFER_SIZE) {
             request->data_broken = 1;
             PARSE_ERR("post data size exceeds %d", POST_BUFFER_SIZE);
@@ -359,12 +363,16 @@ static void RestRequestCompleted(void *cls, struct MHD_Connection *connection,
         return;
     }
 
-    if (request->post_data) {
-        free(request->post_data);
-    }
     if (request->postprocessor) {
         MHD_destroy_post_processor(request->postprocessor);
+        request->postprocessor = NULL;
     }
+
+    if (request->post_data) {
+        free(request->post_data);
+        request->post_data = NULL;
+    }
+
     free(request);
     *con_cls = NULL;
 }
