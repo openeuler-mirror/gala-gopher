@@ -26,7 +26,7 @@
 #define POST_DATA_KEY          "json"
 #define REST_RESPONSE_LEN_MAX  128
 #define ITER_BUFFER_SIZE       512
-#define POST_BUFFER_SIZE       2048   // max post data size
+#define POST_BUFFER_SIZE       (1024 * 1024)   // max post data size
 
 static char *keyPem;
 static char *certPem;
