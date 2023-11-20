@@ -366,6 +366,21 @@ static int poll_l7_pb(struct l7_ebpf_prog_s* ebpf_progs)
     return 0;
 }
 
+static void save_filter_proto(int fd, u32 proto)
+{
+    u32 key = 0;
+    struct filter_args_s args;
+
+    int ret = bpf_map_lookup_elem(fd, &key, &args);
+
+    if (!ret) {
+        return ;
+    }
+
+    args.proto_flags = proto;
+    (void)bpf_map_update_elem(fd, &key, &args, BPF_ANY);
+}
+
 int main(int argc, char **argv)
 {
     int ret = 0, is_load_prog = 0;
@@ -423,6 +438,8 @@ int main(int argc, char **argv)
             l7_unload_probe_jsse(l7_mng);
             unload_l7_snoopers(l7_mng->bpf_progs.proc_obj_map_fd, &(l7_mng->ipc_body));
             destroy_ipc_body(&(l7_mng->ipc_body));
+
+            save_filter_proto(l7_mng->bpf_progs.filter_args_fd, ipc_body.probe_param.l7_probe_proto_flags);
 
             (void)memcpy(&(l7_mng->ipc_body), &ipc_body, sizeof(ipc_body));
             l7_unload_tcp_fd(l7_mng);

@@ -711,9 +711,16 @@ static void report_l7_stats(struct l7_mng_s *l7_mng)
 {
     struct l7_link_s *link, *tmp;
 
+    u32 probe_range_flags = l7_mng->ipc_body.probe_range_flags;
+
     H_ITER(l7_mng->l7_links, link, tmp) {
-        report_l7_link(link);
-        report_l7_rpc(link);
+        if(probe_range_flags & PROBE_RANGE_L7BYTES_METRICS) {
+            report_l7_link(link);
+        }
+
+        if(probe_range_flags & PROBE_RANGE_L7RPC_METRICS) {
+            report_l7_rpc(link);
+        }
     }
 
     return;
