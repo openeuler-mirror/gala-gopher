@@ -1800,7 +1800,10 @@ static void *__running(void *arg)
 
     // Read raw stack-trace data from current data channel.
 
-    while ((buffer != NULL) && (ret = bpf_buffer__poll(buffer, THOUSAND)) >= 0) {
+    while (buffer != NULL) {
+        if ((ret = bpf_buffer__poll(buffer, 0)) < 0 && ret != -EINTR) {
+            break;
+        }
         if (g_stop) {
             break;
         }

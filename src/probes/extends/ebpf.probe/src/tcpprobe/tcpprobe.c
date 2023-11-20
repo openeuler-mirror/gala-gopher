@@ -291,10 +291,10 @@ int main(int argc, char **argv)
             }
 
             for (int i = 0; i < tcp_mng->tcp_progs->num && i < SKEL_MAX_NUM; i++) {
-                if (tcp_mng->tcp_progs->buffers[i] && ((err = bpf_buffer__poll(tcp_mng->tcp_progs->buffers[i], THOUSAND)) < 0)) {
-                    if (err != -EINTR) {
-                        ERROR("[TCPPROBE]: perf poll prog_%d failed.\n", i);
-                    }
+                if (tcp_mng->tcp_progs->buffers[i]
+                    && ((err = bpf_buffer__poll(tcp_mng->tcp_progs->buffers[i], THOUSAND)) < 0)
+                    && err != -EINTR) {
+                    ERROR("[TCPPROBE]: perf poll prog_%d failed.\n", i);
                     break;
                 }
             }

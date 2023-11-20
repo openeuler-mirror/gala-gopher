@@ -45,18 +45,19 @@
 #define NIC_FAUILURE_CHANNEL_PTAH "/sys/fs/bpf/gala-gopher/__hw_nic_failure_channel_map"
 #define RM_NIC_PATH              "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__hw*"
 
-#define __LOAD_NIC_PROBE(probe_name, end, load) \
-    OPEN(probe_name, end, load); \
+#define __OPEN_NIC_PROBE(probe_name, end, load) \
+    INIT_OPEN_OPTS(probe_name); \
+    PREPARE_CUSTOM_BTF(probe_name); \
+    OPEN_OPTS(probe_name, end, load); \
     MAP_SET_PIN_PATH(probe_name, hw_args_map, HW_ARGS_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, nic_failure_channel_map, NIC_FAUILURE_CHANNEL_PTAH, load); \
-    LOAD_ATTACH(hwprobe, probe_name, end, load)
+    MAP_SET_PIN_PATH(probe_name, nic_failure_channel_map, NIC_FAUILURE_CHANNEL_PTAH, load);
 
-#define __LOAD_MEM_PROBE(probe_name, end, load) \
-    OPEN(probe_name, end, load); \
+#define __OPEN_MEM_PROBE(probe_name, end, load) \
+    INIT_OPEN_OPTS(probe_name); \
+    PREPARE_CUSTOM_BTF(probe_name); \
+    OPEN_OPTS(probe_name, end, load); \
     MAP_SET_PIN_PATH(probe_name, hw_args_map, HW_ARGS_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, mc_event_channel_map, MC_EVENT_CHANNEL_PTAH, load); \
-    LOAD_ATTACH(hwprobe, probe_name, end, load)
-
+    MAP_SET_PIN_PATH(probe_name, mc_event_channel_map, MC_EVENT_CHANNEL_PTAH, load);
 
 static volatile sig_atomic_t g_stop = 0;
 static int hw_args_fd = -1;
@@ -100,7 +101,7 @@ static void __build_entity_id(char *dev, char *deriver, char *buf, int buf_len)
     (void)snprintf(buf, buf_len, "%s_%s", dev, deriver);
 }
 
-static void rcv_nic_failure(void *ctx, int cpu, void *data, __u32 size)
+static int rcv_nic_failure(void *ctx, void *data, __u32 size)
 {
     struct nic_failure_s *nic_failure = data;
     char entityId[__ENTITY_ID_LEN];
@@ -133,9 +134,10 @@ static void rcv_nic_failure(void *ctx, int cpu, void *data, __u32 size)
 
         (void)fflush(stdout);
     }
+    return 0;
 }
 
-static void rcv_mem_mc_event(void *ctx, int cpu, void *data, __u32 size)
+static int rcv_mem_mc_event(void *ctx, void *data, __u32 size)
 {
     struct mc_event_s *mc_event = data;
 
@@ -150,73 +152,97 @@ static void rcv_mem_mc_event(void *ctx, int cpu, void *data, __u32 size)
         mc_event->error_count);
 
     (void)fflush(stdout);
+    return 0;
 }
 
 static int load_nic_probe(struct bpf_prog_s *prog, char nic_prob)
 {
-    int fd;
-    struct perf_buffer * pb = NULL;
+    int ret;
+    struct bpf_buffer *buffer = NULL;
 
     if (nic_prob == 0) {
         return 0;
     }
 
-    __LOAD_NIC_PROBE(nic, err, 1);
-    prog->skels[prog->num].skel = nic_skel;
-    prog->skels[prog->num].fn = (skel_destroy_fn)nic_bpf__destroy;
+    __OPEN_NIC_PROBE(nic, err, 1);
 
-    fd = GET_MAP_FD(nic, nic_failure_channel_map);
-    pb = create_pref_buffer(fd, rcv_nic_failure);
-    if (pb == NULL) {
-        ERROR("[HWPROBE] Create 'nic' perf buffer failed.\n");
+    int kern_ver = probe_kernel_version();
+    PROG_ENABLE_ONLY_IF(nic, bpf_raw_trace_net_dev_xmit_timeout, kern_ver >= KERNEL_VERSION(5, 2, 0));
+
+    LOAD_ATTACH(hwprobe, nic, err, 1);
+
+    buffer = bpf_buffer__new(nic_skel->maps.nic_failure_channel_map, nic_skel->maps.heap);
+    if (buffer == NULL) {
         goto err;
     }
-
-    prog->pbs[prog->num] = pb;
-    prog->num++;
+    ret = bpf_buffer__open(buffer, rcv_nic_failure, NULL, NULL);
+    if (ret) {
+        ERROR("[HWPROBE] Open 'nic_failure_channel_map' bpf_buffer failed.\n");
+        bpf_buffer__free(buffer);
+        goto err;
+    }
+    prog->buffers[prog->num] = buffer;
 
     if (hw_args_fd < 0) {
         hw_args_fd = GET_MAP_FD(nic, hw_args_map);
     }
+    prog->skels[prog->num].skel = nic_skel;
+    prog->skels[prog->num].fn = (skel_destroy_fn)nic_bpf__destroy;
+    prog->custom_btf_paths[prog->num] = nic_open_opts.btf_custom_path;
+    prog->num++;
 
     return 0;
 
 err:
     UNLOAD(nic);
+    CLEANUP_CUSTOM_BTF(nic);
     return -1;
 }
 
 static int load_mem_probe(struct bpf_prog_s *prog, char mem_probe)
 {
-    int fd;
-    struct perf_buffer *pb = NULL;
+    int ret;
+    struct bpf_buffer *buffer = NULL;
 
     if (mem_probe == 0) {
         return 0;
     }
 
-    __LOAD_MEM_PROBE(mem, err, 1);
-    prog->skels[prog->num].skel = mem_skel;
-    prog->skels[prog->num].fn = (skel_destroy_fn)mem_bpf__destroy;
+    __OPEN_MEM_PROBE(mem, err, 1);
 
-    fd = GET_MAP_FD(mem, mc_event_channel_map);
-    pb = create_pref_buffer(fd, rcv_mem_mc_event);
-    if (pb == NULL) {
-        ERROR("[HWPROBE] Create 'mem_mc_event' perf buffer failed.\n");
+    int kern_ver = probe_kernel_version();
+    int attach_tp = kern_ver > KERNEL_VERSION(4, 18, 0);
+    PROG_ENABLE_ONLY_IF(mem, bpf_raw_trace_mc_event, attach_tp);
+    PROG_ENABLE_ONLY_IF(mem, bpf_trace_mc_event_func, !attach_tp);
+
+    LOAD_ATTACH(hwprobe, mem, err, 1);
+
+    buffer = bpf_buffer__new(mem_skel->maps.mc_event_channel_map, mem_skel->maps.heap);
+    if (buffer == NULL) {
         goto err;
     }
-
-    prog->pbs[prog->num] = pb;
-    prog->num++;
+    ret = bpf_buffer__open(buffer, rcv_mem_mc_event, NULL, NULL);
+    if (ret) {
+        ERROR("[HWPROBE] Open 'mc_event_channel_map' bpf_buffer failed.\n");
+        bpf_buffer__free(buffer);
+        goto err;
+    }
+    prog->buffers[prog->num] = buffer;
 
     if (hw_args_fd < 0) {
         hw_args_fd = GET_MAP_FD(mem, hw_args_map);
     }
 
+    prog->skels[prog->num].skel = mem_skel;
+    prog->skels[prog->num].fn = (skel_destroy_fn)mem_bpf__destroy;
+    prog->custom_btf_paths[prog->num] = mem_open_opts.btf_custom_path;
+    prog->num++;
+
     return 0;
 
 err:
     UNLOAD(mem);
+    CLEANUP_CUSTOM_BTF(mem);
     return -1;
 }
 
@@ -321,10 +347,10 @@ int main(int argc, char **argv)
         }
 
         for (int i = 0; i < g_bpf_prog->num; i++) {
-            if (g_bpf_prog->pbs[i] && ((ret = perf_buffer__poll(g_bpf_prog->pbs[i], THOUSAND)) < 0)) {
-                if (ret != -EINTR) {
-                    ERROR("[HWPROBE]: perf poll prog_%d failed.\n", i);
-                }
+            if (g_bpf_prog->buffers[i]
+                && ((ret = bpf_buffer__poll(g_bpf_prog->buffers[i], THOUSAND)) < 0)
+                && ret != -EINTR) {
+                ERROR("[HWPROBE]: perf poll prog_%d failed.\n", i);
                 break;
             }
         }

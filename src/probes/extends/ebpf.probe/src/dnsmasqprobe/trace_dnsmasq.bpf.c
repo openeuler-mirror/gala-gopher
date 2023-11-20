@@ -39,17 +39,17 @@ UPROBE(send_from, pt_regs)
     source_p = (union all_addr *)PT_REGS_PARM6(ctx);
 
     /* ip address */
-    bpf_probe_read_user(&key.family, sizeof(short), &to_p->sa.sa_family);
+    bpf_core_read_user(&key.family, sizeof(short), &to_p->sa.sa_family);
     switch (key.family) {
         case AF_INET:
-            bpf_probe_read_user(&key.c_addr.ip4, sizeof(int), &to_p->in.sin4_addr);
-            bpf_probe_read_user(&key.c_port, sizeof(short), &to_p->in.sin_port);
-            bpf_probe_read_user(&key.dns_addr.ip4, sizeof(int), &source_p->addr4);
+            bpf_core_read_user(&key.c_addr.ip4, sizeof(int), &to_p->in.sin4_addr);
+            bpf_core_read_user(&key.c_port, sizeof(short), &to_p->in.sin_port);
+            bpf_core_read_user(&key.dns_addr.ip4, sizeof(int), &source_p->addr4);
             break;
         case AF_INET6:
-            bpf_probe_read_user(&key.c_addr.ip6, IP6_LEN, &to_p->in6.sin6_addr);
-            bpf_probe_read_user(&key.c_port, sizeof(short), &to_p->in6.sin_port);
-            bpf_probe_read_user(&key.dns_addr.ip6, IP6_LEN, &source_p->addr6);
+            bpf_core_read_user(&key.c_addr.ip6, IP6_LEN, &to_p->in6.sin6_addr);
+            bpf_core_read_user(&key.c_port, sizeof(short), &to_p->in6.sin_port);
+            bpf_core_read_user(&key.dns_addr.ip6, IP6_LEN, &source_p->addr6);
             break;
         default:
             bpf_printk("=== ip_str family:%d abnormal.\n", key.family);

@@ -31,6 +31,7 @@
 #include "probe_mng.h"
 #include "pod_mng.h"
 #include "snooper.h"
+#include "__compat.h"
 #include "probe_params_parser.h"
 #include "json_tool.h"
 
@@ -1249,15 +1250,15 @@ void run_probe_mng_daemon(struct probe_mng_s *probe_mng)
 
     for (;;) {
         if (probe_mng->snooper_proc_pb != NULL) {
-            ret = perf_buffer__poll(probe_mng->snooper_proc_pb, THOUSAND);
-            if (ret < 0) {
+            ret = bpf_buffer__poll((struct bpf_buffer *)probe_mng->snooper_proc_pb, THOUSAND);
+            if (ret < 0 && ret != -EINTR) {
                 break;
             }
         }
 
         if (probe_mng->snooper_cgrp_pb != NULL) {
-            ret = perf_buffer__poll(probe_mng->snooper_cgrp_pb, THOUSAND);
-            if (ret < 0) {
+            ret = bpf_buffer__poll((struct bpf_buffer *)probe_mng->snooper_cgrp_pb, THOUSAND);
+            if (ret < 0 && ret != -EINTR) {
                 break;
             }
         }

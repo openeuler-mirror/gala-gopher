@@ -32,9 +32,7 @@ struct {
 } mc_event_count_map SEC(".maps");
 
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 64);
 } mc_event_channel_map SEC(".maps");
 
@@ -59,13 +57,11 @@ static __always_inline void report_mc_event(void *ctx, struct mc_event_s* mc_eve
 {
     if (is_report_tmout(&(mc_event->report_ts))) {
 
-        (void)bpf_perf_event_output(ctx, &mc_event_channel_map, BPF_F_ALL_CPU,
-                                    mc_event, sizeof(struct mc_event_s));
+        (void)bpfbuf_output(ctx, &mc_event_channel_map, mc_event, sizeof(struct mc_event_s));
         mc_event->error_count = 0;
     }
 }
 
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(mc_event, bpf_raw_tracepoint_args)
 {
     struct mem_entity_s mem_entity = {0};
@@ -77,7 +73,7 @@ KRAWTRACE(mc_event, bpf_raw_tracepoint_args)
     char           top_layer     = (char)ctx->args[5];
 
     mem_entity.err_type = err_type;
-    (void)bpf_probe_read_str(&mem_entity.label, LABEL_LEN,  label);
+    (void)bpf_core_read_str(&mem_entity.label, LABEL_LEN,  label);
     mem_entity.mc_index = mc_index;
     mem_entity.top_layer = top_layer;
 
@@ -91,20 +87,20 @@ KRAWTRACE(mc_event, bpf_raw_tracepoint_args)
 
     return 0;
 }
-#else
+
 SEC("tracepoint/ras/mc_event")
 int bpf_trace_mc_event_func(struct trace_event_raw_mc_event *ctx)
 {
     struct mem_entity_s mem_entity = {0};
 
     unsigned int   err_type      = (unsigned int)ctx->error_type;
-    char *         label         = (char *)ctx->__data_loc_label;
+    char *         label         = (char *)(u64)(ctx->__data_loc_label);
     int            error_count   = (int)ctx->error_count;
     char           mc_index      = (char)ctx->mc_index;
     char           top_layer     = (char)ctx->top_layer;
 
     mem_entity.err_type = err_type;
-    (void)bpf_probe_read_str(&mem_entity.label, LABEL_LEN,  label);
+    (void)bpf_core_read_str(&mem_entity.label, LABEL_LEN,  label);
     mem_entity.mc_index = mc_index;
     mem_entity.top_layer = top_layer;
 
@@ -118,4 +114,3 @@ int bpf_trace_mc_event_func(struct trace_event_raw_mc_event *ctx)
 
     return 0;
 }
-#endif

@@ -1063,10 +1063,10 @@ int main(int argc, char **argv)
         }
 
         for (int i = 0; i < g_bpf_prog->num; i++) {
-            if (g_bpf_prog->buffers[i] && ((ret = bpf_buffer__poll(g_bpf_prog->buffers[i], THOUSAND)) < 0)) {
-                if (ret != -EINTR) {
-                    ERROR("[IOPROBE]: perf poll prog_%d failed.\n", i);
-                }
+            if (g_bpf_prog->buffers[i]
+                && ((ret = bpf_buffer__poll(g_bpf_prog->buffers[i], THOUSAND)) < 0)
+                && ret != -EINTR) {
+                ERROR("[IOPROBE]: perf poll prog_%d failed.\n", i);
                 break;
             }
         }

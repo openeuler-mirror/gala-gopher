@@ -192,14 +192,13 @@ static void *msg_event_receiver(void *arg)
     }
 
     int ret;
-    while ((ret = bpf_buffer__poll(g_pgsli_probe.kern_prog->buffer, THOUSAND)) < 0) {
-        if (ret != -EINTR) {
-            ERROR("[PGSLIPROBE]: bpf buffer poll failed.\n");
-        }
+    while ((ret = bpf_buffer__poll(g_pgsli_probe.kern_prog->buffer, THOUSAND)) < 0 && ret != EINTR) {
+        ERROR("[PGSLIPROBE]: bpf buffer poll failed.\n");
         break;
     }
 err:
     stop = 1;
+    PGSLI_INFO("msg_event_receiver out\n");
     return NULL;
 }
 
@@ -597,6 +596,7 @@ int main(int argc, char **argv)
 
             err = init_probe_first_load(is_first_load);
             if (err) {
+                PGSLI_ERROR("init_probe_first_load err\n");
                 destroy_ipc_body(&ipc_body);
                 goto err;
             }
@@ -607,6 +607,7 @@ int main(int argc, char **argv)
 
             err = init_conn_mgt_first_load(is_first_load);
             if (err) {
+                PGSLI_ERROR("init_conn_mgt_first_load err\n");
                 goto err;
             }
             is_first_load = false;
@@ -620,6 +621,7 @@ int main(int argc, char **argv)
         if (!noDependLibssl) {
             err = update_bpf_link();
             if (err) {
+                PGSLI_ERROR("update_bpf_link err\n");
                 goto err;
             }
         }
@@ -628,6 +630,7 @@ int main(int argc, char **argv)
 
     err = 0;
 err:
+    PGSLI_INFO("pgsliprobe probe end\n");
     clear_all_bpf_link();
     clean_pgsli_probe();
     if (supports_tstamp) {

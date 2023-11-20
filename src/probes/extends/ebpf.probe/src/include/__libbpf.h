@@ -147,7 +147,7 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
 
 #define __OPEN_OPTS(probe_name, end, load, opts) \
     struct probe_name##_bpf *probe_name##_skel = NULL;           \
-    struct bpf_link *probe_name##_link[PATH_NUM] __maybe_unused; \
+    struct bpf_link *probe_name##_link[PATH_NUM] __maybe_unused = {NULL}; \
     int probe_name##_link_current = 0;    \
     do { \
         if (load) \

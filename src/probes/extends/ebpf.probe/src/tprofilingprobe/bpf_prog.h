@@ -51,7 +51,9 @@
     MAP_SET_PIN_PATH(probe_name, thrd_bl_map, THRD_BL_MAP_PATH, load); \
 
 #define LOAD_SYSCALL_PROBE(probe_name, end, load) \
-    OPEN(probe_name, end, load); \
+    INIT_OPEN_OPTS(probe_name); \
+    PREPARE_CUSTOM_BTF(probe_name); \
+    OPEN_OPTS(probe_name, end, load); \
     MAP_SET_COMMON_PIN_PATHS(probe_name, load); \
     MAP_SET_PIN_PATH(probe_name, event_map, SYSCALL_EVENT_MAP_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, stack_map, STACK_MAP_PATH, load); \
@@ -60,10 +62,11 @@
     LOAD_ATTACH(tprofiling, probe_name, end, load)
 
 #define LOAD_ONCPU_PROBE(probe_name, end, load) \
-    OPEN(probe_name, end, load); \
+    INIT_OPEN_OPTS(probe_name); \
+    PREPARE_CUSTOM_BTF(probe_name); \
+    OPEN_OPTS(probe_name, end, load); \
     MAP_SET_COMMON_PIN_PATHS(probe_name, load); \
-    MAP_SET_PIN_PATH(probe_name, event_map, ONCPU_EVENT_MAP_PATH, load); \
-    LOAD_ATTACH(tprofiling, probe_name, end, load)
+    MAP_SET_PIN_PATH(probe_name, event_map, ONCPU_EVENT_MAP_PATH, load);
 
 #define LOAD_SYSCALL_BPF_PROG(type) \
     static int __load_syscall_##type##_bpf_prog(struct bpf_prog_s *prog, char is_load) \
@@ -74,14 +77,18 @@
         if (is_load) { \
             prog->skels[prog->num].skel = syscall_##type##_skel; \
             prog->skels[prog->num].fn = (skel_destroy_fn)syscall_##type##_bpf__destroy; \
+            prog->custom_btf_paths[prog->num] = syscall_##type##_open_opts.btf_custom_path; \
+            ret = load_create_pb(prog, syscall_##type##_skel->maps.event_map, syscall_##type##_skel->maps.heap); \
+            if (ret) { \
+                goto err; \
+            } \
             prog->num++; \
-            \
-            ret = load_syscall_create_pb(prog, GET_MAP_FD(syscall_##type, event_map)); \
         } \
         \
         return ret; \
     err: \
         UNLOAD(syscall_##type); \
+        CLEANUP_CUSTOM_BTF(syscall_##type); \
         return -1; \
     }
 

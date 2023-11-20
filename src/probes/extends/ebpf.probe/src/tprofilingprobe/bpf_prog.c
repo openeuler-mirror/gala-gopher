@@ -45,25 +45,30 @@ static char is_load_probe_ipc(struct ipc_body_s *ipc_body, u32 probe)
     return 0;
 }
 
-static void perf_event_handler(void *ctx, int cpu, void *data, __u32 size)
+static int perf_event_handler(void *ctx, void *data, __u32 size)
 {
     output_profiling_event((trace_event_data_t *)data);
+    return 0;
 }
 
-static int load_syscall_create_pb(struct bpf_prog_s *prog, int fd)
+static int load_create_pb(struct bpf_prog_s *prog, struct bpf_map *map, struct bpf_map *heap)
 {
-    struct perf_buffer *pb;
+    int ret;
+    struct bpf_buffer *buffer = NULL;
 
-    if (prog->pb == NULL) {
-        pb = create_pref_buffer(fd, perf_event_handler);
-        if (pb == NULL) {
-            TP_ERROR("Failed tocreate perf buffer\n");
-            return -1;
-        }
-        prog->pb = pb;
-        TP_INFO("Success to create syscall pb buffer.\n");
+    buffer = bpf_buffer__new(map, heap);
+    if (buffer == NULL) {
+        return -1;
     }
 
+    ret = bpf_buffer__open(buffer, perf_event_handler, NULL, NULL);
+    if (ret) {
+        ERROR("[TPPROFILING] Open bpf_buffer failed.\n");
+        bpf_buffer__free(buffer);
+        return -1;
+    }
+
+    prog->buffers[prog->num] = buffer;
     return 0;
 }
 
@@ -114,23 +119,6 @@ err:
     return NULL;
 }
 
-static int load_oncpu_create_pb(struct bpf_prog_s *prog, int fd)
-{
-    struct perf_buffer *pb;
-
-    if (prog->pb == NULL) {
-        pb = create_pref_buffer(fd, perf_event_handler);
-        if (pb == NULL) {
-            TP_ERROR("Failed to create perf buffer\n");
-            return -1;
-        }
-        prog->pb = pb;
-        TP_INFO("Success to create oncpu pb buffer.\n");
-    }
-
-    return 0;
-}
-
 static int __load_oncpu_bpf_prog(struct bpf_prog_s *prog, char is_load)
 {
     int ret = 0;
@@ -139,14 +127,26 @@ static int __load_oncpu_bpf_prog(struct bpf_prog_s *prog, char is_load)
     if (is_load) {
         prog->skels[prog->num].skel = oncpu_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)oncpu_bpf__destroy;
-        prog->num++;
+        prog->custom_btf_paths[prog->num] = oncpu_open_opts.btf_custom_path;
 
-        ret = load_oncpu_create_pb(prog, GET_MAP_FD(oncpu, event_map));
+        int is_attach_tp = (probe_kernel_version() >= KERNEL_VERSION(6, 4, 0));
+        PROG_ENABLE_ONLY_IF(oncpu, bpf_raw_trace_sched_switch, is_attach_tp);
+        PROG_ENABLE_ONLY_IF(oncpu, bpf_finish_task_switch, !is_attach_tp);
+
+        ret = load_create_pb(prog, oncpu_skel->maps.event_map, oncpu_skel->maps.heap);
+        if (ret) {
+            goto err;
+        }
+
+        LOAD_ATTACH(tprofiling, oncpu, err, is_load);
+
+        prog->num++;
     }
 
     return ret;
 err:
     UNLOAD(oncpu);
+    CLEANUP_CUSTOM_BTF(oncpu);
     return -1;
 }
 
