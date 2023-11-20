@@ -262,12 +262,15 @@ static __always_inline __maybe_unused void submit_sock_data(void *ctx, struct so
     if (sock_conn->info.is_ssl != args->is_ssl) {
         return;
     }
+
+    u32 proto = get_filter_proto();
+
     if (args->buf) {
         buffer = read_from_buf_ptr(args->buf);
         if (!buffer) {
             return;
         }
-        if (update_sock_conn_proto(sock_conn, direction, buffer, bytes_count)) {
+        if (update_sock_conn_proto(sock_conn, direction, buffer, bytes_count, proto)) {
             return;
         }
     } else if (args->iov) {
@@ -278,7 +281,7 @@ static __always_inline __maybe_unused void submit_sock_data(void *ctx, struct so
             return;
         }
         size_t iov_len = (size_t)min(iov_cpy.iov_len, bytes_count);
-        if (update_sock_conn_proto(sock_conn, direction, buffer, iov_len)) {
+        if (update_sock_conn_proto(sock_conn, direction, buffer, iov_len, proto)) {
             return;
         }
     } else {

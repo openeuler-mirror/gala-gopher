@@ -254,7 +254,10 @@ void submit_sock_data_by_session(void *ctx, struct session_data_args_s *args)
         return;
     }
     sock_conn.info.is_ssl = 1;
-    if (update_sock_conn_proto(&sock_conn, args->direct, args->buf, args->bytes_count)) {
+
+    struct l7_mng_s* l7_mng = (struct l7_mng_s*)ctx;
+    if (update_sock_conn_proto(&sock_conn, args->direct, args->buf, args->bytes_count,
+                               l7_mng->ipc_body.probe_param.l7_probe_proto_flags)) {
         return;
     }
 
