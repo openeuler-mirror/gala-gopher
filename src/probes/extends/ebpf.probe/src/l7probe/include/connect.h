@@ -189,14 +189,14 @@ static inline enum l7_role_t  get_l7_role(enum message_type_t msg_type, enum l7_
 }
 
 static __always_inline __maybe_unused int update_sock_conn_proto(struct sock_conn_s* sock_conn,
-    enum l7_direction_t direction, const char* buf, size_t count)
+    enum l7_direction_t direction, const char* buf, size_t count, u32 flags)
 {
     if (sock_conn->info.protocol != PROTO_UNKNOW) {
         return 0;
     }
 
     struct l7_proto_s l7pro = {0};
-    if (get_l7_protocol(buf, count, PROTO_ALL_ENABLE, direction, &l7pro)) {
+    if (get_l7_protocol(buf, count, flags, direction, &l7pro)) {
         return -1;
     }
 
