@@ -2,10 +2,12 @@
 
 # Rest API说明
 
-启动gala- gopher时会启动个Rest server, 该Rest server负责接收用户的发起的PUT和GET清求， PUT请求用于启动探针并配置监控范围，GET请求用于获取探针的相关信息，同一采集特性对应同一个探针和请求的URL。
+启动gala- gopher时会启动Rest server, 该Rest server负责接收用户的发起的PUT和GET清求， PUT请求用于启动探针并配置监控范围，GET请求用于获取探针的相关信息，同一采集特性对应同一个探针和请求的URL。
 可以使用curl命令发起请求，请求的URL的组织方式为http://[gala-gopher所在节点ip] + [端口号] + function（采集特性），Rest server服务所占用的端口号可配置（缺省时为9999），例如，
-采集火焰图的URL为：http://localhost:9999/flamegraph。探针默认关闭，可以通过curl命令发送PUT请求给Rest server动态开启并设置监控范围。
-以火焰图为例，看看可以对火焰图探针进行哪些操作。
+采集火焰图的URL为：http://localhost:9999/flamegraph。 
+
+探针默认关闭，可以通过curl命令发送PUT请求给Rest server动态开启并设置监控范围。
+以火焰图为例，看看可以对火焰图探针进行哪些操作
 
 
 ## 开启探针
