@@ -1151,6 +1151,12 @@ int get_container_netns_id(const char *abbr_container_id, unsigned int *id)
     return 0;
 }
 
+int get_proc_netns_id(const unsigned int pid, unsigned int *id)
+{
+    *id = __get_pid_namespace(pid, DOCKER_NETNS_COMMAND);
+    return 0;
+}
+
 int get_container_mntns_id(const char *abbr_container_id, unsigned int *id)
 {
     unsigned int pid;

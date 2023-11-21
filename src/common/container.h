@@ -70,6 +70,7 @@ int get_container_cpucg_inode(const char *abbr_container_id, unsigned int *inode
 int get_container_memcg_inode(const char *abbr_container_id, unsigned int *inode);
 int get_container_pidcg_inode(const char *abbr_container_id, unsigned int *inode);
 int get_container_netns_id(const char *abbr_container_id, unsigned int *id);
+int get_proc_netns_id(const unsigned int pid, unsigned int *id);
 int get_container_mntns_id(const char *abbr_container_id, unsigned int *id);
 int get_container_pid(const char *abbr_container_id, unsigned int *pid);
 int get_container_name(const char *abbr_container_id, char name[], unsigned int len);

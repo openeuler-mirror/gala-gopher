@@ -15,10 +15,16 @@ enum socket_evt_e {
     EP_STATS_PASSIVE_OPENS,
     EP_STATS_PASSIVE_FAILS,
     EP_STATS_RETRANS_SYNACK,
-    EP_STATS_LOST_SYNACK,
+    EP_STATS_RETRANS_SYN,
     EP_STATS_REQ_DROP,
     EP_STATS_ACTIVE_OPENS,
     EP_STATS_ACTIVE_FAILS,
+
+    EP_STATS_SYN_SENT,
+    EP_STATS_SYNACK_SENT,
+
+    EP_STATS_RST_SENT,
+    EP_STATS_RST_RCVS,
 
     // udp event
     EP_STATS_QUE_RCV_FAILED,
@@ -35,7 +41,8 @@ enum socket_evt_e {
 
 enum socket_role_e {
     TCP_CLIENT = 0,
-    TCP_SERVER
+    TCP_SERVER,
+    TCP_LISTEN_SK
 };
 
 struct conn_addr_s {
@@ -62,5 +69,11 @@ struct udp_socket_event_s {
     enum socket_evt_e evt;
     u64 val;
 };
+
+struct tcp_listen_key_s {
+    unsigned int net_ns;
+    int port;
+};
+
 
 #endif

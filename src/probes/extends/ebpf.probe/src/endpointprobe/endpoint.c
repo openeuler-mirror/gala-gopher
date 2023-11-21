@@ -19,6 +19,10 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <time.h>
+#include <sys/syscall.h>
+#include <sys/stat.h>
+#include <sched.h>
+#include <fcntl.h>
 
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
@@ -37,7 +41,7 @@
 #include "event.h"
 #include "ipc.h"
 #include "hash.h"
-#include "conntrack.h"
+#include "container.h"
 
 #define EP_ENTITY_ID_LEN 64
 
@@ -47,6 +51,12 @@
 #define __LOAD_ENDPOINT_PROBE(probe_name, end, load) \
     OPEN(probe_name, end, load); \
     LOAD_ATTACH(endpoint, probe_name, end, load)
+
+struct tcp_listen_s {
+    H_HANDLE;
+    struct tcp_listen_key_s key;
+    unsigned int proc_id;
+};
 
 struct tcp_socket_id_s {
     int tgid;                   // process id
@@ -84,8 +94,10 @@ struct endpoint_probe_s {
     struct bpf_prog_s* prog;
     int tcp_output_fd;
     int udp_output_fd;
+    int listen_port_fd;
     struct udp_socket_s *udps;
     struct tcp_socket_s *tcps;
+    struct tcp_listen_s *listens;
     int tcp_socks_num;
     int udp_socks_num;
     time_t last_report;
@@ -151,6 +163,18 @@ static void destroy_tcp_socks(struct endpoint_probe_s *probe)
         free_tcp_sock(tcp);
     }
     probe->tcps = NULL;
+    return;
+}
+
+static void destroy_tcp_listens(struct endpoint_probe_s *probe)
+{
+    struct tcp_listen_s *listen, *tmp;
+
+    H_ITER(probe->listens, listen, tmp) {
+        H_DEL(probe->listens, listen);
+        free(listen);
+    }
+    probe->listens = NULL;
     return;
 }
 
@@ -224,6 +248,14 @@ void aging_udp_socks(struct endpoint_probe_s *probe)
     }
 }
 
+static struct tcp_listen_s* lkup_tcp_listen(struct endpoint_probe_s *probe, const struct tcp_listen_key_s *key)
+{
+    struct tcp_listen_s* listen = NULL;
+
+    H_FIND(probe->listens, key, sizeof(struct tcp_listen_key_s), listen);
+    return listen;
+}
+
 static struct tcp_socket_s* lkup_tcp_socket(struct endpoint_probe_s *probe, const struct tcp_socket_id_s *id)
 {
     struct tcp_socket_s* tcp = NULL;
@@ -244,7 +276,7 @@ static void output_tcp_socket(struct tcp_socket_s* tcp_sock)
 {
     (void)fprintf(stdout,
         "|%s|%u|%s|%s|%s|%u|%u"
-        "|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|\n",
+        "|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|\n",
         OO_TCP_SOCK,
         tcp_sock->id.tgid,
         (tcp_sock->id.role == TCP_SERVER) ? "server" : "client",
@@ -259,10 +291,14 @@ static void output_tcp_socket(struct tcp_socket_s* tcp_sock)
         tcp_sock->stats[EP_STATS_PASSIVE_OPENS],
         tcp_sock->stats[EP_STATS_PASSIVE_FAILS],
         tcp_sock->stats[EP_STATS_RETRANS_SYNACK],
-        tcp_sock->stats[EP_STATS_LOST_SYNACK],
+        tcp_sock->stats[EP_STATS_RETRANS_SYN],
         tcp_sock->stats[EP_STATS_REQ_DROP],
         tcp_sock->stats[EP_STATS_ACTIVE_OPENS],
-        tcp_sock->stats[EP_STATS_ACTIVE_FAILS]);
+        tcp_sock->stats[EP_STATS_ACTIVE_FAILS],
+        tcp_sock->stats[EP_STATS_SYN_SENT],
+        tcp_sock->stats[EP_STATS_SYNACK_SENT],
+        tcp_sock->stats[EP_STATS_RST_SENT],
+        tcp_sock->stats[EP_STATS_RST_RCVS]);
     (void)fflush(stdout);
 }
 
@@ -281,48 +317,6 @@ static void output_udp_socket(struct udp_socket_s* udp_sock)
         udp_sock->stats[EP_STATS_UDP_SENDS],
         udp_sock->stats[EP_STATS_UDP_RCVS]);
     (void)fflush(stdout);
-}
-
-static void transform_cluster_ip(struct endpoint_probe_s * probe, struct tcp_socket_s *tcp_sock, struct tcp_socket_event_s* evt)
-{
-    int transform = 0;
-
-    if (probe->ipc_body.probe_param.cluster_ip_backend == 0) {
-        return;
-    }
-
-    // Only transform Kubernetes cluster IP backend for the client TCP connection.
-    if (tcp_sock->id.role != TCP_CLIENT) {
-        return;
-    }
-
-    struct tcp_connect_s connect;
-
-    connect.role = (tcp_sock->id.role == TCP_CLIENT) ? 1 : 0;
-    connect.family = tcp_sock->id.client_ipaddr.family;
-
-    if (connect.family == AF_INET) {
-        connect.cip_addr.c_ip = tcp_sock->id.client_ipaddr.ip;
-        connect.sip_addr.s_ip = tcp_sock->id.server_ipaddr.ip;
-    } else {
-        memcpy(&(connect.cip_addr), &(tcp_sock->id.client_ipaddr.ip), IP6_LEN);
-        memcpy(&(connect.sip_addr), &(tcp_sock->id.server_ipaddr.ip), IP6_LEN);
-    }
-    connect.c_port = evt->client_ipaddr.port;
-    connect.s_port = evt->server_ipaddr.port;
-
-    (void)get_cluster_ip_backend(&connect, &transform);
-    if (!transform) {
-        return;
-    }
-
-    if (connect.family == AF_INET) {
-        tcp_sock->id.client_ipaddr.ip = connect.sip_addr.s_ip;
-    } else {
-        memcpy(&(tcp_sock->id.client_ipaddr.ip), &(connect.sip_addr), IP6_LEN);
-    }
-    tcp_sock->id.client_ipaddr.port = connect.s_port;
-    return;
 }
 
 #define MAX_ENDPOINT_ENTITES    (5 * 1024)
@@ -362,8 +356,6 @@ static int add_tcp_sock_evt(struct endpoint_probe_s * probe, struct tcp_socket_e
     memcpy(&(new_tcp->id), &id, sizeof(id));
     new_tcp->stats[evt->evt] += 1;
     new_tcp->last_rcv_data = time(NULL);
-
-    transform_cluster_ip(probe, new_tcp, evt);
 
     ip_str(new_tcp->id.client_ipaddr.family, (unsigned char *)&(new_tcp->id.client_ipaddr.ip), client_ip_str, INET6_ADDRSTRLEN);
     ip_str(new_tcp->id.server_ipaddr.family, (unsigned char *)&(new_tcp->id.server_ipaddr.ip), server_ip_str, INET6_ADDRSTRLEN);
@@ -487,6 +479,134 @@ static void sig_int(int signo)
     g_stop = 1;
 }
 
+static int get_netns_fd(pid_t pid)
+{
+    const char *fmt = "/proc/%u/ns/net";
+    char path[PATH_LEN];
+
+    path[0] = 0;
+    (void)snprintf(path, PATH_LEN, fmt, pid);
+    return open(path, O_RDONLY);
+}
+
+static int add_tcp_listen(struct endpoint_probe_s *probe, unsigned int proc_id, int port)
+{
+    unsigned int net_ns;
+    struct tcp_listen_key_s key;
+    struct tcp_listen_s *listen;
+
+    (void)get_proc_netns_id((const unsigned int)proc_id, &net_ns);
+
+    key.net_ns = net_ns;
+    key.port = port;
+
+    listen = lkup_tcp_listen(probe, (const struct tcp_listen_key_s *)&key);
+    if (listen) {
+        if (listen->proc_id != proc_id) {
+            return -1;
+        } else {
+            return 0;
+        }
+    }
+
+    listen = (struct tcp_listen_s *)malloc(sizeof(struct tcp_listen_s));
+    if (listen == NULL) {
+        return -1;
+    }
+    memset(listen, 0, sizeof(struct tcp_listen_s));
+    memcpy(&(listen->key), &key, sizeof(key));
+    listen->proc_id = proc_id;
+
+    H_ADD_KEYPTR(probe->listens, &listen->key, sizeof(struct tcp_listen_key_s), listen);
+    return 0;
+}
+
+static void load_tcp_listens(struct endpoint_probe_s *probe)
+{
+    int ret;
+    struct tcp_listen_ports* tlps;
+    struct tcp_listen_port *tlp;
+
+    tlps = get_listen_ports();
+    if (tlps == NULL) {
+        goto err;
+    }
+
+    for (int i = 0; i < tlps->tlp_num; i++) {
+        tlp = tlps->tlp[i];
+        if (tlp && is_snooper(probe, tlp->pid)) {
+            ret = add_tcp_listen(probe, tlp->pid, (int)tlp->port);
+            if (ret) {
+                ERROR("[EPPROBE]: Add listen port failed.(PID = %u, COMM = %s, PORT = %u)\n",
+                    tlp->pid, tlp->comm, tlp->port);
+            } else {
+                INFO("[EPPROBE]: Add listen port succeed.(PID = %u, COMM = %s, PORT = %u)\n",
+                    tlp->pid, tlp->comm, tlp->port);
+            }
+        }
+    }
+
+err:
+    if (tlps) {
+        free_listen_ports(&tlps);
+    }
+
+    return;
+}
+
+static void reload_listen_port(struct endpoint_probe_s *probe)
+{
+    int ret, netns_fd;
+    struct snooper_con_info_s *container;
+    struct ipc_body_s *ipc_body = &probe->ipc_body;
+
+    destroy_tcp_listens(probe);
+
+    netns_fd = get_netns_fd(getpid());
+    if (netns_fd <= 0) {
+        ERROR("[EPPROBE]: Get netns fd failed.\n");
+        return;
+    }
+
+    load_tcp_listens(probe);
+
+    for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_body->snooper_objs[i].type != SNOOPER_OBJ_CON) {
+            continue;
+        }
+
+        container = &(ipc_body->snooper_objs[i].obj.con_info);
+        ret = enter_container_netns((const char *)container->con_id);
+        if (ret) {
+            ERROR("[EPPROBE]: Enter container netns failed.(container_name = %s)\n", container->container_name);
+            continue;
+        }
+
+        load_tcp_listens(probe);
+
+        (void)exit_container_netns(netns_fd);
+    }
+    return;
+}
+
+static void reload_listen_map(struct endpoint_probe_s *probe)
+{
+    int value;
+    struct tcp_listen_key_s k = {0};
+    struct tcp_listen_key_s nk = {0};
+    struct tcp_listen_s *listen, *tmp;
+
+    while (bpf_map_get_next_key(probe->listen_port_fd, &k, &nk) != -1) {
+        (void)bpf_map_lookup_elem(probe->listen_port_fd, &nk, &value);
+        (void)bpf_map_delete_elem(probe->listen_port_fd, &nk);
+    }
+
+    H_ITER(probe->listens, listen, tmp) {
+        (void)bpf_map_update_elem(probe->listen_port_fd, &(listen->key), &(listen->proc_id), BPF_ANY);
+    }
+    return;
+}
+
 static void build_tcp_id(struct tcp_socket_s *tcp_sock, char *buf, int buf_len)
 {
     (void)snprintf(buf, buf_len, "%d_%s_%s_%u_%u",
@@ -558,21 +678,6 @@ static void report_tcp_sock(struct tcp_socket_s *tcp_sock)
                     tcp_sock->stats[EP_STATS_SYN_OVERFLOW]);
     }
 
-    if (tcp_sock->stats[EP_STATS_LOST_SYNACK] != 0) {
-        if (entityId[0] == 0)
-            build_tcp_id(tcp_sock, entityId, EP_ENTITY_ID_LEN);
-
-        evt.metrics = "lost_synacks";
-        evt.entityId = entityId;
-        evt.entityName = OO_TCP_SOCK;
-        build_tcp_lable(tcp_sock, &evt);
-
-        report_logs((const struct event_info_s *)&evt,
-                    EVT_SEC_WARN,
-                    "TCP connection setup failure due to loss of SYN/ACK(%llu).",
-                    tcp_sock->stats[EP_STATS_LOST_SYNACK]);
-    }
-
     if (tcp_sock->stats[EP_STATS_RETRANS_SYNACK] != 0) {
         if (entityId[0] == 0)
             build_tcp_id(tcp_sock, entityId, EP_ENTITY_ID_LEN);
@@ -624,6 +729,7 @@ static int endpoint_load_probe_tcp(struct bpf_prog_s *prog, char is_load)
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_bpf__destroy;
         prog->num++;
         g_ep_probe.tcp_output_fd = GET_MAP_FD(tcp, tcp_evt_map);
+        g_ep_probe.listen_port_fd = GET_MAP_FD(tcp, tcp_listen_port);
     }
 
     return 0;
@@ -734,6 +840,32 @@ static char is_report_tmout(struct endpoint_probe_s *probe)
     return 0;
 }
 
+static void reset_tcp_socket(struct tcp_socket_s* tcp_sock)
+{
+    memset(&(tcp_sock->stats), 0, sizeof(u64) * EP_STATS_MAX);
+}
+
+static void reset_udp_socket(struct udp_socket_s* udp_sock)
+{
+    memset(&(udp_sock->stats), 0, sizeof(u64) * EP_STATS_MAX);
+}
+
+static void reset_endpoint_stats(struct endpoint_probe_s *probe)
+{
+    struct tcp_socket_s *tcp, *tcp_tmp;
+    struct udp_socket_s *udp, *udp_tmp;
+
+    H_ITER(probe->tcps, tcp, tcp_tmp) {
+        reset_tcp_socket(tcp);
+    }
+
+    H_ITER(probe->udps, udp, udp_tmp) {
+        reset_udp_socket(udp);
+    }
+
+    return;
+}
+
 static void report_endpoint(struct endpoint_probe_s *probe)
 {
     struct tcp_socket_s *tcp, *tcp_tmp;
@@ -751,6 +883,7 @@ static void report_endpoint(struct endpoint_probe_s *probe)
         output_udp_socket(udp);
     }
 
+    reset_endpoint_stats(probe);
     return;
 }
 
@@ -783,6 +916,9 @@ int main(int argc, char **argv)
                 if (endpoint_load_probe(&g_ep_probe, &ipc_body)) {
                     break;
                 }
+
+                reload_listen_port(&g_ep_probe);
+                reload_listen_map(&g_ep_probe);
             }
 
             /* Probe range was changed to 0 */
@@ -798,14 +934,15 @@ int main(int argc, char **argv)
             sleep(1);
         }
 
-        report_endpoint(&g_ep_probe);
         report_tcp_socks(&g_ep_probe);
+        report_endpoint(&g_ep_probe);
         aging_tcp_socks(&g_ep_probe);
         aging_udp_socks(&g_ep_probe);
     }
 
     destroy_tcp_socks(&g_ep_probe);
     destroy_udp_socks(&g_ep_probe);
+    destroy_tcp_listens(&g_ep_probe);
 
     unload_bpf_prog(&(g_ep_probe.prog));
     destroy_ipc_body(&(g_ep_probe.ipc_body));
