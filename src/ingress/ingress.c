@@ -82,7 +82,7 @@ static int IngressInit(IngressMgr *mgr)
             return -1;
         }
 
-        INFO("[INGRESS] Add EPOLLIN event success, probe %s.\n", probe->name);
+        INFO("[INGRESS] add EPOLLIN event success, probe %s.\n", probe->name);
     }
 
     // add all extend probe triggerfd into mgr->epoll_fd
@@ -98,7 +98,7 @@ static int IngressInit(IngressMgr *mgr)
             return -1;
         }
 
-        INFO("[INGRESS] Add EPOLLIN event success, extend probe %s.\n", extendProbe->name);
+        INFO("[INGRESS] add EPOLLIN event success, extend probe %s.\n", extendProbe->name);
     }
 
     return 0;
@@ -227,7 +227,7 @@ static int IngressEventWrite2Logs(IngressMgr *mgr, const char *content)
 
     ret = wr_event_logs(jsonStr, strlen(jsonStr));
     if (ret < 0) {
-        ERROR("[EVENTLOG] write event logs fail.\n");
+        ERROR("[EVENTLOG] write event logs failed.\n");
         goto err;
     }
 
