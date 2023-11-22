@@ -2,24 +2,1388 @@
 
 # Rest API说明
 
-启动gala- gopher时会启动Rest server, 该Rest server负责接收用户的发起的PUT和GET清求， PUT请求用于启动探针并配置监控范围，GET请求用于获取探针的相关信息，同一采集特性对应同一个探针和请求的URL。
+启动gala-gopher时会启动Rest server, 该Rest server负责接收用户发起的PUT和GET清求， PUT请求用于启动探针并配置监控范围，GET请求用于获取探针的相关信息，同一采集特性对应同一个探针和请求的URL。
 可以使用curl命令发起请求，请求的URL的组织方式为http://[gala-gopher所在节点ip] + [端口号] + function（采集特性），Rest server服务所占用的端口号可配置（缺省时为9999），例如，
 采集火焰图的URL为：http://localhost:9999/flamegraph。 
 
 探针默认关闭，可以通过curl命令发送PUT请求给Rest server动态开启并设置监控范围。
-以火焰图为例，看看可以对火焰图探针进行哪些操作
 
+下面看看各类探针配置的示例
+
+## 火焰图探针配置全集
+看看火焰图探针配置的全集
+
+```
+curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
+{
+    "cmd": {
+        "bin": "/opt/gala-gopher/extend_probes/stackprobe",
+        "check_cmd": "",
+        "probe": [
+            "oncpu",
+            "offcpu",
+            "mem"
+        ]
+    },
+    "snoopers": {
+        "proc_id": [
+            101,
+            102
+        ],
+        "proc_name": [
+            {
+                "comm": "app1",
+                "cmdline": "",
+                "debugging_dir": ""
+            },
+            {
+                "comm": "app2",
+                "cmdline": "",
+                "debugging_dir": ""
+            }
+        ],
+        "pod_id": [
+            "pod1",
+            "pod2"
+        ],
+        "container_id": [
+            "container1",
+            "container2"
+        ]
+    },
+    "params":{
+        "report_period": 180,
+        "res_lower_thr": 20%,
+        "res_upper_thr": 20%,
+        "report_event": 1,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ],
+        "env": "node",
+        "multi_instance": 1,
+        "native_stack": 1,
+        "pyroscope_server": "localhost:4040",
+        "svg_period": 180,
+        "perf_sample_period": 10,
+        "svg_dir": "/var/log/gala-gopher/stacktrace",
+        "flame_dir": "/var/log/gala-gopher/flamegraph"
+    },
+    "state":"running"
+}'
+
+```
+
+启动火焰图探针的PUT请求中可以配置很多参数，这些参数共同控制着火焰图探针的行为，由上往下分析一下请求中的各个重要组成部分
+（1）使用curl命令发起PUT请求
+（2）请求的URL为http://localhost:9999/flamegraph, 9999是Rest server处理启动探针请求监听的端口号，flamegraph为探针的名称
+（3）cmd内容中的bin为火焰图探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动
+（4）cmd内容中的probe对应着探针的采集子项，火焰图探针probe的内容为oncpu、offcpu和mem，代表火焰图探针可以采集oncpu、offcpu和mem这三种数据类型的数据
+（4）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
+一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
+（5）params内容中的参数，示例中的参数都是火焰图探针支持的参数
+    report_period是控制着采集的数据上报的周期
+    res_lower_thr
+    res_upper_thr
+    report_event是控制着探针是否上报异常事件，为1时代表上报异常事件
+    metrics_type控制着 
+    env
+    multi_instance控制着每个进程是否独立输出火焰图，为1时代表每个进程独立输出火焰图
+    native_stack
+    pyroscope_server
+    svg_period是控制着火焰图svg文件生成的周期
+    perf_sample_period控制着oncpu火焰图采集堆栈信息的周期
+    svg_dir控制着火焰图svg文件的存储目录
+    flame_dir控制着火焰图原始堆栈信息的存储目录
+    注：尽量不配置火焰图探针不支持的参数，主要要看探针在实现时是否忽略了用户配置的火焰图探针不支持的参数，否则可能会影响探针采集的结果
+（6）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
+
+
+## 应用7层协议探针配置全集
+看看应用7层协议探针配置的全集
+
+```
+curl -X PUT http://localhost:9999/l7 --data-urlencode json='
+{
+    "cmd": {
+        "bin": "/opt/gala-gopher/extend_probes/l7probe",
+        "check_cmd": "",
+        "probe": [
+            "l7_bytes_metrics",
+            "l7_rpc_metrics",
+            "l7_rpc_trace"
+        ]
+    },
+    "snoopers": {
+        "proc_id": [
+            101,
+            102
+        ],
+        "proc_name": [
+            {
+                "comm": "app1",
+                "cmdline": "",
+                "debugging_dir": ""
+            },
+            {
+                "comm": "app2",
+                "cmdline": "",
+                "debugging_dir": ""
+            }
+        ],
+        "pod_id": [
+            "pod1",
+            "pod2"
+        ],
+        "container_id": [
+            "container1",
+            "container2"
+        ]
+    },
+    "params":{
+        "report_period": 180,
+        "res_lower_thr": 20%,
+        "res_upper_thr": 20%,
+        "report_event": 1,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ],
+        "env": "node",
+        "l7_protocol": [
+            "http",
+            "pgsql"
+        ],
+        "support_ssl": 1,
+        "cluster_ip_backend": 1
+    },
+    "state":"running"
+}'
+
+```    
+
+启动应用7层协议探针的PUT请求中可以配置很多参数，这些参数共同控制着应用7层协议探针的行为，由上往下分析一下请求中的各个重要组成部分
+（1）使用curl命令发起PUT请求
+（2）请求的URL为http://localhost:9999/l7, 9999是Rest server处理启动探针请求监听的端口号，l7为探针的名称
+（3）cmd内容中的bin为l7探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动
+（4）cmd内容中的probe对应着探针的采集子项，l7探针probe的内容为l7_bytes_metrics、l7_rpc_metrics和l7_rpc_trace，代表火焰图探针可以采集l7_bytes_metrics、l7_rpc_metrics和l7_rpc_trace这三种数据类型的数据,
+具体每种数据类型的含义在下文的采集子项详细说明可以查询到
+（4）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
+一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
+（5）params内容中的参数，示例中的参数都是l7探针支持的参数
+    report_period是控制着采集的数据上报的周期
+    res_lower_thr
+    res_upper_thr
+    report_event是控制着探针是否上报异常事件，为1时代表上报异常事件
+    metrics_type控制着 
+    env
+    l7_protocol控制着l7探针采集通过什么协议传输的数据，示例中表示l7探针采集通过http和pgsql协议采集的数据
+    support_ssl
+    cluster_ip_backend
+（6）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
+
+## TCP异常、状态观测探针配置全集
+看看TCP异常、状态观测探针配置的全集
+
+```
+curl -X PUT http://localhost:9999/tcp --data-urlencode json='
+{
+    "cmd": {
+        "bin": "/opt/gala-gopher/extend_probes/tcpprobe",
+        "check_cmd": "",
+        "probe": [
+            "tcp_abnormal",
+            "tcp_rtt",
+            "tcp_windows",
+            "tcp_rate",
+            "tcp_srtt",
+            "tcp_sockbuf",
+            "tcp_stats",
+            "tcp_delay"
+        ]
+    },
+    "snoopers": {
+        "proc_id": [
+            101,
+            102
+        ],
+        "proc_name": [
+            {
+                "comm": "app1",
+                "cmdline": "",
+                "debugging_dir": ""
+            },
+            {
+                "comm": "app2",
+                "cmdline": "",
+                "debugging_dir": ""
+            }
+        ],
+        "pod_id": [
+            "pod1",
+            "pod2"
+        ],
+        "container_id": [
+            "container1",
+            "container2"
+        ]
+    },
+    "params":{
+        "sample_period": 180,
+        "report_period": 180,
+        "latency_thr": 60,
+        "drops_thr": 10,
+        "res_lower_thr": 20%,
+        "res_upper_thr": 20%,
+        "report_event": 1,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ],
+        "env": "node",
+        "report_source_port": 1,
+        "cluster_ip_backend": 1,
+        "dev_name": [
+            "io",
+            "kafka"
+        ]
+    },
+    "state":"running"
+}'
+
+```    
+
+启动tcp探针的PUT请求中可以配置很多参数，这些参数共同控制着tcp探针的行为，由上往下分析一下请求中的各个重要组成部分
+（1）使用curl命令发起PUT请求
+（2）请求的URL为http://localhost:9999/tcp, 9999是Rest server处理启动探针请求监听的端口号，tcp为探针的名称
+（3）cmd内容中的bin为tcp探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动
+（4）cmd内容中的probe对应着探针的采集子项，tcp探针probe的内容为tcp_abnormal、tcp_rtt、tcp_windows、tcp_rate、tcp_srtt、tcp_sockbuf、tcp_stats和tcp_delay， 代表火焰图探针可以采集tcp_abnormal、tcp_rtt、tcp_windows、tcp_rate、tcp_srtt、tcp_sockbuf、tcp_stats和tcp_delay这些数据类型的数据,
+具体每种数据类型的含义在下文的采集子项详细说明可以查询到
+（4）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
+一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
+（5）params内容中的参数，示例中的参数都是tcp探针支持的参数
+    env 
+    report_source_port  
+    cluster_ip_backend ,
+    dev_name
+    sample_period    
+    report_period是控制着采集的数据上报的周期
+    "latency_thr": 60,
+            "drops_thr": 10,
+    res_lower_thr
+    res_upper_thr
+    report_event是控制着探针是否上报异常事件，为1时代表上报异常事件
+    metrics_type控制着 
+    env
+    report_source_port": 1,
+    cluster_ip_backend": 1,
+    dev_name":
+（6）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
+
+
+## Socket异常观测探针配置全集
+看看Socket异常观测探针配置的全集
+
+```
+curl -X PUT http://localhost:9999/socket --data-urlencode json='
+{
+    "cmd": {
+        "bin": "/opt/gala-gopher/extend_probes/socketprobe",
+        "check_cmd": "",
+        "probe": [
+            "tcp_socket",
+            "udp_socket"
+        ]
+    },
+    "snoopers": {
+        "proc_id": [
+            101,
+            102
+        ],
+        "proc_name": [
+            {
+                "comm": "app1",
+                "cmdline": "",
+                "debugging_dir": ""
+            },
+            {
+                "comm": "app2",
+                "cmdline": "",
+                "debugging_dir": ""
+            }
+        ],
+        "pod_id": [
+            "pod1",
+            "pod2"
+        ],
+        "container_id": [
+            "container1",
+            "container2"
+        ]
+    },
+    "params":{
+        "report_period": 180,
+        "res_lower_thr": 20%,
+        "res_upper_thr": 20%,
+        "report_event": 1,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ],
+        "env": "node"
+    },
+    "state":"running"
+}'
+
+```    
+
+启动socket探针的PUT请求中可以配置很多参数，这些参数共同控制着socket探针的行为，由上往下分析一下请求中的各个重要组成部分
+（1）使用curl命令发起PUT请求
+（2）请求的URL为http://localhost:9999/socket, 9999是Rest server处理启动探针请求监听的端口号，socket为探针的名称
+（3）cmd内容中的bin为socket探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动
+（4）cmd内容中的probe对应着探针的采集子项，socket探针probe的内容为tcp_socket, udp_socket, 代表socket探针可以采集tcp_socket和udp_socket数据类型的数据,
+具体每种数据类型的含义在下文的采集子项详细说明可以查询到
+（4）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
+一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
+（5）params内容中的参数，示例中的参数都是socket探针支持的参数
+    report_period是控制着采集的数据上报的周期
+    res_lower_thr
+    res_upper_thr
+    report_event是控制着探针是否上报异常事件，为1时代表上报异常事件
+    metrics_type控制着 
+    env
+（6）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
+
+
+## Block层I/O观测探针配置全集
+看看Block层I/O观测探针配置的全集
+
+```
+curl -X PUT http://localhost:9999/io --data-urlencode json='
+{
+    "cmd": {
+        "bin": "/opt/gala-gopher/extend_probes/ioprobe",
+        "check_cmd": "",
+        "probe": [
+            "io_trace",
+            "io_err",
+            "io_count",
+            "page_cache"
+        ]
+    },
+    "snoopers": {
+        "proc_id": [
+            101,
+            102
+        ],
+        "proc_name": [
+            {
+                "comm": "app1",
+                "cmdline": "",
+                "debugging_dir": ""
+            },
+            {
+                "comm": "app2",
+                "cmdline": "",
+                "debugging_dir": ""
+            }
+        ],
+        "pod_id": [
+            "pod1",
+            "pod2"
+        ],
+        "container_id": [
+            "container1",
+            "container2"
+        ]
+    },
+    "params":{
+        "sample_period": 180,
+        "report_period": 180,
+        "latency_thr": 180,
+        "res_lower_thr": 20%,
+        "res_upper_thr": 20%,
+        "report_event": 1,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ],
+        "env": "node",
+        "dev_name": [
+            "io",
+            "kafka"
+        ]
+    },
+    "state":"running"
+}'
+
+```    
+
+启动io探针的PUT请求中可以配置很多参数，这些参数共同控制着io探针的行为，由上往下分析一下请求中的各个重要组成部分
+（1）使用curl命令发起PUT请求
+（2）请求的URL为http://localhost:9999/io, 9999是Rest server处理启动探针请求监听的端口号，io为探针的名称
+（3）cmd内容中的bin为io探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动
+（4）cmd内容中的probe对应着探针的采集子项，io探针probe的内容为io_trace、io_err、io_count和page_cache, 代表io探针可以采集io_trace、io_err、io_count和page_cache数据类型的数据,
+具体每种数据类型的含义在下文的采集子项详细说明可以查询到
+（4）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
+一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
+（5）params内容中的参数，示例中的参数都是io探针支持的参数
+     sample_period
+     report_period
+     latency_thr
+     res_lower_thr
+     res_upper_thr
+     report_event
+     metrics_type
+     env
+     dev_name
+（6）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
+
+
+## 进程系统调用、I/O、DNS、VFS等观测探针配置全集
+看看进程系统调用、I/O、DNS、VFS等观测探针配置的全集
+
+```
+curl -X PUT http://localhost:9999/proc --data-urlencode json='
+{
+    "cmd": {
+        "bin": "/opt/gala-gopher/extend_probes/procprobe",
+        "check_cmd": "",
+        "probe": [
+            "base_metrics", 
+            "proc_syscall",
+            "proc_fs", 
+            "proc_io", 
+            "proc_dns",
+            "proc_pagecache"
+        ]
+    },
+    "snoopers": {
+        "proc_id": [
+            101,
+            102
+        ],
+        "proc_name": [
+            {
+                "comm": "app1",
+                "cmdline": "",
+                "debugging_dir": ""
+            },
+            {
+                "comm": "app2",
+                "cmdline": "",
+                "debugging_dir": ""
+            }
+        ],
+        "pod_id": [
+            "pod1",
+            "pod2"
+        ],
+        "container_id": [
+            "container1",
+            "container2"
+        ]
+    },
+    "params":{
+        "report_period": 180,
+        "res_lower_thr": 20%,
+        "res_upper_thr": 20%,
+        "report_event": 1,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ],
+        "env": "node"
+    },
+    "state":"running"
+}'
+
+```    
+
+启动proc探针的PUT请求中可以配置很多参数，这些参数共同控制着proc探针的行为，由上往下分析一下请求中的各个重要组成部分
+（1）使用curl命令发起PUT请求
+（2）请求的URL为http://localhost:9999/proc, 9999是Rest server处理启动探针请求监听的端口号，proc为探针的名称
+（3）cmd内容中的bin为io探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动
+（4）cmd内容中的probe对应着探针的采集子项，proc探针probe的内容为base_metrics、proc_syscall、proc_fs、proc_io、proc_dns和proc_pagecache, 
+代表proc探针可以采集base_metrics、proc_syscall、proc_fs、proc_io、proc_dns和proc_pagecache数据类型的数据,具体每种数据类型的含义在下文的采集子项详细说明可以查询到
+（4）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
+一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
+（5）params内容中的参数，示例中的参数都是proc探针支持的参数
+    report_period
+    res_lower_thr
+    res_upper_thr
+    report_event
+    metrics_type
+    env
+（6）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
+
+
+## JVM层GC，线程，内存，缓冲等观测探针配置全集
+看看JVM层GC，线程，内存，缓冲等观测探针配置的全集
+
+```
+curl -X PUT http://localhost:9999/jvm --data-urlencode json='
+{
+    "cmd": {
+        "bin": "/opt/gala-gopher/extend_probes/jvmprobe",
+        "check_cmd": "",
+        "probe": [
+        ]
+    },
+    "snoopers": {
+        "proc_id": [
+            101,
+            102
+        ],
+        "proc_name": [
+            {
+                "comm": "app1",
+                "cmdline": "",
+                "debugging_dir": ""
+            },
+            {
+                "comm": "app2",
+                "cmdline": "",
+                "debugging_dir": ""
+            }
+        ],
+        "pod_id": [
+            "pod1",
+            "pod2"
+        ],
+        "container_id": [
+            "container1",
+            "container2"
+        ]
+    },
+    "params":{
+        "report_period": 180,
+        "res_lower_thr": 20%,
+        "res_upper_thr": 20%,
+        "report_event": 1,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ],
+        "env": "node"
+    },
+    "state":"running"
+}'
+
+```    
+
+启动jvm探针的PUT请求中可以配置很多参数，这些参数共同控制着jvm探针的行为，由上往下分析一下请求中的各个重要组成部分
+（1）使用curl命令发起PUT请求
+（2）请求的URL为http://localhost:9999/jvm, 9999是Rest server处理启动探针请求监听的端口号，jvm为探针的名称
+（3）cmd内容中的bin为io探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动
+（4）cmd内容中的probe对应着探针的采集子项，jvm探针probe的内容为空
+
+注：jvm的probe为什么是空呢
+
+（4）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
+一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
+（5）params内容中的参数，示例中的参数都是jvm探针支持的参数
+    report_period
+    res_lower_thr
+    res_upper_thr
+    report_event
+    metrics_type
+    env
+（6）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
+
+
+## Redis性能SLI（访问时延）观测探针配置全集
+看看Redis性能SLI（访问时延）观测探针配置的全集
+
+```
+curl -X PUT http://localhost:9999/ksli --data-urlencode json='
+{
+    "cmd": {
+        "bin": "/opt/gala-gopher/extend_probes/ksliprobe",
+        "check_cmd": "",
+        "probe": [
+        ]
+    },
+    "snoopers": {
+        "proc_id": [
+            101,
+            102
+        ],
+        "proc_name": [
+            {
+                "comm": "app1",
+                "cmdline": "",
+                "debugging_dir": ""
+            },
+            {
+                "comm": "app2",
+                "cmdline": "",
+                "debugging_dir": ""
+            }
+        ],
+        "pod_id": [
+            "pod1",
+            "pod2"
+        ],
+        "container_id": [
+            "container1",
+            "container2"
+        ]
+    },
+    "params":{
+        "report_period": 180,
+        "latency_thr": 60,
+        "res_lower_thr": 20%,
+        "res_upper_thr": 20%,
+        "report_event": 1,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ],
+        "env": "node",
+        "dev_name": [
+            "io",
+            "kafka"
+        ],
+        "continuous_sampling": 1
+    },
+    "state":"running"
+}'
+
+```    
+
+启动ksli探针的PUT请求中可以配置很多参数，这些参数共同控制着ksli探针的行为，由上往下分析一下请求中的各个重要组成部分
+（1）使用curl命令发起PUT请求
+（2）请求的URL为http://localhost:9999/ksli, 9999是Rest server处理启动探针请求监听的端口号，jvm为探针的名称
+（3）cmd内容中的bin为ksli探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动
+（4）cmd内容中的probe对应着探针的采集子项，ksli探针probe的内容为空
+
+注：ksli的probe为什么是空呢
+
+（4）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
+一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
+（5）params内容中的参数，示例中的参数都是ksli探针支持的参数
+    report_period
+    latency_thr
+    res_lower_thr
+    res_upper_thr
+    report_event
+    metrics_type
+    env
+    dev_name
+    continuous_sampling
+（6）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
+
+
+## PG DB性能SLI（访问时延）观测探针配置全集
+看看PG DB性能SLI（访问时延）观测探针配置的全集
+
+```
+curl -X PUT http://localhost:9999/postgre_sli --data-urlencode json='
+{
+    "cmd": {
+        "bin": "/opt/gala-gopher/extend_probes/postgre_sli_probe",
+        "check_cmd": "",
+        "probe": [
+        ]
+    },
+    "snoopers": {
+        "proc_id": [
+            101,
+            102
+        ],
+        "proc_name": [
+            {
+                "comm": "app1",
+                "cmdline": "",
+                "debugging_dir": ""
+            },
+            {
+                "comm": "app2",
+                "cmdline": "",
+                "debugging_dir": ""
+            }
+        ],
+        "pod_id": [
+            "pod1",
+            "pod2"
+        ],
+        "container_id": [
+            "container1",
+            "container2"
+        ]
+    },
+    "params":{
+        "report_period": 180,
+        "res_lower_thr": 20%,
+        "res_upper_thr": 20%,
+        "report_event": 1,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ],
+        "env": "node",
+        "dev_name": [
+            "io",
+            "kafka"
+        ]
+    },
+    "state":"running"
+}'
+
+```    
+
+启动postgre_sli探针的PUT请求中可以配置很多参数，这些参数共同控制着postgre_sli探针的行为，由上往下分析一下请求中的各个重要组成部分
+（1）使用curl命令发起PUT请求
+（2）请求的URL为http://localhost:9999/postgre_sli, 9999是Rest server处理启动探针请求监听的端口号，postgre_sli为探针的名称
+（3）cmd内容中的bin为postgre_sli探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动
+（4）cmd内容中的probe对应着探针的采集子项，postgre_sli探针probe的内容为空
+
+注：postgre_sli的probe为什么是空呢
+
+（4）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
+一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
+（5）params内容中的参数，示例中的参数都是postgre_sli探针支持的参数
+    report_period
+    res_lower_thr
+    res_upper_thr
+    report_event
+    metrics_type
+    env
+    dev_name
+（6）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
+
+
+## openGauss访问吞吐量观测探针配置全集
+看看openGauss访问吞吐量观测探针配置的全集
+
+```
+curl -X PUT http://localhost:9999/opengauss_sli --data-urlencode json='
+{
+    "cmd": {
+        "bin": "/opt/gala-gopher/extend_probes/opengauss_sli_probe",
+        "check_cmd": "",
+        "probe": [
+        ]
+    },
+    "snoopers": {
+        "ip": [
+            "ip1",
+            "ip2"
+        ],
+        "port": [
+            "port1",
+            "port2"
+        ],
+        "dbname": [
+            "dbname1",
+            "dbname2"
+        ],
+        "user": [
+            "user1",
+            "user2"
+        ],
+        "password": [
+            "password1",
+            "password2"
+        ]
+    },
+    "params":{
+        "report_period": 180,
+        "res_lower_thr": 20%,
+        "res_upper_thr": 20%,
+        "report_event": 1,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ],
+        "env": "node"
+    },
+    "state":"running"
+}'
+
+```    
+
+启动opengauss_sli探针的PUT请求中可以配置很多参数，这些参数共同控制着opengauss_sli探针的行为，由上往下分析一下请求中的各个重要组成部分
+（1）使用curl命令发起PUT请求
+（2）请求的URL为http://localhost:9999/opengauss_sli, 9999是Rest server处理启动探针请求监听的端口号，opengauss_sli为探针的名称
+（3）cmd内容中的bin为opengauss_sli探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动
+（4）cmd内容中的probe对应着探针的采集子项，opengauss_sli探针probe的内容为空
+
+注：opengauss_sli的probe为什么是空呢
+
+（4）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
+一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
+（5）params内容中的参数，示例中的参数都是opengauss_sli探针支持的参数
+    report_period
+    res_lower_thr
+    res_upper_thr
+    report_event
+    metrics_type
+    env
+    elf_path
+（6）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
+
+
+## DNS会话观测探针配置全集
+看看DNS会话观测探针配置的全集
+
+```
+curl -X PUT http://localhost:9999/dnsmasq --data-urlencode json='
+{
+    "cmd": {
+        "bin": "/opt/gala-gopher/extend_probes/dnsmasq_probe",
+        "check_cmd": "",
+        "probe": [
+        ]
+    },
+    "snoopers": {
+        "ip": [
+            "ip1",
+            "ip2"
+        ],
+        "port": [
+            "port1",
+            "port2"
+        ],
+        "dbname": [
+            "dbname1",
+            "dbname2"
+        ],
+        "user": [
+            "user1",
+            "user2"
+        ],
+        "password": [
+            "password1",
+            "password2"
+        ]
+    },
+    "params":{
+        "report_period": 180,
+        "res_lower_thr": 20%,
+        "res_upper_thr": 20%,
+        "report_event": 1,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ],
+        "env": "node",
+        "elf_path":   啊啊啊不会
+    },
+    "state":"running"
+}'
+
+```    
+
+启动dnsmasq探针的PUT请求中可以配置很多参数，这些参数共同控制着dnsmasq探针的行为，由上往下分析一下请求中的各个重要组成部分
+（1）使用curl命令发起PUT请求
+（2）请求的URL为http://localhost:9999/dnsmasq, 9999是Rest server处理启动探针请求监听的端口号，dnsmasq为探针的名称
+（3）cmd内容中的bin为dnsmasq探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动
+（4）cmd内容中的probe对应着探针的采集子项，dnsmasq探针probe的内容为空
+
+注：dnsmasq的probe为什么是空呢
+
+（4）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
+一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
+（5）params内容中的参数，示例中的参数都是dnsmasq探针支持的参数
+    report_period
+    res_lower_thr
+    res_upper_thr
+    report_event
+    metrics_type
+    env
+    elf_path
+（6）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
+
+
+## lvs会话观测探针配置全集
+看看lvs会话观测探针配置的全集
+
+```
+curl -X PUT http://localhost:9999/lvs --data-urlencode json='
+{
+    "cmd": {
+        "bin": "/opt/gala-gopher/extend_probes/lvsprobe",
+        "check_cmd": "",
+        "probe": [
+        ]
+    },
+    "snoopers": {
+    },
+    "params":{
+        "report_period": 180,
+        "res_lower_thr": 20%,
+        "res_upper_thr": 20%,
+        "report_event": 1,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ],
+        "env": "node"
+    },
+    "state":"running"
+}'
+
+```    
+
+启动lvs探针的PUT请求中可以配置很多参数，这些参数共同控制着lvs探针的行为，由上往下分析一下请求中的各个重要组成部分
+（1）使用curl命令发起PUT请求
+（2）请求的URL为http://localhost:9999/lvs, 9999是Rest server处理启动探针请求监听的端口号，lvs为探针的名称
+（3）cmd内容中的bin为lvs探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动
+（4）cmd内容中的probe对应着探针的采集子项，lvs探针probe的内容为空
+
+注：lvs的probe为什么是空呢
+
+（4）snoopers内容中的配置探针监听对象为空
+（5）params内容中的参数，示例中的参数都是lvs探针支持的参数
+    report_period
+    res_lower_thr
+    res_upper_thr
+    report_event
+    metrics_type
+    env
+（6）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
+
+
+## Nginx L4/L7层会话观测探针配置全集
+看看Nginx L4/L7层会话观测探针配置的全集
+
+```
+curl -X PUT http://localhost:9999/nginx --data-urlencode json='
+{
+    "cmd": {
+        "bin": "/opt/gala-gopher/extend_probes/nginxprobe",
+        "check_cmd": "",
+        "probe": [
+        ]
+    },
+    "snoopers": {
+    },
+    "params":{
+        "report_period": 180,
+        "res_lower_thr": 20%,
+        "res_upper_thr": 20%,
+        "report_event": 1,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ],
+        "env": "node",
+        "elf_path": 啊啊啊不会
+    },
+    "state":"running"
+}'
+
+```    
+
+启动nginx探针的PUT请求中可以配置很多参数，这些参数共同控制着nginx探针的行为，由上往下分析一下请求中的各个重要组成部分
+（1）使用curl命令发起PUT请求
+（2）请求的URL为http://localhost:9999/nginx, 9999是Rest server处理启动探针请求监听的端口号，nginx为探针的名称
+（3）cmd内容中的bin为nginx探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动
+（4）cmd内容中的probe对应着探针的采集子项，nginx探针probe的内容为空
+
+注：nginx的probe为什么是空呢
+
+（4）snoopers内容中的配置探针监听对象为空
+（5）params内容中的参数，示例中的参数都是nginx探针支持的参数
+    report_period
+    res_lower_thr
+    res_upper_thr
+    report_event
+    metrics_type
+    env
+    elf_path
+（6）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
+
+
+## Haproxy L4/L7层会话观测探针配置全集
+看看Haproxy L4/L7层会话观测探针配置的全集
+
+```
+curl -X PUT http://localhost:9999/haproxy --data-urlencode json='
+{
+    "cmd": {
+        "bin": "/opt/gala-gopher/extend_probes/haproxyprobe",
+        "check_cmd": "",
+        "probe": [
+        ]
+    },
+    "snoopers": {
+    },
+    "params":{
+        "report_period": 180,
+        "res_lower_thr": 20%,
+        "res_upper_thr": 20%,
+        "report_event": 1,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ],
+        "env": "node"
+    },
+    "state":"running"
+}'
+
+```    
+
+启动haproxy探针的PUT请求中可以配置很多参数，这些参数共同控制着haproxy探针的行为，由上往下分析一下请求中的各个重要组成部分
+（1）使用curl命令发起PUT请求
+（2）请求的URL为http://localhost:9999/haproxy, 9999是Rest server处理启动探针请求监听的端口号，haproxy为探针的名称
+（3）cmd内容中的bin为haproxy探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动
+（4）cmd内容中的probe对应着探针的采集子项，haproxy探针probe的内容为空
+
+注：haproxy的probe为什么是空呢
+
+（4）snoopers内容中的配置探针监听对象为空
+（5）params内容中的参数，示例中的参数都是haproxy探针支持的参数
+    report_period
+    res_lower_thr
+    res_upper_thr
+    report_event
+    metrics_type
+    env
+（6）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
+
+
+## Kafka 生产者/消费者topic观测探针配置全集
+看看Kafka 生产者/消费者topic观测探针配置的全集
+
+```
+curl -X PUT http://localhost:9999/kafka --data-urlencode json='
+{
+    "cmd": {
+        "bin": "/opt/gala-gopher/extend_probes/kafkaprobe",
+        "check_cmd": "",
+        "probe": [
+        ]
+    },
+    "snoopers": {
+    },
+    "params":{
+        "report_period": 180,
+        "res_lower_thr": 20%,
+        "res_upper_thr": 20%,
+        "report_event": 1,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ],
+        "env": "node"
+    },
+    "state":"running"
+}'
+
+```    
+
+启动haproxy探针的PUT请求中可以配置很多参数，这些参数共同控制着haproxy探针的行为，由上往下分析一下请求中的各个重要组成部分
+（1）使用curl命令发起PUT请求
+（2）请求的URL为http://localhost:9999/haproxy, 9999是Rest server处理启动探针请求监听的端口号，haproxy为探针的名称
+（3）cmd内容中的bin为haproxy探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动
+（4）cmd内容中的probe对应着探针的采集子项，haproxy探针probe的内容为空
+
+注：haproxy的probe为什么是空呢
+
+（4）snoopers内容中的配置探针监听对象为空
+（5）params内容中的参数，示例中的参数都是haproxy探针支持的参数
+    report_period
+    res_lower_thr
+    res_upper_thr
+    report_event
+    metrics_type
+    env
+（6）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
+
+
+## 系统基础信息观测探针配置全集
+看看系统基础信息观测探针配置的全集
+
+```
+curl -X PUT http://localhost:9999/baseinfo --data-urlencode json='
+{
+    "cmd": {
+        "bin": "/opt/gala-gopher/extend_probes/baseinfoprobe",
+        "check_cmd": "",
+        "probe": [
+            "cpu",
+            "mem",
+            "nic",
+            "disk",
+            "net",
+            "fs",
+            "proc",
+            "host"
+        ]
+    },
+    "snoopers": {
+        "proc_id": [
+            101,
+            102
+        ],
+        "proc_name": [
+            {
+                "comm": "app1",
+                "cmdline": "",
+                "debugging_dir": ""
+            },
+            {
+                "comm": "app2",
+                "cmdline": "",
+                "debugging_dir": ""
+            }
+        ],
+        "pod_id": [
+            "pod1",
+            "pod2"
+        ],
+        "container_id": [
+            "container1",
+            "container2"
+        ]        
+    },
+    "params":{
+        "report_period": 180,
+        "res_lower_thr": 20%,
+        "res_upper_thr": 20%,
+        "report_event": 1,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ],
+        "env": "node",
+        "dev_name": [
+            "io",
+            "kafka"
+        ]
+    },
+    "state":"running"
+}'
+
+```    
+
+启动baseinfo探针的PUT请求中可以配置很多参数，这些参数共同控制着baseinfo探针的行为，由上往下分析一下请求中的各个重要组成部分
+（1）使用curl命令发起PUT请求
+（2）请求的URL为http://localhost:9999/baseinfo, 9999是Rest server处理启动探针请求监听的端口号，baseinfo为探针的名称
+（3）cmd内容中的bin为baseinfo探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动
+（4）cmd内容中的probe对应着探针的采集子项，baseinfo探针probe的内容为空cpu, mem, nic, disk, net, fs, proc, host,代表着baseinfo探针会采集
+cpu, mem, nic, disk, net, fs, proc, host这些类型的数据
+（4）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
+一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
+（5）params内容中的参数，示例中的参数都是baseinfo探针支持的参数
+    report_period
+    res_lower_thr
+    res_upper_thr
+    report_event
+    metrics_type
+    env
+（6）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
+
+
+## 虚拟化观测探针（virt）配置全集
+看看虚拟化观测探针（virt）配置的全集
+
+```
+curl -X PUT http://localhost:9999/virt --data-urlencode json='
+{
+    "cmd": {
+        "bin": "/opt/gala-gopher/extend_probes/virtprobe",
+        "check_cmd": "",
+        "probe": [
+        ]
+    },
+    "snoopers": {
+    },
+    "params":{
+        "report_period": 180,
+        "res_lower_thr": 20%,
+        "res_upper_thr": 20%,
+        "report_event": 1,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ],
+        "env": "node"
+    },
+    "state":"running"
+}'
+
+```    
+
+启动virt探针的PUT请求中可以配置很多参数，这些参数共同控制着virt探针的行为，由上往下分析一下请求中的各个重要组成部分
+（1）使用curl命令发起PUT请求
+（2）请求的URL为http://localhost:9999/virt, 9999是Rest server处理启动探针请求监听的端口号，virt为探针的名称
+（3）cmd内容中的bin为virt探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动
+（4）cmd内容中的probe对应着探针的采集子项，virt探针的probe对应着探针的采集子项为空
+（4）snoopers内容中的配置探针监听对象为空
+（5）params内容中的参数，示例中的参数都是virt探针支持的参数
+    report_period
+    res_lower_thr
+    res_upper_thr
+    report_event
+    metrics_type
+    env
+（6）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
+
+
+## 线程级性能profiling探针（tprofiling）配置全集
+看看线程级性能profiling探针配置的全集
+
+```
+curl -X PUT http://localhost:9999/tprofiling --data-urlencode json='
+{
+    "cmd": {
+        "bin": "/opt/gala-gopher/extend_probes/tprofilingprobe",
+        "check_cmd": "",
+        "probe": [
+            "oncpu",
+            "syscall_file",
+            "syscall_net",
+            "syscall_lock",
+            "syscall_sched"
+        ]
+    },
+    "snoopers": {
+        "proc_id": [
+            101,
+            102
+        ],
+        "proc_name": [
+            {
+                "comm": "app1",
+                "cmdline": "",
+                "debugging_dir": ""
+            },
+            {
+                "comm": "app2",
+                "cmdline": "",
+                "debugging_dir": ""
+            }
+        ],
+        "pod_id": [
+            "pod1",
+            "pod2"
+        ],
+        "container_id": [
+            "container1",
+            "container2"
+        ]
+    },
+    "params":{
+        "report_period": 180,
+        "res_lower_thr": 20%,
+        "res_upper_thr": 20%,
+        "report_event": 1,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ],
+        "env": "node"
+    },
+    "state":"running"
+}'
+
+```    
+
+启动tprofiling探针的PUT请求中可以配置很多参数，这些参数共同控制着tprofiling探针的行为，由上往下分析一下请求中的各个重要组成部分
+（1）使用curl命令发起PUT请求
+（2）请求的URL为http://localhost:9999/tprofiling, 9999是Rest server处理启动探针请求监听的端口号，tprofiling为探针的名称
+（3）cmd内容中的bin为tprofiling探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动
+（4）cmd内容中的probe对应着探针的采集子项，tprofiling探针的probe对应着探针的采集子项为oncpu、syscall_file、syscall_net、syscall_lock、
+syscall_sched,代表tprofiling探针会采集这些类型的数据
+（4）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
+一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
+（5）params内容中的参数，示例中的参数都是virt探针支持的参数
+    report_period
+    res_lower_thr
+    res_upper_thr
+    report_event
+    metrics_type
+    env
+（6）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
+
+
+## 容器信息探针（container）配置全集
+看看容器信息探针（container）配置的全集
+
+```
+curl -X PUT http://localhost:9999/container --data-urlencode json='
+{
+    "cmd": {
+        "bin": "/opt/gala-gopher/extend_probes/containerprobe",
+        "check_cmd": "",
+        "probe": [
+        ]
+    },
+    "snoopers": {
+        "proc_id": [
+            101,
+            102
+        ],
+        "proc_name": [
+            {
+                "comm": "app1",
+                "cmdline": "",
+                "debugging_dir": ""
+            },
+            {
+                "comm": "app2",
+                "cmdline": "",
+                "debugging_dir": ""
+            }
+        ],
+        "pod_id": [
+            "pod1",
+            "pod2"
+        ],
+        "container_id": [
+            "container1",
+            "container2"
+        ]
+    },
+    "params":{
+        "report_period": 180,
+        "res_lower_thr": 20%,
+        "res_upper_thr": 20%,
+        "report_event": 1,
+        "metrics_type": [
+            "raw",
+            "telemetry"
+        ],
+        "env": "node"
+    },
+    "state":"running"
+}'
+
+```    
+
+启动container探针的PUT请求中可以配置很多参数，这些参数共同控制着container探针的行为，由上往下分析一下请求中的各个重要组成部分
+（1）使用curl命令发起PUT请求
+（2）请求的URL为http://localhost:9999/container, 9999是Rest server处理启动探针请求监听的端口号，container为探针的名称
+（3）cmd内容中的bin为container探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动
+（4）cmd内容中的probe对应着探针的采集子项，container探针的probe对应着探针的采集子项为空
+啊啊啊为空是因为什么
+（4）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
+一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
+（5）params内容中的参数，示例中的参数都是container探针支持的参数
+    report_period
+    res_lower_thr
+    res_upper_thr
+    report_event
+    metrics_type
+    env
+（6）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
+
+
+下面介绍使用探针的步骤
 
 ## 开启探针
-为了开启火焰图探针，需要先启动gala-gopher,之后发送请求给Rest server, 以下面的启动探针请求为例, 介绍一下开启探针时需要注意的几点
-（1）请求方法为PUT方法
-（2）端口号默认为9999，也可以在gala-gopher.conf配置文件中进行配置
-（3）flamegraph为探针的名字，bin为探针的二进制可执行文件的二选制文件的绝对文件路径
-（4）probe数组：probe数组中的内容控制了探针会采集哪些数据，火焰图探针的probe数组中的内容可以为"oncpu"、"offcpu"和"mem", 代表着火焰图探针可以采集"oncpu"、"offcpu"和"mem"类型的数据。
-如果probe数组为空则代表火焰图探针不会采集任何数据
-(5)snoopers数组：snoopers数组中的内容为探针所监控的对象，可以通过配置proc_ id(进程1d)、proc_name (进程名称)、pod_id、container_id (容器id)指定探针监控的对象，
-snoopers为空时代表探针不会监控任何对象
-(6)state为探针的状态，由于需要开启探针，所以state必须为running才能开启探针
+为了开启火焰图探针，需要先启动gala-gopher,之后发送请求给Rest server, 以下面的启动探针请求为例, 介绍一下开启探针时需要注意的几点 
+（1）请求方法为PUT方法 
+（2）端口号默认为9999，也可以在gala-gopher.conf配置文件中进行配置 
+（3）flamegraph为探针的名字，bin为探针的二进制可执行文件的二选制文件的绝对文件路径 
+（4）probe数组：probe数组中的内容控制了探针会采集哪些数据，火焰图探针的probe数组中的内容可以为"oncpu"、"offcpu"和"mem", 代表着火焰图探针可以采集"oncpu"、"offcpu"和"mem"类型的数据。如果probe数组为空则代表火焰图探针不会采集任何数据 
+(5)snoopers数组：snoopers数组中的内容为探针所监控的对象，可以通过配置proc_ id(进程1d)、proc_name (进程名称)、pod_id、container_id (容器id)指定探针监控的对象，snoopers为空时代表探针不会监控任何对象 
+(6)state为探针的状态，由于需要开启探针，所以state必须为running才能开启探针 
 
 开启火焰图探针的命令如下：
 
