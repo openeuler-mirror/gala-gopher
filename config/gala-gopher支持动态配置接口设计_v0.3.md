@@ -1377,13 +1377,13 @@ curl -X PUT http://localhost:9999/container --data-urlencode json='
 下面介绍使用探针的步骤
 
 ## 开启探针
-为了开启火焰图探针，需要先启动gala-gopher,之后发送请求给Rest server, 以下面的启动探针请求为例, 介绍一下开启探针时需要注意的几点 
-（1）请求方法为PUT方法 
-（2）端口号默认为9999，也可以在gala-gopher.conf配置文件中进行配置 
-（3）flamegraph为探针的名字，bin为探针的二进制可执行文件的二选制文件的绝对文件路径 
-（4）probe数组：probe数组中的内容控制了探针会采集哪些数据，火焰图探针的probe数组中的内容可以为"oncpu"、"offcpu"和"mem", 代表着火焰图探针可以采集"oncpu"、"offcpu"和"mem"类型的数据。如果probe数组为空则代表火焰图探针不会采集任何数据 
-(5)snoopers数组：snoopers数组中的内容为探针所监控的对象，可以通过配置proc_ id(进程1d)、proc_name (进程名称)、pod_id、container_id (容器id)指定探针监控的对象，snoopers为空时代表探针不会监控任何对象 
-(6)state为探针的状态，由于需要开启探针，所以state必须为running才能开启探针 
+为了开启火焰图探针，需要先启动gala-gopher,之后发送请求给Rest server, 以下面的启动探针请求为例, 介绍一下开启探针时需要注意的几点  
+（1）请求方法为PUT方法  
+（2）端口号默认为9999，也可以在gala-gopher.conf配置文件中进行配置  
+（3）flamegraph为探针的名字，bin为探针的二进制可执行文件的二选制文件的绝对文件路径  
+（4）probe数组：probe数组中的内容控制了探针会采集哪些数据，火焰图探针的probe数组中的内容可以为"oncpu"、"offcpu"和"mem", 代表着火焰图探针可以采集"oncpu"、"offcpu"和"mem"类型的数据。如果probe数组为空则代表火焰图探针不会采集任何数据  
+（5）snoopers数组：snoopers数组中的内容为探针所监控的对象，可以通过配置proc_ id(进程1d)、proc_name (进程名称)、pod_id、container_id (容器id)指定探针监控的对象，snoopers为空时代表探针不会监控任何对象  
+（6）state为探针的状态，由于需要开启探针，所以state必须为running才能开启探针  
 
 开启火焰图探针的命令如下：
 
