@@ -184,7 +184,7 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 3. 启动文件必须真实有效。
 4. 采集特性可以按需开启全部/部分能力，关闭时只能整体关闭某个采集特性。
 5. opengauss监控对象是DB实例（IP/Port/dbname/user/password）
-6. 接口每次最多接收2048长度的数据
+6. 接口每次最多接收1M字节长度的数据
 ```
 
 
