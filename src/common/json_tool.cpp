@@ -202,13 +202,13 @@ int Json_GetValueInt(const void *jsonObj)
 
 void *Json_CreateArray()
 {
-    auto *root = new Json::Value();
+    auto *root = new Json::Value(Json::arrayValue);
     return (void *)root;
 }
 
 void *Json_CreateObject()
 {
-    auto *root = new Json::Value();
+    auto *root = new Json::Value(Json::objectValue);
     return (void *)root;
 }
 
