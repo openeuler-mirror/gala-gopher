@@ -40,8 +40,6 @@ struct jvm_process_info {
 static char jvm_agent_file[FILENAME_LEN];
 static char jvm_tmp_file[FILENAME_LEN];
 static char attach_type[ATTACH_TYPE_LEN];   // start | stop
-static int agentfile_copy_done;
-
 #define ATTACH_BIN_PATH "/opt/gala-gopher/lib/jvm_attach"
 #define HOST_SO_DIR "/opt/gala-gopher/extend_probes"
 #define HOST_JAVA_TMP_PATH "/proc/%u/root/tmp/java-data-%u/%s"  // eg: /proc/<pid>/root/tmp/java-data-<pid>/java-symbols.bin
@@ -164,19 +162,14 @@ static int _set_attach_argv(u32 pid, struct jvm_process_info *v)
     char host_agent_file_path[LINE_BUF_LEN];
     (void)snprintf(host_agent_file_path, LINE_BUF_LEN, "%s%s", v->host_proc_dir, ns_agent_path);
 
-    if ((access(host_agent_file_path, 0) != 0) || (agentfile_copy_done == 0)) {
+    if ((access(host_agent_file_path, 0) != 0)) {
         char src_agent_file[PATH_LEN] = {0};
         (void)snprintf(src_agent_file, PATH_LEN, "%s/%s", HOST_SO_DIR, jvm_agent_file);
         ret = copy_file(host_agent_file_path, src_agent_file); // overwrite is ok.
         if (ret != 0) {
-            if (agentfile_copy_done == 0) {
-                DEBUG("[JAVA_SUPPORT]: proc %u copy %s from %s file fail \n", pid, host_agent_file_path, src_agent_file);
-            } else {
-                ERROR("[JAVA_SUPPORT]: proc %u copy %s from %s file fail \n", pid, host_agent_file_path, src_agent_file);
-                return ret;
-            }
+            ERROR("[JAVA_SUPPORT]: proc %u copy %s from %s file fail \n", pid, host_agent_file_path, src_agent_file);
+            return ret;
         }
-        agentfile_copy_done = 1;
     }
 
     ret = chown(host_agent_file_path, v->eUid, v->eGid);
