@@ -203,6 +203,8 @@ static int parser_metrics_type(struct probe_s *probe, struct param_key_s *param_
 {
     void *object;
     u32 metrics_flags;
+
+    probe->probe_param.metrics_flags = 0;
     size_t size = Json_GetArraySize(key_item);
     for (int i = 0; i < size; i++) {
         object = Json_GetArrayItem(key_item, i);
@@ -230,6 +232,7 @@ static int parser_work_env(struct probe_s *probe, struct param_key_s *param_key,
     void *object;
     u32 env_flags;
 
+    probe->probe_param.env_flags = 0;
     size_t size = Json_GetArraySize(key_item);
     for (int i = 0; i < size; i++) {
         object = Json_GetArrayItem(key_item, i);
@@ -257,6 +260,7 @@ static int parser_l7pro(struct probe_s *probe, struct param_key_s *param_key, co
     void *object;
     u32 l7pro_flags;
 
+    probe->probe_param.l7_probe_proto_flags = 0;
     size_t size = Json_GetArraySize(key_item);
     for (int i = 0; i < size; i++) {
         object = Json_GetArrayItem(key_item, i);
