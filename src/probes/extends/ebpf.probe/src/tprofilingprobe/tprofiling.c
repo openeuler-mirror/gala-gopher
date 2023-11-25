@@ -280,7 +280,7 @@ static void java_symb_mgmt(int proc_filter_map_fd)
             key = next_key;
             continue;
         }
-
+        java_offload_jvm_agent(next_key.proc_id);
         if (java_load(next_key.proc_id, &args)) {
             TP_WARN("Failed to load java agent to proc %u\n", next_key.proc_id);
         }
