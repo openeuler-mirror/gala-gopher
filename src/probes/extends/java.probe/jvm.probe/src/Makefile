@@ -11,6 +11,8 @@ DEPS = $(patsubst %.cpp, %.o, $(SRC_CPLUS))
 SRC_C := $(wildcard *.c)
 SRC_C += $(CFILES)
 
+CFLAGS += -DJAVA_AGENT_VER='"$(JAVA_AGENT_VER)"'
+
 .PHONY: all clean install
 
 ALL := pre deps app
