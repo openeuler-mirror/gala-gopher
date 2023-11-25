@@ -17,8 +17,12 @@
 
 #include <uthash.h>
 
-#define JVMPROBE_AGENT_FILE "JvmProbeAgent.jar"
-#define JVMPROBE_TMP_FILE   "jvm-metrics.txt"
+#ifndef JAVA_AGENT_VER
+#define JAVA_AGENT_VER ""
+#endif
+
+#define JVMPROBE_AGENT_FILE "JvmProbeAgent" JAVA_AGENT_VER ".jar"
+#define JVMPROBE_TMP_FILE "jvm-metrics.txt"
 
 #define JVMPROBE_SLEEP_SEC   1
 
