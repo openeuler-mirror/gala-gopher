@@ -22,7 +22,10 @@
 #define LINE_BUF_LEN            512
 #define MAX_ARGS_NUM            4
 #define ARGS_BUF_LEN            128
-#define JAVA_SYM_FILE           "java-symbols.bin"
+#ifndef JAVA_SYM_AGENT_VER
+#define JAVA_SYM_AGENT_VER ""
+#endif
+#define JAVA_SYM_FILE           "java-symbols" JAVA_SYM_AGENT_VER ".bin"
 
 #ifndef __u64
 typedef long long unsigned int __u64;

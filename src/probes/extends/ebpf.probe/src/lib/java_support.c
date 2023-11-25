@@ -38,10 +38,12 @@ struct jvm_process_info {
 };
 
 static char jvm_agent_file[FILENAME_LEN];
-static char jvm_tmp_file[FILENAME_LEN];
 static char attach_type[ATTACH_TYPE_LEN];   // start | stop
+
 #define ATTACH_BIN_PATH "/opt/gala-gopher/lib/jvm_attach"
 #define HOST_SO_DIR "/opt/gala-gopher/extend_probes"
+#define FIND_JAVA_SYM_CMD \
+    "find /proc/%u/root/tmp/java-data-%u -type f -not -name " JAVA_SYM_FILE " -name \"java-symbols*.bin\" -delete"
 #define HOST_JAVA_TMP_PATH "/proc/%u/root/tmp/java-data-%u/%s"  // eg: /proc/<pid>/root/tmp/java-data-<pid>/java-symbols.bin
 #define NS_TMP_DIR "/tmp"
 
@@ -302,12 +304,31 @@ static int _do_attach(u32 pid, struct jvm_process_info *v)
     return _exe_attach_cmd(cmd);
 }
 
+// The agent cannot actually be offloaded, so we delete the JAVA_SYM_FILE of other versions.
+void java_offload_jvm_agent(u32 pid)
+{
+    char cmd[COMMAND_LEN];
+    FILE *fp = NULL;
+
+    cmd[0] = 0;
+    (void)snprintf(cmd, sizeof(cmd), FIND_JAVA_SYM_CMD, pid, pid);
+
+    fp = popen(cmd, "r");
+    if (fp == NULL) {
+        ERROR("[JAVA_SUPPORT]: failed to execute: %s\n", cmd);
+        return;
+    }
+
+    (void)pclose(fp);
+    return;
+}
+
 int java_load(u32 pid, struct java_attach_args *args)
 {
     struct jvm_process_info v = {0};
 
     (void)snprintf(jvm_agent_file, FILENAME_LEN, "%s", args->agent_file_name);
-    (void)snprintf(jvm_tmp_file, FILENAME_LEN, "%s", args->tmp_file_name);
+
     if (strlen(args->action) > 0) {
         (void)snprintf(attach_type, ATTACH_TYPE_LEN, "%s", args->action);
     } else {

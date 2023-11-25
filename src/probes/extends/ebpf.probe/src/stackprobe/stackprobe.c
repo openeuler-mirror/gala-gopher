@@ -689,12 +689,12 @@ static int add_stack_histo_from_hash(struct stack_trace_s *st, struct stack_symb
         // Statistic error, but program continues
         st->stats.count[STACK_STATS_HISTO_ERR]++;
     }
-
-    s64 count = convert_real_count(st, en_type, origin_count);
     if (str[0] == 0) {
         return -1;
     }
 
+
+    s64 count = convert_real_count(st, en_type, origin_count);
     // incomplete call stack merge
     if (incomplete_stack_flag) {
         char tmp_str[__FUNC_NAME_LEN] = {0};
@@ -2066,7 +2066,7 @@ static void load_jvm_agent()
         if (ret == 0) {
             continue;
         }
-
+        java_offload_jvm_agent(pid);
         ret = java_load(pid, (void *)&attach_args);
         if (ret == 0) {
             DEBUG("[STACKPROBE]: Attach to proc %d succeed\n", pid);
