@@ -55,11 +55,24 @@ function compile_jstackprobe()
 
 function make_jvmprobe_agent_jar()
 {
+    name="JvmProbeAgent"
+    new_name="${name}$1"
+
     mkdir -p tmp
     cd tmp
-    javac ../src/agent/JvmProbeAgent.java -d ./ || return 1
+
+    mkdir -p class
+    cp ../src/agent/JvmProbeAgent.java .
+    cp ../config/META-INF/MANIFEST.MF .
+
+    # rename JvmProbeAgent class
+    sed -i "s/${name}/${new_name}/" JvmProbeAgent.java
+    sed -i "s/${name}/${new_name}/" MANIFEST.MF
+    mv JvmProbeAgent.java "${new_name}.java"
+
+    javac "${new_name}.java" -d ./class/ || return 1
     cd ..
-    jar cfm JvmProbeAgent.jar config/META-INF/MANIFEST.MF -C tmp/ . || return 1
+    jar cfm "${new_name}.jar" tmp/MANIFEST.MF -C tmp/class/ . || return 1
 
     rm -rf tmp 2>/dev/null
     return 0
@@ -67,18 +80,24 @@ function make_jvmprobe_agent_jar()
 
 function make_jvmprobe_bin()
 {
-    make -s -C src/ || return 1
+    make JAVA_AGENT_VER=$1 -s -C src/ || return 1
     return 0
 }
 
 function compile_jvmprobe()
 {
     cd ${PRJ_DIR}/jvm.probe
+    prefix="Manifest-Version: "
+    version=$(head -n 1 config/META-INF/MANIFEST.MF | \
+              sed -e "s/^$prefix//" | \
+              sed -r 's/[\n\r]//g' | \
+              sed -r 's/\./_/g')
+
     echo "Compile jvmProbeAgent...."
-    make_jvmprobe_agent_jar || return 1
+    make_jvmprobe_agent_jar $version || return 1
 
     echo "Compile jvmProbe...."
-    make_jvmprobe_bin || return 1
+    make_jvmprobe_bin $version || return 1
     echo "jvmProbeAgent compiling completed."
     cd ${PRJ_DIR}
     return 0
