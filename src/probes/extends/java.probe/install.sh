@@ -15,10 +15,15 @@ do
 done
 
 cd ${PRJ_DIR}
+prefix="Manifest-Version: "
+version=$(head -n 1 jvm.probe/config/META-INF/MANIFEST.MF | \
+        sed -e "s/^$prefix//" | \
+        sed -r 's/[\n\r]//g' | \
+        sed -r 's/\./_/g')
 # tailor jvmprobe
 if ! [[ $JAVA_TAILOR_PROBES =~ "jvm.probe" ]] ; then
     INSTALL_FILES+=" jvm.probe/src/jvmprobe"
-    INSTALL_FILES+=" jvm.probe/JvmProbeAgent.jar"
+    INSTALL_FILES+=" jvm.probe/JvmProbeAgent${version}.jar"
 fi
 
 # tailor jsseprobe jar when tailoring l7probe
