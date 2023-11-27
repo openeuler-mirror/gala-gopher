@@ -67,7 +67,7 @@ static parse_state_t parse_chunked(struct raw_data_s *raw_data, size_t *offset, 
             *ext = 0;
         }
 
-        chunked_len = atoi(chunked_len_str);
+        chunked_len = simple_hex_atoi(chunked_len_str);
         free(chunked_len_str);
         if (data - raw_data->data == raw_data->data_len) {
             return STATE_NEEDS_MORE_DATA;
@@ -76,9 +76,9 @@ static parse_state_t parse_chunked(struct raw_data_s *raw_data, size_t *offset, 
         // pointer offset for the length of 'deli_pod + delimiter_len'
         data += deli_pos + delimiter_len;
 
-        // the chunked data ends with a character '0', exit the cycle if meets a '0', and refresh the pointer
+        // the chunked data ends with '0\r\n\r\n', exit the cycle if meets a '0', and refresh the pointer
         if (chunked_len == 0) {
-            raw_data->current_pos = data - raw_data->data;
+            data += delimiter_len;
             break;
         }
 

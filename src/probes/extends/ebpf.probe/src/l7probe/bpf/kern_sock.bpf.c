@@ -39,6 +39,22 @@ char g_license[] SEC("license") = "GPL";
 #define KRETPROBE_SYSCALL(func) __KRETPROBE_SYSCALL(__arm64_sys_, func)
 #endif
 
+// /sys/kernel/debug/tracing/events/syscalls/sys_enter_read/format
+struct sys_enter_read_args {
+    unsigned long long __unused__;
+    long __syscall_nr;
+    unsigned int fd;
+    char *buf;
+    u64 count;
+};
+
+// /sys/kernel/debug/tracing/events/syscalls/sys_exit_read/format
+struct sys_exit_read_args {
+    unsigned long long __unused__;
+    long __syscall_nr;
+    int ret;
+};
+
 static __always_inline char is_tracing_udp(void)
 {
     u32 proto = get_filter_proto();
@@ -609,6 +625,7 @@ end:
     return 0;
 }
 
+#if 0
 // ssize_t read(int fd, void *buf, size_t count);
 KPROBE_SYSCALL(read)
 {
@@ -657,6 +674,59 @@ KRETPROBE_SYSCALL(read)
 end:
     bpf_map_delete_elem(&sock_data_args, &id);
     return 0;
+}
+#endif
+
+bpf_section("tracepoint/syscalls/sys_enter_read")
+int function_sys_enter_read(struct sys_enter_read_args *ctx)
+{
+    conn_ctx_t id = bpf_get_current_pid_tgid();
+    int proc_id = (int)(id >> INT_LEN);
+    int fd = ctx->fd;
+
+    if (!is_tracing(proc_id)) {
+        return 0;
+    }
+
+    struct sock_data_args_s args = {0};
+    args.conn_id.fd = fd;
+    args.conn_id.tgid = proc_id;
+    args.direct = L7_INGRESS;
+    args.buf = ctx->buf;
+    args.is_ssl = 0;
+    bpf_map_update_elem(&sock_data_args, &id, &args, BPF_ANY);
+    return 0;
+}
+
+
+bpf_section("tracepoint/syscalls/sys_exit_read")
+int function_sys_exit_read(struct sys_exit_read_args *ctx)
+{
+    conn_ctx_t id = bpf_get_current_pid_tgid();
+
+    struct sock_data_args_s* args = bpf_map_lookup_elem(&sock_data_args, &id);
+    if (args != NULL && args->is_socket_op) {
+        ssize_t bytes_count = (ssize_t)(ctx->ret);
+        if (bytes_count <= 0) {
+            goto end;
+        }
+        struct sock_conn_s* sock_conn = lkup_sock_conn(args->conn_id.tgid, args->conn_id.fd);
+        // new sock connection
+        if (!sock_conn) {
+            sock_conn = get_sock_conn(ctx, args->conn_id.tgid, args->conn_id.fd);
+            if (sock_conn == NULL) {
+                goto end;
+            }
+            (void)submit_conn_open(ctx, sock_conn);
+        }
+
+        submit_sock_data(ctx, sock_conn, id, L7_INGRESS, args, (size_t)bytes_count);
+    }
+
+end:
+    bpf_map_delete_elem(&sock_data_args, &id);
+    return 0;
+
 }
 
 // ssize_t recv(int sockfd, void *buf, size_t len, int flags);

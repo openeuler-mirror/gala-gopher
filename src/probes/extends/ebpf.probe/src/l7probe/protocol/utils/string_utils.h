@@ -66,4 +66,5 @@ size_t rfind_str(const char *str, const char *sub);
  */
 int starts_with(const char *str, const char *prefix);
 
+int simple_hex_atoi(const char* hex_str);
 #endif

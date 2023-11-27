@@ -119,3 +119,31 @@ char *str_to_upper(char *str)
     }
     return str;
 }
+
+int simple_hex_atoi(const char* hex_str) {
+    int result = 0;
+    int i = 0;
+
+    // skip prefix spaces
+    while (isspace(hex_str[i])) {
+        i++;
+    }
+
+    if (hex_str[i] == '0' && tolower(hex_str[i + 1]) == 'x') {
+        i += 2;
+    }
+
+    while (hex_str[i] != '\0') {
+        char c = tolower(hex_str[i]);
+        if (isdigit(c)) {
+            result = result * 16 + (c - '0');
+        } else if (c >= 'a' && c <= 'f') {
+            result = result * 16 + (c - 'a' + 10);
+        } else {
+            break;
+        }
+        i++;
+    }
+
+    return result;
+}
