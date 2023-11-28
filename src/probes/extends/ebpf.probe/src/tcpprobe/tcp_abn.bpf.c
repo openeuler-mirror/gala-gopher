@@ -80,11 +80,6 @@ static void tcp_abn_stats_probe_func(void *ctx, struct sock *sk)
 {
     struct tcp_metrics_s *metrics;
 
-    // Avoid high performance costs
-    if (!is_tmout_abn(sk)) {
-        return;
-    }
-
     metrics = get_tcp_metrics(sk);
     if (metrics && get_tcp_abn_stats(sk, &(metrics->abn_stats))) {
         report_abn(ctx, metrics, sk, 1);
