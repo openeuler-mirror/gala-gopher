@@ -66,17 +66,19 @@ static void tcp_rtt_probe_func(void *ctx, struct sock *sk)
 {
     struct tcp_metrics_s *metrics;
 
-    // Avoid high performance costs
-    if (!is_tmout_rtt(sk)) {
-        return;
-    }
-
     metrics = get_tcp_metrics(sk);
     if (metrics) {
         get_tcp_rtt(sk, &(metrics->rtt_stats));
+
+        // Avoid high performance costs
+        if (!is_tmout_rtt(sk)) {
+            return;
+        }
+
         report_rtt(ctx, metrics);
     }
 }
+
 #if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(tcp_probe, bpf_raw_tracepoint_args)
 {
