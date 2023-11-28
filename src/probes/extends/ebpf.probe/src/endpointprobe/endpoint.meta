@@ -68,9 +68,9 @@ measurements:
                 name: "retran_synacks",
             },
 	        {
-                description: "synack lost of the tcp socket.",
+                description: "syn retrans of the tcp socket.",
                 type: "gauge",
-                name: "lost_synacks",
+                name: "retran_syn",
             },
 	        {
                 description: "req drops of the tcp socket.",
@@ -86,6 +86,26 @@ measurements:
                 description: "failed active opens of the tcp.",
                 type: "gauge",
                 name: "active_open_failed",
+            },
+	        {
+                description: "syn sent of the tcp socket.",
+                type: "gauge",
+                name: "syn_sent",
+            },
+	        {
+                description: "synack sent of the tcp socket.",
+                type: "gauge",
+                name: "synack_sent",
+            },
+	        {
+                description: "reset sent of the tcp socket.",
+                type: "gauge",
+                name: "rst_sent",
+            },
+	        {
+                description: "reset received of the tcp socket.",
+                type: "gauge",
+                name: "rst_recv",
             }
         )
     },
