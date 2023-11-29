@@ -633,7 +633,7 @@ static int LogsMgrInit(ResourceMgr *resourceMgr)
     is_event_out_log = (configMgr->eventOutConfig->outChnl == OUT_CHNL_LOGS) ? 1: 0;
     is_meta_out_log = (configMgr->metaOutConfig->outChnl == OUT_CHNL_LOGS) ? 1 : 0;
 
-    logsMgr =  create_log_mgr(configMgr->globalConfig->logFileName, is_metric_out_log, is_event_out_log);
+    logsMgr = create_log_mgr(configMgr->globalConfig->logFileName, is_metric_out_log, is_event_out_log);
     if (logsMgr == NULL) {
         ERROR("[RESOURCE] create logsMgr failed.\n");
         return -1;
@@ -642,7 +642,7 @@ static int LogsMgrInit(ResourceMgr *resourceMgr)
     mode_t old_mask = umask(S_IWGRP | S_IROTH | S_IWOTH | S_IXOTH);
 
     // metricTotalSize divided by 2 because there is a backup file
-    logsMgr->metrics_logs_filesize = configMgr->logsConfig->metricTotalSize * 1024 * 1024 / 2;
+    logsMgr->metrics_logs_filesize = configMgr->logsConfig->metricTotalSize * 1024 * 1024;
     (void)snprintf(logsMgr->debug_path, sizeof(logsMgr->debug_path), "%s", configMgr->logsConfig->debugDir);
     (void)snprintf(logsMgr->metrics_path, sizeof(logsMgr->metrics_path), "%s", configMgr->logsConfig->metricDir);
     (void)snprintf(logsMgr->event_path, sizeof(logsMgr->event_path), "%s", configMgr->logsConfig->eventDir);
@@ -651,7 +651,6 @@ static int LogsMgrInit(ResourceMgr *resourceMgr)
     if (init_log_mgr(logsMgr, is_meta_out_log, configMgr->globalConfig->logLevel) < 0) {
         return -1;
     }
-
     resourceMgr->logsMgr = logsMgr;
     if (is_metric_out_log == 1) {
         if (resourceMgr->imdbMgr) {
@@ -666,7 +665,6 @@ static void LogsMgrDeinit(ResourceMgr *resourceMgr)
 {
     destroy_log_mgr(resourceMgr->logsMgr);
     resourceMgr->logsMgr = NULL;
-    return;
 }
 
 static int EventMgrInit(ResourceMgr *resourceMgr)

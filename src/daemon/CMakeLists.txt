@@ -79,7 +79,7 @@ SET(SOURCES main.c daemon.c
     ${COMMON_DIR}/util.c
     ${COMMON_DIR}/object.c
     ${COMMON_DIR}/event.c
-    ${COMMON_DIR}/logs.cpp
+    ${COMMON_DIR}/logs.c
     ${COMMON_DIR}/json_tool.cpp
     ${COMMON_DIR}/gopher_elf.c
     ${COMMON_DIR}/event_config.c

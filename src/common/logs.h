@@ -15,15 +15,18 @@
 #ifndef __GOPHER_LOGS_H__
 #define __GOPHER_LOGS_H__
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 #pragma once
 
 #include <pthread.h>
 #include "common.h"
 
 #define LOGS_SWITCH_ON  1
+#define PATTERN_META_LOGGER_STR "%s\n" // "%m%n"
+#define PATTERN_RAW_LOGGER_STR "%s" // "%m"
+#define PATTERN_DEBUG_LOGGER_STR "%02d/%02d/%02d %02d:%02d:%02d  - %s" // "%D{%m/%d/%y %H:%M:%S}  - %m"
+#define PATTERN_METRICS_LOGGER_STR "%s" // "%m"
+#define PATTERN_EVENT_LOGGER_STR "%s\n" // "%m%n"
+
 
 struct file_node_s {
     size_t len;
@@ -56,24 +59,45 @@ typedef struct log_mgr_s {
     long metrics_logs_filesize;
 } LogsMgr;
 
+enum logger_level_t {
+    LOGGER_DEBUG = 0,
+    LOGGER_INFO,
+    LOGGER_WARN,
+    LOGGER_ERROR,
+    LOGGER_FATAL
+};
+
+struct logger {
+    pthread_rwlock_t rwlock;
+    char *pattern;
+    enum logger_level_t level;
+    char full_path_name[PATH_LEN];
+    char base_path_name[PATH_LEN];
+    char *name;
+    int file_fd;
+    size_t buf_len;
+    size_t max_file_size;
+    int max_backup_index; // for save max back up  fname.log.1, fname.log.2, fname.log.3
+    int curr_backup_index; // record current back up index.
+};
+
 void wr_raw_logs(const char* format, ...);
+
 int read_metrics_logs(char logs_file_name[], size_t size);
+
 int wr_metrics_logs(const char* logs, size_t logs_len);
 
 void wr_meta_logs(const char* logs);
 
 int wr_event_logs(const char* logs, size_t logs_len);
-int read_event_logs(char logs_file_name[], size_t size);
 
 void rm_log_file(char full_path[]);
 
 void destroy_log_mgr(struct log_mgr_s* mgr);
-int init_log_mgr(struct log_mgr_s* mgr, int is_meta_out_log, char *logLevel);
-struct log_mgr_s* create_log_mgr(const char *app_name, int is_metric_out_log, int is_event_out_log);
 
-#ifdef __cplusplus
-}
-#endif
+int init_log_mgr(struct log_mgr_s* mgr, int is_meta_out_log, char *logLevel);
+
+struct log_mgr_s* create_log_mgr(const char *app_name, int is_metric_out_log, int is_event_out_log);
 
 #endif
 
