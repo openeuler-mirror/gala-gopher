@@ -4,7 +4,8 @@
 
 ### 什么是gala-gopher
 
-gala-gopher是一款结合eBPF、java agent等非侵入可观测技术的观测平台，其通过探针式架构可以轻松实现增加、减少探针。gala-gopher是gala项目内负责数据采集的组件，其为gala项目提供Metrics、Event、Perf等数据，便于gala项目完成系统拓扑的绘制、故障根因的定位。
+gala-gopher是gala项目内负责数据采集的组件，其为gala项目提供Metrics、Event、Perf等数据，便于gala项目完成系统拓扑的绘制和故障根因的定位。   
+gala-gopher是一款结合eBPF、java agent等非侵入可观测技术的观测平台，探针是gala-gopher用于观测和采集数据的主要工具，通过探针式架构gala-gopher可以轻松实现增加、减少探针。    
 
 ## 观测范围
 
@@ -48,8 +49,8 @@ gala-gopher是一款结合eBPF、java agent等非侵入可观测技术的观测�
 应用性能经常受系统资源性能影响，gala-gopher可以提供应用视角精细化（进程粒度）的系统性能观测能力，涉及网络、I/O、内存、调度等多个方面。
 
 - [TCP性能](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#tcp%E6%80%A7%E8%83%BD)：提供TCP窗口、RTT、SRTT、reordering、ato等性能指标；
-- 应用性能：提供[基于流的性能监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%9F%BA%E4%BA%8E%E6%B5%81%E7%9A%84%E8%BF%9B%E7%A8%8B%E6%80%A7%E8%83%BD)、[进程性能监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E8%BF%9B%E7%A8%8B%E6%80%A7%E8%83%BD)，其提供基于TCP流的性能（时延、吞吐量）统计，体现应用性能。
-- [I/O性能](I/O性能)：提供进程维度的 I/O操作字节数统计、FD资源占用统计、文件系统（vfs/ext4/overlay/tmpfs）层时延统计，大小I/O操作数量统计、BIO时延、错误统计（虚拟化QEMU进程有意义）等；
+- [应用性能](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%BA%94%E7%94%A8%E6%80%A7%E8%83%BD)：提供[基于流的性能监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%9F%BA%E4%BA%8E%E6%B5%81%E7%9A%84%E8%BF%9B%E7%A8%8B%E6%80%A7%E8%83%BD)、[进程性能监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E8%BF%9B%E7%A8%8B%E6%80%A7%E8%83%BD)，其提供基于TCP流的性能（时延、吞吐量）统计，体现应用性能。
+- [I/O性能](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#io%E6%80%A7%E8%83%BD-1)：提供进程维度的 I/O操作字节数统计、FD资源占用统计、文件系统（vfs/ext4/overlay/tmpfs）层时延统计，大小I/O操作数量统计、BIO时延、错误统计（虚拟化QEMU进程有意义）等；
 - [内存](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%86%85%E5%AD%98)：提供进程维度的pagefault、swap区、脏页、虚拟内存、物理内存等统计。
 - [调度&系统调用](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E8%B0%83%E5%BA%A6%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8)：提供进程维度系统调用时延、错误统计，进程用户态、系统态运行统计时间。
 - [JVM监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#jvm%E7%9B%91%E6%8E%A7)：提供jvm线程、java类加载、jvm内存、jvm buffer、gc次数/花费时间等统计。
@@ -95,13 +96,13 @@ Redis/PostgreSQL常用于为应用提供数据存储服务，现有性能监控�
 - [TCP性能监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#tcp%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7-1)：针对Redis、PostgreSQL这类软件提供TCP性能监控能力，包括TCP窗口、RTT、SRTT、reordering、ato等性能指标。
 - [TCP异常监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#tcp%E5%BC%82%E5%B8%B8%E7%9B%91%E6%8E%A7-2)：针对Redis、PostgreSQL这类软件提供TCP异常监控能力，包括重传、丢包、TCP oom、收发RST等异常指标。
 - [Socket监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#socket%E7%9B%91%E6%8E%A7-2)：针对Redis、PostgreSQL这类软件提供Socket监控能力，包括listen队列溢出、syn队列溢出、建链失败次数等统计信息。
-- [I/O性能](I/O性能)：针对Redis、PostgreSQL这类软件，提供进程维度的 I/O操作字节数统计、FD资源占用统计、文件系统（vfs/ext4/overlay/tmpfs）层时延统计，大小I/O操作数量统计等；
+- [I/O性能](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#io%E6%80%A7%E8%83%BD-2)：针对Redis、PostgreSQL这类软件，提供进程维度的 I/O操作字节数统计、FD资源占用统计、文件系统（vfs/ext4/overlay/tmpfs）层时延统计，大小I/O操作数量统计等；
 
 ## eBPF如何更好的运行在java场景
 
 ### 场景1：持续性能Profiling
 
-gala-gopher提供持续性能Profiling可以持续监控应用的OnCPU、OffCPU、Memory Alloc等性能。使用eBPF周期性性或事件触发式的监控应用程序，持续收集应用堆栈信息。
+gala-gopher提供持续性能Profiling可以持续监控应用的OnCPU、OffCPU、Memory Alloc等性能。使用eBPF周期性或事件触发式的监控应用程序，持续收集应用堆栈信息。
 
 通过java agent获取java函数符号表，eBPF获取堆栈信息，两者结合完成java场景的持续profiling。
 
@@ -115,17 +116,7 @@ gala-gopher提供的微服务访问性能监控可以非侵入、多语言的完
 
 ## 如何解决跨版本兼容性问题
 
-### 问题说明
-
-gala-gopher大量使用了eBPF技术，eBPF Program存在访问内核数据行为，所以其存在与内核版本兼容配套的问题。
-
-![eBPF兼容性问题](./doc/pic/eBPF-1.png)
-
-linux社区提供的解决方案是CO-RE技术（Compile Once Run Everywhere），但CO-RE技术只有在kernel >5.4版本才能使用，且依赖运行环境开启CONFIG_DEBUG_INFO_BTF。这些局限性会导致gala-gopher在集群式部署时面临版本管理复杂的问题。
-
-### 解决方案
-
-敬请期待...
+参考[这里](https://gitee.com/openeuler/gala-gopher/blob/dev/doc/compatible.md)。
 
 ## 安装指南
 
@@ -135,7 +126,7 @@ linux社区提供的解决方案是CO-RE技术（Compile Once Run Everywhere）�
 
   gala-gopher目前已在openEuler 21.09（已停止维护）/openEuler 22.09（已停止维护）/openEuler 22.03-LTS-SP1发布，可以通过配置以上发布版本的正式repo源来获取rpm包；对于其他发布版本我们提供了以下方式来获取rpm包：
 
-  - OBS 链接：网页手动下载对应架构的rpm包
+  - （1）方法一：OBS 链接，网页手动下载对应架构的rpm包
 
     ```basic
     openEuler-20.03-LTS-SP1 : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:20.03:LTS:SP1/gala-gopher
@@ -143,14 +134,62 @@ linux社区提供的解决方案是CO-RE技术（Compile Once Run Everywhere）�
     openEuler-22.03-LTS-SP1 : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:22.03:LTS:SP1/gala-gopher
     ```
 
+  - （2）方法二：使用命令编译构造rpm包
+    构造rpm包时，主要的文件为gala-gopher.spec，需要根据所在的机器进行以下几点修改
+    
+    1：%define vmlinux_ver 5.10.0-126.0.0.66.oe2203.%{_arch}
+    需要从src\probes\extends\ebpf.probe\src\include目录中，根据内核版本、CPU架构选择相应的版本号，该版本号与sh build.sh --debug后填写的版本号是一致的
+    
+    2：Version字段代表版本号，需要与gala-gopher目前的文件名称后的版本号是一致的
+    
+    ```手动给该项目指定版本号 2.0.0
+        mv gala-gopher gala-gopher-2.0.0
+        tar czf gala-gopher-2.0.0.tar.gz gala-gopher-2.0.0   tar包需要与目录名保持一致
+    ```
+    
+    Version后的版本号需要与指定的版本号一致，修改Version后的版本号为2.0.0，即Version：2.0.0
+    
+    3：安装rpm-build
+    
+    ```bash
+      yum install rpm-build
+    ```
+    
+    4：新建目录/root/rpmbuild/SOURCES并将tar包放入目录/root/rpmbuild/SOURCES目录中
+    
+    ```bash
+          mv gala-gopher-2.0.0.tar.gz  /root/rpmbuild/SOURCES
+    ```
+    
+    5：构建rpm包
+    
+    ```bash
+          rpmbuild -ba gala-gopher.spec
+    ```
+    
+    执行目录后，查看编译的输出，看到生成的rpm包文件被存放在/root/rpmbuild/RPMS/x86_64/目录下，看一下示例的输出
+    
+    ```
+          /root/rpmbuild/RPMS/x86_64/gala-gopher-debugsource-2.0.0-1.ky10.x86_64.rpm
+          /root/rpmbuild/RPMS/x86_64/gala-gopher-2.0.0-1.ky10.x86_64.rpm
+          /root/rpmbuild/RPMS/x86_64/gala-gopher-debuginfo-2.0.0-1.ky10.x86_64.rpm
+    ```
+  
 - rpm安装
 
-  ```bash
-  yum install gala-gopher
-  ```
+  （1）如果是通过OBS 链接从网页手动下载对应架构的rpm包，则rpm安装的方法
+  
+    ```bash
+           yum install gala-gopher
+    ```
+  
+    注：1. 上面指令中 gala-gopher 应填写完整包名，如gala-gopher-1.0.2-2.oe2203.x86_64.rpm。2. 当使用yum指令前，用户应自行配置yum源。
 
-  注：1. 上面指令中 gala-gopher 应填写完整包名，如gala-gopher-1.0.2-2.oe2203.x86_64.rpm。2. 当使用yum指令前，用户应自行配置yum源。
-
+  （2）如果是通过rpmbuild命令编译构建的rpm包，则rpm安装的方法
+  
+    ```bash
+           yum install /root/rpmbuild/RPMS/x86_64/gala-gopher-2.0.0-1.ky10.x86_64.rpm
+    ```
 - 启动服务
 
   通过 systemd 启动后台服务：
