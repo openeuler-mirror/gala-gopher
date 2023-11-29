@@ -356,6 +356,8 @@ gala-gopher提供的微服务访问性能监控可以非侵入、多语言的完
 
 [REST API介绍](https://gitee.com/openeuler/gala-gopher/blob/dev/config/gala-gopher%E6%94%AF%E6%8C%81%E5%8A%A8%E6%80%81%E9%85%8D%E7%BD%AE%E6%8E%A5%E5%8F%A3%E8%AE%BE%E8%AE%A1_v0.3.md)
 
+[规格与约束](https://gitee.com/openeuler/gala-gopher/blob/dev/doc/constraints_introduction.md)
+
 ## 软件架构
 
 gala-gopher集成了常用的native探针以及知名中间件探针；gala-gopher有良好的扩展性，能方便的集成各种类型的探针程序，发挥社区的力量丰富探针框架的能力；gala-gopher中的几个主要部件：
