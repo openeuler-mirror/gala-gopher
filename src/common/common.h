@@ -55,7 +55,7 @@
 #define CONTAINER_ABBR_ID_LEN   12
 #define CONTAINER_DRIVER_LEN    64
 #define NAMESPACE_LEN           64
-#define DOMAIN_LEN                 64
+#define DOMAIN_LEN              64
 #define POD_NAME_LEN            64
 #define POD_ID_LEN              36 // Pod id len may be 32 or 36
 #define POD_NAMESPACE_LEN       64
@@ -69,7 +69,7 @@
 #define PATH_LEN                256
 
 #if !defined INET6_ADDRSTRLEN
-    #define INET6_ADDRSTRLEN    48
+    #define INET6_ADDRSTRLEN    46
 #endif
 
 #if !defined DISK_NAME_LEN
