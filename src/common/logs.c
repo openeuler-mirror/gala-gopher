@@ -543,12 +543,12 @@ int init_log_mgr(struct log_mgr_s* mgr, int is_meta_out_log, char *logLevel)
 
     if (mgr->metrics_logs_filesize <= 0) {
         mgr->metrics_logs_filesize = METRICS_LOGS_FILESIZE;
-        (void)fprintf(stderr, "metric_total_size is invalid. metrics_logs_filesize will reset to %d MB.\n", mgr->metrics_logs_filesize);
+        (void)fprintf(stderr, "metric_total_size is invalid. metrics_logs_filesize will reset to %ld MB.\n", mgr->metrics_logs_filesize);
     }
 
     if (mgr->metrics_logs_filesize > METRICS_LOGS_FILESIZE_MAX) {
         mgr->metrics_logs_filesize = METRICS_LOGS_FILESIZE_MAX;
-        (void)fprintf(stderr, "metric_total_size is too large. metrics_logs_filesize will reset to %d MB.\n", mgr->metrics_logs_filesize);
+        (void)fprintf(stderr, "metric_total_size is too large. metrics_logs_filesize will reset to %ld MB.\n", mgr->metrics_logs_filesize);
     }
     g_metrics_logger.max_file_size = mgr->metrics_logs_filesize / (g_metrics_logger.max_backup_index + 1);  // update metrics size special.
     if ((mgr->debug_path[0] != 0) && append_debug_logger(mgr)) {
