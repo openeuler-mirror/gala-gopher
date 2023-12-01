@@ -105,9 +105,9 @@ KPROBE(tcp_set_state, pt_regs)
         struct tcp_metrics_s *metrics;
         metrics = get_tcp_metrics(sk);
         if (metrics) {
-            metrics->report_flags |= (TCP_PROBE_ABN | TCP_PROBE_WINDOWS \
-                | TCP_PROBE_RTT | TCP_PROBE_TXRX | TCP_PROBE_SOCKBUF | TCP_PROBE_RATE | TCP_PROBE_DELAY);
-            report_srtt(ctx, metrics);
+            // for short connections, we expect to only report abnormal/rtt/txrx/delay metrics
+            metrics->report_flags |= (TCP_PROBE_ABN | TCP_PROBE_RTT | TCP_PROBE_TXRX | TCP_PROBE_DELAY);
+            (void)bpf_perf_event_output(ctx, &tcp_output, BPF_F_CURRENT_CPU, metrics, sizeof(struct tcp_metrics_s));
         }
 
         (void)delete_tcp_link(sk);

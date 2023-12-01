@@ -344,7 +344,25 @@ static void output_tcp_flow_delay(struct tcp_mng_s *tcp_mng, struct tcp_flow_tra
     (void)fflush(stdout);
 }
 
-static void reset_tcp_tracker_stats(struct tcp_tracker_s *tracker)
+static void reset_tcp_abn_stats(struct tcp_tracker_s *tracker)
+{
+    enum tcp_stats_t tcp_abn_stats_arr[] = {RETRANS, BACKLOG_DROPS, SK_DROPS,
+                                            LOST_OUT, SACKED_OUT, FILTER_DROPS,
+                                            TIME_OUT, SNDBUF_LIMIT, RMEM_SCHEDULES,
+                                            TCP_OOM, SEND_RSTS, RECEIVE_RSTS};
+
+    for (int i = 0; i < sizeof(tcp_abn_stats_arr)/sizeof(tcp_abn_stats_arr[0]); i++) {
+        tracker->stats[tcp_abn_stats_arr[i]] = 0;
+    }
+}
+
+static void reset_tcp_syn_rtt_stats(struct tcp_tracker_s *tracker)
+{
+    histo_bucket_reset(tracker->syn_srtt_buckets, __MAX_RTT_SIZE);
+    tracker->stats[SYN_SRTT_MAX] = 0;
+}
+
+static void reset_tcp_win_stats(struct tcp_tracker_s *tracker)
 {
     histo_bucket_reset(tracker->snd_wnd_buckets, __MAX_WIND_SIZE);
     histo_bucket_reset(tracker->rcv_wnd_buckets, __MAX_WIND_SIZE);
@@ -354,20 +372,36 @@ static void reset_tcp_tracker_stats(struct tcp_tracker_s *tracker)
     histo_bucket_reset(tracker->not_acked_buckets, __MAX_WIND_SIZE);
     histo_bucket_reset(tracker->reordering_buckets, __MAX_WIND_SIZE);
 
-    histo_bucket_reset(tracker->srtt_buckets, __MAX_RTT_SIZE);
-    histo_bucket_reset(tracker->rcv_rtt_buckets, __MAX_RTT_SIZE);
-    histo_bucket_reset(tracker->syn_srtt_buckets, __MAX_RTT_SIZE);
-
-    histo_bucket_reset(tracker->rto_buckets, __MAX_RTO_SIZE);
-    histo_bucket_reset(tracker->ato_buckets, __MAX_RTO_SIZE);
-
-    histo_bucket_reset(tracker->snd_buf_buckets, __MAX_SOCKBUF_SIZE);
-    histo_bucket_reset(tracker->rcv_buf_buckets, __MAX_SOCKBUF_SIZE);
-
-    memset(&(tracker->stats), 0, sizeof(u64) * __MAX_STATS);
+    tracker->stats[ZERO_WIN_RX] = 0;
+    tracker->stats[ZERO_WIN_TX] = 0;
     tracker->zero_win_rx_ratio = 0.0;
     tracker->zero_win_tx_ratio = 0.0;
-    return;
+}
+
+static void reset_tcp_rtt_stats(struct tcp_tracker_s *tracker)
+{
+    histo_bucket_reset(tracker->srtt_buckets, __MAX_RTT_SIZE);
+    histo_bucket_reset(tracker->rcv_rtt_buckets, __MAX_RTT_SIZE);
+}
+
+static void reset_tcp_txrx_stats(struct tcp_tracker_s *tracker)
+{
+    tracker->stats[BYTES_RECV] = 0;
+    tracker->stats[BYTES_SENT] = 0;
+    tracker->stats[SEGS_RECV] = 0;
+    tracker->stats[SEGS_SENT] = 0;
+}
+
+static void reset_tcp_sockbuf_stats(struct tcp_tracker_s *tracker)
+{
+    histo_bucket_reset(tracker->snd_buf_buckets, __MAX_SOCKBUF_SIZE);
+    histo_bucket_reset(tracker->rcv_buf_buckets, __MAX_SOCKBUF_SIZE);
+}
+
+static void reset_tcp_rate_stats(struct tcp_tracker_s *tracker)
+{
+    histo_bucket_reset(tracker->rto_buckets, __MAX_RTO_SIZE);
+    histo_bucket_reset(tracker->ato_buckets, __MAX_RTO_SIZE);
 }
 
 static void reset_tcp_flow_tracker_stats(struct tcp_flow_tracker_s *tracker)
@@ -379,49 +413,53 @@ static void reset_tcp_flow_tracker_stats(struct tcp_flow_tracker_s *tracker)
 
 static int output_tcp_metrics(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
 {
-    int need_reset = 0;
+    int outputed = 0;
     u32 flags = tracker->report_flags & TCP_PROBE_ALL;
 
     if ((flags & TCP_PROBE_ABN) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_ABNORMAL)) {
-        need_reset = 1;
+        outputed = 1;
         output_tcp_abn(tcp_mng, tracker);
+        reset_tcp_abn_stats(tracker);
     }
 
     if (flags & TCP_PROBE_SRTT) {
-        need_reset = 1;
+        outputed = 1;
         output_tcp_syn_rtt(tcp_mng, tracker);
+        reset_tcp_syn_rtt_stats(tracker);
     }
 
     if ((flags & TCP_PROBE_WINDOWS) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_WINDOWS)) {
-        need_reset = 1;
+        outputed = 1;
         output_tcp_win(tcp_mng, tracker);
+        reset_tcp_win_stats(tracker);
     }
 
     if ((flags & TCP_PROBE_RTT) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_RTT)) {
-        need_reset = 1;
+        outputed = 1;
         output_tcp_rtt(tcp_mng, tracker);
+        reset_tcp_rtt_stats(tracker);
     }
 
     if ((flags & TCP_PROBE_TXRX) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_STATS)) {
-        need_reset = 1;
+        outputed = 1;
         output_tcp_txrx(tcp_mng, tracker);
+        reset_tcp_txrx_stats(tracker);
     }
 
     if ((flags & TCP_PROBE_SOCKBUF) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_SOCKBUF)) {
-        need_reset = 1;
+        outputed = 1;
         output_tcp_sockbuf(tcp_mng, tracker);
+        reset_tcp_sockbuf_stats(tracker);
     }
 
     if ((flags & TCP_PROBE_RATE) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_RATE)) {
-        need_reset = 1;
+        outputed = 1;
         output_tcp_rate(tcp_mng, tracker);
+        reset_tcp_rate_stats(tracker);
     }
 
     tracker->report_flags = 0;
-    if (need_reset) {
-        reset_tcp_tracker_stats(tracker);
-    }
-    return need_reset;
+    return outputed;
 }
 
 static int output_tcp_flow_metrics(struct tcp_mng_s *tcp_mng, struct tcp_flow_tracker_s *tracker)
