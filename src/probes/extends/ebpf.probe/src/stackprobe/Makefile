@@ -6,7 +6,7 @@ include ../mk/var.mk
 INCLUDES = $(BASE_INC)
 
 APP := stackprobe
-AGENT := jvm_agent.so
+AGENT := jvm_agent$(JAVA_SYM_AGENT_VER).so
 SRC_CPLUS := $(wildcard *.cpp)
 SRC_CPLUS += $(CPLUSFILES)
 
