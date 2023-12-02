@@ -54,7 +54,7 @@ endif
 BTF_ENABLE = $(shell if [ -n "$(BTF_ENABLE_OVERRIDE)" ]; then echo "$(BTF_ENABLE_OVERRIDE)"; elif [ -f /sys/kernel/btf/vmlinux ]; then echo "ON" ; else echo "OFF"; fi)
 
 JAVA_SYM_AGENT_VER := v1
-LINK_TARGET ?= -lpthread -lbpf -lelf -llog4cplus -lz -lconfig -ljsoncpp
+LINK_TARGET ?= -lpthread -lbpf -lelf -lz -lconfig -ljsoncpp
 EXTRA_CFLAGS ?= -g -O2 -Wall -fPIC -std=gnu11
 EXTRA_CDEFINE ?= -D__TARGET_ARCH_$(TYPE)
 EXTRA_CDEFINE += -D__BTF_ENABLE_$(BTF_ENABLE)
