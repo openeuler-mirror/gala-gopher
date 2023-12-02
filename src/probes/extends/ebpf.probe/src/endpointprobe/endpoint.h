@@ -56,6 +56,7 @@ struct conn_addr_s {
 
 struct tcp_socket_event_s {
     int tgid;                   // process id
+    u64 estab_latency;          // unit: ns
     struct conn_addr_s client_ipaddr;
     struct conn_addr_s server_ipaddr;
     enum socket_evt_e evt;
