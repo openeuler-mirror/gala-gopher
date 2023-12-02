@@ -26,6 +26,7 @@ SRC_C1 := util.c object.c
 SRC_C2 := util.c container.c
 SRC_C3 := ipc.c
 
+DEPS := logs.o
 OUTPUT_LIB1 := object.so
 OUTPUT_LIB2 := container.so
 OUTPUT_LIB3 := ipc.so
