@@ -55,11 +55,8 @@
 #define ON_CPU_PROG    "/opt/gala-gopher/extend_probes/stack_bpf/oncpu.bpf.o"
 #define OFF_CPU_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/offcpu.bpf.o"
 #define IO_PROG        "/opt/gala-gopher/extend_probes/stack_bpf/io.bpf.o"
-#if defined(__TARGET_ARCH_x86)
-#define MEM_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/mem.bpf.o"
-#else
-#define MEM_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/mem_fp.bpf.o"
-#endif
+#define MEM_PROG       "/opt/gala-gopher/extend_probes/stack_bpf/mem.bpf.o"
+
 #define CHECK_JRE "java -version >/dev/null 2>&1"
 #define CHECK_JSTACK_PROBE "/opt/gala-gopher/extend_probes/JstackProbeAgent.jar"
 #define RM_STACK_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__stack*"
@@ -68,7 +65,15 @@
 #define STACK_STACKMAPA_PATH    "/sys/fs/bpf/gala-gopher/__stack_stackmap_a"
 #define STACK_STACKMAPB_PATH    "/sys/fs/bpf/gala-gopher/__stack_stackmap_b"
 
+// oncpu maps for python support
+#define STACK_PY_PROC_DATA_MAP_PATH     "/sys/fs/bpf/gala-gopher/__stack_py_proc_data"
+#define STACK_PY_SYMBOLS_MAP_PATH       "/sys/fs/bpf/gala-gopher/__stack_py_symbols"
+#define STACK_PY_SYMBOL_IDS_MAP_PATH    "/sys/fs/bpf/gala-gopher/__stack_py_symbol_ids"
+#define STACK_PY_SAMPLE_HEAP_MAP_PATH   "/sys/fs/bpf/gala-gopher/__stack_py_sample_heap"
+
 #define DEBUG_DIR "/usr/lib/debug"
+
+#define STACK_SYMBOL_UNKNOWN "[unknown]"
 
 #define IS_IEG_ADDR(addr)     ((addr) != 0xcccccccccccccccc && (addr) != 0xffffffffffffffff)
 
@@ -94,7 +99,8 @@ typedef struct {
     AttachFunc func;
     perf_buffer_sample_fn cb;
 } FlameProc;
-#if 0
+
+#if 0   // this is for mem_glibc.bpf.c
 static struct bpf_link_hash_t *bpf_link_head = NULL;
 
 enum pid_state_t {
@@ -132,6 +138,8 @@ static void load_stackprobe_snoopers(struct ipc_body_s *ipc_body)
 {
     struct proc_s proc = {0};
     struct obj_ref_s ref = {.count = 1};
+    struct py_proc_data py_proc_data;
+
     if (!g_st || (g_st->proc_obj_map_fd <= 0)) {
         ERROR("[STACKPROBE]: Load stackprobe snoopers failed!\n");
         return;
@@ -141,6 +149,12 @@ static void load_stackprobe_snoopers(struct ipc_body_s *ipc_body)
         if (ipc_body->snooper_objs[i].type == SNOOPER_OBJ_PROC) {
             proc.proc_id = ipc_body->snooper_objs[i].obj.proc.proc_id;
             (void)bpf_map_update_elem(g_st->proc_obj_map_fd, &proc, &ref, BPF_ANY);
+
+            if (try_init_py_proc_data(proc.proc_id, &py_proc_data, DEBUG_DIR)) {
+                // not a python process or init python process data failure
+                continue;
+            }
+            (void)bpf_map_update_elem(g_st->py_proc_map_fd, &proc.proc_id, &py_proc_data, BPF_ANY);
         }
     }
 }
@@ -156,6 +170,7 @@ static void unload_stackprobe_snoopers()
         if (g_ipc_body.snooper_objs[i].type == SNOOPER_OBJ_PROC) {
             proc.proc_id = g_ipc_body.snooper_objs[i].obj.proc.proc_id;
             (void)bpf_map_delete_elem(g_st->proc_obj_map_fd, &proc);
+            (void)bpf_map_delete_elem(g_st->py_proc_map_fd, &proc.proc_id);
         }
     }
 }
@@ -375,6 +390,35 @@ static struct raw_stack_trace_s *create_raw_stack_trace(struct stack_trace_s *st
     return raw_stack_trace;
 }
 
+static void clear_py_stack_trace(struct svg_stack_trace_s *svg_st, char is_stackmap_a)
+{
+    if (!svg_st) {
+        return;
+    }
+    if (is_stackmap_a) {
+        svg_st->py_stack_trace_a->len = 0;
+    } else {
+        svg_st->py_stack_trace_b->len = 0;
+    }
+}
+
+static struct py_stack_trace_s *create_py_stack_trace(struct stack_trace_s *st)
+{
+    struct py_stack_trace_s *py_stack_trace;
+
+    size_t stack_size = st->cpus_num * MAX_PERCPU_SAMPLE_COUNT;
+    size_t mem_size = sizeof(struct py_stack_trace_s);
+    mem_size += (stack_size * sizeof(struct py_stack));
+
+    py_stack_trace = (struct py_stack_trace_s *)malloc(mem_size);
+    if (!py_stack_trace) {
+        return NULL;
+    }
+    (void)memset(py_stack_trace, 0, mem_size);
+    py_stack_trace->size = stack_size;
+    return py_stack_trace;
+}
+
 static int add_raw_stack_id(struct raw_stack_trace_s *raw_st, struct raw_trace_s *raw_stack)
 {
     if (!raw_st) {
@@ -387,6 +431,42 @@ static int add_raw_stack_id(struct raw_stack_trace_s *raw_st, struct raw_trace_s
 
     (void)memcpy(&(raw_st->raw_traces[raw_st->raw_trace_count]),
             raw_stack, sizeof(struct raw_trace_s));
+    raw_st->raw_trace_count++;
+    return 0;
+}
+
+static int add_raw_stack_id_with_py(struct raw_stack_trace_s *raw_st, struct raw_trace_s *raw_stack,
+    struct py_stack_trace_s *py_st)
+{
+    struct py_raw_trace_s *py_trace;
+    struct py_stack *py_stack;
+    if (!raw_st) {
+        return -1;
+    }
+
+    if (raw_st->raw_trace_count >= raw_st->stack_size) {
+        return -1;
+    }
+
+    (void)memcpy(&(raw_st->raw_traces[raw_st->raw_trace_count]),
+            raw_stack, sizeof(struct raw_trace_s));
+
+    if (raw_stack->lang_type == TRACE_LANG_TYPE_PYTHON) {
+        if (!py_st || py_st->len >= py_st->size) {
+            return -1;
+        }
+
+        py_trace = (struct py_raw_trace_s *)raw_stack;
+        py_stack = &(py_st->py_traces[py_st->len]);
+        py_stack->stack_len = py_trace->py_stack.stack_len;
+        for (int i = 0; i < py_stack->stack_len; i++) {
+            py_stack->stack[i] = py_trace->py_stack.stack[i];
+        }
+
+        raw_st->raw_traces[raw_st->raw_trace_count].stack_id.py_stack = py_stack;
+        py_st->len++;
+    }
+
     raw_st->raw_trace_count++;
     return 0;
 }
@@ -417,9 +497,10 @@ static int stack_addrsymbs2string_incomplete(struct proc_symbs_s *proc_symbs, st
     int len = size;
 
     if (addr_symb->sym == NULL) {
-        return 0;
+        symb = STACK_SYMBOL_UNKNOWN;
+    } else {
+        symb = addr_symb->sym;
     }
-    symb = addr_symb->sym;
 
     ret = __snprintf(&cur_p, len, &len, "; %s", symb);
     if (*layer == STACK_LAYER_1ST) {
@@ -436,22 +517,15 @@ static int stack_addrsymbs2string_incomplete(struct proc_symbs_s *proc_symbs, st
     return size > len ? (size - len) : -1;
 }
 
-static int stack_addrsymbs2string(struct proc_symbs_s *proc_symbs, struct addr_symb_s *addr_symb,
-                                  int *layer, char *p, int size)
+static int __stack_symb2string(struct proc_symbs_s *proc_symbs, char *symb, int *layer, char *p, int size)
 {
     int ret;
-    char *symb;
-    if (size <= 0) {
-        return -1;
-    }
-
     char *cur_p = p;
     int len = size;
 
-    if (addr_symb->sym == NULL) {
-        return 0;
+    if (size <= 0) {
+        return -1;
     }
-    symb = addr_symb->sym;
 
     if (*layer == STACK_LAYER_1ST) {
         if (proc_symbs->pod[0] != 0) {
@@ -470,6 +544,37 @@ static int stack_addrsymbs2string(struct proc_symbs_s *proc_symbs, struct addr_s
         return -1;
     }
     return size > len ? (size - len) : -1;
+}
+
+static int stack_addrsymbs2string(struct proc_symbs_s *proc_symbs, struct addr_symb_s *addr_symb,
+                                  int *layer, char *p, int size)
+{
+    char *symb;
+
+    if (addr_symb->sym == NULL) {
+        symb = STACK_SYMBOL_UNKNOWN;
+    } else {
+        symb = addr_symb->sym;
+    }
+
+    return __stack_symb2string(proc_symbs, symb, layer, p, size);
+}
+
+static int stack_pysymbs2string(struct proc_symbs_s *proc_symbs, struct py_symbol *py_symb,
+    int *layer, char *p, int size)
+{
+    char symb[MAX_PYTHON_SYMBOL_SIZE * 2];
+
+    symb[0] = 0;
+    if (py_symb->class_name[0] == 0 && py_symb->func_name[0] == 0) {
+        (void)snprintf(symb, sizeof(symb), "%s", STACK_SYMBOL_UNKNOWN);
+    } else if (py_symb->class_name[0]) {
+        (void)snprintf(symb, sizeof(symb), "%s#%s", py_symb->class_name, py_symb->func_name);
+    } else {
+        (void)snprintf(symb, sizeof(symb), "%s", py_symb->func_name);
+    }
+
+    return __stack_symb2string(proc_symbs, symb, layer, p, size);
 }
 
 static int __stack_file2string(struct proc_symbs_s *proc_symbs, char *line, char *p, int size, s64 *count)
@@ -535,8 +640,20 @@ static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, struct proc_s
     int remain_len = size;
     char *pos = symbos_str;
     struct addr_symb_s *addr_symb;
+    int i;
 
-    for (int i = 0; i < PERF_MAX_STACK_DEPTH; i++) {
+    if (stack_symbs->py_stack_len > 0) {
+        for (i = 0; i < stack_symbs->py_stack_len; i++) {
+            len = stack_pysymbs2string(proc_symbs, &stack_symbs->py_stack_symbols[i], &layer, pos, remain_len);
+            if (len < 0) {
+                return -1;
+            }
+            remain_len -= len;
+            pos += len;
+        }
+    }
+
+    for (i = 0; i < PERF_MAX_STACK_DEPTH; i++) {
         addr_symb = &(stack_symbs->user_stack_symbs[i]);
         if (addr_symb->orign_addr == 0) {
             continue;
@@ -564,6 +681,10 @@ static s64 convert_real_count(struct stack_trace_s *st, enum stack_svg_type_e en
 {
     if (en_type == STACK_SVG_OFFCPU) {
         return origin_count / st->post_server.perf_sample_period;
+    }
+
+    if (en_type == STACK_SVG_MEM) {
+        return origin_count * sysconf(_SC_PAGESIZE);
     }
 
     return  origin_count;
@@ -776,6 +897,32 @@ static int stack_id2symbs_user(struct stack_trace_s *st, struct stack_id_s *stac
     return 0;
 }
 
+static int stack_id2symbs_py(struct stack_trace_s *st, struct stack_id_s *stack_id,
+    struct stack_symbs_s *stack_symbs, size_t size)
+{
+    struct py_symbol *syms = (struct py_symbol *)stack_symbs->py_stack_symbols;
+    u32 sym_len = 0;
+    struct py_symbol sym;
+    int i;
+
+    if (st->py_symbol_ids_map_fd <= 0) {
+        return -1;
+    }
+
+    for (i = stack_id->py_stack->stack_len; i >= 0 && sym_len < size; i--) {
+        if (bpf_map_lookup_elem(st->py_symbol_ids_map_fd, &stack_id->py_stack->stack[i], &sym) == 0) {
+            (void)memcpy(&syms[sym_len], &sym, sizeof(struct py_symbol));
+        } else {
+            syms[sym_len].class_name[0] = 0;
+            syms[sym_len].func_name[0] = 0;
+        }
+        sym_len++;
+    }
+    stack_symbs->py_stack_len = sym_len;
+
+    return 0;
+}
+
 #define __CPU_IDLE  "do_idle"
 static char __is_cpu_idle(struct addr_symb_s *addr_symb)
 {
@@ -834,6 +981,12 @@ static int stack_id2symbs(struct stack_trace_s *st, struct stack_id_s *stack_id,
     if (stack_id->user_stack_id >= 0) {
         if (stack_id2symbs_user(st, stack_id,
                 stack_symbs->user_stack_symbs, proc_cache, PERF_MAX_STACK_DEPTH)) {
+            return -1;
+        }
+    }
+
+    if (stack_id->py_stack) {
+        if (stack_id2symbs_py(st, stack_id, stack_symbs, MAX_PYTHON_STACK_DEPTH)) {
             return -1;
         }
     }
@@ -991,21 +1144,24 @@ static void process_loss_data(void *ctx, int cpu, u64 cnt)
 static void process_oncpu_raw_stack_trace(void *ctx, int cpu, void *data, u32 size)
 {
     struct raw_stack_trace_s *raw_st;
+    struct py_stack_trace_s *py_st;
     if (!g_st || !g_st->svg_stack_traces[STACK_SVG_ONCPU] || !data) {
         return;
     }
 
     if (g_st->is_stackmap_a) {
         raw_st = g_st->svg_stack_traces[STACK_SVG_ONCPU]->raw_stack_trace_a;
+        py_st = g_st->svg_stack_traces[STACK_SVG_ONCPU]->py_stack_trace_a;
     } else {
         raw_st = g_st->svg_stack_traces[STACK_SVG_ONCPU]->raw_stack_trace_b;
+        py_st = g_st->svg_stack_traces[STACK_SVG_ONCPU]->py_stack_trace_b;
     }
 
     if (!raw_st) {
         return;
     }
 
-    if (add_raw_stack_id(raw_st, (struct raw_trace_s *)data)) {
+    if (add_raw_stack_id_with_py(raw_st, (struct raw_trace_s *)data, py_st)) {
         g_st->stats.count[STACK_STATS_LOSS]++;
     } else {
         g_st->stats.count[STACK_STATS_RAW]++;
@@ -1044,21 +1200,24 @@ static void process_offcpu_raw_stack_trace(void *ctx, int cpu, void *data, u32 s
 static void process_mem_raw_stack_trace(void *ctx, int cpu, void *data, u32 size)
 {
     struct raw_stack_trace_s *raw_st;
+    struct py_stack_trace_s *py_st;
     if (!g_st || !g_st->svg_stack_traces[STACK_SVG_MEM] || !data) {
         return;
     }
 
     if (g_st->is_stackmap_a) {
         raw_st = g_st->svg_stack_traces[STACK_SVG_MEM]->raw_stack_trace_a;
+        py_st = g_st->svg_stack_traces[STACK_SVG_MEM]->py_stack_trace_a;
     } else {
         raw_st = g_st->svg_stack_traces[STACK_SVG_MEM]->raw_stack_trace_b;
+        py_st = g_st->svg_stack_traces[STACK_SVG_MEM]->py_stack_trace_b;
     }
 
     if (!raw_st) {
         return;
     }
 
-    if (add_raw_stack_id(raw_st, (struct raw_trace_s *)data)) {
+    if (add_raw_stack_id_with_py(raw_st, (struct raw_trace_s *)data, py_st)) {
         g_st->stats.count[STACK_STATS_LOSS]++;
     } else {
         g_st->stats.count[STACK_STATS_RAW]++;
@@ -1105,6 +1264,14 @@ static void destroy_svg_stack_trace(struct svg_stack_trace_s **ptr_svg_st)
     if (svg_st->raw_stack_trace_b) {
         (void)free(svg_st->raw_stack_trace_b);
         svg_st->raw_stack_trace_b = NULL;
+    }
+    if (svg_st->py_stack_trace_a) {
+        (void)free(svg_st->py_stack_trace_a);
+        svg_st->py_stack_trace_a = NULL;
+    }
+    if (svg_st->py_stack_trace_b) {
+        (void)free(svg_st->py_stack_trace_b);
+        svg_st->py_stack_trace_b = NULL;
     }
     clear_stack_histo(svg_st);
 
@@ -1186,6 +1353,14 @@ static struct svg_stack_trace_s *create_svg_stack_trace(struct ipc_body_s *ipc_b
     if (!svg_st->raw_stack_trace_b) {
         goto cleanup;
     }
+    svg_st->py_stack_trace_a = create_py_stack_trace(g_st);
+    if (!svg_st->py_stack_trace_a) {
+        goto cleanup;
+    }
+    svg_st->py_stack_trace_b = create_py_stack_trace(g_st);
+    if (!svg_st->py_stack_trace_b) {
+        goto cleanup;
+    }
 
     INFO("[STACKPROBE]: create %s svg stack trace succeed.\n", flame_name);
     return svg_st;
@@ -1193,7 +1368,6 @@ cleanup:
     destroy_svg_stack_trace(&svg_st);
     return NULL;
 }
-
 
 static struct stack_trace_s *create_stack_trace(struct ipc_body_s *ipc_body)
 {
@@ -1282,7 +1456,28 @@ static void init_convert_counter()
     (void)bpf_map_update_elem(g_st->convert_map_fd, &key, &convert_data, BPF_ANY);
 }
 
-static int load_bpf_prog(struct svg_stack_trace_s *svg_st, const char *prog_name)
+static int init_py_sample_heap(int map_fd)
+{
+    int nr_cpus = NR_CPUS;
+    struct py_sample *samples;
+    u32 zero = 0;
+    int i;
+    int ret;
+
+    samples = (struct py_sample *)calloc(nr_cpus, sizeof(struct py_sample));
+    if (!samples) {
+        return -1;
+    }
+    for (i = 0; i < nr_cpus; i++) {
+        samples[i].nr_cpus = nr_cpus;
+    }
+    INFO("[STACKPROBE]: system cpu number is %d\n", nr_cpus);
+    ret = bpf_map_update_elem(map_fd, &zero, samples, BPF_ANY);
+    free(samples);
+    return ret;
+}
+
+static int load_bpf_prog(struct svg_stack_trace_s *svg_st, const char *prog_name, enum stack_svg_type_e svg_type)
 {
     int ret;
     struct bpf_program *prog;
@@ -1314,6 +1509,28 @@ static int load_bpf_prog(struct svg_stack_trace_s *svg_st, const char *prog_name
         ERROR("[STACKPROBE]: Failed to pin stackmap_b map(err = %d).\n", ret);
         goto err;
     }
+    if (svg_type == STACK_SVG_ONCPU || svg_type == STACK_SVG_MEM) {
+        ret = BPF_OBJ_PIN_MAP_PATH(svg_st->obj, "py_proc_map", STACK_PY_PROC_DATA_MAP_PATH);
+        if (ret) {
+            ERROR("[STACKPROBE]: Failed to pin py_proc_map map(err = %d).\n", ret);
+            goto err;
+        }
+        ret = BPF_OBJ_PIN_MAP_PATH(svg_st->obj, "py_symbols", STACK_PY_SYMBOLS_MAP_PATH);
+        if (ret) {
+            ERROR("[STACKPROBE]: Failed to pin py_symbols map(err = %d).\n", ret);
+            goto err;
+        }
+        ret = BPF_OBJ_PIN_MAP_PATH(svg_st->obj, "py_symbol_ids", STACK_PY_SYMBOL_IDS_MAP_PATH);
+        if (ret) {
+            ERROR("[STACKPROBE]: Failed to pin py_symbol_ids map(err = %d).\n", ret);
+            goto err;
+        }
+        ret = BPF_OBJ_PIN_MAP_PATH(svg_st->obj, "py_sample_heap", STACK_PY_SAMPLE_HEAP_MAP_PATH);
+        if (ret) {
+            ERROR("[STACKPROBE]: Failed to pin py_sample_heap map(err = %d).\n", ret);
+            goto err;
+        }
+    }
 
     ret = bpf_object__load(svg_st->obj);
     if (ret) {
@@ -1336,6 +1553,17 @@ static int load_bpf_prog(struct svg_stack_trace_s *svg_st, const char *prog_name
         g_st->proc_obj_map_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "proc_obj_map");
         g_st->stackmap_a_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "stackmap_a");
         g_st->stackmap_b_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "stackmap_b");
+    }
+    if ((svg_type == STACK_SVG_ONCPU || svg_type == STACK_SVG_MEM) && g_st->py_proc_map_fd == 0) {
+        g_st->py_proc_map_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "py_proc_map");
+        g_st->py_symbols_map_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "py_symbols");
+        g_st->py_symbol_ids_map_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "py_symbol_ids");
+        g_st->py_sample_heap_map_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "py_sample_heap");
+        ret = init_py_sample_heap(g_st->py_sample_heap_map_fd);
+        if (ret) {
+            ERROR("[STACKPROBE]: Failed to init python sample heap map, ret=%d\n", ret);
+            goto err;
+        }
     }
     svg_st->stackmap_perf_a_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "stackmap_perf_a");
     svg_st->stackmap_perf_b_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "stackmap_perf_b");
@@ -1436,7 +1664,8 @@ cleanup:
     bpf_link__destroy(links);
     return -1;
 }
-#if 0
+
+#if 0   // this is for mem_glibc.bpf.c
 static void set_pids_inactive()
 {
     struct bpf_link_hash_t *item, *tmp;
@@ -1633,11 +1862,11 @@ static void *__uprobe_attach_check(void *arg)
 
 }
 #endif
-static int attach_mem_bpf_prog(struct ipc_body_s *ipc_body, struct svg_stack_trace_s *svg_st)
+
+// this is for mem.bpf.c and mem_fp.bpf.c
+static int attach_mem_pagefault_or_fp_bpf_prog(struct ipc_body_s *ipc_body, struct svg_stack_trace_s *svg_st)
 {
     int err;
-#if 1
-    // this is for mem.bpf.c and mem_fp.bpf.c
     int i = 0;
     struct bpf_program *prog;
     struct bpf_link *links[MEM_SEC_NUM] = {0};
@@ -1661,8 +1890,12 @@ cleanup:
     }
 
     return -1;
-#else
-    // this is for mem_glibc.bpf.c
+}
+
+#if 0   // this is for mem_glibc.bpf.c
+static int attach_mem_glibc_bpf_prog(struct ipc_body_s *ipc_body, struct svg_stack_trace_s *svg_st)
+{
+    int err;
     pthread_t uprobe_attach_thd;
 
     err = pthread_create(&uprobe_attach_thd, NULL, __uprobe_attach_check, (void *)svg_st);
@@ -1674,7 +1907,12 @@ cleanup:
 
     INFO("[STACKPROBE]: attach mem bpf succeed.\n");
     return 0;
+}
 #endif
+
+static int attach_mem_bpf_prog(struct ipc_body_s *ipc_body, struct svg_stack_trace_s *svg_st)
+{
+    return attach_mem_pagefault_or_fp_bpf_prog(ipc_body, svg_st);
 }
 
 static void clear_stackmap(int stackmap_fd)
@@ -1968,6 +2206,7 @@ static void switch_stackmap()
             wr_flamegraph(&st->svg_stack_traces[i]->proc_histo_tbl, st->svg_stack_traces[i]->svg_mng, i, &st->post_server);
         }
         clear_raw_stack_trace(st->svg_stack_traces[i], st->is_stackmap_a);
+        clear_py_stack_trace(st->svg_stack_traces[i], st->is_stackmap_a);
     }
     record_running_ctx(st);
     // Clear the context information of the running environment.
@@ -2016,7 +2255,7 @@ static int init_enabled_svg_stack_traces(struct ipc_body_s *ipc_body)
         }
         g_st->svg_stack_traces[i] = svg_st;
 
-        if (load_bpf_prog(svg_st, flameProcs[i].prog_name)) {
+        if (load_bpf_prog(svg_st, flameProcs[i].prog_name, flameProcs[i].en_type)) {
             return -1;
         }
 

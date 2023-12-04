@@ -350,11 +350,10 @@ err:
     return ret;
 }
 
-int gopher_get_elf_symb(const char *elf_file, char *symb_name, u64 *symb_offset)
+int gopher_get_elf_symb_addr(const char *elf_file, char *symb_name, u64 *symb_addr)
 {
     int ret;
     int elf_type;
-    struct elf_header_s hdr = {0};
     struct elf_symb_s elf_symb = {.symb = symb_name, .start_addr = 0};
 
     if (elf_file == NULL || symb_name == NULL) {
@@ -370,17 +369,32 @@ int gopher_get_elf_symb(const char *elf_file, char *symb_name, u64 *symb_offset)
         return ret;
     }
 
-    if ((ret = gopher_get_elf_hdr_info(elf_file, &hdr)) && ret != 0) {
-        return ret;
-    }
-
     if (elf_symb.start_addr == 0) {
         return -1;
     }
 
-    // calculate symbol offset : symb.start_addr - hdr.p_vaddr + hdr.p_offset
-    if (elf_symb.start_addr >= hdr.p_vaddr && elf_symb.start_addr < (hdr.p_vaddr + hdr.p_memsz)) {
-        *symb_offset = elf_symb.start_addr - hdr.p_vaddr + hdr.p_offset;
+    *symb_addr = elf_symb.start_addr;
+    return 0;
+}
+
+int gopher_get_elf_symb(const char *elf_file, char *symb_name, u64 *symb_offset)
+{
+    int ret;
+    u64 start_addr = 0;
+    struct elf_header_s hdr = {0};
+
+    ret = gopher_get_elf_symb_addr(elf_file, symb_name, &start_addr);
+    if (ret) {
+        return ret;
+    }
+
+    if ((ret = gopher_get_elf_hdr_info(elf_file, &hdr)) && ret != 0) {
+        return ret;
+    }
+
+    // calculate symbol offset : start_addr - hdr.p_vaddr + hdr.p_offset
+    if (start_addr >= hdr.p_vaddr && start_addr < (hdr.p_vaddr + hdr.p_memsz)) {
+        *symb_offset = start_addr - hdr.p_vaddr + hdr.p_offset;
         return 0;
     }
     return -1;

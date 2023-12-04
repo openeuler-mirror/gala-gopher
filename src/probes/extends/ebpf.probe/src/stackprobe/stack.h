@@ -18,6 +18,7 @@
 #pragma once
 
 #include "common.h"
+#include "py_stack.h"
 
 #define DEFAULT_PERF_SAMPLE_PERIOD   10 // ms
 #define AGGRE_PERIOD                (1 * 30 * 1000) // 30s
@@ -41,12 +42,32 @@ struct stack_id_s {
     char comm[TASK_COMM_LEN]; // thread comm
     int user_stack_id;
     int kern_stack_id;
+    struct py_stack *py_stack;  // a reference to python stack, used in user-sider
     struct stack_pid_s pid;
+};
+
+enum trace_lang_type {
+    TRACE_LANG_TYPE_DEFAULT = 0,
+    TRACE_LANG_TYPE_PYTHON
 };
 
 struct raw_trace_s {
     s64 count;
     struct stack_id_s stack_id;
+    enum trace_lang_type lang_type;
+};
+
+struct py_raw_trace_s {
+    struct raw_trace_s raw_trace;
+    struct py_stack py_stack;
+};
+
+struct py_sample {
+    u32 cpu_id;             // use to generate python symbol id
+    u32 nr_cpus;
+    u64 py_symbol_counter;  // use to generate python symbol id
+    u64 py_stack_counter;   // use to generate python stack id
+    struct py_raw_trace_s event;
 };
 
 #endif

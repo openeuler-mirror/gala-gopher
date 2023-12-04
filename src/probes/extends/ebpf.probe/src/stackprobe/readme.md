@@ -10,7 +10,7 @@
 
 ## 特性
 
-- 支持观测C/C++、Go、Rust、Java语言应用。
+- 支持观测C/C++、Go、Rust、Java语言、Python语言应用。
 
 - 调用栈支持容器、进程粒度：对于容器内进程，在调用栈底部分别以[Pod]和[Con]前缀标记工作负载Pod名称、容器Container名称。进程名以[<pid>]前缀标识，线程及函数（方法）无前缀。
 
@@ -183,15 +183,48 @@ curl -X PUT http://localhost:9999/flamegraph -d json='{ "cmd": {  "check_cmd": "
 
   ![attach流程](../../../../../../doc/pic/attach流程.png)
 
+### 4. python 语言支持
 
+对于 python 语言，oncpu 火焰图支持显示 python 应用程序的调用栈。
+
+#### 约束说明
+
+- 安装环境上需要安装对应 python 版本的 debuginfo 包，以获取python应用程序的调用栈信息。
+- 当前支持的python版本包括：python3.9 。
+
+#### python 调用栈获取
+
+python 调用栈获取逻辑如下：
+
+1. 用户侧：对于运行中的 python 进程，获取全局变量 `_PyRuntime` 的虚拟地址，用于后续读取 python 进程的栈帧信息。
+
+   全局变量 `_PyRuntime` 保存了 python 解释器（cpython）的运行状态信息，包括：GIL锁信息、当前运行的线程状态信息等。当前运行的线程状态信息中，保存了 python 应用程序的栈帧信息，可从中获取到 python 应用程序的调用栈。
+
+   全局变量 `_PyRuntime` 的虚拟地址的获取步骤为：
+
+   1. 获取进程的地址映射文件 `/proc/<pid>/maps`，读取 libpython so 的地址偏移和文件路径。
+   2. 根据 libpython so 的文件路径，读取相应的 debug 文件名，并在 `/usr/lib/debug` 目录下获取 debug 文件的路径。
+   3. 从 libpython so 的 debug 文件中读取全局变量 `_PyRuntime` 的虚拟地址。
+
+2. 用户侧：获取 cpython 栈帧、符号等结构的偏移信息，用于后续读取 python 进程调用栈的类名、函数名等信息。
+
+   cpython 相关结构体的偏移信息直接从 cpython 官方源码中提取，并硬编码到探针源码中。由于不同 cpython 版本中的结构体定义有差异，因此需要根据不同版本设置相应的偏移信息，当前支持的 python 版本为 python3.9，对应的结构体偏移信息保存在 `pystack/py39_offsets.c` 文件中。
+
+3. 用户侧：将每个运行中的 python 进程的 `_PyRuntime` 地址、偏移信息保存到一个 bpf map 中，用于 ebpf 程序侧读取。
+
+4. ebpf 程序侧：获取当前 python 进程的配置信息，读取当前运行的线程状态地址，读取调用栈信息，并通过 perf event 事件发送到用户侧。
+
+5. 用户侧：接收 perf event 事件，读取 python 进程的调用栈，生成火焰图。
 
 
 ## 注意事项
 
 - 对于Java应用的观测，为获取最佳观测效果，请设置stackprobe启动选项为"multi_instance": 1, "native_stack": 0来使能JFR观测（JDK8u262+）。否则stackprobe会以perf方式来生成Java火焰图。perf方式下，请开启JVM选项XX:+PreserveFramePointer（JDK8以上）。
+- 对于python语言，安装环境上需要安装对应 python 版本的 debuginfo 包，以获取python应用程序的调用栈信息。
 
 
 
 ## 约束条件
 
 - 支持基于hotspot JVM的Java应用观测
+- 当前支持的python版本包括：python3.9 。
