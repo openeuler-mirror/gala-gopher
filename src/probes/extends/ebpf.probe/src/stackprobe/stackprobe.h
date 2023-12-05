@@ -120,7 +120,6 @@ struct post_server_s {
     long timeout; // sec
     char host[PATH_LEN];
     char app_suffix[APP_SUFFIX_LEN];
-    time_t last_post_ts;
 };
 
 struct stack_trace_s {

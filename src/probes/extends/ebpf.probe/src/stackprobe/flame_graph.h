@@ -22,7 +22,7 @@
 
 int do_wr_stack_histo(struct stack_svg_mng_s *svg_mng,
                         struct stack_trace_histo_s *stack_trace_histo, int first, struct post_info_s *post_info);
-void curl_post(struct post_server_s *post_server, struct post_info_s *post_info, int en_type, int proc_id);
+void curl_post(struct stack_svg_mng_s *svg_mng, struct post_server_s *post_server, struct post_info_s *post_info, int en_type, int proc_id);
 void init_curl_handle(struct post_server_s *post_server, struct post_info_s *post_info);
 void wr_flamegraph(struct proc_stack_trace_histo_s **proc_histo_tbl, struct stack_svg_mng_s *svg_mng, int en_type, struct post_server_s *post_server);
 int set_flame_graph_path(struct stack_svg_mng_s *svg_mng, const char* path, const char *flame_name);
