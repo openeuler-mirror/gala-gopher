@@ -36,10 +36,10 @@ struct {
 
 static inline void *bpfbuf_reserve(void *map, __u64 size)
 {
-    static const int zero = 0;
+    int zero = 0;
 
     if (probe_ringbuf()) {
-        return bpf_ringbuf_reserve(&map, size, 0);
+        return bpf_ringbuf_reserve(map, size, 0);
     }
 
     return bpf_map_lookup_elem(&heap, &zero);
@@ -154,8 +154,9 @@ static inline int bpf_buffer__open(struct bpf_buffer *buffer, bpf_buffer_sample_
         return 0;
     }
 
-    if (!inner) {
-        return -errno;
+    long err = libbpf_get_error(inner);
+    if (err) {
+        return err;
     }
 
     buffer->inner = inner;

@@ -1349,6 +1349,9 @@ static int load_bpf_prog(struct svg_stack_trace_s *svg_st, const char *prog_name
         goto err;
     }
 
+    BPF_OBJ_CREATE_BUFFER(svg_st->obj, "stackmap_perf_a", "heap", perf_buff_a);
+    BPF_OBJ_CREATE_BUFFER(svg_st->obj, "stackmap_perf_b", "heap", perf_buff_b);
+
     ret = bpf_object__load(svg_st->obj);
     if (ret) {
         ERROR("[STACKPROBE]: Failed to load bpf prog(err = %d).\n", ret);

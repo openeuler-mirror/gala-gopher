@@ -50,7 +50,7 @@
     MAP_SET_PIN_PATH(probe_name, proc_filter_map, PROC_FILTER_MAP_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, thrd_bl_map, THRD_BL_MAP_PATH, load); \
 
-#define LOAD_SYSCALL_PROBE(probe_name, end, load) \
+#define LOAD_SYSCALL_PROBE(probe_name, end, load, buffer) \
     INIT_OPEN_OPTS(probe_name); \
     PREPARE_CUSTOM_BTF(probe_name); \
     OPEN_OPTS(probe_name, end, load); \
@@ -59,29 +59,35 @@
     MAP_SET_PIN_PATH(probe_name, stack_map, STACK_MAP_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, syscall_enter_map, SYSCALL_ENTER_MAP_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, syscall_stash_map, SYSCALL_STASH_MAP_PATH, load); \
+    MAP_INIT_BPF_BUFFER(probe_name, event_map, buffer, load); \
     LOAD_ATTACH(tprofiling, probe_name, end, load)
 
-#define LOAD_ONCPU_PROBE(probe_name, end, load) \
+#define LOAD_ONCPU_PROBE(probe_name, end, load, buffer) \
     INIT_OPEN_OPTS(probe_name); \
     PREPARE_CUSTOM_BTF(probe_name); \
     OPEN_OPTS(probe_name, end, load); \
     MAP_SET_COMMON_PIN_PATHS(probe_name, load); \
-    MAP_SET_PIN_PATH(probe_name, event_map, ONCPU_EVENT_MAP_PATH, load);
+    MAP_SET_PIN_PATH(probe_name, event_map, ONCPU_EVENT_MAP_PATH, load); \
+    MAP_INIT_BPF_BUFFER(probe_name, event_map, buffer, load);
 
 #define LOAD_SYSCALL_BPF_PROG(type) \
     static int __load_syscall_##type##_bpf_prog(struct bpf_prog_s *prog, char is_load) \
     { \
         int ret = 0; \
+        struct bpf_buffer *buffer = NULL; \
         \
-        LOAD_SYSCALL_PROBE(syscall_##type, err, is_load); \
+        LOAD_SYSCALL_PROBE(syscall_##type, err, is_load, buffer); \
         if (is_load) { \
             prog->skels[prog->num].skel = syscall_##type##_skel; \
             prog->skels[prog->num].fn = (skel_destroy_fn)syscall_##type##_bpf__destroy; \
             prog->custom_btf_paths[prog->num] = syscall_##type##_open_opts.btf_custom_path; \
-            ret = load_create_pb(prog, syscall_##type##_skel->maps.event_map, syscall_##type##_skel->maps.heap); \
+            ret = bpf_buffer__open(buffer, perf_event_handler, NULL, NULL); \
             if (ret) { \
+                ERROR("[TPPROFILING] Open bpf_buffer failed in syscall_"#type".\n"); \
+                bpf_buffer__free(buffer); \
                 goto err; \
             } \
+            prog->buffers[prog->num] = buffer; \
             prog->num++; \
         } \
         \

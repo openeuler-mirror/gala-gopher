@@ -51,27 +51,6 @@ static int perf_event_handler(void *ctx, void *data, __u32 size)
     return 0;
 }
 
-static int load_create_pb(struct bpf_prog_s *prog, struct bpf_map *map, struct bpf_map *heap)
-{
-    int ret;
-    struct bpf_buffer *buffer = NULL;
-
-    buffer = bpf_buffer__new(map, heap);
-    if (buffer == NULL) {
-        return -1;
-    }
-
-    ret = bpf_buffer__open(buffer, perf_event_handler, NULL, NULL);
-    if (ret) {
-        ERROR("[TPPROFILING] Open bpf_buffer failed.\n");
-        bpf_buffer__free(buffer);
-        return -1;
-    }
-
-    prog->buffers[prog->num] = buffer;
-    return 0;
-}
-
 LOAD_SYSCALL_BPF_PROG(file)
 
 LOAD_SYSCALL_BPF_PROG(net)
@@ -122,8 +101,9 @@ err:
 static int __load_oncpu_bpf_prog(struct bpf_prog_s *prog, char is_load)
 {
     int ret = 0;
+    struct bpf_buffer *buffer = NULL;
 
-    LOAD_ONCPU_PROBE(oncpu, err, is_load);
+    LOAD_ONCPU_PROBE(oncpu, err, is_load, buffer);
     if (is_load) {
         prog->skels[prog->num].skel = oncpu_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)oncpu_bpf__destroy;
@@ -133,13 +113,16 @@ static int __load_oncpu_bpf_prog(struct bpf_prog_s *prog, char is_load)
         PROG_ENABLE_ONLY_IF(oncpu, bpf_raw_trace_sched_switch, is_attach_tp);
         PROG_ENABLE_ONLY_IF(oncpu, bpf_finish_task_switch, !is_attach_tp);
 
-        ret = load_create_pb(prog, oncpu_skel->maps.event_map, oncpu_skel->maps.heap);
-        if (ret) {
-            goto err;
-        }
-
         LOAD_ATTACH(tprofiling, oncpu, err, is_load);
 
+        ret = bpf_buffer__open(buffer, perf_event_handler, NULL, NULL);
+        if (ret) {
+            ERROR("[TPPROFILING] Open bpf_buffer failed in oncpu.\n");
+            bpf_buffer__free(buffer);
+            return -1;
+        }
+
+        prog->buffers[prog->num] = buffer;
         prog->num++;
     }
 

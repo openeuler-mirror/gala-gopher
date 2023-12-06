@@ -132,9 +132,6 @@ struct {
 static __always_inline void submit_perf_buf(void* ctx, char *buf, size_t bytes_count, struct conn_data_s* conn_data)
 {
     volatile size_t copied_size;
-    if (buf == NULL || bytes_count == 0) {
-        return;
-    }
 
     copied_size = (bytes_count > CONN_DATA_MAX_SIZE) ? CONN_DATA_MAX_SIZE : bytes_count;
     conn_data->msg.data_size = (u32)copied_size;
@@ -207,15 +204,17 @@ static __always_inline __maybe_unused void submit_conn_data(void* ctx, struct so
     if (args->buf) {
         #pragma unroll
         for (i = 0; i < LOOP_LIMIT; ++i) {
-            conn_data = store_conn_data_buf(direction, sock_conn);
-            if (conn_data == NULL) {
-                return;
-            }
             bytes_remaining = (int)bytes_count - bytes_sent;
             bytes_truncated = (bytes_remaining > CONN_DATA_MAX_SIZE && (i != LOOP_LIMIT - 1)) ? CONN_DATA_MAX_SIZE : bytes_remaining;
             if (bytes_truncated <= 0) {
                 return;
             }
+
+            conn_data = store_conn_data_buf(direction, sock_conn);
+            if (conn_data == NULL) {
+                return;
+            }
+
             // summit perf buf
             conn_data->msg.offset_pos = (u64)(bytes_truncated + bytes_sent);
             submit_perf_buf(ctx, args->buf + bytes_sent, (size_t)bytes_truncated, conn_data);
@@ -225,13 +224,14 @@ static __always_inline __maybe_unused void submit_conn_data(void* ctx, struct so
         #pragma unroll
         for (i = 0; i < LOOP_LIMIT && i < args->iovlen && bytes_sent < bytes_count; ++i) {
             struct iovec iov_cpy = {0};
-            conn_data = store_conn_data_buf(direction, sock_conn);
-            if (conn_data == NULL) {
-                return;
-            }
-            bpf_core_read(&iov_cpy, sizeof(iov_cpy), &args->iov[i]);
+            bpf_probe_read(&iov_cpy, sizeof(iov_cpy), &args->iov[i]);
             bytes_remaining = (int)bytes_count - bytes_sent;
             if (bytes_truncated <= 0) {
+                return;
+            }
+
+            conn_data = store_conn_data_buf(direction, sock_conn);
+            if (conn_data == NULL) {
                 return;
             }
             size_t iov_len = min(iov_cpy.iov_len, (size_t)bytes_remaining);
@@ -275,7 +275,8 @@ static __always_inline __maybe_unused void submit_sock_data(void *ctx, struct so
         }
     } else if (args->iov) {
         struct iovec iov_cpy = {0};
-        bpf_core_read(&iov_cpy, sizeof(iov_cpy), &args->iov[0]);
+        // Using bpf_core_read will get error: failed to resolve CO-RE relocation <byte_off> [xx] struct sock_data_args_s.iov
+        bpf_probe_read(&iov_cpy, sizeof(iov_cpy), &args->iov[0]);
         buffer = read_from_buf_ptr((char *)iov_cpy.iov_base);
         if (!buffer) {
             return;
