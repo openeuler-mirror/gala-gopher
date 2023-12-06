@@ -42,6 +42,7 @@
 #include "ipc.h"
 #include "hash.h"
 #include "container.h"
+#include "histogram.h"
 
 #define EP_ENTITY_ID_LEN 64
 
@@ -52,6 +53,33 @@
     OPEN(probe_name, end, load); \
     LOAD_ATTACH(endpoint, probe_name, end, load)
 
+// unit: ns
+enum estab_latency_range_t {
+    LT_RANGE_1 = 0,         // (0 ~ 3]ms
+    LT_RANGE_2,             // (3 ~ 10]ms
+    LT_RANGE_3,             // (10 ~ 50]ms
+    LT_RANGE_4,             // (50 ~ 100]ms
+    LT_RANGE_5,             // (100 ~ 500]ms
+    LT_RANGE_6,             // (500 ~ 1000]ms
+    LT_RANGE_7,            // (1000 ~ 10000]ms
+
+    __MAX_LT_RANGE
+};
+
+struct estab_latency_histo_s {
+    enum estab_latency_range_t range;
+    u64 min, max;
+};
+
+struct estab_latency_histo_s estab_latency_histios[__MAX_LT_RANGE] = {
+    {LT_RANGE_1, 0,          3000000},
+    {LT_RANGE_2, 3000000,    10000000},
+    {LT_RANGE_3, 10000000,   50000000},
+    {LT_RANGE_4, 50000000,   100000000},
+    {LT_RANGE_5, 100000000,  500000000},
+    {LT_RANGE_6, 500000000,  1000000000},
+    {LT_RANGE_7, 1000000000, 10000000000}
+};
 struct tcp_listen_s {
     H_HANDLE;
     struct tcp_listen_key_s key;
@@ -72,6 +100,8 @@ struct tcp_socket_s {
     char *server_ip;
     u64 stats[EP_STATS_MAX];
     time_t last_rcv_data;
+
+    struct histo_bucket_s estab_latency_buckets[__MAX_LT_RANGE];
 };
 
 struct udp_socket_id_s {
@@ -274,9 +304,17 @@ static struct udp_socket_s* lkup_udp_socket(struct endpoint_probe_s *probe, cons
 
 static void output_tcp_socket(struct tcp_socket_s* tcp_sock)
 {
+    char estab_latency_histogram[MAX_HISTO_SERIALIZE_SIZE];
+    estab_latency_histogram[0] = 0;
+
+    if (serialize_histo(tcp_sock->estab_latency_buckets, __MAX_LT_RANGE, estab_latency_histogram, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+
     (void)fprintf(stdout,
         "|%s|%u|%s|%s|%s|%u|%u"
-        "|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|\n",
+        "|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu"
+        "|%s|\n",
         OO_TCP_SOCK,
         tcp_sock->id.tgid,
         (tcp_sock->id.role == TCP_SERVER) ? "server" : "client",
@@ -298,7 +336,9 @@ static void output_tcp_socket(struct tcp_socket_s* tcp_sock)
         tcp_sock->stats[EP_STATS_SYN_SENT],
         tcp_sock->stats[EP_STATS_SYNACK_SENT],
         tcp_sock->stats[EP_STATS_RST_SENT],
-        tcp_sock->stats[EP_STATS_RST_RCVS]);
+        tcp_sock->stats[EP_STATS_RST_RCVS],
+
+        estab_latency_histogram);
     (void)fflush(stdout);
 }
 
@@ -317,6 +357,22 @@ static void output_udp_socket(struct udp_socket_s* udp_sock)
         udp_sock->stats[EP_STATS_UDP_SENDS],
         udp_sock->stats[EP_STATS_UDP_RCVS]);
     (void)fflush(stdout);
+}
+
+static void process_tcp_establish_latency(struct tcp_socket_s *tcp, struct tcp_socket_event_s* evt)
+{
+    if (evt->evt != EP_STATS_ACTIVE_OPENS && evt->evt != EP_STATS_PASSIVE_OPENS) {
+        return;
+    }
+
+    (void)histo_bucket_add_value(tcp->estab_latency_buckets, __MAX_LT_RANGE, evt->estab_latency);
+}
+
+static void init_tcp_sock_latency_buckets(struct histo_bucket_s latency_buckets[], size_t size)
+{
+    for (int i = 0; i < size; i++) {
+        (void)init_histo_bucket(&(latency_buckets[i]), estab_latency_histios[i].min, estab_latency_histios[i].max);
+    }
 }
 
 #define MAX_ENDPOINT_ENTITES    (5 * 1024)
@@ -339,6 +395,7 @@ static int add_tcp_sock_evt(struct endpoint_probe_s * probe, struct tcp_socket_e
 
     tcp = lkup_tcp_socket(probe, (const struct tcp_socket_id_s *)&id);
     if (tcp) {
+        process_tcp_establish_latency(tcp, evt);
         tcp->stats[evt->evt]++;
         tcp->last_rcv_data = time(NULL);
         return 0;
@@ -354,6 +411,9 @@ static int add_tcp_sock_evt(struct endpoint_probe_s * probe, struct tcp_socket_e
     }
     memset(new_tcp, 0, sizeof(struct tcp_socket_s));
     memcpy(&(new_tcp->id), &id, sizeof(id));
+    init_tcp_sock_latency_buckets(new_tcp->estab_latency_buckets, __MAX_LT_RANGE);
+
+    process_tcp_establish_latency(new_tcp, evt);
     new_tcp->stats[evt->evt] += 1;
     new_tcp->last_rcv_data = time(NULL);
 
@@ -843,6 +903,7 @@ static char is_report_tmout(struct endpoint_probe_s *probe)
 static void reset_tcp_socket(struct tcp_socket_s* tcp_sock)
 {
     memset(&(tcp_sock->stats), 0, sizeof(u64) * EP_STATS_MAX);
+    (void)histo_bucket_reset(tcp_sock->estab_latency_buckets, __MAX_LT_RANGE);
 }
 
 static void reset_udp_socket(struct udp_socket_s* udp_sock)
@@ -916,9 +977,6 @@ int main(int argc, char **argv)
                 if (endpoint_load_probe(&g_ep_probe, &ipc_body)) {
                     break;
                 }
-
-                reload_listen_port(&g_ep_probe);
-                reload_listen_map(&g_ep_probe);
             }
 
             /* Probe range was changed to 0 */
@@ -928,6 +986,8 @@ int main(int argc, char **argv)
 
             destroy_ipc_body(&(g_ep_probe.ipc_body));
             (void)memcpy(&(g_ep_probe.ipc_body), &ipc_body, sizeof(g_ep_probe.ipc_body));
+            reload_listen_port(&g_ep_probe);
+            reload_listen_map(&g_ep_probe);
         }
 
         if (poll_endpoint_pb(&g_ep_probe)) {

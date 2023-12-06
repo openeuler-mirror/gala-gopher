@@ -66,6 +66,7 @@ struct stack_flamegraph_s {
 };
 
 struct stack_svg_mng_s {
+    time_t last_post_ts;
     struct stack_svgs_s svg;
     struct stack_flamegraph_s flame_graph;
 };

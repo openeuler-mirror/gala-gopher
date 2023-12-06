@@ -26,14 +26,14 @@
 
 Summary:       Intelligent ops toolkit for openEuler
 Name:          gala-gopher
-Version:       1.0.2
-Release:       3
+Version:       2.0.0
+Release:       1
 License:       Mulan PSL v2
 URL:           https://gitee.com/openeuler/gala-gopher
 Source:        %{name}-%{version}.tar.gz
 BuildRoot:     %{_builddir}/%{name}-%{version}
 BuildRequires: systemd cmake gcc-c++ elfutils-devel (clang >= 10.0.1 or clang12) llvm
-BuildRequires: libconfig-devel librdkafka-devel libmicrohttpd-devel
+BuildRequires: libconfig-devel librdkafka-devel libmicrohttpd-devel libevent-devel openssl-devel
 BuildRequires: libbpf-devel >= 2:0.3 uthash-devel
 BuildRequires: jsoncpp-devel gnutls-devel git libstdc++-devel
 %if !0%{?without_flamegraph}
@@ -47,7 +47,7 @@ BuildRequires: jsoncpp-devel java-1.8.0-openjdk-devel
 %endif
 
 Requires:      bash glibc elfutils bpftool libbpf >= 2:0.3
-Requires:      librdkafka libmicrohttpd libconfig
+Requires:      librdkafka libmicrohttpd libconfig libevent
 Requires:      iproute jsoncpp gnutls libstdc++
 %if !0%{?without_systeminfo}
 Requires:      ethtool systemd iproute

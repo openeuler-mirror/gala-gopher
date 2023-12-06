@@ -24,6 +24,10 @@ else
     sed -i "s/kafka_broker =.*/kafka_broker = \"localhost:9092\";/g" $GOPHER_CONF
 fi
 
+if [[ -n "$GOPHER_METRIC_ADDR" ]]; then
+    sed -i "s/bind_addr =.*/bind_addr = \"${GOPHER_METRIC_ADDR}\";/g" $GOPHER_CONF
+fi
+
 if [[ -n "$GOPHER_METRIC_PORT" ]]; then
     sed -i "/^web_server =/{n;n;s/port =.*/port = ${GOPHER_METRIC_PORT};/g;}" $GOPHER_CONF
 fi

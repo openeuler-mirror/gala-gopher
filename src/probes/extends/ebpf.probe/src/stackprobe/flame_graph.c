@@ -165,16 +165,17 @@ static size_t __write_memory_cb(void *contents, size_t size, size_t nmemb, void 
 }
  
 // http://localhost:4040/ingest?name=gala-gopher-oncpu.56789&from=1671189474&until=1671189534&units=samples&sampleRate=100",
-static int __build_url(char *url, struct post_server_s *post_server, int en_type, int proc_id)
+static int __build_url(struct stack_svg_mng_s *svg_mng, char *url,
+    struct post_server_s *post_server, int en_type, int proc_id)
 {
     time_t now, before;
     (void)time(&now);
-    if (post_server->last_post_ts == 0) {
+    if (svg_mng->last_post_ts == 0) {
         before = now - TMOUT_PERIOD;
     } else {
-        before = post_server->last_post_ts + 1;
+        before = svg_mng->last_post_ts + 1;
     }
-    post_server->last_post_ts = now;
+    svg_mng->last_post_ts = now;
 
     if (post_server->multi_instance_flag) {
         (void)snprintf(url, LINE_BUF_LEN, 
@@ -203,7 +204,8 @@ static int __build_url(char *url, struct post_server_s *post_server, int en_type
 }
 
 
-void curl_post(struct post_server_s *post_server, struct post_info_s *post_info, int en_type, int proc_id)
+void curl_post(struct stack_svg_mng_s *svg_mng, struct post_server_s *post_server,
+    struct post_info_s *post_info, int en_type, int proc_id)
 {
     CURLcode res;
     CURL *curl = post_info->curl;
@@ -218,7 +220,7 @@ void curl_post(struct post_server_s *post_server, struct post_info_s *post_info,
     }
 
     char url[LINE_BUF_LEN] = {0};
-    __build_url(url, post_server, en_type, proc_id);
+    __build_url(svg_mng, url, post_server, en_type, proc_id);
     struct MemoryStruct chunk;
     chunk.memory = malloc(1);  /* will be grown as needed by realloc above */
     chunk.size = 0;    /* no data at this point */

@@ -63,7 +63,15 @@ typedef struct  {
 
 typedef struct {
     uint16_t port;
+    char bindAddr[IP_STR_LEN];
+#if 0
+    char clientAuth;
+    char privateKey[PATH_LEN];
+    char certFile[PATH_LEN];
+    char caFile[PATH_LEN];
+#endif
 } WebServerConfig;
+
 
 typedef struct {
     uint16_t port;
