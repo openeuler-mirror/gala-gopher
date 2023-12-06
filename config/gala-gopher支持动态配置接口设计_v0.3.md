@@ -53,8 +53,8 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
     },
     "params":{
         "report_period": 180,
-        "res_lower_thr": 20%,
-        "res_upper_thr": 20%,
+        "res_lower_thr": 20,
+        "res_upper_thr": 40,
         "report_event": 1,
         "metrics_type": [
             "raw",
@@ -142,8 +142,8 @@ curl -X PUT http://localhost:9999/l7 --data-urlencode json='
     },
     "params":{
         "report_period": 180,
-        "res_lower_thr": 20%,
-        "res_upper_thr": 20%,
+        "res_lower_thr": 20,
+        "res_upper_thr": 40,
         "report_event": 1,
         "metrics_type": [
             "raw",
@@ -233,8 +233,8 @@ curl -X PUT http://localhost:9999/tcp --data-urlencode json='
         "report_period": 180,
         "latency_thr": 60,
         "drops_thr": 10,
-        "res_lower_thr": 20%,
-        "res_upper_thr": 20%,
+        "res_lower_thr": 20,
+        "res_upper_thr": 40,
         "report_event": 1,
         "metrics_type": [
             "raw",
@@ -319,8 +319,8 @@ curl -X PUT http://localhost:9999/socket --data-urlencode json='
     },
     "params":{
         "report_period": 180,
-        "res_lower_thr": 20%,
-        "res_upper_thr": 20%,
+        "res_lower_thr": 20,
+        "res_upper_thr": 40,
         "report_event": 1,
         "metrics_type": [
             "raw",
@@ -397,8 +397,8 @@ curl -X PUT http://localhost:9999/io --data-urlencode json='
         "sample_period": 180,
         "report_period": 180,
         "latency_thr": 180,
-        "res_lower_thr": 20%,
-        "res_upper_thr": 20%,
+        "res_lower_thr": 20
+        "res_upper_thr": 40,
         "report_event": 1,
         "metrics_type": [
             "raw",
@@ -482,8 +482,8 @@ curl -X PUT http://localhost:9999/proc --data-urlencode json='
     },
     "params":{
         "report_period": 180,
-        "res_lower_thr": 20%,
-        "res_upper_thr": 20%,
+        "res_lower_thr": 20,
+        "res_upper_thr": 40,
         "report_event": 1,
         "metrics_type": [
             "raw",
@@ -554,8 +554,8 @@ curl -X PUT http://localhost:9999/jvm --data-urlencode json='
     },
     "params":{
         "report_period": 180,
-        "res_lower_thr": 20%,
-        "res_upper_thr": 20%,
+        "res_lower_thr": 20,
+        "res_upper_thr": 40,
         "report_event": 1,
         "metrics_type": [
             "raw",
@@ -626,8 +626,8 @@ curl -X PUT http://localhost:9999/ksli --data-urlencode json='
     "params":{
         "report_period": 180,
         "latency_thr": 60,
-        "res_lower_thr": 20%,
-        "res_upper_thr": 20%,
+        "res_lower_thr": 20,
+        "res_upper_thr": 40,
         "report_event": 1,
         "metrics_type": [
             "raw",
@@ -705,8 +705,8 @@ curl -X PUT http://localhost:9999/postgre_sli --data-urlencode json='
     },
     "params":{
         "report_period": 180,
-        "res_lower_thr": 20%,
-        "res_upper_thr": 20%,
+        "res_lower_thr": 20,
+        "res_upper_thr": 40,
         "report_event": 1,
         "metrics_type": [
             "raw",
@@ -777,8 +777,8 @@ curl -X PUT http://localhost:9999/opengauss_sli --data-urlencode json='
     },
     "params":{
         "report_period": 180,
-        "res_lower_thr": 20%,
-        "res_upper_thr": 20%,
+        "res_lower_thr": 20,
+        "res_upper_thr": 40,
         "report_event": 1,
         "metrics_type": [
             "raw",
@@ -844,8 +844,8 @@ curl -X PUT http://localhost:9999/dnsmasq --data-urlencode json='
     },
     "params":{
         "report_period": 180,
-        "res_lower_thr": 20%,
-        "res_upper_thr": 20%,
+        "res_lower_thr": 20,
+        "res_upper_thr": 40,
         "report_event": 1,
         "metrics_type": [
             "raw",
@@ -893,8 +893,8 @@ curl -X PUT http://localhost:9999/lvs --data-urlencode json='
     },
     "params":{
         "report_period": 180,
-        "res_lower_thr": 20%,
-        "res_upper_thr": 20%,
+        "res_lower_thr": 20,
+        "res_upper_thr": 40,
         "report_event": 1,
         "metrics_type": [
             "raw",
@@ -939,8 +939,8 @@ curl -X PUT http://localhost:9999/nginx --data-urlencode json='
     },
     "params":{
         "report_period": 180,
-        "res_lower_thr": 20%,
-        "res_upper_thr": 20%,
+        "res_lower_thr": 20,
+        "res_upper_thr": 40,
         "report_event": 1,
         "metrics_type": [
             "raw",
@@ -987,8 +987,8 @@ curl -X PUT http://localhost:9999/haproxy --data-urlencode json='
     },
     "params":{
         "report_period": 180,
-        "res_lower_thr": 20%,
-        "res_upper_thr": 20%,
+        "res_lower_thr": 20,
+        "res_upper_thr": 40,
         "report_event": 1,
         "metrics_type": [
             "raw",
@@ -1033,8 +1033,8 @@ curl -X PUT http://localhost:9999/kafka --data-urlencode json='
     },
     "params":{
         "report_period": 180,
-        "res_lower_thr": 20%,
-        "res_upper_thr": 20%,
+        "res_lower_thr": 20,
+        "res_upper_thr": 40,
         "report_event": 1,
         "metrics_type": [
             "raw",
@@ -1111,8 +1111,8 @@ curl -X PUT http://localhost:9999/baseinfo --data-urlencode json='
     },
     "params":{
         "report_period": 180,
-        "res_lower_thr": 20%,
-        "res_upper_thr": 20%,
+        "res_lower_thr": 20,
+        "res_upper_thr": 40,
         "report_event": 1,
         "metrics_type": [
             "raw",
@@ -1163,8 +1163,8 @@ curl -X PUT http://localhost:9999/virt --data-urlencode json='
     },
     "params":{
         "report_period": 180,
-        "res_lower_thr": 20%,
-        "res_upper_thr": 20%,
+        "res_lower_thr": 20,
+        "res_upper_thr": 40,
         "report_event": 1,
         "metrics_type": [
             "raw",
@@ -1238,8 +1238,8 @@ curl -X PUT http://localhost:9999/tprofiling --data-urlencode json='
     },
     "params":{
         "report_period": 180,
-        "res_lower_thr": 20%,
-        "res_upper_thr": 20%,
+        "res_lower_thr": 20,
+        "res_upper_thr": 40,
         "report_event": 1,
         "metrics_type": [
             "raw",
@@ -1310,8 +1310,8 @@ curl -X PUT http://localhost:9999/container --data-urlencode json='
     },
     "params":{
         "report_period": 180,
-        "res_lower_thr": 20%,
-        "res_upper_thr": 20%,
+        "res_lower_thr": 20,
+        "res_upper_thr": 40,
         "report_event": 1,
         "metrics_type": [
             "raw",
@@ -1461,7 +1461,7 @@ curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
     }
 }'
 
-```
+``` 
 
 以上，正确地开启并配置了flamegraph探针的监控范围                        
 
@@ -1710,7 +1710,7 @@ io探针和tcp探针，参数report_period对应的支持的监控范围为ALL�
 ```
 curl -X PUT http://localhost:9999/flamegraph --data-urlencode json='
 {
-    "state": "running" // optional: running,stopped
+    "state": "running"
 }'
 ```
 

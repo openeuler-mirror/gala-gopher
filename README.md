@@ -14,7 +14,7 @@ gala-gopher是一款结合eBPF、java agent等非侵入可观测技术的观测�
 系统层资源可能会影响应用性能，使用gala-gopher将提供Node、Container、Device等维度的系统性能观测能力。包括：
 
 - CPU性能：参见[CPU性能指标](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#cpu%E6%80%A7%E8%83%BD)，将提供CPU粒度的实时性能指标。
-- 内存性能：参见[内存性能指标](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%86%85%E5%AD%98%E6%80%A7%E8%83%BD)，将系统内存、buffer、cache、dentry等多种资源实时指标。
+- 内存性能：参见[内存性能指标](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%86%85%E5%AD%98%E6%80%A7%E8%83%BD)，参见系统内存、buffer、cache、dentry等多种资源实时指标。
 - 网络性能：参见[网卡性能指标](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E7%BD%91%E5%8D%A1%E7%BB%9F%E8%AE%A1)，[协议栈性能](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%8D%8F%E8%AE%AE%E6%A0%88%E7%BB%9F%E8%AE%A1)统计，包括主机内TCP连接数量、接收报文数量、网卡收发字节数、丢包数等。
 - I/O性能：参见[Block性能指标](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#block%E7%BB%9F%E8%AE%A1)，[磁盘指标](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E7%A3%81%E7%9B%98%E7%BB%9F%E8%AE%A1)，包括磁盘读写速率、使用率、吞吐量等指标，以及block层驱动、设备的时延、错误统计。
 - 容器性能：参见[容器性能指标](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%AE%B9%E5%99%A8%E6%80%A7%E8%83%BD)，提供容器维度CPU、内存、I/O、网络多维度可观测数据。
@@ -102,7 +102,7 @@ Redis/PostgreSQL常用于为应用提供数据存储服务，现有性能监控�
 
 ### 场景1：持续性能Profiling
 
-gala-gopher提供持续性能Profiling可以持续监控应用的OnCPU、OffCPU、Memory Alloc等性能。使用eBPF周期性或事件触发式的监控应用程序，持续收集应用堆栈信息。
+gala-gopher提供持续性能Profiling可以持续监控应用的OnCPU、OffCPU、Memory Alloc等性能。监控应用程序使用了eBPF周期性或事件触发式以持续收集应用堆栈信息。
 
 通过java agent获取java函数符号表，eBPF获取堆栈信息，两者结合完成java场景的持续profiling。
 
@@ -110,7 +110,7 @@ gala-gopher提供持续性能Profiling可以持续监控应用的OnCPU、OffCPU�
 
 ### 场景2：微服务访问性能监控
 
-gala-gopher提供的微服务访问性能监控可以非侵入、多语言的完成L7层流量性能监控能力。在java场景中，java应用会使用JSSE类库进行加密通信，eBPF在内核层获取到L7层流量是加密态，无法完成解析以及性能监控。通过java agent字节码注入技术，将JSSEProbeAgent.jar attach至目标jvm进程完成明文RPC消息的获取，通过临时文件读入l7Probe。
+gala-gopher提供的微服务访问性能监控可以非侵入、多语言的完成L7层流量性能监控能力。在java场景中，java应用会使用JSSE类库进行加密通信，eBPF在内核层获取到L7层流量是加密态，无法完成解析以及性能监控。通过java agent字节码注入技术，将JSSEProbeAgent.jar attach至目标jvm进程完成明文RPC消息的获取，通过临时文件读入L7。
 
 ![java场景性能RPC密文观测](./doc/pic/java-agent-2.png)
 
@@ -124,21 +124,21 @@ gala-gopher提供的微服务访问性能监控可以非侵入、多语言的完
 
 - 获取rpm包
 
-  gala-gopher目前已在openEuler 21.09（已停止维护）/openEuler 22.09（已停止维护）/openEuler 22.03-LTS-SP1发布，可以通过配置以上发布版本的正式repo源来获取rpm包；对于其他发布版本我们提供了以下方式来获取rpm包：
+  gala-gopher目前已在openEuler 21.09（已停止维护）/openEuler 22.09（已停止维护）/openEuler 22.03-LTS-SP1发布，可以通过配置以上发布版本的正式repo源来获取rpm包（以openEuler 22.03-LTS-SP1为例，需要配置完整的2203 lts的源，很多依赖包是在everything和epol里）；对于其他发布版本我们提供了以下方式来获取rpm包：
 
   - （1）方法一：OBS 链接，网页手动下载对应架构的rpm包
 
     ```basic
-    openEuler-20.03-LTS-SP1 : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:20.03:LTS:SP1/gala-gopher
-    openEuler-22.03-LTS : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:22.03:LTS/gala-gopher
-    openEuler-22.03-LTS-SP1 : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:22.03:LTS:SP1/gala-gopher
+    openEuler-20.03-LTS-SP1 : https://build.openeuler.openatom.cn/package/show/home:zpublic:branches:openEuler:20.03:LTS:SP1/gala-gopher
+    openEuler-22.03-LTS : https://build.openeuler.openatom.cn/package/show/home:zpublic:branches:openEuler:22.03:LTS/gala-gopher
+    openEuler-22.03-LTS-SP1 : https://build.openeuler.openatom.cn/package/show/home:zpublic:branches:openEuler:22.03:LTS:SP1/gala-gopher
     ```
 
   - （2）方法二：使用命令编译构造rpm包
     构造rpm包时，主要的文件为gala-gopher.spec，需要根据所在的机器进行以下几点修改
     
     1：%define vmlinux_ver 5.10.0-126.0.0.66.oe2203.%{_arch}
-    需要从src\probes\extends\ebpf.probe\src\include目录中，根据内核版本、CPU架构选择相应的版本号，该版本号与sh build.sh --debug后填写的版本号是一致的
+    需要从gala-gopher项目src目录进入，src/probes/extends/ebpf.probe/src/include目录中，根据内核版本、CPU架构选择相应的版本号，该版本号与sh build.sh --debug后填写的版本号是一致的
     
     2：Version字段代表版本号，需要与gala-gopher目前的文件名称后的版本号是一致的
     
@@ -218,8 +218,11 @@ gala-gopher提供的微服务访问性能监控可以非侵入、多语言的完
     docker pull hub.oepkgs.net/a-ops/gala-gopher-aarch64:22.03-lts-sp1
     ```
     
-    注：如果拉取镜像的过程中出现"X509: certificate signed by unknown authority"错误，则需要将"hub.oepkgs.net"加入到/etc/docker/daemon.json中的"insecure-registries"项后重启docker服务再重试。
-  
+    注：如果拉取镜像的过程中出现"X509: certificate signed by unknown authority"错误，如果没有文件/etc/docker/daemon.json，则需要新建文件/etc/docker/daemon.json，添加内容如下
+    ```
+    "hub.oepkgs.net"加入到/etc/docker/daemon.json中的"insecure-registries"项后重启docker服务再重试。
+    ```
+   
   <a id="docker2"></a>
   
   - 构建容器镜像
@@ -275,7 +278,7 @@ gala-gopher提供的微服务访问性能监控可以非侵入、多语言的完
   ...
   ```
 
-  如上有指标数据输出则证明gala-gopher运行成功。
+  有指标数据输出则证明gala-gopher运行成功（除了火焰图探针和profiling这两个探针，别的探针采集的数据都可以通过8888端口获取到数据）。
 
 ### K8S deployment方式部署
 
@@ -308,16 +311,13 @@ gala-gopher提供的微服务访问性能监控可以非侵入、多语言的完
     指定下载 gala-gopher docker 镜像 tar 和 gala-gopher 配置文件（docker 运行 gala-gopher， 将配置文件映射到宿主机上）。
 
     ```xml
-    sh download_offline_res.sh gopher docker
+    sh download_offline_res.sh gopher
     ```
 
-    下载 tar 包 和 gala-gopher 配置文件存放在 gala_deploy_gopher 目录下，文件名格式为`gala-gopher-[os_arch]:[os_tag].tar`。下载内容如下：
+    下载 tar 包存放在 gala_deploy_gopher 目录下，文件名格式为`gala-gopher-[os_arch]:[os_tag].tar`。下载内容如下：
 
     ```
       gala-gopher-aarch64:22.03-lts-sp1.tar
-      gala-gopher.conf
-      gala-gopher-app.conf
-      stackprobe.conf
     ```
 
 - 工具一键部署
@@ -344,6 +344,10 @@ gala-gopher提供的微服务访问性能监控可以非侵入、多语言的完
   | -p\|--pyroscope | 指定gala-gopher开启火焰图功能后火焰图上传到的pyroscope服务器地址（用于对接前端界面显示）（一般来说是管理节点的IP），当不配置该选项时，pyroscope服务器地址使用localhost |       否       |
   |  -S\|--srcdir   | 离线部署时使用该选项来指定gala-gopher以及其依赖包所在的目录  | 离线部署时必配 |
   |    --docker     |              指定以 docker 方式部署 gala-gopher              |       否       |
+
+### 部署成功验证
+不论以什么方式进行部署，最终都需要验证gala-gopher进程是否启动成功，可以使用命令 ps -ef | grep gala-gopher
+
 
 ### 系统集成API及方式
 
@@ -439,9 +443,9 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
 - OBS路径如下：
 
   ```
-  openEuler-20.03-LTS-SP1 : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:20.03:LTS:SP1/gala-gopher
-  openEuler-22.03-LTS : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:22.03:LTS/gala-gopher
-  openEuler-22.03-LTS-SP1 : https://117.78.1.88/package/show/home:zpublic:branches:openEuler:22.03:LTS:SP1/gala-gopher
+  openEuler-20.03-LTS-SP1 : https://build.openeuler.openatom.cn/package/show/home:zpublic:branches:openEuler:20.03:LTS:SP1/gala-gopher
+  openEuler-22.03-LTS : https://build.openeuler.openatom.cn/package/show/home:zpublic:branches:openEuler:22.03:LTS/gala-gopher
+  openEuler-22.03-LTS-SP1 : https://build.openeuler.openatom.cn/package/show/home:zpublic:branches:openEuler:22.03:LTS:SP1/gala-gopher
   ```
 
 编译前需要选择对应版本的路径，并通过 `Branch package` 按钮拉出个人分支包，如下图所示：

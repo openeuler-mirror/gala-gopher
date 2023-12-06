@@ -13,7 +13,7 @@
 按照实际情况修改gala-gopher_daemonset.yaml文件如下行中的{{NAMESPACE}}来定义gala-gopher所在的namespace，例如default。
 
 ```
-namespace: {{NAMESPACE}}
+namespace: default
 ```
 
 ### 修改容器镜像地址
@@ -80,6 +80,16 @@ kubectl describe pod gala-gopher-xxxxx
 ```
 
 当查询出的pod STATUS为Running，表示部署成功。
+
+## 注
+（1）k8s部署的时候，可能会遇到json文件和命令行冲突的情况，此时，需要删除/etc/sysconfig/docker-storage文件中关于insecure-registries的描述
+
+（2）k8s部署的时候，可能会遇到kubectl连不上k8s server的问题：The connection to the server 9.82.169.17:6443 was refused - did you specify the right host or port?
+    可以执行以下步骤，解决问题：
+    1、sudo -i
+    2、swapoff -a
+    3、exit
+    4、strace -eopenat kubectl version
 
 
 
