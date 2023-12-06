@@ -7,7 +7,7 @@ TOOLS_DIR=${PRJ_DIR}/tools
 SRC_DIR=${PRJ_DIR}/src
 VMLINUX_DIR=${SRC_DIR}/include
 LINUX_VER="${VMLINUX_VER:-$(uname -r)}"
-DEP_LIST=(elfutils-devel libbpf libbpf-devel llvm)
+DEP_LIST=(elfutils-devel libbpf libbpf-devel llvm libstdc++ libstdc++-devel)
 # tailor probes
 export EBPF_TAILOR_PROBES=$(for probe in ${EXTEND_PROBES//|/ } ; do printf "./%s/ " $probe; done)
 

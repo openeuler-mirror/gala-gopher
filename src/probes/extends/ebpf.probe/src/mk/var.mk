@@ -54,7 +54,7 @@ endif
 BTF_ENABLE = $(shell if [ -f /sys/kernel/btf/vmlinux ]; then echo "ON" ; else echo "OFF"; fi)
 
 JAVA_SYM_AGENT_VER := v1
-LINK_TARGET ?= -lpthread -lbpf -lelf -lz -lconfig -ljsoncpp
+LINK_TARGET ?= -lpthread -lbpf -lelf -lz -lconfig -ljsoncpp -lstdc++
 EXTRA_CFLAGS ?= -g -O2 -Wall -fPIC -std=gnu11
 EXTRA_CDEFINE ?= -D__TARGET_ARCH_$(TYPE)
 EXTRA_CDEFINE += -D__BTF_ENABLE_$(BTF_ENABLE)
@@ -73,8 +73,13 @@ CC = gcc
 CLANGFLAGS := $(CFLAGS)
 CFLAGS += -Wno-format-truncation
 
+CXX_VERSION = $(shell $(C++) -dumpversion)
+CXX_STDLIB_DIR = /usr/include/c++/$(CXX_VERSION)
+CXXABI_INCLUDE_DIR = -I$(CXX_STDLIB_DIR) -I$(CXX_STDLIB_DIR)/$(ARCH)-linux-gnu
+
 BASE_INC := -I/usr/include \
             -I$(ROOT_DIR)../include \
             -I$(GOPHER_COMMON_DIR) \
             -I$(LIBBPF_DIR) \
-            -I$(LIBELF_DIR)
+            -I$(LIBELF_DIR) \
+            $(CXXABI_INCLUDE_DIR)

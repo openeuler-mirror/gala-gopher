@@ -35,7 +35,7 @@ BuildRoot:     %{_builddir}/%{name}-%{version}
 BuildRequires: systemd cmake gcc-c++ elfutils-devel (clang >= 10.0.1 or clang12) llvm
 BuildRequires: libconfig-devel librdkafka-devel libmicrohttpd-devel libevent-devel openssl-devel
 BuildRequires: libbpf-devel >= 2:0.3 uthash-devel
-BuildRequires: jsoncpp-devel gnutls-devel git
+BuildRequires: jsoncpp-devel gnutls-devel git libstdc++-devel
 %if !0%{?without_flamegraph}
 BuildRequires: libcurl-devel
 %endif
@@ -48,7 +48,7 @@ BuildRequires: jsoncpp-devel java-1.8.0-openjdk-devel
 
 Requires:      bash glibc elfutils bpftool libbpf >= 2:0.3
 Requires:      librdkafka libmicrohttpd libconfig libevent
-Requires:      iproute jsoncpp gnutls
+Requires:      iproute jsoncpp gnutls libstdc++
 %if !0%{?without_systeminfo}
 Requires:      ethtool systemd iproute
 %endif

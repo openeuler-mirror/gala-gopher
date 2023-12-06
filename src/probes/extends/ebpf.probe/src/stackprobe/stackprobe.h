@@ -30,6 +30,8 @@
 struct stack_symbs_s {
     struct addr_symb_s user_stack_symbs[PERF_MAX_STACK_DEPTH];
     struct addr_symb_s kern_stack_symbs[PERF_MAX_STACK_DEPTH];
+    u32 py_stack_len;
+    struct py_symbol py_stack_symbols[MAX_PYTHON_STACK_DEPTH];
     struct stack_pid_s pid;
 };
 
@@ -37,6 +39,12 @@ struct raw_stack_trace_s {
     u32 stack_size;
     u32 raw_trace_count;
     struct raw_trace_s raw_traces[];
+};
+
+struct py_stack_trace_s {
+    u32 size;
+    u32 len;
+    struct py_stack py_traces[];
 };
 
 #define __FUNC_NAME_LEN     64
@@ -108,6 +116,8 @@ struct svg_stack_trace_s {
     struct perf_buffer* pb_b;
     struct raw_stack_trace_s *raw_stack_trace_a;
     struct raw_stack_trace_s *raw_stack_trace_b;
+    struct py_stack_trace_s *py_stack_trace_a;
+    struct py_stack_trace_s *py_stack_trace_b;
 
     struct stack_svg_mng_s *svg_mng;
     struct proc_stack_trace_histo_s *proc_histo_tbl;
@@ -133,6 +143,10 @@ struct stack_trace_s {
     int proc_obj_map_fd;
     int stackmap_a_fd;
     int stackmap_b_fd;
+    int py_proc_map_fd;
+    int py_symbols_map_fd;
+    int py_symbol_ids_map_fd;
+    int py_sample_heap_map_fd;
     u64 convert_stack_count;
     time_t running_times;
     struct post_server_s post_server;

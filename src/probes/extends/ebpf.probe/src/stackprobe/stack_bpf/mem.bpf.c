@@ -19,6 +19,7 @@
 #include "bpf.h"
 #include "../stack.h"
 #include "stackprobe_bpf.h"
+#include "py_stack_bpf.h"
 
 char g_linsence[] SEC("license") = "GPL";
 
@@ -59,11 +60,37 @@ struct page_fault_args {
     unsigned long error_code;
 };
 
+static __always_inline struct py_raw_trace_s *get_py_raw_trace(struct raw_trace_s *raw_trace)
+{
+    struct py_proc_data *py_proc_data;
+    struct py_sample *py_sample;
+
+    py_proc_data = (struct py_proc_data *)bpf_map_lookup_elem(&py_proc_map, &raw_trace->stack_id.pid.proc_id);
+    if (!py_proc_data) {
+        return 0;
+    }
+    py_sample = get_py_sample();
+    if (!py_sample) {
+        return 0;
+    }
+
+    py_sample->cpu_id = bpf_get_smp_processor_id();
+    if (get_py_stack(py_sample, py_proc_data)) {
+        return 0;
+    }
+    __builtin_memcpy(&py_sample->event.raw_trace, raw_trace, sizeof(struct raw_trace_s));
+    py_sample->event.raw_trace.lang_type = TRACE_LANG_TYPE_PYTHON;
+
+    return &py_sample->event;
+}
+
 static __always_inline int report_stack(struct page_fault_args *ctx)
 {
     struct raw_trace_s raw_trace = {.count = 1};
     const u32 zero = 0;
     struct convert_data_t *convert_data = (struct convert_data_t *)bpf_map_lookup_elem(&convert_map, &zero);
+    struct py_raw_trace_s *py_trace;
+
     if (!convert_data) {
         return -1;
     }
@@ -80,6 +107,7 @@ static __always_inline int report_stack(struct page_fault_args *ctx)
 
     // test found that the comm is thread command
     (void)bpf_get_current_comm(&raw_trace.stack_id.comm, sizeof(raw_trace.stack_id.comm));
+    raw_trace.lang_type = TRACE_LANG_TYPE_DEFAULT;
 
     if (is_stackmap_a) {
         raw_trace.stack_id.kern_stack_id = bpf_get_stackid(ctx, &stackmap_a, KERN_STACKID_FLAGS);
@@ -91,6 +119,18 @@ static __always_inline int report_stack(struct page_fault_args *ctx)
     if (raw_trace.stack_id.kern_stack_id < 0 && raw_trace.stack_id.user_stack_id < 0) {
         // error.
         return -1;
+    }
+
+    py_trace = get_py_raw_trace(&raw_trace);
+    if (py_trace) {
+        if (is_stackmap_a) {
+            (void)bpf_perf_event_output(ctx, &stackmap_perf_a, BPF_F_CURRENT_CPU,
+                py_trace, sizeof(struct py_raw_trace_s));
+        } else {
+            (void)bpf_perf_event_output(ctx, &stackmap_perf_b, BPF_F_CURRENT_CPU,
+                py_trace, sizeof(struct py_raw_trace_s));
+        }
+        return 0;
     }
 
     if (is_stackmap_a) {

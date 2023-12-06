@@ -20,6 +20,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <time.h>
+#include <cxxabi.h>
 
 #include <sys/ioctl.h>
 #include <sys/wait.h>
@@ -179,6 +180,26 @@ static int __inc_symbs_capability(struct elf_symbo_s* elf_symbo)
     return 0;
 }
 
+static char *dup_symb_with_demangling(const char *symb)
+{
+    int status;
+    char *symb1;
+    char *real_symb;
+
+    symb1 = strdup(symb);
+    if (!symb1) {
+        return NULL;
+    }
+    SPLIT_NEWLINE_SYMBOL(symb1);
+
+    real_symb = __cxa_demangle(symb1, NULL, NULL, &status);
+    if (!real_symb) {
+        return symb1;
+    }
+    free(symb1);
+    return real_symb;
+}
+
 static ELF_CB_RET __add_symbs(const char *symb, u64 addr_start, u64 size, void *ctx)
 {
     struct elf_symbo_s* elf_symbo = ctx;
@@ -199,8 +220,7 @@ static ELF_CB_RET __add_symbs(const char *symb, u64 addr_start, u64 size, void *
     (void)memset(new_symb, 0, sizeof(struct symb_s));
     new_symb->start = addr_start;
     new_symb->size = size;
-    new_symb->symb_name = strdup(symb);
-    SPLIT_NEWLINE_SYMBOL(new_symb->symb_name);
+    new_symb->symb_name = dup_symb_with_demangling(symb);
 
     elf_symbo->symbs[elf_symbo->symbs_count++] = new_symb;
     return ELF_SYMB_CB_OK;
