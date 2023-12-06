@@ -40,7 +40,7 @@ static __always_inline void init_oncpu_event_common(trace_event_data_t *evt_data
     evt_data->timestamp = timestamp;
     evt_data->pid = _(task->pid);
     evt_data->tgid = _(task->tgid);
-    bpf_core_read_str(evt_data->comm, sizeof(evt_data->comm), task->comm);
+    bpf_core_read_str(evt_data->comm, sizeof(evt_data->comm), &task->comm);
 }
 
 static __always_inline void emit_incomming_oncpu_event(oncpu_m_enter_t *oncpu_enter, struct task_struct *task,

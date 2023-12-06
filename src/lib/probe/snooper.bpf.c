@@ -41,7 +41,7 @@ static __always_inline void process_new_forked_task(struct task_struct *child, v
 
     event.pid = pid;
     event.proc_event = PROC_EXEC;
-    bpf_core_read_str(event.filename, sizeof(child->comm), child->comm);
+    bpf_core_read_str(event.filename, sizeof(child->comm), &child->comm);
 
     bpfbuf_output(ctx, &snooper_proc_channel, &event, sizeof(event));
 }

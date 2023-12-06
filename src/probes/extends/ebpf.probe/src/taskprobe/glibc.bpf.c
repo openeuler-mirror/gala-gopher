@@ -20,7 +20,7 @@
 #include "bpf.h"
 #include "task.h"
 #include "proc_map.h"
-#include "output_proc.h"
+#include "args_map.h"
 #include "glibc_bpf.h"
 
 char LICENSE[] SEC("license") = "GPL";

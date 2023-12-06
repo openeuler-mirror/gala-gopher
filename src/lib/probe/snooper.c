@@ -1619,7 +1619,7 @@ int load_snooper_bpf(struct probe_mng_s *probe_mng)
 {
     int ret = 0;
     struct snooper_bpf *snooper_skel;
-    struct bpf_buffer *buffer = NULL;
+    struct bpf_buffer *proc_buf = NULL, *cgrp_buf = NULL;
     int kern_ver = probe_kernel_version();
 
     LIBBPF_OPTS(bpf_object_open_opts, opts);
@@ -1651,6 +1651,17 @@ int load_snooper_bpf(struct probe_mng_s *probe_mng)
     PROG_ENABLE_ONLY_IF(snooper, bpf_trace_cgroup_mkdir_func, !attach_tracepoint);
     PROG_ENABLE_ONLY_IF(snooper, bpf_trace_cgroup_rmdir_func, !attach_tracepoint);
 
+    proc_buf = bpf_buffer__new(snooper_skel->maps.snooper_proc_channel, snooper_skel->maps.heap);
+    if (proc_buf == NULL) {
+        goto end;
+    }
+
+    cgrp_buf = bpf_buffer__new(snooper_skel->maps.snooper_cgrp_channel, snooper_skel->maps.heap);
+    if (cgrp_buf == NULL) {
+        ret = -1;
+        goto end;
+    }
+
     if (snooper_bpf__load(snooper_skel)) {
         ret = -1;
         ERROR("Failed to load BPF snooper_skel.\n");
@@ -1665,31 +1676,21 @@ int load_snooper_bpf(struct probe_mng_s *probe_mng)
     }
     INFO("Succeed to load and attach BPF snooper_skel.\n");
 
-    buffer = bpf_buffer__new(snooper_skel->maps.snooper_proc_channel, snooper_skel->maps.heap);
-    if (buffer == NULL) {
-        goto end;
-    }
-    ret = bpf_buffer__open(buffer, rcv_snooper_proc_evt, loss_data, NULL);
+    ret = bpf_buffer__open(proc_buf, rcv_snooper_proc_evt, loss_data, NULL);
     if (ret) {
         ERROR("[SNOOPER] Open 'snooper_proc_channel' bpf_buffer failed.\n");
-        bpf_buffer__free(buffer);
+        bpf_buffer__free(proc_buf);
         goto end;
     }
+    probe_mng->snooper_proc_pb = proc_buf;
 
-    probe_mng->snooper_proc_pb = buffer;
-
-    buffer = bpf_buffer__new(snooper_skel->maps.snooper_cgrp_channel, snooper_skel->maps.heap);
-    if (buffer == NULL) {
-        ret = -1;
-        goto end;
-    }
-    ret = bpf_buffer__open(buffer, rcv_snooper_cgrp_evt, loss_data, NULL);
+    ret = bpf_buffer__open(cgrp_buf, rcv_snooper_cgrp_evt, loss_data, NULL);
     if (ret) {
         ERROR("[SNOOPER] Open 'snooper_cgrp_channel' bpf_buffer failed.\n");
-        bpf_buffer__free(buffer);
+        bpf_buffer__free(cgrp_buf);
         goto end;
     }
-    probe_mng->snooper_cgrp_pb = buffer;
+    probe_mng->snooper_cgrp_pb = cgrp_buf;
 
     probe_mng->snooper_skel = snooper_skel;
     probe_mng->btf_custom_path = opts.btf_custom_path;

@@ -117,7 +117,13 @@ static inline int probe_kernel_version()
 #if defined(BPF_PROG_KERN) || defined(BPF_PROG_USER)
 static inline char probe_ringbuf()
 {
-    return (char)bpf_core_type_exists(struct bpf_ringbuf);
+#if 0
+        return (char)bpf_core_type_exists(struct bpf_ringbuf);
+#endif
+    /* FIX retrun false, for earlier than libbpf 1.0 have bugs. 
+        Refer to: https://github.com/libbpf/libbpf/commit/610707057ac60311fde94b3a049de9d4826a3bf2
+    */
+    return 0;
 }
 #endif
 #if !defined(BPF_PROG_KERN) && !defined(BPF_PROG_USER)

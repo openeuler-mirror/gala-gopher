@@ -56,10 +56,11 @@
 
 #define RM_IO_PATH              "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__io*"
 
-#define __OPEN_IO_LATENCY(probe_name, end, load) \
+#define __OPEN_IO_LATENCY(probe_name, end, load, buffer) \
     INIT_OPEN_OPTS(probe_name); \
     PREPARE_CUSTOM_BTF(probe_name); \
     OPEN_OPTS(probe_name, end, load); \
+    MAP_INIT_BPF_BUFFER(probe_name, io_latency_channel_map, buffer, load); \
     MAP_SET_PIN_PATH(probe_name, io_args_map, IO_ARGS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, io_sample_map, IO_SAMPLE_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, io_latency_channel_map, IO_LATENCY_CHANNEL_PATH, load); \
@@ -679,12 +680,12 @@ static int load_io_count_probe(struct bpf_prog_s *prog, char is_load_count)
     prog->skels[prog->num].fn = (skel_destroy_fn)io_count_bpf__destroy;
     prog->custom_btf_paths[prog->num] = io_count_open_opts.btf_custom_path;
 
-    LOAD_ATTACH(ioprobe, io_count, err, 1);
-
     buffer = bpf_buffer__new(io_count_skel->maps.io_count_channel_map, io_count_skel->maps.heap);
     if (buffer == NULL) {
         goto err;
     }
+
+    LOAD_ATTACH(ioprobe, io_count, err, 1);
 
     ret = bpf_buffer__open(buffer, rcv_io_count, NULL, NULL);
     if (ret) {
@@ -732,12 +733,12 @@ static int load_io_err_probe(struct bpf_prog_s *prog, char is_load_err)
     PROG_ENABLE_ONLY_IF(io_err, __kprobe_ret_bpf_scsi_dispatch_cmd, is_load);
     PROG_ENABLE_ONLY_IF(io_err, bpf_raw_trace_scsi_dispatch_cmd_error, !is_load);
 
-    LOAD_ATTACH(ioprobe, io_err, err, 1);
-
     buffer = bpf_buffer__new(io_err_skel->maps.io_err_channel_map, io_err_skel->maps.heap);
     if (buffer == NULL) {
         goto err;
     }
+
+    LOAD_ATTACH(ioprobe, io_err, err, 1);
 
     ret = bpf_buffer__open(buffer, rcv_io_err, NULL, NULL);
     if (ret) {
@@ -774,12 +775,13 @@ static int load_io_pagecache_probe(struct bpf_prog_s *prog, char is_load_pagecac
     prog->skels[prog->num].fn = (skel_destroy_fn)page_cache_bpf__destroy;
     prog->custom_btf_paths[prog->num] = page_cache_open_opts.btf_custom_path;
 
-    LOAD_ATTACH(ioprobe, page_cache, err, 1);
-
     buffer = bpf_buffer__new(page_cache_skel->maps.page_cache_channel_map, page_cache_skel->maps.heap);
     if (buffer == NULL) {
         goto err;
     }
+
+    LOAD_ATTACH(ioprobe, page_cache, err, 1);
+
     ret = bpf_buffer__open(buffer, rcv_pagecache_stats, NULL, NULL);
     if (ret) {
         ERROR("[IOPROBE] Open 'page_cache' bpf_buffer failed.\n");
@@ -809,7 +811,7 @@ static int load_io_scsi_probe(struct bpf_prog_s *prog, char scsi_probe)
         return 0;
     }
 
-    __OPEN_IO_LATENCY(io_trace_scsi, err, 1);
+    __OPEN_IO_LATENCY(io_trace_scsi, err, 1, buffer);
     prog->skels[prog->num].skel = io_trace_scsi_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)io_trace_scsi_bpf__destroy;
     prog->custom_btf_paths[prog->num] = io_trace_scsi_open_opts.btf_custom_path;
@@ -832,10 +834,6 @@ static int load_io_scsi_probe(struct bpf_prog_s *prog, char scsi_probe)
 
     LOAD_ATTACH(ioprobe, io_trace_scsi, err, 1);
 
-    buffer = bpf_buffer__new(io_trace_scsi_skel->maps.io_latency_channel_map, io_trace_scsi_skel->maps.heap);
-    if (buffer == NULL) {
-        goto err;
-    }
     ret = bpf_buffer__open(buffer, rcv_io_latency, NULL, NULL);
     if (ret) {
         ERROR("[IOPROBE] Open 'io_trace_scsi' bpf_buffer failed.\n");
@@ -865,7 +863,7 @@ static int load_io_nvme_probe(struct bpf_prog_s *prog, char nvme_probe)
         return 0;
     }
 
-    __OPEN_IO_LATENCY(io_trace_nvme, err, 1);
+    __OPEN_IO_LATENCY(io_trace_nvme, err, 1, buffer);
     prog->skels[prog->num].skel = io_trace_nvme_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)io_trace_nvme_bpf__destroy;
     prog->custom_btf_paths[prog->num] = io_trace_nvme_open_opts.btf_custom_path;
@@ -882,10 +880,6 @@ static int load_io_nvme_probe(struct bpf_prog_s *prog, char nvme_probe)
 
     LOAD_ATTACH(ioprobe, io_trace_nvme, err, 1);
 
-    buffer = bpf_buffer__new(io_trace_nvme_skel->maps.io_latency_channel_map, io_trace_nvme_skel->maps.heap);
-    if (buffer == NULL) {
-        goto err;
-    }
     ret = bpf_buffer__open(buffer, rcv_io_latency, NULL, NULL);
     if (ret) {
         ERROR("[IOPROBE] Open 'io_trace_nvme' bpf_buffer failed.\n");
@@ -915,7 +909,7 @@ static int load_io_virtblk_probe(struct bpf_prog_s *prog, char virtblk_probe)
         return 0;
     }
 
-    __OPEN_IO_LATENCY(io_trace_virtblk, err, 1);
+    __OPEN_IO_LATENCY(io_trace_virtblk, err, 1, buffer);
     prog->skels[prog->num].skel = io_trace_virtblk_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)io_trace_virtblk_bpf__destroy;
     prog->custom_btf_paths[prog->num] = io_trace_virtblk_open_opts.btf_custom_path;
@@ -930,10 +924,6 @@ static int load_io_virtblk_probe(struct bpf_prog_s *prog, char virtblk_probe)
 
     LOAD_ATTACH(ioprobe, io_trace_virtblk, err, 1);
 
-    buffer = bpf_buffer__new(io_trace_virtblk_skel->maps.io_latency_channel_map, io_trace_virtblk_skel->maps.heap);
-    if (buffer == NULL) {
-        goto err;
-    }
     ret = bpf_buffer__open(buffer, rcv_io_latency, NULL, NULL);
     if (ret) {
         ERROR("[IOPROBE] Open 'io_trace_virtblk' bpf_buffer failed.\n");
