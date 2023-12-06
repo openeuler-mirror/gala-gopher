@@ -561,20 +561,27 @@ static void EgressMgrDeinit(ResourceMgr *resourceMgr)
 
 static int WebServerInit(ResourceMgr *resourceMgr)
 {
+    int ret;
     ConfigMgr *configMgr = resourceMgr->configMgr;
-    WebServer *webServer = NULL;
+    web_server_mgr_s *web_server_mgr;
 
     if (configMgr->metricOutConfig->outChnl != OUT_CHNL_WEB_SERVER) {
         INFO("[RESOURCE] metirc out channel isn't web_server, skip create webServer.\n");
         return 0;
     }
-    webServer = WebServerCreate(configMgr->webServerConfig->port);
-    if (webServer == NULL) {
-        ERROR("[RESOURCE] create webServer failed.\n");
+
+    web_server_mgr = (web_server_mgr_s *)calloc(1, sizeof(web_server_mgr_s));
+    if (web_server_mgr == NULL) {
+        ERROR("[RESOURCE] create web server mgr failed.\n");
         return -1;
     }
 
-    resourceMgr->webServer = webServer;
+    resourceMgr->web_server_mgr = web_server_mgr;
+    ret = init_web_server_mgr(web_server_mgr, configMgr->webServerConfig);
+    if (ret) {
+        return -1;
+    }
+
     if (resourceMgr->imdbMgr) {
         resourceMgr->imdbMgr->writeLogsOn = 1;
     }
@@ -583,8 +590,8 @@ static int WebServerInit(ResourceMgr *resourceMgr)
 
 static void WebServerDeinit(ResourceMgr *resourceMgr)
 {
-    WebServerDestroy(resourceMgr->webServer);
-    resourceMgr->webServer = NULL;
+    destroy_web_server_mgr(resourceMgr->web_server_mgr);
+    resourceMgr->web_server_mgr = NULL;
     return;
 }
 
