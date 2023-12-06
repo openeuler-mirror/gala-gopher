@@ -93,6 +93,7 @@ static __always_inline __maybe_unused int is_gopher_comm(void)
 
     (void)bpf_get_current_comm(&comm, sizeof(comm));
 
+    // TODO: need to modify when we drop libmicrohttpd
     if (comm[0] == 'M' && comm[1] == 'H' && comm[2] == 'D' && comm[3] == '-') {
         return 1;
     }
@@ -133,7 +134,7 @@ static __always_inline __maybe_unused int delete_tcp_link(struct sock *sk)
     return bpf_map_delete_elem(&tcp_link_map, &sk);
 }
 
-static __always_inline __maybe_unused struct tcp_metrics_s *get_tcp_metrics(struct sock *sk) 
+static __always_inline __maybe_unused struct tcp_metrics_s *get_tcp_metrics(struct sock *sk)
 {
     struct sock_stats_s *sock_stats;
 
