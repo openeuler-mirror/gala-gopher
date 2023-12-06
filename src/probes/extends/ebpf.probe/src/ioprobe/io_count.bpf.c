@@ -34,10 +34,8 @@ struct {
 } io_count_map SEC(".maps");
 
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, __PERF_OUT_MAX);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } io_count_channel_map SEC(".maps");
 
 
@@ -53,11 +51,10 @@ struct block_bio_queue_args {
 static __always_inline void report_io_count(void *ctx, struct io_count_s* io_count)
 {
     if (is_report_tmout(&(io_count->io_count_ts))) {
-        (void)bpf_perf_event_output(ctx,
-                                    &io_count_channel_map,
-                                    BPF_F_ALL_CPU,
-                                    io_count,
-                                    sizeof(struct io_count_s));
+        (void)bpfbuf_output(ctx,
+                            &io_count_channel_map,
+                            io_count,
+                            sizeof(struct io_count_s));
         io_count->read_bytes = 0;
         io_count->write_bytes = 0;
         io_count->io_count_ts.ts = 0;

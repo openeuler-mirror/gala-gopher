@@ -35,6 +35,7 @@
 #include "pgsli_uprobe.skel.h"
 #include "tc_loader.h"
 #include "container.h"
+#include "feat_probe.h"
 #include "pgsliprobe.h"
 
 #define OO_NAME "sli"
@@ -53,20 +54,20 @@
 
 #define RM_PGSLI_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__pgsli*"
 
-#define __LOAD_OG_PROBE(probe_name, end, load) \
-    OPEN(probe_name, end, load); \
-    MAP_SET_PIN_PATH(probe_name, args_map, PGSLI_ARGS_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, conn_map, PGSLI_CONN_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, conn_samp_map, PGSLI_CONN_SAMP_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, output, PGSLI_OUTPUT_PATH, load); \
-    LOAD_ATTACH(pgsliprobe, probe_name, end, load)
+#define OPEN_PROBE(probe_name, end, load) \
+        INIT_OPEN_OPTS(probe_name); \
+        PREPARE_CUSTOM_BTF(probe_name); \
+        OPEN_OPTS(probe_name, end, load); \
+        MAP_SET_PIN_PATH(probe_name, args_map, PGSLI_ARGS_PATH, load); \
+        MAP_SET_PIN_PATH(probe_name, conn_map, PGSLI_CONN_PATH, load); \
+        MAP_SET_PIN_PATH(probe_name, conn_samp_map, PGSLI_CONN_SAMP_PATH, load); \
+        MAP_SET_PIN_PATH(probe_name, output, PGSLI_OUTPUT_PATH, load);
 
 struct pgsli_probe_s {
     struct ipc_body_s ipc_body;
     struct bpf_prog_s* kern_prog;
     struct bpf_prog_s* libssl_prog;
     int args_map_fd;
-    int output_map_fd;
 };
 
 static struct pgsli_probe_s g_pgsli_probe = {0};
@@ -143,7 +144,7 @@ static void report_sli_event(struct msg_event_data_t *msg_evt_data)
     }
 }
 
-static void msg_event_handler(void *ctx, int cpu, void *data, unsigned int size)
+static int msg_event_handler(void *ctx, void *data, unsigned int size)
 {
     struct msg_event_data_t *msg_evt_data = (struct msg_event_data_t *)data;
     unsigned char ser_ip_str[INET6_ADDRSTRLEN];
@@ -181,22 +182,21 @@ static void msg_event_handler(void *ctx, int cpu, void *data, unsigned int size)
             msg_evt_data->max.rtt_nsec);
     (void)fflush(stdout);
 
-    return;
+    return 0;
 }
 
 static void *msg_event_receiver(void *arg)
 {
-    int fd = *(int *)arg;
-    struct perf_buffer *pb;
-
-    pb = create_pref_buffer(fd, msg_event_handler);
-    if (pb == NULL) {
-        PGSLI_ERROR("Failed to create perf buffer.\n");
-        stop = 1;
-        return NULL;
+    if (g_pgsli_probe.kern_prog->buffer == NULL) {
+        goto err;
     }
 
-    poll_pb(pb, g_pgsli_probe.ipc_body.probe_param.period * 1000);
+    int ret;
+    while ((ret = bpf_buffer__poll(g_pgsli_probe.kern_prog->buffer, THOUSAND)) < 0 && ret != EINTR) {
+        ERROR("[PGSLIPROBE]: bpf buffer poll failed.\n");
+        break;
+    }
+err:
     stop = 1;
     PGSLI_INFO("msg_event_receiver out\n");
     return NULL;
@@ -207,12 +207,7 @@ static int init_conn_mgt_process()
     int err;
     pthread_t msg_evt_hdl_thd;
 
-    if (g_pgsli_probe.output_map_fd <= 0) {
-        PGSLI_ERROR("Invalid output map fd:%d\n", g_pgsli_probe.output_map_fd);
-        return -1;
-    }
-
-    err = pthread_create(&msg_evt_hdl_thd, NULL, msg_event_receiver, (void *)&g_pgsli_probe.output_map_fd);
+    err = pthread_create(&msg_evt_hdl_thd, NULL, msg_event_receiver, NULL);
     if (err != 0) {
         PGSLI_ERROR("Failed to create connection read/write message event handler thread.\n");
         return -1;
@@ -370,12 +365,10 @@ static void clear_all_bpf_link()
 
 static void reload_tc_bpf(struct ipc_body_s* ipc_body)
 {
-#ifdef KERNEL_SUPPORT_TSTAMP
     if (strcmp(g_pgsli_probe.ipc_body.probe_param.target_dev, ipc_body->probe_param.target_dev) != 0) {
         offload_tc_bpf(TC_TYPE_INGRESS);
         load_tc_bpf(ipc_body->probe_param.target_dev, TC_TSTAMP_PROG, TC_TYPE_INGRESS);
     }
-#endif
     return;
 }
 
@@ -430,52 +423,76 @@ static int load_pgsli_libssl_prog(void)
         return -1;
     }
 
-    __LOAD_OG_PROBE(pgsli_uprobe, err, 1);
+    OPEN_PROBE(pgsli_uprobe, err, 1);
     prog->skels[prog->num].skel = pgsli_uprobe_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)pgsli_uprobe_bpf__destroy;
+    prog->custom_btf_paths[prog->num] = pgsli_uprobe_open_opts.btf_custom_path;
+
+    LOAD_ATTACH(pgsliprobe, pgsli_uprobe, err, 1);
+
     prog->num++;
     g_pgsli_probe.libssl_prog = prog;
 
     return 0;
 err:
     UNLOAD(pgsli_uprobe);
-    unload_bpf_prog(&prog);
+    CLEANUP_CUSTOM_BTF(pgsli_uprobe);
+    if (prog) {
+        free_bpf_prog(prog);
+    }
     return -1;
 }
 
 static int load_pgsli_kern_prog(void)
 {
     struct bpf_prog_s *prog;
-    int args_map_fd, output_map_fd;
+    int ret, args_map_fd;
+    struct bpf_buffer *buffer = NULL;
 
     prog = alloc_bpf_prog();
     if (prog == NULL) {
         return -1;
     }
 
-    __LOAD_OG_PROBE(pgsli_kprobe, err, 1);
+    OPEN_PROBE(pgsli_kprobe, err, 1);
+    prog->skels[prog->num].skel = pgsli_kprobe_skel;
+    prog->skels[prog->num].fn = (skel_destroy_fn)pgsli_kprobe_bpf__destroy;
+    prog->custom_btf_paths[prog->num] = pgsli_kprobe_open_opts.btf_custom_path;
+
     args_map_fd = GET_MAP_FD(pgsli_kprobe, args_map);
     if (args_map_fd <= 0) {
         PGSLI_ERROR("Failed to get bpf prog args map fd.\n");
         goto err;
     }
-    output_map_fd = GET_MAP_FD(pgsli_kprobe, output);
-    if (output_map_fd <= 0) {
-        PGSLI_ERROR("Failed to get bpf prog output map fd.\n");
+
+    PROG_ENABLE_ONLY_IF(pgsli_kprobe, bpf_tcp_recvmsg, probe_tstamp());
+
+    LOAD_ATTACH(pgsliprobe, pgsli_kprobe, err, 1);
+
+    buffer = bpf_buffer__new(pgsli_kprobe_skel->maps.output, pgsli_kprobe_skel->maps.heap);
+    if (buffer == NULL) {
         goto err;
     }
 
-    prog->skels[prog->num].skel = pgsli_kprobe_skel;
-    prog->skels[prog->num].fn = (skel_destroy_fn)pgsli_kprobe_bpf__destroy;
+    ret = bpf_buffer__open(buffer, msg_event_handler, NULL, NULL);
+    if (ret) {
+        ERROR("[PGSLIPROBE] Open 'PGSLI' bpf_buffer failed.\n");
+        bpf_buffer__free(buffer);
+        goto err;
+    }
+    prog->buffer = buffer;
+
     prog->num++;
     g_pgsli_probe.kern_prog = prog;
     g_pgsli_probe.args_map_fd = args_map_fd;
-    g_pgsli_probe.output_map_fd = output_map_fd;
 
     return 0;
 err:
     UNLOAD(pgsli_kprobe);
-    unload_bpf_prog(&prog);
+    CLEANUP_CUSTOM_BTF(pgsli_kprobe);
+    if (prog) {
+        free_bpf_prog(prog);
+    }
     return -1;
 }
 
@@ -548,6 +565,9 @@ int main(int argc, char **argv)
     struct ipc_body_s ipc_body;
     int msq_id;
     bool is_first_load = true;
+    bool supports_tstamp;
+
+    supports_tstamp = probe_tstamp();
 
     if (signal(SIGINT, sig_int) == SIG_ERR) {
         PGSLI_ERROR("Can't set signal handler\n");
@@ -561,15 +581,18 @@ int main(int argc, char **argv)
 
     clean_map_files();
     INIT_BPF_APP(pgsliprobe, EBPF_RLIM_LIMITED);
-#ifndef KERNEL_SUPPORT_TSTAMP
-    PGSLI_INFO("The kernel version does not support loading the tc tstamp program\n");
-#endif
+    if (!supports_tstamp) {
+        PGSLI_INFO("The kernel version does not support loading the tc tstamp program\n");
+    }
+
     PGSLI_INFO("pgsliprobe probe successfully started!\n");
 
     while (!stop) {
         err = recv_ipc_msg(msq_id, (long)PROBE_POSTGRE_SLI, &ipc_body);
         if (err == 0) {
-            reload_tc_bpf(&ipc_body);
+            if (supports_tstamp) {
+                reload_tc_bpf(&ipc_body);
+            }
 
             err = init_probe_first_load(is_first_load);
             if (err) {
@@ -610,9 +633,9 @@ err:
     PGSLI_INFO("pgsliprobe probe end\n");
     clear_all_bpf_link();
     clean_pgsli_probe();
-#ifdef KERNEL_SUPPORT_TSTAMP
-    offload_tc_bpf(TC_TYPE_INGRESS);
-#endif
+    if (supports_tstamp) {
+        offload_tc_bpf(TC_TYPE_INGRESS);
+    }
     clean_map_files();
     return err;
 }

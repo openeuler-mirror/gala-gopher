@@ -38,17 +38,13 @@ struct mmap_info_t {
 };
 
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, MAX_CPU);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } stackmap_perf_a SEC(".maps");
 
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, MAX_CPU);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } stackmap_perf_b SEC(".maps");
 
 // memory to be allocated for the process
@@ -173,9 +169,9 @@ static __always_inline void update_statistics(struct pt_regs *ctx, char stackmap
     }
 
     if (stackmap_cur) {
-        (void)bpf_perf_event_output(ctx, &stackmap_perf_a, BPF_F_CURRENT_CPU, event, event_size);
+        (void)bpfbuf_output(ctx, &stackmap_perf_a, event, event_size);
     } else {
-        (void)bpf_perf_event_output(ctx, &stackmap_perf_b, BPF_F_CURRENT_CPU, event, event_size);
+        (void)bpfbuf_output(ctx, &stackmap_perf_b, event, event_size);
     }
 }
 

@@ -39,56 +39,27 @@
 #define L7_FILTER_ARGS_PATH      "/sys/fs/bpf/gala-gopher/__l7_filter_args"
 #define L7_PROC_OBJ_PATH         "/sys/fs/bpf/gala-gopher/__l7_proc_obj_map"
 
-#define __LOAD_PROBE(probe_name, end, load) \
-    OPEN(probe_name, end, load); \
+#define __LOAD_PROBE(probe_name, end, load, buffer) \
+    INIT_OPEN_OPTS(probe_name); \
+    PREPARE_CUSTOM_BTF(probe_name); \
+    OPEN_OPTS(probe_name, end, load); \
+    MAP_INIT_BPF_BUFFER(probe_name, conn_tracker_events, buffer, load); \
     MAP_SET_PIN_PATH(probe_name, conn_tracker_events, L7_CONN_TRACKER_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, conn_tbl, L7_CONN_CONN_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, l7_tcp, L7_TCP_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, filter_args_tbl, L7_FILTER_ARGS_PATH, load); \
     LOAD_ATTACH(l7probe, probe_name, end, load)
 
-static int l7_prog_create_pb(struct bpf_prog_s *prog, int fd, void* cb, void *ctx)
-{
-#ifdef __USE_RING_BUF
-    struct ring_buffer *rb = NULL;
-
-    rb = create_rb(fd, (ring_buffer_sample_fn)cb, ctx, NULL);
-    if (rb == NULL) {
-        return -1;
-    }
-    prog->rbs[prog->num] = rb;
-    prog->num++;
-    return 0;
-#else
-    struct perf_buffer *pb = NULL;
-
-    pb = create_pref_buffer3(fd, (perf_buffer_sample_fn)cb, NULL, ctx);
-    if (pb == NULL) {
-        return -1;
-    }
-    prog->pbs[prog->num] = pb;
-    prog->num++;
-    return 0;
-#endif
-}
-
-static void* get_tracker_msg_cb(void)
-{
-#ifdef __USE_RING_BUF
-    return (void *)tracker_msg_rb;
-#else
-    return (void *)tracker_msg_pb;
-#endif
-}
-
 int l7_load_probe_libssl(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog, const char *libssl_path)
 {
-    int fd, succeed;
+    int succeed;
     int link_num = 0;
+    struct bpf_buffer *buffer = NULL;
 
-    __LOAD_PROBE(libssl, err, 1);
+    __LOAD_PROBE(libssl, err, 1, buffer);
     prog->skels[prog->num].skel = libssl_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)libssl_bpf__destroy;
+    prog->custom_btf_paths[prog->num] = libssl_open_opts.btf_custom_path;
 
     // libssl bpf prog attach function 'SSL_read'
     UBPF_ATTACH(libssl, SSL_read, libssl_path, SSL_read, succeed);
@@ -134,11 +105,13 @@ int l7_load_probe_libssl(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog, const
     prog->skels[prog->num]._link[link_num++] = (void *)libssl_link[libssl_link_current - 1];
 
     // libssl bpf prog create pb for 'conn_tracker_events'
-    fd = GET_MAP_FD(libssl, conn_tracker_events);
-    if (l7_prog_create_pb(prog, fd, get_tracker_msg_cb(), l7_mng)) {
-        ERROR("[L7PROBE]: Create 'conn_tracker_events' perf buf failed.\n");
-        return -1;
+    int ret = bpf_buffer__open(buffer, tracker_msg, NULL, l7_mng);
+    if (ret) {
+        ERROR("[L7PROBE] Lib SSL open 'conn_tracker_events' bpf_buffer failed.\n");
+        goto err;
     }
+    prog->buffers[prog->num] = buffer;
+    prog->num++;
 
     if (l7_mng->bpf_progs.conn_tbl_fd == 0) {
         l7_mng->bpf_progs.conn_tbl_fd = GET_MAP_FD(libssl, conn_tbl);
@@ -160,23 +133,29 @@ int l7_load_probe_libssl(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog, const
     return 0;
 err:
     UNLOAD(libssl);
+    if (buffer) {
+        bpf_buffer__free(buffer);
+    }
     return -1;
 }
 
 int l7_load_probe_kern_sock(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog)
 {
-    int fd;
+    struct bpf_buffer *buffer = NULL;
 
-    __LOAD_PROBE(kern_sock, err, 1);
+    __LOAD_PROBE(kern_sock, err, 1, buffer);
     prog->skels[prog->num].skel = kern_sock_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)kern_sock_bpf__destroy;
+    prog->custom_btf_paths[prog->num] = kern_sock_open_opts.btf_custom_path;
 
     // kern_sock bpf prog create pb for 'conn_tracker_events'
-    fd = GET_MAP_FD(kern_sock, conn_tracker_events);
-    if (l7_prog_create_pb(prog, fd, get_tracker_msg_cb(), l7_mng)) {
-        ERROR("[L7PROBE]: Create 'conn_tracker_events' perf buf failed.\n");
-        return -1;
+    int ret = bpf_buffer__open(buffer, tracker_msg, NULL, l7_mng);
+    if (ret) {
+        ERROR("[L7PROBE] Kern sock open 'conn_tracker_events' bpf_buffer failed.\n");
+        goto err;
     }
+    prog->buffers[prog->num] = buffer;
+    prog->num++;
 
     if (l7_mng->bpf_progs.conn_tbl_fd <= 0) {
         l7_mng->bpf_progs.conn_tbl_fd = GET_MAP_FD(kern_sock, conn_tbl);
@@ -198,6 +177,9 @@ int l7_load_probe_kern_sock(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog)
     return 0;
 err:
     UNLOAD(kern_sock);
+    if (buffer) {
+        bpf_buffer__free(buffer);
+    }
     return -1;
 }
 

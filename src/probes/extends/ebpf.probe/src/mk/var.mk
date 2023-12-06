@@ -51,7 +51,7 @@ ifeq ($(wildcard $(BPFTOOL)), )
     else ln -s bpftool_${ARCH} bpftool; fi; )
 endif
 
-BTF_ENABLE = $(shell if [ -f /sys/kernel/btf/vmlinux ]; then echo "ON" ; else echo "OFF"; fi)
+BTF_ENABLE = $(shell if [ -n "$(BTF_ENABLE_OVERRIDE)" ]; then echo "$(BTF_ENABLE_OVERRIDE)"; elif [ -f /sys/kernel/btf/vmlinux ]; then echo "ON" ; else echo "OFF"; fi)
 
 JAVA_SYM_AGENT_VER := v1
 LINK_TARGET ?= -lpthread -lbpf -lelf -lz -lconfig -ljsoncpp -lstdc++

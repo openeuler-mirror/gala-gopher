@@ -25,14 +25,9 @@
 
 char g_linsence[] SEC("license") = "GPL";
 
-#ifndef __PERF_OUT_MAX
-#define __PERF_OUT_MAX (64)
-#endif
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, __PERF_OUT_MAX);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } page_cache_channel_map SEC(".maps");
 
 #define __PAGECACHE_ENTRIES_MAX (100)
@@ -105,11 +100,10 @@ static __always_inline struct pagecache_stats_s *get_page_cache(struct pagecache
 static __always_inline void report_page_cache(void *ctx, struct pagecache_stats_s* page_cache)
 {
     if (is_report_tmout(&(page_cache->page_cache_ts))) {
-        (void)bpf_perf_event_output(ctx,
-                                    &page_cache_channel_map,
-                                    BPF_F_ALL_CPU,
-                                    page_cache,
-                                    sizeof(struct pagecache_stats_s));
+        (void)bpfbuf_output(ctx,
+                            &page_cache_channel_map,
+                            page_cache,
+                            sizeof(struct pagecache_stats_s));
         page_cache->access_pagecache = 0;
         page_cache->mark_buffer_dirty = 0;
         page_cache->load_page_cache = 0;

@@ -31,7 +31,7 @@ struct stack_symbs_s {
     struct addr_symb_s user_stack_symbs[PERF_MAX_STACK_DEPTH];
     struct addr_symb_s kern_stack_symbs[PERF_MAX_STACK_DEPTH];
     u32 py_stack_len;
-    struct py_symbol py_stack_symbols[MAX_PYTHON_STACK_DEPTH];
+    struct py_symbol py_stack_symbols[MAX_PYTHON_STACK_DEPTH_MAX];
     struct stack_pid_s pid;
 };
 
@@ -108,12 +108,12 @@ struct stack_param_s {
 struct svg_stack_trace_s {
     int bpf_prog_fd;
     struct bpf_object *obj;
+    const char *custom_btf_path;
     pthread_t wr_flame_thd;
 
-    int stackmap_perf_a_fd;
-    int stackmap_perf_b_fd;
-    struct perf_buffer* pb_a;
-    struct perf_buffer* pb_b;
+    struct bpf_buffer *perf_buff_a;
+    struct bpf_buffer *perf_buff_b;
+
     struct raw_stack_trace_s *raw_stack_trace_a;
     struct raw_stack_trace_s *raw_stack_trace_b;
     struct py_stack_trace_s *py_stack_trace_a;

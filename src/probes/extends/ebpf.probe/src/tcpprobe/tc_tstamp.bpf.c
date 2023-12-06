@@ -23,9 +23,7 @@
 SEC("tc")
 int get_start_ts(struct __sk_buff *skb)
 {
-#ifdef KERNEL_SUPPORT_TSTAMP
 	skb->tstamp = bpf_ktime_get_ns();
-#endif
 	return 0;
 }
 

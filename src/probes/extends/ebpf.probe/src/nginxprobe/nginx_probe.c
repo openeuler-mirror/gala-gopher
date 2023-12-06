@@ -159,7 +159,11 @@ int load_bpf_prog_each_elf(struct bpf_prog_s *prog, const char *elf_path)
         return -1;
     }
 
-    LOAD(nginx_probe, nginx_probe, err);
+    INIT_OPEN_OPTS(nginx_probe);
+    PREPARE_CUSTOM_BTF(nginx_probe);
+    OPEN_OPTS(nginx_probe, err, 1);
+
+    LOAD_ATTACH(nginx_probe, nginx_probe, err, 1);
 
     UBPF_ATTACH(nginx_probe, ngx_stream_proxy_init_upstream, elf_path, ngx_stream_proxy_init_upstream, succeed);
     if (!succeed) {
@@ -178,6 +182,7 @@ int load_bpf_prog_each_elf(struct bpf_prog_s *prog, const char *elf_path)
         goto err;
     }
 
+    prog->custom_btf_paths[prog->num] = nginx_probe_open_opts.btf_custom_path;
     prog->skels[prog->num].skel = (void *)nginx_probe_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)nginx_probe_bpf__destroy;
     for (int i = 0; i < nginx_probe_link_current; i++) {
@@ -188,6 +193,7 @@ int load_bpf_prog_each_elf(struct bpf_prog_s *prog, const char *elf_path)
     return 0;
 err:
     UNLOAD(nginx_probe);
+    CLEANUP_CUSTOM_BTF(nginx_probe);
     return -1;
 }
 
@@ -291,13 +297,8 @@ int main(int argc, char **argv)
     INIT_BPF_APP(nginx_probe, EBPF_RLIM_LIMITED);
 
     /* create ngx statistic map_fd */
-#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
     g_nginx_probe.stats_map_fd = bpf_map_create(BPF_MAP_TYPE_HASH, NULL, sizeof(struct ngx_statistic_key),
         sizeof(struct ngx_statistic), STATISTIC_MAX_ENTRIES, NULL);
-#else
-    g_nginx_probe.stats_map_fd = bpf_create_map(
-        BPF_MAP_TYPE_HASH, sizeof(struct ngx_statistic_key), sizeof(struct ngx_statistic), STATISTIC_MAX_ENTRIES, 0);
-#endif
     if (g_nginx_probe.stats_map_fd < 0) {
         ERROR("%s Failed to create statistic map fd.\n", LOG_NGINX_PREFIX);
         goto err;

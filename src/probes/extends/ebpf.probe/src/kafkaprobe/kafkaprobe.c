@@ -39,6 +39,7 @@ struct kfk_probe_s {
     struct ipc_body_s ipc_body;
     struct KafkaConfig cfg;
     struct bpf_object *prog;
+    char *btf_custom_path;
     int data_map_fd;
     int ctrl_map_fd;
     int port_map_fd;
@@ -84,7 +85,11 @@ static int load_kfk_bpf_prog(void)
         return -1;
     }
 
-    obj = load_link_pin(cfg);
+    if (g_kfk_probe.btf_custom_path) {
+        free(g_kfk_probe.btf_custom_path);
+        g_kfk_probe.btf_custom_path = NULL;
+    }
+    obj = load_link_pin(cfg, &(g_kfk_probe.btf_custom_path));
     if (!obj) {
         KFK_ERROR("load_link_pin failed, exit!\n");
         return -1;
@@ -179,6 +184,10 @@ static int reload_kfk_bpf_prog(struct ipc_body_s *ipc_body)
 
 static void clean_kfk_probe(void)
 {
+    if (g_kfk_probe.btf_custom_path) {
+        free(g_kfk_probe.btf_custom_path);
+        g_kfk_probe.btf_custom_path = NULL;
+    }
     if (unpin_unlink_unload(&g_kfk_probe.cfg, g_kfk_probe.prog)) {
         KFK_ERROR("unpin_unlink_unload fail, please clean by hand!\n");
     }

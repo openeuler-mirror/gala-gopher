@@ -184,13 +184,8 @@ static int create_collect_map(void)
 {
     int collect_map_fd;
 
-#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
     collect_map_fd = bpf_map_create(BPF_MAP_TYPE_HASH, NULL, sizeof(struct collect_key),
                                     sizeof(struct collect_value), METRIC_ENTRIES, NULL);
-#else
-    collect_map_fd = bpf_create_map(BPF_MAP_TYPE_HASH, sizeof(struct collect_key),
-                                    sizeof(struct collect_value), METRIC_ENTRIES, 0);
-#endif
     if (collect_map_fd < 0) {
         HAP_ERROR("Failed to create collect map.\n");
         return -1;
@@ -219,7 +214,11 @@ int load_bpf_prog_each_elf(struct bpf_prog_s *prog, const char *elf_path)
         return -1;
     }
 
-    LOAD(trace_haproxy, trace_haproxy, err);
+    INIT_OPEN_OPTS(trace_haproxy);
+    PREPARE_CUSTOM_BTF(trace_haproxy);
+    OPEN_OPTS(trace_haproxy, err, 1);
+
+    LOAD_ATTACH(trace_haproxy, trace_haproxy, err, 1);
 
     UBPF_ATTACH(trace_haproxy, back_establish, elf_path, back_establish, succeed);
     if (!succeed) {
@@ -230,6 +229,7 @@ int load_bpf_prog_each_elf(struct bpf_prog_s *prog, const char *elf_path)
         goto err;
     }
 
+    prog->custom_btf_paths[prog->num] = trace_haproxy_open_opts.btf_custom_path;
     prog->skels[prog->num].skel = (void *)trace_haproxy_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)trace_haproxy_bpf__destroy;
     for (i = 0; i < trace_haproxy_link_current; i++) {
@@ -240,6 +240,7 @@ int load_bpf_prog_each_elf(struct bpf_prog_s *prog, const char *elf_path)
     return 0;
 err:
     UNLOAD(trace_haproxy);
+    CLEANUP_CUSTOM_BTF(trace_haproxy);
     return -1;
 }
 

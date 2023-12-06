@@ -35,13 +35,12 @@ static __always_inline char is_tmout_delay(struct sock_stats_s *sock_stats)
 static __always_inline void report_delay(void *ctx, struct tcp_metrics_s *metrics)
 {
     metrics->report_flags |= TCP_PROBE_DELAY;
-    (void)bpf_perf_event_output(ctx, &tcp_output, BPF_F_CURRENT_CPU, metrics, sizeof(struct tcp_metrics_s));
+    (void)bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
     metrics->report_flags &= ~TCP_PROBE_DELAY;
     metrics->delay_stats.send_state = DELAY_SAMP_INIT;
     metrics->delay_stats.recv_state = DELAY_SAMP_INIT;
 }
 
-#ifdef KERNEL_SUPPORT_TSTAMP
 static __always_inline u64 get_recv_arrival_ts(struct sock *sk)
 {
     u64 ts = 0;
@@ -92,7 +91,6 @@ KPROBE(tcp_recvmsg, pt_regs)
     process_recv_finish(sk, sock_stats, ctx);
     return 0;
 }
-#endif
 
 static __always_inline void process_send_start(struct sock *sk, struct sock_stats_s *sock_stats, void *ctx)
 {

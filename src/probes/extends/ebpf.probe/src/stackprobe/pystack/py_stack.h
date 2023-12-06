@@ -21,13 +21,14 @@
 
 #define MAX_PYTHON_PROG_NUM 1000
 
-#define MAX_PYTHON_STACK_DEPTH 32
-#define MAX_PYTHON_STACK_DEPTH_MASK (32 - 1)
+#define MAX_PYTHON_STACK_DEPTH_32 32
+#define MAX_PYTHON_STACK_DEPTH_16 16
+#define MAX_PYTHON_STACK_DEPTH_MAX (MAX_PYTHON_STACK_DEPTH_32 - 1)
 #define MAX_PYTHON_SYMBOL_SIZE 64
 
 struct py_stack {
     u32 stack_len;
-    u64 stack[MAX_PYTHON_STACK_DEPTH];  // each element is a symbol id
+    u64 stack[MAX_PYTHON_STACK_DEPTH_MAX];  // each element is a symbol id
 };
 
 struct py_symbol {

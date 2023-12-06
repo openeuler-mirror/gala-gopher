@@ -42,7 +42,7 @@ static __always_inline void report_sockbuf(void *ctx, struct tcp_metrics_s *metr
 {
     metrics->report_flags |= TCP_PROBE_SOCKBUF;
 
-    (void)bpf_perf_event_output(ctx, &tcp_output, BPF_F_CURRENT_CPU, metrics, sizeof(struct tcp_metrics_s));
+    (void)bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
 
     metrics->report_flags &= ~TCP_PROBE_SOCKBUF;
     //__builtin_memset(&(metrics->sockbuf_stats), 0x0, sizeof(metrics->sockbuf_stats));
@@ -57,12 +57,12 @@ static void get_tcp_sock_buf(struct sock *sk, struct tcp_sockbuf* stats)
     stats->tcpi_sk_backlog_size = (u32)_(sk->sk_backlog.len);
     stats->tcpi_sk_omem_size    = (u32)_(sk->sk_omem_alloc.counter);
     stats->tcpi_sk_forward_size = (u32)_(sk->sk_forward_alloc);
-#if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(4, 14, 0))
     /* 4.13-rc1 convert sock.sk_wmem_alloc from atomic_t to refcount_t*/
-    stats->tcpi_sk_wmem_size    = (u32)_(sk->sk_wmem_alloc.counter);
-#else
-    stats->tcpi_sk_wmem_size    = (u32)_(sk->sk_wmem_alloc.refs.counter);
-#endif
+    if (probe_kernel_version() < KERNEL_VERSION(4, 14, 0)) {
+        stats->tcpi_sk_wmem_size    = (u32)_(sk->sk_wmem_alloc.counter);
+    } else {
+        stats->tcpi_sk_wmem_size    = (u32)_(sk->sk_wmem_alloc.refs.counter);
+    }
 #endif
     stats->sk_rcvbuf    = (int)_(sk->sk_rcvbuf);
     stats->sk_sndbuf    = (int)_(sk->sk_sndbuf);
@@ -134,18 +134,17 @@ static void tcp_sockbuf_probe_func(void *ctx, struct sock *sk)
         }
     }
 }
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
+
 KRAWTRACE(tcp_probe, bpf_raw_tracepoint_args)
 {
     struct sock *sk = (struct sock*)ctx->args[0];
     tcp_sockbuf_probe_func(ctx, sk);
     return 0;
 }
-#else
+
 KPROBE(tcp_rcv_established, pt_regs)
 {
     struct sock *sk = (struct sock*)PT_REGS_PARM1(ctx);
     tcp_sockbuf_probe_func(ctx, sk);
     return 0;
 }
-#endif

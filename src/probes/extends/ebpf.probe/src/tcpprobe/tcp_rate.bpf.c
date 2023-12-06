@@ -41,7 +41,7 @@ static __always_inline char is_tmout_rate(struct sock *sk)
 static __always_inline void report_rate(void *ctx, struct tcp_metrics_s *metrics)
 {
     metrics->report_flags |= TCP_PROBE_RATE;
-    (void)bpf_perf_event_output(ctx, &tcp_output, BPF_F_CURRENT_CPU, metrics, sizeof(struct tcp_metrics_s));
+    (void)bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
     metrics->report_flags &= ~TCP_PROBE_RATE;
     //__builtin_memset(&(metrics->rate_stats), 0x0, sizeof(metrics->rate_stats));
 }
@@ -58,10 +58,8 @@ static void tcp_compute_busy_time(struct tcp_sock *tcp_sk, struct tcp_rate* rate
     u64 ms = bpf_ktime_get_ns() >> 6; // ns -> ms
 
     chrono_start = _(tcp_sk->chrono_start);
-    bpf_probe_read(chrono_stat, (__TCP_CHRONO_MAX - 1) * sizeof(u32), &(tcp_sk->chrono_stat));
-    bpf_probe_read(&chrono_type, sizeof(u8), (char *)&(tcp_sk->chrono_stat) + (__TCP_CHRONO_MAX - 1) * sizeof(u32));
-
-    chrono_type &= 0xC0;
+    BPF_CORE_READ_INTO(chrono_stat, tcp_sk, chrono_stat);
+    chrono_type = BPF_CORE_READ_BITFIELD_PROBED(tcp_sk, chrono_type);
 
 #pragma clang loop unroll(full)
     for (i = TCP_CHRONO_BUSY; i < __TCP_CHRONO_MAX; ++i) {
@@ -149,21 +147,21 @@ static void tcp_rate_probe_func(void *ctx, struct sock *sk)
         report_rate(ctx, metrics);
     }
 }
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
+
 KRAWTRACE(tcp_rcv_space_adjust, bpf_raw_tracepoint_args)
 {
     struct sock *sk = (struct sock*)ctx->args[0];
     tcp_rate_probe_func(ctx, sk);
     return 0;
 }
-#elif (CURRENT_KERNEL_VERSION < KERNEL_VERSION(4, 13, 0))
+
 KPROBE(tcp_rcv_space_adjust, pt_regs)
 {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     tcp_rate_probe_func(ctx, sk);
     return 0;
 }
-#else
+
 SEC("tracepoint/tcp/tcp_rcv_space_adjust")
 int bpf_trace_tcp_rcv_space_adjust_func(struct trace_event_raw_tcp_event_sk_skb *ctx)
 {
@@ -171,5 +169,4 @@ int bpf_trace_tcp_rcv_space_adjust_func(struct trace_event_raw_tcp_event_sk_skb 
     tcp_rate_probe_func(ctx, sk);
     return 0;
 }
-#endif
 

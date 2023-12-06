@@ -39,14 +39,6 @@ char g_license[] SEC("license") = "GPL";
 #define KRETPROBE_SYSCALL(func) __KRETPROBE_SYSCALL(__arm64_sys_, func)
 #endif
 
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-#define SK_FL_TYPE_SHIFT           16
-#define SK_FL_TYPE_MASK            0xffff0000
-#else
-#define SK_FL_TYPE_SHIFT           0
-#define SK_FL_TYPE_MASK            0x0000ffff
-#endif
-
 // /sys/kernel/debug/tracing/events/syscalls/sys_enter_read/format
 struct sys_enter_read_args {
     unsigned long long __unused__;
@@ -79,14 +71,13 @@ static __always_inline __maybe_unused void get_remote_addr(struct conn_info_s* c
         conn_info->remote_addr.ip = _(addr_in->sin_addr.s_addr);
         conn_info->remote_addr.port = bpf_ntohs(_(addr_in->sin_port));
     } else {
-        bpf_probe_read((unsigned char *)&conn_info->remote_addr.ip6, IP6_LEN, &(addr_in6->sin6_addr));
+        BPF_CORE_READ_INTO(&(conn_info->remote_addr.ip6), addr_in6, sin6_addr);
         conn_info->remote_addr.port = bpf_ntohs(_(addr_in6->sin6_port));
     }
 
     return;
 }
 
-#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
 static __always_inline __maybe_unused void get_remote_sockaddr(struct conn_info_s* conn_info, const struct socket* socket)
 {
     u16 family, remote_port;
@@ -105,27 +96,7 @@ static __always_inline __maybe_unused void get_remote_sockaddr(struct conn_info_
     conn_info->remote_addr.port = remote_port;
     return;
 }
-#else
-static __always_inline __maybe_unused void get_remote_sockaddr(struct conn_info_s* conn_info, const struct socket* socket)
-{
-    u16 family, remote_port;
 
-    struct sock* sk = NULL;
-    sk = _(socket->sk);
-    family = _(sk->__sk_common.skc_family);
-
-    conn_info->remote_addr.family = family;
-    if (family == AF_INET) {
-        conn_info->remote_addr.ip = _(sk->sk_daddr);
-    } else {
-        (void)bpf_probe_read(&(conn_info->remote_addr.ip6), IP6_LEN, &sk->sk_v6_daddr);
-    }
-    remote_port = bpf_ntohs(_(sk->sk_dport));
-    conn_info->remote_addr.port = remote_port;
-}
-#endif
-
-#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
 static __always_inline __maybe_unused void get_sockaddr(struct conn_info_s* conn_info, enum l4_role_t l4_role, const struct socket* socket)
 {
     u16 family, server_port, client_port;
@@ -167,48 +138,6 @@ static __always_inline __maybe_unused void get_sockaddr(struct conn_info_s* conn
     }
     return;
 }
-#else
-static __always_inline __maybe_unused void get_sockaddr(struct conn_info_s* conn_info, enum l4_role_t l4_role, const struct socket* socket)
-{
-    u16 family, server_port, client_port;
-
-    struct sock* sk = NULL;
-    sk = _(socket->sk);
-    family = _(sk->__sk_common.skc_family);
-
-    conn_info->client_addr.family = family;
-    conn_info->server_addr.family = family;
-
-    if (l4_role == L4_CLIENT) {
-        server_port = bpf_ntohs(_(sk->sk_dport));
-        client_port = _(sk->sk_num);
-    } else {
-        server_port = _(sk->sk_num);
-        client_port = bpf_ntohs(_(sk->sk_dport));
-    }
-
-    conn_info->server_addr.port = server_port;
-    conn_info->client_addr.port = client_port;
-
-    if (l4_role == L4_CLIENT) {
-        if (family == AF_INET) {
-            conn_info->client_addr.ip = _(sk->sk_rcv_saddr);
-            conn_info->server_addr.ip = _(sk->sk_daddr);
-        } else {
-            (void)bpf_probe_read(&(conn_info->client_addr.ip6), IP6_LEN, &sk->sk_v6_rcv_saddr);
-            (void)bpf_probe_read(&(conn_info->server_addr.ip6), IP6_LEN, &sk->sk_v6_daddr);
-        }
-    } else {
-        if (family == AF_INET) {
-            conn_info->server_addr.ip = _(sk->sk_rcv_saddr);
-            conn_info->client_addr.ip = _(sk->sk_daddr);
-        } else {
-            (void)bpf_probe_read(&(conn_info->server_addr.ip6), IP6_LEN, &sk->sk_v6_rcv_saddr);
-            (void)bpf_probe_read(&(conn_info->client_addr.ip6), IP6_LEN, &sk->sk_v6_daddr);
-        }
-    }
-}
-#endif
 
 static __always_inline __maybe_unused struct sock_conn_s* new_sock_conn(void *ctx, int tgid, int fd, enum l4_role_t l4_role,
                                      const struct sockaddr* remote_addr, const struct socket* socket)
@@ -258,6 +187,7 @@ static __always_inline __maybe_unused struct sock_conn_s* new_sock_conn(void *ct
 static __always_inline __maybe_unused struct sock_conn_s* get_sock_conn(void *ctx, int tgid, int fd)
 {
     int value;
+    u16 sk_type;
     enum l4_role_t l4_role;
     struct sock_conn_s* sock_conn = NULL;
 
@@ -266,13 +196,12 @@ static __always_inline __maybe_unused struct sock_conn_s* get_sock_conn(void *ct
         return NULL;
     }
 
-#if (CURRENT_KERNEL_VERSION  >= KERNEL_VERSION(5, 6, 0))
-    u16 sk_type = BPF_CORE_READ(sk, sk_type);
-#else
-    u32 sk_type;
-    bpf_probe_read(&sk_type, sizeof(u32), sk->__sk_flags_offset);
-    sk_type = (sk_type & SK_FL_TYPE_MASK) >> SK_FL_TYPE_SHIFT;
-#endif
+    if (bpf_core_field_exists(((struct sock *)0)->__sk_flags_offset)) {
+        sk_type = BPF_CORE_READ_BITFIELD_PROBED(sk, sk_type);
+    } else {
+        sk_type = BPF_CORE_READ(sk, sk_type);
+    }
+
     if (sk_type != SOCK_STREAM) {
         l4_role = L4_UNKNOW;
     } else {
@@ -309,15 +238,10 @@ static __always_inline __maybe_unused int submit_conn_open(void *ctx, struct soc
         return 0;   // avoid report redundant events
     }
 
-#ifdef __USE_RING_BUF
-    struct conn_ctl_s *e = bpf_ringbuf_reserve(&conn_tracker_events, sizeof(struct conn_ctl_s), 0);
+    struct conn_ctl_s* e = bpfbuf_reserve(&conn_tracker_events, sizeof(struct conn_ctl_s));
     if (!e) {
         return -1;
     }
-#else
-    struct conn_ctl_s evt = {0};
-    struct conn_ctl_s *e = &evt;
-#endif
 
     e->evt = TRACKER_EVT_CTRL;
     e->type = CONN_EVT_OPEN;
@@ -333,12 +257,7 @@ static __always_inline __maybe_unused int submit_conn_open(void *ctx, struct soc
         __builtin_memcpy(&(e->open.server_addr), &(sock_conn->info.server_addr), sizeof(struct conn_addr_s));
     }
 
-    // submit conn open event.
-#ifdef __USE_RING_BUF
-    bpf_ringbuf_submit(e, 0);
-#else
-    (void)bpf_perf_event_output(ctx, &conn_tracker_events, BPF_F_CURRENT_CPU, e, sizeof(struct conn_ctl_s));
-#endif
+    bpfbuf_submit(ctx, &conn_tracker_events, e, sizeof(struct conn_ctl_s));
     sock_conn->info.is_reported = 1;
     return 0;
 }
@@ -352,15 +271,10 @@ static __always_inline __maybe_unused int submit_conn_close(void *ctx, conn_ctx_
         return 0;
     }
 
-#ifdef __USE_RING_BUF
-    struct conn_ctl_s *e = bpf_ringbuf_reserve(&conn_tracker_events, sizeof(struct conn_ctl_s), 0);
+    struct conn_ctl_s* e = bpfbuf_reserve(&conn_tracker_events, sizeof(struct conn_ctl_s));
     if (!e) {
         goto end;
     }
-#else
-    struct conn_ctl_s evt = {0};
-    struct conn_ctl_s *e = &evt;
-#endif
 
     e->evt = TRACKER_EVT_CTRL;
     e->type = CONN_EVT_CLOSE;
@@ -370,16 +284,9 @@ static __always_inline __maybe_unused int submit_conn_close(void *ctx, conn_ctx_
     e->close.wr_bytes = sock_conn->wr_bytes;
 
     // submit conn open event.
-#ifdef __USE_RING_BUF
-    bpf_ringbuf_submit(e, 0);
-#else
-    (void)bpf_perf_event_output(ctx, &conn_tracker_events, BPF_F_CURRENT_CPU, e, sizeof(struct conn_ctl_s));
-#endif
+    bpfbuf_submit(ctx, &conn_tracker_events, e, sizeof(struct conn_ctl_s));
 
-#ifdef __USE_RING_BUF
 end:
-#endif
-
     /* We should do "bpf_map_delete_elem(&conn_tbl, &conn_id)" here,
        but due to the lag in processing jsse messages, if the connection is deleted now,
        the connection will not be found in the cmp_sock_conn(). */
@@ -1053,15 +960,9 @@ KPROBE_SYSCALL(sendmsg)
 
     int fd = (int)PT_REGS_PARM1_CORE(regs);
     struct user_msghdr *msg = (struct user_msghdr *)PT_REGS_PARM2_CORE(regs);
-#if (CURRENT_LIBBPF_VERSION  < LIBBPF_VERSION(0, 8))
-    void * msg_name = BPF_CORE_READ(msg, msg_name);
-    struct iovec* iov = BPF_CORE_READ(msg, msg_iov);
-    size_t iovlen = BPF_CORE_READ(msg, msg_iovlen);
-#else
     void * msg_name = BPF_CORE_READ_USER(msg, msg_name);
     struct iovec* iov = BPF_CORE_READ_USER(msg, msg_iov);
     size_t iovlen = BPF_CORE_READ_USER(msg, msg_iovlen);
-#endif
 
     // Filter by UDP tracing-on/off
     if (is_tracing_udp()) {
@@ -1141,15 +1042,9 @@ KPROBE_SYSCALL(recvmsg)
 
     int fd = (int)PT_REGS_PARM1_CORE(regs);
     struct user_msghdr *msg = (struct user_msghdr *)PT_REGS_PARM2_CORE(regs);
-#if (CURRENT_LIBBPF_VERSION  < LIBBPF_VERSION(0, 8))
-    void * msg_name = BPF_CORE_READ(msg, msg_name);
-    struct iovec* iov = BPF_CORE_READ(msg, msg_iov);
-    size_t iovlen = BPF_CORE_READ(msg, msg_iovlen);
-#else
     void * msg_name = BPF_CORE_READ_USER(msg, msg_name);
     struct iovec* iov = BPF_CORE_READ_USER(msg, msg_iov);
     size_t iovlen = BPF_CORE_READ_USER(msg, msg_iovlen);
-#endif
 
     // Filter by UDP tracing-on/off
     if (is_tracing_udp()) {

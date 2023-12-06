@@ -158,17 +158,33 @@ static __always_inline int get_py_stack(struct py_sample *py_sample, struct py_p
     }
 
     py_event->py_stack.stack_len = 0;
+
+    if (probe_kernel_version() >= KERNEL_VERSION(5, 10, 0)) {
 #pragma unroll
-    for (int i = 0; i < MAX_PYTHON_STACK_DEPTH; i++) {
-        // TODO: consider stack truncation scene
-        __builtin_memset(&py_sym, 0, sizeof(py_sym));
-        ret = get_py_frame_info(&py_sym, &py_frame, &py_proc_data->offsets);
-        if (ret) {
-            break;
+        for (int i = 0; i < MAX_PYTHON_STACK_DEPTH_32; i++) {
+            // TODO: consider stack truncation scene
+            __builtin_memset(&py_sym, 0, sizeof(py_sym));
+            ret = get_py_frame_info(&py_sym, &py_frame, &py_proc_data->offsets);
+            if (ret) {
+                break;
+            }
+            sym_id = get_py_symbol_id(&py_sym, py_sample);
+            py_event->py_stack.stack[py_event->py_stack.stack_len & MAX_PYTHON_STACK_DEPTH_32] = sym_id;
+            py_event->py_stack.stack_len++;
         }
-        sym_id = get_py_symbol_id(&py_sym, py_sample);
-        py_event->py_stack.stack[py_event->py_stack.stack_len & MAX_PYTHON_STACK_DEPTH_MASK] = sym_id;
-        py_event->py_stack.stack_len++;
+    } else {
+#pragma unroll
+        for (int i = 0; i < MAX_PYTHON_STACK_DEPTH_16; i++) {
+            // TODO: consider stack truncation scene
+            __builtin_memset(&py_sym, 0, sizeof(py_sym));
+            ret = get_py_frame_info(&py_sym, &py_frame, &py_proc_data->offsets);
+            if (ret) {
+                break;
+            }
+            sym_id = get_py_symbol_id(&py_sym, py_sample);
+            py_event->py_stack.stack[py_event->py_stack.stack_len & MAX_PYTHON_STACK_DEPTH_16] = sym_id;
+            py_event->py_stack.stack_len++;
+        }
     }
 
     return 0;

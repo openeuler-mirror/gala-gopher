@@ -21,7 +21,6 @@
 
 char g_linsence[] SEC("license") = "GPL";
 
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(nvme_setup_cmd, bpf_raw_tracepoint_args)
 {
     struct io_trace_s *io_trace = NULL;
@@ -38,7 +37,7 @@ KRAWTRACE(nvme_setup_cmd, bpf_raw_tracepoint_args)
     io_trace->ts[IO_ISSUE_DRIVER] = bpf_ktime_get_ns();
     return 0;
 }
-#else
+
 KPROBE(nvme_setup_cmd, pt_regs)
 {
     struct io_trace_s *io_trace = NULL;
@@ -52,5 +51,4 @@ KPROBE(nvme_setup_cmd, pt_regs)
     io_trace->ts[IO_ISSUE_DRIVER] = bpf_ktime_get_ns();
     return 0;
 }
-#endif
 

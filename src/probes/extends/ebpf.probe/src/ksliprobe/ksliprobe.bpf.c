@@ -18,10 +18,8 @@
 #define BPF_PROG_KERN
 #include "bpf.h"
 #include <bpf/bpf_endian.h>
+#include "feat_probe.h"
 #include "ksliprobe.h"
-
-#define BPF_F_INDEX_MASK        0xffffffffULL
-#define BPF_F_CURRENT_CPU       BPF_F_INDEX_MASK
 
 #define MAX_CONN_LEN                8192
 #define MAX_CHECK_TIMES                2
@@ -59,9 +57,8 @@ struct {
 } conn_map SEC(".maps");
 
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } msg_event_map SEC(".maps");
 
 // Data collection args
@@ -115,8 +112,8 @@ static __always_inline int init_conn_id(struct conn_id_t *conn_id, int fd, int t
         conn_id->server_ip_info.ipaddr.ip4 = _(sk->sk_rcv_saddr);
         conn_id->client_ip_info.ipaddr.ip4 = _(sk->sk_daddr);
     } else if (conn_id->client_ip_info.family == AF_INET6) {
-        bpf_probe_read(conn_id->server_ip_info.ipaddr.ip6, IP6_LEN, &sk->sk_v6_rcv_saddr);
-        bpf_probe_read(conn_id->client_ip_info.ipaddr.ip6, IP6_LEN, &sk->sk_v6_daddr);
+        bpf_core_read(conn_id->server_ip_info.ipaddr.ip6, IP6_LEN, &sk->sk_v6_rcv_saddr);
+        bpf_core_read(conn_id->client_ip_info.ipaddr.ip6, IP6_LEN, &sk->sk_v6_daddr);
     } else {
         return -1;
     }
@@ -270,7 +267,7 @@ static __always_inline int parse_req(struct conn_data_t *conn_data, const unsign
     char msg[MAX_COMMAND_REQ_SIZE] = {0};
 
     copy_size = count < MAX_COMMAND_REQ_SIZE ? count : (MAX_COMMAND_REQ_SIZE - 1);
-    err = bpf_probe_read(msg, copy_size & MAX_COMMAND_REQ_SIZE, buf);
+    err = bpf_core_read(msg, copy_size & MAX_COMMAND_REQ_SIZE, buf);
     if (err < 0) {
         bpf_printk("parse_req read buffer failed.\n");
         return PROTOCOL_NO_REDIS;
@@ -312,8 +309,7 @@ static __always_inline int periodic_report(u64 ts_nsec, struct conn_data_t *conn
             msg_evt_data.client_ip_info = conn_data->id.client_ip_info;
             msg_evt_data.latency = conn_data->latency;
             msg_evt_data.max = conn_data->max;
-            err = bpf_perf_event_output(ctx, &msg_event_map, BPF_F_CURRENT_CPU,
-                                        &msg_evt_data, sizeof(struct msg_event_data_t));
+            err = bpfbuf_output(ctx, &msg_event_map, &msg_evt_data, sizeof(struct msg_event_data_t));
             if (err < 0) {
                 bpf_printk("message event sent failed.\n");
             }
@@ -405,13 +401,14 @@ static __always_inline void process_rd_msg(u32 tgid, int fd, const char *buf, co
 
     __builtin_memcpy(&csd->command, conn_data->current.command, MAX_COMMAND_REQ_SIZE);
 
-#ifndef KERNEL_SUPPORT_TSTAMP
-    csd->start_ts_nsec = ts_nsec;
-#else
-    if (csd->start_ts_nsec == 0 || csd->start_ts_nsec > ts_nsec) {
+    if (!probe_tstamp()) {
         csd->start_ts_nsec = ts_nsec;
+    } else {
+        if (csd->start_ts_nsec == 0 || csd->start_ts_nsec > ts_nsec) {
+            csd->start_ts_nsec = ts_nsec;
+        }
     }
-#endif
+
     csd->status = SAMP_READ_READY;
 
     return;
@@ -525,7 +522,6 @@ KPROBE(tcp_clean_rtx_queue, pt_regs)
     return 0;
 }
 
-#ifdef KERNEL_SUPPORT_TSTAMP
 KPROBE(tcp_recvmsg, pt_regs)
 {
     struct sock *sk;
@@ -545,4 +541,3 @@ KPROBE(tcp_recvmsg, pt_regs)
     }
     return 0;
 }
-#endif

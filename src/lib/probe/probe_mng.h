@@ -89,6 +89,7 @@ struct probe_mng_s {
     int msq_id;                                         // ipc control msg channnel
     struct probe_s *probes[PROBE_TYPE_MAX];
     void *snooper_skel;
+    const char *btf_custom_path;
     void *snooper_proc_pb;                              // context in perf event
     void *snooper_cgrp_pb;                              // context in perf event
     int ingress_epoll_fd;                               // !!!NOTICE: NO NEED FREE.
