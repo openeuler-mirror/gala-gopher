@@ -1874,7 +1874,7 @@ void iter_histo_tbl(struct proc_stack_trace_histo_s *proc_histo, struct post_ser
     }
 
     if (post_info.post_flag) {
-        curl_post(post_server, &post_info, en_type, proc_histo->proc_id);
+        curl_post(svg_mng, post_server, &post_info, en_type, proc_histo->proc_id);
     }
 
     return;
