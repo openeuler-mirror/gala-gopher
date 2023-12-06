@@ -58,17 +58,17 @@ ConfigMgr *ConfigMgrCreate(void)
     }
     memset(mgr->imdbConfig, 0, sizeof(IMDBConfig));
 
-    mgr->webServerConfig = (WebServerConfig *)malloc(sizeof(WebServerConfig));
+    mgr->webServerConfig = (HttpServerConfig *)malloc(sizeof(HttpServerConfig));
     if (mgr->webServerConfig == NULL) {
         goto ERR;
     }
-    memset(mgr->webServerConfig, 0, sizeof(WebServerConfig));
+    memset(mgr->webServerConfig, 0, sizeof(HttpServerConfig));
 
-    mgr->restServerConfig = (RestServerConfig *)malloc(sizeof(RestServerConfig));
+    mgr->restServerConfig = (HttpServerConfig *)malloc(sizeof(HttpServerConfig));
     if (mgr->restServerConfig == NULL) {
         goto ERR;
     }
-    memset(mgr->restServerConfig, 0, sizeof(RestServerConfig));
+    memset(mgr->restServerConfig, 0, sizeof(HttpServerConfig));
 
     mgr->logsConfig = (LogsConfig *)malloc(sizeof(LogsConfig));
     if (mgr->logsConfig == NULL) {
@@ -321,7 +321,7 @@ static int ConfigMgrLoadIMDBConfig(void *config, config_setting_t *settings)
 
 static int ConfigMgrLoadWebServerConfig(void *config, config_setting_t *settings)
 {
-    WebServerConfig *webServerConfig = (WebServerConfig *)config;
+    HttpServerConfig *webServerConfig = (HttpServerConfig *)config;
     uint32_t ret = 0;
     const char *strVal = NULL;
     int intVal = 0;
@@ -377,10 +377,17 @@ static int ConfigMgrLoadWebServerConfig(void *config, config_setting_t *settings
 
 static int ConfigMgrLoadRestServerConfig(void *config, config_setting_t *settings)
 {
-    RestServerConfig *restServerConfig = (RestServerConfig *)config;
+    HttpServerConfig *restServerConfig = (HttpServerConfig *)config;
     uint32_t ret = 0;
     const char *strVal = NULL;
     uint32_t intVal = 0;
+
+    ret = config_setting_lookup_string(settings, "bind_addr", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for restServerConfig bind_addr failed.\n");
+        return -1;
+    }
+    (void)snprintf(restServerConfig->bindAddr, sizeof(restServerConfig->bindAddr), "%s", strVal);
 
     ret = config_setting_lookup_int(settings, "port", &intVal);
     if (ret == 0) {

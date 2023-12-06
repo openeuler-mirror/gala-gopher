@@ -6,6 +6,9 @@ GOPHER_CONF="$GOPHER_CONF_DIR/gala-gopher.conf"
 GOPHER_PROBES_INIT_FILE="$GOPHER_CONF_DIR/probes.init"
 INIT_PROBES_SCRIPT="/usr/libexec/gala-gopher/init_probes.sh"
 
+web_server_line_num=$(sed -ne '/^web_server/=' $GOPHER_CONF)
+rest_server_line_num=$(sed -ne '/^rest_api_server/=' $GOPHER_CONF)
+
 if [[ -n "$GOPHER_LOG_LEVEL" ]]; then
     sed -i "s/log_level =.*/log_level = \"${GOPHER_LOG_LEVEL}\";/g" $GOPHER_CONF
 fi
@@ -25,15 +28,19 @@ else
 fi
 
 if [[ -n "$GOPHER_METRIC_ADDR" ]]; then
-    sed -i "s/bind_addr =.*/bind_addr = \"${GOPHER_METRIC_ADDR}\";/g" $GOPHER_CONF
+    sed -i "${web_server_line_num},${rest_server_line_num}s/bind_addr =.*/bind_addr = \"${GOPHER_METRIC_ADDR}\";/g" $GOPHER_CONF
 fi
 
 if [[ -n "$GOPHER_METRIC_PORT" ]]; then
-    sed -i "/^web_server =/{n;n;s/port =.*/port = ${GOPHER_METRIC_PORT};/g;}" $GOPHER_CONF
+    sed -i "${web_server_line_num},${rest_server_line_num}s/port =.*/port = ${GOPHER_METRIC_PORT};/g" $GOPHER_CONF
+fi
+
+if [[ -n "$GOPHER_REST_ADDR" ]]; then
+    sed -i "${rest_server_line_num},\$s/bind_addr =.*/bind_addr = \"${GOPHER_REST_ADDR}\";/g" $GOPHER_CONF
 fi
 
 if [[ -n "$GOPHER_REST_PORT" ]]; then
-    sed -i "/^rest_api_server =/{n;n;s/port =.*/port = ${GOPHER_REST_PORT};/g;}" $GOPHER_CONF
+    sed -i "${rest_server_line_num},\$s/port =.*/port = ${GOPHER_REST_PORT};/g" $GOPHER_CONF
 fi
 
 if [[ "x$GOPHER_REST_AUTH" == "xyes" ]]; then

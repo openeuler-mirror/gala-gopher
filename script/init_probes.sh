@@ -23,8 +23,9 @@ function load_gopher_conf()
     if [ ! -f ${GOPHER_CONF} ] || [ ! -f ${GOPHER_INITIAL_CONF} ] ; then
         exit 1;
     fi
-    rest_server_line=$(sed -n '/rest_api_server =/{n;n;p}' $GOPHER_CONF)
-    rest_server_port=$(echo $rest_server_line  | awk -F ' = ' '{print $2}')
+    rest_server_line_num=$(sed -ne '/rest_api_server/=' $GOPHER_CONF)
+    rest_server_port_line=$(sed -n "$rest_server_line_num,/port =/p" $GOPHER_CONF | tail -n1)
+    rest_server_port=$(echo $rest_server_port_line  | awk -F ' = ' '{print $2}')
     rest_server_port=${rest_server_port%;}
 
     if [ -z "${rest_server_port}" ] ; then
