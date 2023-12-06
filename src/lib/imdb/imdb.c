@@ -1187,12 +1187,19 @@ static int append_label(strbuf_t *labels_buf, const char *key, const char *val)
     return 0;
 }
 
+#define __HISTO_LABEL_NAME      "le"
+#define __HISTO_LABEL_VAL_INF   "+Inf"
 static int append_label_histo_le(strbuf_t *labels_buf, u64 val)
 {
     char buf[INT_LEN];
     buf[0] = 0;
     (void)snprintf(buf, sizeof(buf), "%llu", val);
-    return append_label(labels_buf, "le", buf);
+    return append_label(labels_buf, __HISTO_LABEL_NAME, buf);
+}
+
+static int append_label_histo_le_inf(strbuf_t *labels_buf)
+{
+    return append_label(labels_buf, __HISTO_LABEL_NAME, __HISTO_LABEL_VAL_INF);
 }
 
 static int IMDB_BuildPrometheusHistoMetrics(const IMDB_Metric *metric, char *buffer, uint32_t maxLen,
@@ -1217,7 +1224,7 @@ static int IMDB_BuildPrometheusHistoMetrics(const IMDB_Metric *metric, char *buf
     }
 
     (void)time(&now);
-    for (i = 0; i < bkt_sz; i++) {
+    for (i = 0; i < bkt_sz + 1; i++) {
         ret = IMDB_BuildMetrics(entity_name, metric->name, p, (uint32_t)size);
         if (ret < 0) {
             free(bkt);
@@ -1228,13 +1235,17 @@ static int IMDB_BuildPrometheusHistoMetrics(const IMDB_Metric *metric, char *buf
         size -= len;
 
         orig_labels_len = labels_buf->len;
-        ret = append_label_histo_le(labels_buf, bkt[i].max);
+        if (i == bkt_sz) {
+            ret = append_label_histo_le_inf(labels_buf);
+        } else {
+            sum += bkt[i].count;
+            ret = append_label_histo_le(labels_buf, bkt[i].max);
+        }
         if (ret) {
             free(bkt);
             return -1;
         }
 
-        sum += bkt[i].count;
         ret = __snprintf(&p, size, &size, fmt, labels_buf->buf, sum, now * THOUSAND);
         if (ret < 0) {
             free(bkt);
