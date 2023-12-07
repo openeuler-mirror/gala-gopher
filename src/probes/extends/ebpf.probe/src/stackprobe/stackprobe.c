@@ -673,6 +673,19 @@ static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, struct proc_s
         pos += len;
     }
 
+    for (i = 0; i < PERF_MAX_STACK_DEPTH; i++) {
+        addr_symb = &(stack_symbs->kern_stack_symbs[i]);
+        if (addr_symb->orign_addr == 0) {
+            continue;
+        }
+        len = stack_addrsymbs2string(proc_symbs, addr_symb, &layer, pos, remain_len);
+        if (len < 0) {
+            return -1;
+        }
+        remain_len -= len;
+        pos += len;
+    }
+
     symbos_str[size - 1] = 0;
     return 0;
 }
