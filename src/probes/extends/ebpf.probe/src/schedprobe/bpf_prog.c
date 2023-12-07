@@ -76,6 +76,7 @@ int load_sched_bpf_prog_syscall(struct bpf_prog_s *prog, char is_load, struct sc
     return ret;
 err:
     UNLOAD(sched_syscall);
+    CLEANUP_CUSTOM_BTF(sched_syscall);
     return -1;
 }
 
@@ -101,6 +102,7 @@ int load_sched_bpf_prog_systime(struct bpf_prog_s *prog, char is_load, struct sc
     return ret;
 err:
     UNLOAD(sched_systime);
+    CLEANUP_CUSTOM_BTF(sched_systime);
     return -1;
 }
 

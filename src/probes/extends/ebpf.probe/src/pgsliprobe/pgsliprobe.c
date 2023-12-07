@@ -467,12 +467,9 @@ static int load_pgsli_kern_prog(void)
 
     PROG_ENABLE_ONLY_IF(pgsli_kprobe, bpf_tcp_recvmsg, probe_tstamp());
 
-    LOAD_ATTACH(pgsliprobe, pgsli_kprobe, err, 1);
+    MAP_INIT_BPF_BUFFER(pgsli_kprobe, output, buffer, 1);
 
-    buffer = bpf_buffer__new(pgsli_kprobe_skel->maps.output, pgsli_kprobe_skel->maps.heap);
-    if (buffer == NULL) {
-        goto err;
-    }
+    LOAD_ATTACH(pgsliprobe, pgsli_kprobe, err, 1);
 
     ret = bpf_buffer__open(buffer, msg_event_handler, NULL, NULL);
     if (ret) {

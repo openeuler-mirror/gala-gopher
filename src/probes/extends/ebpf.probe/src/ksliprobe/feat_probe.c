@@ -33,7 +33,10 @@ static int probe_features()
         return 0;
     }
 
-    OPEN(feat_probe, out, true);
+    INIT_OPEN_OPTS(feat_probe);
+    PREPARE_CUSTOM_BTF(feat_probe);
+    OPEN_OPTS(feat_probe, out, true);
+
     LOAD_ATTACH(ksliprobe, feat_probe, out, true);
 
     /* Invoke feature probe BPF program */

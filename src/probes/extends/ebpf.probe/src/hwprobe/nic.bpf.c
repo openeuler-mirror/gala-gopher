@@ -59,7 +59,7 @@ static __always_inline char* get_driver_name(const struct net_device *net_dev)
 static __always_inline void update_nic_entity(struct nic_entity_s *nic_entity, struct net_device *net_dev)
 {
 
-    (void)bpf_core_read_str(&nic_entity->dev_name, IFNAMSIZ, net_dev->name);
+    (void)bpf_core_read_str(&nic_entity->dev_name, IFNAMSIZ, &net_dev->name);
     char *driver = get_driver_name(net_dev);
     if (driver != NULL) {
         (void)bpf_core_read_str(&nic_entity->driver, DRIVER_NAME_LEN, driver);
