@@ -45,17 +45,19 @@
 #define NIC_FAUILURE_CHANNEL_PTAH "/sys/fs/bpf/gala-gopher/__hw_nic_failure_channel_map"
 #define RM_NIC_PATH              "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__hw*"
 
-#define __OPEN_NIC_PROBE(probe_name, end, load) \
+#define __OPEN_NIC_PROBE(probe_name, end, load, buffer) \
     INIT_OPEN_OPTS(probe_name); \
     PREPARE_CUSTOM_BTF(probe_name); \
     OPEN_OPTS(probe_name, end, load); \
+    MAP_INIT_BPF_BUFFER(probe_name, nic_failure_channel_map, buffer, load); \
     MAP_SET_PIN_PATH(probe_name, hw_args_map, HW_ARGS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, nic_failure_channel_map, NIC_FAUILURE_CHANNEL_PTAH, load);
 
-#define __OPEN_MEM_PROBE(probe_name, end, load) \
+#define __OPEN_MEM_PROBE(probe_name, end, load, buffer) \
     INIT_OPEN_OPTS(probe_name); \
     PREPARE_CUSTOM_BTF(probe_name); \
     OPEN_OPTS(probe_name, end, load); \
+    MAP_INIT_BPF_BUFFER(probe_name, mc_event_channel_map, buffer, load); \
     MAP_SET_PIN_PATH(probe_name, hw_args_map, HW_ARGS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, mc_event_channel_map, MC_EVENT_CHANNEL_PTAH, load);
 
@@ -164,17 +166,13 @@ static int load_nic_probe(struct bpf_prog_s *prog, char nic_prob)
         return 0;
     }
 
-    __OPEN_NIC_PROBE(nic, err, 1);
+    __OPEN_NIC_PROBE(nic, err, 1, buffer);
 
     int kern_ver = probe_kernel_version();
     PROG_ENABLE_ONLY_IF(nic, bpf_raw_trace_net_dev_xmit_timeout, kern_ver >= KERNEL_VERSION(5, 2, 0));
 
     LOAD_ATTACH(hwprobe, nic, err, 1);
 
-    buffer = bpf_buffer__new(nic_skel->maps.nic_failure_channel_map, nic_skel->maps.heap);
-    if (buffer == NULL) {
-        goto err;
-    }
     ret = bpf_buffer__open(buffer, rcv_nic_failure, NULL, NULL);
     if (ret) {
         ERROR("[HWPROBE] Open 'nic_failure_channel_map' bpf_buffer failed.\n");
@@ -208,7 +206,7 @@ static int load_mem_probe(struct bpf_prog_s *prog, char mem_probe)
         return 0;
     }
 
-    __OPEN_MEM_PROBE(mem, err, 1);
+    __OPEN_MEM_PROBE(mem, err, 1, buffer);
 
     int kern_ver = probe_kernel_version();
     int attach_tp = kern_ver > KERNEL_VERSION(4, 18, 0);
@@ -217,10 +215,6 @@ static int load_mem_probe(struct bpf_prog_s *prog, char mem_probe)
 
     LOAD_ATTACH(hwprobe, mem, err, 1);
 
-    buffer = bpf_buffer__new(mem_skel->maps.mc_event_channel_map, mem_skel->maps.heap);
-    if (buffer == NULL) {
-        goto err;
-    }
     ret = bpf_buffer__open(buffer, rcv_mem_mc_event, NULL, NULL);
     if (ret) {
         ERROR("[HWPROBE] Open 'mc_event_channel_map' bpf_buffer failed.\n");
