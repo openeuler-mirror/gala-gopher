@@ -655,7 +655,6 @@ static int append_evt_attrs_batch(strbuf_t *attrs_buf, thrd_info_t *thrd_info)
                 break;
             }
         }
-        is_first = false;
 
         ret = set_evt_attrs_single(attrs_buf, cached_evt);
         if (ret) {
@@ -665,6 +664,7 @@ static int append_evt_attrs_batch(strbuf_t *attrs_buf, thrd_info_t *thrd_info)
             }
         } else {
             succeed_num++;
+            is_first = false;
         }
         consumed_num++;
     }
