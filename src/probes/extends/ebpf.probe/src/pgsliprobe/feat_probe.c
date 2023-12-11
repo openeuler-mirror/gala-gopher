@@ -32,8 +32,10 @@ static int probe_features()
     if (__probe.is_probed) {
         return 0;
     }
+    INIT_OPEN_OPTS(feat_probe);
+    PREPARE_CUSTOM_BTF(feat_probe);
+    OPEN_OPTS(feat_probe, out, true);
 
-    OPEN(feat_probe, out, true);
     LOAD_ATTACH(pgsliprobe, feat_probe, out, true);
 
     /* Invoke feature probe BPF program */

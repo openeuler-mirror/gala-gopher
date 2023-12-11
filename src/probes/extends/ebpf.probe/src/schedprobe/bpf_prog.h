@@ -35,7 +35,9 @@
 #define RM_SCHED_PATH              "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__sched*"
 
 #define __LOAD_SCHED_LATENCY(probe_name, end, load) \
-    OPEN(probe_name, end, load); \
+    INIT_OPEN_OPTS(probe_name); \
+    PREPARE_CUSTOM_BTF(probe_name); \
+    OPEN_OPTS(probe_name, end, load); \
     MAP_SET_PIN_PATH(probe_name, sched_args_map, SCHED_ARGS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, sched_report_channel_map, SCHED_REPORT_CHANNEL_PATH, load); \
     LOAD_ATTACH(schedprobe, probe_name, end, load)

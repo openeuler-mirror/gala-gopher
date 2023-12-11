@@ -204,7 +204,11 @@ static int load_lvs_bpf_prog()
         return -1;
     }
 
-    LOAD(trace_lvs, trace_lvs, err);
+    INIT_OPEN_OPTS(trace_lvs);
+    PREPARE_CUSTOM_BTF(trace_lvs);
+    OPEN_OPTS(trace_lvs, err, 1);
+
+    LOAD_ATTACH(trace_lvs, trace_lvs, err, 1);
     prog->skels[prog->num].skel = trace_lvs_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)trace_lvs_bpf__destroy;
     prog->num++;
@@ -220,6 +224,7 @@ static int load_lvs_bpf_prog()
     return 0;
 err:
     UNLOAD(trace_lvs);
+    CLEANUP_CUSTOM_BTF(trace_lvs);
     unload_bpf_prog(&prog);
     return -1;
 }
