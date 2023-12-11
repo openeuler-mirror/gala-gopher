@@ -169,7 +169,7 @@ static __always_inline int get_py_stack(struct py_sample *py_sample, struct py_p
                 break;
             }
             sym_id = get_py_symbol_id(&py_sym, py_sample);
-            py_event->py_stack.stack[py_event->py_stack.stack_len & MAX_PYTHON_STACK_DEPTH_32] = sym_id;
+            py_event->py_stack.stack[py_event->py_stack.stack_len & (MAX_PYTHON_STACK_DEPTH_MAX - 1)] = sym_id;
             py_event->py_stack.stack_len++;
         }
     } else {
@@ -182,7 +182,7 @@ static __always_inline int get_py_stack(struct py_sample *py_sample, struct py_p
                 break;
             }
             sym_id = get_py_symbol_id(&py_sym, py_sample);
-            py_event->py_stack.stack[py_event->py_stack.stack_len & MAX_PYTHON_STACK_DEPTH_16] = sym_id;
+            py_event->py_stack.stack[py_event->py_stack.stack_len & (MAX_PYTHON_STACK_DEPTH_MAX - 1)] = sym_id;
             py_event->py_stack.stack_len++;
         }
     }
