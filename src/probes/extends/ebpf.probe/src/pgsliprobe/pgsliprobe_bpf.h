@@ -15,6 +15,8 @@
 #ifndef __PGSLIPROBE_BPF_H__
 #define __PGSLIPROBE_BPF_H__
 
+#include "feat_probe.h"
+
 #ifndef __PERIOD
 #define __PERIOD NS(30)
 #endif
@@ -22,13 +24,6 @@
 #define MAX_MSG_LEN_SSL 32
 #define MAX_COMMAND_REQ_SIZE (32 - 1)
 #define MAX_CONN_LEN            8192
-
-#define BPF_F_INDEX_MASK    0xffffffffULL
-#define BPF_F_ALL_CPU   BPF_F_INDEX_MASK
-
-#ifndef __PERF_OUT_MAX
-#define __PERF_OUT_MAX (64)
-#endif
 
 enum samp_status_t {
     SAMP_INIT = 0,
@@ -87,10 +82,8 @@ struct {
 } conn_samp_map SEC(".maps");
 
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, __PERF_OUT_MAX);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } output SEC(".maps");
 
 static __always_inline void sample_finished(struct conn_data_t *conn_data, struct conn_samp_data_t *csd)
@@ -130,9 +123,9 @@ static __always_inline char read_first_byte_from_buf(const char *ori_buf, int or
     if (ori_buf == NULL) {
         return 0;
     }
-    bpf_probe_read(&buf, sizeof(const char*), &ori_buf);
+    bpf_core_read(&buf, sizeof(const char*), &ori_buf);
     len = ori_len < MAX_MSG_LEN_SSL ? (ori_len & (MAX_MSG_LEN_SSL - 1)) : MAX_MSG_LEN_SSL;
-    bpf_probe_read_user(msg, len, buf);
+    bpf_core_read_user(msg, len, buf);
     if (rw_type == MSG_READ) {
         if (msg[0] == 'B' || msg[0] == 'Q')
             return msg[0];
@@ -163,8 +156,7 @@ static __always_inline void periodic_report(u64 ts_nsec, struct conn_data_t *con
             msg_evt_data.conn_info = conn_data->conn_info;
             msg_evt_data.latency = conn_data->latency;
             msg_evt_data.max = conn_data->max;
-            err = bpf_perf_event_output(ctx, &output, BPF_F_ALL_CPU,
-                                        &msg_evt_data, sizeof(struct msg_event_data_t));
+            err = bpfbuf_output(ctx, &output, &msg_evt_data, sizeof(struct msg_event_data_t));
             if (err < 0) {
                 bpf_printk("message event sent failed.\n");
             }
@@ -224,13 +216,13 @@ static __always_inline void process_rdwr_msg(int fd, const char *buf, int count,
         }
         csd->req_cmd = cmd;
 
-#ifndef KERNEL_SUPPORT_TSTAMP
-        csd->start_ts_nsec = ts_nsec;
-#else
-        if (csd->start_ts_nsec == 0) {
+        if (!probe_tstamp()) {
             csd->start_ts_nsec = ts_nsec;
+        } else {
+            if (csd->start_ts_nsec == 0) {
+                csd->start_ts_nsec = ts_nsec;
+            }
         }
-#endif
         csd->status = SAMP_READ_READY;
     } else {  // MSG_WRITE
         if (csd->status == SAMP_READ_READY) {

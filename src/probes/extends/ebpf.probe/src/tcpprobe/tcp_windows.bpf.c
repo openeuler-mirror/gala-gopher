@@ -41,7 +41,7 @@ static __always_inline char is_tmout_win(struct sock *sk)
 static __always_inline void report_windows(void *ctx, struct tcp_metrics_s *metrics)
 {
     metrics->report_flags |= TCP_PROBE_WINDOWS;
-    (void)bpf_perf_event_output(ctx, &tcp_output, BPF_F_CURRENT_CPU, metrics, sizeof(struct tcp_metrics_s));
+    (void)bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
 
     metrics->report_flags &= ~TCP_PROBE_WINDOWS;
     //__builtin_memset(&(metrics->win_stats), 0x0, sizeof(metrics->win_stats));
@@ -125,21 +125,21 @@ static void tcp_wnd_probe_func(void *ctx, struct sock *sk)
         }
     }
 }
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
+
 KRAWTRACE(tcp_rcv_space_adjust, bpf_raw_tracepoint_args)
 {
     struct sock *sk = (struct sock*)ctx->args[0];
     tcp_wnd_probe_func(ctx, sk);
     return 0;
 }
-#elif (CURRENT_KERNEL_VERSION < KERNEL_VERSION(4, 13, 0))
+
 KPROBE(tcp_rcv_space_adjust, pt_regs)
 {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     tcp_wnd_probe_func(ctx, sk);
     return 0;
 }
-#else
+
 SEC("tracepoint/tcp/tcp_rcv_space_adjust")
 int bpf_trace_tcp_rcv_space_adjust_func(struct trace_event_raw_tcp_event_sk_skb *ctx)
 {
@@ -147,4 +147,3 @@ int bpf_trace_tcp_rcv_space_adjust_func(struct trace_event_raw_tcp_event_sk_skb 
     tcp_wnd_probe_func(ctx, sk);
     return 0;
 }
-#endif

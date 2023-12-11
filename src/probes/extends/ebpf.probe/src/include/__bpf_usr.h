@@ -31,7 +31,7 @@
 #define _(P)                                        \
     ({                                              \
         typeof(P) val;                              \
-        bpf_probe_read_user((unsigned char *)&val, sizeof(val), (const void *)&P); \
+        bpf_core_read_user((unsigned char *)&val, sizeof(val), (const void *)&P); \
         val;                                        \
     })
 

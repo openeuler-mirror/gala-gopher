@@ -27,6 +27,8 @@
 #include "gopher_elf.h"
 #include "object.h"
 #include "common.h"
+#include "core_btf.h"
+#include "__compat.h"
 
 #define EBPF_RLIM_LIMITED  100*1024*1024 // 100M
 #define EBPF_RLIM_INFINITY (~0UL)
@@ -147,15 +149,15 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
         INFO("Succeed to load and attach BPF " #probe_name " skeleton\n"); \
     } while (0)
 
-#define OPEN(probe_name, end, load) \
+#define __OPEN_OPTS(probe_name, end, load, opts) \
     struct probe_name##_bpf *probe_name##_skel = NULL;           \
-    struct bpf_link *probe_name##_link[PATH_NUM] __maybe_unused; \
+    struct bpf_link *probe_name##_link[PATH_NUM] __maybe_unused = {NULL}; \
     int probe_name##_link_current = 0;    \
     do { \
         if (load) \
         {\
             /* Open load and verify BPF application */ \
-            probe_name##_skel = probe_name##_bpf__open(); \
+            probe_name##_skel = probe_name##_bpf__open_opts(opts); \
             if (!probe_name##_skel) { \
                 ERROR("Failed to open BPF " #probe_name " skeleton\n"); \
                 goto end; \
@@ -163,11 +165,25 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
         }\
     } while (0)
 
+#define OPEN(probe_name, end, load) __OPEN_OPTS(probe_name, end, load, NULL)
+
+#define OPEN_OPTS(probe_name, end, load) __OPEN_OPTS(probe_name, end, load, &probe_name##_open_opts)
+
 #define MAP_SET_PIN_PATH(probe_name, map_name, map_path, load) \
     do { \
         if (load) \
         { \
             __MAP_SET_PIN_PATH(probe_name, map_name, map_path); \
+        } \
+    } while (0)
+
+#define MAP_INIT_BPF_BUFFER(probe_name, map_name, buffer, load) \
+    do { \
+        if (load) { \
+            buffer = bpf_buffer__new(probe_name##_skel->maps.map_name, probe_name##_skel->maps.heap); \
+            if (buffer == NULL) { \
+                ERROR("Failed to initialize bpf_buffer for " #map_name " in " #probe_name "\n"); \
+            } \
         } \
     } while (0)
 
@@ -349,6 +365,37 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
         succeed = 1; \
     } while (0)
 
+#define INIT_OPEN_OPTS(probe_name) \
+    LIBBPF_OPTS(bpf_object_open_opts, probe_name##_open_opts)
+
+#define PREPARE_CUSTOM_BTF(probe_name) \
+    do { \
+        int err; \
+        err = ensure_core_btf(&probe_name##_open_opts); \
+        if (err) { \
+            WARN("Failed to prepare custom BTF for " #probe_name ": %d; will use system BTF (if existent) instead\n", err); \
+        } else {\
+            if (probe_name##_open_opts.btf_custom_path) { \
+                INFO("Succeed to prepare custom BTF for " #probe_name ": %s\n", probe_name##_open_opts.btf_custom_path); \
+            } else { \
+                INFO("Succeed to prepare default BTF for " #probe_name "\n"); \
+            } \
+        } \
+    } while (0)
+
+#define CLEANUP_CUSTOM_BTF(probe_name) \
+    cleanup_core_btf(&probe_name##_open_opts)
+
+#define PROG_ENABLE_ONLY_IF(probe_name, prog_name, condition) \
+    do { \
+        int err; \
+        typeof(condition) __condition = (condition); \
+        if ((err = bpf_program__set_autoload(probe_name##_skel->progs.prog_name, __condition))) { \
+            WARN("Failed to %s BPF " #probe_name " program " #prog_name " (%d)\n", __condition ? "enable" : "disable", err); \
+        } else { \
+            DEBUG("%s BPF " #probe_name " program " #prog_name "\n", __condition ? "Enabled" : "Disabled"); \
+        } \
+    } while (0)
 
 static __always_inline __maybe_unused struct perf_buffer* __do_create_pref_buffer2(int map_fd,
                 perf_buffer_sample_fn cb, perf_buffer_lost_fn lost_cb, void *ctx)
@@ -452,9 +499,12 @@ struct __bpf_skel_s {
 struct bpf_prog_s {
     struct perf_buffer* pb;
     struct ring_buffer* rb;
+    struct bpf_buffer *buffer;
     struct perf_buffer* pbs[SKEL_MAX_NUM];
     struct ring_buffer* rbs[SKEL_MAX_NUM];
+    struct bpf_buffer *buffers[SKEL_MAX_NUM];
     struct __bpf_skel_s skels[SKEL_MAX_NUM];
+    const char *custom_btf_paths[SKEL_MAX_NUM];
     size_t num;
 };
 
@@ -503,6 +553,12 @@ static __always_inline __maybe_unused void unload_bpf_prog(struct bpf_prog_s **u
             ring_buffer__free(prog->rbs[i]);
         }
 #endif
+
+        if (prog->buffers[i]) {
+            bpf_buffer__free(prog->buffers[i]);
+        }
+
+        free((char *)prog->custom_btf_paths[i]);
     }
 
     if (prog->pb) {
@@ -514,6 +570,10 @@ static __always_inline __maybe_unused void unload_bpf_prog(struct bpf_prog_s **u
         ring_buffer__free(prog->rb);
     }
 #endif
+
+    if (prog->buffer) {
+        bpf_buffer__free(prog->buffer);
+    }
 
     free_bpf_prog(prog);
     return;

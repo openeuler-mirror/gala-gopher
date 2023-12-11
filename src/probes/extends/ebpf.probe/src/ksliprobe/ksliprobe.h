@@ -30,10 +30,6 @@
 #define SLI_OK       0
 #define SLI_ERR      (-1)
 
-#if ((CURRENT_KERNEL_VERSION == KERNEL_VERSION(4, 18, 0)) || (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(5, 10, 0)))
-#define KERNEL_SUPPORT_TSTAMP
-#endif
-
 struct ksli_args_s {
     __u64 period;        // Sampling period, unit ns
     char continuous_sampling_flag;   // Enables the sampling of max sli within a period (which cause some performance degradation)

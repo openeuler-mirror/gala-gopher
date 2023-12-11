@@ -39,6 +39,7 @@
 #include "tc_loader.h"
 #include "tcpprobe.h"
 #include "tcp_tracker.h"
+#include "feat_probe.h"
 
 #define UNLOAD_TCP_FD_PROBE (120)   // 2 min
 
@@ -95,10 +96,13 @@ static void unload_tcp_snoopers(int fd, struct ipc_body_s *ipc_body)
 
 static void reload_tc_bpf(struct ipc_body_s* ipc_body)
 {
-#ifdef KERNEL_SUPPORT_TSTAMP
     char is_loaded = 0;
     char need_load = 0;
     char is_dev_changed = 0;
+
+    if (!probe_tstamp()) {
+        return;
+    }
 
     if (g_tcp_mng.ipc_body.probe_flags & PROBE_RANGE_TCP_DELAY) {
         is_loaded = 1;
@@ -116,8 +120,6 @@ static void reload_tc_bpf(struct ipc_body_s* ipc_body)
     if (need_load && (!is_loaded || is_dev_changed)) {
         load_tc_bpf(ipc_body->probe_param.target_dev, TC_PROG, TC_TYPE_INGRESS);
     }
-#endif
-    return;
 }
 
 static char is_need_aging(struct tcp_mng_s *tcp_mng)
@@ -205,6 +207,9 @@ int main(int argc, char **argv)
     struct tcp_mng_s *tcp_mng = &g_tcp_mng;
     FILE *fp = NULL;
     struct ipc_body_s ipc_body;
+    bool supports_tstamp;
+
+    supports_tstamp = probe_tstamp();
 
     fp = popen(RM_MAP_PATH, "r");
     if (fp != NULL) {
@@ -235,9 +240,9 @@ int main(int argc, char **argv)
 
     INIT_BPF_APP(tcpprobe, EBPF_RLIM_LIMITED);
 
-#ifndef KERNEL_SUPPORT_TSTAMP
-    INFO("[TCPPROBE]: The kernel version does not support loading the tc tstamp program\n");
-#endif
+    if (!supports_tstamp) {
+        INFO("[TCPPROBE]: The kernel version does not support loading the tc tstamp program\n");
+    }
     INFO("[TCPPROBE]: Starting to load established tcp...\n");
 
     ret = tcp_load_fd_probe();
@@ -286,9 +291,9 @@ int main(int argc, char **argv)
             }
 
             for (int i = 0; i < tcp_mng->tcp_progs->num && i < SKEL_MAX_NUM; i++) {
-                if (tcp_mng->tcp_progs->pbs[i] &&
-                    (err = perf_buffer__poll(tcp_mng->tcp_progs->pbs[i], THOUSAND)) < 0 &&
-                    err != -EINTR) {
+                if (tcp_mng->tcp_progs->buffers[i]
+                    && ((err = bpf_buffer__poll(tcp_mng->tcp_progs->buffers[i], THOUSAND)) < 0)
+                    && err != -EINTR) {
                     ERROR("[TCPPROBE]: perf poll prog_%d failed.\n", i);
                     break;
                 }
@@ -309,9 +314,9 @@ int main(int argc, char **argv)
 
 err:
     unload_bpf_prog(&(tcp_mng->tcp_progs));
-#ifdef KERNEL_SUPPORT_TSTAMP
-    offload_tc_bpf(TC_TYPE_INGRESS);
-#endif
+    if (supports_tstamp) {
+        offload_tc_bpf(TC_TYPE_INGRESS);
+    }
     destroy_ipc_body(&(tcp_mng->ipc_body));
     destroy_tcp_trackers(tcp_mng);
     destroy_tcp_flow_trackers(tcp_mng);

@@ -1466,7 +1466,7 @@ static void __rcv_snooper_proc_exit(struct probe_mng_s *probe_mng, u32 proc_id)
     }
 }
 
-static void rcv_snooper_proc_evt(void *ctx, int cpu, void *data, __u32 size)
+static int rcv_snooper_proc_evt(void *ctx, void *data, __u32 size)
 {
     struct snooper_proc_evt_s *evt = data;
     char comm[TASK_COMM_LEN];
@@ -1487,7 +1487,9 @@ static void rcv_snooper_proc_evt(void *ctx, int cpu, void *data, __u32 size)
         __rcv_snooper_proc_exit(__probe_mng_snooper, (u32)evt->pid);
     }
     put_probemng_lock();
+    return 0;
 }
+
 static char __rcv_snooper_cgrp_exec_sub(struct probe_s *probe, struct con_info_s *con_info)
 {
     char snooper_obj_added = 0;
@@ -1577,7 +1579,7 @@ static void __rcv_snooper_cgrp_exit(struct probe_mng_s *probe_mng, char *pod_id,
     }
 }
 
-static void rcv_snooper_cgrp_evt(void *ctx, int cpu, void *data, __u32 size)
+static int rcv_snooper_cgrp_evt(void *ctx, void *data, __u32 size)
 {
     struct snooper_cgrp_evt_s *msg_data = (struct snooper_cgrp_evt_s *)data;
 
@@ -1586,7 +1588,7 @@ static void rcv_snooper_cgrp_evt(void *ctx, int cpu, void *data, __u32 size)
     enum id_ret_t id_ret = get_pod_container_id(msg_data->cgrp_path, pod_id, con_id);
 
     if (id_ret == ID_FAILED) {
-        return;
+        return 0;
     }
 
     if (msg_data->cgrp_event == CGRP_MK) {
@@ -1605,7 +1607,7 @@ static void rcv_snooper_cgrp_evt(void *ctx, int cpu, void *data, __u32 size)
         }
     }
 
-    return;
+    return 0;
 }
 
 static void loss_data(void *ctx, int cpu, u64 cnt)
@@ -1617,16 +1619,46 @@ int load_snooper_bpf(struct probe_mng_s *probe_mng)
 {
     int ret = 0;
     struct snooper_bpf *snooper_skel;
+    struct bpf_buffer *proc_buf = NULL, *cgrp_buf = NULL;
+    int kern_ver = probe_kernel_version();
+
+    LIBBPF_OPTS(bpf_object_open_opts, opts);
+    ensure_core_btf(&opts);
 
     __probe_mng_snooper = probe_mng;
 
     INIT_BPF_APP(snooper, EBPF_RLIM_LIMITED);
 
     /* Open load and verify BPF application */
-    snooper_skel = snooper_bpf__open();
+    snooper_skel = snooper_bpf__open_opts(&opts);
     if (!snooper_skel) {
         ret = -1;
         ERROR("Failed to open BPF snooper_skel.\n");
+        goto end;
+    }
+
+    int attach_tracepoint = (kern_ver > KERNEL_VERSION(4, 18, 0));
+    PROG_ENABLE_ONLY_IF(snooper, bpf_raw_trace_sched_process_fork, attach_tracepoint);
+    PROG_ENABLE_ONLY_IF(snooper, bpf_raw_trace_sched_process_exec, attach_tracepoint);
+    PROG_ENABLE_ONLY_IF(snooper, bpf_raw_trace_sched_process_exit, attach_tracepoint);
+    PROG_ENABLE_ONLY_IF(snooper, bpf_raw_trace_cgroup_mkdir, attach_tracepoint);
+    PROG_ENABLE_ONLY_IF(snooper, bpf_raw_trace_cgroup_rmdir, attach_tracepoint);
+
+    PROG_ENABLE_ONLY_IF(snooper, bpf_wake_up_new_task, !attach_tracepoint);
+    PROG_ENABLE_ONLY_IF(snooper, bpf_trace_sched_process_fork_func, !attach_tracepoint);
+    PROG_ENABLE_ONLY_IF(snooper, bpf_trace_sched_process_exec_func, !attach_tracepoint);
+    PROG_ENABLE_ONLY_IF(snooper, bpf_trace_sched_process_exit_func, !attach_tracepoint);
+    PROG_ENABLE_ONLY_IF(snooper, bpf_trace_cgroup_mkdir_func, !attach_tracepoint);
+    PROG_ENABLE_ONLY_IF(snooper, bpf_trace_cgroup_rmdir_func, !attach_tracepoint);
+
+    proc_buf = bpf_buffer__new(snooper_skel->maps.snooper_proc_channel, snooper_skel->maps.heap);
+    if (proc_buf == NULL) {
+        goto end;
+    }
+
+    cgrp_buf = bpf_buffer__new(snooper_skel->maps.snooper_cgrp_channel, snooper_skel->maps.heap);
+    if (cgrp_buf == NULL) {
+        ret = -1;
         goto end;
     }
 
@@ -1644,16 +1676,24 @@ int load_snooper_bpf(struct probe_mng_s *probe_mng)
     }
     INFO("Succeed to load and attach BPF snooper_skel.\n");
 
-    probe_mng->snooper_proc_pb = create_pref_buffer2(GET_MAP_FD(snooper, snooper_proc_channel),
-                                                        rcv_snooper_proc_evt, loss_data);
-    probe_mng->snooper_cgrp_pb = create_pref_buffer2(GET_MAP_FD(snooper, snooper_cgrp_channel),
-                                                        rcv_snooper_cgrp_evt, loss_data);
-    probe_mng->snooper_skel = snooper_skel;
-
-    if (probe_mng->snooper_proc_pb == NULL || probe_mng->snooper_cgrp_pb == NULL) {
-        ret = -1;
+    ret = bpf_buffer__open(proc_buf, rcv_snooper_proc_evt, loss_data, NULL);
+    if (ret) {
+        ERROR("[SNOOPER] Open 'snooper_proc_channel' bpf_buffer failed.\n");
+        bpf_buffer__free(proc_buf);
         goto end;
     }
+    probe_mng->snooper_proc_pb = proc_buf;
+
+    ret = bpf_buffer__open(cgrp_buf, rcv_snooper_cgrp_evt, loss_data, NULL);
+    if (ret) {
+        ERROR("[SNOOPER] Open 'snooper_cgrp_channel' bpf_buffer failed.\n");
+        bpf_buffer__free(cgrp_buf);
+        goto end;
+    }
+    probe_mng->snooper_cgrp_pb = cgrp_buf;
+
+    probe_mng->snooper_skel = snooper_skel;
+    probe_mng->btf_custom_path = opts.btf_custom_path;
 
     return 0;
 
@@ -1663,12 +1703,14 @@ end:
         probe_mng->snooper_skel = NULL;
     }
 
+    cleanup_core_btf(&opts);
+
     if (probe_mng->snooper_proc_pb) {
-        perf_buffer__free(probe_mng->snooper_proc_pb);
+        bpf_buffer__free((struct bpf_buffer *)probe_mng->snooper_proc_pb);
         probe_mng->snooper_proc_pb = NULL;
     }
     if (probe_mng->snooper_cgrp_pb) {
-        perf_buffer__free(probe_mng->snooper_cgrp_pb);
+        bpf_buffer__free((struct bpf_buffer *)probe_mng->snooper_cgrp_pb);
         probe_mng->snooper_cgrp_pb = NULL;
     }
     return ret;
@@ -1681,12 +1723,17 @@ void unload_snooper_bpf(struct probe_mng_s *probe_mng)
         probe_mng->snooper_skel = NULL;
     }
 
+    if (probe_mng->btf_custom_path) {
+        free((char *)probe_mng->btf_custom_path);
+        probe_mng->btf_custom_path = NULL;
+    }
+
     if (probe_mng->snooper_proc_pb) {
-        perf_buffer__free(probe_mng->snooper_proc_pb);
+        bpf_buffer__free((struct bpf_buffer *)probe_mng->snooper_proc_pb);
         probe_mng->snooper_proc_pb = NULL;
     }
     if (probe_mng->snooper_cgrp_pb) {
-        perf_buffer__free(probe_mng->snooper_cgrp_pb);
+        bpf_buffer__free((struct bpf_buffer *)probe_mng->snooper_cgrp_pb);
         probe_mng->snooper_cgrp_pb = NULL;
     }
     __probe_mng_snooper = NULL;

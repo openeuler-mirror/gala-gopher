@@ -87,6 +87,7 @@ SET(SOURCES main.c daemon.c
     ${COMMON_DIR}/ipc.c
     ${COMMON_DIR}/strbuf.c
     ${COMMON_DIR}/histogram.c
+    ${COMMON_DIR}/core_btf.c
 
     ${RESTAPI_DIR}/rest_server.c
     ${EBPF_PROBE_DIR}/src/lib/java_support.c

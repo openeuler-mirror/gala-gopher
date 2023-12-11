@@ -79,17 +79,13 @@ struct sys_enter_munmap_args {
 };
 
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, MAX_CPU);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } stackmap_perf_a SEC(".maps");
 
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, MAX_CPU);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } stackmap_perf_b SEC(".maps");
 
 // memory to be allocated for the process
@@ -120,11 +116,12 @@ static __always_inline u64 get_real_start_time()
     if (task) {
         struct task_struct* group_leader = _(task->group_leader);
         if (group_leader) {
-#if (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(5, 10, 0))
-        return _(group_leader->start_boottime);
-#else
-        return _(group_leader->real_start_time);
-#endif
+            if (bpf_core_field_exists(((struct task_struct *)0)->start_boottime)) {
+                return _(group_leader->start_boottime);
+            }
+            if (bpf_core_field_exists(((struct task_struct *)0)->real_start_time)) {
+                return _(group_leader->real_start_time);
+            }
         }
     }
     return 0;
@@ -170,9 +167,9 @@ static inline void update_statistics(void *ctx, char stackmap_cur, s64 count, st
     };
 
     if (stackmap_cur) {
-        (void)bpf_perf_event_output(ctx, &stackmap_perf_a, BPF_F_CURRENT_CPU, &raw_trace, sizeof(raw_trace));
+        (void)bpfbuf_output(ctx, &stackmap_perf_a, &raw_trace, sizeof(raw_trace));
     } else {
-        (void)bpf_perf_event_output(ctx, &stackmap_perf_b, BPF_F_CURRENT_CPU, &raw_trace, sizeof(raw_trace));
+        (void)bpfbuf_output(ctx, &stackmap_perf_b, &raw_trace, sizeof(raw_trace));
     }
 }
 

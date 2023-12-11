@@ -19,26 +19,14 @@
 #include "common.h"
 #include "snooper_bpf.h"
 
-#define CURRENT_KERNEL_VERSION KERNEL_VERSION(KER_VER_MAJOR, KER_VER_MINOR, KER_VER_PATCH)
-
-#define LIBBPF_VERSION(a, b) (((a) << 8) + (b))
-#define CURRENT_LIBBPF_VERSION LIBBPF_VERSION(LIBBPF_VER_MAJOR, LIBBPF_VER_MINOR)
-
 #include "__bpf_kern.h"
+#include "__compat.h"
 
 char g_linsence[] SEC("license") = "GPL";
 
-#define BPF_F_INDEX_MASK    0xffffffffULL
-#define BPF_F_ALL_CPU   BPF_F_INDEX_MASK
-
-#ifndef __PERF_OUT_MAX
-#define __PERF_OUT_MAX (64)
-#endif
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, __PERF_OUT_MAX);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } snooper_proc_channel SEC(".maps");
 
 static __always_inline void process_new_forked_task(struct task_struct *child, void *ctx)
@@ -53,13 +41,11 @@ static __always_inline void process_new_forked_task(struct task_struct *child, v
 
     event.pid = pid;
     event.proc_event = PROC_EXEC;
-    bpf_probe_read_str(event.filename, sizeof(child->comm), child->comm);
+    bpf_core_read_str(event.filename, sizeof(child->comm), &child->comm);
 
-    bpf_perf_event_output(ctx, &snooper_proc_channel, BPF_F_ALL_CPU,
-                          &event, sizeof(event));
+    bpfbuf_output(ctx, &snooper_proc_channel, &event, sizeof(event));
 }
 
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(sched_process_fork, bpf_raw_tracepoint_args)
 {
     struct task_struct *child = (struct task_struct *)ctx->args[1];
@@ -67,7 +53,7 @@ KRAWTRACE(sched_process_fork, bpf_raw_tracepoint_args)
     process_new_forked_task(child, ctx);
     return 0;
 }
-#else
+
 KPROBE(wake_up_new_task, pt_regs)
 {
     struct task_struct *child = (struct task_struct *)PT_REGS_PARM1(ctx);
@@ -85,13 +71,10 @@ int bpf_trace_sched_process_fork_func(struct trace_event_raw_sched_process_fork 
     event.proc_event = PROC_EXEC;
     __builtin_memcpy(event.filename, ctx->child_comm, sizeof(ctx->child_comm));
 
-    bpf_perf_event_output(ctx, &snooper_proc_channel, BPF_F_ALL_CPU,
-                          &event, sizeof(event));
+    bpfbuf_output(ctx, &snooper_proc_channel, &event, sizeof(event));
     return 0;
 }
-#endif
 
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(sched_process_exec, bpf_raw_tracepoint_args)
 {
     struct snooper_proc_evt_s event = {0};
@@ -102,13 +85,12 @@ KRAWTRACE(sched_process_exec, bpf_raw_tracepoint_args)
 
     event.pid = (u32)pid;
     event.proc_event = PROC_EXEC;
-    bpf_probe_read(&event.filename, PATH_LEN, filename);
+    bpf_core_read(&event.filename, PATH_LEN, filename);
 
-    bpf_perf_event_output(ctx, &snooper_proc_channel, BPF_F_ALL_CPU,
-                          &event, sizeof(event));
+    bpfbuf_output(ctx, &snooper_proc_channel, &event, sizeof(event));
     return 0;
 }
-#else
+
 SEC("tracepoint/sched/sched_process_exec")
 int bpf_trace_sched_process_exec_func(struct trace_event_raw_sched_process_exec *ctx)
 {
@@ -117,15 +99,12 @@ int bpf_trace_sched_process_exec_func(struct trace_event_raw_sched_process_exec 
 
     event.pid = bpf_get_current_pid_tgid() >> 32;
     event.proc_event = PROC_EXEC;
-    bpf_probe_read_str(&event.filename, sizeof(event.filename), (void *)ctx + fname_off);
+    bpf_core_read_str(&event.filename, sizeof(event.filename), (void *)ctx + fname_off);
 
-    bpf_perf_event_output(ctx, &snooper_proc_channel, BPF_F_ALL_CPU,
-                          &event, sizeof(event));
+    bpfbuf_output(ctx, &snooper_proc_channel, &event, sizeof(event));
     return 0;
 }
-#endif
 
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(sched_process_exit, bpf_raw_tracepoint_args)
 {
     struct snooper_proc_evt_s event = {0};
@@ -141,11 +120,10 @@ KRAWTRACE(sched_process_exit, bpf_raw_tracepoint_args)
     event.pid = (u32)pid;
     event.proc_event = PROC_EXIT;
 
-    bpf_perf_event_output(ctx, &snooper_proc_channel, BPF_F_ALL_CPU,
-                          &event, sizeof(event));
+    bpfbuf_output(ctx, &snooper_proc_channel, &event, sizeof(event));
     return 0;
 }
-#else
+
 SEC("tracepoint/sched/sched_process_exit")
 int bpf_trace_sched_process_exit_func(struct trace_event_raw_sched_process_template *ctx)
 {
@@ -154,17 +132,13 @@ int bpf_trace_sched_process_exit_func(struct trace_event_raw_sched_process_templ
     event.pid = bpf_get_current_pid_tgid() >> 32;
     event.proc_event = PROC_EXIT;
 
-    bpf_perf_event_output(ctx, &snooper_proc_channel, BPF_F_ALL_CPU,
-                          &event, sizeof(event));
+    bpfbuf_output(ctx, &snooper_proc_channel, &event, sizeof(event));
     return 0;
 }
-#endif
 
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, __PERF_OUT_MAX);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } snooper_cgrp_channel SEC(".maps");
 
 struct {
@@ -196,12 +170,11 @@ static __always_inline void report_cgrp_change(void *ctx, enum cgrp_event_t cgrp
         return;
 
     msg_data->cgrp_event = cgrp_event;
-    bpf_probe_read_str(msg_data->cgrp_path, MAX_CGRP_PATH, path);
+    bpf_core_read_str(msg_data->cgrp_path, MAX_CGRP_PATH, path);
 
-    (void)bpf_perf_event_output(ctx, &snooper_cgrp_channel, BPF_F_ALL_CPU, msg_data, sizeof(struct snooper_cgrp_evt_s));
+    (void)bpfbuf_output(ctx, &snooper_cgrp_channel, msg_data, sizeof(struct snooper_cgrp_evt_s));
 }
 
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(cgroup_mkdir, bpf_raw_tracepoint_args)
 {
     struct cgroup *cgrp = (struct cgroup *)ctx->args[0];
@@ -213,7 +186,7 @@ KRAWTRACE(cgroup_mkdir, bpf_raw_tracepoint_args)
     report_cgrp_change(ctx, CGRP_MK, path);
     return 0;
 }
-#else
+
 SEC("tracepoint/cgroup/cgroup_mkdir")
 int bpf_trace_cgroup_mkdir_func(struct trace_event_raw_cgroup *ctx)
 {
@@ -222,13 +195,11 @@ int bpf_trace_cgroup_mkdir_func(struct trace_event_raw_cgroup *ctx)
     if (root_id != 1)
         return 0;
 
-    const char *path = (const char *)ctx->__data_loc_path;
+    const char *path = (const char *)(u64)ctx->__data_loc_path;
     report_cgrp_change(ctx, CGRP_MK, path);
     return 0;
 }
-#endif
 
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(cgroup_rmdir, bpf_raw_tracepoint_args)
 {
     struct cgroup *cgrp = (struct cgroup *)ctx->args[0];
@@ -239,15 +210,12 @@ KRAWTRACE(cgroup_rmdir, bpf_raw_tracepoint_args)
     report_cgrp_change(ctx, CGRP_RM, path);
     return 0;
 }
-#else
+
 SEC("tracepoint/cgroup/cgroup_rmdir")
 int bpf_trace_cgroup_rmdir_func(struct trace_event_raw_cgroup *ctx)
 {
-    int root_id = (int)ctx->root; // cgrp->root->hierarchy_id
-
-    const char *path = (const char *)ctx->__data_loc_path;
+    const char *path = (const char *)(u64)ctx->__data_loc_path;
     report_cgrp_change(ctx, CGRP_RM, path);
     return 0;
 }
-#endif
 

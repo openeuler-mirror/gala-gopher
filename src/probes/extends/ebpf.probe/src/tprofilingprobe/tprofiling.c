@@ -87,6 +87,21 @@ static void clean_tprofiler();
 static int refresh_tprofiler(struct ipc_body_s *ipc_body);
 static void refresh_proc_filter_map(struct ipc_body_s *ipc_body);
 
+static int __poll_pb(struct bpf_prog_s* prog)
+{
+    int ret;
+
+    for (int i = 0; i < prog->num && i < SKEL_MAX_NUM; i++) {
+        if (prog->buffers[i]) {
+            ret = bpf_buffer__poll(prog->buffers[i], THOUSAND);
+            if (ret < 0 && ret != -EINTR) {
+                return ret;
+            }
+        }
+    }
+
+    return 0;
+}
 int main(int argc, char **argv)
 {
     int err = -1;
@@ -147,15 +162,12 @@ int main(int argc, char **argv)
             continue;
         }
 
-        if (syscall_bpf_progs && syscall_bpf_progs->pb != NULL) {
-            if ((err = perf_buffer__poll(syscall_bpf_progs->pb, THOUSAND)) < 0 && err != -EINTR) {
-                goto cleanup;
-            }
+        if (__poll_pb(syscall_bpf_progs)) {
+            goto cleanup;
         }
-        if (oncpu_bpf_progs && oncpu_bpf_progs->pb != NULL) {
-            if ((err = perf_buffer__poll(oncpu_bpf_progs->pb, THOUSAND)) < 0 && err != -EINTR) {
-                goto cleanup;
-            }
+
+        if (__poll_pb(oncpu_bpf_progs)) {
+            goto cleanup;
         }
     }
 

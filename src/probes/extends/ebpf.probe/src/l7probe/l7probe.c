@@ -319,25 +319,14 @@ static int __poll_l7_pb(struct bpf_prog_s* prog)
 {
     int ret;
 
-#ifdef __USE_RING_BUF
     for (int i = 0; i < prog->num && i < SKEL_MAX_NUM; i++) {
-        if (prog->rbs[i]) {
-            ret = ring_buffer__poll(prog->rbs[i], THOUSAND);
-            if (ret < 0) {
-                return ret;
-            }
-        }
-    }
-#else
-    for (int i = 0; i < prog->num && i < SKEL_MAX_NUM; i++) {
-        if (prog->pbs[i]) {
-            ret = perf_buffer__poll(prog->pbs[i], THOUSAND);
+        if (prog->buffers[i]) {
+            ret = bpf_buffer__poll(prog->buffers[i], THOUSAND);
             if (ret < 0 && ret != -EINTR) {
                 return ret;
             }
         }
     }
-#endif
 
     return 0;
 }

@@ -34,10 +34,8 @@ struct {
 } io_err_map SEC(".maps");
 
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, __PERF_OUT_MAX);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } io_err_channel_map SEC(".maps");
 
 struct block_rq_complete_args {
@@ -52,7 +50,7 @@ struct block_rq_complete_args {
 
 static __always_inline void report_io_err(void *ctx, struct io_err_s* io_err)
 {
-    (void)bpf_perf_event_output(ctx, &io_err_channel_map, BPF_F_ALL_CPU, io_err, sizeof(struct io_err_s));
+    (void)bpfbuf_output(ctx, &io_err_channel_map, io_err, sizeof(struct io_err_s));
 }
 
 static __always_inline int get_io_devt(struct request* req, int *major, int *minor)
@@ -63,12 +61,13 @@ static __always_inline int get_io_devt(struct request* req, int *major, int *min
         return -1;
     }
 
-#if (CURRENT_KERNEL_VERSION <= KERNEL_VERSION(5, 16, 0))
-    disk = _(req->rq_disk);
-#else
-    struct request_queue *q = _(req->q);
-    disk = _(q->disk);
-#endif
+    if (bpf_core_field_exists(((struct request *)0)->rq_disk)) {
+        disk = _(req->rq_disk);
+    } else {
+        struct request_queue *q = _(req->q);
+        disk = _(q->disk);
+    }
+
     if (disk == NULL) {
         return -1;
     }
@@ -140,7 +139,6 @@ int tracepoint_block_rq_complete(struct block_rq_complete_args *ctx)
     return 0;
 }
 
-#if (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(4, 12, 0)) && (CURRENT_KERNEL_VERSION < KERNEL_VERSION(6, 0, 0))
 /*
  * Raw tracepoint defined in modules is not supported in this version, so use kprobe as hook instead.
  *    scsi_dispatch_cmd_timeout --> scsi_times_out()
@@ -164,7 +162,7 @@ KPROBE(scsi_times_out, pt_regs)
     io_err->scsi_err = SCSI_ERR_TIMEOUT;
     return 0;
 }
-#else
+
 KPROBE(scsi_timeout, pt_regs)
 {
     int major, minor;
@@ -183,9 +181,7 @@ KPROBE(scsi_timeout, pt_regs)
     io_err->scsi_err = SCSI_ERR_TIMEOUT;
     return 0;
 }
-#endif
 
-#if (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(4, 12, 0)) && (CURRENT_KERNEL_VERSION < KERNEL_VERSION(4, 18, 0))
 KPROBE_RET(scsi_dispatch_cmd, pt_regs, CTX_KERNEL)
 {
     int major, minor;
@@ -230,9 +226,6 @@ KPROBE_RET(scsi_dispatch_cmd, pt_regs, CTX_KERNEL)
     io_err->scsi_err = ret;
     return 0;
 }
-#endif
-
-#if (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(4, 18, 0)) && (CURRENT_KERNEL_VERSION <= KERNEL_VERSION(5, 14, 0))
 
 KRAWTRACE(scsi_dispatch_cmd_error, bpf_raw_tracepoint_args)
 {
@@ -262,4 +255,3 @@ KRAWTRACE(scsi_dispatch_cmd_error, bpf_raw_tracepoint_args)
     io_err->scsi_err = scsi_err;
     return 0;
 }
-#endif

@@ -25,7 +25,7 @@ char g_linsence[] SEC("license") = "GPL";
 static __always_inline void report_srtt(void *ctx, struct tcp_metrics_s *metrics)
 {
     metrics->report_flags |= TCP_PROBE_SRTT;
-    (void)bpf_perf_event_output(ctx, &tcp_output, BPF_F_CURRENT_CPU, metrics, sizeof(struct tcp_metrics_s));
+    (void)bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
     metrics->report_flags &= ~TCP_PROBE_SRTT;
 }
 
@@ -57,8 +57,8 @@ static __always_inline int add_tcp_link(struct sock *sk, struct sock_info_s *inf
             link.c_ip = _(sk->sk_rcv_saddr);
             link.s_ip = _(sk->sk_daddr);
         } else {
-            (void)bpf_probe_read(&link.c_ip6, IP6_LEN, &sk->sk_v6_rcv_saddr);
-            (void)bpf_probe_read(&link.s_ip6, IP6_LEN, &sk->sk_v6_daddr);
+            BPF_CORE_READ_INTO(&link.c_ip6, sk, sk_v6_rcv_saddr);
+            BPF_CORE_READ_INTO(&link.s_ip6, sk, sk_v6_daddr);
         }
         link.s_port = bpf_ntohs(_(sk->sk_dport));
         link.c_port = _(sk->sk_num);
@@ -67,8 +67,8 @@ static __always_inline int add_tcp_link(struct sock *sk, struct sock_info_s *inf
             link.s_ip = _(sk->sk_rcv_saddr);
             link.c_ip = _(sk->sk_daddr);
         } else {
-            (void)bpf_probe_read(&link.s_ip6, IP6_LEN, &sk->sk_v6_rcv_saddr);
-            (void)bpf_probe_read(&link.c_ip6, IP6_LEN, &sk->sk_v6_daddr);
+            BPF_CORE_READ_INTO(&link.c_ip6, sk, sk_v6_rcv_saddr);
+            BPF_CORE_READ_INTO(&link.s_ip6, sk, sk_v6_daddr);
         }
         link.s_port = _(sk->sk_num);
         link.c_port = bpf_ntohs(_(sk->sk_dport));
@@ -115,28 +115,26 @@ KPROBE(tcp_set_state, pt_regs)
     return 0;
 }
 
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(tcp_destroy_sock, bpf_raw_tracepoint_args)
 {
     struct sock *sk = (struct sock *)ctx->args[0];
     delete_sock_obj(sk);
     return 0;
 }
-#elif (CURRENT_KERNEL_VERSION < KERNEL_VERSION(4, 13, 0))
+
 KPROBE(tcp_v4_destroy_sock, pt_regs)
 {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     delete_sock_obj(sk);
     return 0;
 }
-#else
+
 SEC("tracepoint/tcp/tcp_destroy_sock")
 void bpf_trace_tcp_destroy_sock_func(struct trace_event_raw_tcp_event_sk *ctx)
 {
     struct sock *sk = (struct sock *)ctx->skaddr;
     delete_sock_obj(sk);
 }
-#endif
 
 KPROBE(tcp_sendmsg, pt_regs)
 {

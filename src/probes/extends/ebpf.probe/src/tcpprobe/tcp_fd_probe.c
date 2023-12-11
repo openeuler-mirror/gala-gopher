@@ -39,21 +39,23 @@ static struct bpf_prog_s* fd_probe = NULL;
 int tcp_load_fd_probe(void)
 {
     struct bpf_prog_s *prog;
+    struct bpf_buffer *buffer = NULL;
 
     prog = alloc_bpf_prog();
     if (prog == NULL) {
         return -1;
     }
 
-    __LOAD_PROBE(tcp_fd, err, 1);
+    __OPEN_LOAD_PROBE_WITH_OUTPUT(tcp_fd, err, 1, buffer);
     prog->skels[prog->num].skel = tcp_fd_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)tcp_fd_bpf__destroy;
+    prog->custom_btf_paths[prog->num] = tcp_fd_open_opts.btf_custom_path;
     prog->num++;
 
     fd_probe = prog;
     return 0;
 err:
-    UNLOAD(tcp_fd);
+    __UNLOAD_PROBE(tcp_fd);
     return -1;
 }
 

@@ -29,6 +29,7 @@
 #include "__libbpf.h"
 #include "__share_map_match.h"
 #include "__obj_map.h"
-
+#include "__feat_probe.h"
+#include "__compat.h"
 
 #endif

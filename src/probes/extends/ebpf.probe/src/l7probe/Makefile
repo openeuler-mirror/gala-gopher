@@ -1,3 +1,7 @@
+# force BPF programs to use CO-RE helpers regardless of whether kernel BTF is
+# present in the build environment
+BTF_ENABLE_OVERRIDE := ON
+
 include ../mk/var.mk
 INCLUDES = $(BASE_INC)
 INCLUDES += -I$(ROOT_DIR)/../l7probe

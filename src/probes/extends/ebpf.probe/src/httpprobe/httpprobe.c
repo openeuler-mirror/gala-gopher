@@ -45,7 +45,9 @@
 #define HTTPD_SSL_PATH          "/etc/httpd/modules/mod_ssl.so"
 
 #define LOAD_HTTP_PROBE(probe_name, end, load) \
-    OPEN(probe_name, end, load); \
+    INIT_OPEN_OPTS(probe_name); \
+    PREPARE_CUSTOM_BTF(probe_name); \
+    OPEN_OPTS(probe_name, end, 1); \
     MAP_SET_PIN_PATH(probe_name, conn_map, HTTP_CONN_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, conn_samp_map, HTTP_CONN_SAMP_PATH, load); \
     LOAD_ATTACH(httpprobe, probe_name, end, load)
@@ -182,8 +184,10 @@ int main(int argc, char **argv)
     perf_buffer__free(pb);
 err3:
     UNLOAD(sslprobe);
+    CLEANUP_CUSTOM_BTF(sslprobe);
 err2:
     UNLOAD(kprobe);
+    CLEANUP_CUSTOM_BTF(kprobe);
 err1:
     return -1;
 }

@@ -24,7 +24,7 @@ struct KafkaConfig {
 };
 
 // loader.c
-struct bpf_object *load_link_pin(struct KafkaConfig *cfg);
+struct bpf_object *load_link_pin(struct KafkaConfig *cfg, char **btf_custom_path);
 int unpin_unlink_unload(struct KafkaConfig *cfg, struct bpf_object *obj);
 int open_bpf_map_file(struct KafkaConfig *cfg, const char *map_name, int *map_fd);
 int unlink_xdp(struct KafkaConfig *cfg);

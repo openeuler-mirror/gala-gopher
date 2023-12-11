@@ -80,27 +80,6 @@ function __add_bpftool()
 
 function __build_bpf()
 {
-	LINUX_VER="${VMLINUX_VER:-$(uname -r)}"
-	MATCH_VMLINUX=linux_${LINUX_VER}.h
-    cd ${VMLINUX_DIR}
-    if [ -f ${MATCH_VMLINUX} ];then
-        rm -f vmlinux.h
-        ln -s ${MATCH_VMLINUX} vmlinux.h
-        echo "debug: match vmlinux :" ${MATCH_VMLINUX}
-    elif [ -f "vmlinux.h" ];then
-        echo "debug: vmlinux.h is already here, continue compile."
-    else
-        echo "======================================ERROR==============================================="
-        echo "there no match vmlinux :" ${MATCH_VMLINUX}
-        echo "please create vmlinux.h manually."
-        echo "methods:"
-        echo "  1. generate linux_xxx.h by compile the kernel, refer to gen_vmlinux_h.sh;"
-        echo "  2. ln -s linux_xxx.h vmlinux.h, (there are some include files in directory src/include)"
-        echo "     if your kernel version is similar to the include files provided, you can use method 2"
-        echo "=========================================================================================="
-        exit
-    fi
-
 	__add_bpftool
     cd ${PROBE_MNG_FOLDER}
     make

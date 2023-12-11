@@ -87,12 +87,9 @@ struct {
     __uint(max_entries, __MAX_CONCURRENCY);
 } tcp_check_req_args SEC(".maps");
 
-#define __PERF_OUT_MAX (64)
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, __PERF_OUT_MAX);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } tcp_evt_map SEC(".maps");
 
 struct sock_info_s {
@@ -211,12 +208,9 @@ static __always_inline bool sk_synq_is_full(const struct sock *sk)
 {
     u32 max_ack_backlog = _(sk->sk_max_ack_backlog);
     struct inet_connection_sock *inet_csk = (struct inet_connection_sock *)sk;
-    struct request_sock_queue icsk_accept_queue = _(inet_csk->icsk_accept_queue);
+    int syn_qlen = BPF_CORE_READ(inet_csk, icsk_accept_queue.qlen.counter);
 
-    int syn_qlen;
-    bpf_probe_read(&syn_qlen, sizeof(int), &(icsk_accept_queue.qlen));
-
-    return syn_qlen >= max_ack_backlog;
+    return (u32)syn_qlen >= max_ack_backlog;
 }
 
 static __always_inline void get_listen_port_by_sock(const struct sock* listen_sk, struct tcp_listen_key_s *key)
@@ -243,7 +237,6 @@ static __always_inline int get_tgid_by_listen_sk(const struct sock* listen_sk, i
     return 0;
 }
 
-#if (CURRENT_LIBBPF_VERSION  >= LIBBPF_VERSION(0, 8))
 static __always_inline void get_connect_sockaddr(struct tcp_socket_event_s* evt, const struct sock* sk)
 {
     u16 family, server_port, client_port;
@@ -320,82 +313,6 @@ static __always_inline void get_request_sockaddr(struct tcp_socket_event_s* evt,
     }
     return;
 }
-#else
-static __always_inline void get_connect_sockaddr(struct tcp_socket_event_s* evt, const struct sock* sk)
-{
-    u16 family, server_port, client_port;
-
-    family = _(sk->__sk_common.skc_family);
-    evt->client_ipaddr.family = family;
-    evt->server_ipaddr.family = family;
-
-    server_port = bpf_ntohs(_(sk->sk_dport));
-    client_port = _(sk->sk_num);
-
-    evt->client_ipaddr.port = client_port;
-    evt->server_ipaddr.port = server_port;
-
-    if (family == AF_INET) {
-        evt->client_ipaddr.ip = _(sk->sk_rcv_saddr);
-        evt->server_ipaddr.ip = _(sk->sk_daddr);
-    } else {
-        (void)bpf_probe_read(&(evt->client_ipaddr.ip6), IP6_LEN, &sk->sk_v6_rcv_saddr);
-        (void)bpf_probe_read(&(evt->server_ipaddr.ip6), IP6_LEN, &sk->sk_v6_daddr);
-    }
-    return;
-}
-
-static __always_inline void get_accept_sockaddr(struct tcp_socket_event_s* evt, const struct sock* sk)
-{
-    u16 family, server_port, client_port;
-
-    family = _(sk->__sk_common.skc_family);
-
-    evt->client_ipaddr.family = family;
-    evt->server_ipaddr.family = family;
-
-    server_port = _(sk->sk_num);
-    client_port = bpf_ntohs(_(sk->sk_dport));
-
-    evt->client_ipaddr.port = client_port;
-    evt->server_ipaddr.port = server_port;
-
-    if (family == AF_INET) {
-        evt->server_ipaddr.ip = _(sk->sk_rcv_saddr);
-        evt->client_ipaddr.ip = _(sk->sk_daddr);
-    } else {
-        (void)bpf_probe_read(&(evt->server_ipaddr.ip6), IP6_LEN, &sk->sk_v6_rcv_saddr);
-        (void)bpf_probe_read(&(evt->client_ipaddr.ip6), IP6_LEN, &sk->sk_v6_daddr);
-    }
-    return;
-}
-
-static __always_inline void get_request_sockaddr(struct tcp_socket_event_s* evt, const struct request_sock* req)
-{
-    u16 family, server_port, client_port;
-
-    family = _(req->__req_common.skc_family);
-
-    evt->client_ipaddr.family = family;
-    evt->server_ipaddr.family = family;
-
-    server_port = _(req->__req_common.skc_num);
-    client_port = _(req->__req_common.skc_dport);
-    client_port = bpf_ntohs(client_port);
-
-    evt->client_ipaddr.port = client_port;
-    evt->server_ipaddr.port = server_port;
-
-    if (family == AF_INET) {
-        evt->client_ipaddr.ip = _(req->__req_common.skc_daddr);
-        evt->server_ipaddr.ip = _(req->__req_common.skc_rcv_saddr);
-    } else {
-        (void)bpf_probe_read(&(evt->server_ipaddr.ip6), IP6_LEN, &req->__req_common.skc_v6_rcv_saddr);
-        (void)bpf_probe_read(&(evt->client_ipaddr.ip6), IP6_LEN, &req->__req_common.skc_v6_daddr);
-    }
-    return;
-}
-#endif
 
 static __always_inline void report_synack_sent_evt(void *ctx, const struct sock* sk, const struct request_sock *req)
 {
@@ -415,7 +332,7 @@ static __always_inline void report_synack_sent_evt(void *ctx, const struct sock*
 
     // report;
     evt.role = TCP_SERVER;
-    (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+    (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
 }
 
 KPROBE(tcp_connect, pt_regs)
@@ -458,7 +375,7 @@ KRETPROBE(tcp_connect, pt_regs)
 
     // report;
     evt.role = TCP_CLIENT;
-    (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+    (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
 
 end:
     bpf_map_delete_elem(&tcp_connect_args, &id);
@@ -540,7 +457,7 @@ KPROBE(tcp_set_state, pt_regs)
             evt.estab_latency = curr_ts - info->syn_start_ts;
             info->syn_start_ts = 0;
         }
-        (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+        (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
     }
 
     if (new_state == TCP_CLOSE && old_state == TCP_SYN_SENT) {
@@ -550,7 +467,7 @@ KPROBE(tcp_set_state, pt_regs)
 
         // report;
         evt.role = TCP_CLIENT;
-        (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+        (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
     }
 
     if (new_state != TCP_ESTABLISHED && old_state == TCP_SYN_RECV) {
@@ -560,7 +477,7 @@ KPROBE(tcp_set_state, pt_regs)
 
         // report;
         evt.role = TCP_SERVER;
-        (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+        (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
     }
 
     if (new_state == TCP_CLOSE) {
@@ -731,9 +648,7 @@ KPROBE(tcp_conn_request, pt_regs)
 
     struct tcphdr *tcp_head = NULL;
     u16 port = 0;
-    u16 protocol = 0;
-
-    bpf_probe_read(&protocol, sizeof(protocol), &(skb->protocol));
+    u16 protocol = BPF_CORE_READ(skb, protocol);
 
     if (protocol == bpf_htons(ETH_P_IP)) {
         u32 ipaddr = 0;
@@ -742,17 +657,17 @@ KPROBE(tcp_conn_request, pt_regs)
         if (iph == NULL) {
             goto end;
         }
-        bpf_probe_read(&ipaddr, sizeof(ipaddr), &(iph->daddr));
+        bpf_core_read(&ipaddr, sizeof(ipaddr), &(iph->daddr));
         evt.server_ipaddr.ip = bpf_ntohl(ipaddr);
-        bpf_probe_read(&ipaddr, sizeof(ipaddr), &(iph->saddr));
+        bpf_core_read(&ipaddr, sizeof(ipaddr), &(iph->saddr));
         evt.client_ipaddr.ip = bpf_ntohl(ipaddr);
         tcp_head = tcp_hdr((const struct sk_buff *)skb);
         if (tcp_head == NULL) {
             goto end;
         }
-        bpf_probe_read(&port, sizeof(port), &(tcp_head->source));
+        bpf_core_read(&port, sizeof(port), &(tcp_head->source));
         evt.client_ipaddr.port = bpf_ntohs(port);
-        bpf_probe_read(&port, sizeof(port), &(tcp_head->dest));
+        bpf_core_read(&port, sizeof(port), &(tcp_head->dest));
         evt.server_ipaddr.port = bpf_ntohs(port);
     } else {
         struct ipv6hdr *ip6_hdr = NULL;
@@ -760,23 +675,23 @@ KPROBE(tcp_conn_request, pt_regs)
         if (ip6_hdr == NULL) {
             goto end;
         }
-        bpf_probe_read(&(evt.client_ipaddr.ip6), IP6_LEN, &(ip6_hdr->saddr));
-        bpf_probe_read(&(evt.server_ipaddr.ip6), IP6_LEN, &(ip6_hdr->daddr));
+        BPF_CORE_READ_INTO(&(evt.client_ipaddr.ip6), ip6_hdr, saddr);
+        BPF_CORE_READ_INTO(&(evt.server_ipaddr.ip6), ip6_hdr, daddr);
 
         tcp_head = tcp_hdr((const struct sk_buff *)skb);
         if (tcp_head == NULL) {
             goto end;
         }
-        bpf_probe_read(&port, sizeof(port), &(tcp_head->source));
+        bpf_core_read(&port, sizeof(port), &(tcp_head->source));
         evt.client_ipaddr.port = bpf_ntohs(port);
-        bpf_probe_read(&port, sizeof(port), &(tcp_head->dest));
+        bpf_core_read(&port, sizeof(port), &(tcp_head->dest));
         evt.server_ipaddr.port = bpf_ntohs(port);
     }
 
     evt.tgid = tgid;
     // report;
     evt.role = TCP_SERVER;
-    (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+    (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
 
 end:
     return 0;
@@ -803,7 +718,7 @@ KPROBE(tcp_req_err, pt_regs)
 
     // report;
     evt.role = TCP_SERVER;
-    (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+    (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
 end:
     return 0;
 }
@@ -830,7 +745,7 @@ KPROBE(tcp_done, pt_regs)
         evt.tgid = info->tgid;
 
         // report;
-        (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+        (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
     } else if (state == TCP_SYN_RECV) {
         evt.role = TCP_SERVER;
         evt.evt = EP_STATS_PASSIVE_FAILS;
@@ -838,15 +753,13 @@ KPROBE(tcp_done, pt_regs)
         evt.tgid = info->tgid;
 
         // report;
-        (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+        (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
     }
 
 end:
     return 0;
 }
 
-
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(tcp_retransmit_synack, bpf_raw_tracepoint_args)
 {
     struct sock *sk = (struct sock *)ctx->args[0];
@@ -863,10 +776,10 @@ KRAWTRACE(tcp_retransmit_synack, bpf_raw_tracepoint_args)
 
     // report;
     evt.role = TCP_SERVER;
-    (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+    (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
     return 0;
 }
-#else
+
 SEC("tracepoint/tcp/tcp_retransmit_synack")
 int bpf_trace_tcp_retransmit_synack_func(struct trace_event_raw_tcp_retransmit_synack *ctx)
 {
@@ -884,28 +797,18 @@ int bpf_trace_tcp_retransmit_synack_func(struct trace_event_raw_tcp_retransmit_s
 
     // report;
     evt.role = TCP_SERVER;
-    (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+    (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
 
     return 0;
 }
-#endif
-
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-#define NUM_TIMEOUT_SHIFT           1
-#define NUM_TIMEOUT_MASK            0xFE
-#else
-#define NUM_TIMEOUT_SHIFT           0
-#define NUM_TIMEOUT_MASK            0x7F
-#endif
 
 KPROBE(inet_csk_reqsk_queue_drop_and_put, pt_regs)
 {
-    u8 num_timeout;
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     struct request_sock *req = (struct request_sock *)PT_REGS_PARM2(ctx);
     struct inet_connection_sock *icsk = (struct inet_connection_sock *)sk;
-    struct net * net = _(sk->__sk_common.skc_net.net);
-    int sysctl_tcp_synack_retries = _(net->ipv4.sysctl_tcp_synack_retries);
+
+    int sysctl_tcp_synack_retries = BPF_CORE_READ(sk, __sk_common.skc_net.net, ipv4.sysctl_tcp_synack_retries);
     int icsk_syn_retries = _(icsk->icsk_syn_retries);
     int max_retries = icsk_syn_retries ? : sysctl_tcp_synack_retries;
 
@@ -913,9 +816,7 @@ KPROBE(inet_csk_reqsk_queue_drop_and_put, pt_regs)
     if (info == NULL) {
         return 0;
     }
-
-    bpf_probe_read(&num_timeout, sizeof(u8), (char *)&(req->num_retrans) + sizeof(u8));
-    num_timeout = (num_timeout & NUM_TIMEOUT_MASK) >> NUM_TIMEOUT_SHIFT;
+    u8 num_timeout = BPF_CORE_READ_BITFIELD_PROBED(req, num_timeout);
 
     if (num_timeout >= max_retries) {
         struct tcp_socket_event_s evt = {0};
@@ -925,7 +826,7 @@ KPROBE(inet_csk_reqsk_queue_drop_and_put, pt_regs)
 
         // report;
         evt.role = TCP_SERVER;
-        (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+        (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
     }
     return 0;
 }
@@ -945,7 +846,7 @@ static __always_inline void tcp_send_reset(void *ctx, struct sock* sk)
 
         // report;
         evt.role = TCP_CLIENT;
-        (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+        (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
     } else if (info->role == TCP_SERVER) {
         get_accept_sockaddr(&evt, (const struct sock *)sk);
         evt.evt = EP_STATS_RST_SENT;
@@ -953,7 +854,7 @@ static __always_inline void tcp_send_reset(void *ctx, struct sock* sk)
 
         // report;
         evt.role = TCP_SERVER;
-        (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+        (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
     }
 }
 
@@ -972,7 +873,7 @@ static __always_inline void tcp_recv_reset(void *ctx, struct sock* sk)
 
         // report;
         evt.role = TCP_CLIENT;
-        (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+        (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
     } else if (info->role == TCP_SERVER) {
         get_accept_sockaddr(&evt, (const struct sock *)sk);
         evt.evt = EP_STATS_RST_RCVS;
@@ -980,11 +881,10 @@ static __always_inline void tcp_recv_reset(void *ctx, struct sock* sk)
 
         // report;
         evt.role = TCP_SERVER;
-        (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+        (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
     }
 }
 
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(tcp_send_reset, bpf_raw_tracepoint_args)
 {
     struct sock *sk = (struct sock *)ctx->args[0];
@@ -1000,7 +900,7 @@ KRAWTRACE(tcp_receive_reset, bpf_raw_tracepoint_args)
 
     return 0;
 }
-#else
+
 SEC("tracepoint/tcp/tcp_send_reset")
 int bpf_trace_tcp_send_reset_func(struct trace_event_raw_tcp_event_sk_skb *ctx)
 {
@@ -1018,7 +918,6 @@ int bpf_trace_tcp_receive_reset_func(struct trace_event_raw_tcp_event_sk_skb *ct
 
     return 0;
 }
-#endif
 
 #define TCPHDR_FIN 0x01
 #define TCPHDR_SYN 0x02
@@ -1055,7 +954,7 @@ KPROBE(tcp_retransmit_skb, pt_regs)
 
         // report;
         evt.role = info->role;
-        (void)bpf_perf_event_output(ctx, &tcp_evt_map, BPF_F_ALL_CPU, &evt, sizeof(struct tcp_socket_event_s));
+        (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
     }
     return 0;
 }

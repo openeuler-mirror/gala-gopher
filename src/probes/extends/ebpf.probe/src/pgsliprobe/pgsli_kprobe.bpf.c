@@ -37,8 +37,8 @@ static __always_inline int init_conn_info(struct conn_info_t *conn_info, struct 
             return SLI_ERR;
         }
     } else if (conn_info->client_ip_info.family == AF_INET6) {
-        bpf_probe_read(conn_info->server_ip_info.ipaddr.ip6, IP6_LEN, &sk->sk_v6_rcv_saddr);
-        bpf_probe_read(conn_info->client_ip_info.ipaddr.ip6, IP6_LEN, &sk->sk_v6_daddr);
+        BPF_CORE_READ_INTO(conn_info->server_ip_info.ipaddr.ip6, sk, sk_v6_rcv_saddr);
+        BPF_CORE_READ_INTO(conn_info->client_ip_info.ipaddr.ip6, sk, sk_v6_daddr);
     } else {
         return SLI_ERR;
     }
@@ -188,7 +188,6 @@ KPROBE(tcp_clean_rtx_queue, pt_regs)
     return 0;
 }
 
-#ifdef KERNEL_SUPPORT_TSTAMP
 KPROBE(tcp_recvmsg, pt_regs)
 {
     struct sock *sk;
@@ -208,4 +207,3 @@ KPROBE(tcp_recvmsg, pt_regs)
     }
     return 0;
 }
-#endif

@@ -42,7 +42,7 @@ static int sock_to_ip_str(struct ssockaddr_s *sock_addr, struct ip *ip_addr, uns
             break;
         case AF_INET6:
             q = (struct sockaddr_in6 *)sock_addr;
-            bpf_probe_read_user(&ip_addr->ip6, IP6_LEN, &q->sin6_addr);
+            bpf_core_read_user(&ip_addr->ip6, IP6_LEN, &q->sin6_addr);
             *port = _(q->sin_port);
             break;
         default:
@@ -67,7 +67,7 @@ static int haproxy_obtain_key_value(const struct stream_s *s, struct link_key *k
 
     /* C-H link */
     sess_p = _(s->sess);
-    bpf_probe_read_user(&conn_p, sizeof(void *), &sess_p->origin);
+    bpf_core_read_user(&conn_p, sizeof(void *), &sess_p->origin);
     l = _(sess_p->listener);
 
     /* client value */
@@ -76,17 +76,17 @@ static int haproxy_obtain_key_value(const struct stream_s *s, struct link_key *k
 
     /* haproxy value */
     /* first, obtain info from listerner.rx.addr */
-    bpf_probe_read_user(&rx_data, sizeof(struct receiver), (void *)&(l->rx));
+    bpf_core_read_user(&rx_data, sizeof(struct receiver), (void *)&(l->rx));
     switch (family) {
         struct sockaddr_in  addr1;
         struct sockaddr_in6 addr2;
         case AF_INET:
-            bpf_probe_read_user(&addr1, sizeof(struct sockaddr_in), (void *)&(rx_data.addr));
+            bpf_core_read_user(&addr1, sizeof(struct sockaddr_in), (void *)&(rx_data.addr));
             key->p_addr.ip4 = addr1.sin_addr;
             key->p_port = addr1.sin_port;
             break;
         case AF_INET6:
-            bpf_probe_read_user(&addr2, sizeof(struct sockaddr_in6), (void *)&(rx_data.addr));
+            bpf_core_read_user(&addr2, sizeof(struct sockaddr_in6), (void *)&(rx_data.addr));
             __builtin_memcpy(&key->p_addr.ip6, &addr2.sin6_addr, IP6_LEN - 1);
             key->p_port = addr2.sin_port;
             break;

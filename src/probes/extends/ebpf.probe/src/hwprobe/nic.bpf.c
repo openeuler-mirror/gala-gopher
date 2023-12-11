@@ -32,9 +32,7 @@ struct {
 } nic_failure_count_map SEC(".maps");
 
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 64);
 } nic_failure_channel_map SEC(".maps");
 
@@ -61,10 +59,10 @@ static __always_inline char* get_driver_name(const struct net_device *net_dev)
 static __always_inline void update_nic_entity(struct nic_entity_s *nic_entity, struct net_device *net_dev)
 {
 
-    (void)bpf_probe_read_str(&nic_entity->dev_name, IFNAMSIZ, net_dev->name);
+    (void)bpf_core_read_str(&nic_entity->dev_name, IFNAMSIZ, net_dev->name);
     char *driver = get_driver_name(net_dev);
     if (driver != NULL) {
-        (void)bpf_probe_read_str(&nic_entity->driver, DRIVER_NAME_LEN, driver);
+        (void)bpf_core_read_str(&nic_entity->driver, DRIVER_NAME_LEN, driver);
     }
 }
 
@@ -87,8 +85,7 @@ static __always_inline struct nic_failure_s* get_nic_failure(struct nic_entity_s
 static __always_inline void report_nic_failure(void *ctx, struct nic_failure_s* nic_failure)
 {
     if (is_report_tmout(&(nic_failure->report_ts))) {
-        (void)bpf_perf_event_output(ctx, &nic_failure_channel_map, BPF_F_ALL_CPU,
-                                    nic_failure, sizeof(struct nic_failure_s));
+        (void)bpfbuf_output(ctx, &nic_failure_channel_map, nic_failure, sizeof(struct nic_failure_s));
         nic_failure->xmit_timeout_count = 0;
     }
 }
@@ -116,7 +113,6 @@ KPROBE(netif_carrier_off, pt_regs)
     return 0;
 }
 
-#if (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(5, 2, 0))
 KRAWTRACE(net_dev_xmit_timeout, bpf_raw_tracepoint_args)
 {
     struct nic_entity_s nic_entity = {0};
@@ -138,4 +134,3 @@ KRAWTRACE(net_dev_xmit_timeout, bpf_raw_tracepoint_args)
     report_nic_failure(ctx, nic_failure);
     return 0;
 }
-#endif

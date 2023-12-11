@@ -21,7 +21,6 @@
 
 char g_linsence[] SEC("license") = "GPL";
 
-#if (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(4, 12, 0)) && (CURRENT_KERNEL_VERSION < KERNEL_VERSION(4, 18, 0))
 /*
  * Raw tracepoint defined in modules is not supported in this version, so use kprobe as hook instead.
  *    scsi_dispatch_cmd_start --> scsi_dispatch_cmd()
@@ -103,9 +102,7 @@ KPROBE(scsi_mq_done, pt_regs)
     io_trace->ts[IO_ISSUE_DEVICE_END] = bpf_ktime_get_ns();
     return 0;
 }
-#endif
 
-#if (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(4, 18, 0)) && (CURRENT_KERNEL_VERSION <= KERNEL_VERSION(5, 14, 0))
 KRAWTRACE(scsi_dispatch_cmd_start, bpf_raw_tracepoint_args)
 {
     struct io_trace_s *io_trace = NULL;
@@ -144,4 +141,3 @@ KRAWTRACE(scsi_dispatch_cmd_done, bpf_raw_tracepoint_args)
     io_trace->ts[IO_ISSUE_DEVICE_END] = bpf_ktime_get_ns();
     return 0;
 }
-#endif

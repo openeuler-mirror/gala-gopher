@@ -72,7 +72,7 @@ static __always_inline void emit_incomming_syscall_event(syscall_m_enter_t *sce,
     init_syscall_event_common(&evt_data, sce->start_time);
     init_syscall_data(&evt_data.syscall_d, sce, scm, ctx);
 
-    bpf_perf_event_output(ctx, &event_map, BPF_F_CURRENT_CPU, &evt_data, sizeof(evt_data));
+    bpfbuf_output(ctx, &event_map, &evt_data, sizeof(evt_data));
 }
 
 static __always_inline void emit_syscall_event_stashed(syscall_m_stash_val_t *sc_stash, void *ctx)
@@ -82,7 +82,7 @@ static __always_inline void emit_syscall_event_stashed(syscall_m_stash_val_t *sc
     init_syscall_event_common(&evt_data, sc_stash->start_time);
     evt_data.syscall_d = (syscall_data_t)(*sc_stash);
 
-    bpf_perf_event_output(ctx, &event_map, BPF_F_CURRENT_CPU, &evt_data, sizeof(evt_data));
+    bpfbuf_output(ctx, &event_map, &evt_data, sizeof(evt_data));
 }
 
 static __always_inline void stash_incomming_syscall_event(syscall_m_enter_t *sce, syscall_m_meta_t *scm, void *ctx)
