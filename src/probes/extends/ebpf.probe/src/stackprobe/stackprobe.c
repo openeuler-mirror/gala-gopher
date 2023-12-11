@@ -122,6 +122,19 @@ struct bpf_link_hash_t {
 };
 #endif
 
+enum symb_stack_type {
+    SYMB_STACK_TYPE_DEFAULT = 0,
+    SYMB_STACK_TYPE_KERN,
+    SYMB_STACK_TYPE_USER,
+    SYMB_STACK_TYPE_PYTHON,
+    SYMB_STACK_TYPE_JAVA
+};
+
+struct stack_output_ctx {
+    int layer;
+    enum symb_stack_type stack_type;
+};
+
 static char __histo_tmp_str[HISTO_TMP_LEN];
 int g_post_max = POST_MAX_STEP_SIZE;
 static struct ipc_body_s g_ipc_body;
@@ -142,6 +155,21 @@ static int get_py_stack_size(void)
     return MAX_PYTHON_STACK_DEPTH_16;
 }
 
+static const char *get_symb_stack_type_flag(enum symb_stack_type type)
+{
+    switch (type) {
+        case SYMB_STACK_TYPE_KERN:
+            return "[k]";
+        case SYMB_STACK_TYPE_USER:
+            return "[u]";
+        case SYMB_STACK_TYPE_PYTHON:
+            return "[p]";
+        case SYMB_STACK_TYPE_JAVA:
+            return "[j]";
+        default:
+            return "";
+    }
+}
 
 static void load_stackprobe_snoopers(struct ipc_body_s *ipc_body)
 {
@@ -494,7 +522,7 @@ static int add_raw_stack_id_with_py(struct raw_stack_trace_s *raw_st, struct raw
 // and then count this call on the A call stack.
 #if 1
 static int stack_addrsymbs2string_incomplete(struct proc_symbs_s *proc_symbs, struct addr_symb_s *addr_symb,
-                                             int *layer, char *p, int size)
+    struct stack_output_ctx *output_ctx, char *p, int size)
 {
     int ret;
     char *symb;
@@ -504,6 +532,7 @@ static int stack_addrsymbs2string_incomplete(struct proc_symbs_s *proc_symbs, st
 
     char *cur_p = p;
     int len = size;
+    const char *symb_flag = get_symb_stack_type_flag(output_ctx->stack_type);
 
     if (addr_symb->sym == NULL) {
         symb = STACK_SYMBOL_UNKNOWN;
@@ -511,11 +540,11 @@ static int stack_addrsymbs2string_incomplete(struct proc_symbs_s *proc_symbs, st
         symb = addr_symb->sym;
     }
 
-    ret = __snprintf(&cur_p, len, &len, "; %s", symb);
-    if (*layer == STACK_LAYER_1ST) {
-        *layer = STACK_LAYER_2ND;
-    } else if (*layer == STACK_LAYER_2ND) {
-        *layer = STACK_LAYER_3RD;
+    ret = __snprintf(&cur_p, len, &len, "; %s%s", symb, symb_flag);
+    if (output_ctx->layer == STACK_LAYER_1ST) {
+        output_ctx->layer = STACK_LAYER_2ND;
+    } else if (output_ctx->layer == STACK_LAYER_2ND) {
+        output_ctx->layer = STACK_LAYER_3RD;
     } else {
         return -1;
     }
@@ -526,27 +555,29 @@ static int stack_addrsymbs2string_incomplete(struct proc_symbs_s *proc_symbs, st
     return size > len ? (size - len) : -1;
 }
 
-static int __stack_symb2string(struct proc_symbs_s *proc_symbs, char *symb, int *layer, char *p, int size)
+static int __stack_symb2string(struct proc_symbs_s *proc_symbs, char *symb, struct stack_output_ctx *output_ctx,
+    char *p, int size)
 {
     int ret;
     char *cur_p = p;
     int len = size;
+    const char *symb_flag = get_symb_stack_type_flag(output_ctx->stack_type);
 
     if (size <= 0) {
         return -1;
     }
 
-    if (*layer == STACK_LAYER_1ST) {
+    if (output_ctx->layer == STACK_LAYER_1ST) {
         if (proc_symbs->pod[0] != 0) {
             ret = __snprintf(&cur_p, len, &len, "[Pod]%s; ", proc_symbs->pod);
         }
         if (proc_symbs->container_name[0] != 0) {
             ret = __snprintf(&cur_p, len, &len, "[Con]%s; ", proc_symbs->container_name);
         }
-        ret = __snprintf(&cur_p, len, &len, "[%d]%s; %s", proc_symbs->proc_id, proc_symbs->comm, symb);
-        *layer = STACK_LAYER_2ND;
+        ret = __snprintf(&cur_p, len, &len, "[%d]%s; %s%s", proc_symbs->proc_id, proc_symbs->comm, symb, symb_flag);
+        output_ctx->layer = STACK_LAYER_2ND;
     } else {
-        ret = __snprintf(&cur_p, len, &len, "; %s", symb);
+        ret = __snprintf(&cur_p, len, &len, "; %s%s", symb, symb_flag);
     }
 
     if (ret < 0) {
@@ -556,7 +587,7 @@ static int __stack_symb2string(struct proc_symbs_s *proc_symbs, char *symb, int 
 }
 
 static int stack_addrsymbs2string(struct proc_symbs_s *proc_symbs, struct addr_symb_s *addr_symb,
-                                  int *layer, char *p, int size)
+    struct stack_output_ctx *output_ctx, char *p, int size)
 {
     char *symb;
 
@@ -566,11 +597,11 @@ static int stack_addrsymbs2string(struct proc_symbs_s *proc_symbs, struct addr_s
         symb = addr_symb->sym;
     }
 
-    return __stack_symb2string(proc_symbs, symb, layer, p, size);
+    return __stack_symb2string(proc_symbs, symb, output_ctx, p, size);
 }
 
 static int stack_pysymbs2string(struct proc_symbs_s *proc_symbs, struct py_symbol *py_symb,
-    int *layer, char *p, int size)
+    struct stack_output_ctx *output_ctx, char *p, int size)
 {
     char symb[MAX_PYTHON_SYMBOL_SIZE * 2];
 
@@ -583,7 +614,7 @@ static int stack_pysymbs2string(struct proc_symbs_s *proc_symbs, struct py_symbo
         (void)snprintf(symb, sizeof(symb), "%s", py_symb->func_name);
     }
 
-    return __stack_symb2string(proc_symbs, symb, layer, p, size);
+    return __stack_symb2string(proc_symbs, symb, output_ctx, p, size);
 }
 
 static int __stack_file2string(struct proc_symbs_s *proc_symbs, char *line, char *p, int size, s64 *count)
@@ -645,15 +676,19 @@ static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, struct proc_s
                                 char symbos_str[], size_t size, int incomplete_stack_flag)
 {
     int len;
-    int layer = STACK_LAYER_1ST;
+    struct stack_output_ctx output_ctx = {
+        .layer = STACK_LAYER_1ST,
+        .stack_type = SYMB_STACK_TYPE_DEFAULT
+    };
     int remain_len = size;
     char *pos = symbos_str;
     struct addr_symb_s *addr_symb;
     int i;
 
+    output_ctx.stack_type = SYMB_STACK_TYPE_PYTHON;
     if (stack_symbs->py_stack_len > 0) {
         for (i = 0; i < stack_symbs->py_stack_len; i++) {
-            len = stack_pysymbs2string(proc_symbs, &stack_symbs->py_stack_symbols[i], &layer, pos, remain_len);
+            len = stack_pysymbs2string(proc_symbs, &stack_symbs->py_stack_symbols[i], &output_ctx, pos, remain_len);
             if (len < 0) {
                 return -1;
             }
@@ -662,18 +697,19 @@ static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, struct proc_s
         }
     }
 
+    output_ctx.stack_type = SYMB_STACK_TYPE_USER;
     for (i = 0; i < PERF_MAX_STACK_DEPTH; i++) {
         addr_symb = &(stack_symbs->user_stack_symbs[i]);
         if (addr_symb->orign_addr == 0) {
             continue;
         }
         if (incomplete_stack_flag) {
-            len = stack_addrsymbs2string_incomplete(proc_symbs, addr_symb, &layer, pos, remain_len);
-            if (layer == STACK_LAYER_3RD) {
+            len = stack_addrsymbs2string_incomplete(proc_symbs, addr_symb, &output_ctx, pos, remain_len);
+            if (output_ctx.layer == STACK_LAYER_3RD) {
                 return -1;
             }
         } else {
-            len = stack_addrsymbs2string(proc_symbs, addr_symb, &layer, pos, remain_len);
+            len = stack_addrsymbs2string(proc_symbs, addr_symb, &output_ctx, pos, remain_len);
         }
         if (len < 0) {
             return -1;
@@ -682,12 +718,13 @@ static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, struct proc_s
         pos += len;
     }
 
+    output_ctx.stack_type = SYMB_STACK_TYPE_KERN;
     for (i = 0; i < PERF_MAX_STACK_DEPTH; i++) {
         addr_symb = &(stack_symbs->kern_stack_symbs[i]);
         if (addr_symb->orign_addr == 0) {
             continue;
         }
-        len = stack_addrsymbs2string(proc_symbs, addr_symb, &layer, pos, remain_len);
+        len = stack_addrsymbs2string(proc_symbs, addr_symb, &output_ctx, pos, remain_len);
         if (len < 0) {
             return -1;
         }
