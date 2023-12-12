@@ -215,6 +215,7 @@ static int load_ksli_bpf_prog()
     INIT_OPEN_OPTS(ksliprobe);
     PREPARE_CUSTOM_BTF(ksliprobe);
     OPEN_OPTS(ksliprobe, err, 1);
+    MAP_INIT_BPF_BUFFER(ksliprobe, msg_event_map, buffer, 1);
 
     prog->skels[prog->num].skel = ksliprobe_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)ksliprobe_bpf__destroy;
@@ -227,11 +228,6 @@ static int load_ksli_bpf_prog()
     g_ksli_probe.args_fd = GET_MAP_FD(ksliprobe, args_map);
     if (g_ksli_probe.args_fd <= 0) {
         fprintf(stderr, "ERROR: Failed to get args map fd.\n");
-        goto err;
-    }
-
-    buffer = bpf_buffer__new(ksliprobe_skel->maps.msg_event_map, ksliprobe_skel->maps.heap);
-    if (buffer == NULL) {
         goto err;
     }
 
