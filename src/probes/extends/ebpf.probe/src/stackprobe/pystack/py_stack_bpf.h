@@ -158,33 +158,17 @@ static __always_inline int get_py_stack(struct py_sample *py_sample, struct py_p
     }
 
     py_event->py_stack.stack_len = 0;
-
-    if (probe_kernel_version() >= KERNEL_VERSION(5, 10, 0)) {
 #pragma unroll
-        for (int i = 0; i < MAX_PYTHON_STACK_DEPTH_32; i++) {
-            // TODO: consider stack truncation scene
-            __builtin_memset(&py_sym, 0, sizeof(py_sym));
-            ret = get_py_frame_info(&py_sym, &py_frame, &py_proc_data->offsets);
-            if (ret) {
-                break;
-            }
-            sym_id = get_py_symbol_id(&py_sym, py_sample);
-            py_event->py_stack.stack[py_event->py_stack.stack_len & (MAX_PYTHON_STACK_DEPTH_MAX - 1)] = sym_id;
-            py_event->py_stack.stack_len++;
+    for (int i = 0; i < MAX_PYTHON_STACK_DEPTH_16; i++) {
+        // TODO: consider stack truncation scene
+        __builtin_memset(&py_sym, 0, sizeof(py_sym));
+        ret = get_py_frame_info(&py_sym, &py_frame, &py_proc_data->offsets);
+        if (ret) {
+            break;
         }
-    } else {
-#pragma unroll
-        for (int i = 0; i < MAX_PYTHON_STACK_DEPTH_16; i++) {
-            // TODO: consider stack truncation scene
-            __builtin_memset(&py_sym, 0, sizeof(py_sym));
-            ret = get_py_frame_info(&py_sym, &py_frame, &py_proc_data->offsets);
-            if (ret) {
-                break;
-            }
-            sym_id = get_py_symbol_id(&py_sym, py_sample);
-            py_event->py_stack.stack[py_event->py_stack.stack_len & (MAX_PYTHON_STACK_DEPTH_MAX - 1)] = sym_id;
-            py_event->py_stack.stack_len++;
-        }
+        sym_id = get_py_symbol_id(&py_sym, py_sample);
+        py_event->py_stack.stack[py_event->py_stack.stack_len & (MAX_PYTHON_STACK_DEPTH_MAX - 1)] = sym_id;
+        py_event->py_stack.stack_len++;
     }
 
     return 0;
@@ -195,6 +179,30 @@ static __always_inline struct py_sample *get_py_sample()
     u32 zero = 0;
 
     return (struct py_sample *)bpf_map_lookup_elem(&py_sample_heap, &zero);
+}
+
+static __always_inline struct py_raw_trace_s *get_py_raw_trace(struct raw_trace_s *raw_trace)
+{
+    struct py_proc_data *py_proc_data;
+    struct py_sample *py_sample;
+
+    py_proc_data = (struct py_proc_data *)bpf_map_lookup_elem(&py_proc_map, &raw_trace->stack_id.pid.proc_id);
+    if (!py_proc_data) {
+        return 0;
+    }
+    py_sample = get_py_sample();
+    if (!py_sample) {
+        return 0;
+    }
+
+    py_sample->cpu_id = bpf_get_smp_processor_id();
+    if (get_py_stack(py_sample, py_proc_data)) {
+        return 0;
+    }
+    __builtin_memcpy(&py_sample->event.raw_trace, raw_trace, sizeof(struct raw_trace_s));
+    py_sample->event.raw_trace.lang_type = TRACE_LANG_TYPE_PYTHON;
+
+    return &py_sample->event;
 }
 
 #endif

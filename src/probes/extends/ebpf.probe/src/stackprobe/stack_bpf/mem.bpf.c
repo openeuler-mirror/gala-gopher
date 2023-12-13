@@ -57,30 +57,6 @@ struct page_fault_args {
     unsigned long error_code;
 };
 
-static __always_inline struct py_raw_trace_s *get_py_raw_trace(struct raw_trace_s *raw_trace)
-{
-    struct py_proc_data *py_proc_data;
-    struct py_sample *py_sample;
-
-    py_proc_data = (struct py_proc_data *)bpf_map_lookup_elem(&py_proc_map, &raw_trace->stack_id.pid.proc_id);
-    if (!py_proc_data) {
-        return 0;
-    }
-    py_sample = get_py_sample();
-    if (!py_sample) {
-        return 0;
-    }
-
-    py_sample->cpu_id = bpf_get_smp_processor_id();
-    if (get_py_stack(py_sample, py_proc_data)) {
-        return 0;
-    }
-    __builtin_memcpy(&py_sample->event.raw_trace, raw_trace, sizeof(struct raw_trace_s));
-    py_sample->event.raw_trace.lang_type = TRACE_LANG_TYPE_PYTHON;
-
-    return &py_sample->event;
-}
-
 static __always_inline int report_stack(struct page_fault_args *ctx)
 {
     struct raw_trace_s raw_trace = {.count = 1};
