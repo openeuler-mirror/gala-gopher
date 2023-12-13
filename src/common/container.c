@@ -52,6 +52,7 @@
     "--template='{{.status.id}}, {{index .status.labels \"io.kubernetes.pod.uid\"}}' | /usr/bin/grep %s |  /usr/bin/awk -F ', ' '{print $1}' 2>/dev/null"
 #define CONTAINERD_LIST_COUNT_COMMAND "%s ps -q | xargs  %s inspect --output go-template "\
         "--template='{{.status.id}}, {{index .status.labels \"io.kubernetes.pod.uid\"}}' | /usr/bin/grep %s |  /usr/bin/awk -F ', ' '{print $1}' | wc -l"
+#define CONTAINERD_IMAGE_COMMAND " --output go-template --template='{{.status.image.image}}'"
 
 #define DOCKER_NAME_COMMAND "--format '{{.Name}}'"
 #define DOCKER_PID_COMMAND "--format '{{.State.Pid}}'"
@@ -67,6 +68,7 @@
     "'{{.Id}}, {{index .Config.Labels \"io.kubernetes.pod.uid\"}}' | /usr/bin/grep %s |  /usr/bin/awk -F ', ' '{print $1}' 2>/dev/null"
 #define DOCKER_LIST_COUNT_COMMAND "%s ps -q | xargs  %s inspect --format "\
         "'{{.Id}}, {{index .Config.Labels \"io.kubernetes.pod.uid\"}}' | /usr/bin/grep %s |  /usr/bin/awk -F ', ' '{print $1}' | wc -l"
+#define DOCKER_IMAGE_COMMAD "--format {{.Config.Image}}"
 
 #define DOCKER_COUNT_COMMAND "ps | /usr/bin/awk 'NR > 1 {print $1}' | /usr/bin/wc -l"
 #define DOCKER_PS_COMMAND "ps | /usr/bin/awk 'NR > 1 {print $1}'"
@@ -88,12 +90,16 @@
 #define KUBEPODS_PREFIX_CGRPFS    "/kubepods/"
 #define DOCKER_PREFIX_CGRPFS      "/docker/"
 #define PODID_PREFIX_CGRPFS       "/pod"
+#define CONTAINERD_PREFIX_CGRPFS  "/kubepods-"
+#define PODID_CONTAINERD_PREFIX_CGRPFS "-pod"
+#define POD_CONTAINERD_DELIM_CGRPFS "slice/cri-containerd:"
 
 // cgroupdriver=systemd
 #define KUBEPODS_PREFIX_SYSTEMD   "/kubepods.slice/"
 #define DOCKER_PREFIX_SYSTEMD     "/system.slice/docker-"
 #define PODID_PREFIX_SYSTEMD      "-pod"
 #define POD_DOCKER_DELIM_SYSTEMD  "slice/docker-"
+#define POD_CONTAINERD_DELIM_SYSTEMD "slice/cri-containerd-"
 
 static char *current_docker_command = NULL;
 static char current_docker_command_chroot[COMMAND_LEN];
@@ -737,7 +743,8 @@ int get_container_id_by_pid(unsigned int pid, char *container_id, unsigned int b
 static enum cgrp_driver_t get_cgroup_drvier(const char *cgrp_path)
 {
     if (strncmp(cgrp_path, KUBEPODS_PREFIX_CGRPFS, strlen(KUBEPODS_PREFIX_CGRPFS)) == 0 ||
-        strncmp(cgrp_path, DOCKER_PREFIX_CGRPFS, strlen(DOCKER_PREFIX_CGRPFS)) == 0) {
+        strncmp(cgrp_path, DOCKER_PREFIX_CGRPFS, strlen(DOCKER_PREFIX_CGRPFS)) == 0 ||
+        strncmp(cgrp_path, CONTAINERD_PREFIX_CGRPFS, strlen(CONTAINERD_PREFIX_CGRPFS)) == 0 ) {
         return CGRP_DRIVER_CGRPFS;
     }
 
@@ -756,20 +763,33 @@ static enum id_ret_t get_pod_container_id_by_type(const char *cgrp_path, char *p
     char *p, *kube_prefix, *podid_prefix, *docker_prefix;
     char delim;
     int i,j;
+    bool is_containerd = false;
+
+    if (strstr(cgrp_path, "containerd") != NULL) {
+        is_containerd = true;
+    }
 
     if (type == CGRP_DRIVER_CGRPFS) {
         /* cgroupf driver is cgroupfs
          * k8s scenario, cgrp_path is like: /kubepods/besteffort/pod<pod_id>/<con_id>
          * docker scenario, cgrp_path is like: /docker/<con_id>
+         * containerd scenario, cgrp_path is like /kubepods-burstable-pod<pod_id>.slice:cri-containerd:<con_id>
          */
-        kube_prefix = KUBEPODS_PREFIX_CGRPFS;
-        podid_prefix = PODID_PREFIX_CGRPFS;
         docker_prefix = DOCKER_PREFIX_CGRPFS;
-        delim = '/';
+        if (is_containerd) {
+            kube_prefix = CONTAINERD_PREFIX_CGRPFS;
+            podid_prefix = PODID_CONTAINERD_PREFIX_CGRPFS;
+            delim = '.';
+        } else {
+            kube_prefix = KUBEPODS_PREFIX_CGRPFS;
+            podid_prefix = PODID_PREFIX_CGRPFS;
+            delim = '/';
+        }
     } else if (type == CGRP_DRIVER_SYSTEMD) {
         /* cgroupf driver is systemd
          * k8s scenario, cgrp_path is like: /kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod<pod_id>.slice/docker-<con_id>.scope
          * docker scenario, cgrp_path is like: /system.slice/docker-<con_id>.scope
+         * containerd scenario, cgrp_path is like /kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod<pod_id>.slice/cri-containerd-<con_id>.scope
          */
         kube_prefix = KUBEPODS_PREFIX_SYSTEMD;
         podid_prefix = PODID_PREFIX_SYSTEMD;
@@ -801,7 +821,15 @@ static enum id_ret_t get_pod_container_id_by_type(const char *cgrp_path, char *p
             i++;         // reach the '/' or '.'
         }
         if (type == CGRP_DRIVER_SYSTEMD) {
-            i += strlen(POD_DOCKER_DELIM_SYSTEMD);
+            if (is_containerd) {
+                i += strlen(POD_CONTAINERD_DELIM_SYSTEMD);
+            } else {
+                i += strlen(POD_DOCKER_DELIM_SYSTEMD);
+            }
+        } else if (type == CGRP_DRIVER_CGRPFS) {
+            if (is_containerd) {
+                i += strlen(POD_CONTAINERD_DELIM_CGRPFS);
+            }
         }
         if (i + p - cgrp_path >= full_path_len) {
             return ID_POD_ONLY;
@@ -980,12 +1008,15 @@ int get_elf_path_by_con_id(char *container_id, char elf_path[], int max_path_len
     return CONTAINER_OK;
 }
 
-#define __PID_GRP_KIND_DIR "/usr/bin/cat /proc/%u/cgroup | /usr/bin/grep -w %s | /usr/bin/awk -F ':' '{print $3}'"
+#define __PID_GRP_KIND_DIR "/usr/bin/cat /proc/%u/cgroup | /usr/bin/grep -w %s"
 #define __PID_GRP_DIR "/proc/%u/cgroup"
-static int __get_cgp_dir_by_pid(unsigned int pid, const char *kind, char dir[], unsigned int dir_len)
+int get_cgp_dir_by_pid(unsigned int pid, const char *kind, char dir[], unsigned int dir_len)
 {
     char command[COMMAND_LEN];
     char proc[PATH_LEN];
+    char line[LINE_BUF_LEN];
+    int ret = 0;
+    char *substr1, *substr2;
 
     command[0] = 0;
     (void)snprintf(command, COMMAND_LEN, __PID_GRP_KIND_DIR, pid, kind);
@@ -996,8 +1027,21 @@ static int __get_cgp_dir_by_pid(unsigned int pid, const char *kind, char dir[], 
         return -1;
     }
 
-    dir[0] = 0;
-    return exec_cmd((const char *)command, dir, dir_len);
+    ret = exec_cmd((const char *)command, line, LINE_BUF_LEN);
+    if (ret != 0) {
+        dir[0] = 0;
+        return ret;
+    }
+
+    substr1 = strstr(line, ":");
+    if (substr1) {
+        substr2 = strstr((substr1 + 1), ":");
+        if (substr2) {
+            snprintf(dir, dir_len, "%s", (substr2 + 1));
+            return 0;
+        }
+    }
+    return -1;
 }
 
 #define __CONTAINER_GRP_KIND_DIR "/sys/fs/cgroup/%s%s"
@@ -1011,7 +1055,7 @@ static int __get_container_cgpdir(const char *abbr_container_id, const char *kin
     }
 
     kind_dir[0] = 0;
-    if (__get_cgp_dir_by_pid(pid, kind, kind_dir, PATH_LEN) < 0) {
+    if (get_cgp_dir_by_pid(pid, kind, kind_dir, PATH_LEN) < 0) {
         return -1;
     }
 
@@ -1447,3 +1491,34 @@ int is_container_proc(u32 pid)
 
     return 1;
 }
+
+int get_container_image(const char *abbr_container_id, char image[], unsigned int image_len)
+{
+    char command[COMMAND_LEN];
+
+    if (!get_current_command()) {
+        return -1;
+    }
+
+    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+        return -1;
+    }
+
+    command[0] = 0;
+    if (__is_containerd()) {
+        (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
+            get_current_command(), CONTAINERD_IMAGE_COMMAND, abbr_container_id);
+    } else {
+        (void)snprintf(command, COMMAND_LEN, "%s inspect %s %s",
+            get_current_command(), abbr_container_id, DOCKER_IMAGE_COMMAD);
+    }
+
+    int ret = exec_cmd_chroot((const char *)command, image, image_len);
+    if (ret) {
+        image[0] = 0;
+    }
+
+    return ret;
+}
+
+

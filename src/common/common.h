@@ -54,6 +54,7 @@
 #define CONTAINER_ID_LEN        64
 #define CONTAINER_ABBR_ID_LEN   12
 #define CONTAINER_DRIVER_LEN    64
+#define CONTAINER_IMAGE_LEN     128
 #define NAMESPACE_LEN           64
 #define DOMAIN_LEN              64
 #define POD_NAME_LEN            64

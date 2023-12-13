@@ -422,7 +422,8 @@ static int metadata_build_labels(const Measurement *mm, char *json_str, int max_
 
     if (is_proc_level(mm)) {
         ret = snprintf(str, str_len, ", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"",
-            META_COMMON_LABEL_PROC_COMM, META_COMMON_LABEL_CONTAINER_ID, META_COMMON_LABEL_CONTAINER_NAME,
+            META_COMMON_LABEL_PROC_COMM, META_COMMON_LABEL_CONTAINER_ID, 
+            META_COMMON_LABEL_CONTAINER_NAME, META_COMMON_LABEL_CONTAINER_IMAGE,
             META_COMMON_LABEL_POD_ID, META_COMMON_LABEL_POD_NAME, META_COMMON_LABEL_POD_NAMESPACE);
         if (ret < 0 || ret >= str_len) {
             return -1;
@@ -445,8 +446,8 @@ static int metadata_build_labels(const Measurement *mm, char *json_str, int max_
 
     if (is_entity_container(mm->entity)) {
         ret = snprintf(str, str_len, ", \"%s\", \"%s\", \"%s\", \"%s\"",
-            META_COMMON_LABEL_CONTAINER_NAME, META_COMMON_LABEL_POD_ID,
-            META_COMMON_LABEL_POD_NAME, META_COMMON_LABEL_POD_NAMESPACE);
+            META_COMMON_LABEL_CONTAINER_NAME, META_COMMON_LABEL_CONTAINER_IMAGE, 
+            META_COMMON_LABEL_POD_ID, META_COMMON_LABEL_POD_NAME, META_COMMON_LABEL_POD_NAMESPACE);
         if (ret < 0 || ret >= str_len) {
             return -1;
         }

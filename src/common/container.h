@@ -83,5 +83,6 @@ int enter_container_netns(const char *container_id);
 int exit_container_netns(int netns_fd);
 int enter_proc_netns(u32 pid);
 int is_container_proc(u32 pid);
+int get_container_image(const char *abbr_container_id, char image[], unsigned int image_len);
 
 #endif

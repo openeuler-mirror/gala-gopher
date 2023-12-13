@@ -944,6 +944,12 @@ static int append_container_level_labels(const char *container_id, char **buffer
         return ret;
     }
 
+    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
+        META_COMMON_LABEL_CONTAINER_IMAGE, con_cache->container_image);
+    if (ret < 0) {
+        return ret;
+    }
+
     ret = append_pod_level_labels(con_cache, buffer_ptr, size_ptr, mgr, table);
     if (ret < 0) {
         DEBUG("[IMDB] Failed to append pod-level labels(pod_id=%s)\n", con_cache->pod_id);
