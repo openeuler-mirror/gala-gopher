@@ -32,6 +32,7 @@
 #define META_COMMON_LABEL_PROC_COMM         "comm"
 #define META_COMMON_LABEL_CONTAINER_ID      "container_id"
 #define META_COMMON_LABEL_CONTAINER_NAME    "container_name"
+#define META_COMMON_LABEL_CONTAINER_IMAGE   "container_image"
 #define META_COMMON_LABEL_POD_ID            "pod_id"
 #define META_COMMON_LABEL_POD_NAME          "pod"
 #define META_COMMON_LABEL_POD_NAMESPACE     "pod_namespace"

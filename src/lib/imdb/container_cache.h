@@ -23,6 +23,7 @@
 struct container_cache {
     char container_id[CONTAINER_ABBR_ID_LEN + 1];   // key
     char container_name[CONTAINER_NAME_LEN];
+    char container_image[CONTAINER_IMAGE_LEN];
     char pod_id[POD_ID_LEN + 1];
     H_HANDLE;
 };

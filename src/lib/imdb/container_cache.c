@@ -67,6 +67,13 @@ static void fill_container_info(struct container_cache *con_cache)
         con_cache->container_name[0] = 0;
     }
 
+    con_cache->container_image[0] = 0;
+    ret = get_container_image(con_cache->container_id, con_cache->container_image, sizeof(con_cache->container_image));
+    if (ret) {
+        DEBUG("[IMDB] Failed to get container image name(container_id=%s)\n", con_cache->container_id);
+        con_cache->container_image[0] = 0;
+    }
+
     con_cache->pod_id[0] = 0;
     ret = get_container_pod_id(con_cache->container_id, con_cache->pod_id, sizeof(con_cache->pod_id));
     if (ret) {

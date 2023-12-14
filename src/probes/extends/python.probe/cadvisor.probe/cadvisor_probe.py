@@ -6,44 +6,22 @@ import signal
 import subprocess
 import os
 import io
-import re
-import getopt
 import requests
 import libconf
 import ipc
 
-DOCKER_LEN = 8
-CONTAINER_ABBR_ID_LEN = 12
-CONTAINER_NAME_LEN = 64
 CONTAINER_ID_LEN = 64
-CONTAINER_STATUS_RUNNING = 0
+CGROUP_PATH_LEN = 256
 DEFAULT_CADVISOR_PORT = 8080
-DEFAULT_REPORT_PERIOD = 5
-FILTER_BY_TASKPROBE = "task"
+DEFAULT_REPORT_PERIOD = 60
+DISABLE_METRICS_OPTION = "-disable_metrics=udp,cpu_topology,resctrl,tcp,advtcp,sched,hugetlb,referenced_memory"
 PROJECT_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # /opt/gala-gopher/
-PATTERN = re.compile(r'[/-][a-z0-9]+')
 COUNTER = "counter"
 LABEL = "label"
+KEY = "key"
+CPUSET = "cpuset"
 g_meta = None
 g_metric = dict()
-
-
-class Proc(Structure):
-    _fields_ = [
-        ("proc_id", c_uint)
-    ]
-
-class ContainerInfo(Structure):
-    _fields_ = [
-        ("status", c_uint),
-        ("abbrContainerId", c_char * (CONTAINER_NAME_LEN + 1))
-    ]
-
-class ContainerTbl(Structure):
-    _fields_ = [
-        ("num", c_uint),
-        ("cs", POINTER(ContainerInfo))
-    ]
 
 class ParamException(Exception):
     pass
@@ -61,14 +39,11 @@ def signal_handler(signum, frame):
 def convert_meta():
     '''
     Convert the meta file like the following format:
-    g_meta[container_blkio] =
+    g_meta[cpu_system_seconds_total] =
     {
         'id': "key",
-        'device': "label",
-        'major': "label",
-        'minor': "label",
-        'operation': "label",
-        'device_usage_total': "counter"
+        'cpu': "label",
+        'cpu_system_seconds_total': "counter"
     }
     '''
     global g_meta
@@ -89,113 +64,33 @@ def get_meta_label_list():
     global g_meta
     str = ''
     for key1 in g_meta.keys():
-        if key1 == 'container_basic':
-            continue
         for key2 in g_meta[key1].keys():
             if g_meta[key1][key2] == LABEL:
                 str = str + key2 + ','
     return str[:-1]
 
-
-class Probe:
-    def __init__(self, container_lib, container_list):
-        self.container_lib = container_lib
-        self.container_list = container_list
-
-    def filter_container(self, container_id):
-        if container_id in self.container_list:
-            return True
-        else:
-            return False
-
-    def set_container_list(self, container_list):
-        self.container_list = container_list
-
-
-class BasicLabelProbe(Probe):
+class ContainerUtils():
     def __init__(self, container_lib):
-        super().__init__(container_lib, [])
-        self.container_ids = set()
-
-    def get_container_pid(self, container_id):
-        pid = pointer(c_uint(0))
-        self.container_lib.get_container_pid(container_id, pid)
-        return str(pid[0])
-
-    def get_container_cpucg_inode(self, container_id):
-        inode = pointer(c_uint(0))
-        self.container_lib.get_container_cpucg_inode(container_id, inode)
-        return str(inode[0])
-
-    def get_container_memcg_inode(self, container_id):
-        inode = pointer(c_uint(0))
-        self.container_lib.get_container_memcg_inode(container_id, inode)
-        return str(inode[0])
-
-    def get_container_pidcg_inode(self, container_id):
-        inode = pointer(c_uint(0))
-        self.container_lib.get_container_pidcg_inode(container_id, inode)
-        return str(inode[0])
-
-    def get_container_mntns_id(self, container_id):
-        ns_id = pointer(c_uint(0))
-        self.container_lib.get_container_mntns_id(container_id, ns_id)
-        return str(ns_id[0])
-
-    def get_container_netns_id(self, container_id):
-        ns_id = pointer(c_uint(0))
-        self.container_lib.get_container_netns_id(container_id, ns_id)
-        return str(ns_id[0])
+        self.container_lib = container_lib
 
     def get_container_id_by_pid(self, pid):
         container_id = create_string_buffer(CONTAINER_ID_LEN)
         self.container_lib.get_container_id_by_pid_cpuset(str(pid).encode(), container_id, CONTAINER_ID_LEN)
         return str(container_id.value, encoding='utf-8')
 
-    def get_all_containers(self):
-        self.container_ids.clear()
+    def get_container_cgroup_path_by_pid(self, pid):
+        cgroup_path = create_string_buffer(CGROUP_PATH_LEN)
+        self.container_lib.get_cgp_dir_by_pid(pid, str.encode(CPUSET), cgroup_path, CGROUP_PATH_LEN)
+        return str(cgroup_path.value, encoding='utf-8')
 
-        self.container_lib.get_all_container.restype = POINTER(ContainerTbl)
-        tbl_p = self.container_lib.get_all_container()
-
-        if not tbl_p:
-            print("[cadvisor_probe] no active containers in system")
-            return 0
-
-        for i in range(tbl_p.contents.num):
-            if tbl_p.contents.cs[i].status != CONTAINER_STATUS_RUNNING:
-                continue
-            container_id = [chr(c) for c in tbl_p.contents.cs[i].abbrContainerId]
-            container_id_str = ''.join(container_id)
-            if not self.filter_container(container_id_str):
-                continue
-            self.container_ids.add(container_id_str)
-
-    def get_basic_infos(self):
-        global g_metric
-        table_name = "container_basic"
-        g_metric[table_name] = dict()
-
-        self.get_all_containers()
-        for container_id in self.container_ids:
-            # ctype c_char_p is bytes in python3, convert str to bytes
-            container_id_bytes = str.encode(container_id)
-            g_metric[table_name][container_id] = dict()
-            g_metric[table_name][container_id]['container_id'] = container_id
-            g_metric[table_name][container_id]['proc_id'] = self.get_container_pid(container_id_bytes)
-            g_metric[table_name][container_id]['cpucg_inode'] = self.get_container_cpucg_inode(container_id_bytes)
-            g_metric[table_name][container_id]['memcg_inode'] = self.get_container_memcg_inode(container_id_bytes)
-            g_metric[table_name][container_id]['pidcg_inode'] = self.get_container_pidcg_inode(container_id_bytes)
-            g_metric[table_name][container_id]['mnt_ns_id'] = self.get_container_mntns_id(container_id_bytes)
-            g_metric[table_name][container_id]['net_ns_id'] = self.get_container_netns_id(container_id_bytes)
-            g_metric[table_name][container_id]['value'] = '0'
-
-
-class CadvisorProbe(Probe):
-    def __init__(self, container_lib, port_c):
-        super().__init__(container_lib, [])
+class CadvisorProbe():
+    def __init__(self, port_c):
         self.port = port_c
         self.pid = 0
+        self.cgroup_path_map = dict()
+    
+    def set_cgroup_path_map(self, map):
+        self.cgroup_path_map = map
 
     def get_cadvisor_port(self):
         p = subprocess.Popen("/usr/bin/netstat -natp | /usr/bin/grep cadvisor | /usr/bin/grep LISTEN | \
@@ -223,8 +118,9 @@ class CadvisorProbe(Probe):
                 raise Exception('[cadvisor_probe]cAdvisor running but get info failed')
         whitelist_label = "-whitelisted_container_labels=" + get_meta_label_list()
         ps = subprocess.Popen(["/usr/bin/cadvisor", "-port", str(self.port),\
-            "--store_container_labels=false", whitelist_label\
-            ], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=False)
+            "--store_container_labels=false", whitelist_label,\
+            DISABLE_METRICS_OPTION],\
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=False)
         self.pid = ps.pid
         print("[cadvisor_probe]cAdvisor started at port %s." % self.port)
 
@@ -242,27 +138,16 @@ class CadvisorProbe(Probe):
             index = len(after_str)
         return first + index
 
-    def parse_container_id(self, metric_str):
-        # find the last substring that satisfies PATTERN
-        container_id = ""
-        for sub_str in re.finditer(PATTERN, metric_str):
-            container_id = sub_str.group(0)
-        if len(container_id) - 1 < CONTAINER_ABBR_ID_LEN:
-            return ""
-        return container_id[1:CONTAINER_ABBR_ID_LEN + 1]
-
     def parse_metrics(self, raw_metrics):
         '''
         Convert origin metric to the following format:
         before:
-            container_cpu_load_average_10s{id="/docker",image="redis",name="musing_archimedes"} 0 1658113125812
-        after: g_metric['container_cpu'][container_id] = {
-            'id': '/docker',
-            'image': 'redis',
-            'name': 'musing_archimedes',
-            'cpu_load_average_10s': 0,
-            'container_id': 0
-        }
+            cpu_usage_seconds_total{id="/docker",image="redis", cpu="cpu01", name="musing_archimedes"} 0 1658113125812
+        after: g_metric['container_cpu'][container_id]['cpu_usage_seconds_total'] = {
+                   "cpu01": {
+                        [0, 0]
+                    }
+               }
         '''
         global g_metric
 
@@ -272,49 +157,44 @@ class CadvisorProbe(Probe):
                 table_name = line[:delimiter]
                 if table_name not in g_meta:
                     continue
-                metric_name = line[line.index("_") + 1:line.index("{")]
+                metric_name = line[(line.index("_") + 1):line.index("{")]
                 if metric_name not in g_meta[table_name]:
                     continue
                 if table_name not in g_metric:
                     g_metric[table_name] = dict()
 
                 metric_str = libconf.loads(line[(line.index("{") + 1):line.index("} ")])
-                '''
-                docker use systemd as cgroupfs in k8s, cadvisor metric id like:
-                {id="/system.slice/docker-1044qbdeeedqdff...scope"}
-                normal metric_id like:
-                {id="/docker/1044qbdeeedqdff..."}
-                '''
-                if metric_str.id.startswith("/system.slice") and 'docker-' not in metric_str.id:
-                    continue
-                if metric_str.id.startswith("/user.slice"):
-                    continue
-                container_id = self.parse_container_id(metric_str.id)
-                if container_id == "" or (not self.filter_container(container_id)):
-                    continue
-
-                container_key = container_id
-                container_labels = {}
+                # cadvisor metric id is cgroup path of container
+                if metric_str.id not in self.cgroup_path_map.keys():
+                    continue;
+                
+                label_key= ''
                 for field_name, field_type in g_meta[table_name].items():
                     if field_type == LABEL and field_name in metric_str:
-                        container_labels[field_name] = metric_str[field_name]
-                        container_key += "_" + metric_str[field_name]
+                        label_key += "_" + metric_str[field_name]
 
-                if container_key not in g_metric[table_name]:
-                    g_metric[table_name][container_key] = dict(container_labels)
-                    g_metric[table_name][container_key]['container_id'] = container_id
+                if label_key == '':
+                    label_key = LABEL
+
+                container_id = self.cgroup_path_map[metric_str.id]
+                if container_id not in g_metric[table_name]:
+                    g_metric[table_name][container_id] = dict()
+
+                if metric_name not in g_metric[table_name][container_id]:
+                    g_metric[table_name][container_id][metric_name] = dict()
 
                 value_start_index = line.rfind("}") + 1
                 value_end_index = value_start_index + self.find_2nd_index(line[value_start_index:], " ")
                 value = line[value_start_index:value_end_index]
+
                 try:
                     if g_meta[table_name][metric_name] == COUNTER:
-                        if metric_name in g_metric[table_name][container_key]:
-                            g_metric[table_name][container_key][metric_name][1] = float(value)
+                        if label_key in g_metric[table_name][container_id][metric_name]:
+                            g_metric[table_name][container_id][metric_name][label_key][1] = float(value)
                         else:
-                            g_metric[table_name][container_key][metric_name] = [0, float(value)]
+                            g_metric[table_name][container_id][metric_name][label_key] = [float(value), float(value)]
                     else:
-                        g_metric[table_name][container_key][metric_name] = value
+                        g_metric[table_name][container_id][metric_name][label_key] = float(value)
                 except KeyError:
                     # main will catch the exception
                     raise
@@ -346,25 +226,32 @@ def print_metrics():
     for table, records in g_metric.items():
         if table not in g_meta:
             continue
-        for record in records.values():
+        for key, record in records.items():
             s = "|" + table + "|"
             if table in g_meta:
                 for field_name, field_type in g_meta[table].items():
+                    value = 0
+                    if field_type == LABEL:
+                        continue
+
+                    if field_type == KEY:
+                        value = key
+                        s += value + "|"
+                        continue
+
                     if field_name not in record:
-                        if field_type == LABEL:
-                            value = "NA"
-                        else:
-                            value = ""
+                        value = ""
                     else:
-                        if field_type == COUNTER:
-                            if record[field_name][1] > record[field_name][0]:
-                                value = str(record[field_name][1] - record[field_name][0])
+                        for item in record[field_name].values():
+                            if field_type == COUNTER:
+                                if item[1] > item[0]:
+                                    value += item[1] - item[0]
+                                else:
+                                    value += 0
+                                item[0] = item[1]
                             else:
-                                value = "0"
-                            record[field_name][0] = record[field_name][1]
-                        else:
-                            value = record[field_name]
-                    s = s + value + "|"
+                                value += item
+                    s = s + str(value) + "|"
                 print(s)
                 sys.stdout.flush()
 
@@ -386,7 +273,7 @@ if __name__ == "__main__":
     convert_meta()
     container_lib = init_so()
     signal.signal(signal.SIGINT, signal_handler)
-    basic_probe = BasicLabelProbe(container_lib)
+    containerUtils = ContainerUtils(container_lib)
     ipc_body = ipc.IpcBody()
     s = requests.Session()
 
@@ -395,7 +282,7 @@ if __name__ == "__main__":
         print("[cadvisor_probe] create ipc msg queue failed")
         sys.exit(-1)
 
-    cadvisor_probe = CadvisorProbe(container_lib, cadvisor_port)
+    cadvisor_probe = CadvisorProbe(cadvisor_port)
     try:
         cadvisor_probe.start_cadvisor()
     except Exception as e:
@@ -414,15 +301,14 @@ if __name__ == "__main__":
                     cadvisor_running_flag = False
 
             if ipc_body.probe_flags & ipc.IPC_FLAGS_SNOOPER_CHG or ipc_body.probe_flags == 0:
-                container_list = []
+                cgroup_path_map = {}
                 proc_list = ipc.get_snooper_proc_list(ipc_body)
                 for pid in proc_list:
-                    container_id = basic_probe.get_container_id_by_pid(pid)
-                    container_list.append(container_id)
-                basic_probe.set_container_list(container_list)
-                cadvisor_probe.set_container_list(container_list)
+                    container_id = containerUtils.get_container_id_by_pid(pid)
+                    cgroup_path = containerUtils.get_container_cgroup_path_by_pid(pid)
+                    cgroup_path_map[cgroup_path] = container_id
+                cadvisor_probe.set_cgroup_path_map(cgroup_path_map)
                 reset_g_metric()
-                basic_probe.get_basic_infos()
             ipc.destroy_ipc_body(ipc_body)
 
         if cadvisor_running_flag:
