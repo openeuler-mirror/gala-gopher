@@ -19,7 +19,9 @@
 
 #include <stdint.h>
 #include "base.h"
+#ifdef KAFKA_CHANNEL
 #include "kafka.h"
+#endif
 
 #define META_FIELD_TYPE_KEY                 "key"
 #define META_FIELD_TYPE_LABEL               "label"
@@ -63,8 +65,10 @@ typedef struct {
 
     Measurement **measurements;
 
-    // metadata output
+#ifdef KAFKA_CHANNEL
     KafkaMgr *meta_kafkaMgr;
+#endif
+    // metadata output
     OutChannelType meta_out_channel;
 
     pthread_t tid;

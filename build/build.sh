@@ -11,9 +11,8 @@ JVM_FOLDER=${PROJECT_FOLDER}/src/lib/jvm
 BPFTOOL_FOLDER=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/tools
 VMLINUX_DIR=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/src/include
 EXT_PROBE_BUILD_LIST=`find ${EXT_PROBE_FOLDER} -maxdepth 2 | grep "\<build.sh\>"`
-DEP_LIST=(cmake git librdkafka-devel libmicrohttpd-devel libconfig-devel uthash-devel \
-          libbpf-devel clang llvm java-1.8.0-openjdk-devel jsoncpp-devel gnutls-devel libcurl-devel\
-          openssl-devel libevent-devel)
+DEP_LIST=(cmake git librdkafka-devel libconfig-devel uthash-devel libbpf-devel clang
+          llvm java-1.8.0-openjdk-devel jsoncpp-devel libcurl-devel openssl-devel libevent-devel)
 PROBES_LIST=""
 PROBES_C_LIST=""
 PROBES_META_LIST=""
@@ -173,7 +172,7 @@ function compile_daemon_release()
     mkdir build
     cd build
 
-    cmake -DGOPHER_DEBUG="0" -DPROBES_C_LIST="${PROBES_C_LIST}" -DPROBES_LIST="${PROBES_LIST}" -DPROBES_META_LIST="${PROBES_META_LIST}" \
+    cmake "$@" -DGOPHER_DEBUG="0" -DPROBES_C_LIST="${PROBES_C_LIST}" -DPROBES_LIST="${PROBES_LIST}" -DPROBES_META_LIST="${PROBES_META_LIST}" \
         -DLIBBPF_VER_MAJOR="${LIBBPF_VER_MAJOR}" -DLIBBPF_VER_MINOR="${LIBBPF_VER_MINOR}" ..
     make
 }
@@ -185,7 +184,7 @@ function compile_daemon_debug()
     mkdir build
     cd build
 
-    cmake -DGOPHER_DEBUG="1" -DPROBES_C_LIST="${PROBES_C_LIST}" -DPROBES_LIST="${PROBES_LIST}" -DPROBES_META_LIST="${PROBES_META_LIST}" \
+    cmake "$@" -DGOPHER_DEBUG="1" -DPROBES_C_LIST="${PROBES_C_LIST}" -DPROBES_LIST="${PROBES_LIST}" -DPROBES_META_LIST="${PROBES_META_LIST}" \
         -DLIBBPF_VER_MAJOR="${LIBBPF_VER_MAJOR}" -DLIBBPF_VER_MINOR="${LIBBPF_VER_MINOR}" ..
     make
 }
@@ -285,20 +284,22 @@ if [ "$1" == "--check" ]; then
 fi
 
 if [ "$1" = "--release" ];then
+    shift;shift;
     load_tailor
     prepare_probes
     compile_lib || exit 1
-    compile_daemon_release || exit 1
+    compile_daemon_release "$@" || exit 1
     compile_extend_probes_release || exit 1
     clean_env
     exit
 fi
 
 if [ "$1" = "--debug" ];then
+    shift;shift;
     load_tailor
     prepare_probes
     compile_lib || exit 1
-    compile_daemon_debug || exit 1
+    compile_daemon_debug "$@"|| exit 1
     compile_extend_probes_debug || exit 1
     clean_env
     exit

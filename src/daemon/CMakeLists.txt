@@ -23,7 +23,6 @@ SET(INGRESS_DIR     ${SRC_DIR}/ingress)
 SET(WEB_SERVER_DIR  ${SRC_DIR}/web_server)
 SET(FIFO_DIR        ${SRC_DIR}/lib/fifo)
 SET(META_DIR        ${SRC_DIR}/lib/meta)
-SET(KAFKA_DIR       ${SRC_DIR}/lib/kafka)
 SET(PROBE_DIR       ${SRC_DIR}/lib/probe)
 SET(IMDB_DIR        ${SRC_DIR}/lib/imdb)
 SET(CMD_DIR         ${SRC_DIR}/cmd)
@@ -32,7 +31,6 @@ SET(RESTAPI_DIR     ${SRC_DIR}/api)
 SET(HTTPSERVER_DIR  ${SRC_DIR}/lib/http_server)
 SET(EBPF_PROBE_DIR  ${SRC_DIR}/probes/extends/ebpf.probe)
 
-SET(LIBRDKAFKA_DIR /usr/include/librdkafka)
 SET(LIBELF_DIR /usr/include/libelf)
 
 SET(CMAKE_C_FLAGS "-rdynamic -std=gnu11 -g -Wl,-z,relro,-z,now -DNATIVE_PROBE_FPRINTF \
@@ -59,7 +57,6 @@ SET(SOURCES main.c daemon.c
 
     ${FIFO_DIR}/fifo.c
     ${META_DIR}/meta.c
-    ${KAFKA_DIR}/kafka.c
     ${HTTPSERVER_DIR}/http_server.c
 
     ${PROBE_DIR}/probe.c
@@ -100,7 +97,6 @@ SET(SOURCE_CMD ${CMD_DIR}/client.c)
 FOREACH(FILE ${PROBES_C_LIST})
     SET(SOURCES ${SOURCES} ${FILE})
 ENDFOREACH()
-MESSAGE("SOURCES:\n" ${SOURCES})
 
 if("${GOPHER_DEBUG}" EQUAL 1)
 add_definitions(-DGOPHER_DEBUG)
@@ -115,10 +111,7 @@ if(GOPHER_COMMIT_SHA1)
 add_definitions(-DGOPHER_COMMIT_SHA1="${GOPHER_COMMIT_SHA1}")
 endif()
 
-ADD_EXECUTABLE(${EXECUTABLE_TARGET} ${SOURCES})
-ADD_EXECUTABLE(${EXECUTABLE_TARGET_CMD} ${SOURCE_CMD})
-
-TARGET_INCLUDE_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE
+SET(INC_DIRECTORIES
     ${BASE_DIR}
     ${RESOURCE_DIR}
     ${CONFIG_DIR}
@@ -129,7 +122,6 @@ TARGET_INCLUDE_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE
 
     ${FIFO_DIR}
     ${META_DIR}
-    ${KAFKA_DIR}
 
     ${PROBE_DIR}
     ${IMDB_DIR}
@@ -143,5 +135,22 @@ TARGET_INCLUDE_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE
     ${EBPF_PROBE_DIR}/src/include
 )
 
-TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE config pthread rt dl bpf rdkafka microhttpd elf gnutls jsoncpp_lib ssl event event_openssl)
+SET(LINK_LIBRARIES config pthread rt dl bpf elf jsoncpp_lib ssl event event_openssl)
 
+if(NOT DEFINED KAFKA_CHANNEL)
+    SET(KAFKA_CHANNEL 1)
+endif()
+
+if("${KAFKA_CHANNEL}" EQUAL 1)
+    add_definitions(-DKAFKA_CHANNEL)
+    SET(KAFKA_DIR ${SRC_DIR}/lib/kafka)
+    SET(SOURCES ${SOURCES} ${KAFKA_DIR}/kafka.c)
+    SET(INC_DIRECTORIES ${INC_DIRECTORIES}  ${KAFKA_DIR})
+    SET(LINK_LIBRARIES ${LINK_LIBRARIES} rdkafka)
+endif()
+
+MESSAGE("SOURCES:\n" ${SOURCES})
+ADD_EXECUTABLE(${EXECUTABLE_TARGET} ${SOURCES})
+ADD_EXECUTABLE(${EXECUTABLE_TARGET_CMD} ${SOURCE_CMD})
+TARGET_INCLUDE_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE ${INC_DIRECTORIES})
+TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE ${LINK_LIBRARIES})

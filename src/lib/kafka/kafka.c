@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include "kafka.h"
 
+#ifdef KAFKA_CHANNEL
 static void dr_msg_cb(rd_kafka_t *rk, const rd_kafka_message_t *rkmessage, void *opaque)
 {
     if (rkmessage->err) {
@@ -215,3 +216,4 @@ retry:
     return 0;
 }
 
+#endif
