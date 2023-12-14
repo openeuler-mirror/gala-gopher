@@ -64,22 +64,11 @@ typedef struct  {
 typedef struct {
     uint16_t port;
     char bindAddr[IP_STR_LEN];
-#if 0
-    char clientAuth;
+    char sslAuth;              // enable https and client authentication
     char privateKey[PATH_LEN];
     char certFile[PATH_LEN];
     char caFile[PATH_LEN];
-#endif
-} WebServerConfig;
-
-
-typedef struct {
-    uint16_t port;
-    char sslAuth;  // enable https and client authentication
-    char privateKey[PATH_LEN];
-    char certFile[PATH_LEN];
-    char caFile[PATH_LEN];
-} RestServerConfig;
+} HttpServerConfig;
 
 typedef struct {
     uint32_t metricTotalSize;
@@ -102,8 +91,8 @@ typedef struct {
     EgressConfig *egressConfig;
     KafkaConfig *kafkaConfig;
     IMDBConfig *imdbConfig;
-    WebServerConfig *webServerConfig;
-    RestServerConfig *restServerConfig;
+    HttpServerConfig *webServerConfig;
+    HttpServerConfig *restServerConfig;
     LogsConfig *logsConfig;
     OutConfig *metricOutConfig;
     OutConfig *eventOutConfig;

@@ -46,6 +46,7 @@ extend探针配置文件归档在探针同级目录下。目前有配置文件�
   - bind_addr: 监听地址，默认监听全局IP。
   - port：监听端口
 - rest_api_server
+  - bind_addr: 监听地址，默认监听全局IP。
   - port：RestFul API监听端口
   - ssl_auth：设置RestFul API开启https加密以及鉴权，on为开启，off为不开启，建议用户在实际生产环境开启
   - private_key：用于RestFul API https加密的服务端私钥文件绝对路径，当ssl_auth为“on”必配
@@ -169,8 +170,10 @@ web_server =
     bind_addr = "0.0.0.0";
     port = 8888;
 };
+
 rest_api_server =
 {
+    bind_addr = "0.0.0.0";
     port = 9999;
     ssl_auth = "off";
     private_key = "";

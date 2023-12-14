@@ -53,9 +53,16 @@ static void *DaemonRunEgress(void *arg)
 
 static void *DaemonRunWebServer(void *arg)
 {
-    web_server_mgr_s *web_server = (web_server_mgr_s *)arg;
+    http_server_mgr_s *web_server = (http_server_mgr_s *)arg;
     prctl(PR_SET_NAME, "[WEBSERVER]");
-    run_web_server_daemon(web_server);
+    run_http_server_daemon(web_server);
+}
+
+static void *DaemonRunRestServer(void *arg)
+{
+    http_server_mgr_s *rest_server = (http_server_mgr_s *)arg;
+    prctl(PR_SET_NAME, "[RESTSERVER]");
+    run_http_server_daemon(rest_server);
 }
 
 static void *DaemonRunProbeMng(void *arg)
@@ -315,12 +322,12 @@ int DaemonRun(ResourceMgr *mgr)
     INFO("[DAEMON] create cmd_server thread success.\n");
 
     // 8. start rest_api_server thread
-    ret = RestServerStartDaemon(mgr->restServer);
+    ret = pthread_create(&mgr->rest_server_mgr->tid, NULL, DaemonRunRestServer, mgr->rest_server_mgr);
     if (ret != 0) {
-        ERROR("[DAEMON] create rest api server daemon failed.(errno:%d, %s)\n", errno, strerror(errno));;
+        ERROR("[DAEMON] create rest api server thread failed.(errno:%d, %s)\n", errno, strerror(errno));
         return -1;
     }
-    INFO("[DAEMON] create rest api server daemon success.\n");
+    INFO("[DAEMON] create rest api server thread success.\n");
 
     return 0;
 }
@@ -361,6 +368,11 @@ void destroy_daemon_threads(ResourceMgr *mgr)
         pthread_join(mgr->imdbMgr->metrics_tid, NULL);
     }
 
+    if (mgr->rest_server_mgr != NULL && mgr->rest_server_mgr->tid != 0) {
+        pthread_cancel(mgr->rest_server_mgr->tid);
+        pthread_join(mgr->rest_server_mgr->tid, NULL);
+    }
+
     if (mgr->ctl_tid != 0) {
         pthread_cancel(mgr->ctl_tid);
         pthread_join(mgr->ctl_tid, NULL);
@@ -399,7 +411,10 @@ int DaemonWaitDone(const ResourceMgr *mgr)
     // 6. wait metric_write_logs done
     pthread_join(mgr->imdbMgr->metrics_tid, NULL);
 
-    // 7.wait ctl thread done
+    // 7. wait rest_api_server mng done
+    pthread_join(mgr->rest_server_mgr->tid, NULL);
+
+    // 8.wait ctl thread done
     pthread_join(mgr->ctl_tid, NULL);
 
     return 0;

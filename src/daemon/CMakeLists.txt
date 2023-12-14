@@ -29,6 +29,7 @@ SET(IMDB_DIR        ${SRC_DIR}/lib/imdb)
 SET(CMD_DIR         ${SRC_DIR}/cmd)
 SET(COMMON_DIR      ${SRC_DIR}/common)
 SET(RESTAPI_DIR     ${SRC_DIR}/api)
+SET(HTTPSERVER_DIR  ${SRC_DIR}/lib/http_server)
 SET(EBPF_PROBE_DIR  ${SRC_DIR}/probes/extends/ebpf.probe)
 
 SET(LIBRDKAFKA_DIR /usr/include/librdkafka)
@@ -55,11 +56,11 @@ SET(SOURCES main.c daemon.c
     ${EGRESS_DIR}/egress.c
     ${INGRESS_DIR}/ingress.c
     ${INGRESS_DIR}/event2json.c
-    ${WEB_SERVER_DIR}/web_server_event2.c
 
     ${FIFO_DIR}/fifo.c
     ${META_DIR}/meta.c
     ${KAFKA_DIR}/kafka.c
+    ${HTTPSERVER_DIR}/http_server.c
 
     ${PROBE_DIR}/probe.c
     ${PROBE_DIR}/extend_probe.c
@@ -89,7 +90,8 @@ SET(SOURCES main.c daemon.c
     ${COMMON_DIR}/histogram.c
     ${COMMON_DIR}/core_btf.c
 
-    ${RESTAPI_DIR}/rest_server.c
+    ${WEB_SERVER_DIR}/web_server_event2.c
+    ${RESTAPI_DIR}/rest_server_event2.c
     ${EBPF_PROBE_DIR}/src/lib/java_support.c
 )
 
@@ -137,6 +139,7 @@ TARGET_INCLUDE_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE
     ${CMD_DIR}
     ${COMMON_DIR}
     ${JSON_INC_PATH}
+    ${HTTPSERVER_DIR}
     ${EBPF_PROBE_DIR}/src/include
 )
 

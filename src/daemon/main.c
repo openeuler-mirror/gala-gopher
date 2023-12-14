@@ -18,6 +18,7 @@
 #include <getopt.h>
 #include <errno.h>
 #include <signal.h>
+#include <unistd.h>
 #include "daemon.h"
 #include "base.h"
 #include "ipc.h"

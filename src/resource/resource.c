@@ -563,14 +563,14 @@ static int WebServerInit(ResourceMgr *resourceMgr)
 {
     int ret;
     ConfigMgr *configMgr = resourceMgr->configMgr;
-    web_server_mgr_s *web_server_mgr;
+    http_server_mgr_s *web_server_mgr;
 
     if (configMgr->metricOutConfig->outChnl != OUT_CHNL_WEB_SERVER) {
         INFO("[RESOURCE] metirc out channel isn't web_server, skip create webServer.\n");
         return 0;
     }
 
-    web_server_mgr = (web_server_mgr_s *)calloc(1, sizeof(web_server_mgr_s));
+    web_server_mgr = (http_server_mgr_s *)calloc(1, sizeof(http_server_mgr_s));
     if (web_server_mgr == NULL) {
         ERROR("[RESOURCE] create web server mgr failed.\n");
         return -1;
@@ -585,48 +585,43 @@ static int WebServerInit(ResourceMgr *resourceMgr)
     if (resourceMgr->imdbMgr) {
         resourceMgr->imdbMgr->writeLogsOn = 1;
     }
+
     return 0;
 }
 
 static void WebServerDeinit(ResourceMgr *resourceMgr)
 {
-    destroy_web_server_mgr(resourceMgr->web_server_mgr);
+    destroy_http_server_mgr(resourceMgr->web_server_mgr);
     resourceMgr->web_server_mgr = NULL;
     return;
 }
 
 static int RestServerInit(ResourceMgr *resourceMgr)
 {
-    int ret = 0;
+    int ret;
     ConfigMgr *configMgr = resourceMgr->configMgr;
-    RestServer *restServer = NULL;
+    http_server_mgr_s *rest_server_mgr;
 
-    restServer = (RestServer *)malloc(sizeof(RestServer));
-    if (restServer == NULL) {
-        ERROR("[RESOURCE] create restServer failed.\n");
+    rest_server_mgr = (http_server_mgr_s *)calloc(1, sizeof(http_server_mgr_s));
+    if (rest_server_mgr == NULL) {
+        ERROR("[RESOURCE] create rest server mgr failed\n");
         return -1;
     }
-    memset(restServer, 0, sizeof(RestServer));
 
-    restServer->port = configMgr->restServerConfig->port;
-    restServer->sslAuth = configMgr->restServerConfig->sslAuth;
-    if (restServer->sslAuth) {
-        ret = RestServerSslInit(configMgr->restServerConfig->privateKey,
-                                configMgr->restServerConfig->certFile,
-                                configMgr->restServerConfig->caFile);
-        if (ret < 0) {
-            return -1;
-        }
+    resourceMgr->rest_server_mgr = rest_server_mgr;
+    ret = init_rest_server_mgr(rest_server_mgr, configMgr->restServerConfig);
+    if (ret) {
+        return -1;
     }
 
-    resourceMgr->restServer = restServer;
     return 0;
 }
 
 static void RestServerDeinit(ResourceMgr *resourceMgr)
 {
-    RestServerDestroy(resourceMgr->restServer);
-    resourceMgr->restServer = NULL;
+    destroy_http_server_mgr(resourceMgr->rest_server_mgr);
+    resourceMgr->rest_server_mgr = NULL;
+    return;
 }
 
 static int LogsMgrInit(ResourceMgr *resourceMgr)

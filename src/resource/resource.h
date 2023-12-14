@@ -35,7 +35,8 @@
 #include "egress.h"
 
 #include "web_server_event2.h"
-#include "rest_server.h"
+#include "rest_server_event2.h"
+#include "http_server.h"
 
 #include "logs.h"
 
@@ -66,10 +67,10 @@ typedef struct {
     EgressMgr *egressMgr;
 
     // web server(libevent)
-    web_server_mgr_s *web_server_mgr;
+    http_server_mgr_s *web_server_mgr;
 
-    // rest api server
-    RestServer *restServer;
+    // rest api server(libevent)
+    http_server_mgr_s *rest_server_mgr;
 
     // logs
     LogsMgr *logsMgr;

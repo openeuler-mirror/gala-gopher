@@ -9,12 +9,12 @@
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
  * Author: Vchanger
- * Create: 2023-11-06
+ * Create: 2023-12-05
  * Description:
  ******************************************************************************/
 
-#ifndef __WEB_SERVER_EVENT2_H__
-#define __WEB_SERVER_EVENT2_H__
+#ifndef __REST_SERVER_EVENT2_H__
+#define __REST_SERVER_EVENT2_H__
 
 #include <stdint.h>
 
@@ -22,6 +22,5 @@
 #include "base.h"
 #include "http_server.h"
 
-int init_web_server_mgr(http_server_mgr_s *web_server, HttpServerConfig *config);
+int init_rest_server_mgr(http_server_mgr_s *rest_server, HttpServerConfig *config);
 #endif
-
