@@ -1,0 +1,25 @@
+{
+  "port": 25,
+  "next": [
+    {
+      "is_auth": 0,
+      "ip": "localhost",
+      "url_port": 22,
+      "keep_alive_port": -1
+    },
+    {
+      "is_auth": 1,
+      "ip": "localhost",
+      "url_port": 25,
+      "keep_alive_port": 9998
+    },
+    {
+      "is_auth": 0,
+      "ip": "localhost",
+      "url_port": 23,
+      "keep_alive_port": -1
+    }
+  ],
+  "keep_alive_wait_port": 9999,
+  "batch_write_disk": 1
+}

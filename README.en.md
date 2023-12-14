@@ -1,7 +1,7 @@
-# gala-gopher
+# demo
 
 #### Description
-A low-overhead eBPF-based probes framework
+demo       
 
 #### Software Architecture
 Software architecture description

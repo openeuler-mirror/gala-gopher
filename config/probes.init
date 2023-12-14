@@ -1,3 +1,0 @@
-# Configure in this file to init probes when gala-gopher service started.
-# Format: [function] [json data]
-# for example: tcp {"cmd":{"bin":"/opt/gala-gopher/extend_probes/tcpprobe","probe":["tcp_rtt"]},"snoopers":{},"state":"running"}
