@@ -70,16 +70,13 @@ class BatchWriteDiskThread(threading.Thread):
         return
 
 
-class GetTokenThread(threading.Thread):
+class IsBatchWriteThread(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
 
-    # 每隔一分钟刷新token,token列表中只保存最新的token,旧的token会删除掉
+    # 动态监测是否支持批量写盘
     def run(self):
         while True:
-            get_token()
-
-            # 动态监控是否开启磁盘
             with open('backend.json', 'r') as backend_file:
                 backend_data = json.load(backend_file)
                 is_write = backend_data['batch_write_disk']
@@ -88,8 +85,6 @@ class GetTokenThread(threading.Thread):
                     if (batch_write_disk != None):
                         is_batch_write_disk.clear()
                         is_batch_write_disk.append(batch_write_disk)
-            time.sleep(60)
-
 
 class KeepAliveHandler(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -143,7 +138,7 @@ class Handler(BaseHTTPRequestHandler):
         elif operate == 'update' and is_batch_write_disk[len(is_batch_write_disk) - 1] == 1:
 
             # 开启线程进行更新文件、写盘操作
-            batch_write_disk_thread = BatchWriteDiskThread("/dev/null", file_name, 4, 100000)
+            batch_write_disk_thread = BatchWriteDiskThread("/dev/null", "file.txt", 4, 100000)
             batch_write_disk_thread.start()
 
             self.send_request_next(operate, None)
@@ -170,6 +165,15 @@ class Handler(BaseHTTPRequestHandler):
                         conn.request("PUT", build_url(ip, port, operate_url_prefix, "delete", ""))
                 # 下游是java_app
                 elif is_auth == 1:
+                    # 获取token
+                    conn.request("POST", build_url(element.ip, element.url_port, "/admin-api/system/auth/login", "", ""),
+                                    user_login, login_headers)
+                    response = conn.getresponse()
+                    msg = response.read()
+                    data = json.loads(msg)["data"]
+                    response_token = data["accessToken"]
+                    element.token = response_token
+
                     if element.token != "":
                         token_header = {"Authorization":"Bearer " + element.token , "tenant-id": "1",
                                         "Content-Type": "application/json"}
@@ -179,6 +183,7 @@ class Handler(BaseHTTPRequestHandler):
                             response = conn.getresponse()
                             context = response.read()
                             id = json.loads(context)["data"]
+                            user_id.clear()
                             user_id.append(id)
                         elif operate == 'update':
                             conn.request("PUT", build_url(ip, port, update_operate_url_prefix, "update", ""), user_update,
@@ -191,22 +196,6 @@ class Handler(BaseHTTPRequestHandler):
                 return
             conn.close()
 
-def get_token():
-    for elem in next:
-        if elem.is_auth == 1:
-            try:
-                conn = http.client.HTTPConnection(elem.ip, elem.url_port)
-                # 获取token
-                conn.request("POST", build_url(elem.ip, elem.url_port, "/admin-api/system/auth/login", "", ""),
-                             user_login, login_headers)
-                response = conn.getresponse()
-                response_token = json.loads(response)["accessToken"]
-                elem.token = response_token
-                conn.close()
-            except Exception:
-                elem.token = None
-
-
 if __name__ == "__main__":
 
     with open('backend.json', 'r') as backend_file:
@@ -218,9 +207,9 @@ if __name__ == "__main__":
             e = Next(elem["is_auth"], elem["ip"], elem["url_port"], elem["keep_alive_port"])
             next.append(e)
 
-    # 周期刷新token
-    get_token_thread = GetTokenThread()
-    get_token_thread.start()
+    # 动态监测是否支持批量写盘
+    is_batch_write_thread = IsBatchWriteThread()
+    is_batch_write_thread.start()
 
     # 接收心跳
     thread = KeepAliveThread()
