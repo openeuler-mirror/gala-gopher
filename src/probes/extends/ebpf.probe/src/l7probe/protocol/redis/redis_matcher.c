@@ -35,6 +35,7 @@ static struct redis_record_s *handle_pub_resp_msg(struct redis_msg_s *resp)
 
     unmatched_record->req_msg->timestamp_ns = resp->timestamp_ns;
     unmatched_record->req_msg->command = strdup(PUSH_PUB_CMD);
+    unmatched_record->req_msg->is_fake_msg = true;
     unmatched_record->resp_msg = resp;
     return unmatched_record;
 }
@@ -55,6 +56,7 @@ static struct redis_record_s *handle_follower_to_leader_ack_msg(struct redis_msg
     unmatched_record->req_msg = req;
     unmatched_record->resp_msg->timestamp_ns = req->timestamp_ns;
     unmatched_record->resp_msg->single_reply_msg_count = 1;
+    unmatched_record->resp_msg->is_fake_msg = true;
     return unmatched_record;
 }
 
@@ -74,6 +76,7 @@ static struct redis_record_s *handle_leader_to_follower_msg(struct redis_msg_s *
     unmatched_record->req_msg = resp;
     unmatched_record->resp_msg->timestamp_ns = resp->timestamp_ns;
     unmatched_record->resp_msg->single_reply_msg_count = 1;
+    unmatched_record->resp_msg->is_fake_msg = true;
     unmatched_record->role_swapped = true;
     return unmatched_record;
 }
@@ -93,17 +96,42 @@ static void add_redis_record_to_buf(struct record_buf_s *record_buf, struct redi
     record_buf->msg_total_count += record->resp_msg->single_reply_msg_count;
 }
 
+static struct redis_msg_s *get_redis_msg(struct frame_buf_s *frame_bufs, struct redis_msg_s *placeholder_msg)
+{
+    struct redis_msg_s *msg = NULL;
+
+    if (frame_bufs->current_pos == frame_bufs->frame_buf_size) {
+        msg = placeholder_msg;
+    } else {
+        if (frame_bufs->current_pos < __FRAME_BUF_SIZE) {
+            struct frame_data_s * frame_tmp = (frame_bufs->frames)[frame_bufs->current_pos];
+            if (frame_tmp == NULL) {
+                return NULL;
+            }
+            msg = frame_tmp->frame;
+        }
+    }
+
+    return msg;
+}
+
 static void match_frames_with_timestamp_order(struct record_buf_s *record_buf, struct redis_record_s *record,
     struct frame_buf_s *req_frames, struct frame_buf_s *resp_frames)
 {
     struct redis_msg_s placeholder_msg = {0};
     placeholder_msg.timestamp_ns = INT64_MAX;
+
     while (req_frames->current_pos < req_frames->frame_buf_size ||
            resp_frames->current_pos < resp_frames->frame_buf_size) {
-        struct redis_msg_s *req = (req_frames->current_pos == req_frames->frame_buf_size) ?
-                                  &placeholder_msg : ((req_frames->frames)[req_frames->current_pos]->frame);
-        struct redis_msg_s *resp = (resp_frames->current_pos == resp_frames->frame_buf_size) ?
-                                   &placeholder_msg : ((resp_frames->frames)[resp_frames->current_pos]->frame);
+
+        struct redis_msg_s *req = get_redis_msg(req_frames, &placeholder_msg);
+        if (req == NULL) {
+            break;
+        }
+        struct redis_msg_s *resp = get_redis_msg(resp_frames, &placeholder_msg);
+        if (resp == NULL) {
+            break;
+        }
 
         // Convert Redis pub/sub published messages which have no corresponding `request` into request-less record_buf.
         if (resp_frames->current_pos < resp_frames->frame_buf_size && resp->is_pub_msg) {
@@ -114,7 +142,7 @@ static void match_frames_with_timestamp_order(struct record_buf_s *record_buf, s
 
         // Handle REPLCONF ACK command sent from follower to leader.
         const char *REPLCONF_ACK = "REPLCONF ACK";
-        if (req_frames->current_pos < req_frames->frame_buf_size && (strcmp(req->command, REPLCONF_ACK) == 0) &&
+        if (req->command != NULL && req_frames->current_pos < req_frames->frame_buf_size && (strcmp(req->command, REPLCONF_ACK) == 0) &&
             // Ensure the output order based on timestamps.
             (resp_frames->current_pos == resp_frames->frame_buf_size || req->timestamp_ns < resp->timestamp_ns)) {
             add_redis_record_to_buf(record_buf, handle_follower_to_leader_ack_msg(req));
@@ -123,7 +151,7 @@ static void match_frames_with_timestamp_order(struct record_buf_s *record_buf, s
         }
 
         // Handle commands sent from leader to follower, which are replayed at the follower.
-        if (resp_frames->current_pos < resp_frames->frame_buf_size && strlen(resp->command) != 0) {
+        if (resp->command != NULL && resp_frames->current_pos < resp_frames->frame_buf_size && strlen(resp->command) != 0) {
             add_redis_record_to_buf(record_buf, handle_leader_to_follower_msg(resp));
             ++resp_frames->current_pos;
             continue;
@@ -134,7 +162,7 @@ static void match_frames_with_timestamp_order(struct record_buf_s *record_buf, s
             ++req_frames->current_pos;
             continue;
         }
-        if (record->req_msg->timestamp_ns != 0) {
+        if (record->req_msg != NULL && record->req_msg->timestamp_ns != 0) {
             record->resp_msg = resp;
             add_redis_record_to_buf(record_buf, record);
 

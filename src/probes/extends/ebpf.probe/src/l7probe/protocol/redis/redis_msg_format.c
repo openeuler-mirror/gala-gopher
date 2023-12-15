@@ -19,7 +19,7 @@
 
 struct redis_msg_s *init_redis_msg()
 {
-    struct redis_msg_s *msg = (struct redis_msg_s *) malloc(sizeof(struct redis_msg_s));
+    struct redis_msg_s *msg = (struct redis_msg_s *)malloc(sizeof(struct redis_msg_s));
     if (msg == NULL) {
         ERROR("[Redis Parse] redis_msg_s malloc failed.\n");
         return NULL;
@@ -35,17 +35,19 @@ void free_redis_msg(struct redis_msg_s *msg)
     }
     if (msg->command != NULL) {
         free(msg->command);
+        msg->command = NULL;
     }
 
     if (msg->payload != NULL) {
         free(msg->payload);
+        msg->payload = NULL;
     }
     free(msg);
 }
 
 struct redis_record_s *init_redis_record()
 {
-    struct redis_record_s *record = (struct redis_record_s *) malloc(sizeof(struct redis_record_s));
+    struct redis_record_s *record = (struct redis_record_s *)malloc(sizeof(struct redis_record_s));
     if (record == NULL) {
         ERROR("[Redis Parse] redis_record_s malloc failed.\n");
         return NULL;
@@ -59,12 +61,11 @@ void free_redis_record(struct redis_record_s *record)
     if (record == NULL) {
         return;
     }
-    if (record->req_msg != NULL) {
-        free(record->req_msg);
+    if (record->req_msg != NULL && record->req_msg->is_fake_msg) {
+        free_redis_msg(record->req_msg);
     }
-
-    if (record->resp_msg != NULL) {
-        free(record->resp_msg);
+    if (record->resp_msg != NULL && record->resp_msg->is_fake_msg) {
+        free_redis_msg(record->resp_msg);
     }
     free(record);
 }

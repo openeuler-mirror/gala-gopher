@@ -22,6 +22,10 @@
 #include <stdbool.h>
 
 struct redis_msg_s {
+    // For unilateral messages (such as heartbeat), we construct a fake req/resp msg and store it in the record.
+    // This kind of msg does not come from frame_bufs and must be freed when the record is freed.
+    bool is_fake_msg;
+
     uint64_t timestamp_ns;
 
     // Actual payload, not including the data type marker, and trailing \r\n.

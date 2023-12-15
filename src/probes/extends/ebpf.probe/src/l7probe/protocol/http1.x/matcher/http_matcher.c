@@ -54,9 +54,6 @@ static void add_http_record_into_buf(http_record *record, struct record_buf_s *r
 // Note: the lack of req/resp occurred in the middle of the http message queue, would lead to match incorrectly into record, then the result is not exact
 void http_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *resp_frames, struct record_buf_s *record_buf)
 {
-    if (req_frames == NULL || req_frames->frame_buf_size == 0 || resp_frames == NULL || resp_frames->frame_buf_size == 0) {
-        return;
-    }
     DEBUG("[HTTP1.x MATCHER] Start to match http req and resp into record.\n");
     record_buf->err_count = 0;
     record_buf->record_buf_size = 0;

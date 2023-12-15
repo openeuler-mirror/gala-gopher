@@ -657,10 +657,6 @@ void handle_execute_req(struct pgsql_regular_msg_s *req, struct frame_buf_s *req
 void pgsql_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *rsp_frames,
                         struct record_buf_s *record_buf)
 {
-    if (req_frames == NULL || rsp_frames == NULL) {
-        DEBUG("[PGSQL MATCHER] Req or resp frames is null.\n");
-        return;
-    }
     DEBUG("[PGSQL MATCHER] Req frames size: %d, resp frames size: %d\n", req_frames->frame_buf_size, rsp_frames->frame_buf_size);
     size_t req_index, resp_index;
     size_t unconsumed_index;
@@ -674,7 +670,7 @@ void pgsql_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *rsp_
         struct frame_data_s *req_frame;
         struct pgsql_regular_msg_s *req_msg;
         req_frame = req_frames->frames[req_index];
-        if (req_frames == NULL) {
+        if (req_frame == NULL) {
             break;
         }
         req_msg = (struct pgsql_regular_msg_s *) req_frame->frame;

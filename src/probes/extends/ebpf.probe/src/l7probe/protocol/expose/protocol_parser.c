@@ -50,6 +50,7 @@ void free_record_data(enum proto_type_t type, struct record_data_s *record_data)
             break;
             // todo: add protocols:
         case PROTO_HTTP2:
+            break;
         case PROTO_REDIS:
             free_redis_record((struct redis_record_s *) record_data);
             break;
@@ -86,6 +87,7 @@ void free_frame_data_s(enum proto_type_t type, struct frame_data_s *frame)
             break;
         // todo: add protocols:
         case PROTO_HTTP2:
+            break;
         case PROTO_REDIS:
             free_redis_msg((struct redis_msg_s *) frame->frame);
             break;
@@ -116,7 +118,7 @@ size_t proto_find_frame_boundary(enum proto_type_t type, enum message_type_t msg
         case PROTO_HTTP2:
             break;
         case PROTO_REDIS:
-//            ret = redis_find_frame_boundary(raw_data);
+            ret = redis_find_frame_boundary(raw_data);
             break;
         case PROTO_KAFKA:
 //            ret = kafka_find_frame_boundary(msg_type, raw_data);
@@ -152,7 +154,7 @@ parse_state_t proto_parse_frame(enum proto_type_t type, enum message_type_t msg_
         case PROTO_HTTP2:
             break;
         case PROTO_REDIS:
-//            state = redis_parse_frame(msg_type, raw_data, frame_data);
+            state = redis_parse_frame(msg_type, raw_data, frame_data);
             break;
         case PROTO_KAFKA:
 //            state = kafka_parse_frame(msg_type, raw_data, frame_data);
@@ -177,6 +179,10 @@ parse_state_t proto_parse_frame(enum proto_type_t type, enum message_type_t msg_
 void proto_match_frames(enum proto_type_t type, struct frame_buf_s *req_frame, struct frame_buf_s *resp_frame,
                         struct record_buf_s *record_buf)
 {
+    if (req_frame == NULL || req_frame->frame_buf_size == 0 || resp_frame == NULL || resp_frame->frame_buf_size == 0) {
+        return;
+    }
+
     switch (type) {
         case PROTO_PGSQL:
             pgsql_match_frames(req_frame, resp_frame, record_buf);
@@ -187,7 +193,7 @@ void proto_match_frames(enum proto_type_t type, struct frame_buf_s *req_frame, s
         case PROTO_HTTP2:
             break;
         case PROTO_REDIS:
-//            redis_match_frames(req_frame, resp_frame, record_buf);
+            redis_match_frames(req_frame, resp_frame, record_buf);
             break;
         case PROTO_KAFKA:
 //            kafka_match_frames(req_frame, resp_frame, record_buf);
