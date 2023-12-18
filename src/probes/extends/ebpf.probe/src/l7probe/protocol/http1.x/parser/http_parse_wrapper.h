@@ -16,15 +16,14 @@
 #define __HTTP_PARSE_WRAPPER_H__
 
 #include "../model/http_msg_format.h"
-#include "picohttpparser.h"
 
 /**
  * HTTP header
  */
-typedef struct http_header_t {
-    const char *name;
+typedef struct http_header {
+    char *name;
     size_t name_len;
-    const char *value;
+    char *value;
     size_t value_len;
 } http_header;
 
@@ -32,12 +31,12 @@ typedef struct http_header_t {
  * HTTP Request
  */
 typedef struct http_request {
-    const char *method;
+    char *method;
     size_t method_len;
-    const char *path;
+    char *path;
     size_t path_len;
     int minor_version;
-    struct phr_header headers[MAX_HEADERS_SIZE];
+    http_header headers[MAX_HEADERS_SIZE];
     size_t num_headers;
 } http_request;
 
@@ -45,11 +44,11 @@ typedef struct http_request {
  * HTTP Response
  */
 typedef struct http_response {
-    const char *msg;
+    char *msg;
     size_t msg_len;
     int status;
     int minor_version;
-    struct phr_header headers[MAX_HEADERS_SIZE];
+    http_header headers[MAX_HEADERS_SIZE];
     size_t num_headers;
 } http_response;
 
@@ -78,6 +77,6 @@ size_t http_parse_response_headers(struct raw_data_s* raw_data, http_response* r
  * @param num_headers
  * @return
  */
-http_headers_map *get_http_headers_map(struct phr_header* headers, size_t num_headers);
+http_headers_map *get_http_headers_map(struct http_header* headers, size_t num_headers);
 
 #endif // __HTTP_PARSE_WRAPPER_H__
