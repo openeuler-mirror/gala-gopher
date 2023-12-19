@@ -1401,7 +1401,7 @@ static struct svg_stack_trace_s *create_svg_stack_trace(struct ipc_body_s *ipc_b
     if (!svg_st->svg_mng) {
         goto cleanup;
     }
-
+#ifdef FLAMEGRAPH_SVG
     if (set_svg_dir(&svg_st->svg_mng->svg, ipc_body->probe_param.svg_dir, flame_name)) {
         goto cleanup;
     }
@@ -1409,7 +1409,7 @@ static struct svg_stack_trace_s *create_svg_stack_trace(struct ipc_body_s *ipc_b
     if (set_flame_graph_path(svg_st->svg_mng, ipc_body->probe_param.flame_dir, flame_name)) {
         goto cleanup;
     }
-
+#endif
     svg_st->raw_stack_trace_a = create_raw_stack_trace(g_st);
     if (!svg_st->raw_stack_trace_a) {
         goto cleanup;
@@ -2115,7 +2115,7 @@ static void *__running(void *arg)
     }
     return NULL;
 }
-
+#ifdef FLAMEGRAPH_SVG
 static FILE *__get_flame_graph_fp(struct stack_svg_mng_s *svg_mng)
 {
     struct stack_flamegraph_s *sfg;
@@ -2123,16 +2123,17 @@ static FILE *__get_flame_graph_fp(struct stack_svg_mng_s *svg_mng)
     sfg = &(svg_mng->flame_graph);
     return sfg->fp;
 }
-
+#endif
 int  __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng, struct stack_trace_histo_s *stack_trace_histo,
     struct post_info_s *post_info)
 {
+#ifdef FLAMEGRAPH_SVG
     FILE *fp = __get_flame_graph_fp(svg_mng);
     if (!fp) {
         ERROR("[STACKPROBE]: Invalid fp.\n");
         return -1;
     }
-
+#endif
     __histo_tmp_str[0] = 0;
     (void)snprintf(__histo_tmp_str, HISTO_TMP_LEN, "%s %llu\n",
                 stack_trace_histo->stack_symbs_str, stack_trace_histo->count);
@@ -2156,8 +2157,9 @@ int  __do_wr_stack_histo(struct stack_svg_mng_s *svg_mng, struct stack_trace_his
             }
         }
     }
-
+#ifdef FLAMEGRAPH_SVG
     (void)fputs(__histo_tmp_str, fp);
+#endif
     return 0;
 }
 

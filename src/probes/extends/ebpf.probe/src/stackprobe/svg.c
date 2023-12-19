@@ -38,6 +38,8 @@
 #include "stack.h"
 #include "svg.h"
 
+#ifdef FLAMEGRAPH_SVG
+
 #define __COMMAND_LEN       (2 * COMMAND_LEN)
 #define FAMEGRAPH_BIN       "/usr/bin/flamegraph.pl"
 #define SVG_COMMAND   "%s --title=\" %s \" %s %s > %s 2>/dev/null"
@@ -53,8 +55,8 @@ static struct svg_param_s svg_params[STACK_SVG_MAX] =
     {"offcpu", "--colors=io --countname=us", "Off-CPU Time Flame Graph"},
     {"mem", "--colors=mem --countname=Bytes", "Memory Leak Flame Graph"},
     {"io", "--colors=io --countname=us", "IO Time Flame Graph"}};
-
-#if 1
+#endif
+#ifdef FLAMEGRAPH_SVG
 static void __rm_svg(const char *svg_file)
 {
     FILE *fp;
@@ -215,7 +217,6 @@ static int stack_get_next_svg_file(struct stack_svgs_s* svgs, char svg_file[], s
     svgs->svg_files.next = next;
     return 0;
 }
-#endif
 
 char is_svg_tmout(struct stack_svg_mng_s* svg_mng)
 {
@@ -246,7 +247,7 @@ int create_svg_file(struct stack_svg_mng_s* svg_mng, const char *flame_graph, in
 
     return __new_svg(flame_graph, (const char *)svg_file, en_type);
 }
-
+#endif
 struct stack_svg_mng_s* create_svg_mng(u32 default_period)
 {
     struct stack_svg_mng_s* svg_mng = malloc(sizeof(struct stack_svg_mng_s));
@@ -262,15 +263,18 @@ struct stack_svg_mng_s* create_svg_mng(u32 default_period)
 
     svg_mng->svg.last_create_time = (time_t)time(NULL);
     svg_mng->svg.period = default_period;
+#ifdef FLAMEGRAPH_SVG
     (void)__create_svg_files(&svg_mng->svg.svg_files, default_period);
-
+#endif
     return svg_mng;
 }
 
 void destroy_svg_mng(struct stack_svg_mng_s* svg_mng)
 {
+#ifdef FLAMEGRAPH_SVG
     struct stack_svgs_s *svgs;
     struct stack_flamegraph_s *flame_graph;
+#endif
     enum stack_svg_type_e en_type = STACK_SVG_ONCPU;
 
     if (!svg_mng) {
@@ -278,11 +282,13 @@ void destroy_svg_mng(struct stack_svg_mng_s* svg_mng)
     }
 
     for (; en_type < STACK_SVG_MAX; en_type++) {
+#ifdef FLAMEGRAPH_SVG
         svgs = &(svg_mng->svg);
         __destroy_svg_files(&(svgs->svg_files));
 
         flame_graph = &(svg_mng->flame_graph);
         __destroy_flamegraph(flame_graph);
+#endif
     }
     (void)free(svg_mng);
     return;
