@@ -15,6 +15,8 @@
 %define without_proc          0
 %define without_tprofiling    0
 
+%define disable_kafka_channel 0
+
 # example for tailoring probes
 %global extend_tailor_probes %{nil}
 %if 0%{?without_flamegraph}
@@ -33,9 +35,12 @@ URL:           https://gitee.com/openeuler/gala-gopher
 Source:        %{name}-%{version}.tar.gz
 BuildRoot:     %{_builddir}/%{name}-%{version}
 BuildRequires: systemd cmake gcc-c++ elfutils-devel (clang >= 10.0.1 or clang12) llvm
-BuildRequires: libconfig-devel librdkafka-devel libmicrohttpd-devel libevent-devel openssl-devel
-BuildRequires: libbpf-devel >= 2:0.3 uthash-devel
-BuildRequires: jsoncpp-devel gnutls-devel git libstdc++-devel
+BuildRequires: libconfig-devel libevent-devel openssl-devel libbpf-devel >= 2:0.8 uthash-devel
+BuildRequires: jsoncpp-devel git libstdc++-devel
+
+%if !0%{?disable_kafka_channel}
+BuildRequires: librdkafka-devel
+%endif
 %if !0%{?without_flamegraph}
 BuildRequires: libcurl-devel
 %endif
@@ -46,9 +51,13 @@ BuildRequires: java-1.8.0-openjdk-devel
 BuildRequires: jsoncpp-devel java-1.8.0-openjdk-devel
 %endif
 
-Requires:      bash glibc elfutils bpftool libbpf >= 2:0.3
-Requires:      librdkafka libmicrohttpd libconfig libevent
-Requires:      iproute jsoncpp gnutls libstdc++
+Requires:      bash glibc elfutils bpftool libbpf >= 2:0.8
+Requires:      libconfig libevent iproute jsoncpp libstdc++
+
+%if !0%{?disable_kafka_channel}
+Requires:      librdkafka
+%endif
+
 %if !0%{?without_systeminfo}
 Requires:      ethtool systemd iproute
 %endif
@@ -96,9 +105,17 @@ cat << EOF > tailor.conf
 EXTEND_PROBES="%{extend_tailor_probes}"
 EOF
 
+BUILD_OPTS=(
+%if !0%{?disable_kafka_channel}
+    -DKAFKA_CHANNEL=1
+%else
+    -DKAFKA_CHANNEL=0
+%endif
+)
+
 pushd build
 export PATH=$PATH:/usr/lib64/llvm12/bin
-sh build.sh --debug %{vmlinux_ver}
+sh build.sh --debug %{vmlinux_ver} "${BUILD_OPTS[@]}"
 popd
 
 %check

@@ -15,8 +15,9 @@
 #ifndef __KAFKA_H__
 #define __KAFKA_H__
 
+#ifdef KAFKA_CHANNEL
 #include <stdint.h>
-#include <rdkafka.h>
+#include <librdkafka/rdkafka.h>
 #include "base.h"
 #include "config.h"
 
@@ -41,5 +42,6 @@ void KafkaMgrDestroy(KafkaMgr *mgr);
 
 int KafkaMsgProduce(const KafkaMgr *mgr, char *msg, const uint32_t msgLen);
 
-#endif
+#endif /* KAFKA_CHANNEL */
 
+#endif  /* __KAFKA_H__ */

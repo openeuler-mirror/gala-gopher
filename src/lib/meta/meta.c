@@ -604,6 +604,7 @@ static int report_one_metadata(const MeasurementMgr *mgr, const Measurement *mm)
         return -1;
     }
 
+#ifdef KAFKA_CHANNEL
     if (mgr->meta_out_channel == OUT_CHNL_KAFKA) {
         // Report meta to kafka
         KafkaMgr *meta_kafka = mgr->meta_kafkaMgr;
@@ -615,6 +616,7 @@ static int report_one_metadata(const MeasurementMgr *mgr, const Measurement *mm)
         (void)KafkaMsgProduce(meta_kafka, json_str, strlen(json_str));
         DEBUG("[META] kafka metadata_topic produce one data: %s\n", json_str);
     }
+#endif
 
     if (mgr->meta_out_channel == OUT_CHNL_LOGS) {
         // Write meta to log
@@ -660,10 +662,12 @@ int ReportMetaDataMain(const MeasurementMgr *mgr)
         ERROR("[META] metadata out channel isn't logs or kafka, break.\n");
         return -1;
     }
+#ifdef KAFKA_CHANNEL
     if (mgr->meta_out_channel == OUT_CHNL_KAFKA && mgr->meta_kafkaMgr == NULL) {
         ERROR("[META] metadata out channel is kafka but kafkaMgr is NULL, break.\n");
         return -1;
     }
+#endif
 
     for (;;) {
         ret = ReportMeteData(mgr);

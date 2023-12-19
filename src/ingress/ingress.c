@@ -266,8 +266,8 @@ static int GetTableNameAndContent(const char* buf, char *tblName, size_t size, c
 // process log (one telemetry category in otel) message
 static int ProcessOtelLogData(IngressMgr *mgr, const char *content)
 {
+#ifdef KAFKA_CHANNEL
     int ret = 0;
-
     if (mgr->egressMgr && mgr->egressMgr->event_kafkaMgr) {
         // send log data to egress
         ret = LogData2Egress(mgr, content);
@@ -278,7 +278,7 @@ static int ProcessOtelLogData(IngressMgr *mgr, const char *content)
             DEBUG("[INGRESS] send log data to egress succeed.(content=%s)\n", content);
         }
     }
-
+#endif
     return 0;
 }
 
@@ -297,6 +297,7 @@ static int ProcessEventData(IngressMgr *mgr, const char *content)
         }
     }
 
+#ifdef KAFKA_CHANNEL
     if (mgr->egressMgr && mgr->egressMgr->event_kafkaMgr) {
         // send data to egress
         ret = EventData2Egress(mgr, content);
@@ -305,7 +306,7 @@ static int ProcessEventData(IngressMgr *mgr, const char *content)
             return -1;
         }
     }
-
+#endif
     return 0;
 }
 
@@ -331,6 +332,7 @@ static int ProcessMetricData(IngressMgr *mgr, const char *content, const char *t
         }
     }
 
+#ifdef KAFKA_CHANNEL
     if (mgr->egressMgr && mgr->egressMgr->metric_kafkaMgr) {
         // send metric to egress
         ret = MetricData2Egress(mgr, table, rec);
@@ -341,7 +343,7 @@ static int ProcessMetricData(IngressMgr *mgr, const char *content, const char *t
             DEBUG("[INGRESS] send metric data to egress succeed.(tbl=%s,content=%s)\n", table->name, content);
         }
     }
-
+#endif
     return 0;
 }
 

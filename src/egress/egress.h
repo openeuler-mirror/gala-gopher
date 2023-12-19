@@ -8,7 +8,7 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Author: Hubble_Zhu 
+ * Author: Hubble_Zhu
  * Create: 2021-04-12
  * Description:
  ******************************************************************************/
@@ -19,11 +19,15 @@
 #include <pthread.h>
 
 #include "fifo.h"
+#ifdef KAFKA_CHANNEL
 #include "kafka.h"
+#endif
 
 typedef struct {
+#ifdef KAFKA_CHANNEL
     KafkaMgr *metric_kafkaMgr;
     KafkaMgr *event_kafkaMgr;
+#endif
 
     uint32_t interval;
     uint32_t timeRange;

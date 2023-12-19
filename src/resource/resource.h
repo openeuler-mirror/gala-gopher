@@ -29,7 +29,9 @@
 #include "meta.h"
 #include "fifo.h"
 
+#ifdef KAFKA_CHANNEL
 #include "kafka.h"
+#endif
 
 #include "ingress.h"
 #include "egress.h"
@@ -55,12 +57,14 @@ typedef struct {
     MeasurementMgr *mmMgr;
     FifoMgr *fifoMgr;
 
+#ifdef KAFKA_CHANNEL
     // outer component
     KafkaMgr *metric_kafkaMgr;  // output metric's data
 
     KafkaMgr *meta_kafkaMgr;    // output metadata
 
     KafkaMgr *event_kafkaMgr;   // output abnormal event
+#endif
 
     // thread handler
     IngressMgr *ingressMgr;

@@ -61,7 +61,9 @@ SubModuleInitor gSubModuleInitorTbl[] = {
     { ProbeMngInit,         ProbeMngDeinit },
     { MeasurementMgrInit,   MeasurementMgrDeinit },
     { FifoMgrInit,          FifoMgrDeinit },
+#ifdef KAFKA_CHANNEL
     { KafkaMgrInit,         KafkaMgrDeinit },       // kafka must precede egress
+#endif
     { IMDBMgrInit,          IMDBMgrDeinit },        // IMDB must precede ingress
     { EgressMgrInit,        EgressMgrDeinit },      // egress must precede ingress
     { IngressMgrInit,       IngressMgrDeinit },
@@ -340,6 +342,7 @@ static void FifoMgrDeinit(ResourceMgr *resourceMgr)
     return;
 }
 
+#ifdef KAFKA_CHANNEL
 static int KafkaMgrInit(ResourceMgr *resourceMgr)
 {
     ConfigMgr *configMgr = NULL;
@@ -405,6 +408,7 @@ static void KafkaMgrDeinit(ResourceMgr *resourceMgr)
 
     return;
 }
+#endif
 
 static int IMDBMgrTableLoad(IMDB_Table *table, Measurement *mm)
 {
@@ -543,8 +547,10 @@ static int EgressMgrInit(ResourceMgr *resourceMgr)
         return -1;
     }
 
+#ifdef KAFKA_CHANNEL
     egressMgr->metric_kafkaMgr = resourceMgr->metric_kafkaMgr;
     egressMgr->event_kafkaMgr = resourceMgr->event_kafkaMgr;
+#endif
     egressMgr->interval = resourceMgr->configMgr->egressConfig->interval;
     egressMgr->timeRange = resourceMgr->configMgr->egressConfig->timeRange;
 
