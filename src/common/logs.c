@@ -40,6 +40,27 @@
 
 static struct log_mgr_s *local = NULL;
 
+int mkdirp(const char *path, mode_t mode)
+{
+    if (NULL == path) {
+        return -1;
+    }
+    char path_copy[PATH_LEN];
+    path_copy[0] = 0;
+    snprintf(path_copy, sizeof(path_copy), "%s", path);
+
+    char *p = dirname(path_copy);
+    if ((strcmp(p, ".") == 0)) {
+        return -1;
+    }
+    if ((strlen(p) > 1) && (mkdirp(p, mode) != 0)) {
+        return -1;
+    }
+    int rc = mkdir(path, mode);
+
+    return (0 == rc) || EEXIST == errno ? 0 : -1;
+}
+
 #define LOG_FILE_PERMISSION 0640
 static int open_file(const char *filename)
 {
@@ -65,8 +86,6 @@ static int open_file_with_clear_file(const char *filename)
 
 static int open_file_without_dir(const char *filename)
 {
-    char command[COMMAND_LEN];
-    FILE *fp;
     if (!filename) {
         return -1;
     }
@@ -81,13 +100,11 @@ static int open_file_without_dir(const char *filename)
     }
     u_char dir_exist = (access(base_dir, F_OK) == 0);
     if (!dir_exist) {
-        (void)snprintf(command, COMMAND_LEN, "umask 027; /usr/bin/mkdir -p %s", base_dir);
-        fp = popen(command, "r");
-        if (!fp) {
+        int status = mkdirp(base_dir, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+        if (status != 0) {
             ERROR("popen mkdir %s failed, errno %d\n", base_dir, errno);
             return -1;
         }
-        fclose(fp);
     }
     return open_file(filename);
 }
