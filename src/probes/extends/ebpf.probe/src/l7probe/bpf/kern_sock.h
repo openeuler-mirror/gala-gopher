@@ -83,7 +83,7 @@ struct sock_data_args_s {
     char is_socket_op;
 
     // For send()/recv()/write()/read().
-    char* buf;
+    const char* buf;
 
     // For sendmsg()/recvmsg()/writev()/readv().
     struct iovec* iov;
@@ -129,7 +129,7 @@ struct {
     __uint(max_entries, 1);
 } l7_data_buffer SEC(".maps");
 
-static __always_inline void submit_perf_buf(void* ctx, char *buf, size_t bytes_count, struct conn_data_s* conn_data)
+static __always_inline void submit_perf_buf(void* ctx, const char *buf, size_t bytes_count, struct conn_data_s* conn_data)
 {
     volatile size_t copied_size;
 
@@ -244,7 +244,7 @@ static __always_inline __maybe_unused void submit_conn_data(void* ctx, struct so
     }
 }
 
-static __always_inline __maybe_unused char *read_from_buf_ptr(char* buf)
+static __always_inline __maybe_unused char *read_from_buf_ptr(const char* buf)
 {
     u32 key = 0;
     char *buffer = bpf_map_lookup_elem(&l7_data_buffer, &key);

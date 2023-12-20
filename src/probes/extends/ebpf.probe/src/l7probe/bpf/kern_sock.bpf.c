@@ -22,7 +22,6 @@
 
 char g_license[] SEC("license") = "GPL";
 
-
 #define __KPROBE_SYSCALL(arch, func) KPROBE(arch##func, pt_regs)
 
 #if defined(__TARGET_ARCH_x86)
@@ -39,13 +38,78 @@ char g_license[] SEC("license") = "GPL";
 #define KRETPROBE_SYSCALL(func) __KRETPROBE_SYSCALL(__arm64_sys_, func)
 #endif
 
+// /sys/kernel/debug/tracing/events/syscalls/sys_enter_connect/format
+struct sys_enter_connect_args {
+    unsigned long long __unused__;
+    int __syscall_nr;
+    int fd;
+    struct sockaddr *uservaddr;
+    int addrlen;
+};
+
+// /sys/kernel/debug/tracing/events/syscalls/sys_exit_connect/format
+struct sys_exit_connect_args {
+    unsigned long long __unused__;
+    int __syscall_nr;
+    long ret;
+};
+
+// /sys/kernel/debug/tracing/events/syscalls/sys_enter_accept/format
+struct sys_enter_accept_args {
+    unsigned long long __unused__;
+    int __syscall_nr;
+    int fd;
+    struct sockaddr *upeer_sockaddr;
+    int *upeer_addrlen; 
+};
+
+// /sys/kernel/debug/tracing/events/syscalls/sys_exit_accept/format
+struct sys_exit_accept_args {
+    unsigned long long __unused__;
+    int __syscall_nr;
+    long ret;
+};
+
+// /sys/kernel/debug/tracing/events/syscalls/sys_enter_accept4/format
+struct sys_enter_accept4_args {
+    unsigned long long __unused__;
+    int __syscall_nr;
+    int fd;
+    struct sockaddr *upeer_sockaddr;
+    int *upeer_addrlen;
+    int flags;
+};
+
+// /sys/kernel/debug/tracing/events/syscalls/sys_exit_accept4/format
+struct sys_exit_accept4_args {
+    unsigned long long __unused__;
+    int __syscall_nr;
+    long ret;
+};
+
+// /sys/kernel/debug/tracing/events/syscalls/sys_enter_write/format
+struct sys_enter_write_args {
+    unsigned long long __unused__;
+    int __syscall_nr;
+    unsigned int fd;
+    const char *buf;
+    size_t count;
+};
+
+// /sys/kernel/debug/tracing/events/syscalls/sys_exit_write/format
+struct sys_exit_write_args {
+    unsigned long long __unused__;
+    int __syscall_nr;
+    long ret;
+};
+
 // /sys/kernel/debug/tracing/events/syscalls/sys_enter_read/format
 struct sys_enter_read_args {
     unsigned long long __unused__;
     long __syscall_nr;
     unsigned int fd;
     char *buf;
-    u64 count;
+    size_t count;
 };
 
 // /sys/kernel/debug/tracing/events/syscalls/sys_exit_read/format
@@ -53,6 +117,76 @@ struct sys_exit_read_args {
     unsigned long long __unused__;
     long __syscall_nr;
     int ret;
+};
+
+// /sys/kernel/debug/tracing/events/syscalls/sys_enter_sendto/format
+struct sys_enter_sendto_args {
+    unsigned long long __unused__;
+    int __syscall_nr;
+    int fd;
+    void *buff;
+    size_t len;
+    unsigned int flags;
+    struct sockaddr *addr;
+    int addr_len;
+};
+
+// /sys/kernel/debug/tracing/events/syscalls/sys_exit_sendto/format
+struct sys_exit_sendto_args {
+    unsigned long long __unused__;
+    int __syscall_nr;
+    long ret;
+};
+
+// /sys/kernel/debug/tracing/events/syscalls/sys_enter_recvfrom/format
+struct sys_enter_recvfrom_args {
+    unsigned long long __unused__;
+    int __syscall_nr;
+    int fd;
+    void *ubuf;
+    size_t size;
+    unsigned int flags;
+    struct sockaddr *addr;
+    int *addr_len;
+};
+
+// /sys/kernel/debug/tracing/events/syscalls/sys_exit_recvfrom/format
+struct sys_exit_recvfrom_args {
+    unsigned long long __unused__;
+    int __syscall_nr;
+    long ret;
+};
+
+// /sys/kernel/debug/tracing/events/syscalls/sys_enter_sendmsg/format
+struct sys_enter_sendmsg_args {
+    unsigned long long __unused__;
+    int __syscall_nr;
+    int fd;
+    struct user_msghdr *msg;
+    unsigned int flags; 
+};
+
+// /sys/kernel/debug/tracing/events/syscalls/sys_exit_sendmsg/format
+struct sys_exit_sendmsg_args {
+    unsigned long long __unused__;
+    int __syscall_nr;
+    long ret;
+};
+
+// /sys/kernel/debug/tracing/events/syscalls/sys_enter_recvmsg/format
+struct sys_enter_recvmsg_args {
+    unsigned long long __unused__;
+    int __syscall_nr;
+    int fd;
+    struct user_msghdr *msg;
+    unsigned int flags;
+};
+
+// /sys/kernel/debug/tracing/events/syscalls/sys_exit_recvmsg/format
+struct sys_exit_recvmsg_args {
+    unsigned long long __unused__;
+    int __syscall_nr;
+    long ret;
 };
 
 static __always_inline char is_tracing_udp(void)
@@ -358,7 +492,7 @@ KPROBE(security_socket_recvmsg, pt_regs)
     return 0;
 }
 
-KRETPROBE(sock_alloc, pt_regs)
+KPROBE(sock_alloc_file, pt_regs)
 {
     conn_ctx_t id = bpf_get_current_pid_tgid();
 
@@ -368,15 +502,15 @@ KRETPROBE(sock_alloc, pt_regs)
     }
 
     if (args->newsock == NULL) {
-        args->newsock = (struct socket *)PT_REGS_RC(ctx);
+        args->newsock = (struct socket *)PT_REGS_PARM1(ctx);
     }
     return 0;
 }
 
 // int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
-KPROBE_SYSCALL(connect)
+bpf_section("tracepoint/syscalls/sys_enter_connect")
+int function_sys_enter_connect(struct sys_enter_connect_args *ctx)
 {
-    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
 
@@ -384,8 +518,8 @@ KPROBE_SYSCALL(connect)
         return 0;
     }
 
-    int fd = (int)PT_REGS_PARM1_CORE(regs);
-    const struct sockaddr *addr = (const struct sockaddr *)PT_REGS_PARM2_CORE(regs);
+    int fd = ctx->fd;
+    const struct sockaddr *addr = ctx->uservaddr;
 
     struct sys_connect_args_s args = {0};
     args.fd = fd;
@@ -395,7 +529,8 @@ KPROBE_SYSCALL(connect)
 }
 
 #define EINPROGRESS 115 // TODO: Varies in different arch
-KRETPROBE_SYSCALL(connect)
+bpf_section("tracepoint/syscalls/sys_exit_connect")
+int function_sys_exit_connect(struct sys_exit_connect_args *ctx)
 {
     conn_ctx_t id = bpf_get_current_pid_tgid();
 
@@ -405,7 +540,7 @@ KRETPROBE_SYSCALL(connect)
           goto end;
         }
 
-        int ret = (int)PT_REGS_RC(ctx);
+        int ret = (int)(ctx->ret);
         if (ret < 0 && ret != -EINPROGRESS) {
             // EINPROGRESS means NON_BLOCK socket is undergoing handshake.
             goto end;
@@ -479,16 +614,16 @@ end:
 }
 
 // int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
-KPROBE_SYSCALL(accept)
+bpf_section("tracepoint/syscalls/sys_enter_accept")
+int function_sys_enter_accept(struct sys_enter_accept_args *ctx)
 {
-    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
 
     if (!is_tracing((int)(id >> INT_LEN))) {
         return 0;
     }
 
-    struct sockaddr *addr = (struct sockaddr *)PT_REGS_PARM2_CORE(regs);
+    struct sockaddr *addr = ctx->upeer_sockaddr;
 
     struct sys_accept_args_s args = {0};
     args.addr = addr;
@@ -496,7 +631,8 @@ KPROBE_SYSCALL(accept)
     return 0;
 }
 
-KRETPROBE_SYSCALL(accept)
+bpf_section("tracepoint/syscalls/sys_exit_accept")
+int function_sys_exit_accept(struct sys_exit_accept_args *ctx)
 {
     conn_ctx_t id = bpf_get_current_pid_tgid();
 
@@ -506,7 +642,7 @@ KRETPROBE_SYSCALL(accept)
           goto end;
         }
 
-        int new_fd = (int)PT_REGS_RC(ctx);
+        int new_fd = (int)(ctx->ret);
         if (new_fd < 0) {
             goto end;
         }
@@ -527,16 +663,16 @@ end:
 }
 
 // int accept4(int sockfd, struct sockaddr *addr, socklen_t *addrlen, int flags);
-KPROBE_SYSCALL(accept4)
+bpf_section("tracepoint/syscalls/sys_enter_accept4")
+int function_sys_enter_accept4(struct sys_enter_accept4_args *ctx)
 {
-    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
 
     if (!is_tracing((int)(id >> INT_LEN))) {
         return 0;
     }
 
-    struct sockaddr *addr = (struct sockaddr *)PT_REGS_PARM2_CORE(regs);
+    struct sockaddr *addr = ctx->upeer_sockaddr;
 
     struct sys_accept_args_s args = {0};
     args.addr = addr;
@@ -544,7 +680,8 @@ KPROBE_SYSCALL(accept4)
     return 0;
 }
 
-KRETPROBE_SYSCALL(accept4)
+bpf_section("tracepoint/syscalls/sys_exit_accept4")
+int function_sys_exit_accept4(struct sys_exit_accept4_args *ctx)
 {
     conn_ctx_t id = bpf_get_current_pid_tgid();
 
@@ -554,7 +691,7 @@ KRETPROBE_SYSCALL(accept4)
           goto end;
         }
 
-        int new_fd = (int)PT_REGS_RC(ctx);
+        int new_fd = (int)(ctx->ret);
         if (new_fd < 0) {
             goto end;
         }
@@ -575,12 +712,12 @@ end:
 }
 
 // ssize_t write(int fd, const void *buf, size_t count);
-KPROBE_SYSCALL(write)
+bpf_section("tracepoint/syscalls/sys_enter_write")
+int function_sys_enter_write(struct sys_enter_write_args *ctx)
 {
-    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
-    int fd = (int)PT_REGS_PARM1_CORE(regs);
+    int fd = (int)ctx->fd;
 
     if (!is_tracing(proc_id)) {
         return 0;
@@ -590,19 +727,20 @@ KPROBE_SYSCALL(write)
     args.conn_id.fd = fd;
     args.conn_id.tgid = proc_id;
     args.direct = L7_EGRESS;
-    args.buf = (char *)PT_REGS_PARM2_CORE(regs);
+    args.buf = ctx->buf;
     args.is_ssl = 0;
     bpf_map_update_elem(&sock_data_args, &id, &args, BPF_ANY);
     return 0;
 }
 
-KRETPROBE_SYSCALL(write)
+bpf_section("tracepoint/syscalls/sys_exit_write")
+int function_sys_exit_write(struct sys_exit_write_args *ctx)
 {
     conn_ctx_t id = bpf_get_current_pid_tgid();
 
     struct sock_data_args_s* args = bpf_map_lookup_elem(&sock_data_args, &id);
     if (args != NULL && args->is_socket_op) {
-        ssize_t bytes_count = (ssize_t)PT_REGS_RC(ctx);
+        ssize_t bytes_count = (ssize_t)(ctx->ret);
         if (bytes_count <= 0) {
             goto end;
         }
@@ -625,58 +763,6 @@ end:
     return 0;
 }
 
-#if 0
-// ssize_t read(int fd, void *buf, size_t count);
-KPROBE_SYSCALL(read)
-{
-    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
-    conn_ctx_t id = bpf_get_current_pid_tgid();
-    int proc_id = (int)(id >> INT_LEN);
-    int fd = (int)PT_REGS_PARM1_CORE(regs);
-
-    if (!is_tracing(proc_id)) {
-        return 0;
-    }
-
-    struct sock_data_args_s args = {0};
-    args.conn_id.fd = fd;
-    args.conn_id.tgid = proc_id;
-    args.direct = L7_INGRESS;
-    args.buf = (char *)PT_REGS_PARM2_CORE(regs);
-    args.is_ssl = 0;
-    bpf_map_update_elem(&sock_data_args, &id, &args, BPF_ANY);
-    return 0;
-}
-
-KRETPROBE_SYSCALL(read)
-{
-    conn_ctx_t id = bpf_get_current_pid_tgid();
-
-    struct sock_data_args_s* args = bpf_map_lookup_elem(&sock_data_args, &id);
-    if (args != NULL && args->is_socket_op) {
-        ssize_t bytes_count = (ssize_t)PT_REGS_RC(ctx);
-        if (bytes_count <= 0) {
-            goto end;
-        }
-        struct sock_conn_s* sock_conn = lkup_sock_conn(args->conn_id.tgid, args->conn_id.fd);
-        // new sock connection
-        if (!sock_conn) {
-            sock_conn = get_sock_conn(ctx, args->conn_id.tgid, args->conn_id.fd);
-            if (sock_conn == NULL) {
-                goto end;
-            }
-            (void)submit_conn_open(ctx, sock_conn);
-        }
-
-        submit_sock_data(ctx, sock_conn, id, L7_INGRESS, args, (size_t)bytes_count);
-    }
-
-end:
-    bpf_map_delete_elem(&sock_data_args, &id);
-    return 0;
-}
-#endif
-
 bpf_section("tracepoint/syscalls/sys_enter_read")
 int function_sys_enter_read(struct sys_enter_read_args *ctx)
 {
@@ -697,7 +783,6 @@ int function_sys_enter_read(struct sys_enter_read_args *ctx)
     bpf_map_update_elem(&sock_data_args, &id, &args, BPF_ANY);
     return 0;
 }
-
 
 bpf_section("tracepoint/syscalls/sys_exit_read")
 int function_sys_exit_read(struct sys_exit_read_args *ctx)
@@ -780,9 +865,9 @@ end:
 
 // ssize_t sendto(int sockfd, const void *buf, size_t len,
 //      int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
-KPROBE_SYSCALL(sendto)
+bpf_section("tracepoint/syscalls/sys_enter_sendto")
+int function_sys_enter_sendto(struct sys_enter_sendto_args *ctx)
 {
-    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
 
@@ -790,15 +875,15 @@ KPROBE_SYSCALL(sendto)
         return 0;
     }
 
-    int sockfd = (int)PT_REGS_PARM1_CORE(regs);
-    char *buf = (char *)PT_REGS_PARM2_CORE(regs);
+    int sockfd = ctx->fd;
+    char *buf = (char *)ctx->buff;
     if (buf == NULL || sockfd < 0) {
         return -1;
     }
 
     // Filter by UDP tracing-on/off
     if (is_tracing_udp()) {
-        struct sockaddr * dest_addr = (struct sockaddr *)PT_REGS_PARM5_CORE(regs);
+        struct sockaddr * dest_addr = ctx->addr;
         if (dest_addr && sockfd > 0) {
             struct sys_connect_args_s args = {0};
             args.fd = sockfd;
@@ -816,11 +901,12 @@ KPROBE_SYSCALL(sendto)
     return 0;
 }
 
-KRETPROBE_SYSCALL(sendto)
+bpf_section("tracepoint/syscalls/sys_exit_sendto")
+int function_sys_exit_sendto(struct sys_exit_sendto_args *ctx)
 {
     int is_udp = 0;
     conn_ctx_t id = bpf_get_current_pid_tgid();
-    ssize_t bytes_count = PT_REGS_RC(ctx);
+    ssize_t bytes_count = (ssize_t)(ctx->ret);
     struct sock_conn_s* sock_conn = NULL;
 
     // Filter by UDP tracing-on/off
@@ -864,9 +950,9 @@ end:
 
 // ssize_t recvfrom(int sockfd, void *buf, size_t len,
 //      int flags, struct sockaddr *src_addr, socklen_t *addrlen);
-KPROBE_SYSCALL(recvfrom)
+bpf_section("tracepoint/syscalls/sys_enter_recvfrom")
+int function_sys_enter_recvfrom(struct sys_enter_recvfrom_args *ctx)
 {
-    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
 
@@ -874,15 +960,15 @@ KPROBE_SYSCALL(recvfrom)
         return 0;
     }
 
-    int sockfd = (int)PT_REGS_PARM1_CORE(regs);
-    char *buf = (char *)PT_REGS_PARM2_CORE(regs);
+    int sockfd = ctx->fd;
+    char *buf = (char *)ctx->ubuf;
     if (buf == NULL || sockfd < 0) {
         return -1;
     }
 
     // Filter by UDP tracing-on/off
     if (is_tracing_udp()) {
-        struct sockaddr * src_addr = (struct sockaddr *)PT_REGS_PARM5_CORE(regs);
+        struct sockaddr * src_addr = ctx->addr;
         if (src_addr) {
             struct sys_connect_args_s args = {0};
             args.fd = sockfd;
@@ -900,11 +986,12 @@ KPROBE_SYSCALL(recvfrom)
     return 0;
 }
 
-KRETPROBE_SYSCALL(recvfrom)
+bpf_section("tracepoint/syscalls/sys_exit_recvfrom")
+int function_sys_exit_recvfrom(struct sys_exit_recvfrom_args *ctx)
 {
     int is_udp = 0;
     conn_ctx_t id = bpf_get_current_pid_tgid();
-    ssize_t bytes_count = PT_REGS_RC(ctx);
+    ssize_t bytes_count = (ssize_t)(ctx->ret);
     struct sock_conn_s* sock_conn = NULL;
 
     // Filter by UDP tracing-on/off
@@ -948,9 +1035,9 @@ end:
 }
 
 // ssize_t sendmsg(int sockfd, const struct msghdr *msg, int flags);
-KPROBE_SYSCALL(sendmsg)
+bpf_section("tracepoint/syscalls/sys_enter_sendmsg")
+int function_sys_enter_sendmsg(struct sys_enter_sendmsg_args *ctx)
 {
-    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
 
@@ -958,8 +1045,8 @@ KPROBE_SYSCALL(sendmsg)
         return 0;
     }
 
-    int fd = (int)PT_REGS_PARM1_CORE(regs);
-    struct user_msghdr *msg = (struct user_msghdr *)PT_REGS_PARM2_CORE(regs);
+    int fd = ctx->fd;
+    struct user_msghdr *msg = ctx->msg;
     void * msg_name = BPF_CORE_READ_USER(msg, msg_name);
     struct iovec* iov = BPF_CORE_READ_USER(msg, msg_iov);
     size_t iovlen = BPF_CORE_READ_USER(msg, msg_iovlen);
@@ -985,11 +1072,12 @@ KPROBE_SYSCALL(sendmsg)
     return 0;
 }
 
-KRETPROBE_SYSCALL(sendmsg)
+bpf_section("tracepoint/syscalls/sys_exit_sendmsg")
+int function_sys_exit_sendmsg(struct sys_exit_sendmsg_args *ctx)
 {
     int is_udp = 0;
     conn_ctx_t id = bpf_get_current_pid_tgid();
-    ssize_t bytes_count = PT_REGS_RC(ctx);
+    ssize_t bytes_count = (ssize_t)(ctx->ret);
     struct sock_conn_s* sock_conn = NULL;
 
     // Filter by UDP tracing-on/off
@@ -1031,17 +1119,17 @@ end:
 }
 
 // ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags);
-KPROBE_SYSCALL(recvmsg)
+bpf_section("tracepoint/syscalls/sys_enter_recvmsg")
+int function_sys_enter_recvmsg(struct sys_enter_recvmsg_args *ctx)
 {
-    struct pt_regs *regs = (struct pt_regs *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
     int proc_id = (int)(id >> INT_LEN);
     if (!is_tracing(proc_id)) {
         return 0;
     }
 
-    int fd = (int)PT_REGS_PARM1_CORE(regs);
-    struct user_msghdr *msg = (struct user_msghdr *)PT_REGS_PARM2_CORE(regs);
+    int fd = ctx->fd;
+    struct user_msghdr *msg = ctx->msg;
     void * msg_name = BPF_CORE_READ_USER(msg, msg_name);
     struct iovec* iov = BPF_CORE_READ_USER(msg, msg_iov);
     size_t iovlen = BPF_CORE_READ_USER(msg, msg_iovlen);
@@ -1067,11 +1155,12 @@ KPROBE_SYSCALL(recvmsg)
     return 0;
 }
 
-KRETPROBE_SYSCALL(recvmsg)
+bpf_section("tracepoint/syscalls/sys_exit_recvmsg")
+int function_sys_exit_recvmsg(struct sys_exit_recvmsg_args *ctx)
 {
     int is_udp = 0;
     conn_ctx_t id = bpf_get_current_pid_tgid();
-    ssize_t bytes_count = PT_REGS_RC(ctx);
+    ssize_t bytes_count = (ssize_t)(ctx->ret);
     struct sock_conn_s* sock_conn = NULL;
 
     // Filter by UDP tracing-on/off
