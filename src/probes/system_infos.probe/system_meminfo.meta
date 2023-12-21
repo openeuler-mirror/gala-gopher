@@ -62,15 +62,65 @@ measurements:
                 type:"gauge",
                 name: "swap_free_kB",
             },
-	    {
+            {
+                description: "Usage of swap memory (%)",
+                type:"gauge",
+                name: "swap_util",
+            },
+            {
                 description: "Total size of slab space (KB)",
                 type:"gauge",
                 name: "slab_kB",
             },
             {
-                description: "Usage of swap memory (%)",
+                description: "Total size of memory used for page tables (KB)",
                 type:"gauge",
-                name: "swap_util",
+                name: "page_kB",
+            },
+            {
+                description: "Total size of memory of used virtual address space (KB)",
+                type:"gauge",
+                name: "vmalloc_kB",
+            },
+            {
+                description: "Total size of memory used by kernel stack allocated for user threads (KB)",
+                type:"gauge",
+                name: "stack_kB",
+            },
+            {
+                description: "Total size of anonymous memory in active use (KB)",
+                type:"gauge",
+                name: "active_anon_kB",
+            },
+            {
+                description: "Total size of anonymous memory in inactive use (KB)",
+                type:"gauge",
+                name: "inactive_anon_kB",
+            },
+            {
+                description: "Total size of file cache memory in active use (KB)",
+                type:"gauge",
+                name: "active_file_kB",
+            },
+            {
+                description: "Total size of file cache memory in inactive use (KB)",
+                type:"gauge",
+                name: "inactive_file_kB",
+            },
+            {
+                description: "Total size of memory that been locked by user programs (KB)",
+                type:"gauge",
+                name: "mlocked",
+            },
+            {
+                description: "Total size of hugepage memory for the system (KB)",
+                type:"gauge",
+                name: "big_page_kB",
+            },
+            {
+                description: "Shared memory for file that have been mammped (KB)",
+                type:"gauge",
+                name: "shmem_kB",
             }
         )
     },
