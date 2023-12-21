@@ -57,7 +57,7 @@ static void set_conn_data(enum l7_direction_t direction, struct sock_conn_s* soc
     return;
 }
 
-static void submit_perf_buf_user(void *ctx, char *buf, size_t bytes_count, struct conn_data_s* conn_data)
+static void submit_perf_buf_user(void *ctx, const char *buf, size_t bytes_count, struct conn_data_s* conn_data)
 {
     size_t copied_size;
     if (buf == NULL || bytes_count == 0) {
