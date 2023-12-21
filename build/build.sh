@@ -28,6 +28,8 @@ LIBBPF_VER=$(rpm -q libbpf | awk -F'-' '{print $2}')
 LIBBPF_VER_MAJOR=$(echo ${LIBBPF_VER} | awk -F'.' '{print $1}')
 LIBBPF_VER_MINOR=$(echo ${LIBBPF_VER} | awk -F'.' '{print $2}')
 
+DEFAULT_BUILD_OPTS="-DFLAMEGRAPH_SVG=1"
+
 export VMLINUX_VER="${2:-$(uname -r)}"
 
 function load_tailor()
@@ -226,6 +228,8 @@ function compile_extend_probes_debug()
 {
     # Search for build.sh in probe directory
     echo "==== Begin to compile debug extend probes ===="
+    export BUILD_OPTS="${@:-"$DEFAULT_BUILD_OPTS"}"
+    echo "BUILD_OPTS is $BUILD_OPTS"
     cd ${EXT_PROBE_FOLDER}
     for BUILD_PATH in ${EXT_PROBE_BUILD_LIST}
     do
@@ -238,6 +242,8 @@ function compile_extend_probes_release()
 {
     # Search for build.sh in probe directory
     echo "==== Begin to compile release extend probes ===="
+    export BUILD_OPTS="${@:-"$DEFAULT_BUILD_OPTS"}"
+    echo "BUILD_OPTS is $BUILD_OPTS"
     cd ${EXT_PROBE_FOLDER}
     for BUILD_PATH in ${EXT_PROBE_BUILD_LIST}
     do
@@ -289,7 +295,7 @@ if [ "$1" = "--release" ];then
     prepare_probes
     compile_lib || exit 1
     compile_daemon_release "$@" || exit 1
-    compile_extend_probes_release || exit 1
+    compile_extend_probes_release "$@" || exit 1
     clean_env
     exit
 fi
@@ -300,7 +306,7 @@ if [ "$1" = "--debug" ];then
     prepare_probes
     compile_lib || exit 1
     compile_daemon_debug "$@"|| exit 1
-    compile_extend_probes_debug || exit 1
+    compile_extend_probes_debug "$@" || exit 1
     clean_env
     exit
 fi

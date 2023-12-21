@@ -16,6 +16,7 @@
 %define without_tprofiling    0
 
 %define disable_kafka_channel 0
+%define disable_flamegraph_svg 0
 
 # example for tailoring probes
 %global extend_tailor_probes %{nil}
@@ -71,7 +72,10 @@ Requires:      iproute conntrack-tools
 Requires:      kmod
 %endif
 %if !0%{?without_flamegraph}
-Requires:      flamegraph libcurl
+%if !0%{?disable_flamegraph_svg}
+Requires:      flamegraph
+%endif
+Requires:      libcurl
 %endif
 %if !0%{?without_opengauss_sli}
 Requires:      python3-psycopg2 python3-yaml net-tools
@@ -110,6 +114,10 @@ BUILD_OPTS=(
     -DKAFKA_CHANNEL=1
 %else
     -DKAFKA_CHANNEL=0
+%endif
+
+%if !0%{?disable_flamegraph_svg}
+    -DFLAMEGRAPH_SVG=1
 %endif
 )
 

@@ -51,8 +51,7 @@ static char *appname[STACK_SVG_MAX] = {
     "gala-gopher-io"
 };
 
-#if 1
-
+#ifdef FLAMEGRAPH_SVG
 static FILE *__open_flame_graph_fp(struct stack_svg_mng_s *svg_mng)
 {
     struct stack_flamegraph_s *sfg;
@@ -68,7 +67,6 @@ static FILE *__open_flame_graph_fp(struct stack_svg_mng_s *svg_mng)
     }
     return sfg->fp;
 }
-
 
 static void __mkdir_flame_graph_path(struct stack_svg_mng_s *svg_mng)
 {
@@ -143,7 +141,7 @@ static void __reopen_flame_graph_file(struct stack_svg_mng_s *svg_mng, int proc_
     __set_flame_graph_file(svg_mng, proc_id);
     (void)__open_flame_graph_fp(svg_mng);
 }
-
+#endif
 static size_t __write_memory_cb(void *contents, size_t size, size_t nmemb, void *userp)
 {
     size_t realsize = size * nmemb;
@@ -296,10 +294,10 @@ static void __do_wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct proc_stac
     struct post_server_s *post_server, int en_type)
 {
     iter_histo_tbl(proc_histo, post_server, svg_mng, en_type);
+#ifdef FLAMEGRAPH_SVG
     __flush_flame_graph_file(svg_mng);
-}
-
 #endif
+}
 
 void wr_flamegraph(struct proc_stack_trace_histo_s **proc_histo_tbl, struct stack_svg_mng_s *svg_mng, int en_type,
     struct post_server_s *post_server)
@@ -307,28 +305,31 @@ void wr_flamegraph(struct proc_stack_trace_histo_s **proc_histo_tbl, struct stac
     if (*proc_histo_tbl == NULL) {
         return;
     }
-
+#ifdef FLAMEGRAPH_SVG
     int svg_out_flag = 0;
     if (is_svg_tmout(svg_mng)) {
         svg_out_flag = 1;
     }
-
+#endif
     struct proc_stack_trace_histo_s *proc_histo, *proc_tmp;
     H_ITER(*proc_histo_tbl, proc_histo, proc_tmp) {
         if (H_COUNT(proc_histo->histo_tbl) <= 0) {
             continue;
         }
+#ifdef FLAMEGRAPH_SVG
         __reopen_flame_graph_file(svg_mng, proc_histo->proc_id);
+#endif
         __do_wr_flamegraph(svg_mng, proc_histo, post_server, en_type);
-
+#ifdef FLAMEGRAPH_SVG
         if (svg_out_flag) {
             (void)create_svg_file(svg_mng,
                                 __get_flame_graph_file(svg_mng), en_type, proc_histo->proc_id);
             __rm_flame_graph_file(svg_mng);
         }
+#endif
     }
 }
-
+#ifdef FLAMEGRAPH_SVG
 int set_flame_graph_path(struct stack_svg_mng_s *svg_mng, const char* path, const char *flame_name)
 {
     size_t len;
@@ -354,7 +355,7 @@ int set_flame_graph_path(struct stack_svg_mng_s *svg_mng, const char* path, cons
     __mkdir_flame_graph_path(svg_mng);
     return 0;
 }
-
+#endif
 int set_post_server(struct post_server_s *post_server, const char *server_str, unsigned int perf_sample_period,
                     char multi_instance_flag)
 {
