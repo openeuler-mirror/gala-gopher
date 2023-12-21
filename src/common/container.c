@@ -1492,9 +1492,14 @@ int is_container_proc(u32 pid)
     return 1;
 }
 
+#define __CONTAINER_IMAGE_DELIM        '@'
+#define __CONTAINER_IMAGE_SHA_PREFIX   "sha256:"
 int get_container_image(const char *abbr_container_id, char image[], unsigned int image_len)
 {
     char command[COMMAND_LEN];
+    char orig_image[CONTAINER_IMAGE_LEN];
+    char *ptr;
+    unsigned int len;
 
     if (!get_current_command()) {
         return -1;
@@ -1513,12 +1518,31 @@ int get_container_image(const char *abbr_container_id, char image[], unsigned in
             get_current_command(), abbr_container_id, DOCKER_IMAGE_COMMAD);
     }
 
-    int ret = exec_cmd_chroot((const char *)command, image, image_len);
-    if (ret) {
-        image[0] = 0;
+    image[0] = 0;
+    orig_image[0] = 0;
+    if (exec_cmd_chroot((const char *)command, orig_image, image_len)) {
+        return -1;
     }
 
-    return ret;
+    // format: sha256:<IMAGE_ID>, we only take the beginning part of IMAGE_ID
+    if (strncmp(orig_image, __CONTAINER_IMAGE_SHA_PREFIX, strlen(__CONTAINER_IMAGE_SHA_PREFIX)) == 0) {
+        ptr = orig_image + strlen(__CONTAINER_IMAGE_SHA_PREFIX);
+        len = min(image_len, CONTAINER_IMAGE_ID_LEN + 1);
+        snprintf(image, len, "%s", ptr);
+        return 0;
+    }
+
+    // format: <IMAGE_NAME>@sha256:<IMAGE_ID>, we take the IMAGE_NAME
+    ptr = strrchr(orig_image, __CONTAINER_IMAGE_DELIM);
+    if (ptr) {
+        orig_image[ptr - orig_image] = 0;
+        snprintf(image, image_len, "%s", orig_image);
+        return 0;
+    }
+
+    // format: <IMAGE_NAME>
+    snprintf(image, image_len, "%s", orig_image);
+    return 0;
 }
 
 
