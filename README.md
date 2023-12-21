@@ -13,8 +13,8 @@ gala-gopher是一款结合eBPF、java agent等非侵入可观测技术的观测�
 
 系统层资源可能会影响应用性能，使用gala-gopher将提供Node、Container、Device等维度的系统性能观测能力。包括：
 
-- CPU性能：参见[CPU性能指标](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#cpu%E6%80%A7%E8%83%BD)，将提供CPU粒度的实时性能指标。
-- 内存性能：参见[内存性能指标](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%86%85%E5%AD%98%E6%80%A7%E8%83%BD)，参见系统内存、buffer、cache、dentry等多种资源实时指标。
+- CPU性能：参见[CPU性能指标](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#cpu)，将提供CPU粒度的实时性能指标。
+- 内存性能：参见[内存性能指标](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%86%85%E5%AD%98)，参见系统内存、buffer、cache、dentry等多种资源实时指标。
 - 网络性能：参见[网卡性能指标](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E7%BD%91%E5%8D%A1%E7%BB%9F%E8%AE%A1)，[协议栈性能](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%8D%8F%E8%AE%AE%E6%A0%88%E7%BB%9F%E8%AE%A1)统计，包括主机内TCP连接数量、接收报文数量、网卡收发字节数、丢包数等。
 - I/O性能：参见[Block性能指标](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#block%E7%BB%9F%E8%AE%A1)，[磁盘指标](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E7%A3%81%E7%9B%98%E7%BB%9F%E8%AE%A1)，包括磁盘读写速率、使用率、吞吐量等指标，以及block层驱动、设备的时延、错误统计。
 - 容器性能：参见[容器性能指标](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%AE%B9%E5%99%A8%E6%80%A7%E8%83%BD)，提供容器维度CPU、内存、I/O、网络多维度可观测数据。
@@ -23,37 +23,27 @@ gala-gopher是一款结合eBPF、java agent等非侵入可观测技术的观测�
 
 通过网络监控能力，可以轻松获取如下信息：
 
-- 集群内微服务间TCP流量拓扑：提供进程粒度[TCP流量监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#tcp%E6%B5%81%E9%87%8F%E7%9B%91%E6%8E%A7)，结合[gala-spider](https://gitee.com/openeuler/gala-spider)可以轻松获取集群内微服务间TCP拓扑。
-- DNS访问监控：参考[DNS访问监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#dns%E8%AE%BF%E9%97%AE%E7%9B%91%E6%8E%A7)，提供进程内DNS域名访问的平均、最大时延、错误率。
-- TCP/IP监控：提供TCP连接粒度的[异常监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#tcp%E5%BC%82%E5%B8%B8%E7%9B%91%E6%8E%A7)，包括重传、丢包、TCP oom、收发RST等异常指标；提供[Socket异常监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#socket%E7%9B%91%E6%8E%A7)，包括listen队列溢出、syn队列溢出、建链失败次数等统计信息。
+- 集群内微服务间TCP流量拓扑：提供进程粒度[TCP流量监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#tcp%E6%8C%87%E6%A0%87)，结合[gala-spider](https://gitee.com/openeuler/gala-spider)可以轻松获取集群内微服务间TCP拓扑。
+- DNS访问监控：参考[DNS访问监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#dns%E6%8C%87%E6%A0%87)，提供进程内DNS域名访问的平均、最大时延、错误率。
+- TCP/IP监控：提供TCP连接粒度的[异常监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#tcp%E6%8C%87%E6%A0%87)，包括重传、丢包、TCP oom、收发RST等异常指标；提供[Socket异常监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#tcp%E6%8C%87%E6%A0%87)，包括listen队列溢出、syn队列溢出、建链失败次数等统计信息。
 
 ### 应用（微服务）访问性能监控
 
-云原生场景会部署大量微服务，微服务之间访问性能的波动会直接影响整体业务效果，使用gala-gopher可以轻松了解每个微服务（或者POD）的[访问时延、吞吐量、错误率性能](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%BA%94%E7%94%A8%E5%BE%AE%E6%9C%8D%E5%8A%A1%E8%AE%BF%E9%97%AE%E6%80%A7%E8%83%BD)。
+云原生场景会部署大量微服务，微服务之间访问性能的波动会直接影响整体业务效果，使用gala-gopher可以轻松了解每个微服务（或者POD）的[访问时延、吞吐量、错误率性能](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%BA%94%E7%94%A8%E6%80%A7%E8%83%BD)。
 
-其支持微服务之间的访问协议包括：
-
-| 协议       | 路线图                           | 备注 |
-| ---------- | -------------------------------- | ---- |
-| HTTP 1.X   | openEuler 22.03 SP3（23.12月份） |      |
-| HTTP2.0    | openEuler 24.03 LTS（24.3月份）  |      |
-| Redis      | openEuler 22.03 SP3（23.12月份） |      |
-| Kafka      | openEuler 22.03 SP3（23.12月份） |      |
-| MySQL      | openEuler 22.03 SP3（23.12月份） |      |
-| PostgreSQL | openEuler 24.03 LTS（24.3月份）  |      |
+其支持微服务之间的访问协议包括：HTTP 1.X，PGSQL，#Redis，#DNS，#HTTP2.0，#Dubbo，#MySQL，#Kafka；
 
 支持加密场景：C/C++语言（OpenSSL 1.1.0/1.1.1）; GO语言（GoTLS）；Java语言（JSSE类库）
 
-### 应用性能监控
+### 应用详细监控
 
 应用性能经常受系统资源性能影响，gala-gopher可以提供应用视角精细化（进程粒度）的系统性能观测能力，涉及网络、I/O、内存、调度等多个方面。
 
-- [TCP性能](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#tcp%E6%80%A7%E8%83%BD)：提供TCP窗口、RTT、SRTT、reordering、ato等性能指标；
-- [应用性能](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%BA%94%E7%94%A8%E6%80%A7%E8%83%BD)：提供[基于流的性能监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%9F%BA%E4%BA%8E%E6%B5%81%E7%9A%84%E8%BF%9B%E7%A8%8B%E6%80%A7%E8%83%BD)、[进程性能监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E8%BF%9B%E7%A8%8B%E6%80%A7%E8%83%BD)，其提供基于TCP流的性能（时延、吞吐量）统计，体现应用性能。
-- [I/O性能](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#io%E6%80%A7%E8%83%BD-1)：提供进程维度的 I/O操作字节数统计、FD资源占用统计、文件系统（vfs/ext4/overlay/tmpfs）层时延统计，大小I/O操作数量统计、BIO时延、错误统计（虚拟化QEMU进程有意义）等；
-- [内存](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%86%85%E5%AD%98)：提供进程维度的pagefault、swap区、脏页、虚拟内存、物理内存等统计。
-- [调度&系统调用](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E8%B0%83%E5%BA%A6%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8)：提供进程维度系统调用时延、错误统计，进程用户态、系统态运行统计时间。
-- [JVM监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#jvm%E7%9B%91%E6%8E%A7)：提供jvm线程、java类加载、jvm内存、jvm buffer、gc次数/花费时间等统计。
+- [TCP性能](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#tcp%E6%8C%87%E6%A0%87)：提供TCP窗口、RTT、SRTT、reordering、ato等性能指标；
+- [I/O性能](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%BA%94%E7%94%A8io)：提供进程维度的 I/O操作字节数统计、FD资源占用统计、文件系统（vfs/ext4/overlay/tmpfs）层时延统计，大小I/O操作数量统计、BIO时延、错误统计（虚拟化QEMU进程有意义）等；
+- [内存](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%BA%94%E7%94%A8%E5%86%85%E5%AD%98-1)：提供进程维度的pagefault、swap区、脏页、虚拟内存、物理内存等统计。
+- [JVM监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%BA%94%E7%94%A8jvm)：提供jvm线程、java类加载、jvm内存、jvm buffer、gc次数/花费时间等统计。
+- [DNS监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#dns%E6%8C%87%E6%A0%87)：基于Glibc接口（gethostbyname/getaddrinfo等）获取应用DNS访问性能。
 
 ### 性能Profiling
 
@@ -81,9 +71,6 @@ nginx/haproxy通常作为云原生应用之间的负载均衡，网络流量经�
 
 - [Nginx负载分担监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#nginx-%E8%B4%9F%E8%BD%BD%E5%88%86%E6%8B%85%E7%9B%91%E6%8E%A7)：提供nginx负载分担会话观测能力，基于负载分担会话，结合gala-spider可以绘制出云原生应用之间真实流量路径。
 - [Haproxy负载分担监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#haproxy%E8%B4%9F%E8%BD%BD%E5%88%86%E6%8B%85%E7%9B%91%E6%8E%A7)：提供haproxy负载分担会话观测能力，基于负载分担会话，结合gala-spider可以绘制出云原生应用之间真实流量路径。
-- [TCP性能监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#tcp%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7)：针对nginx、haproxy这类软件提供TCP性能监控能力，包括TCP窗口、RTT、SRTT、reordering、ato等性能指标。
-- [TCP异常监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#tcp%E5%BC%82%E5%B8%B8%E7%9B%91%E6%8E%A7-1)：针对nginx、haproxy这类软件提供TCP异常监控能力，包括重传、丢包、TCP oom、收发RST等异常指标。
-- [Socket监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#socket%E7%9B%91%E6%8E%A7-1)：针对nginx、haproxy这类软件提供Socket监控能力，包括listen队列溢出、syn队列溢出、建链失败次数等统计信息。
 
 ![负载分担流量监控](./doc/pic/demo.gif)
 
@@ -93,10 +80,8 @@ Redis/PostgreSQL常用于为应用提供数据存储服务，现有性能监控�
 
 - [Redis性能监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#redis%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7)：提供精细化的（具体到某个TCP）redis时延监控能力。（注意不支持加密场景）
 - [PostgreSQL性能监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#postgresql%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7)：提供精细化的（具体到某个TCP）Postgre时延监控能力。
-- [TCP性能监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#tcp%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7-1)：针对Redis、PostgreSQL这类软件提供TCP性能监控能力，包括TCP窗口、RTT、SRTT、reordering、ato等性能指标。
-- [TCP异常监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#tcp%E5%BC%82%E5%B8%B8%E7%9B%91%E6%8E%A7-2)：针对Redis、PostgreSQL这类软件提供TCP异常监控能力，包括重传、丢包、TCP oom、收发RST等异常指标。
-- [Socket监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#socket%E7%9B%91%E6%8E%A7-2)：针对Redis、PostgreSQL这类软件提供Socket监控能力，包括listen队列溢出、syn队列溢出、建链失败次数等统计信息。
-- [I/O性能](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#io%E6%80%A7%E8%83%BD-2)：针对Redis、PostgreSQL这类软件，提供进程维度的 I/O操作字节数统计、FD资源占用统计、文件系统（vfs/ext4/overlay/tmpfs）层时延统计，大小I/O操作数量统计等；
+
+备注：与[应用访问性能监控](https://gitee.com/openeuler/gala-gopher/blob/dev/README.md#%E5%BA%94%E7%94%A8%E5%BE%AE%E6%9C%8D%E5%8A%A1%E8%AE%BF%E9%97%AE%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7)的区别在于，该观测精度略低，但是其底噪更低。
 
 ## eBPF如何更好的运行在java场景
 
