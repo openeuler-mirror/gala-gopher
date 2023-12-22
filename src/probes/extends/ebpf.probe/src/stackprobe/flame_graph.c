@@ -87,6 +87,11 @@ static char *__get_flame_graph_file(struct stack_svg_mng_s *svg_mng)
     struct stack_flamegraph_s *sfg;
 
     sfg = &(svg_mng->flame_graph);
+
+    if (access(sfg->flame_graph_file, 0) != 0) {
+        return NULL;
+    }
+
     return sfg->flame_graph_file;
 }
 
@@ -97,6 +102,8 @@ static void __flush_flame_graph_file(struct stack_svg_mng_s *svg_mng)
     sfg = &(svg_mng->flame_graph);
     if (sfg->fp) {
         (void)fflush(sfg->fp);
+        (void)fclose(sfg->fp);
+        sfg->fp = NULL;
     }
     return;
 }
@@ -129,10 +136,6 @@ static void __rm_flame_graph_file(struct stack_svg_mng_s *svg_mng)
             (void)pclose(fp);
             fp = NULL;
         }
-    }
-    if (sfg->fp) {
-        (void)fclose(sfg->fp);
-        sfg->fp = NULL;
     }
 }
 
@@ -298,19 +301,44 @@ static void __do_wr_flamegraph(struct stack_svg_mng_s *svg_mng, struct proc_stac
     __flush_flame_graph_file(svg_mng);
 #endif
 }
+#ifdef FLAMEGRAPH_SVG
+void create_pids_svg_file(int proc_obj_map_fd, struct stack_svg_mng_s *svg_mng, int en_type)
+{
+    struct proc_s key = {0};
+    struct proc_s next_key = {0};
+    struct obj_ref_s value = {0};
+    int ret, proc_id;
+    const char *flame_graph;
 
+    if (proc_obj_map_fd <= 0) {
+        return;
+    }
+
+    while (bpf_map_get_next_key(proc_obj_map_fd, &key, &next_key) == 0) {
+        ret = bpf_map_lookup_elem(proc_obj_map_fd, &next_key, &value);
+        key = next_key;
+        if (ret < 0) {
+            continue;
+        }
+        proc_id = key.proc_id;
+        __set_flame_graph_file(svg_mng, proc_id);
+        flame_graph = __get_flame_graph_file(svg_mng);
+        if (flame_graph == NULL) {
+            continue;
+        }
+        (void)create_svg_file(svg_mng,
+                            flame_graph, en_type, proc_id);
+        __rm_flame_graph_file(svg_mng);
+    }
+}
+#endif
 void wr_flamegraph(struct proc_stack_trace_histo_s **proc_histo_tbl, struct stack_svg_mng_s *svg_mng, int en_type,
     struct post_server_s *post_server)
 {
     if (*proc_histo_tbl == NULL) {
         return;
     }
-#ifdef FLAMEGRAPH_SVG
-    int svg_out_flag = 0;
-    if (is_svg_tmout(svg_mng)) {
-        svg_out_flag = 1;
-    }
-#endif
+
     struct proc_stack_trace_histo_s *proc_histo, *proc_tmp;
     H_ITER(*proc_histo_tbl, proc_histo, proc_tmp) {
         if (H_COUNT(proc_histo->histo_tbl) <= 0) {
@@ -320,13 +348,6 @@ void wr_flamegraph(struct proc_stack_trace_histo_s **proc_histo_tbl, struct stac
         __reopen_flame_graph_file(svg_mng, proc_histo->proc_id);
 #endif
         __do_wr_flamegraph(svg_mng, proc_histo, post_server, en_type);
-#ifdef FLAMEGRAPH_SVG
-        if (svg_out_flag) {
-            (void)create_svg_file(svg_mng,
-                                __get_flame_graph_file(svg_mng), en_type, proc_histo->proc_id);
-            __rm_flame_graph_file(svg_mng);
-        }
-#endif
     }
 }
 #ifdef FLAMEGRAPH_SVG

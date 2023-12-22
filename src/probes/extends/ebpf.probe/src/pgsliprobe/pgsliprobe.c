@@ -192,9 +192,8 @@ static void *msg_event_receiver(void *arg)
     }
 
     int ret;
-    while ((ret = bpf_buffer__poll(g_pgsli_probe.kern_prog->buffer, THOUSAND)) < 0 && ret != EINTR) {
-        ERROR("[PGSLIPROBE]: bpf buffer poll failed.\n");
-        break;
+    while ((ret = bpf_buffer__poll(g_pgsli_probe.kern_prog->buffer, THOUSAND)) >= 0 || ret == -EINTR) {
+        ;
     }
 err:
     stop = 1;
