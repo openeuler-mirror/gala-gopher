@@ -17,7 +17,6 @@
 #include "http_parse_wrapper.h"
 #include "../model/multiple_map.h"
 
-#if 0
 #ifndef likely
 #define likely(x)   __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
@@ -205,9 +204,10 @@ FOUND:
     return buf;
 }
 
-static char *parse_headers(char *buf, char *buf_end, int max_headers, http_header headers[], int *ret)
+static char *parse_headers(char *buf, char *buf_end, size_t *header_num, http_header headers[], int *ret)
 {
-    for (int num = 0; num < max_headers; num++) {
+    int num;
+    for (num = 0; num < MAX_HEADERS_SIZE; num++) {
         CHECK_EOF();
         if (*buf == '\015') {
             buf++;
@@ -254,6 +254,7 @@ static char *parse_headers(char *buf, char *buf_end, int max_headers, http_heade
         headers[num].value = value;
         headers[num].value_len = value_end - value + 1;
     }
+    *header_num = num;
     return buf;
 }
 
@@ -315,7 +316,7 @@ static char *parse_request(char *buf, int buf_len, http_request* req, int *ret)
         return NULL;
     }
     /* parse request headers */
-    return parse_headers(buf, buf_end, MAX_HEADERS_SIZE, req->headers, ret);
+    return parse_headers(buf, buf_end, &req->num_headers, req->headers, ret);
 }
 
 static char *parse_response(char *buf, int buf_len, http_response* res, int *ret)
@@ -365,22 +366,24 @@ static char *parse_response(char *buf, int buf_len, http_response* res, int *ret
     }
 
     /* parse request headers */
-    return parse_headers(buf, buf_end, MAX_HEADERS_SIZE, res->headers, ret);
+    return parse_headers(buf, buf_end, &res->num_headers, res->headers, ret);
 }
-#endif
 
 size_t http_parse_request_headers(struct raw_data_s* raw_data, http_request* req)
 {
     DEBUG("[HTTP1.x PARSER WRAPPER] Parse request, data_len: %d, current_pos: %d, data:\n%s\n", raw_data->data_len,
          raw_data->current_pos, raw_data->data);
     memset(req, 0, sizeof(http_request));
-    req->num_headers = MAX_HEADERS_SIZE;
     char *buf = &raw_data->data[raw_data->current_pos];
+    char *buf_start = buf;
     size_t buf_size = raw_data->data_len;
+    int ret = 0;
 
-    size_t ret = phr_parse_request(buf, buf_size, &req->method, &req->method_len, &req->path, &req->path_len,
-                                   &req->minor_version, req->headers, &req->num_headers, /*last_len*/ 0);
-    return ret;
+    buf = parse_request(buf, buf_size, req, &ret);
+    if (buf == NULL) {
+        return ret;
+    }
+    return buf - buf_start;
 }
 
 size_t http_parse_response_headers(struct raw_data_s* raw_data, http_response* resp)
@@ -388,16 +391,19 @@ size_t http_parse_response_headers(struct raw_data_s* raw_data, http_response* r
     DEBUG("[HTTP1.x PARSER WRAPPER] Parse response, data_len: %d, current_pos: %d, data:\n%s\n", raw_data->data_len,
          raw_data->current_pos, raw_data->data);
     memset(resp, 0, sizeof(http_response));
-    resp->num_headers = MAX_HEADERS_SIZE;
     char *buf = &raw_data->data[raw_data->current_pos];
+    char *buf_start = buf;
     size_t buf_size = raw_data->data_len;
+    int ret = 0;
 
-    size_t ret = phr_parse_response(buf, buf_size, &resp->minor_version, &resp->status, &resp->msg,
-                                    &resp->msg_len, resp->headers, &resp->num_headers,/*last_len*/ 0);
-    return ret;
+    buf = parse_response(buf, buf_size, resp, &ret);
+    if (buf == NULL) {
+        return ret;
+    }
+    return buf - buf_start;
 }
 
-http_headers_map *get_http_headers_map(struct phr_header* headers, size_t num_headers)
+http_headers_map *get_http_headers_map(struct http_header* headers, size_t num_headers)
 {
     DEBUG("[HTTP1.x PARSER WRAPPER][Get Http Headers] Num_headers: %d\n", num_headers);
     http_headers_map *headers_map = NULL;
