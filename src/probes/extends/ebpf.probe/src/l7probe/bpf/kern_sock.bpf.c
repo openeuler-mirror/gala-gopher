@@ -41,7 +41,7 @@ char g_license[] SEC("license") = "GPL";
 // /sys/kernel/debug/tracing/events/syscalls/sys_enter_connect/format
 struct sys_enter_connect_args {
     unsigned long long __unused__;
-    int __syscall_nr;
+    long __syscall_nr;
     int fd;
     struct sockaddr *uservaddr;
     int addrlen;
@@ -50,30 +50,30 @@ struct sys_enter_connect_args {
 // /sys/kernel/debug/tracing/events/syscalls/sys_exit_connect/format
 struct sys_exit_connect_args {
     unsigned long long __unused__;
-    int __syscall_nr;
+    long __syscall_nr;
     long ret;
 };
 
 // /sys/kernel/debug/tracing/events/syscalls/sys_enter_accept/format
 struct sys_enter_accept_args {
     unsigned long long __unused__;
-    int __syscall_nr;
+    long __syscall_nr;
     int fd;
     struct sockaddr *upeer_sockaddr;
-    int *upeer_addrlen; 
+    int *upeer_addrlen;
 };
 
 // /sys/kernel/debug/tracing/events/syscalls/sys_exit_accept/format
 struct sys_exit_accept_args {
     unsigned long long __unused__;
-    int __syscall_nr;
+    long __syscall_nr;
     long ret;
 };
 
 // /sys/kernel/debug/tracing/events/syscalls/sys_enter_accept4/format
 struct sys_enter_accept4_args {
     unsigned long long __unused__;
-    int __syscall_nr;
+    long __syscall_nr;
     int fd;
     struct sockaddr *upeer_sockaddr;
     int *upeer_addrlen;
@@ -83,14 +83,14 @@ struct sys_enter_accept4_args {
 // /sys/kernel/debug/tracing/events/syscalls/sys_exit_accept4/format
 struct sys_exit_accept4_args {
     unsigned long long __unused__;
-    int __syscall_nr;
+    long __syscall_nr;
     long ret;
 };
 
 // /sys/kernel/debug/tracing/events/syscalls/sys_enter_write/format
 struct sys_enter_write_args {
     unsigned long long __unused__;
-    int __syscall_nr;
+    long __syscall_nr;
     unsigned int fd;
     const char *buf;
     size_t count;
@@ -99,7 +99,7 @@ struct sys_enter_write_args {
 // /sys/kernel/debug/tracing/events/syscalls/sys_exit_write/format
 struct sys_exit_write_args {
     unsigned long long __unused__;
-    int __syscall_nr;
+    long __syscall_nr;
     long ret;
 };
 
@@ -122,7 +122,7 @@ struct sys_exit_read_args {
 // /sys/kernel/debug/tracing/events/syscalls/sys_enter_sendto/format
 struct sys_enter_sendto_args {
     unsigned long long __unused__;
-    int __syscall_nr;
+    long __syscall_nr;
     int fd;
     void *buff;
     size_t len;
@@ -134,14 +134,14 @@ struct sys_enter_sendto_args {
 // /sys/kernel/debug/tracing/events/syscalls/sys_exit_sendto/format
 struct sys_exit_sendto_args {
     unsigned long long __unused__;
-    int __syscall_nr;
+    long __syscall_nr;
     long ret;
 };
 
 // /sys/kernel/debug/tracing/events/syscalls/sys_enter_recvfrom/format
 struct sys_enter_recvfrom_args {
     unsigned long long __unused__;
-    int __syscall_nr;
+    long __syscall_nr;
     int fd;
     void *ubuf;
     size_t size;
@@ -153,30 +153,30 @@ struct sys_enter_recvfrom_args {
 // /sys/kernel/debug/tracing/events/syscalls/sys_exit_recvfrom/format
 struct sys_exit_recvfrom_args {
     unsigned long long __unused__;
-    int __syscall_nr;
+    long __syscall_nr;
     long ret;
 };
 
 // /sys/kernel/debug/tracing/events/syscalls/sys_enter_sendmsg/format
 struct sys_enter_sendmsg_args {
     unsigned long long __unused__;
-    int __syscall_nr;
+    long __syscall_nr;
     int fd;
     struct user_msghdr *msg;
-    unsigned int flags; 
+    unsigned int flags;
 };
 
 // /sys/kernel/debug/tracing/events/syscalls/sys_exit_sendmsg/format
 struct sys_exit_sendmsg_args {
     unsigned long long __unused__;
-    int __syscall_nr;
+    long __syscall_nr;
     long ret;
 };
 
 // /sys/kernel/debug/tracing/events/syscalls/sys_enter_recvmsg/format
 struct sys_enter_recvmsg_args {
     unsigned long long __unused__;
-    int __syscall_nr;
+    long __syscall_nr;
     int fd;
     struct user_msghdr *msg;
     unsigned int flags;
@@ -185,7 +185,7 @@ struct sys_enter_recvmsg_args {
 // /sys/kernel/debug/tracing/events/syscalls/sys_exit_recvmsg/format
 struct sys_exit_recvmsg_args {
     unsigned long long __unused__;
-    int __syscall_nr;
+    long __syscall_nr;
     long ret;
 };
 
