@@ -90,6 +90,7 @@ static void add_redis_record_to_buf(struct record_buf_s *record_buf, struct redi
     }
     memset(record_data, 0, sizeof(struct record_data_s));
     record_data->record = record;
+    record_data->latency = record->resp_msg->timestamp_ns - record->req_msg->timestamp_ns;
     record_buf->records[record_buf->record_buf_size] = record_data;
     ++record_buf->record_buf_size;
     record_buf->msg_error_count += record->resp_msg->single_reply_error_msg_count;
