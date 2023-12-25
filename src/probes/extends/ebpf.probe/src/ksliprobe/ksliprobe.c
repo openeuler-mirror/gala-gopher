@@ -156,7 +156,7 @@ static void *msg_event_receiver(void *arg)
     }
 
     int ret;
-    while ((ret = bpf_buffer__poll(g_ksli_probe.ksli_bpf_prog->buffer, THOUSAND)) >= 0 || ret != EINTR) {
+    while ((ret = bpf_buffer__poll(g_ksli_probe.ksli_bpf_prog->buffer, THOUSAND)) >= 0 || ret == -EINTR) {
         ;
     }
     ERROR("[KSLIPROBE]: bpf buffer poll failed.\n");

@@ -1007,7 +1007,6 @@ static int stack_id2symbs_kern(struct stack_trace_s *st, u32 kern_stack_id,
     for (int i = PERF_MAX_STACK_DEPTH - 1; (i >= 0 && index < size); i--) {
         if (ip[i] != 0 && IS_IEG_ADDR(ip[i])) {
             if (search_kern_addr_symb(st->ksymbs, ip[i], &(kern_stack_symbs[index]))) {
-                DEBUG("[STACKPROBE]: Failed to id2symbs kern stack(0x%llx).\n", ip[i]);
                 st->stats.count[STACK_STATS_KERN_ADDR_ERR]++;
             } else {
                 st->stats.count[STACK_STATS_KERN_ADDR]++;
@@ -2229,8 +2228,8 @@ static void print_jstack(u32 pid, struct java_attach_args *args)
     char ns_java_data_path[PATH_LEN]; 
 
     set_ns_java_data_dir(pid, ns_java_data_path, PATH_LEN);
-    // java -jar /opt/gala-gopher/extend_probes/JstackPrinter.jar "/tmp/java-data-$PID" "oncpu|offcpu|mem|"
-    (void)snprintf(cmd, LINE_BUF_LEN, "java -jar %s \"%s\" \"%s\"", JSTACK_PRINTER_PATH, ns_java_data_path, args->action);
+    // java -jar /opt/gala-gopher/extend_probes/JstackPrinter.jar "/proc/<pid>/root/tmp/java-data-$PID" "oncpu|offcpu|mem|"
+    (void)snprintf(cmd, LINE_BUF_LEN, "java -jar %s \"/proc/%u/root%s\" \"%s\"", JSTACK_PRINTER_PATH, pid, ns_java_data_path, args->action);
 
     FILE *fp = popen(cmd, "r");
     if (fp != NULL) {
@@ -2318,9 +2317,16 @@ static void switch_stackmap()
         if (stack_id2histogram(st, i, st->is_stackmap_a) != 0) {
             continue;
         }
+
         if (H_COUNT(st->svg_stack_traces[i]->proc_histo_tbl) != 0) {
-            wr_flamegraph(&st->svg_stack_traces[i]->proc_histo_tbl, st->svg_stack_traces[i]->svg_mng, i, &st->post_server);
+            wr_flamegraph(&st->svg_stack_traces[i]->proc_histo_tbl,
+                st->svg_stack_traces[i]->svg_mng, i, &st->post_server);
         }
+#ifdef FLAMEGRAPH_SVG
+        if (is_svg_tmout(st->svg_stack_traces[i]->svg_mng)) {
+            create_pids_svg_file(g_st->proc_obj_map_fd, st->svg_stack_traces[i]->svg_mng, i);
+        }
+#endif
         clear_raw_stack_trace(st->svg_stack_traces[i], st->is_stackmap_a);
         clear_py_stack_trace(st->svg_stack_traces[i], st->is_stackmap_a);
     }
