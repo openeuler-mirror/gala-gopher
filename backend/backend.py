@@ -1,30 +1,33 @@
 import http.client
 import os
 import time
-import urllib
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import json
 import threading
 from urllib.parse import urlparse
 import logging
+import random
+import json
 
-IP = '127.0.0.1'
+IP = '0.0.0.0'
 PORT = 0
 
 user_login = '{"tenantName": "admin","username": "admin","password": "admin123","rememberMe": false}'
-user_create = '{"username": "tf9o8mp3dy","password": "testcurl11","nickname": "umw5rbsdu5","email": "fe3dt544qb@163.com","mobile": "","deptId": 100,"postIds": [],"status": 0,"remark": ""}'
-user_update = '{"id": 101,"name": "tf9o8mp3dy","code": "ftlbpf66s1","sort": 0,"remark": "5a9rluvx1v","status": 0,"dataScope": 1,"dataScopeDeptIds": [],"type": 2,"createTime": 1609912175000}'
-login_headers = {"tenant-id": "1", "Content-Type": "application/json"}
+user_create = {"username": "tf9o8mp3dd", "password": "testcurl11", "nickname": "umw5rbsdu4",
+               "email": "fe3dt444qb@163.com", "mobile": "", "deptId": 100, "postIds": [], "status": 0, "remark": ""}
+user_update = {"id": 101, "username": "tf9o8mp3dd", "password": "testcurl11", "nickname": "umw5rbsdu4",
+                "email": "fe3dt444qb@163.com", "mobile": "", "deptId": 100, "postIds": [], "status": 0, "remark": ""}
+login_headers = {"tenant-id": "1", "Content-Type": "application/json",
+                "User-Agent":"Mozillla/5.0 Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.54"}
 user_id = []
 batch_write_disk = ""
 operate_url_prefix = "/admin-api/system/user/"
-update_operate_url_prefix = "/admin-api/system/role/"
 keep_alive_url_prefix = "/a-ops/keepalive"
 next = []
 keep_alive_wait_port = ""
 is_batch_write_disk = []
-
 count = []
+lock = threading.Lock()
+update_file = "/home/file.txt"
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -34,6 +37,24 @@ logging.basicConfig(
 )
 
 
+# 随机生成email
+def random_email():
+    prefix = 'abcdefghijklmnopqrstuvwsyz'
+    end = ['@163.com', '@qq.com', '@163.net', '@live.com', '@sohu.com', '@126.com']
+    return ''.join([random.choice(prefix) for i in range(random.randint(5, 14))]) + random.choice(end)
+
+
+# 随机生成用户名
+def random_name():
+    name = "AaBbCcDdEdFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz0123456789"
+    last = ""
+    # 随机生成10个字符组成name
+    for i in range(10):
+        index = random.randint(0, len(name) - 1)
+        last += name[index]
+    return last
+
+
 def build_url(ip, port, url_prefix, operate, id):
     url = "http://" + ip + ":" + str(port) + url_prefix
     if operate != "":
@@ -41,6 +62,16 @@ def build_url(ip, port, url_prefix, operate, id):
     if id != "":
         url = url + "?id=" + str(id)
     return url
+
+
+def send_response(self, response, context):
+    if response != None:
+        self.send_response(response.status)
+    else:
+        self.send_response(200)
+    self.send_header('Content-type', 'application/json')
+    self.end_headers()
+    self.wfile.write(context.encode('UTF-8'))
 
 
 class Next:
@@ -64,9 +95,15 @@ class BatchWriteDiskThread(threading.Thread):
     def run(self):
         if (os.path.exists(self.of_file) is None):
             return
-        cmd = "dd if=" + self.if_file + " " + "of=" + self.of_file + " " + "bs=" + str(self.bs) + " " + "count=" + str(
+        cmd = "dd if=" + self.if_file + " " + "of=" + self.of_file + " " + "bs=" + bs + " " + "count=" + str(
             self.count)
         os.system(cmd)
+
+        if of_file == update_file:
+            try:
+                os.remove(update_file)
+            except OSError as error:
+                logging.debug("os.remove %s", error)    
         return
 
 
@@ -86,17 +123,11 @@ class IsBatchWriteThread(threading.Thread):
                         is_batch_write_disk.clear()
                         is_batch_write_disk.append(batch_write_disk)
 
+
 class KeepAliveHandler(BaseHTTPRequestHandler):
     def do_POST(self):
-        url = self.path[1:]
-        response = urllib.request.urlopen(url)
-        content = response.read()
-
         # 发送响应
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html')
-        self.end_headers()
-        self.wfile.write(content)
+        send_response(self, None, 'received keep-alive')
 
 
 class KeepAliveThread(threading.Thread):
@@ -126,29 +157,28 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed_url.path
         path_list = path.split('/')
         operate = path_list[len(path_list) - 1]
-
+        logging.debug("received %s request", operate)
         if operate == 'create':
-
             # 创建文件
-            batch_write_disk_thread = BatchWriteDiskThread("/dev/null", "/dev/zero", 4, 10)
+            batch_write_disk_thread = BatchWriteDiskThread("/dev/zero", "/dev/null", "4M", 100)
             batch_write_disk_thread.start()
 
             # 发送请求给下游
             self.send_request_next(operate, None)
         elif operate == 'update' and is_batch_write_disk[len(is_batch_write_disk) - 1] == 1:
-
             # 开启线程进行更新文件、写盘操作
-            batch_write_disk_thread = BatchWriteDiskThread("/dev/null", "file.txt", 4, 100000)
+            batch_write_disk_thread = BatchWriteDiskThread("/dev/zero", update_file, "4M", 1000)
             batch_write_disk_thread.start()
 
             self.send_request_next(operate, None)
-        elif operate == 'delete' and len(user_id) != 0:
-            self.send_request_next(operate, user_id[len(user_id) - 1])
+        elif operate == 'delete':
+            self.send_request_next(operate, None)
 
     # 发送数据给下游，backend or java_app
     def send_request_next(self, operate, id):
         if len(next) != 0:
-            element = next[0]
+            i = random.randint(0, len(next) - 1)
+            element = next[i]
             ip = element.ip
             port = element.url_port
             is_auth = element.is_auth
@@ -156,45 +186,78 @@ class Handler(BaseHTTPRequestHandler):
             conn = http.client.HTTPConnection(ip, port)
             try:
                 # 下游是backend
-                if is_auth == 0:
+                if is_auth == 0 and port > 0:
                     if operate == 'create':
                         conn.request("PUT", build_url(ip, port, operate_url_prefix, "create", ""))
+
+                        send_response(self, conn.getresponse(), 'successfully sent create request!')
                     elif operate == 'update':
                         conn.request("PUT", build_url(ip, port, update_operate_url_prefix, "update", ""))
+
+                        send_response(self, conn.getresponse(), 'successfully sent update request!')
                     elif operate == 'delete':
                         conn.request("PUT", build_url(ip, port, operate_url_prefix, "delete", ""))
+
+                        send_response(self, conn.getresponse(), 'successfully sent delete request!')
                 # 下游是java_app
-                elif is_auth == 1:
+                elif is_auth == 1 and port > 0:
                     # 获取token
-                    conn.request("POST", build_url(element.ip, element.url_port, "/admin-api/system/auth/login", "", ""),
-                                    user_login, login_headers)
+                    conn.request("POST",
+                                 build_url(element.ip, element.url_port, "/admin-api/system/auth/login", "", ""),
+                                 user_login, login_headers)
                     response = conn.getresponse()
                     msg = response.read()
                     data = json.loads(msg)["data"]
                     response_token = data["accessToken"]
                     element.token = response_token
 
-                    if element.token != "":
-                        token_header = {"Authorization":"Bearer " + element.token , "tenant-id": "1",
-                                        "Content-Type": "application/json"}
-                        if operate == 'create':
-                            conn.request("POST", build_url(ip, port, operate_url_prefix, "create", ""), user_create,
-                                         token_header)
-                            response = conn.getresponse()
-                            context = response.read()
-                            id = json.loads(context)["data"]
-                            user_id.clear()
-                            user_id.append(id)
-                        elif operate == 'update':
-                            conn.request("PUT", build_url(ip, port, update_operate_url_prefix, "update", ""), user_update,
-                                         token_header)
-                        elif operate == 'delete':
-                            conn.request("DELETE", build_url(ip, port, operate_url_prefix, "delete", user_id[0]), "", token_header)
-                            user_id.remove(user_id[0])
-            except Exception:
+                    if element.token == "":
+                        return
+
+                    token_header = {"Authorization": "Bearer " + element.token, "tenant-id": "1",
+                                    "Content-Type": "application/json"}
+                    if operate == 'create':
+                        user_create["username"] = random_name()
+                        user_create["email"] = random_email()
+
+                        conn.request("POST", build_url(ip, port, operate_url_prefix, "create", ""),
+                                     json.dumps(user_create),
+                                     token_header)
+
+                        response = conn.getresponse()
+                        context = response.read()
+                        id = json.loads(context)["data"]
+                        logging.debug("id %d", id)
+                        lock.acquire()
+                        user_id.append(id)
+                        lock.release()
+
+                        send_response(self, response, 'successfully sent create request!')
+                    elif operate == 'update' and and len(user_id) > 0:
+                        user_update["id"] = user_id[len(user_id) - 1]
+                        user_update["email"] = random_email()
+
+                        conn.request("PUT", build_url(ip, port, operate_url_prefix, "update", ""),
+                                     json.dumps(user_update),
+                                     token_header)
+
+                        send_response(self, conn.getresponse(), 'successfully sent update request!')
+                    elif operate == 'delete' and len(user_id) > 0:
+                        conn.request("DELETE",
+                                     build_url(ip, port, operate_url_prefix, "delete", user_id[len(user_id) - 1]),
+                                     "", token_header)
+
+                        lock.acquire()
+                        user_id.remove(user_id[len(user_id) - 1])
+                        lock.release()
+
+                        send_response(self, conn.getresponse(), 'successfully sent delete request!')
+
+            except Exception as e:
+                logging.debug("failed. Err: %s", repr(e))
                 conn.close()
-                return
-            conn.close()
+        conn.close()
+
 
 if __name__ == "__main__":
 
@@ -203,9 +266,18 @@ if __name__ == "__main__":
         PORT = backend_data['port']
         next_array = backend_data['next']
         keep_alive_wait_port = backend_data['keep_alive_wait_port']
+
+        logging.debug("port:%d", PORT)
+        logging.debug("keep_alive_wait_port:%d", keep_alive_wait_port)
+
         for elem in next_array:
             e = Next(elem["is_auth"], elem["ip"], elem["url_port"], elem["keep_alive_port"])
             next.append(e)
+
+            logging.debug("is_auth:%d", elem["is_auth"])
+            logging.debug("ip:%s", elem["ip"])
+            logging.debug("url_port:%d", elem["url_port"])
+            logging.debug("keep_alive_port:%d", elem["keep_alive_port"])
 
     # 动态监测是否支持批量写盘
     is_batch_write_thread = IsBatchWriteThread()
