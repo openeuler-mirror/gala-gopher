@@ -91,22 +91,22 @@ err:
     return;
 }
 
-static int do_l7_load_tcp_fd(int fd, const char *container_id, int netns_fd)
+static int do_l7_load_tcp_fd(int fd, int proc_id, int netns_fd)
 {
     int ret;
-
-    if (container_id) {
-        ret = enter_container_netns(container_id);
+    bool is_container = false;
+    if (proc_id != 0 && is_container_proc(proc_id)) {
+        ret = enter_proc_netns(proc_id);
         if (ret) {
-            ERROR("[L7PROBE]: Enter container netns failed.(%s, ret = %d)\n",
-                container_id, ret);
+            ERROR("[L7PROBE]: Enter container netns failed.(%d, ret = %d)\n", proc_id, ret);
             return ret;
         }
+        is_container = true;
     }
 
     __do_l7_load_tcp_fd(fd);
 
-    if (container_id) {
+    if (is_container) {
         (void)exit_container_netns(netns_fd);
     }
     return 0;
@@ -133,10 +133,9 @@ static void l7_unload_tcp_fd(struct l7_mng_s *l7_mng)
 
 static int l7_load_tcp_fd(struct l7_mng_s *l7_mng)
 {
-    char *container_id;
+    int proc_id;
     int netns_fd = 0;
     struct ipc_body_s *ipc_body = &(l7_mng->ipc_body);
-
     netns_fd = get_netns_fd(getpid());
     if (netns_fd <= 0) {
         ERROR("[L7PROBE]: Get netns fd failed.\n");
@@ -144,17 +143,13 @@ static int l7_load_tcp_fd(struct l7_mng_s *l7_mng)
     }
 
     for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
-        if (ipc_body->snooper_objs[i].type == SNOOPER_OBJ_CON) {
-            container_id = ipc_body->snooper_objs[i].obj.con_info.con_id;
-            if (!container_id) {
-                continue;
-            }
-
-            do_l7_load_tcp_fd(l7_mng->bpf_progs.l7_tcp_fd, container_id, netns_fd);
+        if (ipc_body->snooper_objs[i].type == SNOOPER_OBJ_PROC) {
+            proc_id = ipc_body->snooper_objs[i].obj.proc.proc_id;
+            do_l7_load_tcp_fd(l7_mng->bpf_progs.l7_tcp_fd, proc_id, netns_fd);
         }
     }
 
-    (void)do_l7_load_tcp_fd(l7_mng->bpf_progs.l7_tcp_fd, NULL, netns_fd);
+    (void)do_l7_load_tcp_fd(l7_mng->bpf_progs.l7_tcp_fd, 0, netns_fd);
     (void)close(netns_fd);
     return 0;
 }

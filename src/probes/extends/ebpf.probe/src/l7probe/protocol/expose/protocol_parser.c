@@ -52,10 +52,10 @@ void free_record_data(enum proto_type_t type, struct record_data_s *record_data)
         case PROTO_HTTP2:
             break;
         case PROTO_REDIS:
-            free_redis_record((struct redis_record_s *) record_data);
+            free_redis_record((struct redis_record_s *) record_data->record);
             break;
         case PROTO_KAFKA:
-            free_kafka_record((struct kafka_record_s *) record_data);
+            free_kafka_record((struct kafka_record_s *) record_data->record);
             break;
         case PROTO_MYSQL:
         case PROTO_MONGO:
