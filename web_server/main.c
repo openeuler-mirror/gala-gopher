@@ -7,10 +7,25 @@
 #include <fcntl.h>
 #include <time.h>
 
+#include <signal.h>
 #define MAX_COUNT 10
 #define CONF_PATH           "/etc/web_server.conf"
 #define LINE_BUF_LEN        512
 #define URL_LEN             512
+
+FILE *fp;
+
+pthread_mutex_t myMutex = PTHREAD_MUTEX_INITIALIZER;
+
+int thread_count = 0;
+struct addrs_str addrsStr;
+int send_all_rate = 0, send_update_rate = 0, send_update_count = 0;
+
+void recvSignal(int sig)
+{
+       fprintf(fp,"[ERROR]: received signal %d !\n",sig);
+       fclose(fp);
+}
 
 struct addr {
     char *ip;
@@ -22,19 +37,12 @@ struct addrs_str {
     int length;
 };
 
-//创建互斥锁
-pthread_mutex_t myMutex = PTHREAD_MUTEX_INITIALIZER;
-
-int thread_count = 0;
-struct addrs_str addrsStr;
-int send_all_rate = 0, send_update_rate = 0;
-
 cJSON *get_value_from_file(char *file_path, char *key) {
 
     FILE *fp;
     fp = fopen(file_path, "r");
     if (fp == NULL) {
-        printf("[ERROR]: get_value_from_file failed");
+        fprintf(fp, "[ERROR]: get_value_from_file failed\n");
     }
 
     char buf[100];
@@ -54,7 +62,7 @@ cJSON *get_value_from_file(char *file_path, char *key) {
     cJSON *json;
     json = cJSON_Parse(content);
     if (!json) {
-        printf("Error: get_value_from_file.cJSON_Parse  %s\n", cJSON_GetErrorPtr());
+        fprintf(fp, "Error: get_value_from_file.cJSON_Parse  %s\n", cJSON_GetErrorPtr());
     }
 
     cJSON *item = cJSON_GetObjectItem(json, key);
@@ -65,6 +73,8 @@ void init(char *file_path) {
     // 初始化线程个数
     cJSON *thread_count_json = get_value_from_file(file_path, "thread_count");
     thread_count = thread_count_json->valueint;
+
+    fprintf(fp,"thread_count %d\n",thread_count);
 
     //初始化address,ip与port
     addrsStr.length = 0;
@@ -93,24 +103,16 @@ void init(char *file_path) {
     // 初始化send_update_rate
     cJSON *send_update_rate_json = get_value_from_file(file_path, "send_update_rate");
     send_update_rate = send_update_rate_json->valueint;
+    send_update_count = send_all_rate*send_update_rate*0.01;
 }
 
-// http://ip:port/admin-api/system/user/create、http://ip:port/admin-api/system/user/delete、http://ip:port/admin-api/system/role/update
+// http://ip:port/admin-api/system/user/create、http://ip:port/admin-api/system/user/delete、http://ip:port/admin-api/system/user/update
 int build_url(char *url, char *ip, int port, char *operate) {
-    if(operate == "update") {
-        (void) snprintf(url, LINE_BUF_LEN,
-                        "http://%s:%u/admin-api/system/role/%s",
-                        ip,
-                        port,
-                        operate);
-    } else {
-        (void) snprintf(url, LINE_BUF_LEN,
-                        "http://%s:%u/admin-api/system/user/%s",
-                        ip,
-                        port,
-                        operate);
-    }
-
+    (void) snprintf(url, LINE_BUF_LEN,
+        "http://%s:%u/admin-api/system/user/%s",
+        ip,
+        port,
+        operate);
     return 0;
 }
 
@@ -118,9 +120,10 @@ void send_request_to_url(char *ip, int port, char *operate) {
     char *url = malloc(URL_LEN + 1);
     (void) memset(url, 0, URL_LEN);
 
+    CURLcode res;
     build_url(url, ip, port, operate);
-
-    CURL *curl = curl_easy_init();        // 创建CURL句柄
+	
+    CURL *curl = curl_easy_init();
     if (curl == NULL) {
         exit(0);
     }
@@ -131,7 +134,16 @@ void send_request_to_url(char *ip, int port, char *operate) {
     //设置为put方法
     curl_easy_setopt(curl, CURLOPT_PUT, 1L);
 
-    curl_easy_perform(curl); // 发送数据
+	// 发送数据
+    res = curl_easy_perform(curl);
+
+    long status;
+
+    // 获取response code
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+	
+    fprintf(fp,"received backend response code id %d\n",status);
+
     curl_easy_cleanup(curl);
 }
 
@@ -155,19 +167,23 @@ void send_request(char *ip, int port) {
 
             // 轮到发送create方法时，一定发送
             if ((operate_index + 1) % 3 == 1) {
+				fprintf(fp,"send create to backend\n");	    
                 send_request_to_url(ip, port, operates[operate_index]);
                 count++;
-            } else if ((operate_index + 1) % 3 == 2 && update_count < send_update_rate) {
-
-                // 轮到发送update方法时，选择发送
+				fprintf(fp,"successfully sent create to backend\n");
+            } else if ((operate_index + 1) % 3 == 2 && update_count < send_update_count){
+                fprintf(fp,"send update to backend\n");
+				// 轮到发送update方法时，选择发送
                 send_request_to_url(ip, port, operates[operate_index]);
                 update_count++;
                 count++;
+				fprintf(fp,"successfully sent upadte to backend\n");
             } else if ((operate_index + 1) % 3 == 0) {
-
-                // 轮到发送delete方法时，一定发送
+                fprintf(fp,"send delete to backend\n");
+				// 轮到发送delete方法时，一定发送
                 send_request_to_url(ip, port, operates[operate_index]);
                 count++;
+				fprintf(fp,"successsfully sent delete to backend\n");
             }
 
             operate_index++;
@@ -201,6 +217,9 @@ void *thread_work_func() {
 }
 
 int main() {
+    fp = fopen("/etc/log.txt", "w");
+    fprintf(fp,"run web_server");
+    signal(SIGSEGV, recvSignal);  
     init(CONF_PATH);
 
     pthread_t tid[thread_count];

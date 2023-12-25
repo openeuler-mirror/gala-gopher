@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web-server
+  template:
+    metadata:
+      labels:
+        app: web-server
+      annotations:
+        "cni.projectcalico.org/ipAddrs": "[\"192.168.11.103\"]"
+    spec:
+      nodeName: node1
+      containers:
+      - name: web-server
+        image: web-server:1.0.1
+        securityContext:
+          privileged: true
+          runAsUser: 0
+        env:
+        - name: THREAD_COUNT
+          value: "3"
+        - name: ADDRESS
+          value: "{\"ip\":\"192.168.11.102\",\"port\":26},{\"ip\":\"192.168.11.112\",\"port\":26},{\"ip\":\"192.168.11.113\",\"port\":26}"
+        - name: SEND_ALL_RATE
+          value: "100"
+        - name: SEND_UPDATE_RATE
+          value: "10"
+        imagePullPolicy: Never
+        resources:
+          limits:
+            cpu: "1"
+            memory: "2048Mi"
+          requests:
+            cpu: "1"
+            memory: "2048Mi"
+
