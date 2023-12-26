@@ -267,7 +267,7 @@ static __always_inline int parse_req(struct conn_data_t *conn_data, const unsign
     char msg[MAX_COMMAND_REQ_SIZE] = {0};
 
     copy_size = count < MAX_COMMAND_REQ_SIZE ? count : (MAX_COMMAND_REQ_SIZE - 1);
-    err = bpf_core_read(msg, copy_size & MAX_COMMAND_REQ_SIZE, buf);
+    err = bpf_probe_read(msg, copy_size & MAX_COMMAND_REQ_SIZE, buf);
     if (err < 0) {
         bpf_printk("parse_req read buffer failed.\n");
         return PROTOCOL_NO_REDIS;

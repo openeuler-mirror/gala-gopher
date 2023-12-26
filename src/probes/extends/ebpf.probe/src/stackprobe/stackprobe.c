@@ -2499,7 +2499,7 @@ static void set_java_agent_type()
     int err = system(CHECK_JRE);
     if (err >= 0) {
         err = WEXITSTATUS(err);
-        if (err == 0 && g_st->multi_instance_flag && !g_st->native_stack_flag) {
+        if (err == 0 && g_st != NULL && g_st->multi_instance_flag && !g_st->native_stack_flag) {
             g_use_jstack_agent = 1;
         }
     }
