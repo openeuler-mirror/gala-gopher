@@ -1,13 +1,14 @@
 #include <stdio.h>
-#include<pthread.h>
+#include <unistd.h>
+#include <pthread.h>
 #include <cjson/cJSON.h>
 #include <stdlib.h>
 #include <string.h>
 #include <curl/curl.h>
 #include <fcntl.h>
 #include <time.h>
-
 #include <signal.h>
+
 #define MAX_COUNT 10
 #define CONF_PATH           "/etc/web_server.conf"
 #define LINE_BUF_LEN        512
@@ -36,6 +37,15 @@ struct addrs_str {
     struct addr addrs[MAX_COUNT];
     int length;
 };
+
+struct tm* get_time() {
+    time_t tmpcal_ptr;
+    struct tm* tmp_ptr = NULL;
+
+    time(&tmpcal_ptr);
+    tmp_ptr = localtime(&tmpcal_ptr);
+    return tmp_ptr;
+}
 
 cJSON *get_value_from_file(char *file_path, char *key) {
 
@@ -122,28 +132,36 @@ void send_request_to_url(char *ip, int port, char *operate) {
 
     CURLcode res;
     build_url(url, ip, port, operate);
-	
+
     CURL *curl = curl_easy_init();
     if (curl == NULL) {
         exit(0);
     }
 
-    //设置请求的url
+    struct curl_slist* headers = NULL;
+    headers = curl_slist_append(headers, "Content-Type:application/json")
+
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
     curl_easy_setopt(curl, CURLOPT_URL, url);
 
-    //设置为put方法
-    curl_easy_setopt(curl, CURLOPT_PUT, 1L);
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
 
-	// 发送数据
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "json={\"body\":\"headers of request to backend \"}");
+
     res = curl_easy_perform(curl);
 
     long status;
 
     // 获取response code
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
-	
-    fprintf(fp,"received backend response code id %d\n",status);
 
+	struct tm* tmp_ptr = get_time();
+
+    fprintf(fp,"the time is:%s received backend response code id %d\n", asctime(tmp_ptr), status);
+
+    free(url);
+    curl_slist_free_all(headers);
     curl_easy_cleanup(curl);
 }
 
@@ -160,30 +178,36 @@ void send_request(char *ip, int port) {
         int update_count = 0;
         time_t start_time = time(NULL);
         int operate_index = 0;
-        
+
         // 一分钟内能把请求发完；或者一分钟内请求发不完；这两种情况下都需要进行请求发送
         while ((difftime(time(NULL), start_time) < 60 && count < send_all_rate) || count < send_all_rate) {
 
 
             // 轮到发送create方法时，一定发送
             if ((operate_index + 1) % 3 == 1) {
-				fprintf(fp,"send create to backend\n");	    
+                struct tm* tmp_ptr = get_time();
+				fprintf(fp,"the time is:%s send create to backend\n", asctime(tmp_ptr));
                 send_request_to_url(ip, port, operates[operate_index]);
                 count++;
-				fprintf(fp,"successfully sent create to backend\n");
+                tmp_ptr = get_time();
+				fprintf(fp,"the time is:%s successfully sent create to backend\n", asctime(tmp_ptr));
             } else if ((operate_index + 1) % 3 == 2 && update_count < send_update_count){
-                fprintf(fp,"send update to backend\n");
+                struct tm* tmp_ptr = get_time();
+                fprintf(fp,"the time is:%s send update to backend\n", asctime(tmp_ptr));
 				// 轮到发送update方法时，选择发送
                 send_request_to_url(ip, port, operates[operate_index]);
                 update_count++;
                 count++;
-				fprintf(fp,"successfully sent upadte to backend\n");
+                tmp_ptr = get_time();
+				fprintf(fp,"the time is:%s successfully sent upadte to backend\n", asctime(tmp_ptr));
             } else if ((operate_index + 1) % 3 == 0) {
-                fprintf(fp,"send delete to backend\n");
+                struct tm* tmp_ptr = get_time();
+                fprintf(fp,"the time is:%s send delete to backend\n", asctime(tmp_ptr));
 				// 轮到发送delete方法时，一定发送
                 send_request_to_url(ip, port, operates[operate_index]);
                 count++;
-				fprintf(fp,"successsfully sent delete to backend\n");
+                tmp_ptr = get_time();
+				fprintf(fp,"the time is:%s successsfully sent delete to backend\n", asctime(tmp_ptr));
             }
 
             operate_index++;
@@ -191,6 +215,10 @@ void send_request(char *ip, int port) {
             if (operate_index > 2) {
                 operate_index = 0;
             }
+        }
+
+        while (difftime(time(NULL), start_time) < 60) {
+            sleep(1);
         }
     }
 }
@@ -219,7 +247,7 @@ void *thread_work_func() {
 int main() {
     fp = fopen("/etc/log.txt", "w");
     fprintf(fp,"run web_server");
-    signal(SIGSEGV, recvSignal);  
+    signal(SIGSEGV, recvSignal);
     init(CONF_PATH);
 
     pthread_t tid[thread_count];
