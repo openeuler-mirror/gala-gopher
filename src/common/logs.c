@@ -16,8 +16,9 @@
 #define METRICS_LOGS_FILESIZE_MAX   (1024 * 1024 * 1024)
 #define METRICS_LOGS_FILESIZE   (100 * 1024 * 1024) // 100mb
 #define EVENT_LOGS_FILESIZE     (100 * 1024 * 1024)
-#define DEBUG_LOGS_FILESIZE     (100 * 1024 * 1024)
+#define DEBUG_LOGS_FILESIZE     (200 * 1024 * 1024)
 #define META_LOGS_FILESIZE      (100 * 1024 * 1024)
+#define RAW_LOGS_FILESIZE       (100 * 1024 * 1024)
 
 #define METRICS_LOGS_MAXNUM     (100)
 #define EVENT_LOGS_MAXNUM       (100)
@@ -329,7 +330,7 @@ struct logger g_debug_logger;
 struct logger g_meta_logger;
 struct logger g_raw_logger;
 
-static void init_logger(struct logger *logger, char *name, const int max_backup_index)
+static void init_logger(struct logger *logger, char *name, const int max_backup_index, const size_t max_file_size)
 {
     logger->name = name;
     logger->level = LOGGER_INFO;       // set default print info INFO.
@@ -339,19 +340,19 @@ static void init_logger(struct logger *logger, char *name, const int max_backup_
     logger->max_backup_index = max_backup_index; // if zero, mean do not backup
     logger->curr_backup_index = 1;
     logger->buf_len = 0;
-    logger->max_file_size = METRICS_LOGS_FILESIZE / (logger->max_backup_index + 1);
+    logger->max_file_size = max_file_size / (logger->max_backup_index + 1);
     logger->pattern = NULL;
     (void)pthread_rwlock_init(&(logger->rwlock), NULL);
 }
 
-static void prep_init_logger(struct logger *logger)
+static void prep_init_logger(struct logger *logger, const size_t max_file_size)
 {
     (void)pthread_rwlock_wrlock(&logger->rwlock);
     if (logger->file_fd > 0) {
         (void)close(logger->file_fd);
     }
     logger->buf_len = 0;
-    logger->max_file_size = METRICS_LOGS_FILESIZE / (logger->max_backup_index + 1);
+    logger->max_file_size = max_file_size / (logger->max_backup_index + 1);
     logger->curr_backup_index = 1;
     (void)pthread_rwlock_unlock(&logger->rwlock);
 }
@@ -376,11 +377,11 @@ static int init_logger_path(struct logger *logger, const char *log_path)
 
 static void init_all_logger()
 {
-    init_logger(&g_metrics_logger, "metrics", 0);
-    init_logger(&g_event_logger, "event", 1);
-    init_logger(&g_debug_logger, "debug", 1);
-    init_logger(&g_meta_logger, "meta", 1);
-    init_logger(&g_raw_logger, "raw", 1);
+    init_logger(&g_metrics_logger, "metrics", 0, METRICS_LOGS_FILESIZE);
+    init_logger(&g_event_logger, "event", 1, EVENT_LOGS_FILESIZE);
+    init_logger(&g_debug_logger, "debug", 1, DEBUG_LOGS_FILESIZE);
+    init_logger(&g_meta_logger, "meta", 1, META_LOGS_FILESIZE);
+    init_logger(&g_raw_logger, "raw", 1, RAW_LOGS_FILESIZE);
 }
 
 #define FULL_PATH_LEN (PATH_LEN * 2)
@@ -396,7 +397,7 @@ static int append_meta_logger(struct log_mgr_s * mgr)
     g_meta_abs_path[0] = 0;
     (void)snprintf(g_meta_abs_path, FULL_PATH_LEN, (mgr->meta_path[path_len - 1] == '/') ?
         fmt2 : fmt, mgr->meta_path, META_LOGS_FILE_NAME);
-    prep_init_logger(&g_meta_logger);
+    prep_init_logger(&g_meta_logger, META_LOGS_FILESIZE);
     int path_state = init_logger_path(&g_meta_logger, g_meta_abs_path);
     if (path_state < 0) {
         return -1;
@@ -414,7 +415,7 @@ static int append_raw_logger(struct log_mgr_s * mgr)
         ERROR("Raw path is null.\n");
         return -1;
     }
-    prep_init_logger(&g_raw_logger);
+    prep_init_logger(&g_raw_logger, RAW_LOGS_FILESIZE);
     (void)pthread_rwlock_wrlock(&g_raw_logger.rwlock);
     g_raw_logger.pattern = PATTERN_RAW_LOGGER_STR; // "%m"
     (void)pthread_rwlock_unlock(&g_raw_logger.rwlock);
@@ -440,7 +441,7 @@ static int append_debug_logger(struct log_mgr_s * mgr)
     g_debug_abs_path[0] = 0;
     (void)snprintf(g_debug_abs_path, FULL_PATH_LEN,
         (mgr->debug_path[path_len - 1] == '/') ? fmt2 : fmt, mgr->debug_path, app_name);
-    prep_init_logger(&g_debug_logger);
+    prep_init_logger(&g_debug_logger, DEBUG_LOGS_FILESIZE);
     int path_state = init_logger_path(&g_debug_logger, g_debug_abs_path);
     if (path_state < 0) {
         return -1;
@@ -466,7 +467,7 @@ static int append_metrics_logger(struct log_mgr_s *mgr)
     }
 
     rm_log_file(full_path);
-    prep_init_logger(&g_metrics_logger);
+    prep_init_logger(&g_metrics_logger, mgr->metrics_logs_filesize);
     int path_state = init_logger_path(&g_metrics_logger, full_path);
     if (path_state < 0) {
         return -1;
@@ -492,7 +493,7 @@ static int append_event_logger(struct log_mgr_s * mgr)
     }
 
     rm_log_file(full_path);
-    prep_init_logger(&g_meta_logger);
+    prep_init_logger(&g_meta_logger, META_LOGS_FILESIZE);
     int path_state = init_logger_path(&g_event_logger, full_path);
     if (path_state < 0) {
         return -1;
@@ -671,17 +672,20 @@ static void log_rollover(struct logger *logger)
     // rollover files and get new filename.
     logger->curr_backup_index = (logger->curr_backup_index) % (logger->max_backup_index + 1);
     if (logger->curr_backup_index == 0) {
-        (void)snprintf(logger->full_path_name, sizeof(logger->full_path_name), "%s", logger->base_path_name);
-    } else {
-        (void)snprintf(logger->full_path_name, sizeof(logger->full_path_name), "%s.%d",
-                       logger->base_path_name, logger->curr_backup_index);
+        ++logger->curr_backup_index;
     }
-    logger->file_fd = open_file_with_clear_file(logger->full_path_name);
+    (void)snprintf(logger->full_path_name, sizeof(logger->full_path_name), "%s.%d",
+                       logger->base_path_name, logger->curr_backup_index);
+    ret = rename(logger->base_path_name, logger->full_path_name);
+    if (ret < 0) {
+        (void)printf("[ERROR] rename file %s to %s failed\n", logger->base_path_name, logger->full_path_name);
+    }
+    logger->file_fd = open_file_with_clear_file(logger->base_path_name);
     logger->buf_len = 0; // re-count buf_len.
     ++logger->curr_backup_index; // next backup index.
     (void)pthread_rwlock_unlock(&logger->rwlock);
     if (logger->file_fd < 0) {
-	(void)printf("[ERROR] failed open filename: %s\n", logger->full_path_name);
+	(void)printf("[ERROR] failed open filename: %s\n", logger->base_path_name);
     }
 }
 
@@ -888,14 +892,14 @@ void convert_output_to_log(char *buffer, int bufferSize)
 
     buffer[bufferSize - 1] = 0;
     enum logger_level_t logger_level;
-    if (strncmp(buffer, DEBUG_STR, sizeof(DEBUG_STR) - 1) == 0) {
-        logger_level = LOGGER_DEBUG;
+    if (strncmp(buffer, INFO_STR, sizeof(INFO_STR) - 1) == 0) {
+        logger_level = LOGGER_INFO;
     } else if (strncmp(buffer, WARN_STR, sizeof(WARN_STR) - 1) == 0) {
         logger_level = LOGGER_WARN;
     } else if (strncmp(buffer, ERROR_STR, sizeof(ERROR_STR) - 1) == 0) {
         logger_level = LOGGER_ERROR;
     } else {
-        logger_level = LOGGER_INFO;
+        logger_level = LOGGER_DEBUG;
     }
     if (g_debug_logger.level <= logger_level) {
         reappend_debug_logger(local);
