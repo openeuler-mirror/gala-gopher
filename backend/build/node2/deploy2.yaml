@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-node2-02
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend-node2-02
+  template:
+    metadata:
+      labels:
+        app: backend-node2-02
+      annotations:
+        "cni.projectcalico.org/ipAddrs": "[\"192.168.11.112\"]"
+    spec:
+      nodeName: node2
+      containers:
+      - name: backend
+        image: backend:1.0.1
+        securityContext:
+          privileged: true
+          runAsUser: 0
+        env:
+        - name: PORT
+          value: "26"
+        - name: NEXT
+          value: "{\"is_auth\":0,\"ip\":\"192.168.11.101\",\"url_port\":26,\"keep_alive_port\":-1},{\"is_auth\":0,\"ip\":\"192.168.11.117\",\"url_port\":26,\"keep_alive_port\":-1},{\"is_auth\":0,\"ip\":\"192.168.11.102\",\"url_port\":-1,\"keep_alive_port\":10},{\"is_auth\":0,\"ip\":\"192.168.11.113\",\"url_port\":-1,\"keep_alive_port\":10}"
+        - name: KEEP_ALIVE_WAIT_PORT
+          value: "10"
+        - name: BATCH_WRITE_DISK
+          value: "0"
+        imagePullPolicy: Never
+        resources:
+          limits:
+            cpu: "1"
+            memory: "2048Mi"
+          requests:
+            cpu: "1"
+            memory: "2048Mi"
+

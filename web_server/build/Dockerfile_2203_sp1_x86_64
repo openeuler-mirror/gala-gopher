@@ -1,0 +1,33 @@
+#
+# Dockerfile for building web_server docker image for openEuler 22.03 lts sp1.
+#
+# Usage:
+# docker build -f Dockerfile_2203_sp1_x86_64 -t web_serverr:1.0.2 .
+#
+
+# base image
+FROM hub.oepkgs.net/openeuler/openeuler_x86_64:22.03-lts-sp1
+
+MAINTAINER WEB
+
+# work directory int container
+WORKDIR /web-server
+
+# copy current directory files to container work directory
+ADD . /web-server
+
+# copy current directory files to container work directory
+COPY ./entrypoint.sh /
+COPY ./web_server  /
+
+RUN chmod +x /entrypoint.sh
+
+# install dependecies
+RUN sed -i 's/repo.openeuler.org/mirrors.tools.huawei.com\/openeuler/g' /etc/yum.repos.d/openEuler.repo\
+	&& yum -y install cjson \
+	&& cp /web-server/web_server.conf /etc/web_server.conf
+
+# start web_server
+ENTRYPOINT [ "/entrypoint.sh" ]
+
+CMD [ "/web_server" ]

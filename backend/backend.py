@@ -18,6 +18,7 @@ user_update = {"id": 101, "username": "tf9o8mp3dd", "password": "testcurl11", "n
                 "email": "fe3dt444qb@163.com", "mobile": "", "deptId": 100, "postIds": [], "status": 0, "remark": ""}
 login_headers = {"tenant-id": "1", "Content-Type": "application/json",
                 "User-Agent":"Mozillla/5.0 Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.54"}
+body_of_send_backend_request = {"body":"body of send request to backend"}
 user_id = []
 batch_write_disk = ""
 operate_url_prefix = "/admin-api/system/user/"
@@ -65,13 +66,10 @@ def build_url(ip, port, url_prefix, operate, id):
 
 
 def send_response(self, response, context):
-    if response != None:
-        self.send_response(response.status)
-    else:
-        self.send_response(200)
+    self.send_response(200)
     self.send_header('Content-type', 'application/json')
     self.end_headers()
-    self.wfile.write(context.encode('UTF-8'))
+    self.wfile.write(bytes(context, 'utf-8'))
 
 
 class Next:
@@ -103,7 +101,7 @@ class BatchWriteDiskThread(threading.Thread):
             try:
                 os.remove(update_file)
             except OSError as error:
-                logging.debug("os.remove %s", error)    
+                logging.debug("os.remove %s", error)
         return
 
 
@@ -215,7 +213,8 @@ class Handler(BaseHTTPRequestHandler):
                         return
 
                     token_header = {"Authorization": "Bearer " + element.token, "tenant-id": "1",
-                                    "Content-Type": "application/json"}
+                                    "Content-Type": "application/json",
+                                    "User-Agent":"Mozillla/5.0 Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.54"}
                     if operate == 'create':
                         user_create["username"] = random_name()
                         user_create["email"] = random_email()
@@ -233,7 +232,7 @@ class Handler(BaseHTTPRequestHandler):
                         lock.release()
 
                         send_response(self, response, 'successfully sent create request!')
-                    elif operate == 'update' and and len(user_id) > 0:
+                    elif operate == 'update' and len(user_id) > 0:
                         user_update["id"] = user_id[len(user_id) - 1]
                         user_update["email"] = random_email()
 
@@ -267,17 +266,9 @@ if __name__ == "__main__":
         next_array = backend_data['next']
         keep_alive_wait_port = backend_data['keep_alive_wait_port']
 
-        logging.debug("port:%d", PORT)
-        logging.debug("keep_alive_wait_port:%d", keep_alive_wait_port)
-
         for elem in next_array:
             e = Next(elem["is_auth"], elem["ip"], elem["url_port"], elem["keep_alive_port"])
             next.append(e)
-
-            logging.debug("is_auth:%d", elem["is_auth"])
-            logging.debug("ip:%s", elem["ip"])
-            logging.debug("url_port:%d", elem["url_port"])
-            logging.debug("keep_alive_port:%d", elem["keep_alive_port"])
 
     # 动态监测是否支持批量写盘
     is_batch_write_thread = IsBatchWriteThread()
