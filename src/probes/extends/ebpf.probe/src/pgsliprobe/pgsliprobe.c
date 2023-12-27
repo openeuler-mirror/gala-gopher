@@ -416,7 +416,7 @@ static int bpf_attach_to_libssl(struct pgsli_uprobe_bpf *pgsli_uprobe_skel)
 static int load_pgsli_libssl_prog(void)
 {
     struct bpf_prog_s *prog;
-
+    struct bpf_buffer *buffer = NULL;
     prog = alloc_bpf_prog();
     if (prog == NULL) {
         return -1;
@@ -427,7 +427,9 @@ static int load_pgsli_libssl_prog(void)
     prog->skels[prog->num].fn = (skel_destroy_fn)pgsli_uprobe_bpf__destroy;
     prog->custom_btf_paths[prog->num] = pgsli_uprobe_open_opts.btf_custom_path;
 
+    MAP_INIT_BPF_BUFFER(pgsli_uprobe, output, buffer, 1);
     LOAD_ATTACH(pgsliprobe, pgsli_uprobe, err, 1);
+    prog->buffer = buffer;
 
     prog->num++;
     g_pgsli_probe.libssl_prog = prog;
@@ -458,12 +460,6 @@ static int load_pgsli_kern_prog(void)
     prog->skels[prog->num].fn = (skel_destroy_fn)pgsli_kprobe_bpf__destroy;
     prog->custom_btf_paths[prog->num] = pgsli_kprobe_open_opts.btf_custom_path;
 
-    args_map_fd = GET_MAP_FD(pgsli_kprobe, args_map);
-    if (args_map_fd <= 0) {
-        PGSLI_ERROR("Failed to get bpf prog args map fd.\n");
-        goto err;
-    }
-
     PROG_ENABLE_ONLY_IF(pgsli_kprobe, bpf_tcp_recvmsg, probe_tstamp());
 
     MAP_INIT_BPF_BUFFER(pgsli_kprobe, output, buffer, 1);
@@ -477,6 +473,12 @@ static int load_pgsli_kern_prog(void)
         goto err;
     }
     prog->buffer = buffer;
+
+    args_map_fd = GET_MAP_FD(pgsli_kprobe, args_map);
+    if (args_map_fd <= 0) {
+        PGSLI_ERROR("Failed to get bpf prog args map fd.\n");
+        goto err;
+    }
 
     prog->num++;
     g_pgsli_probe.kern_prog = prog;
