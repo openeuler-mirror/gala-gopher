@@ -244,15 +244,15 @@ static char *parse_headers(char *buf, char *buf_end, size_t *header_num, http_he
             return NULL;
         }
         /* delete SPs and TABs at value ending */
-        char *value_end;
-        for (value_end = value + value_len - 1; value_end != value; value_end--) {
-            char c = *value_end;
+        size_t j = value_len;
+        for (; j > 0; j--) {
+            char c = *(value + j - 1);
             if (c != ' ' && c != '\t') {
                 break;
             }
         }
         headers[num].value = value;
-        headers[num].value_len = value_end - value + 1;
+        headers[num].value_len = j;
     }
     *header_num = num;
     return buf;
