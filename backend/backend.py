@@ -29,6 +29,7 @@ is_batch_write_disk = []
 count = []
 lock = threading.Lock()
 update_file = "/home/file.txt"
+batch_update_file = "/home/batch_update_file.txt"
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -158,16 +159,21 @@ class Handler(BaseHTTPRequestHandler):
         logging.debug("received %s request", operate)
         if operate == 'create':
             # 创建文件
-            batch_write_disk_thread = BatchWriteDiskThread("/dev/zero", "/dev/null", "4M", 100)
-            batch_write_disk_thread.start()
+            os.mknod(update_file)
 
             # 发送请求给下游
             self.send_request_next(operate, None)
-        elif operate == 'update' and is_batch_write_disk[len(is_batch_write_disk) - 1] == 1:
-            # 开启线程进行更新文件、写盘操作
-            batch_write_disk_thread = BatchWriteDiskThread("/dev/zero", update_file, "4M", 1000)
-            batch_write_disk_thread.start()
+        elif operate == 'update':
+            fp = open(update_file, w)
+            file_size = 1024
+            with fp.tell() < file_size:
+                fp.write("update")
+            fp.close()
 
+            if is_batch_write_disk[len(is_batch_write_disk) - 1] == 1:
+                # 开启线程进行更新文件、写盘操作
+                batch_write_disk_thread = BatchWriteDiskThread("/dev/zero", batch_update_file, "4M", 100)
+                batch_write_disk_thread.start()
             self.send_request_next(operate, None)
         elif operate == 'delete':
             self.send_request_next(operate, None)

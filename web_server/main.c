@@ -7,26 +7,18 @@
 #include <curl/curl.h>
 #include <fcntl.h>
 #include <time.h>
+#include <stdarg.h>
 #include <signal.h>
 
-#define MAX_COUNT 10
-#define CONF_PATH           "/etc/web_server.conf"
-#define LINE_BUF_LEN        512
-#define URL_LEN             512
+#define TM_YEAR_BEGIN        1900
+#define PATTERN_LOGGER_STR   "[%02d/%02d/%04d %02d:%02d:%02d] - %s"
 
-FILE *fp;
-
-pthread_mutex_t myMutex = PTHREAD_MUTEX_INITIALIZER;
-
-int thread_count = 0;
-struct addrs_str addrsStr;
-int send_all_rate = 0, send_update_rate = 0, send_update_count = 0;
-
-void recvSignal(int sig)
-{
-       fprintf(fp,"[ERROR]: received signal %d !\n",sig);
-       fclose(fp);
-}
+#define MAX_COUNT             10
+#define CONF_PATH            "/etc/web_server.conf"
+#define LOG_PATH             "/var/log/web_server.log"
+#define LINE_BUF_LEN         512
+#define URL_LEN              512
+#define BILLION              1000000000L
 
 struct addr {
     char *ip;
@@ -38,21 +30,56 @@ struct addrs_str {
     int length;
 };
 
-struct tm* get_time() {
-    time_t tmpcal_ptr;
-    struct tm* tmp_ptr = NULL;
+#define __FMT_LOGS(buf, size) \
+    do { \
+        va_list args; \
+        buf[0] = 0; \
+        va_start(args, format); \
+        (void)vsnprintf(buf, (const unsigned int)size, format, args); \
+        va_end(args); \
+    } while (0)
 
-    time(&tmpcal_ptr);
-    tmp_ptr = localtime(&tmpcal_ptr);
-    return tmp_ptr;
+//创建互斥锁
+pthread_mutex_t myMutex = PTHREAD_MUTEX_INITIALIZER;
+
+int thread_count = 0;
+struct addrs_str addrsStr;
+int send_all_rate = 0;       //每分钟发送的create/update/delete操作序列数
+double send_all_interval = 0.0;
+int send_update_rate = 0;   //发送的update占总体操作序列数的比率
+int send_update_step = 0;   //发送update的步长，用于控制发送update的比率
+
+void get_log_time(struct tm *t)
+{
+    time_t now = time((time_t *)(0));
+    memset(t, 0, sizeof(struct tm));
+    localtime_r(&now, t);
 }
 
-cJSON *get_value_from_file(char *file_path, char *key) {
+static void log_it(const char *format, ...)
+{
+    FILE *log_fp = fopen(LOG_PATH, "a");
+    if (log_fp == NULL) {
+        exit(-1);
+    }
 
+    char buf[LINE_BUF_LEN];
+    struct tm t;
+
+    __FMT_LOGS(buf, LINE_BUF_LEN);
+    get_log_time(&t);
+    fprintf(log_fp, PATTERN_LOGGER_STR, t.tm_mon + 1, t.tm_mday, t.tm_year + TM_YEAR_BEGIN,
+                       t.tm_hour, t.tm_min, t.tm_sec, buf);
+    fclose(log_fp);
+}
+
+cJSON *get_value_from_file(char *file_path, char *key)
+{
     FILE *fp;
     fp = fopen(file_path, "r");
     if (fp == NULL) {
-        fprintf(fp, "[ERROR]: get_value_from_file failed\n");
+        log_it("[ERROR] get_value_from_file failed\n");
+        exit(-1);
     }
 
     char buf[100];
@@ -72,19 +99,19 @@ cJSON *get_value_from_file(char *file_path, char *key) {
     cJSON *json;
     json = cJSON_Parse(content);
     if (!json) {
-        fprintf(fp, "Error: get_value_from_file.cJSON_Parse  %s\n", cJSON_GetErrorPtr());
+        log_it("[ERROR] get_value_from_file.cJSON_Parse  %s\n", cJSON_GetErrorPtr());
+        exit(-1);
     }
 
     cJSON *item = cJSON_GetObjectItem(json, key);
     return item;
 }
 
-void init(char *file_path) {
-    // 初始化线程个数
-    cJSON *thread_count_json = get_value_from_file(file_path, "thread_count");
-    thread_count = thread_count_json->valueint;
-
-    fprintf(fp,"thread_count %d\n",thread_count);
+void init(char *file_path)
+{
+    cJSON *item;
+    cJSON *ip;
+    cJSON *port;
 
     //初始化address,ip与port
     addrsStr.length = 0;
@@ -93,11 +120,13 @@ void init(char *file_path) {
         exit(-1);
     }
 
-    int array_size = cJSON_GetArraySize(address_json);
-    cJSON *item;
-    cJSON *ip;
-    cJSON *port;
-    for (int i = 0; i < array_size; i++) {
+    thread_count = cJSON_GetArraySize(address_json);
+    log_it("thread_count %d\n",thread_count);
+    if (thread_count <= 0) {
+        exit(-1);
+    }
+
+    for (int i = 0; i < thread_count; i++) {
         item = cJSON_GetArrayItem(address_json, i);
         ip = cJSON_GetObjectItem(item, "ip");
         port = cJSON_GetObjectItem(item, "port");
@@ -109,116 +138,103 @@ void init(char *file_path) {
     // 初始化send_all_rate
     cJSON *send_all_rate_json = get_value_from_file(file_path, "send_all_rate");
     send_all_rate = send_all_rate_json->valueint;
+    send_all_interval = 60.0 / (double)send_all_rate;
+    log_it("send_all_rate: %d, send_all_interval: %.2f(s)\n", send_all_rate, send_all_interval);
 
     // 初始化send_update_rate
     cJSON *send_update_rate_json = get_value_from_file(file_path, "send_update_rate");
     send_update_rate = send_update_rate_json->valueint;
-    send_update_count = send_all_rate*send_update_rate*0.01;
+    send_update_step = 100 / send_update_rate;;
+
+    log_it("send_update_rate: %d, send_update_step: %d\n", send_update_rate, send_update_step);
 }
 
-// http://ip:port/admin-api/system/user/create、http://ip:port/admin-api/system/user/delete、http://ip:port/admin-api/system/user/update
-int build_url(char *url, char *ip, int port, char *operate) {
-    (void) snprintf(url, LINE_BUF_LEN,
-        "http://%s:%u/admin-api/system/user/%s",
-        ip,
-        port,
-        operate);
-    return 0;
+// http://ip:port/admin-api/system/user/create、http://ip:port/admin-api/system/user/delete、http://ip:port/admin-api/system/role/update
+void build_url(char *url, const char *ip, int port, const char *operate)
+{
+    (void)snprintf(url, LINE_BUF_LEN,
+                   "http://%s:%u/admin-api/system/user/%s",
+                   ip,
+                   port,
+                   operate);
+
 }
 
-void send_request_to_url(char *ip, int port, char *operate) {
-    char *url = malloc(URL_LEN + 1);
-    (void) memset(url, 0, URL_LEN);
-
+void send_request_to_url(const char *ip, int port, const char *operate)
+{
+    char url[URL_LEN + 1] = {0};
     CURLcode res;
-    build_url(url, ip, port, operate);
+    struct curl_slist *headers = NULL;
 
-    CURL *curl = curl_easy_init();
+    CURL *curl = curl_easy_init();        // 创建CURL句柄
     if (curl == NULL) {
         exit(0);
     }
 
-    struct curl_slist* headers = NULL;
-    headers = curl_slist_append(headers, "Content-Type:application/json")
-
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-
+    build_url(url, ip, port, operate);
+    //设置请求的url
     curl_easy_setopt(curl, CURLOPT_URL, url);
 
+    //设置为put方法
     curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
 
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "json={\"body\":\"headers of request to backend \"}");
+    headers = curl_slist_append(headers, "Content-Type:application/json");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
-    res = curl_easy_perform(curl);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "json={\"body\":\"hello backend!\"}");
+
+    res = curl_easy_perform(curl); // 发送数据
 
     long status;
 
     // 获取response code
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
 
-	struct tm* tmp_ptr = get_time();
+    log_it("received backend response code id %d\n", status);
 
-    fprintf(fp,"the time is:%s received backend response code id %d\n", asctime(tmp_ptr), status);
-
-    free(url);
     curl_slist_free_all(headers);
     curl_easy_cleanup(curl);
 }
 
-void send_request(char *ip, int port) {
-
-    char *operates[] = {
-            "create",
-            "delete",
-            "update"
-    };
+void send_request(char *ip, int port)
+{
+    int loop;
+    struct timespec start_time, now;
+    double diff_time;
 
     while (1) {
-        int count = 0;
-        int update_count = 0;
-        time_t start_time = time(NULL);
-        int operate_index = 0;
+        loop = 0;
+        clock_gettime(CLOCK_REALTIME, &start_time);
 
+        log_it("==============New loop of requests[%s:%d]===========\n", ip, port);
         // 一分钟内能把请求发完；或者一分钟内请求发不完；这两种情况下都需要进行请求发送
-        while ((difftime(time(NULL), start_time) < 60 && count < send_all_rate) || count < send_all_rate) {
-
-
+        while (loop < send_all_rate) {
             // 轮到发送create方法时，一定发送
-            if ((operate_index + 1) % 3 == 1) {
-                struct tm* tmp_ptr = get_time();
-				fprintf(fp,"the time is:%s send create to backend\n", asctime(tmp_ptr));
-                send_request_to_url(ip, port, operates[operate_index]);
-                count++;
-                tmp_ptr = get_time();
-				fprintf(fp,"the time is:%s successfully sent create to backend\n", asctime(tmp_ptr));
-            } else if ((operate_index + 1) % 3 == 2 && update_count < send_update_count){
-                struct tm* tmp_ptr = get_time();
-                fprintf(fp,"the time is:%s send update to backend\n", asctime(tmp_ptr));
-				// 轮到发送update方法时，选择发送
-                send_request_to_url(ip, port, operates[operate_index]);
-                update_count++;
-                count++;
-                tmp_ptr = get_time();
-				fprintf(fp,"the time is:%s successfully sent upadte to backend\n", asctime(tmp_ptr));
-            } else if ((operate_index + 1) % 3 == 0) {
-                struct tm* tmp_ptr = get_time();
-                fprintf(fp,"the time is:%s send delete to backend\n", asctime(tmp_ptr));
-				// 轮到发送delete方法时，一定发送
-                send_request_to_url(ip, port, operates[operate_index]);
-                count++;
-                tmp_ptr = get_time();
-				fprintf(fp,"the time is:%s successsfully sent delete to backend\n", asctime(tmp_ptr));
+            send_request_to_url(ip, port, "create");
+            log_it("successfully sent create to backend to %s:%d\n", ip, port);
+
+            // 轮到发送update方法时，如果距离上次发送已达到step，则发送
+            if (loop % send_update_step == 0) {
+                send_request_to_url(ip, port, "update");
+                log_it("successfully send update to backend to %s:%d\n", ip, port);
             }
 
-            operate_index++;
+            // 轮到发送delete方法时，一定发送
+            send_request_to_url(ip, port, "delete");
+            log_it("succesfully send delete to backend to %s:%d\n", ip, port);
+            loop++;
 
-            if (operate_index > 2) {
-                operate_index = 0;
+            clock_gettime(CLOCK_REALTIME, &now);
+            diff_time = (now.tv_sec - start_time.tv_sec) +
+                        (double)( now.tv_nsec - start_time.tv_nsec ) / (double)BILLION;
+            if (diff_time >= 60.0) {
+                break;
             }
-        }
 
-        while (difftime(time(NULL), start_time) < 60) {
-            sleep(1);
+            diff_time = send_all_interval * loop - diff_time;
+            if (diff_time > 0.0) {
+                usleep(diff_time * 1000000);
+            }
         }
     }
 }
@@ -226,7 +242,8 @@ void send_request(char *ip, int port) {
 /*
  * 线程工作函数:周期性发起http request
  */
-void *thread_work_func() {
+void *thread_work_func()
+{
     int islock = 0;
     islock = pthread_mutex_lock(&myMutex);
 
@@ -244,10 +261,10 @@ void *thread_work_func() {
     return NULL;
 }
 
-int main() {
-    fp = fopen("/etc/log.txt", "w");
-    fprintf(fp,"run web_server");
-    signal(SIGSEGV, recvSignal);
+int main()
+{
+    log_it("Web Server Started\n");
+
     init(CONF_PATH);
 
     pthread_t tid[thread_count];
