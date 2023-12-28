@@ -52,7 +52,7 @@ BuildRequires: java-1.8.0-openjdk-devel
 BuildRequires: jsoncpp-devel java-1.8.0-openjdk-devel
 %endif
 
-Requires:      bash glibc elfutils bpftool libbpf >= 2:0.8
+Requires:      bash gawk procps-ng glibc elfutils bpftool libbpf >= 2:0.8
 Requires:      libconfig libevent iproute jsoncpp libstdc++
 
 %if !0%{?disable_kafka_channel}
@@ -81,7 +81,7 @@ Requires:      libcurl
 Requires:      python3-psycopg2 python3-yaml net-tools
 %endif
 %if !0%{?without_cadvisor}
-Requires:      cadvisor python3-libconf python3-requests net-tools
+Requires:      cadvisor python3-libconf python3-requests net-tools util-linux
 %endif
 %if !0%{?without_postgre_sli}
 Requires:      iproute
