@@ -104,6 +104,7 @@ struct tcp_socket_id_s {
 struct tcp_socket_s {
     H_HANDLE;
     struct tcp_socket_id_s id;
+    int inactive;
     char *client_ip;
     char *server_ip;
     u64 stats[EP_STATS_MAX];
@@ -232,6 +233,10 @@ static char tcp_sock_inactive(struct tcp_socket_s *tcp)
     time_t current = time(NULL);
     time_t secs;
 
+    if (tcp->inactive) {
+        return 1;
+    }
+
     if (current > tcp->last_rcv_data) {
         secs = current - tcp->last_rcv_data;
         if (secs >= __INACTIVE_TIME_SECS) {
@@ -258,24 +263,20 @@ static char udp_sock_inactive(struct udp_socket_s *udp)
     return 0;
 }
 
-void aging_tcp_socks(struct endpoint_probe_s *probe)
+static void aging_endpoint_socks(struct endpoint_probe_s *probe)
 {
-    struct tcp_socket_s *tcp, *tmp;
+    struct tcp_socket_s *tcp, *tmp_tcp;
+    struct udp_socket_s *udp, *tmp_udp;
 
-    H_ITER(probe->tcps, tcp, tmp) {
+    H_ITER(probe->tcps, tcp, tmp_tcp) {
         if (tcp_sock_inactive(tcp)) {
             H_DEL(probe->tcps, tcp);
             free_tcp_sock(tcp);
             probe->tcp_socks_num--;
         }
     }
-}
 
-void aging_udp_socks(struct endpoint_probe_s *probe)
-{
-    struct udp_socket_s *udp, *tmp;
-
-    H_ITER(probe->udps, udp, tmp) {
+    H_ITER(probe->udps, udp, tmp_udp) {
         if (udp_sock_inactive(udp)) {
             H_DEL(probe->udps, udp);
             free_udp_sock(udp);
@@ -381,6 +382,18 @@ static void init_tcp_sock_latency_buckets(struct histo_bucket_s latency_buckets[
     }
 }
 
+static int process_tcp_conn_close(struct tcp_socket_s *tcp, struct tcp_socket_event_s* evt)
+{
+    if (evt->evt != EP_STATS_CONN_CLOSE) {
+        return 1;
+    }
+
+    if (tcp) {
+        tcp->inactive = 1;
+    }
+    return 0;
+}
+
 #define MAX_ENDPOINT_ENTITES    (5 * 1024)
 static int add_tcp_sock_evt(struct endpoint_probe_s * probe, struct tcp_socket_event_s* evt)
 {
@@ -400,10 +413,15 @@ static int add_tcp_sock_evt(struct endpoint_probe_s * probe, struct tcp_socket_e
     id.role = evt->role;
 
     tcp = lkup_tcp_socket(probe, (const struct tcp_socket_id_s *)&id);
+    if (process_tcp_conn_close(tcp, evt) == 0) {
+        return 0;
+    }
+
     if (tcp) {
         process_tcp_establish_latency(tcp, evt);
         tcp->stats[evt->evt]++;
         tcp->last_rcv_data = time(NULL);
+        tcp->inactive = 0;
         return 0;
     }
 
@@ -817,6 +835,7 @@ static int endpoint_load_probe_tcp(struct endpoint_probe_s *probe, struct bpf_pr
         }
         prog->buffers[prog->num] = buffer;
         prog->num++;
+        probe->listen_port_fd = GET_MAP_FD(tcp, tcp_listen_port);
     }
 
     return 0;
@@ -970,6 +989,7 @@ static void report_endpoint(struct endpoint_probe_s *probe)
         output_udp_socket(udp);
     }
 
+    aging_endpoint_socks(probe);
     reset_endpoint_stats(probe);
     return;
 }
@@ -1022,8 +1042,6 @@ int main(int argc, char **argv)
 
         report_tcp_socks(&g_ep_probe);
         report_endpoint(&g_ep_probe);
-        aging_tcp_socks(&g_ep_probe);
-        aging_udp_socks(&g_ep_probe);
     }
 
     destroy_tcp_socks(&g_ep_probe);
