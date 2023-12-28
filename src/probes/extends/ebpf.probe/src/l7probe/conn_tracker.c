@@ -37,9 +37,10 @@
 #include "include/data_stream.h"
 #include "l7_common.h"
 
-#define OO_NAME        "l7"
-#define L7_TBL_LINK    "l7_link"
-#define L7_TBL_RPC     "l7_rpc"
+#define OO_NAME         "l7"
+#define L7_TBL_LINK     "l7_link"
+#define L7_TBL_RPC      "l7_rpc"
+#define L7_TBL_RPC_API  "l7_rpc_api"
 
 struct latency_histo_s {
     enum latency_range_t range;
@@ -94,6 +95,11 @@ static void init_latency_buckets(struct histo_bucket_s latency_buckets[], size_t
 
 static void destroy_tracker_record(struct conn_tracker_s* tracker)
 {
+    if (tracker->records.api_stats != NULL) {
+        destroy_api_stats(tracker->records.api_stats);
+        tracker->records.api_stats = NULL;
+    }
+
     for (int i = 0; i < tracker->records.record_buf_size && i < RECORD_BUF_SIZE; i++) {
         if (tracker->records.records[i] != NULL) {
             free_record_data(tracker->protocol, tracker->records.records[i]);
@@ -186,6 +192,16 @@ static struct frame_buf_s* get_resp_frames(struct conn_tracker_s* tracker)
 #endif
 
 #if 1
+
+static void destroy_l7_api_statistic(struct l7_api_statistic_s* l7_api_statistic)
+{
+    struct l7_api_statistic_s *item, *tmp;
+    H_ITER(l7_api_statistic, item, tmp) {
+        H_DEL(l7_api_statistic, item);
+        free(item);
+    }
+}
+
 static void destroy_l7_link(struct l7_link_s* link)
 {
     if (link->client_ip) {
@@ -194,6 +210,12 @@ static void destroy_l7_link(struct l7_link_s* link)
     if (link->server_ip) {
         free(link->server_ip);
     }
+
+    // Free l7_statistic
+    if (link->l7_statistic) {
+        destroy_l7_api_statistic(link->l7_statistic);
+    }
+
     free(link);
     return;
 }
@@ -303,6 +325,21 @@ static struct l7_link_s* find_l7_link(struct l7_mng_s *l7_mng, const struct conn
     l7_link_id.protocol = tracker->protocol;
 
     return lkup_l7_link(l7_mng, (const struct l7_link_id_s *)&l7_link_id);
+}
+
+static struct l7_api_statistic_s* create_l7_api_statistic(const struct api_stats_id id)
+{
+    struct l7_api_statistic_s *l7_api_statistic = (struct l7_api_statistic_s *) malloc(sizeof(struct l7_api_statistic_s));
+    if (l7_api_statistic == NULL) {
+        ERROR("Failed to malloc struct l7_api_statistics_s.\n");
+        return NULL;
+    }
+    memset(l7_api_statistic, 0, sizeof(struct l7_api_statistic_s));
+    (void) snprintf(l7_api_statistic->id.api, MAX_API_LEN, "%s", id.api);
+
+    // Initialize latency buckets
+    init_latency_buckets(l7_api_statistic->latency_buckets, __MAX_LT_RANGE);
+    return l7_api_statistic;
 }
 
 #endif
@@ -500,6 +537,44 @@ static int proc_conn_data_msg(struct l7_mng_s *l7_mng, struct conn_data_msg_s *c
     return ret;
 }
 
+// Calculate api-level metrics for l7_statistics
+static void add_tracker_l7_stats(struct conn_tracker_s* tracker, struct l7_link_s* link)
+{
+    int ret;
+    struct api_stats *item, *tmp;
+    H_ITER(tracker->records.api_stats, item, tmp) {
+
+        // Find a item from link_statistics by item.id
+        struct l7_api_statistic_s *statistic;
+        H_FIND(link->l7_statistic, &(item->id), sizeof(struct api_stats_id), statistic);
+        if (statistic == NULL) {
+            statistic = create_l7_api_statistic(item->id);
+            if (statistic == NULL) {
+                return;
+            }
+            H_ADD_KEYPTR(link->l7_statistic, &(statistic->id), sizeof(struct api_stats_id), statistic);
+        }
+
+        // Add counts into stats
+        statistic->stats[REQ_COUNT] += item->req_count;
+        statistic->stats[RSP_COUNT] += item->resp_count;
+        statistic->stats[ERR_COUNT] += item->err_count;
+        statistic->stats[CLIENT_ERR_COUNT] += item->client_err_count;
+        statistic->stats[SERVER_ERR_COUNT] += item->server_err_count;
+
+        // Put latency into buckets
+        for (int i = 0; i < item->record_buf_size && i < RECORD_BUF_SIZE; i++) {
+            if (item->records[i]) {
+                statistic->latency_sum += item->records[i]->latency;
+                ret = histo_bucket_add_value(statistic->latency_buckets, __MAX_LT_RANGE, item->records[i]->latency);
+                if (ret) {
+                    ERROR("[L7PROBE] Failed to add latency to histogram bucket, value: %lu\n", item->records[i]->latency);
+                }
+            }
+        }
+    }
+}
+
 static void add_tracker_stats(struct l7_mng_s *l7_mng, struct conn_tracker_s* tracker)
 {
     int ret;
@@ -524,6 +599,9 @@ static void add_tracker_stats(struct l7_mng_s *l7_mng, struct conn_tracker_s* tr
             }
         }
     }
+
+    // add l7 api statistics
+    add_tracker_l7_stats(tracker, link);
     return;
 }
 
@@ -558,8 +636,24 @@ static void l7_parser_tracker(struct l7_mng_s *l7_mng, struct conn_tracker_s* tr
 
 #if 1
 
+static void reset_api_stats(struct l7_api_statistic_s *statistic)
+{
+    histo_bucket_reset(statistic->latency_buckets, __MAX_LT_RANGE);
+    statistic->latency_sum = 0;
+    statistic->err_ratio = 0.0;
+
+    memset(&(statistic->stats), 0, sizeof(u64) * __MAX_STATS);
+    memset(&(statistic->throughput), 0, sizeof(float) * __MAX_THROUGHPUT);
+    memset(&(statistic->latency), 0, sizeof(float) * __MAX_LATENCY);
+}
+
 static void reset_link_stats(struct l7_link_s *link)
 {
+    struct l7_api_statistic_s *item, *tmp;
+    H_ITER(link->l7_statistic, item, tmp) {
+        reset_api_stats(item);
+    }
+
     histo_bucket_reset(link->latency_buckets, __MAX_LT_RANGE);
     link->latency_sum = 0;
     link->err_ratio = 0.0;
@@ -629,12 +723,33 @@ static void calc_link_stats(struct l7_link_s *link, struct probe_params *probe_p
     return;
 }
 
+static void calc_l7_api_statistics(struct l7_api_statistic_s *statistic, struct probe_params *probe_param)
+{
+    statistic->err_ratio = statistic->stats[ERR_COUNT] == 0 ? 0.00f : (float)((float)statistic->stats[ERR_COUNT] / (float)statistic->stats[REQ_COUNT]);
+    statistic->client_err_ratio = statistic->stats[CLIENT_ERR_COUNT] == 0 ? 0.00f : (float)((float)statistic->stats[CLIENT_ERR_COUNT] / (float)statistic->stats[REQ_COUNT]);
+    statistic->server_err_ratio = statistic->stats[SERVER_ERR_COUNT] == 0 ? 0.00f : (float)((float)statistic->stats[SERVER_ERR_COUNT] / (float)statistic->stats[REQ_COUNT]);
+
+    statistic->throughput[THROUGHPUT_REQ] = (float)((float)statistic->stats[REQ_COUNT] / (float)probe_param->period);
+    statistic->throughput[THROUGHPUT_RESP] = (float)((float)statistic->stats[REQ_COUNT] / (float)probe_param->period);
+
+    (void)histo_bucket_value(statistic->latency_buckets, __MAX_LT_RANGE, HISTO_P50, &(statistic->latency[LATENCY_P50]));
+    (void)histo_bucket_value(statistic->latency_buckets, __MAX_LT_RANGE, HISTO_P90, &(statistic->latency[LATENCY_P90]));
+    (void)histo_bucket_value(statistic->latency_buckets, __MAX_LT_RANGE, HISTO_P99, &(statistic->latency[LATENCY_P99]));
+
+    return;
+}
+
 static void calc_l7_stats(struct l7_mng_s *l7_mng)
 {
     struct l7_link_s *link, *tmp;
+    struct l7_api_statistic_s *statistic, *tmp_stat;
 
     H_ITER(l7_mng->l7_links, link, tmp) {
         calc_link_stats(link, &(l7_mng->ipc_body.probe_param));
+
+        H_ITER(link->l7_statistic, statistic, tmp_stat) {
+            calc_l7_api_statistics(statistic, &(l7_mng->ipc_body.probe_param));
+        }
     }
 
     return;
@@ -666,6 +781,63 @@ static void report_l7_link(struct l7_link_s *link)
     (void)fflush(stdout);
 }
 
+// eg: gala_gopher_l7_throughput_req{
+// tgid="120407",client_ip="0:0:0:0:0:0:.0.0.1",server_ip="0:0:0:0:0:0:.0.0.1",server_port="7654",
+// l4_role="tcp_server",l7_role="server",protocol="pgsql",ssl="no_ssl",api="/rest/api/example",
+// comm="gaussdb",machine_id="61d09cf3-3806-469e-9afd-770cd09076fe-71.76.51.175"}
+// 0.00 1692352573000
+static void report_l7_rpc_api(struct l7_link_s *link, struct l7_api_statistic_s *l7_api_statistic)
+{
+    char latency_historm[MAX_HISTO_SERIALIZE_SIZE];
+
+    latency_historm[0] = 0;
+    if (serialize_histo(l7_api_statistic->latency_buckets, __MAX_LT_RANGE, latency_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+
+    (void)fprintf(stdout, "|%s|%u|%s|%s|%u"
+                          "|%s|%s|%s|%s|%s"
+                          "|%.2f|%.2f|%llu|%llu"
+                          "|%.2f|%s|%llu"
+                          "|%.2f|%.2f|%.2f|%llu|%llu|%llu|\n",
+
+                  L7_TBL_RPC_API,
+                  link->id.tgid,
+                  (link->client_ip == NULL) ? "no_ip" : link->client_ip,
+                  (link->server_ip == NULL) ? "no_ip" : link->server_ip,
+                  link->id.server_addr.port,
+
+                  l4_role_name[link->id.l4_role],
+                  l7_role_name[link->id.l7_role],
+                  proto_name[link->id.protocol],
+                  l7_api_statistic->id.api,
+                  link->l7_info.is_ssl ? "ssl" : "no_ssl",
+
+                  l7_api_statistic->throughput[THROUGHPUT_REQ],
+                  l7_api_statistic->throughput[THROUGHPUT_RESP],
+                  l7_api_statistic->stats[REQ_COUNT],
+                  l7_api_statistic->stats[RSP_COUNT],
+
+                  l7_api_statistic->stats[REQ_COUNT] == 0 ? 0.00f :(float)((float)l7_api_statistic->latency_sum / (float)l7_api_statistic->stats[REQ_COUNT]),
+                  latency_historm,
+                  l7_api_statistic->latency_sum,
+
+                  l7_api_statistic->err_ratio,
+                  l7_api_statistic->client_err_ratio,
+                  l7_api_statistic->server_err_ratio,
+                  l7_api_statistic->stats[ERR_COUNT],
+                  l7_api_statistic->stats[CLIENT_ERR_COUNT],
+                  l7_api_statistic->stats[SERVER_ERR_COUNT]
+                  );
+
+    (void)fflush(stdout);
+}
+
+// eg: gala_gopher_l7_throughput_req{
+// tgid="120407",client_ip="0:0:0:0:0:0:.0.0.1",server_ip="0:0:0:0:0:0:.0.0.1",server_port="7654",
+// l4_role="tcp_server",l7_role="server",protocol="pgsql",ssl="no_ssl",
+// comm="gaussdb",machine_id="61d09cf3-3806-469e-9afd-770cd09076fe-71.76.51.175"}
+// 0.00 1692352573000
 static void report_l7_rpc(struct l7_link_s *link)
 {
     char latency_historm[MAX_HISTO_SERIALIZE_SIZE];
@@ -713,6 +885,7 @@ static void report_l7_stats(struct l7_mng_s *l7_mng)
 
     u32 probe_range_flags = l7_mng->ipc_body.probe_range_flags;
 
+    // Traverse map l7_links
     H_ITER(l7_mng->l7_links, link, tmp) {
         if(probe_range_flags & PROBE_RANGE_L7BYTES_METRICS) {
             report_l7_link(link);
@@ -720,6 +893,14 @@ static void report_l7_stats(struct l7_mng_s *l7_mng)
 
         if(probe_range_flags & PROBE_RANGE_L7RPC_METRICS) {
             report_l7_rpc(link);
+        }
+
+        // Traverse map l7_statistic
+        if(probe_range_flags & PROBE_RANGE_L7RPC_METRICS) {
+            struct l7_api_statistic_s *l7_statistic, *tmp_statistic;
+            H_ITER(link->l7_statistic, l7_statistic, tmp_statistic) {
+                report_l7_rpc_api(link, l7_statistic);
+            }
         }
     }
 

@@ -43,6 +43,31 @@ static int push_frame_data(struct data_stream_s *data_stream, const struct frame
 #endif
 
 #if 1
+
+struct api_stats* create_api_stats(char* api)
+{
+    struct api_stats* api_stats = (struct api_stats*) malloc(sizeof(struct api_stats));
+    if (api_stats == NULL) {
+        ERROR("Failed to malloc struct api_stats.\n");
+        return NULL;
+    }
+    memset(api_stats, 0, sizeof(struct api_stats));
+    (void) snprintf(api_stats->id.api, MAX_API_LEN, "%s", api);
+    return api_stats;
+}
+
+void destroy_api_stats(struct api_stats *api_stats)
+{
+    struct api_stats *item, *tmp;
+    H_ITER(api_stats, item, tmp) {
+        H_DEL(api_stats, item);
+        free(item);
+    }
+}
+
+#endif
+
+#if 1
 static void destroy_raw_data(struct raw_data_s* raw_data)
 {
     (void)free(raw_data);

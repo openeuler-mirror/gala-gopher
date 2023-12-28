@@ -20,6 +20,7 @@
 #include <stdlib.h>
 
 #include "l7.h"
+#include "hash.h"
 
 /**
  * The status of a single parse.
@@ -87,12 +88,44 @@ struct record_data_s {
 };
 
 /**
- * Records of matching request and response frames.
+ * Statistic dimension
+ * Take HTTP for example:
+ * Api Format: [Method] [Url]
+ * Api Sample: GET /api/resource/attribute
+ * Tag for backup
  */
 #define RECORD_BUF_SIZE 1024
+#define MAX_API_LEN 64    // MAX Length of api，tentatively set at 60
+struct api_stats_id {
+    char api[MAX_API_LEN];  // api for http takes the format of [method path], one for kafka takes topic
+};
+
+struct api_stats {
+    H_HANDLE;
+    struct api_stats_id id;
+
+    struct record_data_s *records[RECORD_BUF_SIZE]; // maintain all records pointers for the api, in use of calculate latency by buckets
+    size_t record_buf_size; // the amount of records for the api
+    size_t req_count;       // the amount of req for the api
+    size_t resp_count;      // the amount of resp for the api
+    struct record_data_s *err_records[RECORD_BUF_SIZE]; // all error records pointers for the api
+    size_t err_count;           // error count，err_count = client_err_count + server_err_count
+    size_t client_err_count;    // client error count. For http：statusCode in [400,499]
+    size_t server_err_count;    // server error count. For http: statusCode in [500,599]
+};
+
+struct api_stats* create_api_stats(char* api);
+void destroy_api_stats(struct api_stats *api_stats);
+
+/**
+ * Records of matching request and response frames.
+ */
 struct record_buf_s {
     struct record_data_s *records[RECORD_BUF_SIZE];
     size_t record_buf_size;
+
+    struct api_stats *api_stats;
+
     size_t err_count;   // error-matched frame-pair count
     size_t req_count;   // raw request frame count
     size_t resp_count;  // raw response frame count
