@@ -798,6 +798,7 @@ void destroy_unprobed_trackers_links(void *ctx)
     H_ITER(l7_mng->trackers, tracker, tmp_tracker) {
         proc.proc_id = tracker->id.tgid;
         if (bpf_map_lookup_elem(proc_map_fd, &proc, &val) < 0) {
+            H_DEL(l7_mng->trackers, tracker);
             destroy_conn_tracker(tracker);
         }
     }
@@ -805,6 +806,7 @@ void destroy_unprobed_trackers_links(void *ctx)
     H_ITER(l7_mng->l7_links, link, tmp_link) {
         proc.proc_id = link->id.tgid;
         if (bpf_map_lookup_elem(proc_map_fd, &proc, &val) < 0) {
+            H_DEL(l7_mng->l7_links, link);
             destroy_l7_link(link);
             l7_mng->l7_links_capability--;
         }
