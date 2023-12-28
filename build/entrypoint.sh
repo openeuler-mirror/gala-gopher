@@ -22,7 +22,11 @@ if [[ -n "$GOPHER_META_CHANNEL" ]]; then
 fi
 
 if [[ -n "$GOPHER_KAKFA_SERVER" ]]; then
-    sed -i "s/kafka_broker =.*/kafka_broker = \"${GOPHER_KAKFA_SERVER}:9092\";/g" $GOPHER_CONF
+    if echo "$GOPHER_KAKFA_SERVER" | grep -q ":"; then
+        sed -i "s/kafka_broker =.*/kafka_broker = \"${GOPHER_KAKFA_SERVER}\";/g" $GOPHER_CONF
+    else
+        sed -i "s/kafka_broker =.*/kafka_broker = \"${GOPHER_KAKFA_SERVER}:9092\";/g" $GOPHER_CONF
+    fi
 else
     sed -i "s/kafka_broker =.*/kafka_broker = \"localhost:9092\";/g" $GOPHER_CONF
 fi

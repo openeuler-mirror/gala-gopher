@@ -237,7 +237,7 @@ gala-gopher提供的微服务访问性能监控可以非侵入、多语言的完
     - GOPHER_LOG_LEVEL：gala-gopher日志输出级别
     - GOPHER_EVENT_CHANNEL：gala-gopher亚健康巡检异常事件输出方式
     - GOPHER_META_CHANNEL：gala-gopher观测对象元数据metadata输出方式
-    - GOPHER_KAKFA_SERVER：gala-gopher上报亚健康巡检异常事件、观测对象元数据metadata的kafka服务端IP地址
+    - GOPHER_KAKFA_SERVER：gala-gopher上报亚健康巡检异常事件、观测对象元数据metadata的kafka服务端IP地址（IP地址中支持指定端口号，若未指定则使用默认端口号9092）
     - GOPHER_METRIC_ADDR：gala-gopher作为prometheus exporter输出指标数据的监听地址
     - GOPHER_METRIC_PORT：gala-gopher作为prometheus exporter输出指标数据的监听端口
     - GOPHER_REST_ADDR：动态配置RESTful API的监听地址
