@@ -21,9 +21,8 @@
 
 #define MAX_PYTHON_PROG_NUM 1000
 
-#define MAX_PYTHON_STACK_DEPTH_32 32
 #define MAX_PYTHON_STACK_DEPTH_16 16
-#define MAX_PYTHON_STACK_DEPTH_MAX (MAX_PYTHON_STACK_DEPTH_32)
+#define MAX_PYTHON_STACK_DEPTH_MAX (MAX_PYTHON_STACK_DEPTH_16)
 #define MAX_PYTHON_SYMBOL_SIZE 64
 
 struct py_stack {
@@ -79,7 +78,7 @@ struct py_proc_data {
 };
 
 #if !defined(BPF_PROG_KERN) && !defined(BPF_PROG_USER)
-int try_init_py_proc_data(int pid, struct py_proc_data *data, const char *debug_dir);
+int try_init_py_proc_data(int pid, struct py_proc_data *data);
 #endif
 
 #endif

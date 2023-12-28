@@ -55,7 +55,11 @@
 #define ON_CPU_PROG    "/opt/gala-gopher/extend_probes/stack_bpf/oncpu.bpf.o"
 #define OFF_CPU_PROG   "/opt/gala-gopher/extend_probes/stack_bpf/offcpu.bpf.o"
 #define IO_PROG        "/opt/gala-gopher/extend_probes/stack_bpf/io.bpf.o"
+#if defined(__TARGET_ARCH_x86)
 #define MEM_PROG       "/opt/gala-gopher/extend_probes/stack_bpf/mem.bpf.o"
+#else
+#define MEM_PROG       "/opt/gala-gopher/extend_probes/stack_bpf/mem_fp.bpf.o"
+#endif
 
 #define CHECK_JRE "java -version >/dev/null 2>&1"
 #define CHECK_JSTACK_PROBE "/opt/gala-gopher/extend_probes/JstackProbeAgent.jar"
@@ -77,7 +81,7 @@
 
 #define IS_IEG_ADDR(addr)     ((addr) != 0xcccccccccccccccc && (addr) != 0xffffffffffffffff)
 
-#define MEM_SEC_NUM 4
+#define MEM_SEC_NUM 5
 #define HISTO_TMP_LEN   (2 * STACK_SYMBS_LEN)
 #define POST_MAX_STEP_SIZE 1048576 // 1M
 
@@ -149,9 +153,6 @@ static void sig_int(int signo)
 
 static int get_py_stack_size(void)
 {
-    if (probe_kernel_version() >= KERNEL_VERSION(5, 10, 0)) {
-        return MAX_PYTHON_STACK_DEPTH_32;
-    }
     return MAX_PYTHON_STACK_DEPTH_16;
 }
 
@@ -187,7 +188,7 @@ static void load_stackprobe_snoopers(struct ipc_body_s *ipc_body)
             proc.proc_id = ipc_body->snooper_objs[i].obj.proc.proc_id;
             (void)bpf_map_update_elem(g_st->proc_obj_map_fd, &proc, &ref, BPF_ANY);
 
-            if (try_init_py_proc_data(proc.proc_id, &py_proc_data, DEBUG_DIR)) {
+            if (try_init_py_proc_data(proc.proc_id, &py_proc_data)) {
                 // not a python process or init python process data failure
                 continue;
             }

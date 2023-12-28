@@ -27,8 +27,10 @@
 #include "bpf.h"
 #include "gopher_elf.h"
 #include "debug_elf_reader.h"
+#include "container.h"
 #include "py_stack.h"
 
+extern struct py_offset py37_offset;
 extern struct py_offset py39_offset;
 
 #define LIB_PYTHON_PREFIX_LEN 32
@@ -42,6 +44,7 @@ struct py_support_version {
 };
 
 static struct py_support_version g_py_support_vers[] = {
+    {"libpython3.7", &py37_offset},
     {"libpython3.9", &py39_offset}
 };
 
@@ -59,6 +62,7 @@ static struct py_support_version *get_curr_py_version(const char *so_path)
     return NULL;
 }
 
+#if 0
 static int get_libpy_debug_so_path(int pid, char *debug_so_path, int size, const char *so_path, const char *debug_dir)
 {
     struct proc_symbs_s *proc_symbs;
@@ -84,12 +88,54 @@ static int get_libpy_debug_so_path(int pid, char *debug_so_path, int size, const
     free(proc_symbs);
     return 0;
 }
+#endif
 
-static int init_py_proc_data(int pid, struct py_proc_data *data, const char *debug_dir,
+static int get_proc_container_id(int pid, char *container_id, int size)
+{
+    char pid_str[INT_LEN];
+
+    pid_str[0] = 0;
+    (void)snprintf(pid_str, sizeof(pid_str), "%d", pid);
+    return get_container_id_by_pid_cpuset(pid_str, container_id, size);
+}
+
+static int get_real_so_path(const char *orig_path, char *real_path, int real_path_size, int pid)
+{
+    char container_id[CONTAINER_ABBR_ID_LEN + 1];
+    char pid_root_path[PATH_LEN];
+    char so_host_path[PATH_LEN];
+    int ret;
+
+    container_id[0] = 0;
+    ret = get_proc_container_id(pid, container_id, sizeof(container_id));
+    if (ret) {
+        return ret;
+    }
+
+    // consider that the process may runs in container
+    pid_root_path[0] = 0;
+    if (container_id[0] != 0) {
+        ret = get_container_merged_path(container_id, pid_root_path, sizeof(pid_root_path));
+        if (ret) {
+            return ret;
+        }
+    }
+    so_host_path[0] = 0;
+    ret = snprintf(so_host_path, sizeof(so_host_path), "%s%s", pid_root_path, orig_path);
+    if (ret < 0 || ret >= sizeof(so_host_path)) {
+        return -1;
+    }
+
+    // consider that gopher may runs in container
+    convert_to_host_path(real_path, so_host_path, real_path_size);
+    return 0;
+}
+
+static int init_py_proc_data(int pid, struct py_proc_data *data,
     const char *so_path, struct mod_info_s *mod_info)
 {
     struct py_support_version *py_ver;
-    char debug_so_path[PATH_LEN];
+    char real_so_path[PATH_LEN];
     int ret;
 
     py_ver = get_curr_py_version(so_path);
@@ -98,18 +144,17 @@ static int init_py_proc_data(int pid, struct py_proc_data *data, const char *deb
         return -1;
     }
 
-    ret = gopher_get_elf_symb_addr(so_path, PY_VAR_PYRUNTIME, &data->py_runtime_addr);
+    real_so_path[0] = 0;
+    ret = get_real_so_path(so_path, real_so_path, sizeof(real_so_path), pid);
     if (ret) {
-        DEBUG("Failed to get _PyRuntime addr from %s, try to get from debug path\n", so_path);
-        ret = get_libpy_debug_so_path(pid, debug_so_path, sizeof(debug_so_path), so_path, debug_dir);
-        if (ret) {
-            ERROR("Failed to get libpython debug path\n");
-            return -1;
-        }
-        ret = gopher_get_elf_symb_addr(debug_so_path, PY_VAR_PYRUNTIME, &data->py_runtime_addr);
-        if (ret) {
-            return -1;
-        }
+        ERROR("Failed to get real so path of libpython\n");
+        return -1;
+    }
+
+    ret = gopher_get_elf_symb_addr(real_so_path, PY_VAR_PYRUNTIME, &data->py_runtime_addr);
+    if (ret) {
+        ERROR("Failed to get _PyRuntime addr from %s\n", so_path);
+        return -1;
     }
     DEBUG("Succeed to get _PyRuntime addr:%llx, so_path=%s\n", data->py_runtime_addr, so_path);
 
@@ -118,7 +163,7 @@ static int init_py_proc_data(int pid, struct py_proc_data *data, const char *deb
     return 0;
 }
 
-int try_init_py_proc_data(int pid, struct py_proc_data *data, const char *debug_dir)
+int try_init_py_proc_data(int pid, struct py_proc_data *data)
 {
     char map_file[PATH_LEN];
     FILE *fp = NULL;
@@ -148,7 +193,7 @@ int try_init_py_proc_data(int pid, struct py_proc_data *data, const char *debug_
 
         if (strstr(so_path, LIB_PYTHON_COMMON_PREFIX)) {
             DEBUG("lipython mod info: start=%llx, end=%llx, so_path=%s\n", mod_info.start, mod_info.end, so_path);
-            ret = init_py_proc_data(pid, data, debug_dir, so_path, &mod_info);
+            ret = init_py_proc_data(pid, data, so_path, &mod_info);
             if (ret) {
                 break;
             }
