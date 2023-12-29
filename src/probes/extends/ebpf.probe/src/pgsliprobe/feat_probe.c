@@ -44,7 +44,7 @@ static int probe_features()
     (void)bpf_map_lookup_elem(GET_MAP_FD(feat_probe, feature_map), &key, &probe);
 
     if (probe.is_probed == 0) {
-        ERROR("[TCPPROBE] Failed to invoke feature probe BPF program\n");
+        ERROR("[PGSLIPROBE] Failed to invoke feature probe BPF program\n");
         goto out;
     }
 
@@ -62,7 +62,7 @@ bool probe_tstamp() {
 
     err = probe_features();
     if (err) {
-        WARN("[TCPPROBE] Failed to probe features; probe_tstamp() defaults to false\n");
+        WARN("[PGSLIPROBE] Failed to probe features; probe_tstamp() defaults to false\n");
         return false;
     }
 
