@@ -295,6 +295,9 @@ if __name__ == "__main__":
                 try:
                     conn = http.client.HTTPConnection(elem.ip, elem.keep_alive_port)
                     conn.request("POST", build_url(elem.ip, elem.keep_alive_port, keep_alive_url_prefix, "", ""))
+                    response = conn.getresponse()
+                    context = response.read()
+                    logging.debug("successfully send keep-alive, response data is %s", context)
                     conn.close()
                     time.sleep(30)
                 except Exception:
