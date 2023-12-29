@@ -828,9 +828,12 @@ static int load_io_scsi_probe(struct bpf_prog_s *prog, char scsi_probe)
 
     is_load = (kern_ver > KERNEL_VERSION(4, 18, 0));
     PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_raw_trace_block_rq_complete, is_load);
-    PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_raw_trace_block_rq_issue, is_load);
     PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_blk_update_request, !is_load);
     PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_blk_mq_start_request, !is_load);
+
+    int is_single_arg = (kern_ver >= KERNEL_VERSION(5, 10, 0));
+    PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_raw_trace_block_rq_issue_single_arg, is_load && is_single_arg);
+    PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_raw_trace_block_rq_issue_double_arg, is_load && (!is_single_arg));
 
     LOAD_ATTACH(ioprobe, io_trace_scsi, err, 1);
 
@@ -874,9 +877,12 @@ static int load_io_nvme_probe(struct bpf_prog_s *prog, char nvme_probe)
     PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_nvme_setup_cmd, !is_load);
 
     PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_raw_trace_block_rq_complete, is_load);
-    PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_raw_trace_block_rq_issue, is_load);
     PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_blk_update_request, !is_load);
     PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_blk_mq_start_request, !is_load);
+
+    int is_single_arg = (kern_ver >= KERNEL_VERSION(5, 10, 0));
+    PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_raw_trace_block_rq_issue_single_arg, is_load && is_single_arg);
+    PROG_ENABLE_ONLY_IF(io_trace_nvme, bpf_raw_trace_block_rq_issue_double_arg, is_load && (!is_single_arg));
 
     LOAD_ATTACH(ioprobe, io_trace_nvme, err, 1);
 
@@ -918,9 +924,12 @@ static int load_io_virtblk_probe(struct bpf_prog_s *prog, char virtblk_probe)
     int is_load = (kern_ver > KERNEL_VERSION(4, 18, 0));
 
     PROG_ENABLE_ONLY_IF(io_trace_virtblk, bpf_raw_trace_block_rq_complete, is_load);
-    PROG_ENABLE_ONLY_IF(io_trace_virtblk, bpf_raw_trace_block_rq_issue, is_load);
     PROG_ENABLE_ONLY_IF(io_trace_virtblk, bpf_blk_update_request, !is_load);
     PROG_ENABLE_ONLY_IF(io_trace_virtblk, bpf_blk_mq_start_request, !is_load);
+
+    int is_single_arg = (kern_ver >= KERNEL_VERSION(5, 10, 0));
+    PROG_ENABLE_ONLY_IF(io_trace_virtblk, bpf_raw_trace_block_rq_issue_single_arg, is_load && is_single_arg);
+    PROG_ENABLE_ONLY_IF(io_trace_virtblk, bpf_raw_trace_block_rq_issue_double_arg, is_load && (!is_single_arg));
 
     LOAD_ATTACH(ioprobe, io_trace_virtblk, err, 1);
 

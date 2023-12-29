@@ -358,9 +358,17 @@ static int bpf_trace_block_rq_issue_func(void *ctx, struct request* req)
     return 0;
 }
 
-KRAWTRACE(block_rq_issue, bpf_raw_tracepoint_args)
+bpf_section("raw_tracepoint/block_rq_issue") \
+int bpf_raw_trace_block_rq_issue_single_arg(struct bpf_raw_tracepoint_args *ctx)
 {
-    struct request* req = (struct request *)ctx->args[1];
+    struct request *req = (struct request *)ctx->args[0];
+    return bpf_trace_block_rq_issue_func(ctx, req);
+}
+
+bpf_section("raw_tracepoint/block_rq_issue") \
+int bpf_raw_trace_block_rq_issue_double_arg(struct bpf_raw_tracepoint_args *ctx)
+{
+    struct request *req = (struct request *)ctx->args[1];
     return bpf_trace_block_rq_issue_func(ctx, req);
 }
 
