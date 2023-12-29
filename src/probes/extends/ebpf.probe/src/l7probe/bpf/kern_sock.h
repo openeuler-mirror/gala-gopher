@@ -116,7 +116,7 @@ struct {
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 64);
+    __uint(max_entries, 256 * 1024);
 } conn_tracker_events SEC(".maps");
 
 // Use the BPF map to cache socket data to avoid the restriction

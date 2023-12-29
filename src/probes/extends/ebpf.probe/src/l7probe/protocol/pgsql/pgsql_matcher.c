@@ -92,7 +92,7 @@ parse_state_t pgsql_handle_query(struct pgsql_regular_msg_s *msg, struct frame_b
         ++rsp_frames->current_pos;
     }
     if (!found_rsp) {
-        WARN("[PGSQL MATCHER] Query response not found.\n");
+        DEBUG("[PGSQL MATCHER] Query response not found.\n");
         return STATE_INVALID;
     }
     return STATE_SUCCESS;
@@ -155,7 +155,7 @@ parse_state_t pgsql_fill_query_resp(struct frame_buf_s *rsp_frames, struct pgsql
         ++rsp_frames->current_pos;
     }
     if (!found_row_desc && !(found_cmd_complete || found_err_rsp || found_empty_rsp)) {
-        WARN("[PGSQL MATCHER] Did not find one of row description, error return, empty response or cmd complete.\n");
+        DEBUG("[PGSQL MATCHER] Did not find one of row description, error return, empty response or cmd complete.\n");
         return STATE_INVALID;
     }
     return STATE_SUCCESS;
@@ -456,7 +456,7 @@ parse_state_t pgsql_handle_bind(struct pgsql_regular_msg_s *msg, struct frame_bu
 
     rsp_index = pgsql_find_first_tag(rsp_frames, tags, sizeof(tags) / sizeof(enum pgsql_tag_t));
     if (rsp_index == rsp_frames->frame_buf_size) {
-        ERROR("[PGSQL MATCHER] Did not find bind complete or error response message.\n");
+        DEBUG("[PGSQL MATCHER] Did not find bind complete or error response message.\n");
         return STATE_NOT_FOUND;
     }
     bind_rsp = pgsql_get_frame_from_buf(rsp_frames, rsp_index);
@@ -600,7 +600,7 @@ void handle_bind_req(struct pgsql_regular_msg_s *req, struct frame_buf_s *req_fr
     }
     parse_bind_state = pgsql_handle_bind(req, req_frames, rsp_frames, req_rsp);
     if (parse_bind_state != STATE_SUCCESS) {
-        WARN("[PGSQL MATCHER] An error occurred while processing a bind request, state: %d.\n", parse_bind_state);
+        DEBUG("[PGSQL MATCHER] An error occurred while processing a bind request, state: %d.\n", parse_bind_state);
         ++record_buf->err_count;
         free_pgsql_bind_req_resp(req_rsp);
         return;
@@ -645,7 +645,7 @@ void handle_execute_req(struct pgsql_regular_msg_s *req, struct frame_buf_s *req
     }
     parse_exe_state = pgsql_handle_execute(req, req_frames, rsp_frames, req_rsp);
     if (parse_exe_state != STATE_SUCCESS) {
-        WARN("[PGSQL MATCHER] An error occurred while processing a execute request, state: %d.\n", parse_exe_state);
+        DEBUG("[PGSQL MATCHER] An error occurred while processing a execute request, state: %d.\n", parse_exe_state);
         ++record_buf->err_count;
         free_pgsql_execute_req_resp(req_rsp);
         return;

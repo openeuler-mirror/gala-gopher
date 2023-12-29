@@ -147,7 +147,7 @@ parse_state_t decoder_extract_raw_data_with_len(struct raw_data_s *src_raw_data,
                                                 struct raw_data_s **dst_raw_data)
 {
     if ((src_raw_data->data_len - src_raw_data->current_pos) < decode_len) {
-        ERROR("[Binary Decoder] Buffer bytes are insufficient.\n");
+        DEBUG("[Binary Decoder] Buffer bytes are insufficient.\n");
         return STATE_NEEDS_MORE_DATA;
     }
 
