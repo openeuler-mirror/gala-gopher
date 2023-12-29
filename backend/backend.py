@@ -15,11 +15,11 @@ user_login = '{"tenantName": "admin","username": "admin","password": "admin123",
 user_create = {"username": "tf9o8mp3dd", "password": "testcurl11", "nickname": "umw5rbsdu4",
                "email": "fe3dt444qb@163.com", "mobile": "", "deptId": 100, "postIds": [], "status": 0, "remark": ""}
 user_update = {"id": 101, "username": "tf9o8mp3dd", "password": "testcurl11", "nickname": "umw5rbsdu4",
-                "email": "fe3dt444qb@163.com", "mobile": "", "deptId": 100, "postIds": [], "status": 0, "remark": ""}
+               "email": "fe3dt444qb@163.com", "mobile": "", "deptId": 100, "postIds": [], "status": 0, "remark": ""}
 login_headers = {"tenant-id": "1", "Content-Type": "application/json",
-                "User-Agent":"Mozillla/5.0 Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.54"}
-body_of_send_backend_request = {"body":"body of send request to backend"}
-user_id = []
+                 "User-Agent": "Mozillla/5.0 Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.54"}
+body_of_send_backend_request = {"body": "body of send request to backend"}
+user_id = {}
 batch_write_disk = ""
 operate_url_prefix = "/admin-api/system/user/"
 keep_alive_url_prefix = "/a-ops/keepalive"
@@ -27,7 +27,6 @@ next = []
 keep_alive_wait_port = ""
 is_batch_write_disk = []
 count = []
-lock = threading.Lock()
 update_file = "/home/file.txt"
 batch_update_file = "/home/batch_update_file.txt"
 
@@ -153,10 +152,16 @@ class Handler(BaseHTTPRequestHandler):
     # 接收web or backend的put请求
     def do_PUT(self):
         parsed_url = urlparse(self.path)
+
+        hostname = _url.hostname
+        port = _url.port
+
         path = parsed_url.path
         path_list = path.split('/')
         operate = path_list[len(path_list) - 1]
-        logging.debug("received %s request", operate)
+
+        logging.debug("received %s:%d %s request", hostname, port, operate)
+
         if operate == 'create':
             # 创建文件
             os.mknod(update_file)
@@ -220,7 +225,7 @@ class Handler(BaseHTTPRequestHandler):
 
                     token_header = {"Authorization": "Bearer " + element.token, "tenant-id": "1",
                                     "Content-Type": "application/json",
-                                    "User-Agent":"Mozillla/5.0 Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.54"}
+                                    "User-Agent": "Mozillla/5.0 Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.54"}
                     if operate == 'create':
                         user_create["username"] = random_name()
                         user_create["email"] = random_email()
@@ -233,13 +238,14 @@ class Handler(BaseHTTPRequestHandler):
                         context = response.read()
                         id = json.loads(context)["data"]
                         logging.debug("id %d", id)
-                        lock.acquire()
-                        user_id.append(id)
-                        lock.release()
+
+                        user_id[str(id)] = id
 
                         send_response(self, response, 'successfully sent create request!')
                     elif operate == 'update' and len(user_id) > 0:
-                        user_update["id"] = user_id[len(user_id) - 1]
+                        user_id_list = list(user_id.items())
+                        user_id_key, user_id_value = user_id_list[-1]
+                        user_update["id"] = user_id_value
                         user_update["email"] = random_email()
 
                         conn.request("PUT", build_url(ip, port, operate_url_prefix, "update", ""),
@@ -248,18 +254,18 @@ class Handler(BaseHTTPRequestHandler):
 
                         send_response(self, conn.getresponse(), 'successfully sent update request!')
                     elif operate == 'delete' and len(user_id) > 0:
+                        user_id_list = list(user_id.items())
+                        user_id_key, user_id_value = user_id_list[-1]
                         conn.request("DELETE",
-                                     build_url(ip, port, operate_url_prefix, "delete", user_id[len(user_id) - 1]),
+                                     build_url(ip, port, operate_url_prefix, "delete", user_id_value),
                                      "", token_header)
 
-                        lock.acquire()
-                        user_id.remove(user_id[len(user_id) - 1])
-                        lock.release()
+                        user_id.popitem()
 
                         send_response(self, conn.getresponse(), 'successfully sent delete request!')
 
             except Exception as e:
-                logging.debug("failed. Err: %s", repr(e))
+                logging.debug("failed to send request to %s:%d. Err: %s", ip, port, repr(e))
                 conn.close()
         conn.close()
 
@@ -297,7 +303,8 @@ if __name__ == "__main__":
                     conn.request("POST", build_url(elem.ip, elem.keep_alive_port, keep_alive_url_prefix, "", ""))
                     response = conn.getresponse()
                     context = response.read()
-                    logging.debug("successfully send keep-alive, response data is %s", context)
+                    logging.debug("successfully send keep-alive to %s:%d, response data is %s", elem.ip,
+                                  elem.keep_alive_port, context)
                     conn.close()
                     time.sleep(30)
                 except Exception:
