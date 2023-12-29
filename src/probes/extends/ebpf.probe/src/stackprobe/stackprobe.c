@@ -1357,7 +1357,7 @@ static void destroy_stack_trace(struct stack_trace_s **ptr_st)
     }
 
     for (int cpu = 0; cpu < st->cpus_num; cpu++) {
-        if (st->pmu_fd[cpu] > 0) {
+        if (st->pmu_fd[cpu] >= 0) {
             ioctl(st->pmu_fd[cpu], PERF_EVENT_IOC_DISABLE);
             close(st->pmu_fd[cpu]);
         }
@@ -1721,8 +1721,8 @@ static int attach_oncpu_bpf_prog(struct ipc_body_s *ipc_body, struct svg_stack_t
     for (int cpu = 0; cpu < g_st->cpus_num; cpu++) {
         g_st->pmu_fd[cpu] = perf_event_open(&attr_type_sw, -1, cpu, -1, 0);
         if (g_st->pmu_fd[cpu] < 0) {
-            ERROR("[STACKPROBE]: Failed open perf event.\n");
-            goto err;
+            DEBUG("[STACKPROBE]: Failed open perf event on cpu[%d], skip.\n", cpu);
+            continue;
         }
 
         ret = ioctl(g_st->pmu_fd[cpu], PERF_EVENT_IOC_ENABLE, 0);
