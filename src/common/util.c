@@ -29,6 +29,7 @@
 #define PROC_STAT           "/proc/%u/stat"
 #define PROC_START_TIME_CMD "/usr/bin/cat /proc/%u/stat | awk '{print $22}'"
 #define SYS_UUID_CMD        "/usr/bin/cat /sys/class/dmi/id/product_uuid"
+#define SYS_HOSTNAME_CMD    "/usr/bin/uname -n"
 
 static char *g_host_path_prefix;
 
@@ -282,6 +283,11 @@ int get_system_ip(char ip_str[], unsigned int size)
 int get_system_uuid(char *buffer, unsigned int size)
 {
     return exec_cmd_chroot(SYS_UUID_CMD, buffer, size);
+}
+
+int get_system_hostname(char *buf, unsigned int size)
+{
+    return exec_cmd_chroot(SYS_HOSTNAME_CMD, buf, size);
 }
 
 int copy_file(const char *dst_file, const char *src_file) {

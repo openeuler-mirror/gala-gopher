@@ -298,6 +298,7 @@ IMDB_DataBaseMgr *IMDB_DataBaseMgrCreate(uint32_t capacity)
 
     /* Silence here when failed to get system ip and leave it handled afterwards */
     (void)get_system_ip(mgr->nodeInfo.hostIP, MAX_IMDB_HOSTIP_LEN);
+    (void)get_system_hostname(mgr->nodeInfo.hostName, sizeof(mgr->nodeInfo.hostName));
 
     mgr->tables = (IMDB_Table **)malloc(sizeof(IMDB_Table *) * capacity);
     if (mgr->tables == NULL) {

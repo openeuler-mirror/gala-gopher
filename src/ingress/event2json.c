@@ -120,8 +120,8 @@ static int enrich_resource_with_host_info(IngressMgr *mgr, strbuf_t *dest)
     int copySize;
     IMDB_NodeInfo nodeInfo = mgr->imdbMgr->nodeInfo;
 
-    copySize = snprintf(dest->buf, dest->size, ",\"host.id\":\"%s\",\"host.name\":\"%s\"",
-                        nodeInfo.systemUuid, nodeInfo.hostName);
+    copySize = snprintf(dest->buf, dest->size, ",\"host.id\":\"%s\",\"host.name\":\"%s\",\"host.ip\":\"%s\"",
+                        nodeInfo.systemUuid, nodeInfo.hostName, nodeInfo.hostIP);
     if (copySize < 0 || copySize >= dest->size) {
         error_log2json_buffer_no_enough_space();
         return -1;
