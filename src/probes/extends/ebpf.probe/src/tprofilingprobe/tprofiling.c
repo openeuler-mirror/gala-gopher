@@ -137,24 +137,25 @@ int main(int argc, char **argv)
     while (!stop) {
         err = recv_ipc_msg(msq_id, (long)PROBE_TP, &ipc_body);
         if (err == 0) {
-            unload_bpf_prog(&syscall_bpf_progs);
-            unload_bpf_prog(&oncpu_bpf_progs);
+            if (ipc_body.probe_flags & IPC_FLAGS_PARAMS_CHG || ipc_body.probe_flags == 0) {
+                unload_bpf_prog(&syscall_bpf_progs);
+                unload_bpf_prog(&oncpu_bpf_progs);
 
-            syscall_bpf_progs = load_syscall_bpf_prog(&ipc_body);
-            if (syscall_bpf_progs == NULL) {
+                syscall_bpf_progs = load_syscall_bpf_prog(&ipc_body);
+                if (syscall_bpf_progs == NULL) {
+                    goto cleanup;
+                }
+                oncpu_bpf_progs = load_oncpu_bpf_prog(&ipc_body);
+                if (oncpu_bpf_progs == NULL) {
+                    goto cleanup;
+                }
+            }
+
+            if (refresh_tprofiler(&ipc_body)) {
                 goto cleanup;
             }
-            oncpu_bpf_progs = load_oncpu_bpf_prog(&ipc_body);
-            if (oncpu_bpf_progs == NULL) {
-                goto cleanup;
-            }
-
             destroy_ipc_body(&g_ipc_body);
             (void)memcpy(&g_ipc_body, &ipc_body, sizeof(g_ipc_body));
-
-            if (refresh_tprofiler(&g_ipc_body)) {
-                goto cleanup;
-            }
         }
 
         if (syscall_bpf_progs == NULL && oncpu_bpf_progs == NULL) {
@@ -330,13 +331,16 @@ static int refresh_tprofiler(struct ipc_body_s *ipc_body)
 {
     tprofiler.report_period = ipc_body->probe_param.period;
 
-    if (init_tprofiler_map_fds(ipc_body)) {
-        return -1;
+    if (ipc_body->probe_flags & IPC_FLAGS_PARAMS_CHG || ipc_body->probe_flags == 0) {
+        if (init_tprofiler_map_fds(ipc_body)) {
+            return -1;
+        }
     }
 
-    refresh_proc_filter_map(ipc_body);
-
-    java_symb_mgmt(tprofiler.procFilterMapFd);
+    if (ipc_body->probe_flags & IPC_FLAGS_SNOOPER_CHG || ipc_body->probe_flags == 0) {
+        refresh_proc_filter_map(ipc_body);
+        java_symb_mgmt(tprofiler.procFilterMapFd);
+    }
 
     return 0;
 }
