@@ -30,7 +30,7 @@
 #include "core_btf.h"
 #include "__compat.h"
 
-#define EBPF_RLIM_LIMITED  100*1024*1024 // 100M
+#define EBPF_RLIM_LIMITED  RLIM_INFINITY
 #define EBPF_RLIM_INFINITY (~0UL)
 #ifndef EINTR
 #define EINTR 4
