@@ -105,11 +105,6 @@ static __always_inline __maybe_unused char is_valid_tgid(u32 tgid)
     return is_proc_exist(&obj);
 }
 
-#define REPORT_START_DELAY_2    2
-#define REPORT_START_DELAY_4    4
-#define REPORT_START_DELAY_6    6
-#define REPORT_START_DELAY_8    8
-#define REPORT_START_DELAY_10   10
 static __always_inline __maybe_unused int create_tcp_link(struct sock *sk, struct tcp_link_s *link, u32 syn_srtt)
 {
     struct sock_stats_s sock_stats = {0};
@@ -118,11 +113,11 @@ static __always_inline __maybe_unused int create_tcp_link(struct sock *sk, struc
     __builtin_memcpy(&(sock_stats.metrics.link), link, sizeof(struct tcp_link_s));
     u64 ts = bpf_ktime_get_ns();
     sock_stats.ts_stats.abn_ts = ts;
-    sock_stats.ts_stats.win_ts = ts + NS(REPORT_START_DELAY_2);
-    sock_stats.ts_stats.rtt_ts = ts + NS(REPORT_START_DELAY_4);
-    sock_stats.ts_stats.txrx_ts = ts + NS(REPORT_START_DELAY_6);
-    sock_stats.ts_stats.sockbuf_ts = ts + NS(REPORT_START_DELAY_8);
-    sock_stats.ts_stats.rate_ts = ts + NS(REPORT_START_DELAY_10);
+    sock_stats.ts_stats.win_ts = ts;
+    sock_stats.ts_stats.rtt_ts = ts;
+    sock_stats.ts_stats.txrx_ts = ts;
+    sock_stats.ts_stats.sockbuf_ts = ts;
+    sock_stats.ts_stats.rate_ts = ts;
 
     return bpf_map_update_elem(&tcp_link_map, &sk, &sock_stats, BPF_ANY);
 }
