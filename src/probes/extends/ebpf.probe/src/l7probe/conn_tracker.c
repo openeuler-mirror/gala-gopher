@@ -624,7 +624,7 @@ static void calc_link_stats(struct l7_link_s *link, struct probe_params *probe_p
     link->err_ratio = link->stats[REQ_COUNT] == 0 ? 0.00f : (float)((float)link->stats[ERR_COUNT] / (float)link->stats[REQ_COUNT]);
 
     link->throughput[THROUGHPUT_REQ] = (float)((float)link->stats[REQ_COUNT] / (float)probe_param->period);
-    link->throughput[THROUGHPUT_RESP] = (float)((float)link->stats[REQ_COUNT] / (float)probe_param->period);
+    link->throughput[THROUGHPUT_RESP] = (float)((float)link->stats[RSP_COUNT] / (float)probe_param->period);
 
     return;
 }

@@ -330,12 +330,7 @@ static __always_inline __maybe_unused struct sock_conn_s* get_sock_conn(void *ct
         return NULL;
     }
 
-    if (bpf_core_field_exists(((struct sock *)0)->__sk_flags_offset)) {
-        sk_type = BPF_CORE_READ_BITFIELD_PROBED(sk, sk_type);
-    } else {
-        sk_type = BPF_CORE_READ(sk, sk_type);
-    }
-
+    sk_type = BPF_CORE_READ_BITFIELD_PROBED(sk, sk_type);
     if (sk_type != SOCK_STREAM) {
         l4_role = L4_UNKNOW;
     } else {
