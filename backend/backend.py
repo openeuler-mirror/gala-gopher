@@ -19,6 +19,7 @@ user_update = {"id": 101, "username": "tf9o8mp3dd", "password": "testcurl11", "n
 login_headers = {"tenant-id": "1", "Content-Type": "application/json",
                  "User-Agent": "Mozillla/5.0 Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.54"}
 body_of_send_backend_request = {"body": "body of send request to backend"}
+body_of_send_keep_alive_request = {"body": "body of send keep-alive request to backend"}
 user_id = {}
 batch_write_disk = ""
 operate_url_prefix = "/admin-api/system/user/"
@@ -65,7 +66,7 @@ def build_url(ip, port, url_prefix, operate, id):
     return url
 
 
-def send_response(self, response, context):
+def send_response(self, context):
     self.send_response(200)
     self.send_header('Content-type', 'application/json')
     self.end_headers()
@@ -93,15 +94,9 @@ class BatchWriteDiskThread(threading.Thread):
     def run(self):
         if (os.path.exists(self.of_file) is None):
             return
-        cmd = "dd if=" + self.if_file + " " + "of=" + self.of_file + " " + "bs=" + bs + " " + "count=" + str(
+        cmd = "dd if=" + self.if_file + " " + "of=" + self.of_file + " " + "bs=" + self.bs + " " + "count=" + str(
             self.count)
         os.system(cmd)
-
-        if of_file == update_file:
-            try:
-                os.remove(update_file)
-            except OSError as error:
-                logging.debug("os.remove %s", error)
         return
 
 
@@ -125,7 +120,7 @@ class IsBatchWriteThread(threading.Thread):
 class KeepAliveHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         # 发送响应
-        send_response(self, None, 'received keep-alive')
+        send_response(self, 'received keep-alive')
 
 
 class KeepAliveThread(threading.Thread):
@@ -153,34 +148,43 @@ class Handler(BaseHTTPRequestHandler):
     def do_PUT(self):
         parsed_url = urlparse(self.path)
 
-        hostname = _url.hostname
-        port = _url.port
-
         path = parsed_url.path
         path_list = path.split('/')
         operate = path_list[len(path_list) - 1]
 
-        logging.debug("received %s:%d %s request", hostname, port, operate)
+        logging.debug("received %s %s request", self.client_address, operate)
 
         if operate == 'create':
-            # 创建文件
-            os.mknod(update_file)
+            try:
+                # 创建文件
+                os.mknod(update_file)
+            except Exception as e:
+                logging.debug("failed to create update_file. Err: %s", repr(e))
 
             # 发送请求给下游
             self.send_request_next(operate, None)
         elif operate == 'update':
-            fp = open(update_file, w)
-            file_size = 1024
-            with fp.tell() < file_size:
-                fp.write("update")
-            fp.close()
+            try:
+                fp = open(update_file, 'a', encoding='utf-8')
+                file_size = 1024
+                while fp.tell() < file_size:
+                    fp.write("update")
+                fp.close()
 
-            if is_batch_write_disk[len(is_batch_write_disk) - 1] == 1:
-                # 开启线程进行更新文件、写盘操作
-                batch_write_disk_thread = BatchWriteDiskThread("/dev/zero", batch_update_file, "4M", 100)
-                batch_write_disk_thread.start()
+                if is_batch_write_disk[len(is_batch_write_disk) - 1] == 1:
+                    # 开启线程进行更新文件、写盘操作
+                    batch_write_disk_thread = BatchWriteDiskThread("/dev/zero", batch_update_file, "4M", 100)
+                    batch_write_disk_thread.start()
+            except Exception as e:
+                logging.debug("failed to update update_file. Err: %s", repr(e))
+
             self.send_request_next(operate, None)
         elif operate == 'delete':
+            try:
+                os.remove(update_file)
+            except Exception as e:
+                logging.debug("failed to os.remove(update_file). Err: %s", repr(e))
+
             self.send_request_next(operate, None)
 
     # 发送数据给下游，backend or java_app
@@ -192,22 +196,27 @@ class Handler(BaseHTTPRequestHandler):
             port = element.url_port
             is_auth = element.is_auth
 
-            conn = http.client.HTTPConnection(ip, port)
             try:
+                conn = http.client.HTTPConnection(ip, port, timeout=30)
                 # 下游是backend
                 if is_auth == 0 and port > 0:
+                    header = {"Content-Type": "application/json",
+                              "User-Agent": "Mozillla/5.0 Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.54"}
                     if operate == 'create':
-                        conn.request("PUT", build_url(ip, port, operate_url_prefix, "create", ""))
-
-                        send_response(self, conn.getresponse(), 'successfully sent create request!')
+                        conn.request("PUT", build_url(ip, port, operate_url_prefix, "create", ""),
+                                     json.dumps(body_of_send_backend_request), header)
+                        response = conn.getresponse()
+                        send_response(self, 'successfully sent create request!')
                     elif operate == 'update':
-                        conn.request("PUT", build_url(ip, port, update_operate_url_prefix, "update", ""))
-
-                        send_response(self, conn.getresponse(), 'successfully sent update request!')
+                        conn.request("PUT", build_url(ip, port, operate_url_prefix, "update", ""),
+                                     json.dumps(body_of_send_backend_request), header)
+                        response = conn.getresponse()
+                        send_response(self, 'successfully sent update request!')
                     elif operate == 'delete':
-                        conn.request("PUT", build_url(ip, port, operate_url_prefix, "delete", ""))
-
-                        send_response(self, conn.getresponse(), 'successfully sent delete request!')
+                        conn.request("PUT", build_url(ip, port, operate_url_prefix, "delete", ""),
+                                     json.dumps(body_of_send_backend_request), header)
+                        response = conn.getresponse()
+                        send_response(self, 'successfully sent delete request!')
                 # 下游是java_app
                 elif is_auth == 1 and port > 0:
                     # 获取token
@@ -237,11 +246,12 @@ class Handler(BaseHTTPRequestHandler):
                         response = conn.getresponse()
                         context = response.read()
                         id = json.loads(context)["data"]
+
                         logging.debug("id %d", id)
 
                         user_id[str(id)] = id
 
-                        send_response(self, response, 'successfully sent create request!')
+                        send_response(self, 'successfully sent create request!')
                     elif operate == 'update' and len(user_id) > 0:
                         user_id_list = list(user_id.items())
                         user_id_key, user_id_value = user_id_list[-1]
@@ -251,8 +261,9 @@ class Handler(BaseHTTPRequestHandler):
                         conn.request("PUT", build_url(ip, port, operate_url_prefix, "update", ""),
                                      json.dumps(user_update),
                                      token_header)
+                        response = conn.getresponse()
 
-                        send_response(self, conn.getresponse(), 'successfully sent update request!')
+                        send_response(self, 'successfully sent update request!')
                     elif operate == 'delete' and len(user_id) > 0:
                         user_id_list = list(user_id.items())
                         user_id_key, user_id_value = user_id_list[-1]
@@ -261,13 +272,12 @@ class Handler(BaseHTTPRequestHandler):
                                      "", token_header)
 
                         user_id.popitem()
+                        response = conn.getresponse()
 
-                        send_response(self, conn.getresponse(), 'successfully sent delete request!')
-
+                        send_response(self, 'successfully sent delete request!')
+                conn.close()
             except Exception as e:
                 logging.debug("failed to send request to %s:%d. Err: %s", ip, port, repr(e))
-                conn.close()
-        conn.close()
 
 
 if __name__ == "__main__":
@@ -299,13 +309,15 @@ if __name__ == "__main__":
         for elem in next:
             if elem.keep_alive_port > 0:
                 try:
-                    conn = http.client.HTTPConnection(elem.ip, elem.keep_alive_port)
-                    conn.request("POST", build_url(elem.ip, elem.keep_alive_port, keep_alive_url_prefix, "", ""))
+                    conn = http.client.HTTPConnection(elem.ip, elem.keep_alive_port, timeout=30)
+                    conn.request("POST", build_url(elem.ip, elem.keep_alive_port, keep_alive_url_prefix, "", ""),
+                                 json.dumps(body_of_send_keep_alive_request))
                     response = conn.getresponse()
                     context = response.read()
                     logging.debug("successfully send keep-alive to %s:%d, response data is %s", elem.ip,
                                   elem.keep_alive_port, context)
                     conn.close()
                     time.sleep(30)
-                except Exception:
+                except Exception as e:
+                    logging.debug("failed to send keep-alive to %s:%d. Err: %s", elem.ip, elem.keep_alive_port, repr(e))
                     break
