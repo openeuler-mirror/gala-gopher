@@ -54,6 +54,7 @@ tprofiling 当前已观测的系统调用事件参见章节： [支持的系统�
   - `container.name`：事件所属的容器名
   - `host.id`：事件所属的主机ID
   - `host.name`：事件所属的主机名
+  - `host.ip`：事件所属的主机IP
 
 - 事件属性信息：包括公共的事件属性和扩展的事件属性。
 
@@ -98,7 +99,7 @@ tprofiling 作为 gala-gopher 提供的一个扩展的 ebpf 探针程序，产�
         "container.name": "",
 	},
     "Attributes": {
-        values: [
+        "values": [
             {
                 // common info
                 "event.name": "read",
