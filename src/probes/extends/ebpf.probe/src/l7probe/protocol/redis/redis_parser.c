@@ -49,6 +49,7 @@ static parse_state_t parse_size(struct raw_data_s *raw_data_buf, int *size)
     if (strlen(size_str) > SIZE_STR_MAX_LEN) {
         ERROR("[Redis Parse] The size of the string in Redis is exceeding %d, implying that the traffic might have been"
               "incorrectly categorized as Redis.\n", SIZE_STR_MAX_LEN);
+        free(size_str);
         return STATE_INVALID;
     }
 
@@ -58,14 +59,17 @@ static parse_state_t parse_size(struct raw_data_s *raw_data_buf, int *size)
     *size = strtol(size_str, &endptr, decimal_base);
     if (*endptr != '\0') {
         ERROR("[Redis Parse] String %s cannot be parsed as integer.\n", size_str);
+        free(size_str);
         return STATE_INVALID;
     }
 
     if (*size < NULL_SIZE) {
         ERROR("[Redis Parse] Size cannot be less than %d, got %s.\n", NULL_SIZE, size_str);
+        free(size_str);
         return STATE_INVALID;
     }
 
+    free(size_str);
     return STATE_SUCCESS;
 }
 
@@ -106,6 +110,8 @@ static parse_state_t parse_bulk_string_msg(struct raw_data_s *raw_data_buf, stru
 
     if (len == NULL_SIZE) {
         char *NULL_BULK_STRING = "<NULL>";
+        free(msg->payload);
+
         msg->payload = strdup(NULL_BULK_STRING);
         return STATE_SUCCESS;
     }
@@ -117,8 +123,11 @@ static parse_state_t parse_bulk_string_msg(struct raw_data_s *raw_data_buf, stru
 
     if (!is_end_with(payload, TERMINAL_SEQUENCE)) {
         ERROR("[Redis Parse] Bulk string should be terminated by \\r\\n.\n");
+        free(payload);
         return STATE_INVALID;
     }
+    free(msg->payload);
+
     msg->payload = remove_suffix(payload, strlen(TERMINAL_SEQUENCE));
     return STATE_SUCCESS;
 }
@@ -148,12 +157,19 @@ static parse_state_t parse_array_msg(enum message_type_t msg_type, struct raw_da
     for (int i = 0; i < len; ++i) {
         struct redis_msg_s tmp_msg = {0};
         parse_state_t recur_parse_state = parse_msg_recursive(msg_type, raw_data_buf, &tmp_msg);
+        if (tmp_msg.payload == NULL) {
+            utarray_free(payloads);
+            return STATE_INVALID;
+        }
+
         if (recur_parse_state != STATE_SUCCESS) {
             utarray_free(payloads);
+            free(tmp_msg.payload);
             return recur_parse_state;
         }
-        char *tmp_msg_copy = strdup(tmp_msg.payload);
-        utarray_push_back(payloads, &tmp_msg_copy);
+
+        utarray_push_back(payloads, &tmp_msg.payload);
+        free(tmp_msg.payload);
         msg->single_reply_msg_count = tmp_msg.single_reply_msg_count;
         msg->single_reply_error_msg_count = tmp_msg.single_reply_error_msg_count;
     }
@@ -203,11 +219,14 @@ static parse_state_t parse_msg_recursive(enum message_type_t msg_type, struct ra
         char *payload = malloc((strlen(str) + 2) * sizeof(char));
         if (payload == NULL) {
             ERROR("[Redis Parse] Malloc payload failed.\n");
+            free(str);
             return STATE_INVALID;
         }
         memset(payload, 0, (strlen(str) + 2) * sizeof(char));
         strcpy(payload, "-");
         strcat(payload, str);
+        free(msg->payload);
+
         msg->payload = payload;
         if (msg_type == MESSAGE_RESPONSE) {
             ++msg->single_reply_error_msg_count;

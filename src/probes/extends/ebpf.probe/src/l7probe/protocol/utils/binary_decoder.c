@@ -143,6 +143,7 @@ bool extract_prefix_bytes_string(struct raw_data_s *raw_data, char **res, size_t
     return true;
 }
 
+// If it returns STATE_SUCCESS, don't forget to free *dst_raw_data when necessary!
 parse_state_t decoder_extract_raw_data_with_len(struct raw_data_s *src_raw_data, size_t decode_len,
                                                 struct raw_data_s **dst_raw_data)
 {
@@ -151,7 +152,7 @@ parse_state_t decoder_extract_raw_data_with_len(struct raw_data_s *src_raw_data,
         return STATE_NEEDS_MORE_DATA;
     }
 
-    struct raw_data_s *raw_data = (struct raw_data_s *) malloc(sizeof(struct raw_data_s) + decode_len);
+    struct raw_data_s *raw_data = (struct raw_data_s *)malloc(sizeof(struct raw_data_s) + decode_len);
     if (raw_data == NULL) {
         ERROR("[Binary Decoder] Failed to malloc raw_data.\n");
         return STATE_INVALID;
@@ -167,7 +168,7 @@ parse_state_t decoder_extract_raw_data_with_len(struct raw_data_s *src_raw_data,
     return STATE_SUCCESS;
 }
 
-//1
+// If it returns STATE_SUCCESS, don't forget to free *res when necessary!
 parse_state_t decoder_extract_string(struct raw_data_s *raw_data, char **res, size_t decode_len)
 {
     if ((raw_data->data_len - raw_data->current_pos) < decode_len) {
@@ -181,6 +182,7 @@ parse_state_t decoder_extract_string(struct raw_data_s *raw_data, char **res, si
     return STATE_SUCCESS;
 }
 
+// If it returns STATE_SUCCESS, don't forget to free *res when necessary!
 parse_state_t decoder_extract_str_until_char(struct raw_data_s *raw_data, char **res, char search_char)
 {
     size_t search_char_pos = -1;
@@ -222,6 +224,7 @@ static void* memmem_custom(const void* haystack, size_t haystack_len, const void
     return NULL;
 }
 
+// If it returns STATE_SUCCESS, don't forget to free *res when necessary!
 parse_state_t decoder_extract_str_until_str(struct raw_data_s *raw_data, char **res, const char *search_str)
 {
     char *start_search_ptr = &raw_data->data[raw_data->current_pos];
