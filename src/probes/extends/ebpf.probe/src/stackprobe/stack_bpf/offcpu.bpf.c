@@ -47,7 +47,7 @@ struct {
     __uint(key_size, sizeof(u32));   // pid
     __uint(value_size, sizeof(struct start_info_t));
     __uint(max_entries, MAX_START_ENTRIES);
-} start SEC(".maps");
+} offcpu_start SEC(".maps");
 
 static __always_inline u64 get_real_start_time()
 {
@@ -112,10 +112,10 @@ KRAWTRACE(sched_switch, bpf_raw_tracepoint_args)
         if (stack_id->kern_stack_id < 0 && stack_id->user_stack_id < 0) {
             return -1;
         }
-        bpf_map_update_elem(&start, &prev_pid, &prev_info, BPF_ANY);
+        bpf_map_update_elem(&offcpu_start, &prev_pid, &prev_info, BPF_ANY);
     }
 
-    struct start_info_t *next_info = (struct start_info_t *)bpf_map_lookup_elem(&start, &next_pid);
+    struct start_info_t *next_info = (struct start_info_t *)bpf_map_lookup_elem(&offcpu_start, &next_pid);
     if (!next_info) {
         return 0;
     }
@@ -142,7 +142,7 @@ KRAWTRACE(sched_switch, bpf_raw_tracepoint_args)
     }
 
 out:
-    bpf_map_delete_elem(&start, &next_pid);
+    bpf_map_delete_elem(&offcpu_start, &next_pid);
     return 0;
 }
 
@@ -187,10 +187,10 @@ int bpf_trace_sched_switch_func(struct trace_event_raw_sched_switch *ctx)
         if (stack_id->kern_stack_id < 0 && stack_id->user_stack_id < 0) {
             return -1;
         }
-        bpf_map_update_elem(&start, &prev_pid, &prev_info, BPF_ANY);
+        bpf_map_update_elem(&offcpu_start, &prev_pid, &prev_info, BPF_ANY);
     }
 
-    struct start_info_t *next_info = (struct start_info_t *)bpf_map_lookup_elem(&start, &next_pid);
+    struct start_info_t *next_info = (struct start_info_t *)bpf_map_lookup_elem(&offcpu_start, &next_pid);
     if (!next_info) {
         return 0;
     }
@@ -217,6 +217,6 @@ int bpf_trace_sched_switch_func(struct trace_event_raw_sched_switch *ctx)
     }
 
 out:
-    bpf_map_delete_elem(&start, &next_pid);
+    bpf_map_delete_elem(&offcpu_start, &next_pid);
     return 0;
 }
