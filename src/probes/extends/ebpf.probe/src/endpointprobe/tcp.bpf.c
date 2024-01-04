@@ -480,7 +480,19 @@ KPROBE(tcp_set_state, pt_regs)
         (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
     }
 
-    if (new_state == TCP_CLOSE) {
+    if (new_state == TCP_CLOSE || new_state == TCP_CLOSE_WAIT || new_state == TCP_FIN_WAIT1) {
+        if (info->role == TCP_CLIENT) {
+            get_connect_sockaddr(&evt, (const struct sock *)sk);
+        } else if (info->role == TCP_SERVER) {
+            get_accept_sockaddr(&evt, (const struct sock *)sk);
+        } else {
+            return 0;
+        }
+
+        evt.evt = EP_STATS_CONN_CLOSE;
+        evt.tgid = info->tgid;
+        evt.role = info->role;
+        (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
         del_sock((const struct sock *)sk);
     }
 

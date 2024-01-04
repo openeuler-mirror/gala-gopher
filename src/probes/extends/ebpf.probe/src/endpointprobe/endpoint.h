@@ -26,6 +26,8 @@ enum socket_evt_e {
     EP_STATS_RST_SENT,
     EP_STATS_RST_RCVS,
 
+    EP_STATS_CONN_CLOSE,
+
     // udp event
     EP_STATS_QUE_RCV_FAILED,
     EP_STATS_UDP_SENDS,
