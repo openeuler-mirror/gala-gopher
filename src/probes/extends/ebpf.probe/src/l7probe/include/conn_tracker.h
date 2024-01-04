@@ -39,7 +39,10 @@ enum l7_stats_t {
 
     REQ_COUNT,
     RSP_COUNT,
+
     ERR_COUNT,
+    CLIENT_ERR_COUNT,
+    SERVER_ERR_COUNT,
 
     __MAX_STATS
 };
@@ -137,9 +140,29 @@ struct l7_link_id_s {
     int tgid;
     struct conn_addr_s client_addr; // TCP client IP address;
     struct conn_addr_s server_addr; // TCP server IP address; UDP remote address;
-    enum l4_role_t l4_role;     // TCP client or server; udp unknow
+    enum l4_role_t l4_role;     // TCP client or server; udp unknown
     enum l7_role_t l7_role;     // RPC client or server
     enum proto_type_t protocol; // L7 protocol type
+};
+
+/**
+ * l7 api statistic
+ */
+struct l7_api_statistic_s {
+    H_HANDLE;
+    struct api_stats_id id;
+
+    u64 stats[__MAX_STATS];
+    struct histo_bucket_s latency_buckets[__MAX_LT_RANGE];
+
+    float throughput[__MAX_THROUGHPUT];
+    float latency[__MAX_LATENCY];
+    float err_ratio;
+    u64 latency_sum;
+    time_t last_rcv_data;
+
+    float client_err_ratio;
+    float server_err_ratio;
 };
 
 struct l7_link_s {
@@ -148,6 +171,9 @@ struct l7_link_s {
     struct l7_info_s l7_info;
     char *client_ip;
     char *server_ip;
+
+    struct l7_api_statistic_s *l7_statistic;
+
     u64 stats[__MAX_STATS];
     struct histo_bucket_s latency_buckets[__MAX_LT_RANGE];
     float throughput[__MAX_THROUGHPUT];
