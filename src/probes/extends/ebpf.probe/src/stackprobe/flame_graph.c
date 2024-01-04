@@ -52,22 +52,6 @@ static char *appname[STACK_SVG_MAX] = {
 };
 
 #ifdef FLAMEGRAPH_SVG
-static FILE *__open_flame_graph_fp(struct stack_svg_mng_s *svg_mng)
-{
-    struct stack_flamegraph_s *sfg;
-
-    sfg = &(svg_mng->flame_graph);
-    if (sfg->fp) {
-        (void)pclose(sfg->fp);
-        sfg->fp = NULL;
-    }
-    sfg->fp = fopen(sfg->flame_graph_file, "a+");
-    if (sfg->fp == NULL) {
-        ERROR("[FLAMEGRAPH]: open file failed.(%s)\n", sfg->flame_graph_file);
-    }
-    return sfg->fp;
-}
-
 static void __mkdir_flame_graph_path(struct stack_svg_mng_s *svg_mng)
 {
     FILE *fp;
@@ -80,6 +64,26 @@ static void __mkdir_flame_graph_path(struct stack_svg_mng_s *svg_mng)
         (void)pclose(fp);
     }
     return;
+}
+
+static FILE *__open_flame_graph_fp(struct stack_svg_mng_s *svg_mng)
+{
+    struct stack_flamegraph_s *sfg;
+
+    sfg = &(svg_mng->flame_graph);
+    if (sfg->fp) {
+        (void)pclose(sfg->fp);
+        sfg->fp = NULL;
+    }
+    sfg->fp = fopen(sfg->flame_graph_file, "a+");
+    if (sfg->fp == NULL) {
+        __mkdir_flame_graph_path(svg_mng);
+        sfg->fp = fopen(sfg->flame_graph_file, "a+");
+        if (sfg->fp == NULL) {
+            ERROR("[FLAMEGRAPH]: open file failed.(%s)\n", sfg->flame_graph_file);
+        }
+    }
+    return sfg->fp;
 }
 
 static char *__get_flame_graph_file(struct stack_svg_mng_s *svg_mng)

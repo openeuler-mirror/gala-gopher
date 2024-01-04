@@ -147,6 +147,7 @@ struct stack_trace_s {
     int py_symbols_map_fd;
     int py_symbol_ids_map_fd;
     int py_sample_heap_map_fd;
+    int offcpu_start_fd;
     u64 convert_stack_count;
     time_t running_times;
     struct post_server_s post_server;

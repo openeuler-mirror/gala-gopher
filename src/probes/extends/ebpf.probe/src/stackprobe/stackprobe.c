@@ -209,6 +209,7 @@ static void unload_stackprobe_snoopers()
             proc.proc_id = g_ipc_body.snooper_objs[i].obj.proc.proc_id;
             (void)bpf_map_delete_elem(g_st->proc_obj_map_fd, &proc);
             (void)bpf_map_delete_elem(g_st->py_proc_map_fd, &proc.proc_id);
+            (void)bpf_map_delete_elem(g_st->offcpu_start_fd, &proc.proc_id);
         }
     }
 }
@@ -1660,6 +1661,9 @@ static int load_bpf_prog(struct svg_stack_trace_s *svg_st, const char *prog_name
             ERROR("[STACKPROBE]: Failed to init python sample heap map, ret=%d\n", ret);
             goto err;
         }
+    }
+    if ((svg_type == STACK_SVG_OFFCPU) && g_st->offcpu_start_fd == 0) {
+        g_st->offcpu_start_fd = BPF_OBJ_GET_MAP_FD(svg_st->obj, "offcpu_start");
     }
 
     svg_st->perf_buff_a = perf_buff_a;
