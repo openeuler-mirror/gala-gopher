@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <stdarg.h>
 
+#include "syscall.h"
 #include "nprobe_fprintf.h"
 #include "probe_mng.h"
 
@@ -43,11 +44,19 @@ void *native_probe_thread_cb(void *arg)
     snprintf(thread_name, MAX_THREAD_NAME_LEN - 1, "[PROBE]%s", g_probe->name);
     prctl(PR_SET_NAME, thread_name);
 
+    (void)pthread_rwlock_wrlock(&g_probe->rwlock);
+    g_probe->pid = (int)gettid();
+    (void)pthread_rwlock_unlock(&g_probe->rwlock);
+
     SET_PROBE_FLAGS(g_probe, PROBE_FLAGS_RUNNING);
     UNSET_PROBE_FLAGS(g_probe, PROBE_FLAGS_STOPPED);
 
     g_probe->probe_entry(&(g_probe->probe_param));
+    SET_PROBE_FLAGS(g_probe, PROBE_FLAGS_STOPPED);
+    UNSET_PROBE_FLAGS(g_probe, PROBE_FLAGS_RUNNING);
+    clear_ipc_msg((long)g_probe->probe_type);
 }
+
 static inline int __isdigit(int ch)
 {
     return (ch >= '0') && (ch <= '9');
