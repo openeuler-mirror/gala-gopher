@@ -18,12 +18,13 @@
 #define BPF_PROG_KERN
 #include "bpf.h"
 #include "syscall.bpf.h"
+#include "syscall_tp_args.h"
 
 char g_license[] SEC("license") = "GPL";
 
-SET_SYSCALL_PARAMS(read)
+SET_TP_SYSCALL_PARAMS(read)
 {
-    sce->ext_info.fd_info.fd = (int)_(PT_REGS_PARM1(regs));
+    sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(read)
@@ -32,9 +33,9 @@ SET_SYSCALL_META(read)
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
-SET_SYSCALL_PARAMS(write)
+SET_TP_SYSCALL_PARAMS(write)
 {
-    sce->ext_info.fd_info.fd = (int)_(PT_REGS_PARM1(regs));
+    sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(write)
@@ -43,9 +44,9 @@ SET_SYSCALL_META(write)
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
-SET_SYSCALL_PARAMS(readv)
+SET_TP_SYSCALL_PARAMS(readv)
 {
-    sce->ext_info.fd_info.fd = (int)_(PT_REGS_PARM1(regs));
+    sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(readv)
@@ -54,9 +55,9 @@ SET_SYSCALL_META(readv)
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
-SET_SYSCALL_PARAMS(writev)
+SET_TP_SYSCALL_PARAMS(writev)
 {
-    sce->ext_info.fd_info.fd = (int)_(PT_REGS_PARM1(regs));
+    sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(writev)
@@ -65,9 +66,9 @@ SET_SYSCALL_META(writev)
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
-SET_SYSCALL_PARAMS(preadv)
+SET_TP_SYSCALL_PARAMS(preadv)
 {
-    sce->ext_info.fd_info.fd = (int)_(PT_REGS_PARM1(regs));
+    sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(preadv)
@@ -76,9 +77,9 @@ SET_SYSCALL_META(preadv)
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
-SET_SYSCALL_PARAMS(pwritev)
+SET_TP_SYSCALL_PARAMS(pwritev)
 {
-    sce->ext_info.fd_info.fd = (int)_(PT_REGS_PARM1(regs));
+    sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(pwritev)
@@ -87,7 +88,7 @@ SET_SYSCALL_META(pwritev)
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
-SET_SYSCALL_PARAMS(sync) { return; }
+SET_TP_SYSCALL_PARAMS(sync) { return; }
 
 SET_SYSCALL_META(sync)
 {
@@ -95,9 +96,9 @@ SET_SYSCALL_META(sync)
     scm->flag = SYSCALL_FLAG_STACK;
 }
 
-SET_SYSCALL_PARAMS(fsync)
+SET_TP_SYSCALL_PARAMS(fsync)
 {
-    sce->ext_info.fd_info.fd = (int)_(PT_REGS_PARM1(regs));
+    sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(fsync)
@@ -106,9 +107,9 @@ SET_SYSCALL_META(fsync)
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
-SET_SYSCALL_PARAMS(fdatasync)
+SET_TP_SYSCALL_PARAMS(fdatasync)
 {
-    sce->ext_info.fd_info.fd = (int)_(PT_REGS_PARM1(regs));
+    sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(fdatasync)
@@ -117,24 +118,12 @@ SET_SYSCALL_META(fdatasync)
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
-#if defined(__TARGET_ARCH_x86)
-KPROBE_SYSCALL(__x64_sys_, read)
-KPROBE_SYSCALL(__x64_sys_, readv)
-KPROBE_SYSCALL(__x64_sys_, write)
-KPROBE_SYSCALL(__x64_sys_, writev)
-KPROBE_SYSCALL(__x64_sys_, preadv)
-KPROBE_SYSCALL(__x64_sys_, pwritev)
-KPROBE_SYSCALL(__x64_sys_, sync)
-KPROBE_SYSCALL(__x64_sys_, fsync)
-KPROBE_SYSCALL(__x64_sys_, fdatasync)
-#elif defined(__TARGET_ARCH_arm64)
-KPROBE_SYSCALL(__arm64_sys_, read)
-KPROBE_SYSCALL(__arm64_sys_, readv)
-KPROBE_SYSCALL(__arm64_sys_, write)
-KPROBE_SYSCALL(__arm64_sys_, writev)
-KPROBE_SYSCALL(__arm64_sys_, preadv)
-KPROBE_SYSCALL(__arm64_sys_, pwritev)
-KPROBE_SYSCALL(__arm64_sys_, sync)
-KPROBE_SYSCALL(__arm64_sys_, fsync)
-KPROBE_SYSCALL(__arm64_sys_, fdatasync)
-#endif
+TP_SYSCALL(read)
+TP_SYSCALL(readv)
+TP_SYSCALL(write)
+TP_SYSCALL(writev)
+TP_SYSCALL(preadv)
+TP_SYSCALL(pwritev)
+TP_SYSCALL(sync)
+TP_SYSCALL(fsync)
+TP_SYSCALL(fdatasync)

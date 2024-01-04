@@ -24,13 +24,10 @@
 char g_linsence[] SEC("license") = "GPL";
 
 #if defined(__TARGET_ARCH_x86)
-KPROBE_SYSCALL(__x64_sys_, fork, fork, TASK_PROBE_FORK_SYSCALL)
-KPROBE_SYSCALL(__x64_sys_, vfork, vfork, TASK_PROBE_FORK_SYSCALL)
-KPROBE_SYSCALL(__x64_sys_, clone, clone, TASK_PROBE_FORK_SYSCALL)
-
+TP_SYSCALL(fork, fork, TASK_PROBE_FORK_SYSCALL)
+TP_SYSCALL(vfork, vfork, TASK_PROBE_FORK_SYSCALL)
 #elif defined(__TARGET_ARCH_arm64)
 KPROBE_SYSCALL(__arm64_sys_, fork, fork, TASK_PROBE_FORK_SYSCALL)
 KPROBE_SYSCALL(__arm64_sys_, vfork, vfork, TASK_PROBE_FORK_SYSCALL)
-KPROBE_SYSCALL(__arm64_sys_, clone, clone, TASK_PROBE_FORK_SYSCALL)
-
 #endif
+TP_SYSCALL(clone, clone, TASK_PROBE_FORK_SYSCALL)

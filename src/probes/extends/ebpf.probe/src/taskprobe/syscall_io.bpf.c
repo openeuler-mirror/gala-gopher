@@ -23,16 +23,8 @@
 
 char g_linsence[] SEC("license") = "GPL";
 
-#if defined(__TARGET_ARCH_x86)
-KPROBE_SYSCALL(__x64_sys_, mount, mount, TASK_PROBE_IO_SYSCALL)
-KPROBE_SYSCALL(__x64_sys_, umount, umount, TASK_PROBE_IO_SYSCALL)
-KPROBE_SYSCALL(__x64_sys_, read, read, TASK_PROBE_IO_SYSCALL)
-KPROBE_SYSCALL(__x64_sys_, write, write, TASK_PROBE_IO_SYSCALL)
-KPROBE_SYSCALL(__x64_sys_, fsync, fsync, TASK_PROBE_IO_SYSCALL)
-#elif defined(__TARGET_ARCH_arm64)
-KPROBE_SYSCALL(__arm64_sys_, mount, mount, TASK_PROBE_IO_SYSCALL)
-KPROBE_SYSCALL(__arm64_sys_, umount, umount, TASK_PROBE_IO_SYSCALL)
-KPROBE_SYSCALL(__arm64_sys_, read, read, TASK_PROBE_IO_SYSCALL)
-KPROBE_SYSCALL(__arm64_sys_, write, write, TASK_PROBE_IO_SYSCALL)
-KPROBE_SYSCALL(__arm64_sys_, fsync, fsync, TASK_PROBE_IO_SYSCALL)
-#endif
+TP_SYSCALL(mount, mount, TASK_PROBE_IO_SYSCALL)
+TP_SYSCALL(umount, umount, TASK_PROBE_IO_SYSCALL)
+TP_SYSCALL(read, read, TASK_PROBE_IO_SYSCALL)
+TP_SYSCALL(write, write, TASK_PROBE_IO_SYSCALL)
+TP_SYSCALL(fsync, fsync, TASK_PROBE_IO_SYSCALL)

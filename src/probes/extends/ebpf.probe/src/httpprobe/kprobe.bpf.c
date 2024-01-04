@@ -37,6 +37,20 @@ struct {
     __uint(max_entries, 1);
 } args_map SEC(".maps");
 
+// /sys/kernel/debug/tracing/events/syscalls/sys_exit_accept/format
+struct sys_exit_accept_args {
+    unsigned long long __unused__;
+    long __syscall_nr;
+    long ret;
+};
+
+// /sys/kernel/debug/tracing/events/syscalls/sys_exit_accept4/format
+struct sys_exit_accept4_args {
+    unsigned long long __unused__;
+    long __syscall_nr;
+    long ret;
+};
+
 #ifndef PERIOD
 #define PERIOD NS(5)
 #endif
@@ -118,13 +132,8 @@ static __always_inline void handle_req(struct pt_regs *ctx)
     data->recvtime = bpf_ktime_get_ns();
 }
 
-KRETPROBE(__sys_accept4, pt_regs)
+static __always_inline int handle_sys_accept4(int skfd)
 {
-    int skfd = (int)PT_REGS_RC(ctx);
-    if (skfd < 0) {
-        return 0;
-    }
-
     struct conn_key_t ckey = {0};
     struct conn_data_t cdata = {0};
     struct conn_samp_key_t cskey = {0};
@@ -143,6 +152,26 @@ KRETPROBE(__sys_accept4, pt_regs)
     csdata.status = READY_FOR_WRITE;
     bpf_map_update_elem(&conn_samp_map, &cskey, &csdata, BPF_ANY);
     return 0;
+}
+
+bpf_section("tracepoint/syscalls/sys_exit_accept4")
+int function_sys_exit_accept4(struct sys_exit_accept4_args *ctx)
+{
+    int skfd = (int)(ctx->ret);
+    if (skfd < 0) {
+        return 0;
+    }
+    return handle_sys_accept4(skfd);
+}
+
+bpf_section("tracepoint/syscalls/sys_exit_accept")
+int function_sys_exit_accept(struct sys_exit_accept_args *ctx)
+{
+    int skfd = (int)(ctx->ret);
+    if (skfd < 0) {
+        return 0;
+    }
+    return handle_sys_accept4(skfd);
 }
 
 KPROBE_RET(__sys_recvfrom, pt_regs, CTX_USER)
