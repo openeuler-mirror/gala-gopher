@@ -82,4 +82,25 @@ static __always_inline __maybe_unused struct proc_data_s* get_syscall_op_us(u64 
             return 0; \
         }
 
+#define TP_SYSCALL(func, field, flags) \
+        bpf_section("tracepoint/syscalls/sys_exit_" #func) \
+        int function_sys_exit_##func(void *ctx) \
+        { \
+            u64 res; \
+            struct proc_data_s *proc = get_syscall_op_us(&res); \
+            \
+            if (proc && (res > proc->syscall.ns_##field)) { \
+                proc->syscall.ns_##field = res; \
+                report_proc(ctx, proc, flags); \
+            } \
+            return 0; \
+        } \
+        \
+        bpf_section("tracepoint/syscalls/sys_enter_" #func) \
+        int function_sys_enter_##func(void *ctx) \
+        { \
+            store_syscall_op_start_ts(); \
+            return 0; \
+        }
+
 #endif
