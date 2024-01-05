@@ -2517,10 +2517,6 @@ out:
     }
 }
 
-#ifdef EBPF_RLIM_LIMITED
-#undef EBPF_RLIM_LIMITED
-#endif
-#define EBPF_RLIM_LIMITED  500*1024*1024 // 500M
 int main(int argc, char **argv)
 {
     int err = -1;
