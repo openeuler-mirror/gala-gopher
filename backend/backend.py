@@ -26,10 +26,9 @@ operate_url_prefix = "/admin-api/system/user/"
 keep_alive_url_prefix = "/a-ops/keepalive"
 next = []
 keep_alive_wait_port = ""
-is_batch_write_disk = []
+is_batch_write_disk = 0
 count = []
 update_file = "/home/file.txt"
-batch_update_file = "/home/batch_update_file.txt"
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -54,6 +53,17 @@ def random_name():
     for i in range(10):
         index = random.randint(0, len(name) - 1)
         last += name[index]
+    return last
+
+
+# 随机生成数字
+def random_number():
+    number = "0123456789"
+    last = ""
+    # 随机生成5个字符组成number
+    for i in range(5):
+        index = random.randint(0, len(number) - 1)
+        last += number[index]
     return last
 
 
@@ -82,24 +92,6 @@ class Next:
         self.token = ""
 
 
-class BatchWriteDiskThread(threading.Thread):
-    def __init__(self, if_file, of_file, bs, count):
-        threading.Thread.__init__(self)
-        self.if_file = if_file
-        self.of_file = of_file
-        self.bs = bs
-        self.count = count
-
-    # 执行linux命令进行写盘操作
-    def run(self):
-        if (os.path.exists(self.of_file) is None):
-            return
-        cmd = "dd if=" + self.if_file + " " + "of=" + self.of_file + " " + "bs=" + self.bs + " " + "count=" + str(
-            self.count)
-        os.system(cmd)
-        return
-
-
 class IsBatchWriteThread(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
@@ -107,14 +99,14 @@ class IsBatchWriteThread(threading.Thread):
     # 动态监测是否支持批量写盘
     def run(self):
         while True:
-            with open('backend.json', 'r') as backend_file:
-                backend_data = json.load(backend_file)
-                is_write = backend_data['batch_write_disk']
-                if is_write is not None:
-                    batch_write_disk = backend_data['batch_write_disk']
-                    if (batch_write_disk != None):
-                        is_batch_write_disk.clear()
-                        is_batch_write_disk.append(batch_write_disk)
+            try:
+                with open('backend.json', 'r') as backend_file:
+                    global is_batch_write_disk
+                    backend_data = json.load(backend_file)
+                    is_batch_write_disk = backend_data['batch_write_disk']
+            except:
+                logging.debug("open backend.json error!")
+            time.sleep(5)
 
 
 class KeepAliveHandler(BaseHTTPRequestHandler):
@@ -133,19 +125,10 @@ class KeepAliveThread(threading.Thread):
             httpd.serve_forever()
 
 
-class ReceiveHttpRequestThread(threading.Thread):
-    def __init__(self):
-        threading.Thread.__init__(self)
-
-    def run(self):
-        with HTTPServer((IP, PORT), Handler) as httpd:
-            logging.debug("ReceiveHttpRequestThread serving at port %d", PORT)
-            httpd.serve_forever()
-
-
 class Handler(BaseHTTPRequestHandler):
     # 接收web or backend的put请求
     def do_PUT(self):
+
         parsed_url = urlparse(self.path)
 
         path = parsed_url.path
@@ -166,18 +149,21 @@ class Handler(BaseHTTPRequestHandler):
         elif operate == 'update':
             try:
                 fp = open(update_file, 'a', encoding='utf-8')
-                file_size = 1024
+                file_size = 1024 * 5
                 while fp.tell() < file_size:
                     fp.write("update")
                 fp.close()
-
-                if is_batch_write_disk[len(is_batch_write_disk) - 1] == 1:
-                    # 开启线程进行更新文件、写盘操作
-                    batch_write_disk_thread = BatchWriteDiskThread("/dev/zero", batch_update_file, "4M", 100)
-                    batch_write_disk_thread.start()
             except Exception as e:
                 logging.debug("failed to update update_file. Err: %s", repr(e))
 
+            if is_batch_write_disk == 1:
+                file_path = "/home/batch_update_file_" + str(random_number()) + ".txt"
+
+                # 批量写盘操作
+                cmd = "dd if=/dev/zero of=" + file_path + " bs= 500 count=" + str(1000000)
+                os.system(cmd)
+
+                os.remove(file_path)
             self.send_request_next(operate, None)
         elif operate == 'delete':
             try:
@@ -253,28 +239,24 @@ class Handler(BaseHTTPRequestHandler):
 
                         send_response(self, 'successfully sent create request!')
                     elif operate == 'update' and len(user_id) > 0:
-                        user_id_list = list(user_id.items())
-                        user_id_key, user_id_value = user_id_list[-1]
-                        user_update["id"] = user_id_value
-                        user_update["email"] = random_email()
-
-                        conn.request("PUT", build_url(ip, port, operate_url_prefix, "update", ""),
-                                     json.dumps(user_update),
-                                     token_header)
-                        response = conn.getresponse()
-
-                        send_response(self, 'successfully sent update request!')
+                        for key, value in user_id.items():
+                            user_update["id"] = value
+                            user_update["email"] = random_email()
+                            conn.request("PUT", build_url(ip, port, operate_url_prefix, "update", ""),
+                                         json.dumps(user_update),
+                                         token_header)
+                            response = conn.getresponse()
+                            send_response(self, 'successfully sent update request!')
+                            break
                     elif operate == 'delete' and len(user_id) > 0:
-                        user_id_list = list(user_id.items())
-                        user_id_key, user_id_value = user_id_list[-1]
-                        conn.request("DELETE",
-                                     build_url(ip, port, operate_url_prefix, "delete", user_id_value),
-                                     "", token_header)
-
-                        user_id.popitem()
-                        response = conn.getresponse()
-
-                        send_response(self, 'successfully sent delete request!')
+                        for key, value in user_id.items():
+                            conn.request("DELETE",
+                                         build_url(ip, port, operate_url_prefix, "delete", value),
+                                         "", token_header)
+                            response = conn.getresponse()
+                            send_response(self, 'successfully sent delete request!')
+                            user_id.pop(key)
+                            break
                 conn.close()
             except Exception as e:
                 logging.debug("failed to send request to %s:%d. Err: %s", ip, port, repr(e))
@@ -301,8 +283,9 @@ if __name__ == "__main__":
     thread.start()
 
     # 接收web或backend的http请求
-    http_request_thread = ReceiveHttpRequestThread()
-    http_request_thread.start()
+    with HTTPServer((IP, PORT), Handler) as httpd:
+        logging.debug("ReceiveHttpRequestThread serving at port %d", PORT)
+        httpd.serve_forever()
 
     # 周期发送心跳
     while True:
