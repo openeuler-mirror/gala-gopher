@@ -420,6 +420,7 @@ end:
        but due to the lag in processing jsse messages, if the connection is deleted now,
        the connection will not be found in the cmp_sock_conn(). */
 
+    sock_conn->info.is_reported = 0;
     return 0;
 }
 
