@@ -31,4 +31,5 @@ int set_flame_graph_path(struct stack_svg_mng_s *svg_mng, const char* path, cons
 int set_post_server(struct post_server_s *post_server, const char *pyroscopeServer,
     unsigned int perf_sample_period, char multi_instance_flag);
 void clean_post_server();
+void clean_curl();
 #endif

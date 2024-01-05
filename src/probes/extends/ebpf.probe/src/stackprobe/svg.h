@@ -32,7 +32,6 @@ struct post_info_s {
     int remain_size;
     char *buf_start;
     char *buf;
-    CURL *curl;
 };
 
 #define DAYS_TIME           (24 * 60 *60)   // 1 DAY

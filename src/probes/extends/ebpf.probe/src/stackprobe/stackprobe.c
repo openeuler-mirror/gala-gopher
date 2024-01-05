@@ -2566,6 +2566,7 @@ out:
         destroy_stack_trace(&g_st);
     }
     destroy_ipc_body(&g_ipc_body);
+    clean_curl();
 
     return -err;
 }
