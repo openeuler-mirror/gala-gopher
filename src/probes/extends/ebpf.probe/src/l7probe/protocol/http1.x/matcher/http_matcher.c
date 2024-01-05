@@ -110,16 +110,11 @@ static void add_http_record_into_buf(http_record *record, struct record_buf_s *r
 void http_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *resp_frames, struct record_buf_s *record_buf)
 {
     DEBUG("[HTTP1.x MATCHER] Start to match http req and resp into record.\n");
-    record_buf->err_count = 0;
-    record_buf->record_buf_size = 0;
-    record_buf->req_count = req_frames->frame_buf_size;
-    record_buf->resp_count = resp_frames->frame_buf_size;
-
     http_record record = {0};
 
     // define the placeholder of message, and set the timestamp to the MAX
     http_message placeholder_msg = {0};
-    placeholder_msg.timestamp_ns = INT64_MAX;
+    placeholder_msg.timestamp_ns = UINT64_MAX;
 
     // process circularly, continue matching while there is frame in resp buf
     while (resp_frames->current_pos < resp_frames->frame_buf_size) {
@@ -157,5 +152,7 @@ void http_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *resp_
         // if the req in record is placeholder, then go on the cycle
         ++resp_frames->current_pos;
     }
+    record_buf->req_count = req_frames->current_pos;
+    record_buf->resp_count = resp_frames->current_pos;
     DEBUG("[HTTP1.x MATCHER] match finished.\n");
 }
