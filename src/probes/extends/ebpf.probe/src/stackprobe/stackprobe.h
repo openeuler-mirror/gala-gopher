@@ -24,7 +24,7 @@
 
 #define BPF_FUNC_NAME_LEN 32
 #define APP_SUFFIX_LEN 64
-
+#define MEM_SEC_NUM 5
 #define JSTACK_AGENT_FILE       "JstackProbeAgent.jar"
 
 struct stack_symbs_s {
@@ -108,6 +108,7 @@ struct stack_param_s {
 struct svg_stack_trace_s {
     int bpf_prog_fd;
     struct bpf_object *obj;
+    struct bpf_link *links[MEM_SEC_NUM];
     const char *custom_btf_path;
     pthread_t wr_flame_thd;
 

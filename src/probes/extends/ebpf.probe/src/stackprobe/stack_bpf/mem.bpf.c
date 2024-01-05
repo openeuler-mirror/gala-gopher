@@ -23,6 +23,8 @@
 
 char g_linsence[] SEC("license") = "GPL";
 
+#define PAGE_SIZE 4096
+
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 64);
@@ -59,7 +61,7 @@ struct page_fault_args {
 
 static __always_inline int report_stack(struct page_fault_args *ctx)
 {
-    struct raw_trace_s raw_trace = {.count = 1};
+    struct raw_trace_s raw_trace = {.count = PAGE_SIZE};
     const u32 zero = 0;
     struct convert_data_t *convert_data = (struct convert_data_t *)bpf_map_lookup_elem(&convert_map, &zero);
     struct py_raw_trace_s *py_trace;

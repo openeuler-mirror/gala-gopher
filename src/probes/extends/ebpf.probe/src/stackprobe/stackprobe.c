@@ -60,6 +60,7 @@
 #else
 #define MEM_PROG       "/opt/gala-gopher/extend_probes/stack_bpf/mem_fp.bpf.o"
 #endif
+#define MEM_GLIBC_PROG       "/opt/gala-gopher/extend_probes/stack_bpf/mem_glibc.bpf.o"
 
 #define CHECK_JRE "java -version >/dev/null 2>&1"
 #define CHECK_JSTACK_PROBE "/opt/gala-gopher/extend_probes/JstackProbeAgent.jar"
@@ -81,7 +82,6 @@
 
 #define IS_IEG_ADDR(addr)     ((addr) != 0xcccccccccccccccc && (addr) != 0xffffffffffffffff)
 
-#define MEM_SEC_NUM 5
 #define HISTO_TMP_LEN   (2 * STACK_SYMBS_LEN)
 #define POST_MAX_STEP_SIZE 1048576 // 1M
 
@@ -104,7 +104,7 @@ typedef struct {
     bpf_buffer_sample_fn cb;
 } FlameProc;
 
-#if 0   // this is for mem_glibc.bpf.c
+#if 1   // this is for mem_glibc.bpf.c
 static struct bpf_link_hash_t *bpf_link_head = NULL;
 
 enum pid_state_t {
@@ -258,6 +258,9 @@ static int get_stack_map_fd(struct stack_trace_s *st)
 
 static struct bpf_buffer* get_pb(struct stack_trace_s *st, struct svg_stack_trace_s *svg_st)
 {
+    if (st == NULL) {
+        return NULL;
+    }
     if (st->is_stackmap_a) {
         return svg_st->perf_buff_a;
     } else {
@@ -745,10 +748,10 @@ static s64 convert_real_count(struct stack_trace_s *st, enum stack_svg_type_e en
     }
 
     if (en_type == STACK_SVG_MEM) {
-        return origin_count * sysconf(_SC_PAGESIZE);
+        return origin_count;
     }
 
-    return  origin_count;
+    return origin_count;
 }
 
 static struct proc_stack_trace_histo_s *get_proc_histo_item(struct svg_stack_trace_s *svg_st, int proc_id)
@@ -804,6 +807,7 @@ static int add_stack_symbs_str(struct stack_trace_s *st, struct proc_stack_trace
 static char *stack_tmp_files[STACK_SVG_MAX] = {
     "stacks-oncpu.txt",
     "stacks-offcpu.txt",
+    "stacks-mem.txt",
     "stacks-mem.txt",
     "stacks-io.txt"
 };
@@ -1286,8 +1290,38 @@ static int process_mem_raw_stack_trace(void *ctx, void *data, u32 size)
     return 0;
 }
 
+static int process_mem_glibc_raw_stack_trace(void *ctx, void *data, u32 size)
+{
+    struct raw_stack_trace_s *raw_st;
+    struct py_stack_trace_s *py_st;
+    if (!g_st || !g_st->svg_stack_traces[STACK_SVG_MEM_GLIBC] || !data) {
+        return 0;
+    }
+
+    if (g_st->is_stackmap_a) {
+        raw_st = g_st->svg_stack_traces[STACK_SVG_MEM_GLIBC]->raw_stack_trace_a;
+        py_st = g_st->svg_stack_traces[STACK_SVG_MEM_GLIBC]->py_stack_trace_a;
+    } else {
+        raw_st = g_st->svg_stack_traces[STACK_SVG_MEM_GLIBC]->raw_stack_trace_b;
+        py_st = g_st->svg_stack_traces[STACK_SVG_MEM_GLIBC]->py_stack_trace_b;
+    }
+
+    if (!raw_st) {
+        return 0;
+    }
+
+    if (add_raw_stack_id_with_py(raw_st, (struct raw_trace_s *)data, py_st)) {
+        g_st->stats.count[STACK_STATS_LOSS]++;
+    } else {
+        g_st->stats.count[STACK_STATS_RAW]++;
+    }
+
+    return 0;
+}
+
 static void destroy_svg_stack_trace(struct svg_stack_trace_s **ptr_svg_st)
 {
+    int i;
     struct svg_stack_trace_s *svg_st = *ptr_svg_st;
 
     if (svg_st->wr_flame_thd > 0) {
@@ -1297,6 +1331,13 @@ static void destroy_svg_stack_trace(struct svg_stack_trace_s **ptr_svg_st)
     *ptr_svg_st = NULL;
     if (!svg_st) {
         return;
+    }
+
+    for (i = 0; i < MEM_SEC_NUM; i++) {
+        if (svg_st->links[i] == NULL) {
+            break;
+        }
+        bpf_link__destroy(svg_st->links[i]);
     }
 
     if (svg_st->obj) {
@@ -1753,19 +1794,18 @@ err:
 static int attach_offcpu_bpf_prog(struct ipc_body_s *ipc_body, struct svg_stack_trace_s *svg_st)
 {
     int err;
-
     int i = 0;
     struct bpf_program *prog;
-    struct bpf_link *links;
+
     bpf_object__for_each_program(prog, svg_st->obj) {
         if (!bpf_program__autoload((const struct bpf_program *)prog)) {
             continue;
         }
-        links = bpf_program__attach(prog);
-        err = libbpf_get_error(links);
+        svg_st->links[i] = bpf_program__attach(prog);
+        err = libbpf_get_error(svg_st->links[i]);
         if (err) {
             ERROR("[STACKPROBE]: attach offcpu bpf failed %d\n", err);
-            links = NULL;
+            svg_st->links[i] = NULL;
             goto cleanup;
         }
         i++;
@@ -1775,11 +1815,14 @@ static int attach_offcpu_bpf_prog(struct ipc_body_s *ipc_body, struct svg_stack_
     return 0;
 
 cleanup:
-    bpf_link__destroy(links);
+    for (i--; i >= 0; i--) {
+        bpf_link__destroy(svg_st->links[i]);
+        svg_st->links[i] = NULL;
+    }
     return -1;
 }
 
-#if 0   // this is for mem_glibc.bpf.c
+#if 1   // this is for mem_glibc.bpf.c
 static void set_pids_inactive()
 {
     struct bpf_link_hash_t *item, *tmp;
@@ -1963,6 +2006,7 @@ static void *__uprobe_attach_check(void *arg)
                     pid_bpf_links->v.bpf_links[i] = NULL;
                     for (i--; i >= 0; i--) {
                         bpf_link__destroy(pid_bpf_links->v.bpf_links[i]);
+                        pid_bpf_links->v.bpf_links[i] = NULL;
                     }
                 }
             }
@@ -1983,17 +2027,16 @@ static int attach_mem_pagefault_or_fp_bpf_prog(struct ipc_body_s *ipc_body, stru
     int err;
     int i = 0;
     struct bpf_program *prog;
-    struct bpf_link *links[MEM_SEC_NUM] = {0};
 
     bpf_object__for_each_program(prog, svg_st->obj) {
         if (!bpf_program__autoload((const struct bpf_program *)prog)) {
             continue;
         }
-        links[i] = bpf_program__attach(prog);
-        err = libbpf_get_error(links[i]); 
+        svg_st->links[i] = bpf_program__attach(prog);
+        err = libbpf_get_error(svg_st->links[i]); 
         if (err) {
             ERROR("[STACKPROBE]: attach mem bpf failed %d\n", err);
-            links[i] = NULL;
+            svg_st->links[i] = NULL;
             goto cleanup;
         }
         i++;
@@ -2003,13 +2046,14 @@ static int attach_mem_pagefault_or_fp_bpf_prog(struct ipc_body_s *ipc_body, stru
     return 0;
 cleanup:
     for (i--; i >= 0; i--) {
-        bpf_link__destroy(links[i]);
+        bpf_link__destroy(svg_st->links[i]);
+        svg_st->links[i] = NULL;
     }
 
     return -1;
 }
 
-#if 0   // this is for mem_glibc.bpf.c
+#if 1   // this is for mem_glibc.bpf.c
 static int attach_mem_glibc_bpf_prog(struct ipc_body_s *ipc_body, struct svg_stack_trace_s *svg_st)
 {
     int err;
@@ -2191,7 +2235,7 @@ static int set_jstack_args(struct java_attach_args *attach_args)
     int len = ATTACH_TYPE_LEN;
     int ret;
     char *pos = attach_args->action; // eg: oncpu|offcpu|mem|,10
-    char *flame_types[] = {"oncpu", "offcpu", "mem", "io"};
+    char *flame_types[] = {"oncpu", "offcpu", "mem", "mem", "io"}; // It’s okay if there are the same items
     u32 perf_sample_period = g_st->post_server.perf_sample_period;
     attach_args->action[0] = 0;
     for (int i = 0; i < STACK_SVG_MAX; i++) {
@@ -2368,6 +2412,7 @@ static int init_enabled_svg_stack_traces(struct ipc_body_s *ipc_body)
         { PROBE_RANGE_ONCPU, STACK_SVG_ONCPU, "oncpu", ON_CPU_PROG, attach_oncpu_bpf_prog, process_oncpu_raw_stack_trace},
         { PROBE_RANGE_OFFCPU, STACK_SVG_OFFCPU, "offcpu", OFF_CPU_PROG, attach_offcpu_bpf_prog, process_offcpu_raw_stack_trace},
         { PROBE_RANGE_MEM, STACK_SVG_MEM, "mem", MEM_PROG, attach_mem_bpf_prog, process_mem_raw_stack_trace},
+        { PROBE_RANGE_MEM_GLIBC, STACK_SVG_MEM_GLIBC, "mem_glibc", MEM_GLIBC_PROG, attach_mem_glibc_bpf_prog, process_mem_glibc_raw_stack_trace},
         { PROBE_RANGE_IO, STACK_SVG_IO, "io", IO_PROG, NULL, NULL},
     };
     

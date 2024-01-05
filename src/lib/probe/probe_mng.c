@@ -75,6 +75,7 @@ struct probe_range_define_s probe_range_define[] = {
     {PROBE_FG,     "oncpu",               PROBE_RANGE_ONCPU},
     {PROBE_FG,     "offcpu",              PROBE_RANGE_OFFCPU},
     {PROBE_FG,     "mem",                 PROBE_RANGE_MEM},
+    {PROBE_FG,     "mem_glibc",           PROBE_RANGE_MEM_GLIBC},
     {PROBE_FG,     "io",                  PROBE_RANGE_IO},
 
     {PROBE_L7,     "l7_bytes_metrics",    PROBE_RANGE_L7BYTES_METRICS},

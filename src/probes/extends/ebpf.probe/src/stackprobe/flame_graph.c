@@ -48,6 +48,7 @@ static char *appname[STACK_SVG_MAX] = {
     "gala-gopher-oncpu",
     "gala-gopher-offcpu",
     "gala-gopher-mem",
+    "gala-gopher-mem_glibc",
     "gala-gopher-io"
 };
 

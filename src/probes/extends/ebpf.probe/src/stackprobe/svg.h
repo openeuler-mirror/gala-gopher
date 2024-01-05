@@ -42,6 +42,7 @@ enum stack_svg_type_e {
     STACK_SVG_ONCPU = 0,
     STACK_SVG_OFFCPU = 1,
     STACK_SVG_MEM,
+    STACK_SVG_MEM_GLIBC,
     STACK_SVG_IO,
     STACK_SVG_MAX
 };
