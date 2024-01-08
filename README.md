@@ -2,7 +2,7 @@
 
 ![](./doc/pic/logo.png)
 
-### 什么是gala-gopher
+## 什么是gala-gopher
 
 gala-gopher是gala项目内负责数据采集的组件，其为gala项目提供Metrics、Event、Perf等数据，便于gala项目完成系统拓扑的绘制和故障根因的定位。   
 gala-gopher是一款结合eBPF、java agent等非侵入可观测技术的观测平台，探针是gala-gopher用于观测和采集数据的主要工具，通过探针式架构gala-gopher可以轻松实现增加、减少探针。    
@@ -31,7 +31,7 @@ gala-gopher是一款结合eBPF、java agent等非侵入可观测技术的观测�
 
 云原生场景会部署大量微服务，微服务之间访问性能的波动会直接影响整体业务效果，使用gala-gopher可以轻松了解每个微服务（或者POD）的[访问时延、吞吐量、错误率性能](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%BA%94%E7%94%A8%E6%80%A7%E8%83%BD)。
 
-其支持微服务之间的访问协议包括：HTTP 1.X，PGSQL，#Redis，#DNS，#HTTP2.0，#Dubbo，#MySQL，#Kafka；
+其支持微服务之间的访问协议包括：HTTP 1.X，PGSQL，Redis，#DNS，#HTTP2.0，#Dubbo，#MySQL，#Kafka（#表示规划中）；
 
 支持加密场景：C/C++语言（OpenSSL 1.1.0/1.1.1）; GO语言（GoTLS）；Java语言（JSSE类库）
 
@@ -83,272 +83,6 @@ Redis/PostgreSQL常用于为应用提供数据存储服务，现有性能监控�
 
 备注：与[应用访问性能监控](https://gitee.com/openeuler/gala-gopher/blob/dev/README.md#%E5%BA%94%E7%94%A8%E5%BE%AE%E6%9C%8D%E5%8A%A1%E8%AE%BF%E9%97%AE%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7)的区别在于，该观测精度略低，但是其底噪更低。
 
-## eBPF如何更好的运行在java场景
-
-### 场景1：持续性能Profiling
-
-gala-gopher提供持续性能Profiling可以持续监控应用的OnCPU、OffCPU、Memory Alloc等性能。监控应用程序使用了eBPF周期性或事件触发式以持续收集应用堆栈信息。
-
-通过java agent获取java函数符号表，eBPF获取堆栈信息，两者结合完成java场景的持续profiling。
-
-![java场景性能Profiling](./doc/pic/java-agent-1.png)
-
-### 场景2：微服务访问性能监控
-
-gala-gopher提供的微服务访问性能监控可以非侵入、多语言的完成L7层流量性能监控能力。在java场景中，java应用会使用JSSE类库进行加密通信，eBPF在内核层获取到L7层流量是加密态，无法完成解析以及性能监控。通过java agent字节码注入技术，将JSSEProbeAgent.jar attach至目标jvm进程完成明文RPC消息的获取，通过临时文件读入L7。
-
-![java场景性能RPC密文观测](./doc/pic/java-agent-2.png)
-
-## 如何解决跨版本兼容性问题
-
-参考[这里](https://gitee.com/openeuler/gala-gopher/blob/dev/doc/compatible.md)。
-
-## 安装指南
-
-### RPM方式部署
-
-- 获取rpm包
-
-  gala-gopher目前已在openEuler 21.09（已停止维护）/openEuler 22.09（已停止维护）/openEuler 22.03-LTS-SP1发布，可以通过配置以上发布版本的正式repo源来获取rpm包（以openEuler 22.03-LTS-SP1为例，需要配置完整的2203 lts的源，很多依赖包是在everything和epol里）；对于其他发布版本我们提供了以下方式来获取rpm包：
-
-  - （1）方法一：OBS 链接，网页手动下载对应架构的rpm包
-
-    ```basic
-    openEuler-20.03-LTS-SP1 : https://build.openeuler.openatom.cn/package/show/home:zpublic:branches:openEuler:20.03:LTS:SP1/gala-gopher
-    openEuler-22.03-LTS : https://build.openeuler.openatom.cn/package/show/home:zpublic:branches:openEuler:22.03:LTS/gala-gopher
-    openEuler-22.03-LTS-SP1 : https://build.openeuler.openatom.cn/package/show/home:zpublic:branches:openEuler:22.03:LTS:SP1/gala-gopher
-    ```
-
-  - （2）方法二：使用命令编译构造rpm包
-    构造rpm包时，主要的文件为gala-gopher.spec，需要根据所在的机器进行以下几点修改
-    
-    1：%define vmlinux_ver 5.10.0-126.0.0.66.oe2203.%{_arch}
-    需要从gala-gopher项目src目录进入，src/probes/extends/ebpf.probe/src/include目录中，根据内核版本、CPU架构选择相应的版本号，该版本号与sh build.sh --debug后填写的版本号是一致的
-    
-    2：Version字段代表版本号，需要与gala-gopher目前的文件名称后的版本号是一致的
-    
-    ```手动给该项目指定版本号 2.0.0
-        mv gala-gopher gala-gopher-2.0.0
-        tar czf gala-gopher-2.0.0.tar.gz gala-gopher-2.0.0   tar包需要与目录名保持一致
-    ```
-    
-    Version后的版本号需要与指定的版本号一致，修改Version后的版本号为2.0.0，即Version：2.0.0
-    
-    3：安装rpm-build
-    
-    ```bash
-      yum install rpm-build
-    ```
-    
-    4：新建目录/root/rpmbuild/SOURCES并将tar包放入目录/root/rpmbuild/SOURCES目录中
-    
-    ```bash
-          mv gala-gopher-2.0.0.tar.gz  /root/rpmbuild/SOURCES
-    ```
-    
-    5：构建rpm包
-    
-    ```bash
-          rpmbuild -ba gala-gopher.spec
-    ```
-    
-    执行目录后，查看编译的输出，看到生成的rpm包文件被存放在/root/rpmbuild/RPMS/x86_64/目录下，看一下示例的输出
-    
-    ```
-          /root/rpmbuild/RPMS/x86_64/gala-gopher-debugsource-2.0.0-1.ky10.x86_64.rpm
-          /root/rpmbuild/RPMS/x86_64/gala-gopher-2.0.0-1.ky10.x86_64.rpm
-          /root/rpmbuild/RPMS/x86_64/gala-gopher-debuginfo-2.0.0-1.ky10.x86_64.rpm
-    ```
-  
-- rpm安装
-
-  （1）如果是通过OBS 链接从网页手动下载对应架构的rpm包，则rpm安装的方法
-  
-    ```bash
-           yum install gala-gopher
-    ```
-  
-    注：1. 上面指令中 gala-gopher 应填写完整包名，如gala-gopher-1.0.2-2.oe2203.x86_64.rpm。2. 当使用yum指令前，用户应自行配置yum源。
-
-  （2）如果是通过rpmbuild命令编译构建的rpm包，则rpm安装的方法
-  
-    ```bash
-           yum install /root/rpmbuild/RPMS/x86_64/gala-gopher-2.0.0-1.ky10.x86_64.rpm
-    ```
-- 启动服务
-
-  通过 systemd 启动后台服务：
-
-  ```bash
-  systemctl start gala-gopher.service
-  ```
-
-### 容器方式部署
-
-- 获取容器镜像
-
-  用户可以选择直接[获取官方容器镜像](#docker1)或自行[构建容器镜像](#docker2)
-
-  <a id="docker1"></a>
-
-  - 获取官方容器镜像
-
-    根据系统架构和版本从官方仓库拉取对应tag的gala-gopher官方容器镜像（以openEuler 22.03 LTS SP1为例），目前支持的镜像版本tag有：20.03-lts-sp1，22.03-lts，22.03-lts-sp1，kylin-v10-sp1(仅支持x86_64)，kylin-v10-sp3(仅支持x86_64)：
-
-    ```
-    # x86
-    docker pull hub.oepkgs.net/a-ops/gala-gopher-x86_64:22.03-lts-sp1
-    
-    # aarch64
-    docker pull hub.oepkgs.net/a-ops/gala-gopher-aarch64:22.03-lts-sp1
-    ```
-    
-    注：如果拉取镜像的过程中出现"X509: certificate signed by unknown authority"错误，如果没有文件/etc/docker/daemon.json，则需要新建文件/etc/docker/daemon.json，添加内容如下
-    ```
-    "hub.oepkgs.net"加入到/etc/docker/daemon.json中的"insecure-registries"项后重启docker服务再重试。
-    ```
-  
-  <a id="docker2"></a>
-  
-  - 构建容器镜像
-  
-    获取gala-gopher的rpm包，获取方式详见[RPM方式部署](#RPM方式部署)。
-  
-    用于生成容器镜像的Dockerfile文件归档在[build目录](https://gitee.com/openeuler/gala-gopher/tree/dev/build)，生成方法详见[如何生成gala-gopher容器镜像](https://gitee.com/openeuler/gala-gopher/blob/dev/doc/how_to_build_docker_image.md)。
-  
-- 创建并运行容器
-
-  - 启动容器
-
-    执行如下命令（以创建openEuler 22.03 LTS SP1 x86版本、名字为gala-gopher的容器为例）：
-
-    ```
-    docker run -d --name gala-gopher --privileged --pid=host --network=host \
-    -v /:/host -v /etc/localtime:/etc/localtime:ro -v /sys:/sys \
-    -v /usr/lib/debug:/usr/lib/debug -v /var/lib/docker:/var/lib/docker \
-    -e GOPHER_HOST_PATH=/host \
-    hub.oepkgs.net/a-ops/gala-gopher-x86_64:22.03-lts-sp1
-    ```
-
-    其中，GOPHER_HOST_PATH环境变量用于指定容器外根目录"/"映射到gala-gopher容器内的目录，以便gala-gopher能够正常访问宿主机上的关键文件，必配且建议保持默认/host。
-
-    另外可通过如下环境变量配置gala-gopher，若不指定，则使用配置文件默认配置：
-
-    - GOPHER_LOG_LEVEL：gala-gopher日志输出级别
-    - GOPHER_EVENT_CHANNEL：gala-gopher亚健康巡检异常事件输出方式
-    - GOPHER_META_CHANNEL：gala-gopher观测对象元数据metadata输出方式
-    - GOPHER_KAKFA_SERVER：gala-gopher上报亚健康巡检异常事件、观测对象元数据metadata的kafka服务端IP地址（IP地址中支持指定端口号，若未指定则使用默认端口号9092）
-    - GOPHER_METRIC_ADDR：gala-gopher作为prometheus exporter输出指标数据的监听地址
-    - GOPHER_METRIC_PORT：gala-gopher作为prometheus exporter输出指标数据的监听端口
-    - GOPHER_REST_ADDR：动态配置RESTful API的监听地址
-    - GOPHER_REST_PORT：动态配置RESTful API的监听端口
-    - GOPHER_METRIC_LOGS_TOTAL_SIZE：metrics指标数据日志文件总大小的上限，单位为MB
-    - GOPHER_PROBES_INIT：控制gala-gopher启动后默认开启的探针以及其配置（采集子项、监控对象、参数），每个探针单独一行，每行内容为[采集特性名] [动态配置json]，特性名和json格式参照[REST API说明](https://gitee.com/openeuler/gala-gopher/blob/dev/config/gala-gopher支持动态配置接口设计_v0.3.md)，不配置则启动gala-gopher容器后不开启任何探针。
-
-  - 通过docker ps查看容器是否运行成功：
-
-    ```
-    [root@localhost]# docker ps
-    CONTAINER ID        IMAGE                                                   COMMAND                  CREATED             STATUS                     PORTS                    NAMES
-    0fb3cad0df40        hub.oepkgs.net/a-ops/gala-gopher-x86_64:22.03-lts-sp1   "/entrypoint.sh /usr…"   6 days ago          3 days ago                             gala-gopher
-    ```
-
-- 获取数据
-
-  容器启动后，通过默认的8888端口获取数据来验证gala-gopher是否运行成功，如果启动容器时未通过GOPHER_PROBES_INIT参数指定默认开启的探针，则需要通过[REST API](https://gitee.com/openeuler/gala-gopher/blob/dev/config/gala-gopher支持动态配置接口设计_v0.3.md)开启探针后再获取数据：
-
-  ```
-  [root@localhost]# curl http://localhost:8888
-  ...
-  gala_gopher_udp_que_rcv_drops{tgid="1234",s_addr="192.168.12.34",machine_id="xxxxx",hostname="eaxxxxxxxx02"} 0 1656383357000
-  ...
-  ```
-
-  有指标数据输出则证明gala-gopher运行成功（除了火焰图探针和profiling这两个探针，别的探针采集的数据都可以通过8888端口获取到数据）。
-
-### K8S deployment方式部署
-
-[k8s环境部署指导](https://gitee.com/openeuler/gala-gopher/blob/dev/k8s/README.md)
-
-### 自动化脚本方式部署
-
-用户可以选择rpm包或容器镜像方法部署gala-gopher
-
-- 脚本下载
-
-  首先需要下载[离线资源下载脚本](https://gitee.com/openeuler/gala-docs/blob/master/deploy/download_offline_res.sh)和[辅助脚本](https://gitee.com/openeuler/gala-docs/blob/master/deploy/comm.sh)（两种方法均需要），将两个脚本上传到机器上后执行命令（以下两种命令之一）完成相关离线资源下载，下载内容会存放在当前目录的子目录gala_deploy_gopher下。
-
-- 运行脚本下载资源
-
-  - 对应版本gala-gopher及依赖rpm包下载 
-
-    ```xml
-    sh download_offline_res.sh gopher [os_version]  [os_arch]
-    ```
-
-    os_version、os_arch 可同时配置（或同时使用默认值）：
-
-    - os_version: 指定下载该操作系统版本 gala-gopher 软件包。未配置该项时，使用当前系统版本。支持版本列表：openEuler-22.03-LTS-SP1 openEuler-22.03-LTS openEuler-20.03-LTS-SP1 kylin
-
-    - os_arch: 指定下载该架构 gala-gopher 软件包。未配置该项时，使用当前系统架构。支持架构列表：aarch64 x86_64
-
-  - gala-gopher容器镜像下载     
-
-    指定下载 gala-gopher docker 镜像 tar 和 gala-gopher 配置文件（docker 运行 gala-gopher， 将配置文件映射到宿主机上）。
-
-    ```xml
-    sh download_offline_res.sh gopher
-    ```
-
-    下载 tar 包存放在 gala_deploy_gopher 目录下，文件名格式为`gala-gopher-[os_arch]:[os_tag].tar`。下载内容如下：
-
-    ```
-      gala-gopher-aarch64:22.03-lts-sp1.tar
-    ```
-
-- 工具一键部署
-
-  与上面介绍的两种下载内容对应，分别提供两种gala-gopher部署方法。部署前需将gala_deploy_gopher目录下的所有文件及[部署脚本](https://gitee.com/openeuler/gala-docs/blob/master/deploy/deploy.sh)和[辅助脚本](https://gitee.com/openeuler/gala-docs/blob/master/deploy/comm.sh)上传到目标生产节点机器上，执行如下命令安装、配置、启动gala-gopher服务，-S选项来指定离线安装包所在的目录。
-
-  - rmp包方式部署
-
-  ```xml
-  sh deploy.sh gopher -K <kafka服务器地址> -p <pyroscope服务器地址> -S <离线安装包所在目录>
-  ```
-
-  - gala-gopher容器镜像方式部署
-
-  ```xml
-  sh deploy.sh gopher -K <kafka服务器地址> -p <pyroscope服务器地址> -S <离线安装包所在目录>  --docker
-  ```
-
-  选项详细说明：
-
-  |      选项       |                           参数说明                           |    是否必配    |
-  | :-------------: | :----------------------------------------------------------: | :------------: |
-  |   -K\|--kafka   | 指定gala-gopher上报采集数据的目标kakfa服务器地址（一般来说是管理节点的IP），当不配置该选项时，kafka服务器地址使用localhost |       否       |
-  | -p\|--pyroscope | 指定gala-gopher开启火焰图功能后火焰图上传到的pyroscope服务器地址（用于对接前端界面显示）（一般来说是管理节点的IP），当不配置该选项时，pyroscope服务器地址使用localhost |       否       |
-  |  -S\|--srcdir   | 离线部署时使用该选项来指定gala-gopher以及其依赖包所在的目录  | 离线部署时必配 |
-  |    --docker     |              指定以 docker 方式部署 gala-gopher              |       否       |
-
-### 部署成功验证
-不论以什么方式进行部署，最终都需要验证gala-gopher进程是否启动成功，可以使用命令 ps -ef | grep gala-gopher
-
-
-### 系统集成API及方式
-
-[系统集成API及方式](https://gitee.com/openeuler/gala-gopher/blob/dev/doc/api_doc.md)
-
-<a id="config"></a>
-
-### 配置及参数
-
-[配置文件及参数](https://gitee.com/openeuler/gala-gopher/blob/dev/doc/conf_introduction.md)
-
-[REST API介绍](https://gitee.com/openeuler/gala-gopher/blob/dev/config/gala-gopher%E6%94%AF%E6%8C%81%E5%8A%A8%E6%80%81%E9%85%8D%E7%BD%AE%E6%8E%A5%E5%8F%A3%E8%AE%BE%E8%AE%A1_v0.3.md)
-
-[规格与约束](https://gitee.com/openeuler/gala-gopher/blob/dev/doc/constraints_introduction.md)
-
 ## 软件架构
 
 gala-gopher集成了常用的native探针以及知名中间件探针；gala-gopher有良好的扩展性，能方便的集成各种类型的探针程序，发挥社区的力量丰富探针框架的能力；gala-gopher中的几个主要部件：
@@ -367,7 +101,163 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
 
 - 部署配置文件
 
-  gala-gopher启动配置文件，可自定义具体使能的探针、指定数据上报的对接服务信息（kafka/prometheus等）
+  gala-gopher启动配置文件，可自定义基础框架行为，比如日志级别、指定数据上报的对接服务信息（kafka/prometheus等）。
+
+## 安装指南
+
+### 快速安装
+
+- [RPM方式](#rpm方式)：适用于无容器的单机观测场景，支持OS版本：openEuler 22.03 LTS SP1及以上。
+- [单机容器方式](#单机容器方式)：适用于支持容器化的单机观测场景，支持OS版本：openEuler全系LTS版本（推荐openEuler 22.03 LTS SP1及以上）。
+- [k8s集群方式](#k8s-集群方式)：适用于观测云原生集群多节点场景，支持OS版本：openEuler全系LTS版本（推荐openEuler 22.03 LTS SP1及以上）。
+
+#### RPM方式
+
+1. 获取rpm包
+
+   从[发行版仓库](https://gitee.com/openeuler/gala-gopher/releases)选择合适的版本（推荐最新版），下载对应架构的rpm包。
+
+2. rpm安装
+
+   配置OS版本配套的openEuler repo源，至少包含everything、update、EPOL三个目录（具体配置方法可参考openEuler社区文档《管理员指南》），然后通过如下命令进行安装（以2.0.0-dev发行版x86_64架构为例）：
+
+   ```
+   yum install gala-gopher-2.0.0-1.oe2203sp1.x86_64.rpm
+   ```
+
+3. 启动服务
+
+   通过 systemd 启动后台服务：
+
+   ```
+   systemctl start gala-gopher.service
+   ```
+
+#### 单机容器方式
+
+1. 获取官方容器镜像
+
+   ```
+   # x86_64架构
+   docker pull hub.oepkgs.net/a-ops/gala-gopher-x86_64
+   
+   # aarch64架构
+   docker pull hub.oepkgs.net/a-ops/gala-gopher-aarch64
+   ```
+
+   *注：如果拉取镜像的过程中出现"X509: certificate signed by unknown authority"错误，则需要将"hub.oepkgs.net"加入到/etc/docker/daemon.json（文件不存在时需要手动创建）中的"insecure-registries"项后重启docker服务再重试。*
+
+2. 准备BTF文件
+
+   gala-gopher的跨版本兼容（CO-RE）特性依赖内核BTF文件，在openEuler某些早期版本内核未自带BTF文件，此时需要手动准备。
+
+   用户可以查看系统上/sys/kernel/btf/vmlinux是否存在，如果存在，可以直接跳过本步骤。
+
+   在[openEuler btf 归档仓库](https://gitee.com/openeuler/btfhub-archive)进入对应OS版本和架构目录，下载与内核版本（执行uname -r命令获取）完全一致的btf压缩文件，例如4.19.90-2012.4.0.0053.oe1.x86_64.btf.tar.xz，通过如下命令解压到/home目录：
+
+   ```
+   tar -xf 4.19.90-2012.4.0.0053.oe1.x86_64.btf.tar.xz -C /home/
+   ```
+
+   *注：对于非openEuler操作系统，请寻求OSV厂商支持，或者自行制作BTF文件。*
+
+3. 创建并运行容器
+
+   以x86_64架构为例，aarch64只需要替换最后的镜像名即可：
+
+   1）系统存在/sys/kernel/btf/vmlinux文件时：
+
+   ```
+   docker run -d --name gala-gopher --privileged --pid=host --network=host \
+   -v /:/host -v /etc/localtime:/etc/localtime:ro -v /sys:/sys \
+   -v /usr/lib/debug:/usr/lib/debug -v /var/lib/docker:/var/lib/docker \
+   -e GOPHER_HOST_PATH=/host \
+   hub.oepkgs.net/a-ops/gala-gopher-x86_64
+   ```
+
+   2）系统不存在/sys/kernel/btf/vmlinux文件时，需要将步骤2中准备的btf文件映射到容器中：
+
+   ```
+   docker run -d --name gala-gopher --privileged --pid=host --network=host \
+   -v /:/host -v /etc/localtime:/etc/localtime:ro -v /sys:/sys \
+   -v /usr/lib/debug:/usr/lib/debug -v /var/lib/docker:/var/lib/docker \
+   -v /home/4.19.90-2012.4.0.0053.oe1.x86_64.btf:/opt/gala-gopher/btf/4.19.90-2012.4.0.0053.oe1.x86_64.btf \
+   -e GOPHER_HOST_PATH=/host \
+   hub.oepkgs.net/a-ops/gala-gopher-x86_64
+   ```
+
+#### K8S 集群方式
+
+[k8s环境部署指导](./k8s/README.md)
+
+#### 安装验证
+
+完成安装后，可执行如下命令进行验证，如果命令执行未报错，则表示安装已成功。
+
+```
+curl http://localhost:8888
+```
+
+### 自定义配置
+
+#### 框架配置
+
+gala-gopher启动时框架的行为由配置文件控制，具体见[配置文件说明](./doc/conf_introduction.md)。
+
+在容器/k8s场景下，用户可在部署gala-gopher通过如下参数修改部分配置（不指定参数时则保持默认配置）：
+
+| 变量名                        | 变量作用                                                     | 配置值说明                                                   |
+| ----------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| GOPHER_LOG_LEVEL              | 控制gala-gopher日志输出级别                                  | 可配置如下值：debug/info/warn/error                          |
+| GOPHER_EVENT_CHANNEL          | gala-gopher亚健康巡检异常事件输出方式                        | kafka：通过kafka上报（默认） logs：输出至本地日志            |
+| GOPHER_META_CHANNEL           | gala-gopher观测对象元数据metadata输出方式                    | kafka：通过kafka上报（默认） logs：输出至本地日志            |
+| GOPHER_KAKFA_SERVER           | gala-gopher上报亚健康巡检异常事件、观测对象元数据metadata的kafka服务端IP地址 | GOPHER_EVENT_CHANNEL和GOPHER_META_CHANNEL都设为logs时可设置为空，否则需要设置为有效的kafka服务端IP地址，例如1.2.3.4（IP地址中支持指定端口号，若未指定则使用默认端口号9092） |
+| GOPHER_METRIC_ADDR            | gala-gopher作为prometheus exporter输出指标数据的监听地址     | 建议配置本机有效的网卡IP，默认为0.0.0.0，即全IP监听          |
+| GOPHER_METRIC_PORT            | gala-gopher作为prometheus exporter输出指标数据的监听端口     | 配置有效且未被其他程序占用的端口号，默认为8888               |
+| GOPHER_REST_ADDR              | 动态配置RESTful API的监听地址                                | 建议配置本机有效的网卡IP，默认为0.0.0.0，即全IP监听          |
+| GOPHER_REST_PORT              | 动态配置RESTful API端口号                                    | 配置有效且未被其他程序占用的端口号，默认为9999               |
+| GOPHER_REST_AUTH              | 控制动态配置RESTful接口是否开启https以及证书鉴权             | no：不开启（默认） yes：开启                                 |
+| GOPHER_REST_PRIVATE_KEY       | 动态配置RESTful API开启https的私钥文件路径                   | GOPHER_REST_AUTH为yes时必配，路径为绝对路径                  |
+| GOPHER_REST_CERT              | 动态配置RESTful API开启https的证书文件路径                   | GOPHER_REST_AUTH为yes时必配，路径为绝对路径                  |
+| GOPHER_REST_CAFILE            | 动态配置RESTful API开启鉴权的CA证书文件路径                  | GOPHER_REST_AUTH为yes时必配，路径为绝对路径                  |
+| GOPHER_METRIC_LOGS_TOTAL_SIZE | metrics指标数据日志文件总大小的上限，单位为MB                | 需为正整数，默认为100                                        |
+
+#### 探针配置与启动
+
+默认情况下，gala-gopher启动后不会运行任何探针，用户需要根据实际需求通过RestFul API启动探针，并配置其观测范围、运行参数等。
+
+具体操作指导参考[探针动态配置接口说明](./config/gala-gopher支持动态配置接口设计_v0.3.md)。
+
+#### 配置默认启动探针
+
+为了防止重启gala-gopher服务或者容器时用户需要重新配置与启动探针，gala-gopher提供默认探针配置文件供用户固化探针配置。该文件安装在/etc/gala-gopher/probes.init，配置格式为：**[采集特性] [配置的json语句]**，每个探针一行，例如：
+
+```
+tcp {"cmd":{"bin":"/opt/gala-gopher/extend_probes/tcpprobe","probe":["tcp_rtt","tcp_windows","tcp_abnormal"]},"snoopers":{"proc_name":[{"comm":"java","cmdline":""}]},"params":{"report_event":1},"state":"running"}
+baseinfo {"cmd":{"bin":"system_infos","probe":["cpu","fs","host"]},"state":"running"}
+```
+
+在容器/k8s场景下，用户可在部署gala-gopher通过GOPHER_PROBES_INIT参数来实现该功能（不指定该参数时则保持默认不运行任何探针），例如：
+
+```
+docker run -d --name gala-gopher --privileged --pid=host --network=host \
+-v /:/host -v /etc/localtime:/etc/localtime:ro -v /sys:/sys \
+-v /usr/lib/debug:/usr/lib/debug -v /var/lib/docker:/var/lib/docker \
+-e GOPHER_HOST_PATH=/host \
+-e GOPHER_PROBES_INIT='
+baseinfo {"cmd":{"probe":["cpu","fs","host"]},"state":"running"}
+tcp {"cmd":{"probe":["tcp_rtt"]},"snoopers":{"proc_name":[{"comm":"java"}]},"state":"running"}
+' \
+hub.oepkgs.net/a-ops/gala-gopher-x86_64
+```
+
+### 数据获取与集成
+
+[系统集成API及方式](./doc/api_doc.md)
+
+### 规格与约束
+
+[规格与约束](./doc/constraints_introduction.md)
 
 ## 如何贡献
 
@@ -375,107 +265,127 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
 
 #### **仅编译二进制**
 
-建议在最低openEuler-20.03-LTS-SP1的环境执行编译动作，这是因为gala-gopher中ebpf探针编译依赖clang和llvm，大多数的bpf功能需要clang 10或者更高版本才可以正常工作，而20.03-SP1以下的发布版本中clang版本较低(低于10)。
+**构建环境要求**：openEuler-22.03-LTS-SP1及以上，并配置OS版本配套的openEuler repo源，至少包含everything、update、EPOL三个目录（具体配置方法可参考openEuler社区文档《管理员指南》）。
 
-首先确保本地已有仓库源码，然后在gala-gopher下的[build目录](https://gitee.com/openeuler/gala-gopher/tree/dev/build)下执行安装工作。
+下载仓库源码到本地，确认切换到dev分支，然后在源码的[build目录](./build)下执行以下构建动作：
 
-- 安装依赖包
+1. 安装构建依赖包
 
-  该步骤会检查安装架构感知框架所有的依赖包，涉及三方探针编译、运行的依赖包会在编译构建中检查安装。
+   该步骤会检查安装架构感知框架所有的编译依赖包，涉及三方探针编译、运行的依赖包会在编译构建中检查安装。
 
-  ```
-  # sh build.sh --check
-  ```
+   ```
+   # sh build.sh --check
+   ```
 
-- 构建
+2. 构建
 
-  ```
-  # sh build.sh --clean
-  # sh build.sh --release     # RELEASE模式
-  # 或者
-  # sh build.sh --debug       # DEBUG模式
-  ```
+   ```
+   # sh build.sh --clean
+   
+   # sh build.sh --release     # RELEASE模式
+   # 或者
+   # sh build.sh --debug       # DEBUG模式
+   ```
 
-  注：在编译过程中出现如下信息，表示bpf探针编译需要的vmlinux.h文件缺失；
+   注：DEBUG模式与RELEASE模式在功能上没有差别，DEBUG模式框架测和探针支持debug打印，便于本地调试与问题定位。
 
-  ![build_err](./doc/pic/build_err.png)
+3. 安装
 
-  vmlinux.h文件包含了系统运行Linux内核源码中使用的所有类型定义，可以利用bpftool工具生成；我们已经预生成了几个openEuler发布版本的vmlinux.h文件在`src\probes\extends\ebpf.probe\src\include`目录，请根据内核版本、CPU架构选择相应的文件，并手动软链接到vmlinux.h；例如：
+   ```
+   # sh install.sh
+   ```
 
-  ```
-  [root@master ~]# uname -r
-  4.19.90-2012.5.0.0054.oe1.x86_64
-  [root@master ~]# ln -s linux_4.19.90-2012.5.0.0053.oe1.x86_64.h vmlinux.h
-  ```
+4. 运行
 
-  生成vmlinux.h文件后再次执行构建命令。
-
-- 安装
-
-  ```
-  # sh install.sh
-  ```
-
-- 运行
-
-  ```
-  # gala-gopher
-  ```
+   ```
+   # gala-gopher
+   ```
 
 #### 构建rpm包
 
-我们提供了OBS地址，用于用户编译最新的rpm包。当用户需要最新的rpm包时，可以按照如下步骤自行编译出最新版本的rpm包。
+**构建环境要求**：openEuler-22.03-LTS-SP1及以上，并配置OS版本配套的openEuler repo源，至少包含everything、update、EPOL三个目录（具体配置方法可参考openEuler社区文档《管理员指南》）。
 
-- OBS路径如下：
+下载仓库源码到本地，确认切换到dev分支，取出源码根目录下的[gala-gopher.spec](./gala-gopher.spec)后执行如下构建动作：
 
-  ```
-  openEuler-20.03-LTS-SP1 : https://build.openeuler.openatom.cn/package/show/home:zpublic:branches:openEuler:20.03:LTS:SP1/gala-gopher
-  openEuler-22.03-LTS : https://build.openeuler.openatom.cn/package/show/home:zpublic:branches:openEuler:22.03:LTS/gala-gopher
-  openEuler-22.03-LTS-SP1 : https://build.openeuler.openatom.cn/package/show/home:zpublic:branches:openEuler:22.03:LTS:SP1/gala-gopher
-  ```
+1. 安装rpm-build以及构建依赖包（参照编译二进制）
 
-编译前需要选择对应版本的路径，并通过 `Branch package` 按钮拉出个人分支包，如下图所示：
+   ```
+   # yum install rpm-build
+   # sh build.sh --check
+   ```
 
-![1667461889396](./doc/pic/obs%E7%BC%96%E8%AF%91-branch_package.png)
+2. 生成源码压缩包并将其放入/root/rpmbuild/SOURCES目录下
 
-> 注：branch操作仅需在第一次编包的时候执行一次，后续可以直接在 **个人已有项目** 处找到，直接执行后续的打包、上传编译等步骤。
+   ```
+   # cp -rf gala-gopher gala-gopher-2.0.0
+   # tar czf gala-gopher-2.0.0.tar.gz gala-gopher-2.0.0
+   # mkdir -p /root/rpmbuild/SOURCES
+   # mv gala-gopher-2.0.0.tar.gz  /root/rpmbuild/SOURCES
+   ```
 
-- 源码打包
+3. 构建rpm包
 
-  ```
-  # 需要先将gala-gopher文件夹名重命名为gala-gopher-1.0.0
-  # 然后打成tar包
-  [root@master code]# tar zcvf gala-gopher-1.0.0.tar.gz gala-gopher-1.0.0/
-  ```
+   ```
+   rpmbuild -ba gala-gopher.spec
+   ```
 
-- tar包上传并触发编译
+等待构建完成后，rpm包文件被存放在/root/rpmbuild/RPMS/下对应架构目录内，示例如下：
 
-  还是以编译能够在openEuler-20.03-LTS环境运行的rpm包为例，需要在**外网操作**。参考如下视频：
+    /root/rpmbuild/RPMS/x86_64/gala-gopher-2.0.0-1.x86_64.rpm
+#### 构建容器镜像
 
-![obs编译-操作指南](./doc/pic/obs%E7%BC%96%E8%AF%91-%E6%93%8D%E4%BD%9C%E6%8C%87%E5%8D%97.gif)
+1. 获取如下文件，放在同一目录下：
 
-右侧 `Build Results` 框会显示编译结果，`building`表示还在编译中，`failed`表示编译失败，`succeeded`表示编译成功，编译成功则可以点击获取最新的rpm包。
+   - gala-gopher的rpm包：从[发行版仓库](https://gitee.com/openeuler/gala-gopher/releases)选择下载或者基于源码自行构建；
 
-![1667461827079](./doc/pic/obs%E7%BC%96%E8%AF%91-%E8%8E%B7%E5%8F%96rpm%E5%8C%85.png)
+   - Dockerfile：从[build目录](./build)下载对应架构文件；
+   - entrypoint.sh: 从[build目录](./build)下载
 
-- 安装
+ 2. 在目录中执行如下命令构建出容器镜像（以x86_64为例）：
 
-  ```
-  [root@master ~]# yum localinstall gala-gopher-1.0.0-2.oe1.x86_64.rpm
-  ```
+    ```
+    # docker build -f Dockerfile_x86_64 -t gala-gopher:2.0.0 .
+    ```
 
-- 运行
+	3. 保存/导入容器镜像
 
-  ```
-  # 前台运行
-  [root@master ~]# gala-gopher
-  # 通过systemd启动（推荐）
-  [root@master ~]# systemctl start gala-gopher.service
-  ```
+    生成容器镜像后可以通过save命令将镜像保存为tar文件:
+
+    ```
+    # docker save -o gala-gopher-2.0.0.tar gala-gopher:2.0.0
+    ```
+
+    其他宿主机可以通过load命令导入容器镜像：
+
+    ```
+    # docker load gala-gopher-2.0.0.tar
+    ```
 
 ### 探针开发
 
 [探针开发指南](https://gitee.com/openeuler/gala-gopher/blob/dev/doc/how_to_add_probe.md)
+
+## Q&A
+
+### eBPF如何更好的运行在java场景
+
+#### 场景1：持续性能Profiling
+
+gala-gopher提供持续性能Profiling可以持续监控应用的OnCPU、OffCPU、Memory Alloc等性能。监控应用程序使用了eBPF周期性或事件触发式以持续收集应用堆栈信息。
+
+通过java agent获取java函数符号表，eBPF获取堆栈信息，两者结合完成java场景的持续profiling。
+
+![java场景性能Profiling](./doc/pic/java-agent-1.png)
+
+#### 场景2：微服务访问性能监控
+
+gala-gopher提供的微服务访问性能监控可以非侵入、多语言的完成L7层流量性能监控能力。在java场景中，java应用会使用JSSE类库进行加密通信，eBPF在内核层获取到L7层流量是加密态，无法完成解析以及性能监控。通过java agent字节码注入技术，将JSSEProbeAgent.jar attach至目标jvm进程完成明文RPC消息的获取，通过临时文件读入L7。
+
+![java场景性能RPC密文观测](./doc/pic/java-agent-2.png)
+
+### 如何解决跨版本兼容性问题
+
+参考[这里](https://gitee.com/openeuler/gala-gopher/blob/dev/doc/compatible.md)。
 
 ## 路线图
 
@@ -548,3 +458,7 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
 | 支持日志文件形式对接             | 22.12    | openEuler 22.03 SP1                  |
 | 支持kafka client形式对接         | 22.12    | openEuler 22.03 SP1                  |
 | 支持REST接口动态变更探针监控能力 | 23.06    | openEuler 22.03 SP1, openEuler 23.09 |
+
+  ```
+
+  ```
