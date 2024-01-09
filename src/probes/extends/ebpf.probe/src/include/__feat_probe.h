@@ -23,6 +23,9 @@
 
 #ifdef BPF_PROG_KERN
 #include "vmlinux.h"
+#elif defined(BPF_PROG_USER)
+struct bpf_ringbuf {
+};
 #endif
 
 #if !defined(BPF_PROG_KERN) && !defined(BPF_PROG_USER)
