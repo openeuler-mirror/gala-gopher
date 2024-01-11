@@ -26,7 +26,7 @@ char g_linsence[] SEC("license") = "GPL";
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 64);
+    __uint(max_entries, 256 *1024);
 } snooper_proc_channel SEC(".maps");
 
 static __always_inline void process_new_forked_task(struct task_struct *child, void *ctx)
@@ -138,7 +138,7 @@ int bpf_trace_sched_process_exit_func(struct trace_event_raw_sched_process_templ
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 64);
+    __uint(max_entries, 256 *1024);
 } snooper_cgrp_channel SEC(".maps");
 
 struct {
