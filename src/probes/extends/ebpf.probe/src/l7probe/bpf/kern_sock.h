@@ -144,7 +144,7 @@ static __always_inline void submit_perf_buf(void* ctx, const char *buf, size_t b
     }
     conn_data->msg.evt = TRACKER_EVT_DATA;
 
-    bpfbuf_submit(ctx, &conn_tracker_events, conn_data, sizeof(struct conn_data_msg_s) + copied_size & CONN_DATA_MAX_SIZE);
+    bpfbuf_submit(ctx, &conn_tracker_events, conn_data, sizeof(struct conn_data_msg_s) + (copied_size & CONN_DATA_MAX_SIZE));
     return;
 }
 

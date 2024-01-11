@@ -16,11 +16,11 @@
 #include <stdlib.h>
 #include "http_msg_format.h"
 
-const char KEY_CONTENT_ENCODING[17] = "Content-Encoding";
-const char KEY_CONTENT_LENGTH[15] = "Content-Length";
-const char KEY_CONTENT_TYPE[13] = "Content-Type";
-const char KEY_TRANSFER_ENCODING[18] = "Transfer-Encoding";
-const char KEY_UPGRADE[8] = "Upgrade";
+char KEY_CONTENT_ENCODING[17] = "Content-Encoding";
+char KEY_CONTENT_LENGTH[15] = "Content-Length";
+char KEY_CONTENT_TYPE[13] = "Content-Type";
+char KEY_TRANSFER_ENCODING[18] = "Transfer-Encoding";
+char KEY_UPGRADE[8] = "Upgrade";
 
 http_message *init_http_msg(void)
 {
@@ -40,7 +40,7 @@ void free_http_msg(http_message *http_msg)
     if (http_msg == NULL) {
         return;
     }
-    if (http_msg->headers != NULL) {
+    if (http_msg->headers != NULL) {    // no used
         free_http_headers_map(&(http_msg->headers));
     }
     if (http_msg->req_method != NULL) {

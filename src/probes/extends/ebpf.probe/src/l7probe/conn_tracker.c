@@ -580,6 +580,9 @@ static void add_tracker_stats(struct l7_mng_s *l7_mng, struct conn_tracker_s* tr
     int ret;
     struct l7_link_s* link;
 
+    if (tracker->records.record_buf_size == 0 && tracker->records.req_count == 0 && tracker->records.resp_count == 0) {
+        return;
+    }
     link = find_l7_link(l7_mng, (const struct conn_tracker_s *)tracker);
     if (link == NULL) {
         return;
