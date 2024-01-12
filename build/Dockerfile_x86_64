@@ -1,14 +1,12 @@
 #
-# Dockerfile for building A-Ops gala-gopher docker image for openEuler 20.03 lts sp1.
-#
+# Dockerfile for building A-Ops gala-gopher docker image
 # Usage:
-# docker build -f Dockerfile_2003_sp1_x86_64 -t gala-gopher:1.0.2 .
+# docker build -f Dockerfile_x86_64 -t gala-gopher:2.0.0 .
 #
 
 # base image
-FROM hub.oepkgs.net/openeuler/openeuler_x86_64:20.03-lts-sp1
+FROM hub.oepkgs.net/openeuler/openeuler_x86_64:22.03-lts-sp1
 
-MAINTAINER GALA
 
 # container work directory
 WORKDIR /gala-gopher
@@ -24,9 +22,7 @@ COPY ./entrypoint.sh /
 RUN chmod +x /entrypoint.sh
 
 # install gala-gopher
-RUN yum install -y libbpf-0.3-1.oe1.x86_64.rpm \
-    && yum install -y gala-gopher-1.0.2-2.x86_64.rpm \
-    && yum install -y java-1.8.0-openjdk \
+RUN yum install -y gala-gopher-2.0.0-1.x86_64.rpm \
     && yum clean all \
     && rm -rf /var/cache/yum/*
 
