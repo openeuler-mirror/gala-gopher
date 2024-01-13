@@ -83,7 +83,7 @@
             prog->custom_btf_paths[prog->num] = syscall_##type##_open_opts.btf_custom_path; \
             ret = bpf_buffer__open(buffer, perf_event_handler, NULL, NULL); \
             if (ret) { \
-                ERROR("[TPPROFILING] Open bpf_buffer failed in syscall_"#type".\n"); \
+                TP_ERROR("Open bpf_buffer failed in syscall_"#type".\n"); \
                 bpf_buffer__free(buffer); \
                 goto err; \
             } \

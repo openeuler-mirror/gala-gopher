@@ -25,8 +25,8 @@
 #define MAX_CACHE_EVENT_NUM 100
 #define MAX_PATH_SIZE 128
 
-#define CMD_CAT_PROC_COMM "cat /proc/%d/comm"
-#define CMD_CAT_THRD_COMM "cat /proc/%d/task/%d/comm"
+#define CMD_CAT_PROC_COMM "/usr/bin/cat /proc/%d/comm 2> /dev/null"
+#define CMD_CAT_THRD_COMM "/usr/bin/cat /proc/%d/task/%d/comm 2> /dev/null"
 #define MAX_CMD_SIZE 64
 
 typedef struct {
