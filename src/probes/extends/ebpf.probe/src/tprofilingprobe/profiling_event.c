@@ -288,12 +288,11 @@ static void stack_transfer_addrs2symbs(__u64 *addrs, int addr_num,
         memset(&symb, 0, sizeof(symb));
         ret = proc_search_addr_symb(symbs, addrs[i], &symb, proc_info->comm);
         if (ret) {
-            symb_name = "";
+            symb_name = "[unknown]";
         } else {
             symb_name = symb.sym ?: symb.mod;
         }
-
-        ret = snprintf(symbs_buf.buf, symbs_buf.size, "%s;", symb_name);
+        ret = snprintf(symbs_buf.buf, symbs_buf.size , "%s[u];", symb_name);
         if (ret < 0 || ret >= symbs_buf.size) {
             // it is allowed that stack may be truncated
             TP_WARN("Stack buffer not large enough.\n");
@@ -332,18 +331,70 @@ static int get_symb_stack(char *symbs_str, int symb_size, event_elem_t *cached_e
     return 0;
 }
 
-#define FUNC_NAME_LEN 32
+static int get_py_symb_stack(char *symbs_str, int symb_size, event_elem_t *cached_evt)
+{
+    struct py_stack py_stack;
+    struct py_symbol sym;
+    __u64 pyid;
+    int i;
+    int ret;
+
+    strbuf_t symbs_buf = {
+        .buf = symbs_str,
+        .size = symb_size
+    };
+
+    pyid = EVT_DATA_SC(cached_evt)->stack_info.pyid;
+    if (pyid == 0){
+        return 0;
+    }
+    if (bpf_map_lookup_elem(tprofiler.pyStackMapFd, &pyid, &py_stack) != 0) {
+        return -1;
+    }
+    bpf_map_delete_elem(tprofiler.pyStackMapFd, &pyid);
+
+    for (i = py_stack.stack_len -1; i >= 0; i--) {
+
+        if (bpf_map_lookup_elem(tprofiler.pySymbMapFd, &py_stack.stack[i & (MAX_PYTHON_STACK_DEPTH_MAX - 1)], &sym) == 0) {
+            if (sym.class_name[0] != '\0') {
+                ret = snprintf(symbs_buf.buf, symbs_buf.size, "%s#%s[p];", sym.class_name, sym.func_name);
+            } else {
+                ret = snprintf(symbs_buf.buf, symbs_buf.size, "%s[p];", sym.func_name);
+            }
+        } else {
+            char *symb_name;
+            symb_name = "[unknown]";
+            ret = snprintf(symbs_buf.buf, symbs_buf.size , "%s[p];", symb_name);
+        }
+
+        if (ret < 0 || ret >= symbs_buf.size) {
+            // it is allowed that stack may be truncated
+            TP_WARN("Stack buffer not large enough.\n");
+            return -ERR_TP_NO_BUFF;
+        }
+
+        strbuf_update_offset(&symbs_buf, ret);
+    }
+
+    return 0;
+
+}
+
+#define FUNC_NAME_LEN 64
 
 static int append_stack_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
 {
     int ret;
     char symbs_str[PERF_MAX_STACK_DEPTH * FUNC_NAME_LEN] = {0};
 
-    ret = get_symb_stack(symbs_str, sizeof(symbs_str), cached_evt);
+    ret = get_py_symb_stack(symbs_str, sizeof(symbs_str), cached_evt);
+    if (ret){
+        return -1;
+    }
+    ret = get_symb_stack(symbs_str + strlen(symbs_str), sizeof(symbs_str) - strlen(symbs_str), cached_evt);
     if (ret) {
         return -1;
     }
-
     ret = snprintf(attrs_buf->buf, attrs_buf->size, ",\"func.stack\":\"%s\"", symbs_str);
     if (ret < 0 || ret >= attrs_buf->size) {
         return -ERR_TP_NO_BUFF;
@@ -483,7 +534,6 @@ static int append_syscall_attrs_by_nr(strbuf_t *attrs_buf, event_elem_t *cached_
     if (!scm) {
         return -1;
     }
-
     if (scm->flag & SYSCALL_FLAG_FD) {
         ret = append_fd_attrs(attrs_buf, cached_evt);
         if (ret) {
@@ -499,7 +549,6 @@ static int append_syscall_attrs_by_nr(strbuf_t *attrs_buf, event_elem_t *cached_
         }
         typed = true;
     }
-
     if (scm->flag & SYSCALL_FLAG_STACK) {
         // 获取函数调用栈
         ret = append_stack_attrs(attrs_buf, cached_evt);

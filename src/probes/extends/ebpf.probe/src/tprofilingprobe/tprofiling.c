@@ -35,7 +35,7 @@
 #include "java_support.h"
 #include "bpf_prog.h"
 #include "tprofiling.h"
-
+#include "syscall.h"
 Tprofiler tprofiler;
 
 static volatile sig_atomic_t stop = 0;
@@ -102,6 +102,25 @@ static int __poll_pb(struct bpf_prog_s* prog)
 
     return 0;
 }
+static int init_py_sample_heap(int map_fd)
+{
+    int nr_cpus = NR_CPUS;
+    struct py_sample *samples;
+    u32 zero = 0;
+    int i;
+    int ret;
+
+    samples = (struct py_sample *)calloc(nr_cpus, sizeof(struct py_sample));
+    if (!samples) {
+        return -1;
+    }
+    for (i = 0; i < nr_cpus; i++) {
+        samples[i].nr_cpus = nr_cpus;
+    }
+    ret = bpf_map_update_elem(map_fd, &zero, samples, BPF_ANY);
+    free(samples);
+    return ret;
+}
 int main(int argc, char **argv)
 {
     int err = -1;
@@ -162,7 +181,6 @@ int main(int argc, char **argv)
             sleep(DEFAULT_PERIOD);
             continue;
         }
-
         if (__poll_pb(syscall_bpf_progs)) {
             goto cleanup;
         }
@@ -233,8 +251,45 @@ static int init_tprofiler_map_fds(struct ipc_body_s *ipc_body)
                 return -1;
             }
         }
+        if (tprofiler.pyProcMapFd <= 0) {
+            tprofiler.pyProcMapFd = bpf_obj_get(PY_PROC_MAP_PATH);
+            if (tprofiler.pyProcMapFd < 0) {
+                TP_ERROR("Failed to get bpf prog py_proc map.\n");
+                return -1;
+            }
+        }
+        if (tprofiler.pyStackMapFd <= 0) {
+            tprofiler.pyStackMapFd = bpf_obj_get(PY_STACK_MAP_PATH);
+            if (tprofiler.pyStackMapFd < 0) {
+                TP_ERROR("Failed to get bpf prog py_stack map.\n");
+                return -1;
+            }
+        }
+	    if (tprofiler.pyHeapMapFd <= 0) {
+            tprofiler.pyHeapMapFd = bpf_obj_get(STACK_PY_SAMPLE_HEAP_MAP_PATH);
+            if (tprofiler.pyHeapMapFd < 0) {
+                TP_ERROR("Failed to get bpf prog py_heap map.\n");
+                return -1;
+            }
+            int ret = init_py_sample_heap(tprofiler.pyHeapMapFd);
+            if (ret){
+                TP_ERROR("Failed to init python sample heap map.\n");
+                return -1;
+            }
+        }
+        if (tprofiler.pySymbMapFd <= 0) {
+            tprofiler.pySymbMapFd = bpf_obj_get(STACK_PY_SYMBOL_IDS_MAP_PATH);
+            if (tprofiler.pySymbMapFd < 0) {
+                TP_ERROR("Failed to get bpf prog py_symb map.\n");
+                return -1;
+            }
+        }
     } else {
         tprofiler.stackMapFd = 0;
+        tprofiler.pyProcMapFd = 0;
+        tprofiler.pyStackMapFd = 0;
+        tprofiler.pySymbMapFd = 0;
+        tprofiler.pyHeapMapFd = 0;
     }
 
     return 0;
@@ -350,6 +405,7 @@ static void refresh_proc_filter_map(struct ipc_body_s *ipc_body)
     struct proc_s key = {0};
     struct proc_s next_key = {0};
     struct obj_ref_s val = {.count = 0};
+    struct py_proc_data py_proc_data;
     int i;
 
     while (bpf_map_get_next_key(tprofiler.procFilterMapFd, &key, &next_key) != -1) {
@@ -361,8 +417,12 @@ static void refresh_proc_filter_map(struct ipc_body_s *ipc_body)
         if (ipc_body->snooper_objs[i].type != SNOOPER_OBJ_PROC) {
             continue;
         }
-
         key.proc_id = ipc_body->snooper_objs[i].obj.proc.proc_id;
         (void)bpf_map_update_elem(tprofiler.procFilterMapFd, &key, &val, BPF_ANY);
+
+        if(try_init_py_proc_data(key.proc_id, &py_proc_data)){
+            continue;
+        }
+        (void)bpf_map_update_elem(tprofiler.pyProcMapFd, &key.proc_id, &py_proc_data, BPF_ANY);
     }
 }

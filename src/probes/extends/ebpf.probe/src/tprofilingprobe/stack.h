@@ -8,27 +8,28 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Author: algorithmofdish
- * Create: 2023-04-03
- * Description: header file for handling thread profiling event.
+ * Author: Mr.lu
+ * Create: 2022-08-18
+ * Description: stack defined
  ******************************************************************************/
-#ifndef __PROFILING_EVENT_H__
-#define __PROFILING_EVENT_H__
+#ifndef __GOPHER_STACK_H__
+#define __GOPHER_STACK_H__
 
-#include "tprofiling.h"
-#include "stack.h"
-#define MAX_LEN_OF_PROFILE_EVT_TYPE 8
+#pragma once
 
-#define PROFILE_EVT_TYPE_FILE  "file"
-#define PROFILE_EVT_TYPE_NET   "net"
-#define PROFILE_EVT_TYPE_SCHED  "sched"
-#define PROFILE_EVT_TYPE_LOCK "lock"
-#define PROFILE_EVT_TYPE_ONCPU "oncpu"
-#define PROFILE_EVT_TYPE_OTHER "other"
+#include "common.h"
+#include "py_stack.h"
 
-#define ERR_TP_NO_BUFF 2
+struct py_raw_trace_s {
+    struct py_stack py_stack;
+};
 
-int init_sys_boot_time(__u64 *sysBootTime);
-void output_profiling_event(trace_event_data_t *evt_data);
+struct py_sample {
+    u32 cpu_id;             // use to generate python symbol id
+    u32 nr_cpus;
+    u64 py_symbol_counter;  // use to generate python symbol id
+    u64 py_stack_counter;   // use to generate python stack id
+    struct py_raw_trace_s event;
+};
 
 #endif

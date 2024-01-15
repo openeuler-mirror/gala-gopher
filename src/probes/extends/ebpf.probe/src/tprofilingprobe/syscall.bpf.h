@@ -15,6 +15,8 @@
 #ifndef __SYSCALL_BPF_H__
 #define __SYSCALL_BPF_H__
 #include "bpf.h"
+#include "py_stack_bpf.h"
+#include "stack.h"
 #include "tprofiling.h"
 
 struct {
@@ -30,6 +32,37 @@ struct {
     __uint(value_size, sizeof(syscall_m_stash_val_t));
     __uint(max_entries, MAX_SIZE_OF_STASH_EVENT);
 } syscall_stash_map SEC(".maps");
+
+static __always_inline int get_py_stack_id(int tgid)
+{
+    struct py_proc_data *py_proc_data;
+    struct py_sample *py_sample;
+    u64 py_stack_id = 0;
+
+    py_proc_data = (struct py_proc_data *)bpf_map_lookup_elem(&py_proc_map, &tgid);
+
+    if (!py_proc_data) {
+        return 0;
+    }
+    py_sample = get_py_sample();
+    if (!py_sample) {
+        return 0;
+    }
+
+    py_sample->cpu_id = bpf_get_smp_processor_id();
+    if (get_py_stack(py_sample, py_proc_data) != 0) {
+        return 0;
+    }
+
+    py_stack_id = py_sample->py_stack_counter * py_sample->nr_cpus + py_sample->cpu_id + 1;
+    //避免出现 py_stack_id为 0 的现象影响后续判断
+    if (bpf_map_update_elem(&py_stack_cached, &py_stack_id, &py_sample->event.py_stack, BPF_ANY)) {
+        return 0;
+    }
+    py_sample->py_stack_counter++;
+
+    return py_stack_id;
+}
 
 static __always_inline void init_syscall_data(syscall_data_t *scd, syscall_m_enter_t *sce,
                                               syscall_m_meta_t *scm, void *ctx)
@@ -71,6 +104,7 @@ static __always_inline void emit_incomming_syscall_event(syscall_m_enter_t *sce,
 
     init_syscall_event_common(&evt_data, sce->start_time);
     init_syscall_data(&evt_data.syscall_d, sce, scm, ctx);
+    evt_data.syscall_d.stack_info.pyid = get_py_stack_id(evt_data.tgid);
 
     bpfbuf_output(ctx, &event_map, &evt_data, sizeof(evt_data));
 }
@@ -81,6 +115,7 @@ static __always_inline void emit_syscall_event_stashed(syscall_m_stash_val_t *sc
 
     init_syscall_event_common(&evt_data, sc_stash->start_time);
     evt_data.syscall_d = (syscall_data_t)(*sc_stash);
+    evt_data.syscall_d.stack_info.pyid = get_py_stack_id(evt_data.tgid);
 
     bpfbuf_output(ctx, &event_map, &evt_data, sizeof(evt_data));
 }
