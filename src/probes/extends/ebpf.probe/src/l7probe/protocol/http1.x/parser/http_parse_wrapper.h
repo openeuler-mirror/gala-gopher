@@ -71,12 +71,8 @@ size_t http_parse_request_headers(struct raw_data_s* raw_data, http_request* req
 size_t http_parse_response_headers(struct raw_data_s* raw_data, http_response* resp);
 
 /**
- * parse http headers from req.headers into http_headers_map
- *
- * @param headers
- * @param num_headers
- * @return
+ * parse http headers from req.headers, get 1st value by key.
  */
-http_headers_map *get_http_headers_map(struct http_header* headers, size_t num_headers);
+int get_http_header_value_by_key(struct http_header headers[], size_t num_headers, char *key, char *value, int vlen_max);
 
 #endif // __HTTP_PARSE_WRAPPER_H__

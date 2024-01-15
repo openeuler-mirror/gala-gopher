@@ -20,6 +20,7 @@
 #include "../../utils/macros.h"
 #include "http_parse_wrapper.h"
 
+#define CONTENT_VALUE_LEN       64
 /**
  * parse chunked data and data length
  *
@@ -124,17 +125,21 @@ static parse_state_t parse_chunked(struct raw_data_s *raw_data, size_t *offset, 
  * @param frame_data
  * @return
  */
-static parse_state_t parse_request_body(struct raw_data_s *raw_data, struct http_message *frame_data)
+static parse_state_t parse_request_body(struct raw_data_s *raw_data, struct http_header headers[], int num_headers,
+                                        struct http_message *frame_data)
 {
+    int ret;
     size_t offset = 0;
 
     // 1. Content-Length
-    char *content_len_str = get_1st_value_by_key(frame_data->headers, KEY_CONTENT_LENGTH);
-    if (content_len_str != NULL) {
+    char content_len_str[CONTENT_VALUE_LEN];
+    content_len_str[0] = 0;
+    ret = get_http_header_value_by_key(headers, num_headers, KEY_CONTENT_LENGTH, content_len_str, CONTENT_VALUE_LEN);
+    if (ret == 0 && content_len_str[0] != 0) {
         size_t content_len = atoi(content_len_str);
         // Content-Length is not 0, then return STATE_INVALID to tell failed
-        if (strcmp(content_len_str, "0") != 0 && content_len == 0) {
-            WARN("[HTTP1.x PARSER] Failed to parse content-Length.\n");
+        if (content_len == 0) {
+            WARN("[HTTP1.x PARSER] Parsing request body failed because parse content-Length failed.\n");
             return STATE_INVALID;
         }
         if (content_len > raw_data->data_len - raw_data->current_pos) {
@@ -147,11 +152,15 @@ static parse_state_t parse_request_body(struct raw_data_s *raw_data, struct http
     }
 
     // 2. Transfer-Encoding: Chunked
-    char *transfer_encoding = get_1st_value_by_key(frame_data->headers, KEY_TRANSFER_ENCODING);
-    if (transfer_encoding != NULL && strcmp(transfer_encoding, "chunked") == 0) {
-        parse_state_t state = parse_chunked(raw_data, &offset, &(frame_data->body));
-        frame_data->body_size = offset;
-        return state;
+    char transfer_encoding[CONTENT_VALUE_LEN];
+    transfer_encoding[0] = 0;
+    ret = get_http_header_value_by_key(headers, num_headers, KEY_TRANSFER_ENCODING, transfer_encoding, CONTENT_VALUE_LEN);
+    if (ret == 0 && transfer_encoding[0] != 0) {
+        if (strcmp(transfer_encoding, "chunked") == 0) {
+            parse_state_t state = parse_chunked(raw_data, &offset, &(frame_data->body));
+            frame_data->body_size = offset;
+            return state;
+        }
     }
 
     // 3. No Content-Length or Transfer-Encoding, it means no packet body to parse, then return STATE_SUCCESS
@@ -173,8 +182,10 @@ static parse_state_t parse_request_body(struct raw_data_s *raw_data, struct http
  * @param frame_data
  * @return
  */
-static parse_state_t parse_response_body(struct raw_data_s *raw_data, struct http_message *frame_data)
+static parse_state_t parse_response_body(struct raw_data_s *raw_data, struct http_header headers[], int num_headers,
+                                         struct http_message *frame_data)
 {
+    int ret;
     size_t offset = 0;
     char *buf = raw_data->data + raw_data->current_pos;
 
@@ -189,11 +200,13 @@ static parse_state_t parse_response_body(struct raw_data_s *raw_data, struct htt
     }
 
     // 2. Content-Length
-    char *content_len_str = get_1st_value_by_key(frame_data->headers, KEY_CONTENT_LENGTH);
-    if (content_len_str != NULL) {
+    char content_len_str[CONTENT_VALUE_LEN];
+    content_len_str[0] = 0;
+    ret = get_http_header_value_by_key(headers, num_headers, KEY_CONTENT_LENGTH, content_len_str, CONTENT_VALUE_LEN);
+    if (ret == 0 && content_len_str[0] != 0) {
         size_t content_len = atoi(content_len_str);
         // If Content-Length is not 0, it returns invalid while parsing failed.
-        if (strcmp(content_len_str, "0") != 0 && content_len == 0) {
+        if (content_len == 0) {
             WARN("[HTTP1.x PARSER] Failed to parse content-Length.\n");
             return STATE_INVALID;
         }
@@ -207,13 +220,16 @@ static parse_state_t parse_response_body(struct raw_data_s *raw_data, struct htt
     }
 
     // 3. When Transfer-Encoding = chunked
-    char *transfer_encoding = get_1st_value_by_key(frame_data->headers, KEY_TRANSFER_ENCODING);
-    if (transfer_encoding != NULL && strcmp(transfer_encoding, "chunked") == 0) {
-        parse_state_t state = parse_chunked(raw_data, &offset, &(frame_data->body));
-
-        // note: we do not need body currently, just take the length of body.
-        frame_data->body_size = offset;
-        return state;
+    char transfer_encoding[CONTENT_VALUE_LEN];
+    transfer_encoding[0] = 0;
+    ret = get_http_header_value_by_key(headers, num_headers, KEY_TRANSFER_ENCODING, transfer_encoding, CONTENT_VALUE_LEN);
+    if (ret == 0 && transfer_encoding[0] != 0) {
+        if (strcmp(transfer_encoding, "chunked") == 0) {
+            parse_state_t state = parse_chunked(raw_data, &offset, &(frame_data->body));
+            // note: we do not need body currently, just take the length of body.
+            frame_data->body_size = offset;
+            return state;
+        }
     }
 
     // 4. When there is no body as we know according to the status code of [100, 199], {204, 304}. 101 UPGRADE is special, we do not support it yet.
@@ -222,8 +238,10 @@ static parse_state_t parse_response_body(struct raw_data_s *raw_data, struct htt
         frame_data->body_size = 0;
 
         if (frame_data->resp_status == 101) {
-            char *upgrade_str = get_1st_value_by_key(frame_data->headers, KEY_UPGRADE);
-            if (upgrade_str == NULL) {
+            char upgrade_str[CONTENT_VALUE_LEN];
+            upgrade_str[0] = 0;
+            ret = get_http_header_value_by_key(headers, num_headers, KEY_UPGRADE, upgrade_str, CONTENT_VALUE_LEN);
+            if (ret != 0 || upgrade_str[0] == 0) {
                 DEBUG("[HTTP1.x PARSER] Expected an Upgrade header with http status code 101.\n");
             }
             DEBUG("[HTTP1.x PARSER] Http Upgrades are not supported yet.\n");
@@ -254,7 +272,7 @@ static parse_state_t parse_request_frame(struct raw_data_s *raw_data, http_messa
 
     // If retval is -2, it means parsing successfully partially, but need more data to continue parsing.
     if (offset == -2) {
-        DEBUG("[HTTP1.x PARSER] Parser needs more data.\n");
+        DEBUG("[HTTP1.x PARSER] Parser request needs more data.\n");
         return STATE_NEEDS_MORE_DATA;
     }
 
@@ -268,7 +286,6 @@ static parse_state_t parse_request_frame(struct raw_data_s *raw_data, http_messa
     frame_data->type = MESSAGE_REQUEST;
     frame_data->timestamp_ns = raw_data->timestamp_ns;
     frame_data->minor_version = req.minor_version;
-    frame_data->headers = get_http_headers_map(req.headers, req.num_headers);
     frame_data->req_method = strndup(req.method, req.method_len);
     frame_data->req_path = strndup(req.path, req.path_len);
 
@@ -276,14 +293,12 @@ static parse_state_t parse_request_frame(struct raw_data_s *raw_data, http_messa
 
     // raw_data offset
     raw_data->current_pos += offset;
-    DEBUG("[HTTP1.x PARSER] Parsing req, offset: %d, raw_data.current_pos: %d.\n", offset, raw_data->current_pos);
 
     // Parse request body
-    parse_state_t state = parse_request_body(raw_data, frame_data);
+    parse_state_t state = parse_request_body(raw_data, req.headers, req.num_headers, frame_data);
     if (state != STATE_SUCCESS) {
         raw_data->current_pos -= offset;
     }
-    DEBUG("[HTTP1.x PARSER] Finished Parsing req, state: %d, current_pos: %d.\n", state, raw_data->current_pos);
     return state;
 }
 
@@ -303,13 +318,13 @@ static parse_state_t parse_response_frame(struct raw_data_s *raw_data, struct ht
 
     // If retval is -2, it means parsing successfully partially, but need more data to continue parsing.
     if (offset == -2) {
-        DEBUG("[HTTP1.x PARSER] Parser needs more data.\n");
+        DEBUG("[HTTP1.x PARSER] Parser response needs more data.\n");
         return STATE_NEEDS_MORE_DATA;
     }
 
     // If retval is -1, it means parsing failed.
     if (offset == -1) {
-        WARN("[HTTP1.x PARSER] Failed to parse raw_data into response, offset code: %d\n", offset);
+        WARN("[HTTP1.x PARSER] Failed to parse raw_data into response.\n");
         return STATE_INVALID;
     }
 
@@ -317,7 +332,6 @@ static parse_state_t parse_response_frame(struct raw_data_s *raw_data, struct ht
     frame_data->type = MESSAGE_RESPONSE;
     frame_data->timestamp_ns = raw_data->timestamp_ns;
     frame_data->minor_version = resp.minor_version;
-    frame_data->headers = get_http_headers_map(resp.headers, resp.num_headers);
     frame_data->resp_status = resp.status;
     frame_data->resp_message = strndup(resp.msg, resp.msg_len);
     frame_data->headers_byte_size = offset;
@@ -326,12 +340,11 @@ static parse_state_t parse_response_frame(struct raw_data_s *raw_data, struct ht
     raw_data->current_pos += offset;
 
     // Parse response body
-    parse_state_t state = parse_response_body(raw_data, frame_data);
+    parse_state_t state = parse_response_body(raw_data, resp.headers, resp.num_headers, frame_data);
     if (state != STATE_SUCCESS) {
         raw_data->current_pos -= offset;
     }
 
-    DEBUG("[HTTP1.x PARSER] Finished Parsing resp, state: %d, current_pos: %d.\n", state, raw_data->current_pos);
     return state;
 }
 
@@ -349,11 +362,9 @@ parse_state_t http_parse_frame(enum message_type_t msg_type, struct raw_data_s *
     parse_state_t state = STATE_INVALID;
     switch (msg_type) {
         case MESSAGE_REQUEST:
-            DEBUG("[HTTP1.x PARSER] parse http request frame.\n");
             state = parse_request_frame(raw_data, http_msg);
             break;
         case MESSAGE_RESPONSE:
-            DEBUG("[HTTP1.x PARSER] parse http response frame.\n");
             state = parse_response_frame(raw_data, http_msg);
             break;
         default:
@@ -374,10 +385,52 @@ parse_state_t http_parse_frame(enum message_type_t msg_type, struct raw_data_s *
     (*frame_data)->frame = http_msg;
     (*frame_data)->msg_type = msg_type;
     (*frame_data)->timestamp_ns = http_msg->timestamp_ns;
-    DEBUG("[HTTP1.x PARSER] Parse frame finished, msg_type: %d, ts: %lu\n", msg_type, http_msg->timestamp_ns);
+
     return state;
 }
 
+/* HTTP Request packet starts with Method. Methods Reference:
+    // https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods
+  HTTP response packet starts with Version. HTTP Version Reference:
+    // https://developer.mozilla.org/en-US/docs/Web/HTTP/Messages */
+
+static const struct start_pattern g_start_patterns[] = {
+    {MESSAGE_REQUEST,   "GET ",         4},
+    {MESSAGE_REQUEST,   "HEAD ",        5},
+    {MESSAGE_REQUEST,   "POST ",        5},
+    {MESSAGE_REQUEST,   "PUT ",         4},
+    {MESSAGE_REQUEST,   "DELETE ",      7},
+    {MESSAGE_REQUEST,   "CONNECT ",     8},
+    {MESSAGE_REQUEST,   "OPTIONS ",     8},
+    {MESSAGE_REQUEST,   "TRACE ",       6},
+    {MESSAGE_REQUEST,   "PATCH ",       6},
+    {MESSAGE_RESPONSE,  "HTTP/1.1 ",    9},
+    {MESSAGE_RESPONSE,  "HTTP/1.0 ",    9},
+};
+
+#define ARRAY_NR(array) (sizeof((array))/sizeof((array)[0]))
+
+size_t http_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s *raw_data)
+{
+    if (msg_type != MESSAGE_REQUEST && msg_type != MESSAGE_RESPONSE) {
+        DEBUG("[HTTP1.x PARSER][Find Frame Boundary] Message type unknown, ignore it.\n");
+        return PARSER_INVALID_BOUNDARY_INDEX;
+    }
+    // March start_pattern in raw_data.data from raw_data.current_pos
+    for (int i = raw_data->current_pos; i < raw_data->data_len; i++) {
+        for (int j = 0; j < ARRAY_NR(g_start_patterns); j++) {
+            if (msg_type != g_start_patterns[j].type) {
+                continue;
+            }
+            if (strncmp(raw_data->data + i, g_start_patterns[j].name, g_start_patterns[j].name_len) == 0) {
+                return i;
+            }
+        }
+    }
+    DEBUG("[HTTP1.x PARSER][Find Frame Boundary] Start pattern not found, return INVALID state.\n");
+    return PARSER_INVALID_BOUNDARY_INDEX;
+}
+#if 0
 size_t http_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s *raw_data) {
     DEBUG("[HTTP1.x PARSER] Start finding frame boundary, current_pos: %d\n", raw_data->current_pos);
     size_t start_pos = raw_data->current_pos;
@@ -468,3 +521,4 @@ size_t http_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s 
         DEBUG("[HTTP1.x PARSER][Find Frame Boundary] Frame boundary not found, move current_pos to the end of current marker, then find the next boundary.\n");
     }
 }
+#endif

@@ -12,7 +12,7 @@
  * Create: 2023/7/7
  * Description:
  ******************************************************************************/
-
+#include <stdio.h>
 #include <string.h>
 #include "http_parse_wrapper.h"
 #include "../model/multiple_map.h"
@@ -371,16 +371,15 @@ static char *parse_response(char *buf, int buf_len, http_response* res, int *ret
 
 size_t http_parse_request_headers(struct raw_data_s* raw_data, http_request* req)
 {
-    DEBUG("[HTTP1.x PARSER WRAPPER] Parse request, data_len: %d, current_pos: %d, data:\n%s\n", raw_data->data_len,
-         raw_data->current_pos, raw_data->data);
-    memset(req, 0, sizeof(http_request));
+    int ret = 0;
     char *buf = &raw_data->data[raw_data->current_pos];
     char *buf_start = buf;
     size_t buf_size = raw_data->data_len;
-    int ret = 0;
 
     buf = parse_request(buf, buf_size, req, &ret);
     if (buf == NULL) {
+        DEBUG("[HTTP1.x PARSER WRAPPER] Parse request failed, data_len: %d, current_pos: %d, data:\n%s\n",
+                                                        raw_data->data_len, raw_data->current_pos, raw_data->data);
         return ret;
     }
     return buf - buf_start;
@@ -388,33 +387,33 @@ size_t http_parse_request_headers(struct raw_data_s* raw_data, http_request* req
 
 size_t http_parse_response_headers(struct raw_data_s* raw_data, http_response* resp)
 {
-    DEBUG("[HTTP1.x PARSER WRAPPER] Parse response, data_len: %d, current_pos: %d, data:\n%s\n", raw_data->data_len,
-         raw_data->current_pos, raw_data->data);
-    memset(resp, 0, sizeof(http_response));
+    int ret = 0;
     char *buf = &raw_data->data[raw_data->current_pos];
     char *buf_start = buf;
     size_t buf_size = raw_data->data_len;
-    int ret = 0;
 
     buf = parse_response(buf, buf_size, resp, &ret);
     if (buf == NULL) {
+        DEBUG("[HTTP1.x PARSER WRAPPER] Parse response failed, data_len: %d, current_pos: %d, data:\n%s\n",
+                                                        raw_data->data_len, raw_data->current_pos, raw_data->data);
         return ret;
     }
     return buf - buf_start;
 }
 
-http_headers_map *get_http_headers_map(struct http_header* headers, size_t num_headers)
+
+int get_http_header_value_by_key(struct http_header headers[], size_t num_headers, char *key, char *value, int vlen_max)
 {
-    DEBUG("[HTTP1.x PARSER WRAPPER][Get Http Headers] Num_headers: %d\n", num_headers);
-    http_headers_map *headers_map = NULL;
-    for (size_t i = 0; i < num_headers; i++) {
-        char name[headers[i].name_len + 1];
-        char value[headers[i].value_len + 1];
-        strncpy(name, headers[i].name, headers[i].name_len);
-        strncpy(value, headers[i].value, headers[i].value_len);
-        name[headers[i].name_len] = '\0';
-        value[headers[i].value_len] = '\0';
-        insert_into_multiple_map(&headers_map, name, value);
+    if (key == NULL || value == NULL) {
+        return -1;
     }
-    return headers_map;
+    int klen = strlen(key);
+    for (size_t i = 0; i < num_headers; i++) {
+        if ((headers[i].name_len == klen) && (strncmp(headers[i].name, key, klen) == 0)) {
+            int vlen = (headers[i].value_len < vlen_max) ? headers[i].value_len : (vlen_max - 1);
+            (void)snprintf(value, vlen + 1, "%s", headers[i].value);
+            return 0;
+        }
+    }
+    return -1;
 }

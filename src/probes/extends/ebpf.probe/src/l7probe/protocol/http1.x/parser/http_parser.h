@@ -22,6 +22,13 @@
 #include "../../../include/l7.h"
 #include "http_parse_wrapper.h"
 
+/* first field of http first line, method for request and http_version for response */
+struct start_pattern {
+    int type;
+    char *name;
+    int name_len;
+};
+
 /**
  * Parses a single HTTP message from the input string.
  *
