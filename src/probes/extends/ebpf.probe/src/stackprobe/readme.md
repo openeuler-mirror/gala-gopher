@@ -44,11 +44,12 @@ curl -X PUT http://localhost:9999/flamegraph -d json='{ "cmd": {  "check_cmd": "
 
 - 设置开启的火焰图类型
 
-  通过probe参数设置，参数值为`oncpu`，`offcpu`，`mem`，分别代表进程cpu占用时间，进程被阻塞时间，进程申请内存大小的统计。
+  通过probe参数设置，参数值为`oncpu`，`offcpu`，`mem`，`mem_glibc`，分别代表进程cpu占用时间，进程被阻塞时间，进程申请内存大小的统计，进程申请内存大小的统计(观测glibc函数)。
+  其中`mem`基于tracepoint实现，底噪低，便于长期持续性观测，但是对于少量（缓慢）内存泄漏不敏感；`mem_glibc`基于uprobe实现，准确性高，可以检测到所有内存申请动作，但是底噪较高，不适宜长期开启。如果要查看内存火焰图，正常情况下`mem`和`mem_glibc`选择其一即可。
   
   示例：
 
-  ` "probe": ["oncpu", "offcpu", "mem"]`
+  ` "probe": ["oncpu", "offcpu", "mem", "mem_glibc"]`
 
 - 设置生成本地火焰图svg文件的周期
 
