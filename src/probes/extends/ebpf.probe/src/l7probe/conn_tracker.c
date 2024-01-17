@@ -110,6 +110,8 @@ static void destroy_tracker_record(struct conn_tracker_s* tracker)
     tracker->records.err_count = 0;
     tracker->records.req_count = 0;
     tracker->records.resp_count = 0;
+    tracker->records.msg_error_count = 0;
+    tracker->records.msg_total_count = 0;
     return;
 }
 

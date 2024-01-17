@@ -77,6 +77,7 @@ static __inline enum message_type_t __get_http_type(const char* buf, size_t coun
         return MESSAGE_UNKNOW;
     }
 
+    // In case of lost requests in extreme cases, we start inferring protocol type from http request
     // http get
     if (buf[0] == 'G' && buf[1] == 'E' && buf[2] == 'T') {
         return MESSAGE_REQUEST;
@@ -101,31 +102,6 @@ static __inline enum message_type_t __get_http_type(const char* buf, size_t coun
     if (buf[0] == 'D' && buf[1] == 'E' && buf[2] == 'L'
         && buf[3] == 'E' && buf[4] == 'T' && buf[5] == 'E') {
         return MESSAGE_REQUEST;
-    }
-
-    // http connect
-    if (buf[0] == 'C' && buf[1] == 'O' && buf[2] == 'N' && buf[3] == 'N' && buf[4] == 'E' && buf[5] == 'C'  && buf[6] == 'T') {
-        return MESSAGE_RESPONSE;
-    }
-
-    // http options
-    if (buf[0] == 'O' && buf[1] == 'P' && buf[2] == 'T' && buf[3] == 'I' && buf[4] == 'O' && buf[5] == 'N'  && buf[6] == 'S') {
-        return MESSAGE_RESPONSE;
-    }
-
-    // http trace
-    if (buf[0] == 'T' && buf[1] == 'R' && buf[2] == 'A' && buf[3] == 'C' && buf[4] == 'E') {
-        return MESSAGE_RESPONSE;
-    }
-
-    // http patch
-    if (buf[0] == 'P' && buf[1] == 'A' && buf[2] == 'T' && buf[3] == 'C' && buf[4] == 'H') {
-        return MESSAGE_RESPONSE;
-    }
-
-    // http response
-    if (buf[0] == 'H' && buf[1] == 'T' && buf[2] == 'T' && buf[3] == 'P') {
-        return MESSAGE_RESPONSE;
     }
 
     return MESSAGE_UNKNOW;

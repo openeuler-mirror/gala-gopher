@@ -93,7 +93,7 @@ static void add_redis_record_to_buf(struct record_buf_s *record_buf, struct redi
     record_data->latency = record->resp_msg->timestamp_ns - record->req_msg->timestamp_ns;
     record_buf->records[record_buf->record_buf_size] = record_data;
     ++record_buf->record_buf_size;
-    record_buf->msg_error_count += record->resp_msg->single_reply_error_msg_count;
+    record_buf->err_count += record->resp_msg->single_reply_error_msg_count;
     record_buf->msg_total_count += record->resp_msg->single_reply_msg_count;
 }
 
@@ -120,7 +120,7 @@ static void match_frames_with_timestamp_order(struct record_buf_s *record_buf, s
     struct frame_buf_s *req_frames, struct frame_buf_s *resp_frames)
 {
     struct redis_msg_s placeholder_msg = {0};
-    placeholder_msg.timestamp_ns = INT64_MAX;
+    placeholder_msg.timestamp_ns = UINT64_MAX;
 
     while (req_frames->current_pos < req_frames->frame_buf_size ||
            resp_frames->current_pos < resp_frames->frame_buf_size) {
@@ -182,14 +182,12 @@ static void match_frames_with_timestamp_order(struct record_buf_s *record_buf, s
 
 void redis_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *resp_frames, struct record_buf_s *record_buf)
 {
-    record_buf->err_count = 0;
-    record_buf->record_buf_size = 0;
-    record_buf->req_count = req_frames->frame_buf_size;
-    record_buf->resp_count = resp_frames->frame_buf_size;
-
     struct redis_record_s *record = init_redis_record();
     if (record == NULL) {
         return;
     }
+
     match_frames_with_timestamp_order(record_buf, record, req_frames, resp_frames);
+    record_buf->req_count = req_frames->current_pos;
+    record_buf->resp_count = resp_frames->current_pos;
 }

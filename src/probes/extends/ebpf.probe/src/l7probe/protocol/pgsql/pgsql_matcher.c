@@ -660,12 +660,8 @@ void pgsql_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *rsp_
     DEBUG("[PGSQL MATCHER] Req frames size: %d, resp frames size: %d\n", req_frames->frame_buf_size, rsp_frames->frame_buf_size);
     size_t req_index, resp_index;
     size_t unconsumed_index;
-    record_buf->err_count = 0;
-    record_buf->record_buf_size = 0;
     req_index = req_frames->current_pos;
     resp_index = rsp_frames->current_pos;
-    record_buf->req_count = req_frames->frame_buf_size;
-    record_buf->resp_count = rsp_frames->frame_buf_size;
     while (req_index < req_frames->frame_buf_size && resp_index < rsp_frames->frame_buf_size) {
         struct frame_data_s *req_frame;
         struct pgsql_regular_msg_s *req_msg;
@@ -729,6 +725,8 @@ void pgsql_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *rsp_
     if (unconsumed_index != req_frames->current_pos) {
         req_frames->current_pos = unconsumed_index;
         rsp_frames->current_pos = rsp_frames->frame_buf_size;
+        record_buf->req_count = req_frames->current_pos;
+        record_buf->resp_count = rsp_frames->current_pos;
     }
     DEBUG("[PGSQL MATCHER] Finished matching, records size: %d, req current position: %d, resp current position: %d\n",
           record_buf->record_buf_size, req_frames->current_pos, rsp_frames->current_pos);
