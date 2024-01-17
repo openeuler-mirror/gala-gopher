@@ -78,7 +78,7 @@ static int fill_reg_file_info(fd_info_t *fd_info, const char *fd_path)
     fd_info->type = FD_TYPE_REG;
     ret = readlink(fd_path, fd_info->reg_info.name, sizeof(fd_info->reg_info.name));
     if (ret < 0 || ret >= sizeof(fd_info->reg_info.name)) {
-        TP_ERROR("Failed to read link of fd %s\n", fd_path);
+        TP_DEBUG("Failed to read link of fd %s\n", fd_path);
         return -1;
     }
     fd_info->reg_info.name[ret] = '\0';
@@ -133,7 +133,7 @@ static int fill_sock_info(fd_info_t *fd_info, int tgid)
 
     file = popen(cmd, "r");
     if (file == NULL) {
-        TP_ERROR("Failed to execute lsof command: %s\n", cmd);
+        TP_DEBUG("Failed to execute lsof command: %s\n", cmd);
         return -1;
     }
 
@@ -186,7 +186,7 @@ int fill_fd_info(fd_info_t *fd_info, int tgid)
         case S_IFSOCK:
             return fill_sock_info(fd_info, tgid);
         default:
-            TP_WARN("Unsupported file type of fd %s.\n", fd_path);
+            TP_DEBUG("Unsupported file type of fd %s.\n", fd_path);
             fd_info->type = FD_TYPE_UNSUPPORTED;
             return 0;
     }

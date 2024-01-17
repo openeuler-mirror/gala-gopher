@@ -116,7 +116,7 @@ int set_proc_comm(int tgid, char *comm, int size)
 
     ret = exec_cmd(cmd, comm, size);
     if (ret) {
-        TP_ERROR("Failed to execute command: %s.\n", cmd);
+        TP_DEBUG("Failed to execute command: %s.\n", cmd);
         return -1;
     }
 

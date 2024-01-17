@@ -149,6 +149,20 @@ static int get_probe_range(enum probe_type_e probe_type, const char *range)
     return 0;
 }
 
+static int check_probe_range(struct probe_s *probe)
+{
+    if (probe->probe_range_flags == 0) {
+        size_t size = sizeof(probe_range_define) / sizeof(struct probe_range_define_s);
+        for (int i = 0; i < size; i++) {
+            if (probe_range_define[i].probe_type == probe->probe_type) {
+                PARSE_ERR("invalid probe ranges: at least one must be set");
+                return -1;
+            }
+        }
+    }
+    return 0;
+}
+
 static struct probe_mng_s *g_probe_mng;
 
 char g_parse_json_err[PARSE_JSON_ERR_STR_LEN];
@@ -653,7 +667,7 @@ static void probe_printer_cmd(struct probe_s *probe, void *json)
     Json_Delete(range);
 }
 
-/* {"probe":["XX","YY"]} , XX must be string but unsupported probe range will be ignored */
+/* {"probe":["XX","YY"]} , XX must be string and must be in supported probe range*/
 static int probe_parser_range(struct probe_s *probe, void *probe_item)
 {
     int range;
@@ -669,10 +683,14 @@ static int probe_parser_range(struct probe_s *probe, void *probe_item)
         }
 
         range = get_probe_range(probe->probe_type, (const char*)Json_GetValueString(object));
+        if (!range) {
+            PARSE_ERR("unsupported probe range: %s", (const char*)Json_GetValueString(object));
+            return -1;
+        }
         probe->probe_range_flags |= (u32)range;
     }
 
-    return 0;
+    return check_probe_range(probe);
 }
 
 static int probe_parser_cmd(struct probe_s *probe, const void *item)
@@ -742,6 +760,9 @@ static int probe_parser_state(struct probe_s *probe, const void *item)
     }
 
     if (!strcasecmp(PROBE_STATE_RUNNING, (const char *)Json_GetValueString(item))) {
+        if (check_probe_range(probe)) {
+            return -1;
+        }
         return start_probe(probe);
     }
 

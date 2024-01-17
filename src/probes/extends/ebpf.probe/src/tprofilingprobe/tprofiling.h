@@ -118,6 +118,7 @@ typedef struct {
 #include "proc_info.h"
 #include "thrd_bl.h"
 
+#define TP_DEBUG(fmt, ...) DEBUG("[TPROFILING] " fmt, ##__VA_ARGS__)
 #define TP_INFO(fmt, ...) INFO("[TPROFILING] " fmt, ##__VA_ARGS__)
 #define TP_WARN(fmt, ...) WARN("[TPROFILING] " fmt, ##__VA_ARGS__)
 #define TP_ERROR(fmt, ...) ERROR("[TPROFILING] " fmt, ##__VA_ARGS__)

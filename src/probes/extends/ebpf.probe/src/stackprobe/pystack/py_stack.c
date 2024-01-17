@@ -178,7 +178,7 @@ int try_init_py_proc_data(int pid, struct py_proc_data *data)
     snprintf(map_file, sizeof(map_file), "/proc/%d/maps", pid);
     fp = fopen(map_file, "r");
     if (!fp) {
-        ERROR("Failed to open map file %s\n", map_file);
+        DEBUG("Failed to open map file %s\n", map_file);
         return -1;
     }
 

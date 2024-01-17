@@ -117,7 +117,7 @@ static int __load_oncpu_bpf_prog(struct bpf_prog_s *prog, char is_load)
 
         ret = bpf_buffer__open(buffer, perf_event_handler, NULL, NULL);
         if (ret) {
-            ERROR("[TPPROFILING] Open bpf_buffer failed in oncpu.\n");
+            TP_ERROR("Open bpf_buffer failed in oncpu.\n");
             bpf_buffer__free(buffer);
             return -1;
         }
