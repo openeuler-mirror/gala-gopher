@@ -1,24 +1,22 @@
 # API介绍
 
-gala-gopher对外提供了三个接口，分别用于实现指标数据获取、元数据获取和异常结果获取功能。
-
-
+gala-gopher共对外提供三类数据：观测指标数据、异常事件数据、元数据，每类数据都有单独的获取接口。
 
 ## 1. 指标数据获取接口
 
-gala-gopher支持将采集到的数据上报到Promethous、Kafka等数据库；可以通过配置文件开启/关闭某个数据上报通道。
+gala-gopher支持将采集到的数据上报到Promethous、Kafka等数据库；可以通过配置文件开启/关闭某个数据上报通道，具体参考[配置文件](conf_introduction.md)中 `metric`部分。
 
-### 1.1 http方式
+### 1.1 http方式(默认)
 
 采用本方式每条采集数据是基于指标粒度上报的，通常gala-gopher部署在1个到多个普通节点，管理节点的Promethous可以配置定时拉取各个普通节点的指标数据。
 
-#### 默认提供的REST API地址
+#### 默认提供的URL地址
 
 ```http
-http://localhost:port
+http://localhost:8888
 ```
 
-支持自定义配置，详情参考[配置文件](conf_introduction.md)中 `webServer`部分。
+http监听IP和端口支持自定义配置，详情参考[配置文件](conf_introduction.md)中 `web_server`部分。
 
 #### 输出数据格式
 
@@ -55,7 +53,7 @@ gala_gopher_thread_task_io_time_us{pid="2494",tgid="2494",comm="hello",major="8"
 gala_gopher
 ```
 
-支持自定义配置，详情参考[配置文件](conf_introduction.md)中 ` kafka`部分。
+支持自定义配置，详情参考[配置文件](conf_introduction.md)中 ` metric`的`kafka_topic`部分。
 
 #### 输出数据格式
 
@@ -94,7 +92,7 @@ gala_gopher
 
 ## 2. 元数据获取接口
 
-元数据主要描述了每个观测对象的基本信息，如：数据表名(table_name)、观测对象名(entity_name)、版本号，以及键值keys有哪些、标签labels有哪些、指标metrics有哪些。元数据会上报到kafka。
+元数据主要描述了每个观测对象的基本信息，如：数据表名(table_name)、观测对象名(entity_name)、版本号，以及键值keys有哪些、标签labels有哪些、指标metrics有哪，gala分析组件需要元数据对观测指标数据进行解析。元数据会上报到kafka。
 
 #### 默认提供的topic
 
@@ -102,7 +100,7 @@ gala_gopher
 gala_gopher_metadata
 ```
 
-支持自定义配置，详情参考[配置文件](conf_introduction.md)中 ` kafka`部分。
+支持自定义配置，详情参考[配置文件](conf_introduction.md)中 ` meta`部分。
 
 #### 输出数据格式
 
@@ -148,7 +146,7 @@ gala-gopher运行中，如果开启了异常上报功能，就会在探测到数
 gala_gopher_event
 ```
 
-支持自定义配置，详情参考[配置文件](conf_introduction.md)中 ` kafka`部分。
+支持自定义配置，详情参考[配置文件](conf_introduction.md)中 ` event`部分。
 
 #### 输出数据格式
 
