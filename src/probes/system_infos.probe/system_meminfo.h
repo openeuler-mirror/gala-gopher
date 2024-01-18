@@ -43,6 +43,8 @@ enum mem_infos {
     SWAP_FREE,
     SHMEM,
     SLAB,
+    S_RECLAIMABLE,
+    S_UNRECLAIM,
     KERNEL_STACK,
     PAGE_TABLES,
     VMALLOC_USED,
