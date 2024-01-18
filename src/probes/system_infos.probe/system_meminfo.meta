@@ -73,6 +73,16 @@ measurements:
                 name: "slab_kB",
             },
             {
+                description: "Total size of reclaimable slab space (KB)",
+                type:"gauge",
+                name: "SReclaimable_kB",
+            },
+            {
+                description: "Total size of unreclaimable slab space (KB)",
+                type:"gauge",
+                name: "Unreclaim_kB",
+            },
+            {
                 description: "Total size of memory used for page tables (KB)",
                 type:"gauge",
                 name: "page_kB",
