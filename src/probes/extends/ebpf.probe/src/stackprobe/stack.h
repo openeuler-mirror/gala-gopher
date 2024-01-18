@@ -21,7 +21,7 @@
 #include "py_stack.h"
 
 #define DEFAULT_PERF_SAMPLE_PERIOD   10 // ms
-#define AGGRE_PERIOD                (1 * 30 * 1000) // 30s
+#define AGGRE_PERIOD                (1 * 20 * 1000) // 20s
 #define TMOUT_PERIOD                (AGGRE_PERIOD / 1000) // Second as unit
 #define PROC_CACHE_MAX_COUNT        100    // Cache 100 proc symbols
 #define DIV_ROUND_UP(NUM, DEN)      ((NUM + DEN - 1) / DEN)

@@ -56,7 +56,7 @@ public class JstackProbeAgent {
             }
 
             recording.setDestination(JfrPath);
-            recording.setDuration(Duration.ofSeconds(30));
+            recording.setDuration(Duration.ofSeconds(20));
             recording.scheduleStart(Duration.ofSeconds(2));
 
             recording.start();

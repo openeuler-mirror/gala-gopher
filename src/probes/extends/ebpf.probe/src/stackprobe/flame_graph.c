@@ -38,6 +38,7 @@
 #include "flame_graph.h"
 
 extern int g_post_max;
+CURL* g_curl = NULL;
 
 struct MemoryStruct {
   char *memory;
@@ -214,15 +215,14 @@ void curl_post(struct stack_svg_mng_s *svg_mng, struct post_server_s *post_serve
     struct post_info_s *post_info, int en_type, int proc_id)
 {
     CURLcode res;
-    CURL *curl = post_info->curl;
-    if (curl == NULL) {
-        goto end2;
+    if (g_curl == NULL) {
+        return;
     }
 
     long post_len = (long)strlen(post_info->buf_start);
     if (post_len == 0) {
         DEBUG("[FLAMEGRAPH]: buf is null. No need to curl post post to %s\n", appname[en_type]);
-        goto end1;
+        return;
     }
 
     char url[LINE_BUF_LEN] = {0};
@@ -232,28 +232,38 @@ void curl_post(struct stack_svg_mng_s *svg_mng, struct post_server_s *post_serve
     chunk.size = 0;    /* no data at this point */
 
     //curl_easy_setopt(curl, CURLOPT_URL, post_server->host);
-    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(g_curl, CURLOPT_URL, url);
 
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, post_server->timeout);
+    // reuse connection
+    curl_easy_setopt(g_curl, CURLOPT_FORBID_REUSE, 0L);
+
+    //  force the use of a cached one connection
+    curl_easy_setopt(g_curl, CURLOPT_FRESH_CONNECT, 0L);
+
+    curl_easy_setopt(g_curl, CURLOPT_TCP_KEEPALIVE, 1L);
+    curl_easy_setopt(g_curl, CURLOPT_TCP_KEEPIDLE, 20L);
+    curl_easy_setopt(g_curl, CURLOPT_TCP_KEEPINTVL, 10L);
+
+    curl_easy_setopt(g_curl, CURLOPT_TIMEOUT, post_server->timeout);
 
     /* send all data to this function */
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, __write_memory_cb);
+    curl_easy_setopt(g_curl, CURLOPT_WRITEFUNCTION, __write_memory_cb);
 
     /* we pass our 'chunk' struct to the callback function */
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+    curl_easy_setopt(g_curl, CURLOPT_WRITEDATA, (void *)&chunk);
 
     /* some servers do not like requests that are made without a user-agent
     field, so we provide one */
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "libcurl-agent/1.0");
+    curl_easy_setopt(g_curl, CURLOPT_USERAGENT, "libcurl-agent/1.0");
 
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_info->buf_start);
+    curl_easy_setopt(g_curl, CURLOPT_POSTFIELDS, post_info->buf_start);
 
     /* if we do not provide POSTFIELDSIZE, libcurl will strlen() by
     itself */
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, post_len);
+    curl_easy_setopt(g_curl, CURLOPT_POSTFIELDSIZE, post_len);
 
     /* Perform the request, res will get the return code */
-    res = curl_easy_perform(curl);
+    res = curl_easy_perform(g_curl);
     /* Check for errors */
     if(res != CURLE_OK) {
         ERROR("[FLAMEGRAPH]: curl post to %s failed: %s\n", url, curl_easy_strerror(res));
@@ -264,15 +274,6 @@ void curl_post(struct stack_svg_mng_s *svg_mng, struct post_server_s *post_serve
     if (chunk.memory) {
         free(chunk.memory);
     }
-end1:
-    /* always cleanup */
-    curl_easy_cleanup(curl);
-    post_info->curl = NULL;
-end2:
-    if (post_info->buf_start != NULL) {
-        free(post_info->buf_start);
-        post_info->buf_start = NULL;
-    }
     return;
 }
 
@@ -282,13 +283,11 @@ void init_curl_handle(struct post_server_s *post_server, struct post_info_s *pos
         return;
     }
 
-    if (post_info->curl != NULL) {
-        ERROR("[FLAMEGRAPH]: curl was not freed normally\n");
-    } else {
-        post_info->curl = curl_easy_init();
+    if (g_curl == NULL) {
+        g_curl = curl_easy_init();
     }
 
-    if(post_info->curl) {
+    if(g_curl) {
         post_info->buf = (char *)malloc(g_post_max);
         post_info->buf_start = post_info->buf;
         if (post_info->buf != NULL) {
@@ -409,4 +408,12 @@ int set_post_server(struct post_server_s *post_server, const char *server_str, u
 void clean_post_server()
 {
     curl_global_cleanup();
+}
+
+void clean_curl()
+{
+    if (g_curl != NULL) {
+        curl_easy_cleanup(g_curl);
+        g_curl = NULL;
+    }
 }
