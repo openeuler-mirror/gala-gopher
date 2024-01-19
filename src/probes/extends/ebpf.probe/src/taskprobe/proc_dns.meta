@@ -35,6 +35,11 @@ measurements:
                 description: "Number of DNS accesses (successful and non-successful).",
                 type: "gauge",
                 name: "count",
+            },
+            {
+                description: "Number of DNS accesses non-successful.",
+                type: "gauge",
+                name: "error_count",
             }
         )
     }
