@@ -1136,9 +1136,10 @@ void destroy_probe_threads(void)
     }
 
     for (int i = 0; i < PROBE_TYPE_MAX; i++) {
-        if (g_probe_mng->probes[i] != NULL && g_probe_mng->probes[i]->tid != 0) {
-            pthread_cancel(g_probe_mng->probes[i]->tid);
-            pthread_join(g_probe_mng->probes[i]->tid, NULL);
+        struct probe_s *probe = g_probe_mng->probes[i];
+        if (probe != NULL) {
+            stop_probe(probe);
+            INFO("[PROBE_MNG] Probe %s is stopped\n", probe->name);
         }
     }
 }
