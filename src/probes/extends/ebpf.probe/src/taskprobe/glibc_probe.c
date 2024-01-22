@@ -202,7 +202,7 @@ static void output_dns_entry(struct dns_entry_s *entry)
 
     (void)fprintf(stdout,
         "|%s|%u|%s|"
-        "%llu|%llu|%.3f|%llu|\n",
+        "%llu|%llu|%.3f|%llu|%llu|\n",
         PROC_DNS_TBL,
         entry->id.proc_id,
         entry->id.domain,
@@ -210,7 +210,8 @@ static void output_dns_entry(struct dns_entry_s *entry)
         latency_avg,
         entry->latency_max >> 6,
         entry->err_ratio,
-        entry->dns_op_count);
+        entry->dns_op_count,
+        entry->err_count);
     return;
 }
 
