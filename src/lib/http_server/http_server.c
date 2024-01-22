@@ -111,11 +111,11 @@ void run_http_server_daemon(http_server_mgr_s *server_mgr)
 
     handle = evhttp_bind_socket_with_handle(server_mgr->evhttp, server_mgr->bind_addr, server_mgr->port);
     if (handle == NULL) {
-        ERROR("[%s] Failed to bind to addr %s, port %d", server_mgr->name, server_mgr->bind_addr, server_mgr->port);
+        ERROR("[%s] Failed to bind to addr %s, port %d\n", server_mgr->name, server_mgr->bind_addr, server_mgr->port);
         return;
     }
 
-    DEBUG("[%s] Start running, listening on %s:%d", server_mgr->name, server_mgr->bind_addr, server_mgr->port);
+    DEBUG("[%s] Start running, listening on %s:%d\n", server_mgr->name, server_mgr->bind_addr, server_mgr->port);
     // handling request here in a loop
     event_base_dispatch(server_mgr->evbase);
 }
