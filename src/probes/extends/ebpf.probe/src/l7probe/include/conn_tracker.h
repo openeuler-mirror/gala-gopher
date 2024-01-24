@@ -79,13 +79,13 @@ struct tracker_close_s {
 
 
 enum latency_range_t {
-    LT_RANGE_1 = 0,         // (0 ~ 3]ms
-    LT_RANGE_2,             // (3 ~ 10]ms
-    LT_RANGE_3,             // (10 ~ 50]ms
-    LT_RANGE_4,             // (50 ~ 100]ms
-    LT_RANGE_5,             // (100 ~ 500]ms
-    LT_RANGE_6,             // (500 ~ 1000]ms
-    LT_RANGE_7,            // (1000 ~ 10000]ms
+    LT_RANGE_1 = 0,         // (0 ~ 10]ms
+    LT_RANGE_2,             // (10 ~ 50]ms
+    LT_RANGE_3,             // (50 ~ 100]ms
+    LT_RANGE_4,             // (100 ~ 500]ms
+    LT_RANGE_5,             // (500 ~ 1000]ms
+    LT_RANGE_6,             // (1000 ~ 3000]ms
+    LT_RANGE_7,             // (3000 ~ 10000]ms
 
     __MAX_LT_RANGE
 };

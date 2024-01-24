@@ -49,13 +49,13 @@ struct latency_histo_s {
 
 // unit: ns
 struct latency_histo_s latency_histios[__MAX_LT_RANGE] = {
-    {LT_RANGE_1, 0,          3000000},
-    {LT_RANGE_2, 3000000,    10000000},
-    {LT_RANGE_3, 10000000,   50000000},
-    {LT_RANGE_4, 50000000,   100000000},
-    {LT_RANGE_5, 100000000,  500000000},
-    {LT_RANGE_6, 500000000,  1000000000},
-    {LT_RANGE_7, 1000000000, 10000000000}
+    {LT_RANGE_1, 0,          10000000},
+    {LT_RANGE_2, 10000000,   50000000},
+    {LT_RANGE_3, 50000000,   100000000},
+    {LT_RANGE_4, 100000000,  500000000},
+    {LT_RANGE_5, 500000000,  1000000000},
+    {LT_RANGE_6, 1000000000, 3000000000},
+    {LT_RANGE_7, 3000000000, 10000000000}
 };
 
 const char *proto_name[PROTO_MAX] = {
