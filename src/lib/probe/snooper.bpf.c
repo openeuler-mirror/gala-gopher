@@ -69,7 +69,7 @@ int bpf_trace_sched_process_fork_func(struct trace_event_raw_sched_process_fork 
 
     event.pid = ctx->child_pid;
     event.proc_event = PROC_EXEC;
-    __builtin_memcpy(event.filename, ctx->child_comm, sizeof(ctx->child_comm));
+    bpf_core_read_str(event.filename, sizeof(ctx->child_comm), &ctx->child_comm);
 
     bpfbuf_output(ctx, &snooper_proc_channel, &event, sizeof(event));
     return 0;
