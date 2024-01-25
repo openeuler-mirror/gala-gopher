@@ -29,6 +29,10 @@
 #define PROC_FILTER_MAP_PATH   "/sys/fs/bpf/gala-gopher/__tprofiling_proc_filter"
 #define THRD_BL_MAP_PATH       "/sys/fs/bpf/gala-gopher/__tprofiling_thrd_bl"
 #define STACK_MAP_PATH         "/sys/fs/bpf/gala-gopher/__tprofiling_stack"
+#define PY_PROC_MAP_PATH        "/sys/fs/bpf/gala-gopher/__tprofiling_py_proc"
+#define PY_STACK_MAP_PATH         "/sys/fs/bpf/gala-gopher/__tprofiling_py_stack"
+#define STACK_PY_SYMBOL_IDS_MAP_PATH         "/sys/fs/bpf/gala-gopher/__tprofiling_py_symb"
+#define STACK_PY_SAMPLE_HEAP_MAP_PATH         "/sys/fs/bpf/gala-gopher/__tprofiling_py_sample_heap"
 #define SYSCALL_ENTER_MAP_PATH "/sys/fs/bpf/gala-gopher/__tprofiling_syscall_enter"
 #define SYSCALL_STASH_MAP_PATH "/sys/fs/bpf/gala-gopher/__tprofiling_syscall_stash"
 #define SYSCALL_EVENT_MAP_PATH "/sys/fs/bpf/gala-gopher/__tprofiling_syscall_event"
@@ -57,6 +61,10 @@
     MAP_SET_COMMON_PIN_PATHS(probe_name, load); \
     MAP_SET_PIN_PATH(probe_name, event_map, SYSCALL_EVENT_MAP_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, stack_map, STACK_MAP_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, py_proc_map, PY_PROC_MAP_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, py_stack_cached, PY_STACK_MAP_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, py_symbol_ids, STACK_PY_SYMBOL_IDS_MAP_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, py_sample_heap, STACK_PY_SAMPLE_HEAP_MAP_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, syscall_enter_map, SYSCALL_ENTER_MAP_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, syscall_stash_map, SYSCALL_STASH_MAP_PATH, load); \
     MAP_INIT_BPF_BUFFER(probe_name, event_map, buffer, load); \

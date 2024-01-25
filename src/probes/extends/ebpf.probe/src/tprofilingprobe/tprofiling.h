@@ -15,6 +15,7 @@
 #ifndef __TPROFILING_H__
 #define __TPROFILING_H__
 #include "syscall_table.h"
+#include "py_stack.h"
 
 #ifndef __u64
 typedef unsigned long long __u64;
@@ -51,6 +52,7 @@ typedef struct {
 typedef struct {
     int uid;    // 用户栈ID
     int kid;    // 内核栈ID
+    __u64 pyid;   // py栈ID
 } stack_trace_t;
 
 typedef union {
@@ -140,6 +142,10 @@ typedef struct {
     int stackMapFd;             /* ebpf map，用于获取调用栈信息 */
     int procFilterMapFd;        /* ebpf map，用于更新进程白名单 */
     int threadBlMapFd;          /* ebpf map，用于更新线程黑名单 */
+    int pyProcMapFd;            
+    int pyStackMapFd;           /* ebpf map，用于获取py调用栈信息 */
+    int pySymbMapFd;            /* ebpf map，py符号信息 */
+    int pyHeapMapFd;
     syscall_meta_t *scmTable;   /* 系统调用元数据表，是一个 hash 表 */
     __u64 sysBootTime;          /* 系统启动时间，单位：纳秒（ns） */
     proc_info_t *procTable;     /* 缓存的进程信息表，是一个 hash 表 */
@@ -189,6 +195,13 @@ struct {
     __uint(value_size, sizeof(u64) * PERF_MAX_STACK_DEPTH);
     __uint(max_entries, 1024);
 } stack_map SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_LRU_HASH);
+    __uint(key_size, sizeof(u64));
+    __uint(value_size, sizeof(struct py_stack));
+    __uint(max_entries, 100000);
+} py_stack_cached SEC(".maps");
 
 static __always_inline bool is_proc_enabled(u32 tgid)
 {

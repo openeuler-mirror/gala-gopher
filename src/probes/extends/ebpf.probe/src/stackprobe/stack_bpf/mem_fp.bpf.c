@@ -20,7 +20,7 @@
 #include "bpf.h"
 #include "../stack.h"
 #include "stackprobe_bpf.h"
-#include "py_stack_bpf.h"
+#include "../py_stack_bpf.h"
 
 char g_linsence[] SEC("license") = "GPL";
 

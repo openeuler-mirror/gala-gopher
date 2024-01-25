@@ -4,7 +4,7 @@ BTF_ENABLE_OVERRIDE := ON
 
 include ../mk/var.mk
 INCLUDES = $(BASE_INC)
-INCLUDES += -I./pystack/
+INCLUDES += -I../pystack/
 
 APP := stackprobe
 AGENT := jvm_agent$(JAVA_SYM_AGENT_VER).so
@@ -16,7 +16,7 @@ BPF_PROG := $(patsubst %.bpf.c, %.bpf.o, $(BPF_C))
 DEPS = $(BPF_PROG) $(patsubst %.cpp, %.o, $(SRC_CPLUS))
 
 SRC_C := $(wildcard *.c)
-SRC_C += $(wildcard pystack/*.c)
+SRC_C += $(wildcard ../pystack/*.c)
 SRC_C += $(CFILES)
 
 ALL := pre deps app agent
