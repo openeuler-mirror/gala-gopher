@@ -670,6 +670,8 @@ static void reload_listen_port(struct endpoint_probe_s *probe)
 
         (void)exit_container_netns(netns_fd);
     }
+
+    (void)close(netns_fd);
     return;
 }
 
