@@ -33,33 +33,44 @@
 extern struct py_offset py37_offset;
 extern struct py_offset py39_offset;
 
-#define LIB_PYTHON_PREFIX_LEN 32
-#define LIB_PYTHON_COMMON_PREFIX "libpython"
+#define PYTHON_VERSION_LEN 32
+#define LIB_PYTHON_COMMON_PREFIX    "libpython"
+#define PYTHON_KEYWORD              "python"
+#define PY_VAR_PYRUNTIME            "_PyRuntime"
 
-#define PY_VAR_PYRUNTIME "_PyRuntime"
+#define CMD_GET_EXE_PATH    "/usr/bin/readlink /proc/%d/exe"
+#define PROC_MAPS_PATH      "/proc/%d/maps"
 
 struct py_support_version {
-    char libpy_prefix[LIB_PYTHON_PREFIX_LEN];
+    char version[PYTHON_VERSION_LEN];
     struct py_offset *py_offset;
 };
 
 static struct py_support_version g_py_support_vers[] = {
-    {"libpython3.7", &py37_offset},
-    {"libpython3.9", &py39_offset}
+    {"python3.7", &py37_offset},
+    {"python3.9", &py39_offset}
 };
 
 #define SUPPORT_PYTHON_VERSION_NUM (sizeof(g_py_support_vers) / sizeof(struct py_support_version))
 
-static struct py_support_version *get_curr_py_version(const char *so_path)
+static struct py_support_version *get_curr_py_version(const char *path)
 {
     int i;
 
     for (i = 0; i < SUPPORT_PYTHON_VERSION_NUM; i++) {
-        if (strstr(so_path, g_py_support_vers[i].libpy_prefix)) {
+        if (strstr(path, g_py_support_vers[i].version)) {
             return &g_py_support_vers[i];
         }
     }
     return NULL;
+}
+
+static bool is_python_proc(const char *exe_path)
+{
+    if (strstr(exe_path, PYTHON_KEYWORD)) {
+        return true;
+    }
+    return false;
 }
 
 #if 0
@@ -99,7 +110,7 @@ static int get_proc_container_id(int pid, char *container_id, int size)
     return get_container_id_by_pid_cpuset(pid_str, container_id, size);
 }
 
-static int get_real_so_path(const char *orig_path, char *real_path, int real_path_size, int pid)
+static int get_real_path(const char *orig_path, char *real_path, int real_path_size, int pid)
 {
     char container_id[CONTAINER_ABBR_ID_LEN + 1];
     char pid_root_path[PATH_LEN];
@@ -132,31 +143,31 @@ static int get_real_so_path(const char *orig_path, char *real_path, int real_pat
 }
 
 static int init_py_proc_data(int pid, struct py_proc_data *data,
-    const char *so_path, struct mod_info_s *mod_info)
+    const char *elf_path, struct mod_info_s *mod_info)
 {
     struct py_support_version *py_ver;
-    char real_so_path[PATH_LEN];
+    char real_path[PATH_LEN];
     int ret;
 
-    py_ver = get_curr_py_version(so_path);
+    py_ver = get_curr_py_version(elf_path);
     if (!py_ver) {
         DEBUG("Current python version is not supported, pid=%d\n", pid);
         return -1;
     }
 
-    real_so_path[0] = 0;
-    ret = get_real_so_path(so_path, real_so_path, sizeof(real_so_path), pid);
+    real_path[0] = 0;
+    ret = get_real_path(elf_path, real_path, sizeof(real_path), pid);
     if (ret) {
-        ERROR("Failed to get real so path of libpython\n");
+        ERROR("Failed to get real path of %s\n", elf_path);
         return -1;
     }
 
-    ret = gopher_get_elf_symb_addr(real_so_path, PY_VAR_PYRUNTIME, &data->py_runtime_addr);
+    ret = gopher_get_elf_symb_addr(real_path, PY_VAR_PYRUNTIME, &data->py_runtime_addr);
     if (ret) {
-        ERROR("Failed to get _PyRuntime addr from %s\n", so_path);
+        DEBUG("Failed to get _PyRuntime addr from %s\n", elf_path);
         return -1;
     }
-    DEBUG("Succeed to get _PyRuntime addr:%llx, so_path=%s\n", data->py_runtime_addr, so_path);
+    DEBUG("Succeed to get _PyRuntime addr:%llx, elf_path=%s\n", data->py_runtime_addr, elf_path);
 
     data->py_runtime_addr += mod_info->start - mod_info->f_offset;
     memcpy(&data->offsets, py_ver->py_offset, sizeof(struct py_offset));
@@ -165,17 +176,31 @@ static int init_py_proc_data(int pid, struct py_proc_data *data,
 
 int try_init_py_proc_data(int pid, struct py_proc_data *data)
 {
+    char cmd[PATH_LEN];
     char map_file[PATH_LEN];
     FILE *fp = NULL;
     int ret;
 
     struct mod_info_s mod_info;
     char buf[PATH_LEN];
+    char exe_path[PATH_LEN];
     char so_path[PATH_LEN];
     char perm[5];
 
+    cmd[0] = 0;
+    snprintf(cmd, sizeof(cmd), CMD_GET_EXE_PATH, pid);
+    exe_path[0] = 0;
+    ret = exec_cmd(cmd, exe_path, sizeof(exe_path));
+    if (ret) {
+        DEBUG("Failed to get exe path of proc %d\n", pid);
+        return -1;
+    }
+    if (!is_python_proc(exe_path)) {
+        return -1;
+    }
+
     map_file[0] = 0;
-    snprintf(map_file, sizeof(map_file), "/proc/%d/maps", pid);
+    snprintf(map_file, sizeof(map_file), PROC_MAPS_PATH, pid);
     fp = fopen(map_file, "r");
     if (!fp) {
         DEBUG("Failed to open map file %s\n", map_file);
@@ -191,11 +216,12 @@ int try_init_py_proc_data(int pid, struct py_proc_data *data)
             continue;
         }
 
-        if (strstr(so_path, LIB_PYTHON_COMMON_PREFIX)) {
-            DEBUG("lipython mod info: start=%llx, end=%llx, so_path=%s\n", mod_info.start, mod_info.end, so_path);
+        // Consider that cpython may statically link to exe path(for example, in conda environment)
+        if (strstr(so_path, LIB_PYTHON_COMMON_PREFIX) || strcmp(so_path, exe_path) == 0) {
+            DEBUG("python mod info: start=%llx, end=%llx, so_path=%s\n", mod_info.start, mod_info.end, so_path);
             ret = init_py_proc_data(pid, data, so_path, &mod_info);
             if (ret) {
-                break;
+                continue;
             }
 
             fclose(fp);
