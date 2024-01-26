@@ -278,6 +278,9 @@ static void do_set_proc_stat(proc_info_t *proc_info, char *buf, int index)
         case PROC_STAT_CPU:
             proc_info->proc_stat_cpu = value;
             break;
+        case PROC_STAT_GUEST_TIME:
+            proc_info->proc_stat_guest_time = value;
+            break;
         default:
             break;
     }
@@ -480,13 +483,28 @@ static int update_proc_infos(u32 pid, proc_info_t *proc_info)
     return 0;
 }
 
-static void output_proc_infos(proc_hash_t *one_proc)
+static void output_proc_infos(proc_hash_t *one_proc, unsigned int period)
 {
     u32 fd_free = one_proc->info.max_fd_limit - one_proc->info.fd_count;
     float fd_free_per = fd_free / (float)one_proc->info.max_fd_limit * 100;
 
+    u64 sys_clock_ticks = (u64)sysconf(_SC_CLK_TCK);
+
+    float proc_cpu_util = (float)((one_proc->info.proc_stat_utime + one_proc->info.proc_stat_stime) -
+        (g_pre_proc_info.proc_stat_utime + g_pre_proc_info.proc_stat_stime)) / (period * sys_clock_ticks) * FULL_PER;
+
+    float proc_cpu_user_util = 0.0;
+    float cur_proc_user_ticks = (one_proc->info.proc_stat_utime - one_proc->info.proc_stat_guest_time);
+    float prev_proc_user_ticks = (g_pre_proc_info.proc_stat_utime - g_pre_proc_info.proc_stat_guest_time);
+    if (cur_proc_user_ticks > prev_proc_user_ticks) {
+        proc_cpu_user_util = (float)(cur_proc_user_ticks - prev_proc_user_ticks) / (period * sys_clock_ticks) * FULL_PER;
+    }
+
+    float proc_cpu_system_util = (float)(one_proc->info.proc_stat_stime - g_pre_proc_info.proc_stat_stime) /
+        (period * sys_clock_ticks) * FULL_PER;
+
     nprobe_fprintf(stdout,
-        "|%s|%lu|%d|%d|%u|%.2f|%llu|%llu|%u|%u|%llu|%llu|%llu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|%d|\n",
+        "|%s|%lu|%d|%d|%u|%.2f|%llu|%llu|%u|%u|%llu|%llu|%llu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|%d|%.2f|%.2f|%.2f|\n",
         METRICS_PROC_NAME,
         one_proc->key.pid,
         one_proc->info.pgid,
@@ -520,7 +538,10 @@ static void output_proc_infos(proc_hash_t *one_proc)
         one_proc->info.proc_stat_vsize,
         one_proc->info.proc_stat_rss * (u64)sysconf(_SC_PAGESIZE),
         one_proc->info.proc_stat_rss * 1.0 * FULL_PER / (u64)sysconf(_SC_PHYS_PAGES),
-        one_proc->info.proc_stat_cpu);
+        one_proc->info.proc_stat_cpu,
+        proc_cpu_util,
+        proc_cpu_user_util,
+        proc_cpu_system_util);
     return;
 }
 
@@ -565,7 +586,7 @@ int system_proc_probe(struct ipc_body_s *ipc_body)
                 continue;
             }
 
-            output_proc_infos(proc);
+            output_proc_infos(proc, ipc_body->probe_param.period);
         }
     }
 

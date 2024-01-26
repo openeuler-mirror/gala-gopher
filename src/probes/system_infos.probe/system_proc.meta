@@ -171,6 +171,21 @@ measurements:
                 description: "ID of the CPU where proc last run",
                 type: "gauge",
                 name: "cpu",
+            },
+            {
+                description: "proc's cpu percent",
+                type: "gauge",
+                name: "cpu_util",
+            },
+            {
+                description: "proc's cpu percent of user level",
+                type: "gauge",
+                name: "cpu_user_util",
+            },
+            {
+                description: "proc's cpu percent of system level",
+                type: "gauge",
+                name: "cpu_system_util",
             }
         )
     }

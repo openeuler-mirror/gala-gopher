@@ -53,6 +53,7 @@ enum proc_stat_e {
     PROC_STAT_VSIZE,
     PROC_STAT_RSS,
     PROC_STAT_CPU = 39,
+    PROC_STAT_GUEST_TIME = 43,
 
     PROC_STAT_MAX
 };
@@ -109,6 +110,7 @@ typedef struct {
     u64 proc_stat_vsize;                // FROM same as proc_stat_min_flt
     u64 proc_stat_rss;                  // FROM same as proc_stat_min_flt
     int proc_stat_cpu;                  // FROM same as proc_stat_min_flt
+    u64 proc_stat_guest_time;           // FROM same as proc_stat_min_flt
 } proc_info_t;
 
 typedef struct {
