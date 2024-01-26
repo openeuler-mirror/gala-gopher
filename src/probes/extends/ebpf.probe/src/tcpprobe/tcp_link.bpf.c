@@ -67,8 +67,8 @@ static __always_inline int add_tcp_link(struct sock *sk, struct sock_info_s *inf
             link.s_ip = _(sk->sk_rcv_saddr);
             link.c_ip = _(sk->sk_daddr);
         } else {
-            BPF_CORE_READ_INTO(&link.c_ip6, sk, sk_v6_rcv_saddr);
-            BPF_CORE_READ_INTO(&link.s_ip6, sk, sk_v6_daddr);
+            BPF_CORE_READ_INTO(&link.s_ip6, sk, sk_v6_rcv_saddr);
+            BPF_CORE_READ_INTO(&link.c_ip6, sk, sk_v6_daddr);
         }
         link.s_port = _(sk->sk_num);
         link.c_port = bpf_ntohs(_(sk->sk_dport));
