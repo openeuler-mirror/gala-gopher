@@ -423,7 +423,7 @@ static int output_tcp_metrics(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *t
         reset_tcp_abn_stats(tracker);
     }
 
-    if (flags & TCP_PROBE_SRTT) {
+    if ((flags & TCP_PROBE_SRTT) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_SRTT)) {
         outputed = 1;
         output_tcp_syn_rtt(tcp_mng, tracker);
         reset_tcp_syn_rtt_stats(tracker);
