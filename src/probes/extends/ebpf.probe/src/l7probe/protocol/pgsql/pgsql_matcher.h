@@ -24,25 +24,4 @@
 void pgsql_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *rsp_frames,
                         struct record_buf_s *record_buf);
 
-parse_state_t pgsql_handle_query(struct pgsql_regular_msg_s *msg, struct frame_buf_s *req_frames,
-                                 struct frame_buf_s *rsp_frames, struct pgsql_query_req_resp_s *req_rsp);
-
-parse_state_t pgsql_fill_query_resp(struct frame_buf_s *rsp_frames, struct pgsql_query_resp_s *query_rsp);
-
-parse_state_t pgsql_handle_parse(struct pgsql_regular_msg_s *msg, struct frame_buf_s *req_frames,
-                                 struct frame_buf_s *rsp_frames, struct pgsql_parse_req_resp_s *req_rsp);
-
-parse_state_t pgsql_fill_stmt_desc_resp(struct frame_buf_s *rsp_frames, struct pgsql_describe_resp_s *desc_rsp);
-
-parse_state_t pgsql_fill_portal_desc_resp(struct frame_buf_s *rsp_frames, struct pgsql_describe_resp_s *desc_rsp);
-
-parse_state_t pgsql_handle_describe(struct pgsql_regular_msg_s *msg, struct frame_buf_s *req_frames,
-                                    struct frame_buf_s *rsp_frames, struct pgsql_describe_req_resp_s *req_rsp);
-
-parse_state_t pgsql_handle_bind(struct pgsql_regular_msg_s *msg, struct frame_buf_s *req_frames,
-                                struct frame_buf_s *rsp_frames, struct pgsql_bind_req_resp_s *req_rsp);
-
-parse_state_t pgsql_handle_execute(struct pgsql_regular_msg_s *msg, struct frame_buf_s *req_frames,
-                                   struct frame_buf_s *rsp_frames, struct pgsql_execute_req_resp_s *req_rsp);
-
 #endif
