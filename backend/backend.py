@@ -125,6 +125,16 @@ class KeepAliveThread(threading.Thread):
             httpd.serve_forever()
 
 
+class ReceiveHttpRequestThread(threading.Thread):
+    def __init__(self):
+        threading.Thread.__init__(self)
+
+    def run(self):
+        with HTTPServer((IP, PORT), Handler) as httpd:
+            logging.debug("ReceiveHttpRequestThread serving at port %d", PORT)
+            httpd.serve_forever()
+
+
 class Handler(BaseHTTPRequestHandler):
     # 接收web or backend的put请求
     def do_PUT(self):
@@ -283,9 +293,8 @@ if __name__ == "__main__":
     thread.start()
 
     # 接收web或backend的http请求
-    with HTTPServer((IP, PORT), Handler) as httpd:
-        logging.debug("ReceiveHttpRequestThread serving at port %d", PORT)
-        httpd.serve_forever()
+    receive_http_request_thread = ReceiveHttpRequestThread()
+    receive_http_request_thread.start()
 
     # 周期发送心跳
     while True:
