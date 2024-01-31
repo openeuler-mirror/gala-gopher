@@ -30,8 +30,9 @@ typedef unsigned int __u32;
 #define MAX_SIZE_OF_STASH_EVENT 10240
 #define THREAD_COMM_LEN 16
 
-#define DFT_AGGR_DURATION (1000 * NSEC_PER_MSEC)
-#define MIN_EXEC_DURATION NSEC_PER_MSEC
+#define DFT_AGGR_DURATION   (10 * NSEC_PER_SEC)
+#define DFT_STATS_DURATION  (100 * NSEC_PER_MSEC)
+#define MIN_EXEC_DURATION   0
 
 typedef enum {
     EVT_TYPE_SYSCALL = 1,
@@ -71,21 +72,69 @@ typedef struct {
     syscall_ext_info_t ext_info;
 } syscall_m_enter_t;
 
+#define STATS_STACK_MAX_NUM             100
+#define STATS_STACK_MAX_NUM_MASK        128 // used for bpf bound verification, must be large than STATS_STACK_MAX_NUM
+#define STATS_TOP_COMMON_MAX_NUM        3
+#define STATS_TOP_COMMON_MAX_NUM_MASK   4   // used for bpf bound verification, must be large than STATS_TOP_COMMON_MAX_NUM
+#define STATS_TOP_FD_MAX_NUM            STATS_TOP_COMMON_MAX_NUM
+#define STATS_TOP_FD_MAX_NUM_MASK       STATS_TOP_COMMON_MAX_NUM_MASK
+#define STATS_TOP_FUTEX_MAX_NUM         STATS_TOP_COMMON_MAX_NUM
+#define STATS_TOP_FUTEX_MAX_NUM_MASK    STATS_TOP_COMMON_MAX_NUM_MASK
+
+struct stats_stack_elem {
+    stack_trace_t stack;
+    __u64 duration;
+};
+
+struct stats_stack {
+    __u32 num;
+    struct stats_stack_elem stacks[STATS_STACK_MAX_NUM_MASK];
+};
+
+struct stats_fd_elem {
+    int fd;
+    unsigned long ino;
+    unsigned short imode;
+    __u64 duration;
+};
+
+struct stats_fd {
+    __u32 num;
+    struct stats_fd_elem fds[STATS_TOP_FD_MAX_NUM_MASK];
+};
+
+struct stats_futex_elem {
+    int op;
+    __u64 duration;
+};
+
+struct stats_futex {
+    __u32 num;
+    struct stats_futex_elem ops[STATS_TOP_FUTEX_MAX_NUM_MASK];
+};
+
+typedef struct {
+    struct stats_stack stats_stack;
+    union {
+        struct stats_fd stats_fd;
+        struct stats_futex stats_futex;
+    };
+} stats_syscall_t;
+
 typedef struct {
     unsigned long nr;   // 系统调用号
     __u64 start_time;   // 系统调用的开始时间（若为多个系统调用事件聚合，则表示第一个事件的开始时间）
     __u64 end_time;     // 系统调用的结束时间（若为多个系统调用事件聚合，则表示最后一个事件的结束时间）
     __u64 duration;     // 系统调用的执行时间（若为多个系统调用事件聚合，则表示累计的执行时间）
     int count;          // 聚合的系统调用事件的数量
-    syscall_ext_info_t ext_info;    // 不同系统调用类型的扩展信息
-    stack_trace_t stack_info;       // 函数调用栈信息
+    __u64 last_stat_time;   // 上一次触发事件内容统计的时间，包括调用栈统计、fd统计等
+    stats_syscall_t stats;
 } syscall_data_t;
 
 typedef struct {
     int pid;
     unsigned long nr;
 } syscall_m_stash_key_t;
-typedef syscall_data_t syscall_m_stash_val_t;
 
 typedef struct {
     int pid;
@@ -101,7 +150,6 @@ typedef struct {
 } oncpu_data_t;
 
 typedef struct {
-    __u64 timestamp;
     int pid;
     int tgid;
     char comm[THREAD_COMM_LEN];
@@ -248,6 +296,14 @@ static __always_inline __maybe_unused bool is_proc_thrd_enabled()
 static __always_inline bool can_emit(u64 stime, u64 etime)
 {
     if (etime >= stime + DFT_AGGR_DURATION) {
+        return true;
+    }
+    return false;
+}
+
+static __always_inline bool is_stats_triggered(u64 last_stat_time, u64 curr_time)
+{
+    if (curr_time >= last_stat_time + DFT_STATS_DURATION) {
         return true;
     }
     return false;

@@ -63,17 +63,37 @@ tprofiling 当前已观测的系统调用事件参见章节： [支持的系统�
     - `event.name`：事件名
     - `event.type`：事件类型，目前支持 oncpu、file、net、lock、sched 五种。
     - `start_time`：事件开始时间，聚合事件中第一个事件的开始时间，关于聚合事件的说明参见章节：[聚合事件](###聚合事件) 。
-    - `end_time`：事件结束时间，聚合事件中最后一个事件的结束时间。
-    - `duration`：事件执行时间，值为（end_time - start_time）。
+    - `end_time`：事件结束时间，值为 （start_time + duration）。
+    - `duration`：事件累计的执行时间，单位为毫秒。
     - `count`：事件聚合数量
 
   - 扩展的事件属性：针对不同的系统调用事件，补充更加丰富的事件内容。如 read/write 文件或网络时，提供文件路径、网络连接以及函数调用栈等信息。
 
     - `func.stack`：事件的函数调用栈信息
-    - `file.path`：文件类事件的文件路径信息
-    - `sock.conn`：网络类事件的tcp连接信息
-    - `futex.op`：futex系统调用事件的操作类型，取值为 wait 或 wake 。
-
+    
+    - `io.top`：列表类型，存储前 3 个执行时间最长的文件、网络类等 I/O 事件的信息。
+    
+      列表中每项为一个字典类型，不同类型的 I/O 事件包含不同的属性值。共分为以下3类：
+    
+      - 文件类事件，包括属性：
+        - `file.path`：文件路径
+        - `file.inode`：可选，文件路径对应的 inode 号。当 `file.path` 无法成功获取时展示该值。
+        - `duration`：该事件的执行时间，单位为毫秒
+      - 网络类事件，包括属性：
+        - `sock.conn`：tcp连接
+        - `file.inode`：可选，tcp连接对应的 inode 号。当 `sock.conn` 无法成功获取时展示该值。
+        - `duration`：该事件的执行时间，单位为毫秒
+      - 其它类事件，包括属性：
+        - `file.inode`：inode 号。
+        - `duration`：该事件的执行时间，单位为毫秒
+    
+    - `futex.top`：列表类型，存储前 3 个执行时间最长的 futex 系统调用事件 。
+    
+      列表中每项为一个字典类型，包括属性：
+    
+      - `op`：futex系统调用事件的操作类型，取值为 wait 或 wake 。
+      - `duration`：该事件的执行时间，单位为毫秒
+    
     不同事件类型支持的扩展事件属性的详细情况参见章节：[支持的系统调用事件](###支持的系统调用事件) 。
 
 ### 事件输出
@@ -106,11 +126,34 @@ tprofiling 作为 gala-gopher 提供的一个扩展的 ebpf 探针程序，产�
                 "event.type": "file",
                 "start_time": 1661088145000,
                 "end_time": 1661088146000,
-                "duration": 0.1,
+                "duration": 0.1, // ms
                 "count": 1,
                 // extend info
-                "func.stack": "read;",
-                "file.path": "/test.txt"
+                "func.stack": "id-related-to-flamegraph",	// 存储一个id值，用于从pyroscope查询对应的火焰图信息
+                "io.top": [
+                    {
+                        "file.path": "/test1.txt",
+                        "duration": 0.05 // ms
+                    },
+                    {
+                        "file.inode": 4,
+                        "duration": 0.02
+                    },
+                    {
+                        "sock.conn": "/test2.txt",
+                        "duration": 0.02
+                    }
+                ],
+                "futex.top": [
+                    {
+                        "op": "wait",
+                        "duration": 0.05
+                    },
+                    {
+                        "op": "wake",
+                        "duration": 0.02
+                    }
+                ]
             },
             {
                 "event.name": "oncpu",
@@ -288,10 +331,10 @@ sh deploy.sh grafana -P <Prometheus服务器地址> -E <es服务器地址>
 
 tprofiling 当前支持的系统性能事件包括两大类：系统调用事件和 oncpu 事件。其中，oncpu 事件以及部分系统调用事件（比如read/write）在特定的应用场景下可能会频繁触发，从而产生大量的系统事件，这会对观测的应用程序性能以及 tprofiling 探针本身的性能造成较大的影响。
 
-为了优化性能，tprofiling 将一段时间内（1s）属于同一个线程的具有相同事件名的多个系统事件聚合为一个事件进行上报。因此，一个 tprofiling 事件实际上指的是一个聚合事件，它包含一个或多个相同的系统事件。相比于一个真实的系统事件，一个聚合事件的部分属性的含义有如下变化，
+为了优化性能，tprofiling 将一段时间内（例如10s）属于同一个线程的具有相同事件名的多个系统事件聚合为一个事件进行上报。因此，一个 tprofiling 事件实际上指的是一个聚合事件，它包含一个或多个相同的系统事件。相比于一个真实的系统事件，一个聚合事件的部分属性的含义有如下变化，
 
 - `start_time`：事件开始时间，在聚合事件中是指第一个系统事件的开始时间
 - `end_time`：事件结束时间，在聚合事件中是指（`start_time + duration`）
 - `duration`：事件执行时间，在聚合事件中是指所有系统事件实际执行时间的累加值。
 - `count`：聚合事件中系统事件的数量，当值为 1 时，聚合事件就等价于一个系统事件。
-- 扩展的事件属性：在聚合事件中是指第一个系统事件的扩展属性
+- 扩展的事件属性：在聚合事件中是指排名前3执行时间最长的系统事件的扩展属性

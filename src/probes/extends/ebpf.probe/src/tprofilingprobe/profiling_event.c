@@ -16,6 +16,7 @@
 #include <time.h>
 #include <utlist.h>
 #include <linux/futex.h>
+#include <sys/stat.h>
 
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
@@ -310,7 +311,7 @@ static int get_symb_stack(char *symbs_str, int symb_size, event_elem_t *cached_e
     struct proc_symbs_s *symbs;
     int uid;
 
-    uid = EVT_DATA_SC(cached_evt)->stack_info.uid;
+    uid = EVT_DATA_SC(cached_evt)->stats.stats_stack.stacks[0].stack.uid;
     if (get_addr_stack(ip, uid)) {
         return -1;
     }
@@ -344,7 +345,7 @@ static int get_py_symb_stack(char *symbs_str, int symb_size, event_elem_t *cache
         .size = symb_size
     };
 
-    pyid = EVT_DATA_SC(cached_evt)->stack_info.pyid;
+    pyid = EVT_DATA_SC(cached_evt)->stats.stats_stack.stacks[0].stack.pyid;
     if (pyid == 0){
         return 0;
     }
@@ -404,13 +405,14 @@ static int append_stack_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
     return 0;
 }
 
-static int append_regular_file_attrs(strbuf_t *attrs_buf, fd_info_t *fd_info)
+static int append_regular_file_attrs(strbuf_t *attrs_buf, fd_info_t *fd_info, struct stats_fd_elem *fd_elem, bool first_flag)
 {
     int ret;
+    char *comma = first_flag ? "" : ",";
 
     ret = snprintf(attrs_buf->buf, attrs_buf->size,
-                   ",\"event.type\":\"%s\",\"file.path\":\"%s\"",
-                   PROFILE_EVT_TYPE_FILE, fd_info->reg_info.name);
+                   "%s{\"file.path\":\"%s\",\"duration\":%.3lf}",
+                   comma, fd_info->reg_info.name, (double)fd_elem->duration / NSEC_PER_MSEC);
     if (ret < 0 || ret >= attrs_buf->size) {
         return -ERR_TP_NO_BUFF;
     }
@@ -419,17 +421,18 @@ static int append_regular_file_attrs(strbuf_t *attrs_buf, fd_info_t *fd_info)
     return 0;
 }
 
-static int append_sock_attrs(strbuf_t *attrs_buf, fd_info_t *fd_info)
+static int append_sock_attrs(strbuf_t *attrs_buf, fd_info_t *fd_info, struct stats_fd_elem *fd_elem, bool first_flag)
 {
     int ret;
     sock_info_t *si = &fd_info->sock_info;
+    char *comma = first_flag ? "" : ",";
 
     switch (si->type) {
         case SOCK_TYPE_IPV4:
         case SOCK_TYPE_IPV6:
             ret = snprintf(attrs_buf->buf, attrs_buf->size,
-                           ",\"event.type\":\"%s\",\"sock.conn\": \"%s\"",
-                           PROFILE_EVT_TYPE_NET, si->ip_info.conn);
+                           "%s{\"sock.conn\":\"%s\",\"duration\": %.3lf}",
+                           comma, si->ip_info.conn, (double)fd_elem->duration / NSEC_PER_MSEC);
             if (ret < 0 || ret >= attrs_buf->size) {
                 return -ERR_TP_NO_BUFF;
             }
@@ -441,30 +444,111 @@ static int append_sock_attrs(strbuf_t *attrs_buf, fd_info_t *fd_info)
     return 0;
 }
 
+static int append_inode_attrs(strbuf_t *attrs_buf, struct stats_fd_elem *fd_elem, bool first_flag)
+{
+    int ret;
+    char *comma = first_flag ? "" : ",";
+
+    ret = snprintf(attrs_buf->buf, attrs_buf->size,
+                   "%s{\"file.inode\":%lu,\"duration\":%.3lf}",
+                   comma, fd_elem->ino, (double)fd_elem->duration / NSEC_PER_MSEC);
+    if (ret < 0 || ret >= attrs_buf->size) {
+        return -ERR_TP_NO_BUFF;
+    }
+    strbuf_update_offset(attrs_buf, ret);
+
+    return 0;
+}
+
+static int append_fd_attr(strbuf_t *attrs_buf, proc_info_t *proc_info, struct stats_fd_elem *fd_elem, bool first_flag)
+{
+    fd_info_t *fi;
+
+    fi = get_fd_info(proc_info, fd_elem->fd);
+    if (fi == NULL) {
+        return append_inode_attrs(attrs_buf, fd_elem, first_flag);
+    }
+    if (fi->ino != fd_elem->ino) {
+        delete_fd_info(proc_info, fi);
+        return append_inode_attrs(attrs_buf, fd_elem, first_flag);
+    }
+
+    switch (fi->type) {
+        case FD_TYPE_REG:
+            return append_regular_file_attrs(attrs_buf, fi, fd_elem, first_flag);
+        case FD_TYPE_SOCK:
+            return append_sock_attrs(attrs_buf, fi, fd_elem, first_flag);
+        default:
+            return append_inode_attrs(attrs_buf, fd_elem, first_flag);
+    }
+}
+
+// 带fd类事件可能既包含文件操作、也包含网络操作，因此默认选择第一个fd事件的类型。
+static const char *get_fd_evt_type(event_elem_t *cached_evt)
+{
+    const char *dft_type = PROFILE_EVT_TYPE_OTHER;
+    struct stats_fd *stats_fd;
+    int i;
+
+    stats_fd = &EVT_DATA_SC(cached_evt)->stats.stats_fd;
+    for (i = 0; i < stats_fd->num && i < STATS_TOP_FD_MAX_NUM; i++) {
+        switch (stats_fd->fds[i].imode & S_IFMT) {
+            case S_IFDIR:
+            case S_IFREG:
+                return PROFILE_EVT_TYPE_FILE;
+            case S_IFSOCK:
+                return PROFILE_EVT_TYPE_NET;
+            default:
+                return dft_type;
+        }
+    }
+
+    return dft_type;
+}
+
 static int append_fd_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
 {
-    int fd = EVT_DATA_SC(cached_evt)->ext_info.fd_info.fd;
+    struct stats_fd *stats_fd;
     proc_info_t *pi;
-    fd_info_t *fi;
+    const char *prefix = ",\"io.top\":[";
+    const char *suffix = "]";
+    bool first_flag = true;
+    const char *evt_type;
+    int i;
+    int ret;
 
     pi = cached_evt->thrd_info->proc_info;
     if (pi == NULL) {
         return -1;
     }
 
-    fi = get_fd_info(pi, fd);
-    if (fi == NULL) {
-        return -1;
+    ret = strbuf_append_str_with_check(attrs_buf, prefix, strlen(prefix));
+    if (ret) {
+        return -ERR_TP_NO_BUFF;
     }
 
-    switch (fi->type) {
-        case FD_TYPE_REG:
-            return append_regular_file_attrs(attrs_buf, fi);
-        case FD_TYPE_SOCK:
-            return append_sock_attrs(attrs_buf, fi);
-        default:
-            return -1;
+    stats_fd = &EVT_DATA_SC(cached_evt)->stats.stats_fd;
+    for (i = 0; i < stats_fd->num && i < STATS_TOP_FD_MAX_NUM; i++) {
+        ret = append_fd_attr(attrs_buf, pi, &stats_fd->fds[i], first_flag);
+        if (ret == -ERR_TP_NO_BUFF) {
+            return ret;
+        }
+        first_flag = false;
     }
+
+    ret = strbuf_append_str_with_check(attrs_buf, suffix, strlen(suffix));
+    if (ret) {
+        return -ERR_TP_NO_BUFF;
+    }
+
+    evt_type = get_fd_evt_type(cached_evt);
+    ret = snprintf(attrs_buf->buf, attrs_buf->size, ",\"event.type\":\"%s\"", evt_type);
+    if (ret < 0 || ret >= attrs_buf->size) {
+        return -ERR_TP_NO_BUFF;
+    }
+    strbuf_update_offset(attrs_buf, ret);
+
+    return 0;
 }
 
 static int is_futex_wait_op(int op)
@@ -485,22 +569,65 @@ static int is_futex_wake_op(int op)
     return 0;
 }
 
-static int append_futex_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
+static const char *get_futex_op_name(int op)
 {
-    int ret;
-    char futexOp[8] = {0};
-    int op;
+    const char *op_name = "";
 
-    op = EVT_DATA_SC(cached_evt)->ext_info.futex_info.op;
     if (is_futex_wait_op(op)) {
-        strcpy(futexOp, "wait");
+        op_name = "wait";
     } else if (is_futex_wake_op(op)) {
-        strcpy(futexOp, "wake");
+        op_name = "wake";
     }
 
+    return op_name;
+}
+
+static int append_futex_attr(strbuf_t *attrs_buf, struct stats_futex_elem *futex_elem, bool first_flag)
+{
+    int ret;
+    const char *futexOp = get_futex_op_name(futex_elem->op);
+    char *comma = first_flag ? "" : ",";
+
     ret = snprintf(attrs_buf->buf, attrs_buf->size,
-                   ",\"event.type\":\"%s\",\"futex.op\":\"%s\"",
-                   PROFILE_EVT_TYPE_LOCK, futexOp);
+                   "%s{\"futex.op\":\"%s\",\"duration\":%.3lf}",
+                   comma, futexOp, (double)futex_elem->duration / NSEC_PER_MSEC);
+    if (ret < 0 || ret >= attrs_buf->size) {
+        return -ERR_TP_NO_BUFF;
+    }
+    strbuf_update_offset(attrs_buf, ret);
+
+    return 0;
+}
+
+static int append_futex_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
+{
+    struct stats_futex *stats_futex;
+    const char *prefix = ",\"futex.top\":[";
+    const char *suffix = "]";
+    bool first_flag = true;
+    int i;
+    int ret;
+
+    ret = strbuf_append_str_with_check(attrs_buf, prefix, strlen(prefix));
+    if (ret) {
+        return -ERR_TP_NO_BUFF;
+    }
+
+    stats_futex = &EVT_DATA_SC(cached_evt)->stats.stats_futex;
+    for (i = 0; i < stats_futex->num && i < STATS_TOP_FD_MAX_NUM; i++) {
+        ret = append_futex_attr(attrs_buf, &stats_futex->ops[i], first_flag);
+        if (ret == -ERR_TP_NO_BUFF) {
+            return ret;
+        }
+        first_flag = false;
+    }
+
+    ret = strbuf_append_str_with_check(attrs_buf, suffix, strlen(suffix));
+    if (ret) {
+        return -ERR_TP_NO_BUFF;
+    }
+
+    ret = snprintf(attrs_buf->buf, attrs_buf->size, ",\"event.type\": \"%s\"", PROFILE_EVT_TYPE_LOCK);
     if (ret < 0 || ret >= attrs_buf->size) {
         return -ERR_TP_NO_BUFF;
     }
@@ -551,6 +678,7 @@ static int append_syscall_attrs_by_nr(strbuf_t *attrs_buf, event_elem_t *cached_
     }
     if (scm->flag & SYSCALL_FLAG_STACK) {
         // 获取函数调用栈
+        // TODO: 换成使用火焰图结构存储调用栈信息
         ret = append_stack_attrs(attrs_buf, cached_evt);
         if (ret) {
             return ret;

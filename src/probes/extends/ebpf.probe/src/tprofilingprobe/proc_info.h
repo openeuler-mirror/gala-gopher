@@ -84,6 +84,7 @@ thrd_info_t *add_thrd_info(proc_info_t *proc_info, int pid);
 thrd_info_t *get_thrd_info(proc_info_t *proc_info, int pid);
 fd_info_t *add_fd_info(proc_info_t *proc_info, int fd);
 fd_info_t *get_fd_info(proc_info_t *proc_info, int fd);
+void delete_fd_info(proc_info_t *proc_info, fd_info_t *fd_info);
 struct proc_symbs_s *add_symb_info(proc_info_t *proc_info);
 struct proc_symbs_s *get_symb_info(proc_info_t *proc_info);
 

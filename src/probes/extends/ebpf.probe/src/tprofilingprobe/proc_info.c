@@ -319,6 +319,12 @@ fd_info_t *get_fd_info(proc_info_t *proc_info, int fd)
     return fi;
 }
 
+void delete_fd_info(proc_info_t *proc_info, fd_info_t *fd_info)
+{
+    HASH_del_fd_info(proc_info->fd_table, fd_info);
+    free_fd_info(fd_info);
+}
+
 #define SYMB_DEBUG_DIR "/usr/lib/debug"
 static struct elf_reader_s gElfReader = {
     .global_dbg_dir = SYMB_DEBUG_DIR
