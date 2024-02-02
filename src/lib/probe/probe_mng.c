@@ -465,6 +465,11 @@ static int check_probe_need_start(const char *check_cmd)
     FILE *fp = NULL;
     char data[COMMAND_LEN];
 
+    if (check_path_for_security(check_cmd, command_injection_characters,
+        MAX_COMMON_PATH_LEN, "")) {
+        return 1;
+    }
+
     fp = popen(check_cmd, "r");
     if (fp == NULL) {
         ERROR("popen error!(cmd = %s)\n", check_cmd);
@@ -496,6 +501,11 @@ static char is_probe_ready(struct probe_s *probe)
         }
 
         if (probe->fifo == NULL) {
+            goto end;
+        }
+
+        if (check_path_for_security(probe->chk_cmd, command_injection_characters,
+                    MAX_COMMON_PATH_LEN, "")) {
             goto end;
         }
 

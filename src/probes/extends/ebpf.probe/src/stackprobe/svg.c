@@ -59,6 +59,11 @@ static struct svg_param_s svg_params[STACK_SVG_MAX] =
 #ifdef FLAMEGRAPH_SVG
 static void __rm_svg(const char *svg_file)
 {
+    if (check_path_for_security(svg_file, command_injection_characters,
+                    MAX_COMMON_PATH_LEN, "")) {
+        return;
+    }
+
     FILE *fp;
     char commad[__COMMAND_LEN];
     const char *fmt = "rm -rf %s";

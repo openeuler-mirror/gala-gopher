@@ -19,6 +19,7 @@
 #include <stdio.h>
 
 #include "resource.h"
+#include "common.h"
 
 int DaemonRun(ResourceMgr *mgr);
 void destroy_daemon_threads(ResourceMgr *mgr);

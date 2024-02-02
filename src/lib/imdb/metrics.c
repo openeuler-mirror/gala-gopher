@@ -19,7 +19,7 @@
 #include <string.h>
 #include "imdb.h"
 #include "logs.h"
-
+#include "common.h"
 
 #define LEN_1M (1024 * 1024)     // 1 MB
 static char g_buffer[LEN_1M];
