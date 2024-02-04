@@ -21,9 +21,9 @@
 
 #include "probe_mng.h"
 
-#define PROBE_START_DELAY 5
-#define PROBE_LKUP_PID_RETRY_MAX 2
-#define PROBE_LKUP_PID_DELAY 2
+#define PROBE_START_DELAY           5
+#define PROBE_LKUP_PID_RETRY_MAX    2
+#define PROBE_LKUP_PID_DELAY        2
 
 FILE* __DoRunExtProbe(struct probe_s *probe)
 {
@@ -32,6 +32,12 @@ FILE* __DoRunExtProbe(struct probe_s *probe)
 
     command[0] = 0;
     (void)snprintf(command, MAX_COMMAND_LEN - 1, "%s", probe->bin);
+
+    if (check_path_for_security(command, command_injection_characters,
+        MAX_COMMON_PATH_LEN, "")) {
+        return f;
+    }
+
 repeat:
     f = popen(command, "r");
     if (feof(f) != 0 || ferror(f) != 0) {
