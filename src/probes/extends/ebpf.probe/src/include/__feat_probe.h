@@ -38,6 +38,15 @@ struct bpf_ringbuf {
 #include "common.h"
 #endif
 
+/* BPF_MAP_TYPE_RINGBUF original defined in /usr/include/linux/bpf.h, which from kernel-headers
+   if BPF_MAP_TYPE_RINGBUF wasn't defined, this kernel does not support using ringbuf */
+#ifndef BPF_MAP_TYPE_RINGBUF
+#define BPF_MAP_TYPE_RINGBUF    27  // defined here to avoid compile error in lower kernel version
+#define IS_RINGBUF_DEFINED      0
+#else
+#define IS_RINGBUF_DEFINED      1
+#endif
+
 #if defined(BPF_PROG_KERN) || defined(BPF_PROG_USER)
 extern int LINUX_KERNEL_VERSION __kconfig;
 
@@ -120,7 +129,11 @@ static inline int probe_kernel_version()
 #if defined(BPF_PROG_KERN) || defined(BPF_PROG_USER)
 static inline char probe_ringbuf()
 {
+#if CLANG_VER_MAJOR >= 12
     return (char)bpf_core_type_exists(struct bpf_ringbuf);
+#else
+    return IS_RINGBUF_DEFINED;
+#endif
 }
 #endif
 #if !defined(BPF_PROG_KERN) && !defined(BPF_PROG_USER)

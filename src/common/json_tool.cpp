@@ -4,6 +4,12 @@
 #include <cstring>
 #include <cstdlib>
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(_MSC_VER)
+#pragma warning(disable : 4996)
+#endif
 /***
  * this root point ptr should release, after use.
 ***/
