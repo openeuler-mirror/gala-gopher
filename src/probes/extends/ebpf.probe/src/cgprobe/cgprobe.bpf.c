@@ -101,7 +101,7 @@ static __always_inline __u64 get_cgroup_gauge_id(struct mem_cgroup* memcg)
     }
 
 #if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(5, 5, 0))
-    cgroup_id = _(kn->id.ino);
+    bpf_probe_read(&cgroup_id, sizeof(u32), (void *)&(kn->id));  // replace cgroup_id = _(kn->id.ino);
 #else
     cgroup_id = _(kn->id);
 #endif
