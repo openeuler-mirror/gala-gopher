@@ -179,9 +179,11 @@ int fill_fd_info(fd_info_t *fd_info, int tgid)
     if (stat(fd_path, &st)) {
         return -1;
     }
+    fd_info->ino = st.st_ino;
 
     switch (st.st_mode & S_IFMT) {
         case S_IFREG:
+        case S_IFDIR:
             return fill_reg_file_info(fd_info, fd_path);
         case S_IFSOCK:
             return fill_sock_info(fd_info, tgid);

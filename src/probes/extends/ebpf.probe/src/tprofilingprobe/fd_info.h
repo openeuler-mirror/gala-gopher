@@ -63,6 +63,7 @@ typedef struct {
 
 typedef struct {
     int fd;
+    unsigned long ino;
     enum fd_type type;
     union {
         reg_info_t reg_info;
