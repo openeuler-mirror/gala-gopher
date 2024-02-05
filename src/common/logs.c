@@ -121,11 +121,6 @@ void rm_log_file(char full_path[])
     command[0] = 0;
     (void)snprintf(command, COMMAND_LEN, RM_COMMAND, full_path, full_path);
 
-    if (check_path_for_security(command, command_injection_characters,
-        MAX_COMMON_PATH_LEN, "")) {
-        return;
-    }
-
     fp = popen(command, "r");
     if (fp != NULL) {
         (void)pclose(fp);
@@ -143,11 +138,6 @@ static void clear_log_dir(char full_path[])
 
     command[0] = 0;
     (void)snprintf(command, COMMAND_LEN, RM_DIR_COMMAND, full_path);
-
-    if (check_path_for_security(command, command_injection_characters,
-        MAX_COMMON_PATH_LEN, "")) {
-        return;
-    }
 
     fp = popen(command, "r");
     if (fp != NULL) {

@@ -32,12 +32,6 @@ FILE* __DoRunExtProbe(struct probe_s *probe)
 
     command[0] = 0;
     (void)snprintf(command, MAX_COMMAND_LEN - 1, "%s", probe->bin);
-
-    if (check_path_for_security(command, command_injection_characters,
-        MAX_COMMON_PATH_LEN, "")) {
-        return f;
-    }
-
 repeat:
     f = popen(command, "r");
     if (feof(f) != 0 || ferror(f) != 0) {

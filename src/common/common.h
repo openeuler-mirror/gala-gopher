@@ -204,13 +204,6 @@ unsigned short ntohs(unsigned short netshort);
     ((addr)[4] == 0) && \
     ((addr)[5] == 0xffff))
 
-#define MAX_COMMON_PATH_LEN                     64
-#define EXTEND_PROBE_PATH_PREFIX    "/opt/gala-gopher/extend_probes"
-
-#ifndef command_injection_characters
-extern const char command_injection_characters[];
-#endif
-
 /* get uprobe func offset */
 int get_func_offset(char *proc_name, char *func_name, char *bin_file_path);
 
@@ -229,7 +222,6 @@ int get_system_uuid(char *buffer, unsigned int size);
 int get_system_ip(char ip_str[], unsigned int size);
 int get_system_hostname(char *buf, unsigned int size);
 int copy_file(const char *dst_file, const char *src_file);
-int check_path_for_security(const char *path, const char command_injection_characters[], const int max_path_len, const char *path_prefix);
 
 int access_check_read_line(u32 pid, const char *command, const char *fname, char *buf, u32 buf_len);
 int get_proc_start_time(u32 pid, char *buf, int buf_len);

@@ -134,11 +134,6 @@ static void __rm_flame_graph_file(struct stack_svg_mng_s *svg_mng)
 
     sfg = &(svg_mng->flame_graph);
 
-    if (check_path_for_security(sfg->flame_graph_file, command_injection_characters,
-                    MAX_COMMON_PATH_LEN, "")) {
-        return;
-    }
-
     if (!access(sfg->flame_graph_file, 0)) {
         commad[0] = 0;
         (void)snprintf(commad, __COMMAND_LEN, "/usr/bin/rm -f %s", sfg->flame_graph_file);
