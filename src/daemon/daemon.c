@@ -25,7 +25,6 @@
 #include "server.h"
 #include "daemon.h"
 #include "object.h"
-#include "common.h"
 
 #define RM_MAP_CMD "/usr/bin/find %s/* 2> /dev/null | /usr/bin/xargs rm -f"
 static const ResourceMgr *resouce_msg;
@@ -90,11 +89,6 @@ static void *DaemonRunSingleExtendProbe(void *arg)
     int ret = 0;
     ExtendProbe *probe = (ExtendProbe *)arg;
 
-    if (check_path_for_security(probe->bin, command_injection_characters,
-                    MAX_COMMON_PATH_LEN, EXTEND_PROBE_PATH_PREFIX)) {
-        return;
-    }
-
     char thread_name[MAX_THREAD_NAME_LEN];
     snprintf(thread_name, MAX_THREAD_NAME_LEN - 1, "[EPROBE]%s", probe->name);
     prctl(PR_SET_NAME, thread_name);
@@ -158,11 +152,6 @@ static void CleanData(const ResourceMgr *mgr)
     }
 
     if (pinPath == NULL) {
-        return;
-    }
-
-    if (check_path_for_security(pinPath, command_injection_characters,
-                    MAX_COMMON_PATH_LEN, "")) {
         return;
     }
 
