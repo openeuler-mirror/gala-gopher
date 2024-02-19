@@ -101,7 +101,7 @@ class CadvisorProbe():
             return True
         return False
 
-    def start_cadvisor(self):
+    def start_cadvisor(self, period):
         p = subprocess.Popen("which cadvisor", stdout=subprocess.PIPE, shell=True)
         p.communicate(timeout=5)
         if p.returncode != 0:
@@ -117,8 +117,9 @@ class CadvisorProbe():
             else:
                 raise Exception('[cadvisor_probe]cAdvisor running but get info failed')
         whitelist_label = "-whitelisted_container_labels=" + get_meta_label_list()
+        interval = "--housekeeping_interval="+ period + "s" 
         ps = subprocess.Popen(["/usr/bin/cadvisor", "-port", str(self.port),\
-            "--store_container_labels=false", whitelist_label,\
+            "--store_container_labels=false", interval, whitelist_label,\
             DISABLE_METRICS_OPTION],\
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=False)
         self.pid = ps.pid
@@ -204,13 +205,13 @@ class CadvisorProbe():
         r.raise_for_status()
         self.parse_metrics(r.text)
 
-    def change_cadvisor_port(self, port):
+    def change_cadvisor_port(self, port, period):
         if self.get_cadvisor_port() and self.port == port:
             return True
         self.stop_cadvisor()
         self.port = port
         try:
-            cadvisor_probe.start_cadvisor()
+            cadvisor_probe.start_cadvisor(period)
         except Exception as e:
             print(e)
             return False
@@ -284,7 +285,7 @@ if __name__ == "__main__":
 
     cadvisor_probe = CadvisorProbe(cadvisor_port)
     try:
-        cadvisor_probe.start_cadvisor()
+        cadvisor_probe.start_cadvisor(period)
     except Exception as e:
         print(e)
         cadvisor_running_flag = False
@@ -294,7 +295,7 @@ if __name__ == "__main__":
         if ret == 0:
             if ipc_body.probe_flags & ipc.IPC_FLAGS_PARAMS_CHG or ipc_body.probe_flags == 0:
                 period = ipc_body.probe_param.period
-                if cadvisor_probe.change_cadvisor_port(ipc_body.probe_param.cadvisor_port):
+                if cadvisor_probe.change_cadvisor_port(ipc_body.probe_param.cadvisor_port, period):
                     cadvisor_running_flag = True
                     cadvisor_port = ipc_body.probe_param.cadvisor_port
                 else:

@@ -1528,7 +1528,8 @@ curl -X PUT http://localhost:9999/container -d json='
 （5）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
 一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定            
 （6）params内容中的参数，示例中的参数都是container探针支持的参数            
-    report_period是控制着采集的数据上报的周期，值为60的含义是每个60s上报一次采集到的数据               
+    report_period是控制着采集的数据上报的周期，值为60的含义是每个60s上报一次采集到的数据
+    采集周期无需配置，其值与 report_period 数据相同。
 （7）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped                 
 
 注：以上的所有探针的bin属性，即代表探针的二进制可执行文件的绝对文件路径是可省略的，对使用探针不会有影响。
