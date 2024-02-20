@@ -504,6 +504,9 @@ static int parse_snooper_procname(struct probe_s *probe, const void *json)
     size_t size = Json_GetArraySize(procname_item);
     for (int i = 0; i < size; i++) {
         object = Json_GetArrayItem(procname_item, i);
+        if (!Json_IsArray(object)) {
+            return -1;
+        }
 
         comm_item = Json_GetObjectItem(object, SNOOPER_OBJNAME_COMM);
         cmdline_item = Json_GetObjectItem(object, SNOOPER_OBJNAME_CMDLINE);
@@ -631,6 +634,9 @@ static int parse_snooper_gaussdb(struct probe_s *probe, const void *json)
     size_t size = Json_GetArraySize(gaussdb_item);
     for (int i = 0; i < size; i++) {
         object = Json_GetArrayItem(gaussdb_item, i);
+        if (!Json_IsArray(object)) {
+            return -1;
+        }
 
         ip_item = Json_GetObjectItem(object, SNOOPER_OBJNAME_DBIP);
         dbname_item = Json_GetObjectItem(object, SNOOPER_OBJNAME_DBNAME);
