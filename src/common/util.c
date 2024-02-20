@@ -33,6 +33,9 @@
 
 static char *g_host_path_prefix;
 
+const char* command_injection_characters[] = {"|", ";", "&", "$", ">", "<", "(", ")", "./", "/.", "?", "*",
+                                    "\'", "`", "[", "]", "\\", "!", "\n"};
+
 static char *get_host_path_prefix()
 {
     static char running_in_container = 1;
@@ -506,4 +509,25 @@ void convert_to_host_path(char *host_path, const char *path, int path_len)
     }
 
     DEBUG("convert path[%s] to host_path[%s]\n", path, host_path);
+}
+
+/*
+ * Check the path to avoid command injection
+ * @path: path executed as command
+ */
+int check_path_for_security(const char *path)
+{
+    if (path == NULL || strlen(path) == 0) {
+        return 0;
+    }
+
+    int command_injection_characters_len = sizeof(command_injection_characters) / sizeof(command_injection_characters[0]);
+
+    for (int i = 0; i < command_injection_characters_len; ++i) {
+        if (strstr(path, command_injection_characters[i])) {
+            return 1;
+        }
+    }
+
+    return 0;
 }

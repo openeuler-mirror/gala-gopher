@@ -222,6 +222,7 @@ int get_system_uuid(char *buffer, unsigned int size);
 int get_system_ip(char ip_str[], unsigned int size);
 int get_system_hostname(char *buf, unsigned int size);
 int copy_file(const char *dst_file, const char *src_file);
+int check_path_for_security(const char *path);
 
 int access_check_read_line(u32 pid, const char *command, const char *fname, char *buf, u32 buf_len);
 int get_proc_start_time(u32 pid, char *buf, int buf_len);
