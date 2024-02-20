@@ -129,11 +129,11 @@ parse_state_t pgsql_parse_startup_msg(struct raw_data_s *raw_data, struct pgsql_
     }
 
     // 提取版本信息
-    parse_state = decoder_extract_int16_t(raw_data, &msg->protocol_ver->major_version);
+    parse_state = decoder_extract_int16_t(raw_data, &msg->protocol_ver.major_version);
     if (parse_state != STATE_SUCCESS) {
         return parse_state;
     }
-    parse_state = decoder_extract_int16_t(raw_data, &msg->protocol_ver->minor_version);
+    parse_state = decoder_extract_int16_t(raw_data, &msg->protocol_ver.minor_version);
     if (parse_state != STATE_SUCCESS) {
         return parse_state;
     }
@@ -521,6 +521,7 @@ parse_state_t pgsql_parse_frame(struct raw_data_s *raw_data, struct frame_data_s
 
     regular_msg = init_pgsql_regular_msg();
     if (regular_msg == NULL) {
+        free(*frame_data);
         return STATE_INVALID;
     }
     regular_msg->timestamp_ns = raw_data->timestamp_ns;
