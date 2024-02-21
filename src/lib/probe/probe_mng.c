@@ -429,6 +429,11 @@ static int set_probe_bin(struct probe_s *probe, const char *bin)
         probe->bin = strdup(bin);
     }
 
+    if (check_path_for_security(probe->bin)) {
+        PARSE_ERR("unsafe binfile");
+        return -1;
+    }
+
     if (is_extend_probe(probe)) {
         probe->is_extend_probe = 1;
         probe->cb = extend_probe_thread_cb;
@@ -445,6 +450,10 @@ static int set_probe_bin(struct probe_s *probe, const char *bin)
 
 static void set_probe_chk_cmd(struct probe_s *probe, const char *chk_cmd)
 {
+    if (check_path_for_security(chk_cmd)) {
+        return ;
+    }
+
     if (probe->chk_cmd) {
         free(probe->chk_cmd);
         probe->chk_cmd = NULL;

@@ -304,6 +304,11 @@ static int parser_svg_dir(struct probe_s *probe, struct param_key_s *param_key, 
         return -1;
     }
 
+    if (check_path_for_security(value)) {
+        PARSE_ERR("params.%s contains unsafe characters", param_key->key);
+        return -1;
+    }
+
     (void)snprintf(probe->probe_param.svg_dir, sizeof(probe->probe_param.svg_dir), "%s", value);
     return 0;
 }
@@ -316,6 +321,10 @@ static int parser_flame_dir(struct probe_s *probe, struct param_key_s *param_key
         return -1;
     }
 
+    if (check_path_for_security(value)) {
+        PARSE_ERR("params.%s contains unsafe characters", param_key->key);
+        return -1;
+    }
     (void)snprintf(probe->probe_param.flame_dir, sizeof(probe->probe_param.flame_dir), "%s", value);
     return 0;
 }

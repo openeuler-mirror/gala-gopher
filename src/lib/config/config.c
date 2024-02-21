@@ -173,6 +173,11 @@ static int ConfigMgrLoadGlobalConfig(void *config, config_setting_t *settings)
         return -1;
     }
 
+    if (check_path_for_security(strVal)) {
+        ERROR("[CONFIG] check pin path for security failed.\n");
+        return -1;
+    }
+
     (void)snprintf(globalConfig->bpfPinPath, sizeof(globalConfig->bpfPinPath), "%s", strVal);
     return 0;
 }
@@ -444,14 +449,14 @@ static int ConfigMgrLoadLogsConfig(void *config, config_setting_t *settings)
     logsConfig->metricTotalSize = intVal;
 
     ret = config_setting_lookup_string(settings, "metric_dir", &strVal);
-    if (ret == 0) {
+    if (ret == 0 || check_path_for_security(strVal)) {
         ERROR("[CONFIG] load config for metric_dir failed.\n");
         return -1;
     }
     (void)snprintf(logsConfig->metricDir, sizeof(logsConfig->metricDir), "%s", strVal);
 
     ret = config_setting_lookup_string(settings, "event_dir", &strVal);
-    if (ret == 0) {
+    if (ret == 0 || check_path_for_security(strVal)) {
         ERROR("[CONFIG] load config for event_dir failed.\n");
         return -1;
     }
