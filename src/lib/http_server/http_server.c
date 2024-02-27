@@ -120,7 +120,7 @@ void run_http_server_daemon(http_server_mgr_s *server_mgr)
     event_base_dispatch(server_mgr->evbase);
 }
 
-static int init_http_ssl_ctx(http_server_mgr_s *server_mgr, const char *key_file, const char *cert_file)
+static int init_http_ssl_ctx(http_server_mgr_s *server_mgr, const char *key_file, const char *cert_file, const char *ca_file)
 {
     SSL_CTX *ssl_ctx = NULL;
 
@@ -155,6 +155,13 @@ static int init_http_ssl_ctx(http_server_mgr_s *server_mgr, const char *key_file
         goto err;
     }
 
+    if (ca_file) {
+        SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER, NULL);
+        if (SSL_CTX_load_verify_locations(ssl_ctx, ca_file, NULL) != 1) {
+            ERROR("[%s] could not load ca file.\n", server_mgr->name);
+        }
+    }
+
     server_mgr->ssl_ctx = ssl_ctx;
     return 0;
 
@@ -183,7 +190,7 @@ int init_http_server_mgr(http_server_mgr_s *server_mgr, HttpServerConfig *config
     }
 
     if (config->sslAuth) {
-        if (init_http_ssl_ctx(server_mgr, config->privateKey, config->certFile)) {
+        if (init_http_ssl_ctx(server_mgr, config->privateKey, config->certFile, config->caFile)) {
             return -1;
         }
     }
