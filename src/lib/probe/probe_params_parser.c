@@ -487,6 +487,10 @@ static int parser_elf_path(struct probe_s *probe, struct param_key_s *param_key,
         return -1;
     }
 
+    if (check_path_for_security(value)) {
+        PARSE_ERR("params.%s contains unsafe characters", param_key->key);
+        return -1;
+    }
     (void)snprintf(probe->probe_param.elf_path, sizeof(probe->probe_param.elf_path), "%s", value);
     return 0;
 }
@@ -707,6 +711,9 @@ void probe_params_to_json(struct probe_s *probe, void *params)
     }
     if (probe_type == PROBE_L7 || probe_type == PROBE_TCP) {
         Json_AddCharItemToObject(params, CLUSTER_IP_BACKEND, probe_param->cluster_ip_backend);
+    }
+    if (probe_type == PROBE_BASEINFO) {
+        Json_AddStringToObject(params, ELF_PATH, probe_param->elf_path);
     }
     if (probe_type == PROBE_FG) {
         Json_AddStringToObject(params, PYROSCOPE_SERVER, probe_param->pyroscope_server);
