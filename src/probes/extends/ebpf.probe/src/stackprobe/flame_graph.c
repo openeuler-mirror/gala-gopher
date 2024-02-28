@@ -193,7 +193,7 @@ static int __build_url(struct stack_svg_mng_s *svg_mng, char *url,
             proc_id,
             (long)before,
             (long)now,
-            en_type == STACK_SVG_MEM ? "bytes" : "samples",
+            (en_type == STACK_SVG_MEM || en_type == STACK_SVG_MEM_GLIBC) ? "bytes" : "samples",
             1000 / post_server->perf_sample_period); // 1000 ms
     } else {
         (void)snprintf(url, LINE_BUF_LEN, 
@@ -203,7 +203,7 @@ static int __build_url(struct stack_svg_mng_s *svg_mng, char *url,
             post_server->app_suffix,
             (long)before,
             (long)now,
-            en_type == STACK_SVG_MEM ? "bytes" : "samples",
+            (en_type == STACK_SVG_MEM || en_type == STACK_SVG_MEM_GLIBC) ? "bytes" : "samples",
             1000 / post_server->perf_sample_period); // 1000 ms
     }
 
