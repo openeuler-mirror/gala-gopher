@@ -226,6 +226,7 @@ static __always_inline __maybe_unused void submit_conn_data(void* ctx, struct so
             struct iovec iov_cpy = {0};
             bpf_probe_read_user(&iov_cpy, sizeof(iov_cpy), &args->iov[i]);
             bytes_remaining = (int)bytes_count - bytes_sent;
+            bytes_truncated = (bytes_remaining > CONN_DATA_MAX_SIZE && (i != LOOP_LIMIT - 1)) ? CONN_DATA_MAX_SIZE : bytes_remaining;
             if (bytes_truncated <= 0) {
                 return;
             }

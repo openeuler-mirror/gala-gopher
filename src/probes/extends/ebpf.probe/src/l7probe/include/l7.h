@@ -561,7 +561,7 @@ static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, en
 {
     enum message_type_t type;
 
-    if (l7pro == NULL || count >= L7_DATA_BUFFER_MAXSIZE || buf == NULL) {
+    if (l7pro == NULL || buf == NULL) {
         return -1;
     }
 
