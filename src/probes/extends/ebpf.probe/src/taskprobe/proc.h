@@ -45,6 +45,11 @@ struct syscall_s {
     u64 ns_fork;
     u64 ns_vfork;
     u64 ns_clone;
+
+    // ioctl syscall
+    int ioctl_fd;
+    u64 ioctl_cmd;
+    u64 ns_ioctl;
 };
 
 struct fs_op_s {
@@ -69,6 +74,7 @@ struct proc_ts_s {
     u64 ts_syscall_net;
     u64 ts_syscall_sched;
     u64 ts_syscall_fork;
+    u64 ts_syscall_ioctl;
 
     u64 ts_ext4_op;
     u64 ts_overlay_op;

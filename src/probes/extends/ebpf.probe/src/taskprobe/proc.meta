@@ -332,5 +332,47 @@ measurements:
                 name: "offcpu_ns",
             }
         )
+    },
+    {
+        table_name: "proc_syscall_ioctl",
+        entity_name: "proc",
+        fields:
+        (
+            {
+                description: "ID of the process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "the fd of device",
+                type: "label",
+                name: "ioctl_fd",
+            },
+            {
+                description: "the direction of ioctl",
+                type: "label",
+                name: "ioctl_dir",
+            },
+            {
+                description: "the type of ioctl",
+                type: "label",
+                name: "ioctl_type",
+            },
+            {
+                description: "the nr of ioctl",
+                type: "label",
+                name: "ioctl_nr",
+            },
+            {
+                description: "the size of ioctl",
+                type: "gauge",
+                name: "ioctl_size",
+            },
+            {
+                description: "Process ioctl operation duration, in ns.",
+                type: "gauge",
+                name: "ns_ioctl",
+            }
+        )
     }
 )

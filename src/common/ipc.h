@@ -69,6 +69,7 @@
 #define PROBE_RANGE_PROC_PAGECACHE  0x00000010
 #define PROBE_RANGE_PROC_NET        0x00000020
 #define PROBE_RANGE_PROC_OFFCPU     0x00000040
+#define PROBE_RANGE_PROC_IOCTL      0x00000080
 
 /* system_infos subprobe define */
 #define PROBE_RANGE_SYS_CPU         0x00000001
