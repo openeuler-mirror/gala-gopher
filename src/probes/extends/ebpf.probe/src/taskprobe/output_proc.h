@@ -71,6 +71,8 @@ static __always_inline __maybe_unused char is_proc_tmout(struct proc_data_s *pro
         IS_PROC_TMOUT(stats_ts, ts, period, io, tmout);
     } else if (flags & TASK_PROBE_CPU) {
         IS_PROC_TMOUT(stats_ts, ts, period, cpu, tmout);
+    } else if (flags & TASK_PROBE_IOCTL_SYSCALL) {
+        IS_PROC_TMOUT(stats_ts, ts, period, syscall_ioctl, tmout);
     } else {
         tmout = 0;
     }
@@ -114,6 +116,10 @@ static __always_inline __maybe_unused void reset_proc_stats(struct proc_data_s *
         __builtin_memset(&(proc->proc_io), 0x0, sizeof(proc->proc_io));
     } else if (flags & TASK_PROBE_CPU) {
         __builtin_memset(&(proc->proc_cpu), 0x0, sizeof(proc->proc_cpu));
+    } else if (flags & TASK_PROBE_IOCTL_SYSCALL) {
+        proc->syscall.ns_ioctl = 0;
+        proc->syscall.ioctl_fd = 0;
+        proc->syscall.ioctl_cmd = 0;
     }
 }
 

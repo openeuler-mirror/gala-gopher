@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/resource.h>
+#include <sys/ioctl.h>
 
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
@@ -37,6 +38,7 @@
 #include "syscall_net.skel.h"
 #include "syscall_fork.skel.h"
 #include "syscall_sched.skel.h"
+#include "syscall_ioctl.skel.h"
 #include "ex4.skel.h"
 #include "overlay.skel.h"
 #include "tmpfs.skel.h"
@@ -57,6 +59,7 @@ static struct ipc_body_s *__ipc_body = NULL;
 #define PROC_TBL_SYSCALL_NET    "proc_syscall_net"
 #define PROC_TBL_SYSCALL_SCHED  "proc_syscall_sched"
 #define PROC_TBL_SYSCALL_FORK   "proc_syscall_fork"
+#define PROC_TBL_SYSCALL_IOCTL  "proc_syscall_ioctl"
 
 #define PROC_TBL_EXT4           "proc_ext4"
 #define PROC_TBL_OVERLAY        "proc_overlay"
@@ -329,6 +332,47 @@ static void output_proc_cpu_stats(struct proc_data_s *proc)
         proc->proc_cpu.offcpu_ns);
 }
 
+static const char *judge_ioctl_dir(u64 ioctl_dir)
+{
+    switch (ioctl_dir) {
+        case _IOC_NONE:
+            return "--";
+        case _IOC_READ:
+            return "r-";
+        case _IOC_WRITE:
+            return "-w";
+        case _IOC_READ | _IOC_WRITE:
+            return "rw";
+        default:
+            return "*ERR*";
+    }
+    return NULL;
+}
+
+/*
+    ioctl cmd define as follows:
+    #define SCHED_QUERY_INFO _IOWR_BAD(SCHED_ID_MAGIC, 12, sizeof(struct sched_ioctl_para_query_info))
+                    |           |           |           |           |
+                   cmd       _IOC_DIR   _IOC_TYPE   _IOC_NR     _IOC_SIZE
+*/
+static void output_proc_metrics_syscall_ioctl(struct proc_data_s *proc)
+{
+    u64 cmd = proc->syscall.ioctl_cmd;
+
+    (void)fprintf(stdout,
+        "|%s|%u|"
+        "%d|%s|%c|%llu|%llu|%llu|\n",
+        PROC_TBL_SYSCALL_IOCTL,
+        proc->proc_id,
+
+        proc->syscall.ioctl_fd,
+        judge_ioctl_dir(_IOC_DIR(cmd)),
+        (char)(_IOC_TYPE(cmd)),
+        _IOC_NR(cmd),
+        _IOC_SIZE(cmd),
+        proc->syscall.ns_ioctl);
+}
+
 int output_proc_metrics(void *ctx, void *data, u32 size)
 {
     struct proc_data_s *proc = (struct proc_data_s *)data;
@@ -358,6 +402,8 @@ int output_proc_metrics(void *ctx, void *data, u32 size)
         output_proc_io_stats(proc);
     } else if (flags & TASK_PROBE_CPU) {
         output_proc_cpu_stats(proc);
+    } else if (flags & TASK_PROBE_IOCTL_SYSCALL) {
+        output_proc_metrics_syscall_ioctl(proc);
     }
 
     (void)fflush(stdout);
@@ -725,12 +771,44 @@ err:
     return -1;
 }
 
+static int load_proc_syscall_ioctl_prog(struct task_probe_s *task_probe, struct bpf_prog_s *prog, char is_load)
+{
+    int ret = 0;
+    struct bpf_buffer *buffer = NULL;
+
+    __LOAD_PROBE(syscall_ioctl, err, is_load, buffer);
+    if (is_load) {
+        prog->skels[prog->num].skel = syscall_ioctl_skel;
+        prog->skels[prog->num].fn = (skel_destroy_fn)syscall_ioctl_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = syscall_ioctl_open_opts.btf_custom_path;
+
+        ret = bpf_buffer__open(buffer, output_proc_metrics, NULL, NULL);
+        if (ret) {
+            ERROR("[TASKPROBE] Open 'ioctl' bpf_buffer failed.\n");
+            bpf_buffer__free(buffer);
+            goto err;
+        }
+        prog->buffers[prog->num] = buffer;
+
+        prog->num++;
+
+        task_probe->args_fd = GET_MAP_FD(syscall_ioctl, args_map);
+        task_probe->proc_map_fd = GET_MAP_FD(syscall_ioctl, g_proc_map);
+    }
+
+    return ret;
+err:
+    UNLOAD(syscall_ioctl);
+    CLEANUP_CUSTOM_BTF(syscall_ioctl);
+    return -1;
+}
+
 int load_proc_bpf_prog(struct task_probe_s *task_probe, struct ipc_body_s *ipc_body, struct bpf_prog_s **new_prog)
 {
     struct bpf_prog_s *prog;
     char is_load = 0;
     char is_load_syscall, is_load_syscall_io, is_load_syscall_net;
-    char is_load_syscall_fork, is_load_syscall_sched, is_load_proc_io;
+    char is_load_syscall_fork, is_load_syscall_sched, is_load_proc_io, is_load_syscall_ioctl;
     char is_load_overlay, is_load_ext4, is_load_tmpfs, is_load_page;
     char is_load_offcpu;
 
@@ -745,6 +823,7 @@ int load_proc_bpf_prog(struct task_probe_s *task_probe, struct ipc_body_s *ipc_b
     is_load_syscall_net = ipc_body->probe_range_flags & PROBE_RANGE_PROC_NET;
     is_load_syscall_fork = ipc_body->probe_range_flags & PROBE_RANGE_PROC_SYSCALL;
     is_load_syscall_sched = ipc_body->probe_range_flags & PROBE_RANGE_PROC_SYSCALL;
+    is_load_syscall_ioctl = ipc_body->probe_range_flags & PROBE_RANGE_PROC_IOCTL;
 
     is_load_tmpfs = ipc_body->probe_range_flags & PROBE_RANGE_PROC_FS;
     is_load_page = ipc_body->probe_range_flags & PROBE_RANGE_PROC_PAGECACHE;
@@ -754,7 +833,7 @@ int load_proc_bpf_prog(struct task_probe_s *task_probe, struct ipc_body_s *ipc_b
 
     is_load = is_load_overlay | is_load_ext4 | is_load_syscall | is_load_syscall_io | is_load_syscall_net;
     is_load |= is_load_syscall_fork | is_load_syscall_sched | is_load_tmpfs | is_load_page | is_load_proc_io;
-    is_load |= is_load_offcpu;
+    is_load |= is_load_offcpu | is_load_syscall_ioctl;
     if (!is_load) {
         return 0;
     }
@@ -805,6 +884,10 @@ int load_proc_bpf_prog(struct task_probe_s *task_probe, struct ipc_body_s *ipc_b
     }
 
     if (load_proc_cpu_prog(task_probe, prog, is_load_offcpu)) {
+        goto err;
+    }
+
+    if (load_proc_syscall_ioctl_prog(task_probe, prog, is_load_syscall_ioctl)) {
         goto err;
     }
 

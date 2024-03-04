@@ -71,7 +71,7 @@ curl -X PUT http://localhost:9999/flamegraph -d json='
 | tcp           | TCP异常、状态观测能力                        | tcp_abnormal, tcp_rtt, tcp_windows, tcp_rate, tcp_srtt, tcp_sockbuf, tcp_stats,tcp_delay | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/tcpprobe          |                           |
 | socket        | Socket(TCP/UDP)异常观测能力                  | tcp_socket, udp_socket                                       | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/endpoint          |                           |
 | io            | Block层I/O观测能力                           | io_trace, io_err, io_count, page_cache                       | NA                                       | $gala-gopher-dir/ioprobe           |                           |
-| proc          | 进程系统调用、I/O、DNS、VFS等观测能力        | proc_syscall, proc_fs, proc_io, proc_dns,proc_pagecache,proc_net,proc_offcpu | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/taskprobe         |                           |
+| proc          | 进程系统调用、I/O、DNS、VFS、ioctl等观测能力 | proc_syscall, proc_fs, proc_io, proc_dns,proc_pagecache,proc_net,proc_offcpu,proc_ioctl | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/taskprobe         |                           |
 | jvm           | JVM层GC, 线程, 内存, 缓存等观测能力          | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/jvmprobe          |                           |
 | ksli          | Redis性能SLI（访问时延）观测能力             | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/ksliprobe         |                           |
 | postgre_sli   | PG DB性能SLI（访问时延）观测能力             | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/pgsliprobe        |                           |
@@ -81,7 +81,7 @@ curl -X PUT http://localhost:9999/flamegraph -d json='
 | nginx         | Nginx L4/L7层会话观测能力                    | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/nginx_probe       |                           |
 | haproxy       | Haproxy L4/7层会话观测能力                   | NA                                                           | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/trace_haproxy     |                           |
 | kafka         | kafka 生产者/消费者topic观测能力             | NA                                                           | NA                                       | $gala-gopher-dir/kafkaprobe        |                           |
-| baseinfo      | 系统基础信息                                 | cpu, mem, nic, disk, net, fs, proc,host                      | proc_id, proc_name, pod_id, container_id | system_infos                       | NA                        |
+| baseinfo      | 系统基础信息                                 | cpu, mem, nic, disk, net, fs, proc, host, con                | proc_id, proc_name, pod_id, container_id | system_infos                       | NA                        |
 | virt          | 虚拟化管理信息                               | NA                                                           | NA                                       | virtualized_infos                  | NA                        |
 | tprofiling    | 线程级性能profiling观测能力                  | oncpu, syscall_file, syscall_net, syscall_lock, syscall_sched | proc_id, proc_name, pod_id, container_id | $gala-gopher-dir/tprofiling        | NA                        |
 | container     | 容器信息                                     | NA                                                           | proc_id, proc_name, container_id         | $gala-gopher-dir/cadvisor_probe.py | NA                        |
@@ -96,7 +96,7 @@ curl -X PUT http://localhost:9999/flamegraph -d json='
 | tcp           | TCP异常、状态观测能力                 | tcp_abnormal, tcp_rtt, tcp_windows, tcp_rate, tcp_srtt, tcp_sockbuf, tcp_stats,tcp_delay | tcp_abnormal：tcp异常信息<br/> tcp_rtt：tcp连接数据传输的往返时间<br/> tcp_windows：tcp窗口相关信息<br/> tcp_rate：tcp传输速率<br/> tcp_srtt：tcp连接的srtt时间<br/> tcp_sockbuf：接收和发送数据的缓冲区的大小<br/> tcp_stats：tcp连接状态<br/> tcp_delay：tcp传输时延信息 |
 | socket        | Socket(TCP/UDP)异常观测能力           | tcp_socket, udp_socket                                       | tcp_socket：tcp socket信息<br/> udp_socket：udp socket信息   |
 | io            | Block层I/O观测能力                    | io_trace, io_err, io_count, page_cache                       | io_trace：I/O请求数<br/> io_err：I/O错误信息<br/> io_count：I/O操作读和写的字节数<br/> page_cache：缓冲I/O信息 |
-| proc          | 进程系统调用、I/O、DNS、VFS等观测能力 | proc_syscall, proc_fs, proc_io, proc_dns,proc_pagecache，proc_net，proc_offcpu | proc_syscall：进程系统调用信息<br/> proc_fs：进程调用文件系统信息<br/> proc_io：进程I/O信息<br/> proc_dns：dns访问监控<br/> proc_pagecache：进程使用内存页的信息<br/>proc_net:进程收发网络报文时长统计<br/>proc_offcpu:进程IO_wait、offcpu时长统计 |
+| proc          | 进程系统调用、I/O、DNS、VFS等观测能力 | proc_syscall, proc_fs, proc_io, proc_dns,proc_pagecache，proc_net，proc_offcpu, proc_ioctl | proc_syscall：进程系统调用信息<br/> proc_fs：进程调用文件系统信息<br/> proc_io：进程I/O信息<br/> proc_dns：dns访问监控<br/> proc_pagecache：进程使用内存页的信息<br/>proc_net:进程收发网络报文时长统计<br/>proc_offcpu:进程IO_wait、offcpu时长统计<br/>proc_ioctl:进程ioctl大小、时长统计 |
 | jvm           | JVM层GC, 线程, 内存, 缓存等观测能力   | NA                                                           | NA                                                           |
 | ksli          | Redis性能SLI（访问时延）观测能力      | NA                                                           | NA                                                           |
 | postgre_sli   | PG DB性能SLI（访问时延）观测能力      | NA                                                           | NA                                                           |
@@ -106,7 +106,7 @@ curl -X PUT http://localhost:9999/flamegraph -d json='
 | nginx         | Nginx L4/L7层会话观测能力             | NA                                                           | NA                                                           |
 | haproxy       | Haproxy L4/7层会话观测能力            | NA                                                           | NA                                                           |
 | kafka         | kafka 生产者/消费者topic观测能力      | NA                                                           | NA                                                           |
-| baseinfo      | 系统基础信息                          | cpu, mem, nic, disk, net, fs, proc,host                      | cpu：cpu性能<br/> mem：内存性能<br/> nic：网卡性能<br/> disk：磁盘性能<br/> net：协议栈统计信息<br/> fs：文件系统信息<br/> proc：进程信息<br/> host：主机信息 |
+| baseinfo      | 系统基础信息                          | cpu, mem, nic, disk, net, fs, proc, host, con                | cpu：cpu性能<br/> mem：内存性能<br/> nic：网卡性能<br/> disk：磁盘性能<br/> net：协议栈统计信息<br/> fs：文件系统信息<br/> proc：进程信息<br/> host：主机信息<br/> con: 容器信息 |
 | virt          | 虚拟化管理信息                        | NA                                                           | NA                                                           |
 | tprofiling    | 线程级性能profiling观测能力           | oncpu, syscall_file, syscall_net, syscall_lock, syscall_sched | oncpu：应用程序线程运行在cpu上时的状态，帮助识别出线程是如何消耗cpu资源，以及主要耗时的函数调用<br/> syscall_file：系统调用文件系统的信息<br/> syscall_net：系统调用的网络性能<br/> syscall_lock：系统调用死锁的次数<br/> syscall_sched：系统调用的次数 |
 | container     | 容器信息                              | NA                                                           | NA                                                           |
@@ -226,7 +226,7 @@ curl -X PUT http://localhost:9999/tcp -d json='
 |      flame_dir      |     火焰图原始堆栈信息存储目录     |              "/var/log/gala-gopher/flamegraph"               |         |                 flamegraph                  |     Y      |
 |      dev_name       |       观测的网卡/磁盘设备名        |                              ""                              |         | io, kafka, ksli, postgre_sli，baseinfo, tcp |     Y      |
 | continuous_sampling |            是否持续采样            |                          0, [0, 1]                           |         |                    ksli                     |     Y      |
-|      elf_path       |      要观测的可执行文件的路径      |                              ""                              |         |           nginx, haproxy, dnsmasq           |     Y      |
+|      elf_path       |      要观测的可执行文件的路径      |                              ""                              |         |      baseinfo, nginx, haproxy, dnsmasq      |     Y      |
 |     kafka_port      |        要观测的kafka端口号         |                       9092, [1, 65535]                       |         |                    kafka                    |     Y      |
 |    cadvisor_port    |        启动的cadvisor端口号        |                       8080, [1, 65535]                       |         |                  cadvisor                   |     Y      |
 
@@ -685,7 +685,8 @@ curl -X PUT http://localhost:9999/proc -d json='
             "proc_dns",
             "proc_pagecache",
             "proc_net",
-            "proc_offcpu"
+            "proc_offcpu",
+            "proc_ioctl"
         ]
     },
     "snoopers": {
@@ -1291,7 +1292,8 @@ curl -X PUT http://localhost:9999/baseinfo -d json='
             "net",
             "fs",
             "proc",
-            "host"
+            "host",
+            "con"
         ]
     },
     "snoopers": {
@@ -1345,7 +1347,7 @@ curl -X PUT http://localhost:9999/baseinfo -d json='
 （2）请求的URL为http://localhost:9999/baseinfo, 9999是Rest server处理启动探针请求监听的端口号，baseinfo为探针的名称           
 （3）cmd内容中的bin为baseinfo探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动             
 （4）cmd内容中的probe对应着探针的采集子项，baseinfo探针probe的内容为空cpu，mem，nic，disk，net，fs，proc，host，代表着baseinfo探针会采集
-cpu，mem，nic，disk，net，fs，proc，host这些类型的数据          
+cpu，mem，nic，disk，net，fs，proc，host, con这些类型的数据          
 （5）snoopers内容中的配置探针监听对象有四个维度，proc_id、proc_name、pod_id和container_id，分别是进程id，进程名称，pod id和容器id，其中任意
 一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定            
 （6）params内容中的参数，示例中的参数都是baseinfo探针支持的参数            
@@ -1354,7 +1356,8 @@ cpu，mem，nic，disk，net，fs，proc，host这些类型的数据
     res_upper_thr是控制着资源的百分比上限                   
     report_event是控制着探针是否上报异常事件，为1时代表上报异常事件                 
     metrics_type控制着上报telemetry的metrics类型            
-    env控制着工作环境类型，为node的含义是gala-gopher工作在工作结点，负责采集工作结点的数据            
+    env控制着工作环境类型，为node的含义是gala-gopher工作在工作结点，负责采集工作结点的数据
+    elf_path参数仅当开启了con采集子项，且配置了container_id监听对象时有效。表示要监控容器下的对应目录
 （7）state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped                
 
 
