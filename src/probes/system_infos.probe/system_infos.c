@@ -26,6 +26,7 @@
 #include "system_cpu.h"
 #include "system_meminfo.h"
 #include "system_os.h"
+#include "system_cons.h"
 
 static struct ipc_body_s g_ipc_body;
 time_t last_report;
@@ -108,9 +109,9 @@ int main(void)
     int ret;
     struct ipc_body_s ipc_body;
     char is_load_cpu = 0, is_load_mem = 0, is_load_nic = 0, is_load_net = 0;
-    char is_load_disk = 0, is_load_fs = 0, is_load_proc = 0, is_load_host = 0;
+    char is_load_disk = 0, is_load_fs = 0, is_load_proc = 0, is_load_host = 0, is_load_con = 0;
     char is_need_refresh_proc = 0;
-
+    char is_need_refresh_con = 0;
     (void)memset(&g_ipc_body, 0, sizeof(struct ipc_body_s));
 
     int msq_id = create_ipc_msg_queue(IPC_EXCL);
@@ -136,7 +137,9 @@ int main(void)
             is_load_fs = is_load_probe(g_ipc_body.probe_range_flags, PROBE_RANGE_SYS_FS);
             is_load_proc = is_load_probe(g_ipc_body.probe_range_flags, PROBE_RANGE_SYS_PROC);
             is_load_host = is_load_probe(g_ipc_body.probe_range_flags, PROBE_RANGE_SYS_HOST);
+            is_load_con = is_load_probe(g_ipc_body.probe_range_flags, PROBE_RANGE_SYS_CON);
             is_need_refresh_proc = 1;
+            is_need_refresh_con = 1;
         }
 
         if (!is_report_tmout()) {
@@ -176,6 +179,17 @@ int main(void)
             is_need_refresh_proc = 0;   // refresh proc_map at first time after recv_ipc_msg
             if (system_proc_probe(&g_ipc_body) < 0) {
                 ERROR("[SYSTEM_PROBE] system proc probe failed.\n");
+                goto err;
+            }
+        }
+        if (is_load_con) {
+            if (is_need_refresh_con && refresh_con_filter_map(&g_ipc_body) < 0) {
+                ERROR("[SYSTEM_PROBE] system con refresh failed.\n");
+                goto err;
+            }
+            is_need_refresh_con = 0;   // refresh con_map at first time after recv_ipc_msg
+            if (system_con_probe(&g_ipc_body) < 0) {
+                ERROR("[SYSTEM_PROBE] system con probe failed.\n");
                 goto err;
             }
         }

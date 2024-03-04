@@ -80,6 +80,7 @@
 #define PROBE_RANGE_SYS_FS          0x00000020
 #define PROBE_RANGE_SYS_PROC        0x00000040
 #define PROBE_RANGE_SYS_HOST        0x00000080
+#define PROBE_RANGE_SYS_CON         0x00000100
 
 /* tprofiling subprobe define */
 #define PROBE_RANGE_TPROFILING_ONCPU            0x00000001
