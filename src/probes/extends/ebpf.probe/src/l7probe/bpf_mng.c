@@ -103,6 +103,7 @@ int l7_load_probe_libssl(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog, const
         goto err;
     }
     prog->skels[prog->num]._link[link_num++] = (void *)libssl_link[libssl_link_current - 1];
+    prog->skels[prog->num]._link_num = link_num;
 
     // libssl bpf prog create pb for 'conn_tracker_events'
     int ret = bpf_buffer__open(buffer, tracker_msg, NULL, l7_mng);

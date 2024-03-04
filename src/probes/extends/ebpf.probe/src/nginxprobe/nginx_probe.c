@@ -188,6 +188,7 @@ int load_bpf_prog_each_elf(struct bpf_prog_s *prog, const char *elf_path)
     for (int i = 0; i < nginx_probe_link_current; i++) {
         prog->skels[prog->num]._link[link_num++] = (void *)nginx_probe_link[i];
     }
+    prog->skels[prog->num]._link_num = link_num;
     prog->num++;
 
     return 0;
