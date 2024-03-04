@@ -194,7 +194,7 @@ static char* __get_first_letter_pos(char *buf)
         pos++;
         p = buf + pos;
     }
-    
+
     if (pos >= len) {
         return NULL;
     }
@@ -252,6 +252,12 @@ static int get_devt(char *dev_name, int *major, int *minor)
 
     sys_file[0] = 0;
     (void)snprintf(sys_file, PATH_LEN, "/sys/block/%s/dev", dev_name);
+
+    if (check_path_for_security(sys_file)) {
+        fprintf(stderr, "invalid dev name\n", dev_name);
+        return -1;
+    }
+
     if (access(sys_file, 0)) {
         sys_file[0] = 0;
         (void)snprintf(sys_file, PATH_LEN, "/sys/block/*/%s/../dev", dev_name);

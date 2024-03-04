@@ -206,5 +206,6 @@ int get_system_ip(char ip_str[], unsigned int size);
 int get_comm(int pid, char comm_str[], unsigned int size);
 int get_proc_startup_ts(int pid);
 int copy_file(const char *dst_file, const char *src_file);
+int check_path_for_security(const char *path);
 
 #endif

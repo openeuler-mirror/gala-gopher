@@ -22,6 +22,9 @@
 #include <stdarg.h>
 #include "common.h"
 
+const char* command_injection_characters[] = {"|", ";", "&", "$", ">", "<", "(", ")", "./", "/.", "?", "*",
+                                    "\'", "`", "[", "]", "\\", "!", "\n"};
+
 char *get_cur_date(void)
 {
     /* return date str, ex: 2021/05/17 */
@@ -291,5 +294,26 @@ int copy_file(const char *dst_file, const char *src_file) {
     free(buffer);
     fclose(fp1);
     fclose(fp2);
+    return 0;
+}
+
+/*
+ * Check the path to avoid command injection
+ * @path: path executed as command
+ */
+int check_path_for_security(const char *path)
+{
+    if (path == NULL || strlen(path) == 0) {
+        return 0;
+    }
+
+    int command_injection_characters_len = sizeof(command_injection_characters) / sizeof(command_injection_characters[0]);
+
+    for (int i = 0; i < command_injection_characters_len; ++i) {
+        if (strstr(path, command_injection_characters[i])) {
+            return 1;
+        }
+    }
+
     return 0;
 }
