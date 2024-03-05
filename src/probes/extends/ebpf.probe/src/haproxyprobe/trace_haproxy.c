@@ -235,6 +235,7 @@ int load_bpf_prog_each_elf(struct bpf_prog_s *prog, const char *elf_path)
     for (i = 0; i < trace_haproxy_link_current; i++) {
         prog->skels[prog->num]._link[link_num++] = (void *)trace_haproxy_link[i];
     }
+    prog->skels[prog->num]._link_num = link_num;
     prog->num++;
 
     return 0;

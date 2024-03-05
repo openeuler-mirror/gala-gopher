@@ -685,12 +685,21 @@ void probe_params_to_json(struct probe_s *probe, void *params)
 
     Json_AddUIntItemToObject(params, SAMPLE_PERIOD, probe_param->sample_period);
     Json_AddUIntItemToObject(params, REPORT_PERIOD, probe_param->period);
-    Json_AddUIntItemToObject(params, LATENCY_THR, probe_param->latency_thr);
-    Json_AddUIntItemToObject(params, OFFLINE_THR, probe_param->offline_thr);
-    Json_AddUIntItemToObject(params, DROPS_THR, probe_param->drops_count_thr);
     Json_AddCharItemToObject(params, RES_LOWER_THR, probe_param->res_percent_lower);
     Json_AddCharItemToObject(params, RES_UPPER_THR, probe_param->res_percent_upper);
     Json_AddCharItemToObject(params, REPORT_EVENT, probe_param->logs);
+
+    if (probe_param->latency_thr != 0) {
+        Json_AddUIntItemToObject(params, LATENCY_THR, probe_param->latency_thr);
+    }
+
+    if (probe_param->offline_thr != 0) {
+        Json_AddUIntItemToObject(params, OFFLINE_THR, probe_param->offline_thr);
+    }
+
+    if (probe_param->drops_count_thr != 0) {
+        Json_AddUIntItemToObject(params, DROPS_THR, probe_param->drops_count_thr);
+    }
 
     flags_size = sizeof(param_metrics_flags) / sizeof(param_metrics_flags[0]);
     flags_arr = param_flags_to_json(probe_param->metrics_flags, param_metrics_flags, flags_size);
