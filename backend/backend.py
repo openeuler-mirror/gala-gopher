@@ -2,8 +2,9 @@ import http.client
 import os
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import threading
 from urllib.parse import urlparse
+from collections import deque
+import threading
 import logging
 import random
 import json
@@ -20,7 +21,6 @@ login_headers = {"tenant-id": "1", "Content-Type": "application/json",
                  "User-Agent": "Mozillla/5.0 Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.54"}
 body_of_send_backend_request = {"body": "body of send request to backend"}
 body_of_send_keep_alive_request = {"body": "body of send keep-alive request to backend"}
-user_id = {}
 batch_write_disk = ""
 operate_url_prefix = "/admin-api/system/user/"
 keep_alive_url_prefix = "/a-ops/keepalive"
@@ -28,7 +28,9 @@ next = []
 keep_alive_wait_port = ""
 is_batch_write_disk = 0
 count = []
-update_file = "/home/file.txt"
+
+update_file_deque = deque()
+update_user_id_deque = deque()
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -148,23 +150,28 @@ class Handler(BaseHTTPRequestHandler):
         logging.debug("received %s %s request", self.client_address, operate)
 
         if operate == 'create':
+            file = "/home/file_" + str(random_number()) + ".txt"
             try:
                 # 创建文件
-                os.mknod(update_file)
+                os.mknod(file)
+                update_file_deque.append(file)
             except Exception as e:
                 logging.debug("failed to create update_file. Err: %s", repr(e))
 
             # 发送请求给下游
             self.send_request_next(operate, None)
-        elif operate == 'update':
+        elif operate == 'update' and len(update_file_deque) != 0:
+            file = update_file_deque.popleft()
             try:
-                fp = open(update_file, 'a', encoding='utf-8')
+                fp = open(file, 'a', encoding='utf-8')
                 file_size = 1024 * 5
                 while fp.tell() < file_size:
                     fp.write("update")
                 fp.close()
             except Exception as e:
                 logging.debug("failed to update update_file. Err: %s", repr(e))
+
+            update_file_deque.appendleft(file)
 
             if is_batch_write_disk == 1:
                 file_path = "/home/batch_update_file_" + str(random_number()) + ".txt"
@@ -175,9 +182,10 @@ class Handler(BaseHTTPRequestHandler):
 
                 os.remove(file_path)
             self.send_request_next(operate, None)
-        elif operate == 'delete':
+        elif operate == 'delete' and len(update_file_deque) != 0:
             try:
-                os.remove(update_file)
+                delete_file = update_file_deque.popleft()
+                os.remove(delete_file)
             except Exception as e:
                 logging.debug("failed to os.remove(update_file). Err: %s", repr(e))
 
@@ -245,28 +253,28 @@ class Handler(BaseHTTPRequestHandler):
 
                         logging.debug("id %d", id)
 
-                        user_id[str(id)] = id
+                        update_user_id_deque.append(id)
 
                         send_response(self, 'successfully sent create request!')
-                    elif operate == 'update' and len(user_id) > 0:
-                        for key, value in user_id.items():
-                            user_update["id"] = value
-                            user_update["email"] = random_email()
-                            conn.request("PUT", build_url(ip, port, operate_url_prefix, "update", ""),
-                                         json.dumps(user_update),
-                                         token_header)
-                            response = conn.getresponse()
-                            send_response(self, 'successfully sent update request!')
-                            break
-                    elif operate == 'delete' and len(user_id) > 0:
-                        for key, value in user_id.items():
-                            conn.request("DELETE",
-                                         build_url(ip, port, operate_url_prefix, "delete", value),
+                    elif operate == 'update' and len(update_user_id_deque) != 0:
+                        user_id = update_user_id_deque.popleft()
+                        user_update["id"] = user_id
+                        user_update["email"] = random_email()
+                        conn.request("PUT", build_url(ip, port, operate_url_prefix, "update", ""),
+                                     json.dumps(user_update),
+                                     token_header)
+                        response = conn.getresponse()
+
+                        update_user_id_deque.appendleft(user_id)
+
+                        send_response(self, 'successfully sent update request!')
+                    elif operate == 'delete' and len(update_user_id_deque) != 0:
+                        user_id = update_user_id_deque.popleft()
+                        conn.request("DELETE",
+                                         build_url(ip, port, operate_url_prefix, "delete", user_id),
                                          "", token_header)
-                            response = conn.getresponse()
-                            send_response(self, 'successfully sent delete request!')
-                            user_id.pop(key)
-                            break
+                        response = conn.getresponse()
+                        send_response(self, 'successfully sent delete request!')
                 conn.close()
             except Exception as e:
                 logging.debug("failed to send request to %s:%d. Err: %s", ip, port, repr(e))
