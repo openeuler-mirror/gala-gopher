@@ -23,9 +23,10 @@ COPY ./backend.json  /
 RUN chmod +x /entrypoint.sh
 
 # install dependecies
-RUN sed -i 's/repo.openeuler.org/mirrors.tools.huawei.com\/openeuler/g' /etc/yum.repos.d/openEuler.repo\
-	&& yum -y install bash\
-	&& yum -y install python
+RUN yum -y install bash \
+ && yum -y install python \
+ && yum clean all \
+ && rm -rf /var/cache/yum/*
 
 # start backend
 ENTRYPOINT [ "/entrypoint.sh" ]

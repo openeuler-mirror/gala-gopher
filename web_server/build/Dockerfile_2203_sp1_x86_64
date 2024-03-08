@@ -23,9 +23,10 @@ COPY ./web_server  /
 RUN chmod +x /entrypoint.sh
 
 # install dependecies
-RUN sed -i 's/repo.openeuler.org/mirrors.tools.huawei.com\/openeuler/g' /etc/yum.repos.d/openEuler.repo\
-	&& yum -y install cjson \
-	&& cp /web-server/web_server.conf /etc/web_server.conf
+RUN yum -y install cjson \
+ && cp /web-server/web_server.conf /etc/web_server.conf \
+ && yum clean all \
+ && rm -rf /var/cache/yum/*
 
 # start web_server
 ENTRYPOINT [ "/entrypoint.sh" ]
