@@ -129,7 +129,7 @@ static int get_proc_stat_info(void)
             fclose(f);
             return 0;
         }
-        strncpy(dst_line, line, strlen(line) + 1);
+        strncpy(dst_line, line, LINE_BUF_LEN - 1);
         if (is_first_line) {
             util_per = get_cpu_util(dst_line, &last_time_total, &last_time_used,
                                     &cur_time_total, &cur_time_used);

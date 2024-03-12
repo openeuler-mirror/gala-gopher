@@ -135,12 +135,12 @@ struct key_value_pairs* Json_GetKeyValuePairs(const void *jsonObj)
     }
     const Json::Value &jsObj = (*static_cast<const Json::Value *>(jsonObj));
     const size_t numElem = jsObj.size();
-    auto *kv_pairs = (struct key_value_pairs*) malloc(sizeof(struct key_value_pairs));
+    auto *kv_pairs = (struct key_value_pairs*)malloc(sizeof(struct key_value_pairs));
     if (!kv_pairs) {
         return nullptr;
     }
     kv_pairs->len = 0;
-    kv_pairs->kv_pairs = (struct key_value*) malloc(numElem * sizeof(struct key_value));
+    kv_pairs->kv_pairs = (struct key_value*)malloc(numElem * sizeof(struct key_value));
     if (!kv_pairs->kv_pairs) {
         free(kv_pairs);
         return nullptr;

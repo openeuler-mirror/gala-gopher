@@ -34,13 +34,13 @@ static void calc_l7_api_statistic(struct record_buf_s *record_buf, struct record
     }
 
     char path[MAX_API_LEN];
-    (void) snprintf(path, MAX_API_LEN, "%s", rcd_cp->req->req_path);
+    (void)snprintf(path, MAX_API_LEN, "%s", rcd_cp->req->req_path);
     char* pos = strchr(path, '?');
     if (pos != NULL) {
         *pos = '\0';
     }
 
-    (void) snprintf(stat_id.api, MAX_API_LEN, "%s %s", rcd_cp->req->req_method, path);
+    (void)snprintf(stat_id.api, MAX_API_LEN, "%s %s", rcd_cp->req->req_method, path);
 
     struct api_stats* api_stats;
     H_FIND(record_buf->api_stats, &stat_id, sizeof(struct api_stats_id), api_stats);

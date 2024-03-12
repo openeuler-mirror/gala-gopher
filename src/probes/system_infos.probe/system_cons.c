@@ -114,6 +114,9 @@ static con_hash_t* init_one_con(const char *con_id, char *dir_str)
     char container_root[PATH_LEN];
 
     item = (con_hash_t *)malloc(sizeof(con_hash_t));
+    if (item == NULL) {
+        return NULL;
+    }
     (void)memset(item, 0, sizeof(con_hash_t));
 
     container_root[0] = 0;

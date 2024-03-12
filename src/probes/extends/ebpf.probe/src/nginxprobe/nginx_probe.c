@@ -213,8 +213,8 @@ int load_bpf_prog(struct ipc_body_s *ipc_body)
 
     /* Find elf's abs_path */
     elf_num = get_exec_file_path("nginx", (const char *)ipc_body->probe_param.elf_path, NULL, elfs, PATH_NUM);
-    if (elf_num <= 0) {
-        ERROR("%s Failed to get execute path of nginx program.\n", LOG_NGINX_PREFIX);
+    if (elf_num <= 0 || elf_num > PATH_NUM) {
+        ERROR("%s Failed to get execute path of nginx program. elf_num is %d\n", LOG_NGINX_PREFIX, elf_num);
         free_exec_path_buf(elfs, elf_num);
         free_bpf_prog(prog);
         return -1;

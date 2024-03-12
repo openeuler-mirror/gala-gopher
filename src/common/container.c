@@ -565,7 +565,7 @@ static int read_subvol_from_fs_mntops(const char *fs_mntops, char *subvol, unsig
         subvol_end = subvol_start + strlen(subvol_start);
     }
 
-    subvol_len = subvol_end - subvol_start;
+    subvol_len = (unsigned int)(subvol_end - subvol_start);
     if (subvol_len == 0 || subvol_len >= size) {
         return -1;
     }
@@ -1535,7 +1535,11 @@ int get_container_image(const char *abbr_container_id, char image[], unsigned in
     // format: <IMAGE_NAME>@sha256:<IMAGE_ID>, we take the IMAGE_NAME
     ptr = strrchr(orig_image, __CONTAINER_IMAGE_DELIM);
     if (ptr) {
-        orig_image[ptr - orig_image] = 0;
+        int index = ptr - orig_image;
+        if (index >= CONTAINER_IMAGE_LEN || index < 0) {
+            return -1;
+        }
+        orig_image[index] = 0;
         snprintf(image, image_len, "%s", orig_image);
         return 0;
     }

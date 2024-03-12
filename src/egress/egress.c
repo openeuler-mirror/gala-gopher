@@ -123,7 +123,9 @@ static int EgressDataProcesssInput(Fifo *fifo, const EgressMgr *mgr)
         // Add Egress data handlement.
 #ifdef KAFKA_CHANNEL
         if ((mkafkaMgr != NULL) && (fifo->triggerFd == mgr->metric_fifo->triggerFd)) {
-            KafkaMsgProduce(mkafkaMgr, dataStr, strlen(dataStr));
+            if (KafkaMsgProduce(mkafkaMgr, dataStr, strlen(dataStr)) != 0) {
+                continue;
+            }
         }
         if ((ekafkaMgr != NULL) && (fifo->triggerFd == mgr->event_fifo->triggerFd)) {
             KafkaMsgProduce(ekafkaMgr, dataStr, strlen(dataStr));

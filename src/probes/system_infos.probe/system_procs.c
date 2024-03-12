@@ -504,7 +504,7 @@ static void output_proc_infos(proc_hash_t *one_proc, unsigned int period)
         (period * sys_clock_ticks) * FULL_PER;
 
     nprobe_fprintf(stdout,
-        "|%s|%lu|%d|%d|%u|%.2f|%llu|%llu|%u|%u|%llu|%llu|%llu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|%d|%.2f|%.2f|%.2f|\n",
+        "|%s|%lu|%d|%d|%u|%.2f|%llu|%llu|%u|%u|%llu|%llu|%llu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|%llu|%.2f|%.2f|%.2f|\n",
         METRICS_PROC_NAME,
         one_proc->key.pid,
         one_proc->info.pgid,
@@ -551,6 +551,9 @@ static proc_hash_t* init_one_proc(u32 pid, char *stime, char *comm)
     proc_hash_t *item;
 
     item = (proc_hash_t *)malloc(sizeof(proc_hash_t));
+    if (item == NULL) {
+        return NULL;
+    }
     (void)memset(item, 0, sizeof(proc_hash_t));
 
     item->key.pid = pid;

@@ -452,8 +452,12 @@ static int set_probe_bin(struct probe_s *probe, const char *bin)
 
 static void set_probe_chk_cmd(struct probe_s *probe, const char *chk_cmd)
 {
+    if (chk_cmd == NULL) {
+        return;
+    }
+
     if (check_path_for_security(chk_cmd)) {
-        return ;
+        return;
     }
 
     if (probe->chk_cmd) {

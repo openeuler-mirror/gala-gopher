@@ -87,7 +87,7 @@ static int __get_sub_str(const char *s, const char* start, const char *end,
         p1 += strlen(start);
     }
 
-    len = p2 - p1;
+    len = (int)(p2 - p1);
     if ((len <= 0) || (len >= buf_len))
         return -1;
 

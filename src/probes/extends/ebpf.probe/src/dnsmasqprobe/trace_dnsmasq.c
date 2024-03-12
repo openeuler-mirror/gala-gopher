@@ -204,8 +204,8 @@ int load_dnsmasq_bpf_prog(struct ipc_body_s *ipc_body)
 
     /* Find elf's abs_path */
     elf_num = get_exec_file_path("dnsmasq", (const char *)ipc_body->probe_param.elf_path, NULL, elfs, PATH_NUM);
-    if (elf_num <= 0) {
-        DNS_ERROR("Failed to get execute path of dnsmasq program.\n");
+    if (elf_num <= 0 || elf_num > PATH_NUM) {
+        DNS_ERROR("Failed to get execute path of dnsmasq program. elf_num is %d\n", elf_num);
         free_exec_path_buf(elfs, elf_num);
         free_bpf_prog(prog);
         return -1;

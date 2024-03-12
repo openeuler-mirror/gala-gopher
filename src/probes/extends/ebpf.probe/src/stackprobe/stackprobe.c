@@ -633,7 +633,7 @@ static int __stack_file2string(struct proc_symbs_s *proc_symbs, char *line, char
     int len = size;
 
     if (line == NULL) {
-        return 0;
+        return -1;
     }
 
     *count = 0;
@@ -1951,8 +1951,8 @@ static void unload_bpf_progs(struct svg_stack_trace_s *svg_st)
                 bpf_link__destroy(pid_bpf_links->v.bpf_links[i]);
             }
             H_DEL(bpf_link_head, pid_bpf_links);
-            (void)free(pid_bpf_links);
             DEBUG("[STACKPROBE]: detach mem bpf to pid %u success\n", pid_bpf_links->pid);
+            (void)free(pid_bpf_links);
         }
     }
 }

@@ -122,6 +122,10 @@ DECODER_EXTRACT_INT(u_int64_t)
 
 bool extract_prefix_bytes_string(struct raw_data_s *raw_data, char **res, size_t decode_len, size_t data_stream_offset)
 {
+    if (res == NULL) {
+        return false;
+    }
+
     // 申请新内存，存放提取后字符串
     char *new_res = malloc(decode_len + 1);
     if (new_res == NULL) {

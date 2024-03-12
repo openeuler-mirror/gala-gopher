@@ -104,6 +104,10 @@ int histo_bucket_value(struct histo_bucket_s bucket[], size_t bucket_size, enum 
     }
 
     bucket_finded = __find_histo_bucket(bucket, bucket_size, histo_count, &offset);
+    if (bucket_finded == NULL) {
+        return -1;
+    }
+
     if (offset == 0) {
         offset += 1;
     }
@@ -113,11 +117,8 @@ int histo_bucket_value(struct histo_bucket_s bucket[], size_t bucket_size, enum 
         return -1;
     }
 
-    if (bucket_finded) {
-        *value = (float)(bucket_finded->max - bucket_finded->min) * ((float)offset / (float)bucket_finded->count) + (float)bucket_finded->min;
-        return 0;
-    }
-    return -1;
+    *value = (float)(bucket_finded->max - bucket_finded->min) * ((float)offset / (float)bucket_finded->count) + (float)bucket_finded->min;
+    return 0;
 }
 
 int serialize_histo(struct histo_bucket_s bucket[], size_t bucket_size, char *buf, size_t buf_size)

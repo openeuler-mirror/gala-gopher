@@ -32,7 +32,7 @@ parse_state_t decode_tag_item(struct raw_data_s *data_stream_buf)
         return STATE_INVALID;
     }
 
-    char *res;
+    char *res = NULL;
     return decode_bytes_core(data_stream_buf, &res, len);
 }
 

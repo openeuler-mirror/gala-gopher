@@ -83,6 +83,10 @@ static struct redis_record_s *handle_leader_to_follower_msg(struct redis_msg_s *
 
 static void add_redis_record_to_buf(struct record_buf_s *record_buf, struct redis_record_s *record)
 {
+    if (record == NULL) {
+        return;
+    }
+
     struct record_data_s *record_data = (struct record_data_s *)malloc(sizeof(struct record_data_s));
     if (record_data == NULL) {
         ERROR("[Redis Match] Malloc record_data failed.\n");
