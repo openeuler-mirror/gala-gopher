@@ -32,7 +32,7 @@ struct tcp_listen_port {
 struct tcp_listen_ports {
     unsigned int tlp_num;
     struct tcp_listen_port *tlp[LTP_MAX_NUM];
-    unsigned int tlp_hash[PORT_MAX_NUM];
+    unsigned int tlp_hash[PORT_MAX_NUM];    // mean proc's num
 };
 
 struct ip_addr {
@@ -98,6 +98,7 @@ struct tcp_estabs* get_estab_tcps(struct tcp_listen_ports* tlps);
 void free_estab_tcps(struct tcp_estabs** ptes);
 struct tcp_endpoints *get_tcp_endpoints(struct tcp_listen_ports* tlps, struct tcp_estabs* tes);
 void free_tcp_endpoints(struct tcp_endpoints **pteps);
+int get_listen_sock_inode(struct tcp_listen_port *tlp, unsigned long *ino);
 
 
 #endif
