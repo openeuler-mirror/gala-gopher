@@ -20,6 +20,7 @@
 #include <pthread.h>
 
 #include <openssl/ssl.h>
+#include <openssl/evp.h>
 #include <event2/bufferevent.h>
 #include <event2/bufferevent_ssl.h>
 #include <event2/event.h>
