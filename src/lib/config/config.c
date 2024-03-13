@@ -346,14 +346,13 @@ static int ConfigMgrLoadWebServerConfig(void *config, config_setting_t *settings
     }
     (void)snprintf(webServerConfig->bindAddr, sizeof(webServerConfig->bindAddr), "%s", strVal);
 
-#if 0
-    ret = config_setting_lookup_string(settings, "client_auth", &strVal);
+    ret = config_setting_lookup_string(settings, "ssl_auth", &strVal);
     if (ret == 0) {
-        ERROR("[CONFIG] load config for webServerConfig client_auth failed.\n");
+        ERROR("[CONFIG] load config for webServerConfig ssl_auth failed.\n");
         return -1;
     }
     if (strcmp(strVal, "on") == 0) {
-        webServerConfig->clientAuth = 1;
+        webServerConfig->sslAuth = 1;
     }
 
     ret = config_setting_lookup_string(settings, "private_key", &strVal);
@@ -376,7 +375,7 @@ static int ConfigMgrLoadWebServerConfig(void *config, config_setting_t *settings
         return -1;
     }
     (void)snprintf(webServerConfig->caFile, sizeof(webServerConfig->caFile), "%s", strVal);
-#endif
+
     return 0;
 }
 
