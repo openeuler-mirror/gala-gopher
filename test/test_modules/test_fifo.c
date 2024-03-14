@@ -18,33 +18,7 @@
 #include "fifo.h"
 #include "test_fifo.h"
 
-#define FIFO_MGR_SIZE 1024
-#define FIFO_SIZE  1024
-
-static void TestFifoMgrCreate(void)
-{
-    FifoMgr *mgr = FifoMgrCreate(FIFO_MGR_SIZE);
-
-    CU_ASSERT(mgr != NULL);
-    CU_ASSERT(mgr->fifos != NULL);
-    CU_ASSERT(mgr->size == FIFO_MGR_SIZE);
-    CU_ASSERT(mgr->fifoNum == 0);
-    FifoMgrDestroy(mgr);
-}
-
-static void TestFifoMgrAdd(void)
-{
-    uint32_t ret = 0;
-    FifoMgr *mgr = FifoMgrCreate(FIFO_MGR_SIZE);
-    Fifo *fifo = FifoCreate(FIFO_SIZE);
-
-    ret = FifoMgrAdd(mgr, fifo);
-    CU_ASSERT(ret == 0);
-    CU_ASSERT(mgr->fifoNum == 1);
-    CU_ASSERT(mgr->fifos[0] == fifo);
-    FifoDestroy(fifo);
-    FifoMgrDestroy(mgr);
-}
+#define FIFO_SIZE  8
 
 static void TestFifoCreate(void)
 {
@@ -56,7 +30,11 @@ static void TestFifoCreate(void)
     CU_ASSERT(fifo->out == 0);
     CU_ASSERT(fifo->size == FIFO_SIZE);
     FifoDestroy(fifo);
+
+    fifo = FifoCreate(7); // fifo size must be the power of 2
+    CU_ASSERT(fifo == NULL);
 }
+
 
 static void TestFifoPut(void)
 {
@@ -65,9 +43,15 @@ static void TestFifoPut(void)
     Fifo *fifo = FifoCreate(FIFO_SIZE);
 
     CU_ASSERT(fifo != NULL);
+    for (int i = 0; i < FIFO_SIZE; i++) {
+        ret = FifoPut(fifo, &elem);
+        CU_ASSERT(ret == 0);
+        CU_ASSERT(fifo->in == (i + 1));
+    }
+
     ret = FifoPut(fifo, &elem);
-    CU_ASSERT(ret == 0);
-    CU_ASSERT(fifo->in == 1);
+    CU_ASSERT(ret == -1);
+    CU_ASSERT(fifo->in == FIFO_SIZE);
     FifoDestroy(fifo);
 }
 
@@ -87,10 +71,9 @@ static void TestFifoGet(void)
     FifoDestroy(fifo);
 }
 
+
 void TestFifoMain(CU_pSuite suite)
 {
-    CU_ADD_TEST(suite, TestFifoMgrCreate);
-    CU_ADD_TEST(suite, TestFifoMgrAdd);
     CU_ADD_TEST(suite, TestFifoCreate);
     CU_ADD_TEST(suite, TestFifoPut);
     CU_ADD_TEST(suite, TestFifoGet);

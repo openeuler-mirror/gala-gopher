@@ -12,6 +12,7 @@
  * Create: 2021-04-26
  * Description: provide gala-gopher test
  ******************************************************************************/
+#include <stdlib.h>
 #include <stdint.h>
 #include <CUnit/Basic.h>
 
@@ -20,70 +21,54 @@
 
 #define KAFKA_BROKER "localhost:9092"
 #define KAFKA_TOPIC "gala_gopher"
+#define KAFKA_COMP_CODEC "none"
 #define KAFKA_BATCH_NUM_MESSAGES 10000
 #define KAFKA_QUEUE_BUFFER_MESSAGES 100000
 #define KAFKA_QUEUE_BUFFER_KBYTES 1048576
 #define KAFKA_QUEUE_BUFFER_MS 5
 #define KAFKA_ERR 1
-ConfigMgr *configMgr = NULL;
 
-static void TestKafkaMgrCreate(void)
+static ConfigMgr *init_kafka_config(void)
 {
-    KafkaMgr *mgr = KafkaMgrCreate(configMgr, "kafka_topic");
+    ConfigMgr *configMgr = ConfigMgrCreate();
+    if (configMgr == NULL) {
+        return NULL;
+    }
 
-    CU_ASSERT(mgr != NULL);
-    CU_ASSERT(strcmp(mgr->kafkaBroker, KAFKA_BROKER) == 0);
-    CU_ASSERT(strcmp(mgr->kafkaTopic, KAFKA_TOPIC) == 0);
+    (void)snprintf(configMgr->kafkaConfig->broker, sizeof(configMgr->kafkaConfig->broker), "%s", KAFKA_BROKER);
+    (void)snprintf(configMgr->metricOutConfig->kafka_topic, sizeof(configMgr->metricOutConfig->kafka_topic), "%s", KAFKA_TOPIC);
+    (void)snprintf(configMgr->kafkaConfig->compressionCodec, sizeof(configMgr->kafkaConfig->compressionCodec), "%s", KAFKA_COMP_CODEC);
+    configMgr->kafkaConfig->batchNumMessages = KAFKA_BATCH_NUM_MESSAGES;
+    configMgr->kafkaConfig->queueBufferingMaxMessages = KAFKA_QUEUE_BUFFER_MESSAGES;
+    configMgr->kafkaConfig->queueBufferingMaxKbytes = KAFKA_QUEUE_BUFFER_KBYTES;
+    configMgr->kafkaConfig->queueBufferingMaxMs = KAFKA_QUEUE_BUFFER_MS;
+
+    return configMgr;
 }
+
 
 static void TestKafkaMsgProduce(void)
 {
     uint32_t ret = 0;
-    char msg[] = "deadbeaf";
+    char *msg = (char *)malloc(10);
+    snprintf(msg, 10, "%s", "deadbeef");
+
+    ConfigMgr *configMgr = init_kafka_config();
+    CU_ASSERT(configMgr != NULL);
+
     KafkaMgr *mgr = KafkaMgrCreate(configMgr, "kafka_topic");
     CU_ASSERT(mgr != NULL);
 
     ret = KafkaMsgProduce(mgr, msg, strlen(msg));
     CU_ASSERT(ret == 0);
-}
 
-int init_config()
-{
-    configMgr = (ConfigMgr *)malloc(sizeof(ConfigMgr));
-    if (configMgr == NULL) {
-        return KAFKA_ERR;
-    }
-    configMgr->kafkaConfig = (KafkaConfig *)malloc(sizeof(KafkaConfig));
-    if (configMgr->kafkaConfig == NULL) {
-        return KAFKA_ERR;
-    }
-
-    (void)strncpy(configMgr->kafkaConfig->broker, KAFKA_BROKER, MAX_KAFKA_BROKER_LEN - 1);
-    (void)strncpy(configMgr->metricOutConfig->kafka_topic, KAFKA_TOPIC, MAX_KAFKA_TOPIC_LEN - 1);
-    configMgr->kafkaConfig->batchNumMessages = KAFKA_BATCH_NUM_MESSAGES;
-    (void)strncpy(configMgr->kafkaConfig->compressionCodec, "none", KAFKA_COMPRESSION_CODEC_LEN - 1);
-    configMgr->kafkaConfig->queueBufferingMaxMessages = KAFKA_QUEUE_BUFFER_MESSAGES;
-    configMgr->kafkaConfig->queueBufferingMaxKbytes = KAFKA_QUEUE_BUFFER_KBYTES;
-    configMgr->kafkaConfig->queueBufferingMaxMs = KAFKA_QUEUE_BUFFER_MS;
-
-    return 0;
-}
-
-void delete_config()
-{
-    free(configMgr->kafkaConfig);
-    free(configMgr);
+    KafkaMgrDestroy(mgr);
+    ConfigMgrDestroy(configMgr);
 }
 
 
 void TestKafkaMain(CU_pSuite suite)
 {
-    if (init_config() != 0) {
-        printf("test_kafka init_config failed.\n");
-        return;
-    }
-    CU_ADD_TEST(suite, TestKafkaMgrCreate);
     CU_ADD_TEST(suite, TestKafkaMsgProduce);
-    delete_config();
 }
 
