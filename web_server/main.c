@@ -16,9 +16,12 @@
 #define MAX_COUNT             10
 #define CONF_PATH            "/etc/web_server.conf"
 #define LOG_PATH             "/var/log/web_server.log"
+#define PUT_DATA_LEN         128
 #define LINE_BUF_LEN         512
 #define URL_LEN              512
 #define BILLION              1000000000L
+#define REQUEST_TMOUT        20L
+#define HTTP_OK              200
 
 struct addr {
     char *ip;
@@ -122,7 +125,7 @@ void init(char *file_path)
 
     thread_count = cJSON_GetArraySize(address_json);
     log_it("thread_count %d\n",thread_count);
-    if (thread_count <= 0) {
+    if (thread_count <= 0 || thread_count > MAX_COUNT) {
         exit(-1);
     }
 
@@ -144,7 +147,13 @@ void init(char *file_path)
     // 初始化send_update_rate
     cJSON *send_update_rate_json = get_value_from_file(file_path, "send_update_rate");
     send_update_rate = send_update_rate_json->valueint;
-    send_update_step = 100 / send_update_rate;;
+    if (send_update_rate <= 0) {
+        send_update_step = 0;
+    } else if (send_update_rate > 100) {
+        send_update_step = 1;
+    } else {
+        send_update_step = 100 / send_update_rate;
+    }
 
     log_it("send_update_rate: %d, send_update_step: %d\n", send_update_rate, send_update_step);
 }
@@ -160,47 +169,107 @@ void build_url(char *url, const char *ip, int port, const char *operate)
 
 }
 
-void send_request_to_url(const char *ip, int port, const char *operate)
+struct MemoryStruct {
+  char *memory;
+  size_t size;
+};
+
+static size_t
+WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp)
+{
+    size_t realsize = size * nmemb;
+    struct MemoryStruct *mem = (struct MemoryStruct *)userp;
+
+    char *ptr = realloc(mem->memory, mem->size + realsize + 1);
+    if(!ptr) {
+      /* out of memory! */
+      log_it("not enough memory (realloc returned NULL)\n");
+      return 0;
+    }
+
+    mem->memory = ptr;
+    memcpy(&(mem->memory[mem->size]), contents, realsize);
+    mem->size += realsize;
+    mem->memory[mem->size] = 0;
+
+    return realsize;
+}
+
+#define PUT_DATA_FMT "{\"data\":%d, \"msg\":\"hello backend, %s user!\"}"
+int send_request_with_userid(const char *ip, int port, const char *operate, int *userid)
 {
     char url[URL_LEN + 1] = {0};
-    CURLcode res;
+    char put_data[PUT_DATA_LEN] = {0};
+    long status;
+    struct MemoryStruct chunk;
+    cJSON *json = NULL;
     struct curl_slist *headers = NULL;
+    int ret = 0;
 
     CURL *curl = curl_easy_init();        // 创建CURL句柄
     if (curl == NULL) {
         exit(0);
     }
 
-    build_url(url, ip, port, operate);
-    //设置请求的url
-    curl_easy_setopt(curl, CURLOPT_URL, url);
+    chunk.memory = malloc(1);  /* grown as needed by the realloc above */
+    chunk.size = 0;    /* no data at this point */
 
-    //设置为put方法
+    build_url(url, ip, port, operate);
+    curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, REQUEST_TMOUT);
+
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
 
     headers = curl_slist_append(headers, "Content-Type:application/json");
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "json={\"body\":\"hello backend!\"}");
+    snprintf(put_data, PUT_DATA_LEN, PUT_DATA_FMT, *userid, operate);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, put_data);
 
-    res = curl_easy_perform(curl); // 发送数据
+    CURLcode res = curl_easy_perform(curl);
+    if (res == CURLE_OK) {
+        // 获取response code
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+        if (status != HTTP_OK) {
+            log_it("Sent %s but received err response code %d from backend %s:%d\n", operate, status, ip, port);
+            ret = -1;
+            goto out;
+        }
+        // get user id that java_app returns
+        if (strcmp(operate, "create") == 0) {
+            json = cJSON_Parse(chunk.memory);
+            if (json == NULL) {
+                log_it("Error when parsing response body(%s) from backend %s:%d\n", chunk.memory, ip, port);
+                ret = -1;
+                goto out;
+            }
+            cJSON *item = cJSON_GetObjectItem(json, "data");
+            *userid = item->valueint;
+        }
+    } else {
+        log_it("Error occurs when sending %s request to backend %s:%d\n", operate, ip, port);
+        ret = -1;
+    }
 
-    long status;
-
-    // 获取response code
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
-
-    log_it("received backend response code id %d\n", status);
-
+out:
+    if (json) {
+        cJSON_Delete(json);
+    }
+    free(chunk.memory);
     curl_slist_free_all(headers);
     curl_easy_cleanup(curl);
+    return ret;
 }
+
 
 void send_request(char *ip, int port)
 {
     int loop;
     struct timespec start_time, now;
     double diff_time;
+    int userid;
 
     while (1) {
         loop = 0;
@@ -209,21 +278,22 @@ void send_request(char *ip, int port)
         log_it("==============New loop of requests[%s:%d]===========\n", ip, port);
         // 一分钟内能把请求发完；或者一分钟内请求发不完；这两种情况下都需要进行请求发送
         while (loop < send_all_rate) {
+            userid = -1;
             // 轮到发送create方法时，一定发送
-            send_request_to_url(ip, port, "create");
-            log_it("successfully sent create to backend to %s:%d\n", ip, port);
+            if (send_request_with_userid(ip, port, "create", &userid)) {
+                goto next;
+            }
 
             // 轮到发送update方法时，如果距离上次发送已达到step，则发送
-            if (loop % send_update_step == 0) {
-                send_request_to_url(ip, port, "update");
-                log_it("successfully send update to backend to %s:%d\n", ip, port);
+            if (send_update_step && (loop % send_update_step == 0)) {
+                (void)send_request_with_userid(ip, port, "update", &userid);
             }
 
             // 轮到发送delete方法时，一定发送
-            send_request_to_url(ip, port, "delete");
-            log_it("succesfully send delete to backend to %s:%d\n", ip, port);
-            loop++;
+            (void)send_request_with_userid(ip, port, "delete", &userid);
 
+next:
+            loop++;
             clock_gettime(CLOCK_REALTIME, &now);
             diff_time = (now.tv_sec - start_time.tv_sec) +
                         (double)( now.tv_nsec - start_time.tv_nsec ) / (double)BILLION;
@@ -279,5 +349,6 @@ int main()
         pthread_join(tid[i], NULL);
     }
 
+    curl_global_cleanup();
     return 0;
 }

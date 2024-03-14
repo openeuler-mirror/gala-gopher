@@ -4,6 +4,7 @@ import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 from collections import deque
+from datetime import datetime
 import threading
 import logging
 import random
@@ -16,7 +17,7 @@ user_login = '{"tenantName": "admin","username": "admin","password": "admin123",
 user_create = {"username": "tf9o8mp3dd", "password": "testcurl11", "nickname": "umw5rbsdu4",
                "email": "fe3dt444qb@163.com", "mobile": "", "deptId": 100, "postIds": [], "status": 0, "remark": ""}
 user_update = {"id": 101, "username": "tf9o8mp3dd", "password": "testcurl11", "nickname": "umw5rbsdu4",
-               "email": "fe3dt444qb@163.com", "mobile": "", "deptId": 100, "postIds": [], "status": 0, "remark": ""}
+               "mobile": "", "deptId": 100, "postIds": [], "status": 0, "remark": ""}
 login_headers = {"tenant-id": "1", "Content-Type": "application/json",
                  "User-Agent": "Mozillla/5.0 Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.54"}
 body_of_send_backend_request = {"body": "body of send request to backend"}
@@ -24,13 +25,12 @@ body_of_send_keep_alive_request = {"body": "body of send keep-alive request to b
 batch_write_disk = ""
 operate_url_prefix = "/admin-api/system/user/"
 keep_alive_url_prefix = "/a-ops/keepalive"
-next = []
+api_servers = []
+keep_alive_servers = []
 keep_alive_wait_port = ""
 is_batch_write_disk = 0
-count = []
 
 update_file_deque = deque()
-update_user_id_deque = deque()
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -77,21 +77,27 @@ def build_url(ip, port, url_prefix, operate, id):
         url = url + "?id=" + str(id)
     return url
 
-
-def send_response(self, context):
-    self.send_response(200)
-    self.send_header('Content-type', 'application/json')
+def send_response(self, context, code):
+    context_str = bytes(context, 'utf-8')
+    self.send_response(code)
+    self.send_header('Content-Type', 'application/json')
+    self.send_header('Content-Length', len(context_str))
     self.end_headers()
-    self.wfile.write(bytes(context, 'utf-8'))
+    self.wfile.write(context_str)
 
 
-class Next:
-    def __init__(self, is_auth, ip, url_port, keep_alive_port):
+class API_SERVER:
+    def __init__(self, is_auth, ip, url_port):
         self.is_auth = is_auth
         self.ip = ip
         self.url_port = url_port
-        self.keep_alive_port = keep_alive_port
         self.token = ""
+        self.token_access_time = ""
+
+class KEEPALIVE_SERVER:
+    def __init__(self, ip, keep_alive_port):
+        self.ip = ip
+        self.keep_alive_port = keep_alive_port
 
 
 class IsBatchWriteThread(threading.Thread):
@@ -114,7 +120,7 @@ class IsBatchWriteThread(threading.Thread):
 class KeepAliveHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         # 发送响应
-        send_response(self, 'received keep-alive')
+        send_response(self, '{"data":0, "msg":"received keep-alive!"}', 200)
 
 
 class KeepAliveThread(threading.Thread):
@@ -140,28 +146,24 @@ class ReceiveHttpRequestThread(threading.Thread):
 class Handler(BaseHTTPRequestHandler):
     # 接收web or backend的put请求
     def do_PUT(self):
-
         parsed_url = urlparse(self.path)
-
         path = parsed_url.path
         path_list = path.split('/')
         operate = path_list[len(path_list) - 1]
+        content_len = int(self.headers.get('Content-Length'))
+        request_body = self.rfile.read(content_len).decode('utf-8')
 
-        logging.debug("received %s %s request", self.client_address, operate)
-
+        logging.debug("received %s %s request %s", self.client_address, operate, request_body)
+        file = "/home/file_" + self.client_address[0] + ".txt"
         if operate == 'create':
-            file = "/home/file_" + str(random_number()) + ".txt"
             try:
-                # 创建文件
                 os.mknod(file)
-                update_file_deque.append(file)
             except Exception as e:
-                logging.debug("failed to create update_file. Err: %s", repr(e))
+                pass
 
             # 发送请求给下游
-            self.send_request_next(operate, None)
-        elif operate == 'update' and len(update_file_deque) != 0:
-            file = update_file_deque.popleft()
+            self.send_request_next(operate, request_body)
+        elif operate == 'update':
             try:
                 fp = open(file, 'a', encoding='utf-8')
                 file_size = 1024 * 5
@@ -171,31 +173,29 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 logging.debug("failed to update update_file. Err: %s", repr(e))
 
-            update_file_deque.appendleft(file)
-
             if is_batch_write_disk == 1:
-                file_path = "/home/batch_update_file_" + str(random_number()) + ".txt"
+                batch_file = "/home/batch_update_file_" + str(random_number()) + ".txt"
 
                 # 批量写盘操作
-                cmd = "dd if=/dev/zero of=" + file_path + " bs= 500 count=" + str(1000000)
+                cmd = "dd if=/dev/zero of=" + batch_file + " bs=50 count=" + str(1000000)
                 os.system(cmd)
-
-                os.remove(file_path)
-            self.send_request_next(operate, None)
-        elif operate == 'delete' and len(update_file_deque) != 0:
+                os.remove(batch_file)
+            self.send_request_next(operate, request_body)
+        elif operate == 'delete':
             try:
-                delete_file = update_file_deque.popleft()
-                os.remove(delete_file)
+                os.remove(file)
             except Exception as e:
-                logging.debug("failed to os.remove(update_file). Err: %s", repr(e))
+                pass
 
-            self.send_request_next(operate, None)
+            self.send_request_next(operate, request_body)
+        else:
+            send_response(self, '{"data":-1, "msg":"invalid request!"}', 403)
 
     # 发送数据给下游，backend or java_app
-    def send_request_next(self, operate, id):
-        if len(next) != 0:
-            i = random.randint(0, len(next) - 1)
-            element = next[i]
+    def send_request_next(self, operate, body):
+        if len(api_servers):
+            i = random.randint(0, len(api_servers) - 1)
+            element = api_servers[i]
             ip = element.ip
             port = element.url_port
             is_auth = element.is_auth
@@ -206,35 +206,25 @@ class Handler(BaseHTTPRequestHandler):
                 if is_auth == 0 and port > 0:
                     header = {"Content-Type": "application/json",
                               "User-Agent": "Mozillla/5.0 Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.54"}
-                    if operate == 'create':
-                        conn.request("PUT", build_url(ip, port, operate_url_prefix, "create", ""),
-                                     json.dumps(body_of_send_backend_request), header)
-                        response = conn.getresponse()
-                        send_response(self, 'successfully sent create request!')
-                    elif operate == 'update':
-                        conn.request("PUT", build_url(ip, port, operate_url_prefix, "update", ""),
-                                     json.dumps(body_of_send_backend_request), header)
-                        response = conn.getresponse()
-                        send_response(self, 'successfully sent update request!')
-                    elif operate == 'delete':
-                        conn.request("PUT", build_url(ip, port, operate_url_prefix, "delete", ""),
-                                     json.dumps(body_of_send_backend_request), header)
-                        response = conn.getresponse()
-                        send_response(self, 'successfully sent delete request!')
+
+                    conn.request("PUT", build_url(ip, port, operate_url_prefix, operate, ""), body, header)
+                    response = conn.getresponse()
+                    send_response(self, response.read().decode('utf-8'), response.status)
                 # 下游是java_app
                 elif is_auth == 1 and port > 0:
-                    # 获取token
-                    conn.request("POST",
-                                 build_url(element.ip, element.url_port, "/admin-api/system/auth/login", "", ""),
-                                 user_login, login_headers)
-                    response = conn.getresponse()
-                    msg = response.read()
-                    data = json.loads(msg)["data"]
-                    response_token = data["accessToken"]
-                    element.token = response_token
+                    # 获取token或者每隔2min刷新token
+                    if not element.token or (datetime.now() - element.token_access_time).seconds >= 120:
+                        conn.request("POST",
+                                     build_url(element.ip, element.url_port, "/admin-api/system/auth/login", "", ""),
+                                     user_login, login_headers)
+                        response = conn.getresponse()
+                        msg = response.read()
 
-                    if element.token == "":
-                        return
+                        data = json.loads(msg)["data"]
+                        response_token = data["accessToken"]
+                        element.token = response_token
+                        element.token_access_time = datetime.now()
+                        logging.debug("login to %s:%d, Token is %s", ip, port, response_token)
 
                     token_header = {"Authorization": "Bearer " + element.token, "tenant-id": "1",
                                     "Content-Type": "application/json",
@@ -249,39 +239,47 @@ class Handler(BaseHTTPRequestHandler):
 
                         response = conn.getresponse()
                         context = response.read()
-                        id = json.loads(context)["data"]
-
-                        logging.debug("id %d", id)
-
-                        update_user_id_deque.append(id)
-
-                        send_response(self, 'successfully sent create request!')
-                    elif operate == 'update' and len(update_user_id_deque) != 0:
-                        user_id = update_user_id_deque.popleft()
+                        user_id = json.loads(context)["data"]
+                        code = json.loads(context)["code"]
+                        if code == 0:
+                            send_response(self, '{"data":'+ str(user_id) + ', "msg":"create success!"}', 200)
+                        else:
+                            send_response(self, '{"data":-1, "msg":"create failed!"}', 400)
+                    elif operate == 'update':
+                        user_id = json.loads(body)["data"]
                         user_update["id"] = user_id
-                        user_update["email"] = random_email()
+                        user_update["username"] = random_name()
+                        user_create["nickname"] = random_name()
                         conn.request("PUT", build_url(ip, port, operate_url_prefix, "update", ""),
                                      json.dumps(user_update),
                                      token_header)
                         response = conn.getresponse()
-
-                        update_user_id_deque.appendleft(user_id)
-
-                        send_response(self, 'successfully sent update request!')
-                    elif operate == 'delete' and len(update_user_id_deque) != 0:
-                        user_id = update_user_id_deque.popleft()
+                        context = response.read()
+                        logging.debug("update response is %s", context.decode("utf-8"))
+                        code = json.loads(context)["code"]
+                        if code == 0:
+                            send_response(self, '{"data":'+ str(user_id) + ', "msg":"update success!"}', 200)
+                        else:
+                            send_response(self, '{"data":-1, "msg":"update failed!"}', 400)
+                    elif operate == 'delete':
+                        user_id = json.loads(body)["data"]
                         conn.request("DELETE",
                                          build_url(ip, port, operate_url_prefix, "delete", user_id),
                                          "", token_header)
                         response = conn.getresponse()
-                        send_response(self, 'successfully sent delete request!')
-                conn.close()
+                        context = response.read()
+                        code = json.loads(context)["code"]
+                        if code == 0:
+                            send_response(self, '{"data":'+ str(user_id) + ', "msg":"delete success!"}', 200)
+                        else:
+                            send_response(self, '{"data":-1, "msg":"delete failed!"}', 400)
             except Exception as e:
                 logging.debug("failed to send request to %s:%d. Err: %s", ip, port, repr(e))
+            finally:
+                conn.close()
 
 
 if __name__ == "__main__":
-
     with open('backend.json', 'r') as backend_file:
         backend_data = json.load(backend_file)
         PORT = backend_data['port']
@@ -289,8 +287,13 @@ if __name__ == "__main__":
         keep_alive_wait_port = backend_data['keep_alive_wait_port']
 
         for elem in next_array:
-            e = Next(elem["is_auth"], elem["ip"], elem["url_port"], elem["keep_alive_port"])
-            next.append(e)
+            if elem["url_port"] > 0 and elem["keep_alive_port"] <= 0:
+                e = API_SERVER(elem["is_auth"], elem["ip"], elem["url_port"])
+                api_servers.append(e)
+
+            if elem["keep_alive_port"] > 0 and elem["url_port"] <= 0:
+                e = KEEPALIVE_SERVER(elem["ip"], elem["keep_alive_port"])
+                keep_alive_servers.append(e)
 
     # 动态监测是否支持批量写盘
     is_batch_write_thread = IsBatchWriteThread()
@@ -305,9 +308,9 @@ if __name__ == "__main__":
     receive_http_request_thread.start()
 
     # 周期发送心跳
-    while True:
-        for elem in next:
-            if elem.keep_alive_port > 0:
+    if len(keep_alive_servers):
+        while True:
+            for elem in keep_alive_servers:
                 try:
                     conn = http.client.HTTPConnection(elem.ip, elem.keep_alive_port, timeout=30)
                     conn.request("POST", build_url(elem.ip, elem.keep_alive_port, keep_alive_url_prefix, "", ""),
@@ -317,7 +320,6 @@ if __name__ == "__main__":
                     logging.debug("successfully send keep-alive to %s:%d, response data is %s", elem.ip,
                                   elem.keep_alive_port, context)
                     conn.close()
-                    time.sleep(30)
                 except Exception as e:
                     logging.debug("failed to send keep-alive to %s:%d. Err: %s", elem.ip, elem.keep_alive_port, repr(e))
-                    break
+            time.sleep(30)
