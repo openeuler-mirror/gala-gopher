@@ -88,8 +88,8 @@ SET(SOURCES main.c daemon.c
     ${COMMON_DIR}/histogram.c
     ${COMMON_DIR}/core_btf.c
 
-    ${WEB_SERVER_DIR}/web_server_event2.c
-    ${RESTAPI_DIR}/rest_server_event2.c
+    ${WEB_SERVER_DIR}/web_server.c
+    ${RESTAPI_DIR}/rest_server.c
     ${EBPF_PROBE_DIR}/src/lib/java_support.c
 )
 

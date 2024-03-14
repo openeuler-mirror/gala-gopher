@@ -61,7 +61,6 @@ typedef void *(*ProbeCB)(void *);
 struct probe_s {
     char *name;                                         // Name for probe
     char *bin;                                          // Execute bin file for probe
-    char *chk_cmd;                                      // Startup precondition for probe
     char is_extend_probe;                               // 0: Native probe, otherwise extend probe
     char is_params_chg;                                 // Probe params changed
     char is_snooper_chg;                                // Probe snoopers changed

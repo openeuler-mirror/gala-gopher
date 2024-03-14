@@ -95,30 +95,6 @@ static void *DaemonRunSingleExtendProbe(void *arg)
 
     (void)RunExtendProbe(probe);
 }
-
-static int DaemonCheckProbeNeedStart(char *check_cmd, ProbeStartCheckType chkType)
-{
-    /* ret val: 1 need start / 0 no need start */
-    if (!check_cmd || chkType != PROBE_CHK_CNT) {
-        return 0;
-    }
-
-    int cnt = 0;
-    FILE *fp = NULL;
-    char data[MAX_COMMAND_LEN] = {0};
-    fp = popen(check_cmd, "r");
-    if (fp == NULL) {
-        ERROR("popen error!(cmd = %s)\n", check_cmd);
-        return 0;
-    }
-
-    if (fgets(data, sizeof(data), fp) != NULL) {
-        cnt = atoi(data);
-    }
-    pclose(fp);
-
-    return (cnt > 0);
-}
 #endif
 
 static void *DaemonRunMetadataReport(void *arg)
