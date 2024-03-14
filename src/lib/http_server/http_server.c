@@ -167,6 +167,13 @@ static int init_http_ssl_ctx(http_server_mgr_s *server_mgr, const char *key_file
 
 err:
     if (ssl_ctx) {
+        // clear private key from memory
+        EVP_PKEY *pkey = SSL_CTX_get0_privatekey(ssl_ctx);
+        if (pkey != NULL) {
+            EVP_PKEY_free(pkey);
+            pkey = NULL;
+        }
+
         SSL_CTX_free(ssl_ctx);
     }
     return -1;
@@ -217,6 +224,13 @@ void destroy_http_server_mgr(http_server_mgr_s *server_mgr)
     }
 
     if (server_mgr->ssl_ctx) {
+        // clear private key from memory
+        EVP_PKEY *pkey = SSL_CTX_get0_privatekey(server_mgr->ssl_ctx);
+        if (pkey != NULL) {
+            EVP_PKEY_free(pkey);
+            pkey = NULL;
+        }
+
         SSL_CTX_free(server_mgr->ssl_ctx);
     }
 

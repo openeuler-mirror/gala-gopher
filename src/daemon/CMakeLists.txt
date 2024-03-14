@@ -136,7 +136,7 @@ SET(INC_DIRECTORIES
     ${EBPF_PROBE_DIR}/src/include
 )
 
-SET(LINK_LIBRARIES config pthread rt dl bpf elf jsoncpp_lib ssl event event_openssl)
+SET(LINK_LIBRARIES config pthread rt dl bpf elf jsoncpp_lib ssl event event_openssl crypto)
 
 if(NOT DEFINED KAFKA_CHANNEL)
     SET(KAFKA_CHANNEL 1)
