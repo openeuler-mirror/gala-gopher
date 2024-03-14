@@ -83,11 +83,6 @@ typedef enum {
     PROBE_SWITCH_MAX
 } ProbeSwitch;
 
-typedef enum {
-    PROBE_CHK_CNT = 0,
-    PROBE_CHK_MAX
-} ProbeStartCheckType;
-
 // out_channel
 typedef enum {
     OUT_CHNL_LOGS = 0,

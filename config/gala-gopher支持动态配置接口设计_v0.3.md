@@ -49,7 +49,6 @@ curl -X PUT http://localhost:9999/flamegraph -d json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/stackprobe",
-        "check_cmd": "",
         "probe": [
         	"oncpu",
         	"offcpu"
@@ -59,7 +58,6 @@ curl -X PUT http://localhost:9999/flamegraph -d json='
 ```
 
 - bin: 探针的可执行文件的完整绝对路径。非必配，未指定时，会自动选择探针默认的安装路径；
-- check_cmd：设置执行探针时的前置检查命令，当命令的执行结果非0时，才会正常运行探针。非必配；
 - probe：设置探针运行时开启的子功能（即采集子项）。详细说明见下文。
 
 目前所有探针支持采集的全量采集特性说明如下：                        
@@ -268,7 +266,6 @@ curl -X GET http://localhost:9999/flamegraph
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/stackprobe",
-        "check_cmd": ""
         "probe": [
             "oncpu",
             "offcpu"
@@ -324,7 +321,6 @@ curl -X PUT http://localhost:9999/flamegraph -d json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/stackprobe",
-        "check_cmd": "",
         "probe": [
             "oncpu",
             "offcpu",
@@ -374,7 +370,7 @@ curl -X PUT http://localhost:9999/flamegraph -d json='
 启动火焰图探针的PUT请求中可以配置很多参数，这些参数共同控制着火焰图探针的行为，由上往下分析一下请求中的各个重要组成部分  
 （1）使用curl命令发起PUT请求     
 （2）请求的URL为http://localhost:9999/flamegraph，9999是Rest server处理启动探针请求监听的端口号，flamegraph为探针的名称     
-（3）cmd内容中的bin为火焰图探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动     
+（3）cmd内容中的bin为火焰图探针的二进制可执行文件的绝对路径
 （4）cmd内容中的probe对应着探针的采集子项，火焰图探针probe的内容为oncpu、offcpu和mem，代表火焰图探针可以采集oncpu、offcpu和mem这三种数据类型的数据
 （5）snoopers内容中的配置探针监听对象有四个维度，proc_id、proc_name、pod_id和container_id，分别是进程id，进程名称，pod id和容器id，其中任意
 一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定  
@@ -396,7 +392,6 @@ curl -X PUT http://localhost:9999/l7 -d json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/l7probe",
-        "check_cmd": "",
         "probe": [
             "l7_bytes_metrics",
             "l7_rpc_metrics",
@@ -445,7 +440,7 @@ curl -X PUT http://localhost:9999/l7 -d json='
 启动l7探针的PUT请求中可以配置很多参数，这些参数共同控制着l7探针的行为，由上往下分析一下请求中的各个重要组成部分      
 （1）使用curl命令发起PUT请求           
 （2）请求的URL为http://localhost:9999/l7，9999是Rest server处理启动探针请求监听的端口号，l7为探针的名称       
-（3）cmd内容中的bin为l7探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动      
+（3）cmd内容中的bin为l7探针的二进制可执行文件的绝对路径
 （4）cmd内容中的probe对应着探针的采集子项，l7探针probe的内容为l7_bytes_metrics、l7_rpc_metrics和l7_rpc_trace，代表火焰图探针可以采集l7_bytes_metrics、l7_rpc_metrics和l7_rpc_trace这三种数据类型的数据，
 具体每种数据类型的含义在下文的采集子项详细说明可以查询到  
 （5）snoopers内容中的配置探针监听对象有四个维度，proc_id、proc_name、pod_id和container_id，分别是进程id，进程名称，pod id和容器id，其中任意
@@ -465,7 +460,6 @@ curl -X PUT http://localhost:9999/tcp -d json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/tcpprobe",
-        "check_cmd": "",
         "probe": [
             "tcp_abnormal",
             "tcp_rtt",
@@ -518,7 +512,7 @@ curl -X PUT http://localhost:9999/tcp -d json='
 启动tcp探针的PUT请求中可以配置很多参数，这些参数共同控制着tcp探针的行为，由上往下分析一下请求中的各个重要组成部分  
 （1）使用curl命令发起PUT请求  
 （2）请求的URL为http://localhost:9999/tcp，9999是Rest server处理启动探针请求监听的端口号，tcp为探针的名称  
-（3）cmd内容中的bin为tcp探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动  
+（3）cmd内容中的bin为tcp探针的二进制可执行文件的绝对路径
 （4）cmd内容中的probe对应着探针的采集子项，tcp探针probe的内容为tcp_abnormal、tcp_rtt、tcp_windows、tcp_rate、tcp_srtt、tcp_sockbuf、tcp_stats和tcp_delay， 代表火焰图探针可以采集tcp_abnormal、tcp_rtt、tcp_windows、tcp_rate、tcp_srtt、tcp_sockbuf、tcp_stats和tcp_delay这些数据类型的数据，
 具体每种数据类型的含义在下文的采集子项详细说明可以查询到  
 （5）snoopers内容中的配置探针监听对象有四个维度，proc_id、proc_name、pod_id和container_id，分别是进程id，进程名称，pod id和容器id，其中任意
@@ -545,7 +539,6 @@ curl -X PUT http://localhost:9999/socket -d json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/endpoint",
-        "check_cmd": "",
         "probe": [
             "tcp_socket",
             "udp_socket"
@@ -596,7 +589,7 @@ curl -X PUT http://localhost:9999/socket -d json='
 启动socket探针的PUT请求中可以配置很多参数，这些参数共同控制着socket探针的行为，由上往下分析一下请求中的各个重要组成部分     
 （1）使用curl命令发起PUT请求     
 （2）请求的URL为http://localhost:9999/socket, 9999是Rest server处理启动探针请求监听的端口号，socket为探针的名称    
-（3）cmd内容中的bin为socket探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动     
+（3）cmd内容中的bin为socket探针的二进制可执行文件的绝对路径
 （4）cmd内容中的probe对应着探针的采集子项，socket探针probe的内容为tcp_socket, udp_socket, 代表socket探针可以采集tcp_socket和udp_socket数据类型的数据,
 具体每种数据类型的含义在下文的采集子项详细说明可以查询到  
 （5）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
@@ -619,7 +612,6 @@ curl -X PUT http://localhost:9999/io -d json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/ioprobe",
-        "check_cmd": "",
         "probe": [
             "io_trace",
             "io_err",
@@ -653,7 +645,7 @@ curl -X PUT http://localhost:9999/io -d json='
 启动io探针的PUT请求中可以配置很多参数，这些参数共同控制着io探针的行为，由上往下分析一下请求中的各个重要组成部分          
 （1）使用curl命令发起PUT请求       
 （2）请求的URL为http://localhost:9999/io, 9999是Rest server处理启动探针请求监听的端口号，io为探针的名称      
-（3）cmd内容中的bin为io探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动       
+（3）cmd内容中的bin为io探针的二进制可执行文件的绝对路径
 （4）cmd内容中的probe对应着探针的采集子项，io探针probe的内容为io_trace、io_err、io_count和page_cache, 代表io探针可以采集io_trace、io_err、io_count和page_cache数据类型的数据,
 具体每种数据类型的含义在下文的采集子项详细说明可以查询到          
 （5）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
@@ -677,7 +669,6 @@ curl -X PUT http://localhost:9999/proc -d json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/taskprobe",
-        "check_cmd": "",
         "probe": [
             "proc_syscall",
             "proc_fs", 
@@ -734,7 +725,7 @@ curl -X PUT http://localhost:9999/proc -d json='
 启动proc探针的PUT请求中可以配置很多参数，这些参数共同控制着proc探针的行为，由上往下分析一下请求中的各个重要组成部分        
 （1）使用curl命令发起PUT请求     
 （2）请求的URL为http://localhost:9999/proc, 9999是Rest server处理启动探针请求监听的端口号，proc为探针的名称      
-（3）cmd内容中的bin为io探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动       
+（3）cmd内容中的bin为io探针的二进制可执行文件的绝对路径       
 （4）cmd内容中的probe对应着探针的采集子项，proc探针probe的内容为proc_syscall、proc_fs、proc_io、proc_dns和proc_pagecache, 
 代表proc探针可以采集base_metrics、proc_syscall、proc_fs、proc_io、proc_dns和proc_pagecache数据类型的数据,具体每种数据类型的含义在下文的采集子项详细说明可以查询到     
 （5）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
@@ -755,7 +746,6 @@ curl -X PUT http://localhost:9999/jvm -d json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/jvmprobe",
-        "check_cmd": "",
         "probe": [
         ]
     },
@@ -804,7 +794,7 @@ curl -X PUT http://localhost:9999/jvm -d json='
 启动jvm探针的PUT请求中可以配置很多参数，这些参数共同控制着jvm探针的行为，由上往下分析一下请求中的各个重要组成部分     
 （1）使用curl命令发起PUT请求        
 （2）请求的URL为http://localhost:9999/jvm, 9999是Rest server处理启动探针请求监听的端口号，jvm为探针的名称           
-（3）cmd内容中的bin为io探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动          
+（3）cmd内容中的bin为io探针的二进制可执行文件的绝对路径
 （4）cmd内容中的probe对应着探针的采集子项，jvm探针probe的内容为空
 （5）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
 一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定      
@@ -824,7 +814,6 @@ curl -X PUT http://localhost:9999/ksli -d json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/ksliprobe",
-        "check_cmd": "",
         "probe": []
     },
     "snoopers": {
@@ -878,7 +867,7 @@ curl -X PUT http://localhost:9999/ksli -d json='
 启动ksli探针的PUT请求中可以配置很多参数，这些参数共同控制着ksli探针的行为，由上往下分析一下请求中的各个重要组成部分                
 （1）使用curl命令发起PUT请求               
 （2）请求的URL为http://localhost:9999/ksli, 9999是Rest server处理启动探针请求监听的端口号，jvm为探针的名称               
-（3）cmd内容中的bin为ksli探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动                
+（3）cmd内容中的bin为ksli探针的二进制可执行文件的绝对路径     
 （4）cmd内容中的probe对应着探针的采集子项，ksli探针probe的内容为空，表示上报对应的meta文件的相关指标数据全采集             
 （5）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
 一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定                              
@@ -901,7 +890,6 @@ curl -X PUT http://localhost:9999/postgre_sli -d json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/pgsliprobe",
-        "check_cmd": "",
         "probe": [
         ]
     },
@@ -954,7 +942,7 @@ curl -X PUT http://localhost:9999/postgre_sli -d json='
 启动postgre_sli探针的PUT请求中可以配置很多参数，这些参数共同控制着postgre_sli探针的行为，由上往下分析一下请求中的各个重要组成部分       
 （1）使用curl命令发起PUT请求        
 （2）请求的URL为http://localhost:9999/postgre_sli, 9999是Rest server处理启动探针请求监听的端口号，postgre_sli为探针的名称          
-（3）cmd内容中的bin为postgre_sli探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动           
+（3）cmd内容中的bin为postgre_sli探针的二进制可执行文件的绝对路径
 （4）cmd内容中的probe对应着探针的采集子项，postgre_sli探针probe的内容为空，代表对应的meta文件的指标数据全采集        
 （5）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
 一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定       
@@ -975,7 +963,6 @@ curl -X PUT http://localhost:9999/opengauss_sli -d json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/pg_stat_probe.py",
-        "check_cmd": "",
         "probe": [
         ]
     },
@@ -1020,7 +1007,7 @@ curl -X PUT http://localhost:9999/opengauss_sli -d json='
 启动opengauss_sli探针的PUT请求中可以配置很多参数，这些参数共同控制着opengauss_sli探针的行为，由上往下分析一下请求中的各个重要组成部分           
 （1）使用curl命令发起PUT请求                      
 （2）请求的URL为http://localhost:9999/opengauss_sli, 9999是Rest server处理启动探针请求监听的端口号，opengauss_sli为探针的名称                  
-（3）cmd内容中的bin为opengauss_sli探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动                      
+（3）cmd内容中的bin为opengauss_sli探针的二进制可执行文件的绝对路径                   
 （4）cmd内容中的probe对应着探针的采集子项，opengauss_sli探针probe的内容为空时代表opengauss探针对应的meta文件的指标数据全采集                  
 （5）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
 一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定               
@@ -1040,7 +1027,6 @@ curl -X PUT http://localhost:9999/dnsmasq -d json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/rabbitmq_probe.sh",
-        "check_cmd": "",
         "probe": [
         ]
     },
@@ -1086,7 +1072,7 @@ curl -X PUT http://localhost:9999/dnsmasq -d json='
 启动dnsmasq探针的PUT请求中可以配置很多参数，这些参数共同控制着dnsmasq探针的行为，由上往下分析一下请求中的各个重要组成部分        
 （1）使用curl命令发起PUT请求    
 （2）请求的URL为http://localhost:9999/dnsmasq, 9999是Rest server处理启动探针请求监听的端口号，dnsmasq为探针的名称        
-（3）cmd内容中的bin为dnsmasq探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动        
+（3）cmd内容中的bin为dnsmasq探针的二进制可执行文件的绝对路径     
 （4）cmd内容中的probe对应着探针的采集子项，dnsmasq探针probe的内容为空时代表dnsmasq探针对应的meta文件的指标数据全采集                            
 （5）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
 一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定                 
@@ -1107,7 +1093,6 @@ curl -X PUT http://localhost:9999/lvs -d json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/trace_lvs",
-        "check_cmd": "",
         "probe": []
     },
     "snoopers": {
@@ -1131,7 +1116,7 @@ curl -X PUT http://localhost:9999/lvs -d json='
 启动lvs探针的PUT请求中可以配置很多参数，这些参数共同控制着lvs探针的行为，由上往下分析一下请求中的各个重要组成部分            
 （1）使用curl命令发起PUT请求             
 （2）请求的URL为http://localhost:9999/lvs, 9999是Rest server处理启动探针请求监听的端口号，lvs为探针的名称              
-（3）cmd内容中的bin为lvs探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动           
+（3）cmd内容中的bin为lvs探针的二进制可执行文件的绝对路径     
 （4）cmd内容中的probe对应着探针的采集子项，lvs探针probe的内容为空时代表lvs探针对应的meta文件中的指标数据全采集                       
 （5）snoopers内容中的配置探针监听对象为空                 
 （6）params内容中的参数，示例中的参数都是lvs探针支持的参数              
@@ -1150,7 +1135,6 @@ curl -X PUT http://localhost:9999/nginx -d json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/nginx_probe",
-        "check_cmd": "",
         "probe": [
         ]
     },
@@ -1175,7 +1159,7 @@ curl -X PUT http://localhost:9999/nginx -d json='
 启动nginx探针的PUT请求中可以配置很多参数，这些参数共同控制着nginx探针的行为，由上往下分析一下请求中的各个重要组成部分                 
 （1）使用curl命令发起PUT请求                 
 （2）请求的URL为http://localhost:9999/nginx, 9999是Rest server处理启动探针请求监听的端口号，nginx为探针的名称               
-（3）cmd内容中的bin为nginx探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动             
+（3）cmd内容中的bin为nginx探针的二进制可执行文件的绝对路径           
 （4）cmd内容中的probe对应着探针的采集子项，nginx探针probe的内容为空时代表nginx探针对应的meta文件中的指标数据全采集                     
 （5）snoopers内容中的配置探针监听对象为空               
 （6）params内容中的参数，示例中的参数都是nginx探针支持的参数              
@@ -1195,7 +1179,6 @@ curl -X PUT http://localhost:9999/haproxy -d json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/trace_haproxy",
-        "check_cmd": "",
         "probe": [
         ]
     },
@@ -1220,7 +1203,7 @@ curl -X PUT http://localhost:9999/haproxy -d json='
 启动haproxy探针的PUT请求中可以配置很多参数，这些参数共同控制着haproxy探针的行为，由上往下分析一下请求中的各个重要组成部分          
 （1）使用curl命令发起PUT请求           
 （2）请求的URL为http://localhost:9999/haproxy, 9999是Rest server处理启动探针请求监听的端口号，haproxy为探针的名称          
-（3）cmd内容中的bin为haproxy探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动       
+（3）cmd内容中的bin为haproxy探针的二进制可执行文件的绝对路径
 （4）cmd内容中的probe对应着探针的采集子项，haproxy探针probe的内容为空时代表haproxy探针对应的meta文件的指标数据全采集                   
 （5）snoopers内容中的配置探针监听对象为空           
 （6）params内容中的参数，示例中的参数都是haproxy探针支持的参数             
@@ -1239,7 +1222,6 @@ curl -X PUT http://localhost:9999/kafka -d json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/kafkaprobe",
-        "check_cmd": "",
         "probe": [
         ]
     },
@@ -1264,7 +1246,7 @@ curl -X PUT http://localhost:9999/kafka -d json='
 启动kafka探针的PUT请求中可以配置很多参数，这些参数共同控制着kafka探针的行为，由上往下分析一下请求中的各个重要组成部分              
 （1）使用curl命令发起PUT请求           
 （2）请求的URL为http://localhost:9999/haproxy, 9999是Rest server处理启动探针请求监听的端口号，kafka为探针的名称           
-（3）cmd内容中的bin为kafka探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动             
+（3）cmd内容中的bin为kafka探针的二进制可执行文件的绝对路径     
 （4）cmd内容中的probe对应着探针的采集子项，kafka探针probe的内容为空时代表kafka探针对应的meta文件的指标数据全采集                    
 （5）snoopers内容中的配置探针监听对象为空         
 （6）params内容中的参数，示例中的参数都是kafka探针支持的参数         
@@ -1283,7 +1265,6 @@ curl -X PUT http://localhost:9999/baseinfo -d json='
 {
     "cmd": {
         "bin": "system_infos",
-        "check_cmd": "",
         "probe": [
             "cpu",
             "mem",
@@ -1345,7 +1326,7 @@ curl -X PUT http://localhost:9999/baseinfo -d json='
 启动baseinfo探针的PUT请求中可以配置很多参数，这些参数共同控制着baseinfo探针的行为，由上往下分析一下请求中的各个重要组成部分       
 （1）使用curl命令发起PUT请求        
 （2）请求的URL为http://localhost:9999/baseinfo, 9999是Rest server处理启动探针请求监听的端口号，baseinfo为探针的名称           
-（3）cmd内容中的bin为baseinfo探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动             
+（3）cmd内容中的bin为baseinfo探针的二进制可执行文件的绝对路径        
 （4）cmd内容中的probe对应着探针的采集子项，baseinfo探针probe的内容为空cpu，mem，nic，disk，net，fs，proc，host，代表着baseinfo探针会采集
 cpu，mem，nic，disk，net，fs，proc，host, con这些类型的数据          
 （5）snoopers内容中的配置探针监听对象有四个维度，proc_id、proc_name、pod_id和container_id，分别是进程id，进程名称，pod id和容器id，其中任意
@@ -1367,7 +1348,6 @@ curl -X PUT http://localhost:9999/virt -d json='
 {
     "cmd": {
         "bin": "virtualized_infos",
-        "check_cmd": "",
         "probe": [
         ]
     },
@@ -1392,7 +1372,7 @@ curl -X PUT http://localhost:9999/virt -d json='
 启动virt探针的PUT请求中可以配置很多参数，这些参数共同控制着virt探针的行为，由上往下分析一下请求中的各个重要组成部分            
 （1）使用curl命令发起PUT请求            
 （2）请求的URL为http://localhost:9999/virt, 9999是Rest server处理启动探针请求监听的端口号，virt为探针的名称           
-（3）cmd内容中的bin为virt探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动              
+（3）cmd内容中的bin为virt探针的二进制可执行文件的绝对路径  
 （4）cmd内容中的probe对应着探针的采集子项，virt探针的probe对应着探针的采集子项为空时代表virt对应的meta文件的指标数据全采集               
 （5）snoopers内容中的配置探针监听对象为空                
 （6）params内容中的参数，示例中的参数都是virt探针支持的参数                 
@@ -1411,7 +1391,6 @@ curl -X PUT http://localhost:9999/tprofiling -d json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/tprofiling",
-        "check_cmd": "",
         "probe": [
             "oncpu",
             "syscall_file",
@@ -1465,7 +1444,7 @@ curl -X PUT http://localhost:9999/tprofiling -d json='
 启动tprofiling探针的PUT请求中可以配置很多参数，这些参数共同控制着tprofiling探针的行为，由上往下分析一下请求中的各个重要组成部分                
 （1）使用curl命令发起PUT请求             
 （2）请求的URL为http://localhost:9999/tprofiling, 9999是Rest server处理启动探针请求监听的端口号，tprofiling为探针的名称            
-（3）cmd内容中的bin为tprofiling探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动        
+（3）cmd内容中的bin为tprofiling探针的二进制可执行文件的绝对路径   
 （4）cmd内容中的probe对应着探针的采集子项，tprofiling探针的probe对应着探针的采集子项为oncpu、syscall_file、syscall_net、syscall_lock、
 syscall_sched,代表tprofiling探针会采集这些类型的数据            
 （5）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
@@ -1486,7 +1465,6 @@ curl -X PUT http://localhost:9999/container -d json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/cadvisor_probe.py",
-        "check_cmd": "",
         "probe": []
     },
     "snoopers": {
@@ -1526,7 +1504,7 @@ curl -X PUT http://localhost:9999/container -d json='
 启动container探针的PUT请求中可以配置很多参数，这些参数共同控制着container探针的行为，由上往下分析一下请求中的各个重要组成部分           
 （1）使用curl命令发起PUT请求           
 （2）请求的URL为http://localhost:9999/container, 9999是Rest server处理启动探针请求监听的端口号，container为探针的名称             
-（3）cmd内容中的bin为container探针的二进制可执行文件的绝对路径，check_cmd为探针启动的条件，这里check_cmd为空时代表探针无条件启动               
+（3）cmd内容中的bin为container探针的二进制可执行文件的绝对路径   
 （4）cmd内容中的probe对应着探针的采集子项，container探针的probe对应着探针的采集子项为空               
 （5）snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
 一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定            

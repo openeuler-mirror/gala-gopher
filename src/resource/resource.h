@@ -36,8 +36,8 @@
 #include "ingress.h"
 #include "egress.h"
 
-#include "web_server_event2.h"
-#include "rest_server_event2.h"
+#include "web_server.h"
+#include "rest_server.h"
 #include "http_server.h"
 
 #include "logs.h"

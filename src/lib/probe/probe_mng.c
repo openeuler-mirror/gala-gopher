@@ -255,11 +255,6 @@ static void destroy_probe(struct probe_s *probe)
         probe->bin = NULL;
     }
 
-    if (probe->chk_cmd) {
-        free(probe->chk_cmd);
-        probe->chk_cmd = NULL;
-    }
-
     detach_probe_fd(g_probe_mng, probe);
     if (probe->fifo != NULL) {
         FifoDestroy(probe->fifo);
@@ -450,24 +445,6 @@ static int set_probe_bin(struct probe_s *probe, const char *bin)
     return 0;
 }
 
-static void set_probe_chk_cmd(struct probe_s *probe, const char *chk_cmd)
-{
-    if (chk_cmd == NULL) {
-        return;
-    }
-
-    if (check_path_for_security(chk_cmd)) {
-        return;
-    }
-
-    if (probe->chk_cmd) {
-        free(probe->chk_cmd);
-        probe->chk_cmd = NULL;
-    }
-
-    probe->chk_cmd = strdup(chk_cmd);
-}
-
 static int get_probe_pid(struct probe_s *probe)
 {
     int pid;
@@ -482,32 +459,6 @@ static void set_probe_pid(struct probe_s *probe, int pid)
     (void)pthread_rwlock_wrlock(&probe->rwlock);
     probe->pid = pid;
     (void)pthread_rwlock_unlock(&probe->rwlock);
-}
-
-static int check_probe_need_start(const char *check_cmd)
-{
-    /* ret val: 1 need start / 0 no need start */
-    if (!check_cmd || !strlen(check_cmd)) {
-        return 1;
-    }
-
-    int cnt = 0;
-    FILE *fp = NULL;
-    char data[COMMAND_LEN];
-
-    fp = popen(check_cmd, "r");
-    if (fp == NULL) {
-        ERROR("popen error!(cmd = %s)\n", check_cmd);
-        return 0;
-    }
-
-    data[0] = 0;
-    if (fgets(data, sizeof(data), fp) != NULL) {
-        cnt = atoi(data);
-    }
-    pclose(fp);
-
-    return (cnt > 0);
 }
 
 static char is_probe_ready(struct probe_s *probe)
@@ -526,10 +477,6 @@ static char is_probe_ready(struct probe_s *probe)
         }
 
         if (probe->fifo == NULL) {
-            goto end;
-        }
-
-        if (check_probe_need_start(probe->chk_cmd) != 1) {
             goto end;
         }
     }
@@ -666,7 +613,6 @@ static void probe_printer_cmd(struct probe_s *probe, void *json)
 {
     void *range;
     Json_AddStringToObject(json, "bin", probe->bin ? :"");
-    Json_AddStringToObject(json, "check_cmd", probe->chk_cmd ? :"");
 
     size_t size = sizeof(probe_range_define) / sizeof(struct probe_range_define_s);
 
@@ -722,11 +668,6 @@ static int probe_parser_cmd(struct probe_s *probe, const void *item)
         }
     }
 
-    chkcmd_object = Json_GetObjectItem(item, "check_cmd");
-    if ((chkcmd_object != NULL) && (Json_IsString(chkcmd_object))) {
-        set_probe_chk_cmd(probe, (const char *)Json_GetValueString(chkcmd_object));
-    }
-
     probe_object = Json_GetObjectItem(item, "probe");
     if (probe_object != NULL) {
         ret = probe_parser_range(probe, probe_object);
@@ -738,7 +679,6 @@ static int probe_parser_cmd(struct probe_s *probe, const void *item)
 static void probe_backup_cmd(struct probe_s *probe, struct probe_s *probe_backup)
 {
     probe_backup->bin = probe->bin ? strdup(probe->bin) : NULL;
-    probe_backup->chk_cmd = probe->chk_cmd ? strdup(probe->chk_cmd) : NULL;
     probe_backup->is_extend_probe = probe->is_extend_probe;
     probe_backup->probe_entry = probe->probe_entry;
     probe_backup->cb = probe->cb;
@@ -750,14 +690,9 @@ static void probe_rollback_cmd(struct probe_s *probe, struct probe_s *probe_back
     if (probe->bin) {
         free(probe->bin);
     }
-    if (probe->chk_cmd) {
-        free(probe->chk_cmd);
-    }
+
     probe->bin = probe_backup->bin;
     probe_backup->bin = NULL;
-
-    probe->chk_cmd = probe_backup->chk_cmd;
-    probe_backup->chk_cmd = NULL;
 
     probe->is_extend_probe = probe_backup->is_extend_probe;
     probe->probe_entry = probe_backup->probe_entry;

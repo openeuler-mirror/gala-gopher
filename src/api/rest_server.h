@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright (c) Huawei Technologies Co., Ltd. 2021. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2023. All rights reserved.
  * gala-gopher licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -9,37 +9,18 @@
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
  * Author: Vchanger
- * Create: 2023-04-11
- * Description: Restful API Server
+ * Create: 2023-12-05
+ * Description:
  ******************************************************************************/
+
 #ifndef __REST_SERVER_H__
 #define __REST_SERVER_H__
 
 #include <stdint.h>
-#include <microhttpd.h>
 
-#include "common.h"
+#include "config.h"
+#include "base.h"
+#include "http_server.h"
 
-#if MHD_VERSION < 0x00097002
-#define MHD_Result   int
-#else
-#define MHD_Result   enum MHD_Result
+int init_rest_server_mgr(http_server_mgr_s *rest_server, HttpServerConfig *config);
 #endif
-
-typedef struct {
-    uint16_t port;
-    char sslAuth;
-    struct MHD_Daemon *daemon;
-} RestServer;
-
-typedef struct {
-    char data_broken;
-    char *post_data;
-    struct MHD_PostProcessor *postprocessor;
-} RestRequest;
-
-int RestServerStartDaemon(RestServer *restServer);
-void RestServerDestroy(RestServer *restServer);
-int RestServerSslInit(const char *privKey, const char *pubKey, const char *caFile);
-#endif
-

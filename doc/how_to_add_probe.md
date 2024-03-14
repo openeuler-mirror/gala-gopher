@@ -419,7 +419,6 @@ curl -X PUT http://localhost:9999/l7 --data-urlencode json='
 {
     "cmd": {
         "bin": "/opt/gala-gopher/extend_probes/l7probe",
-        "check_cmd": "",
         "probe": [
             "l7_bytes_metrics",
             "l7_rpc_metrics"
