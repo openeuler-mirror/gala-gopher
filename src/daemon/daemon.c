@@ -22,7 +22,6 @@
 #include <time.h>
 #include <signal.h>
 
-#include "server.h"
 #include "daemon.h"
 #include "object.h"
 
@@ -289,14 +288,6 @@ int DaemonRun(ResourceMgr *mgr)
         return -1;
     }
     INFO("[DAEMON] create metrics_write_logs thread success.\n");
-
-    // 7. start CmdServer thread
-    ret = pthread_create(&mgr->ctl_tid, NULL, CmdServer, NULL);
-    if (ret != 0) {
-        ERROR("[DAEMON] create cmd_server thread failed.(errno:%d, %s)\n", errno, strerror(errno));
-        return -1;
-    }
-    INFO("[DAEMON] create cmd_server thread success.\n");
 
     // 8. start rest_api_server thread
     ret = pthread_create(&mgr->rest_server_mgr->tid, NULL, DaemonRunRestServer, mgr->rest_server_mgr);

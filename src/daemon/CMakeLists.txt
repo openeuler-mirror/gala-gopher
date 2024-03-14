@@ -13,7 +13,6 @@ MESSAGE("ENV LIBBPF_VER_MINOR:\n"  ${LIBBPF_VER_MINOR})
 
 SET(EXECUTABLE_OUTPUT_PATH ../../../)
 SET(EXECUTABLE_TARGET gala-gopher)
-SET(EXECUTABLE_TARGET_CMD gopher-ctl)
 
 SET(SRC_DIR         ../../src)
 SET(BASE_DIR        ${SRC_DIR}/lib)
@@ -26,7 +25,6 @@ SET(FIFO_DIR        ${SRC_DIR}/lib/fifo)
 SET(META_DIR        ${SRC_DIR}/lib/meta)
 SET(PROBE_DIR       ${SRC_DIR}/lib/probe)
 SET(IMDB_DIR        ${SRC_DIR}/lib/imdb)
-SET(CMD_DIR         ${SRC_DIR}/cmd)
 SET(COMMON_DIR      ${SRC_DIR}/common)
 SET(RESTAPI_DIR     ${SRC_DIR}/api)
 SET(HTTPSERVER_DIR  ${SRC_DIR}/lib/http_server)
@@ -71,7 +69,6 @@ SET(SOURCES main.c daemon.c
     ${IMDB_DIR}/metrics.c
     ${IMDB_DIR}/container_cache.c
 
-    ${CMD_DIR}/server.c
     ${COMMON_DIR}/kern_config.c
     ${COMMON_DIR}/args.c
     ${COMMON_DIR}/container.c
@@ -92,8 +89,6 @@ SET(SOURCES main.c daemon.c
     ${RESTAPI_DIR}/rest_server.c
     ${EBPF_PROBE_DIR}/src/lib/java_support.c
 )
-
-SET(SOURCE_CMD ${CMD_DIR}/client.c)
 
 FOREACH(FILE ${PROBES_C_LIST})
     SET(SOURCES ${SOURCES} ${FILE})
@@ -129,7 +124,6 @@ SET(INC_DIRECTORIES
     ${LIBRDKAFKA_DIR}
     ${LIBELF_DIR}
 
-    ${CMD_DIR}
     ${COMMON_DIR}
     ${JSON_INC_PATH}
     ${HTTPSERVER_DIR}
@@ -152,6 +146,5 @@ endif()
 
 MESSAGE("SOURCES:\n" ${SOURCES})
 ADD_EXECUTABLE(${EXECUTABLE_TARGET} ${SOURCES})
-ADD_EXECUTABLE(${EXECUTABLE_TARGET_CMD} ${SOURCE_CMD})
 TARGET_INCLUDE_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE ${INC_DIRECTORIES})
 TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE ${LINK_LIBRARIES})
