@@ -85,6 +85,10 @@ static int gopher_iter_section_symb(Elf *e, Elf_Scn *sec,
     GElf_Sym sym;
     Elf_Data *data = NULL;
 
+    if (entry_size == 0) {
+        return -1;
+    }
+
     while ((data = elf_getdata(sec, data)) != NULL) {
         sym_count = data->d_size / entry_size;
 

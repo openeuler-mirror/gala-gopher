@@ -65,8 +65,8 @@ static int resolve_ksymbs(const char *s, struct ksymb_s* ksymb)
 {
     char *p, *p1, *p2;
     char symb_type;
-    char symb[KSYMB_NAME_LEN];
-    char kmod[KSYMB_MOD_LEN];
+    char symb[KSYMB_NAME_LEN + 1];
+    char kmod[KSYMB_MOD_LEN + 1];
     size_t name_len = 0, mod_len = 0;
 
     ksymb->addr = strtoull(s, &p, 16);

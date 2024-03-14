@@ -109,7 +109,7 @@ typedef struct {
     u64 proc_stat_num_threads;          // FROM same as proc_stat_min_flt
     u64 proc_stat_vsize;                // FROM same as proc_stat_min_flt
     u64 proc_stat_rss;                  // FROM same as proc_stat_min_flt
-    int proc_stat_cpu;                  // FROM same as proc_stat_min_flt
+    u64 proc_stat_cpu;                  // FROM same as proc_stat_min_flt
     u64 proc_stat_guest_time;           // FROM same as proc_stat_min_flt
 } proc_info_t;
 

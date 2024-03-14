@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
 
     ret = ConnectToGopher(GALA_GOPHER_CMD_SOCK_PATH_NAME, &client_fd);
     if (ret < 0) {
-        return 0;
+        goto END2;
     }
 
     ret = SendRequest(client_fd, (char *)cmdRequest, sizeof(struct GopherCmdRequest));

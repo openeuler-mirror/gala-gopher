@@ -206,6 +206,7 @@ static int get_meminfo(struct ipc_body_s *ipc_body)
     }
     ret = update_total_vmalloc(&meminfo_fields[VMALLOC_USED].value);
     if (ret < 0) {
+        (void)fclose(f);
         return -1;
     }
     output_meminfo(ipc_body);

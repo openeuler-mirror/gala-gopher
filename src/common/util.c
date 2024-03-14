@@ -305,6 +305,12 @@ int copy_file(const char *dst_file, const char *src_file) {
     }
 
     void *buffer = (void *)malloc(2);
+    if (buffer == NULL) {
+        fclose(fp1);
+        fclose(fp2);
+        return -1;
+    }
+
     while (1) {
         int op = fread(buffer, 1, 1, fp2);
         if(!op) {

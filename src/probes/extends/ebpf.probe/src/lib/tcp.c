@@ -98,7 +98,7 @@ static int __get_sub_str(const char *s, const char* start, const char *end,
         p1 += strlen(start);
     }
 
-    len = p2 - p1;
+    len = (int)(p2 - p1);
     if ((len <= 0) || (len >= buf_len))
         return -1;
 
@@ -202,6 +202,9 @@ static struct tcp_estab_comm* __get_estab_comm(const char *start, unsigned int l
         return NULL;
 
     te_comm = (struct tcp_estab_comm *)malloc(sizeof(struct tcp_estab_comm));
+    if (te_comm == NULL) {
+        return NULL;
+    }
     te_comm->comm[0] = 0;
     (void)strcpy(te_comm->comm, comm);
     te_comm->pid = (unsigned int)atoi(pid_s);

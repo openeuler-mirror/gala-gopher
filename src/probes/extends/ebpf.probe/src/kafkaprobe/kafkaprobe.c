@@ -111,7 +111,9 @@ static int need_to_reload(struct ipc_body_s *ipc_body)
 static int set_map_fds(struct KafkaConfig *cfg)
 {
     int ret;
-    int data_map_fd, ctrl_map_fd, port_map_fd;
+    int data_map_fd = 0;
+    int ctrl_map_fd = 0;
+    int port_map_fd = 0;
 
     ret = open_bpf_map_file(cfg, "xdp_data_map", &data_map_fd);
     if (ret) {

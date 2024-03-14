@@ -286,8 +286,12 @@ static parse_state_t parse_request_frame(struct raw_data_s *raw_data, http_messa
     frame_data->type = MESSAGE_REQUEST;
     frame_data->timestamp_ns = raw_data->timestamp_ns;
     frame_data->minor_version = req.minor_version;
-    frame_data->req_method = strndup(req.method, req.method_len);
-    frame_data->req_path = strndup(req.path, req.path_len);
+    if (req.method != NULL && req.method_len != 0) {
+        frame_data->req_method = strndup(req.method, req.method_len);
+    }
+    if (req.path != NULL && req.path_len != 0) {
+        frame_data->req_path = strndup(req.path, req.path_len);
+    }
 
     frame_data->headers_byte_size = offset;
 
@@ -359,6 +363,11 @@ static parse_state_t parse_response_frame(struct raw_data_s *raw_data, struct ht
  */
 parse_state_t http_parse_frame(enum message_type_t msg_type, struct raw_data_s *raw_data, struct frame_data_s **frame_data) {
     http_message *http_msg = init_http_msg();
+    if (http_msg == NULL) {
+        WARN("[HTTP1.x PARSER] Failed to malloc http msg.\n");
+        return STATE_INVALID;
+    }
+
     parse_state_t state = STATE_INVALID;
     switch (msg_type) {
         case MESSAGE_REQUEST:

@@ -171,7 +171,7 @@ const char *MSG_TYPE[MSG_TYPE_NUM] = {
 };
 
 const char *get_msg_type(__u32 index){
-    if(index > MSG_TYPE_NUM){
+    if(index >= MSG_TYPE_NUM){
         return NULL;
     }
     return MSG_TYPE[index];
@@ -183,7 +183,7 @@ const char *MAP_NAME[MAP_NUM] = {
 };
 
 const char *get_map_name(__u32 index){
-    if(index > MAP_NUM){
+    if(index >= MAP_NUM){
         return NULL;
     }
     return MAP_NAME[index];

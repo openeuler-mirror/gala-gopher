@@ -439,7 +439,7 @@ static int parser_dev_name(struct probe_s *probe, struct param_key_s *param_key,
 {
     const char *value = (const char*)Json_GetValueString(key_item);
 
-    if (!Json_IsString(key_item)) {
+    if (!Json_IsString(key_item) || value == NULL) {
         return -1;
     }
 

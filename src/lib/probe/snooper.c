@@ -173,7 +173,7 @@ static int add_snooper_conf_procname(struct probe_s *probe,
         return -1;
     }
 
-    if (comm[0] == 0) {
+    if (comm == NULL || comm[0] == 0) {
         return 0;
     }
 
@@ -206,7 +206,7 @@ static int add_snooper_conf_pod(struct probe_s *probe, const char* pod_id)
     if (probe->snooper_conf_num >= SNOOPER_MAX) {
         return -1;
     }
-    if (pod_id[0] == 0) {
+    if (pod_id == NULL || pod_id[0] == 0) {
         return 0;
     }
 
@@ -234,7 +234,7 @@ static int add_snooper_conf_container(struct probe_s *probe, const char* contain
         return -1;
     }
 
-    if (container_id[0] == 0) {
+    if (container_id == NULL || container_id[0] == 0) {
         return 0;
     }
 
@@ -355,6 +355,7 @@ static struct custom_label_elem *dup_custom_labels_from_json(const void *labelIt
 
     struct key_value_pairs *kv_pairs = Json_GetKeyValuePairs(labelItems);
     if (!kv_pairs) {
+        free_custom_labels(custom_labels, num);
         return NULL;
     }
     struct key_value *kv;
@@ -363,12 +364,14 @@ static struct custom_label_elem *dup_custom_labels_from_json(const void *labelIt
     Json_ArrayForEach(kv, kv_pairs) {
         labelVal = (char *)Json_GetValueString(kv->valuePtr);
         if (!labelVal) {
+            Json_DeleteKeyValuePairs(kv_pairs);
             free_custom_labels(custom_labels, num);
             return NULL;
         }
         custom_labels[elemIdx].key = strdup(kv->key);
         custom_labels[elemIdx].val = strdup(labelVal);
         if (!custom_labels[elemIdx].key || !custom_labels[elemIdx].val) {
+            Json_DeleteKeyValuePairs(kv_pairs);
             free_custom_labels(custom_labels, num);
             return NULL;
         }
@@ -418,6 +421,7 @@ static struct pod_label_elem *dup_pod_labels_from_json(const void *labelItems, i
 
     struct key_value_pairs *kv_pairs = Json_GetKeyValuePairs(labelItems);
     if (!kv_pairs) {
+        free_pod_labels(pod_labels, num);
         return NULL;
     }
     struct key_value *kv;
@@ -425,11 +429,13 @@ static struct pod_label_elem *dup_pod_labels_from_json(const void *labelItems, i
     Json_ArrayForEach(kv, kv_pairs) {
         labelKey = (char *)Json_GetValueString(kv->valuePtr);
         if (!labelKey) {
+            Json_DeleteKeyValuePairs(kv_pairs);
             free_pod_labels(pod_labels, num);
             return NULL;
         }
         pod_labels[elemIdx].key = strdup(labelKey);
         if (!pod_labels[elemIdx].key) {
+            Json_DeleteKeyValuePairs(kv_pairs);
             free_pod_labels(pod_labels, num);
             return NULL;
         }

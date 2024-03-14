@@ -221,6 +221,9 @@ int get_exec_file_path(const char *binary_file, const char *specified_path, cons
             return -1;
         }
         res_buf[0] = (char *)malloc(PATH_LEN * sizeof(char));
+        if (res_buf[0] == NULL) {
+            return -1;
+        }
         (void)snprintf(res_buf[0], PATH_LEN, "%s", specified_host_path);
         return 1;
     }
