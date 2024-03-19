@@ -208,7 +208,7 @@ function install_extend_probes()
     for INSTALL_PATH in ${EXT_PROBE_INSTALL_LIST}
     do
         echo "install path:" ${INSTALL_PATH}
-        ${INSTALL_PATH} -b ${GOPHER_EXTEND_PROBE_DIR} -c ${GOPHER_EXTEND_PROBE_CONF_DIR}
+        sh ${INSTALL_PATH} -b ${GOPHER_EXTEND_PROBE_DIR} -c ${GOPHER_EXTEND_PROBE_CONF_DIR}
     done
 }
 

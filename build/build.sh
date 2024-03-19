@@ -70,6 +70,8 @@ function __add_bpftool()
 	ARCH=$(uname -m)
     LIBBPF_MAJOR=`rpm -qa | grep libbpf-devel | awk -F'-' '{print $3}' | awk -F'.' '{print $1}'`
     LIBBPF_MINOR=`rpm -qa | grep libbpf-devel | awk -F'-' '{print $3}' | awk -F'.' '{print $2}'`
+    chmod a+x bpftool_v6.8.0/*
+    chmod a+x bpftool*
     if [ "$LIBBPF_MAJOR" -gt 0 ];then
         ln -s bpftool_v6.8.0/bpftool_${ARCH} bpftool
     elif [ "$LIBBPF_MINOR" -ge 8 ];then
@@ -219,7 +221,7 @@ function compile_extend_probes_clean()
     for BUILD_PATH in ${EXT_PROBE_BUILD_LIST}
     do
         echo "==== BUILD_PATH: " ${BUILD_PATH}
-        ${BUILD_PATH} --clean
+        sh ${BUILD_PATH} --clean
     done
 }
 
@@ -233,7 +235,7 @@ function compile_extend_probes_debug()
     for BUILD_PATH in ${EXT_PROBE_BUILD_LIST}
     do
         echo "==== BUILD_PATH: " ${BUILD_PATH}
-        ${BUILD_PATH} --build --debug || return 1
+        sh ${BUILD_PATH} --build --debug || return 1
     done
 }
 
@@ -247,7 +249,7 @@ function compile_extend_probes_release()
     for BUILD_PATH in ${EXT_PROBE_BUILD_LIST}
     do
         echo "==== BUILD_PATH: " ${BUILD_PATH}
-        ${BUILD_PATH} --build || return 1
+        sh ${BUILD_PATH} --build || return 1
     done
 }
 
