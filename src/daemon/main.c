@@ -19,12 +19,18 @@
 #include <errno.h>
 #include <signal.h>
 #include <unistd.h>
+#include <limits.h>
+#include <sys/file.h>
+#include <sys/stat.h>
 #include "daemon.h"
 #include "base.h"
 #include "ipc.h"
 
 #define GOPHER_CMD_MAX                    3
 #define GOPHER_CMD_MIN                    1
+#define MAX_TEMPSTR                       200
+#define PIDFILE_MODE                      0640
+#define PIDFILE                        "/var/run/gala-gopher.pid"
 
 #ifndef GOPHER_COMMIT_SHA1
 #define GOPHER_COMMIT_SHA1             "unknown"
@@ -132,8 +138,103 @@ static void quit_handler(int signo)
     destroy_daemon_threads(g_resourceMgr);
     // probe_mng创建的ipc消息队列是跟随内核的，进程结束消息队列还会存在，需要显示调用函数销毁
     destroy_ipc_msg_queue(g_probe_mng_ipc_msgid);
+    (void)unlink(PIDFILE);
 
     exit(EXIT_SUCCESS);
+}
+
+static int write_pid_to_file(pid_t pid, const char *pidfile, int fd)
+{
+    char buf[MAX_TEMPSTR] = {0};
+    int ret;
+    ssize_t num;
+
+    ret = snprintf(buf, sizeof(buf) - 1, "%ld\n", (long)pid);
+    if (ret == -1) {
+        ERROR("[MAIN] snprintf buf failed.\n");
+        return 1;
+    }
+
+    (void)lseek(fd, (off_t)0, SEEK_SET);
+    num = write(fd, buf, strlen(buf));
+    if (num < 0) {
+        ERROR("[MAIN] write %s error, %s.\n", pidfile, strerror(errno));
+        return 1;
+    }
+
+    if (ftruncate(fd, num)) {
+        ERROR("[MAIN] ftruncate error, %s.\n", strerror(errno));
+        return 1;
+    }
+
+    return 0;
+}
+
+static void handle_lock_pidfile_failed(const char *pidfile, int error_no, int fd)
+{
+    char buf[MAX_TEMPSTR] = {0};
+    char *ep = NULL;
+    long other_pid;
+    ssize_t num;
+
+    num = read(fd, buf, sizeof(buf) - 1);
+    if (num > 0) {
+        other_pid = strtol(buf, &ep, 0);
+        if (other_pid > 0 && ep != buf && *ep == '\n' && other_pid != LONG_MAX) {
+            ERROR("[MAIN] can't lock %s, other pid may be %ld.\n", pidfile, other_pid);
+        }
+    } else {
+        ERROR("[MAIN] can't lock %s, other pid unknown, %s.\n", pidfile, strerror(errno));
+    }
+}
+
+static int acquire_daemonlock(const char *pidfile, pid_t pid)
+{
+    int ret = 0;
+    int fd = -1;
+
+    // Initial mode is 0600 to prevent flock() race/DoS.
+    fd = open(pidfile, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+    if (fd == -1) {
+        ERROR("[MAIN] can't open or create %s, %s.\n", pidfile, strerror(errno));
+        return 1;
+    }
+
+    if (flock(fd, LOCK_EX | LOCK_NB) != 0) {
+        handle_lock_pidfile_failed(pidfile, errno, fd);
+        (void)close(fd);
+        fd = -1;
+        return 1;
+    }
+
+    (void)fchmod(fd, PIDFILE_MODE);
+    (void)fcntl(fd, F_SETFD, 1);
+
+    ret = write_pid_to_file(pid, pidfile, fd);
+    if (ret != 0) {
+        (void)close(fd);
+        fd = -1;
+        (void)unlink(pidfile);
+        return 1;
+    }
+
+    return 0;
+}
+
+/*
+ * Ensure gala-gopher has a only one instance
+ */
+static int is_singleton(void)
+{
+    int ret = 0;
+
+    ret = acquire_daemonlock(PIDFILE, getpid());
+    if (ret != 0) {
+        ERROR("[MAIN] acquire daemonlock failed.\n");
+        return 1;
+    }
+
+    return 0;
 }
 
 static void sig_setup(void)
@@ -150,6 +251,7 @@ static void sig_setup(void)
 int main(int argc, char *argv[])
 {
     int ret = 0;
+    int delete_pid_file = 0;
 
     sig_setup();
 
@@ -169,6 +271,14 @@ int main(int argc, char *argv[])
         ERROR("[MAIN] ResourceMgrInit failed.\n");
         goto err;
     }
+
+    ret = is_singleton();
+    if (ret != 0) {
+        goto err;
+    }
+
+    delete_pid_file = 1;
+
     g_probe_mng_ipc_msgid = g_resourceMgr->probe_mng->msq_id;
 
     ret = DaemonRun(g_resourceMgr);
@@ -185,6 +295,9 @@ int main(int argc, char *argv[])
 err:
     ResourceMgrDeinit(g_resourceMgr);
     ResourceMgrDestroy(g_resourceMgr);
+    if (delete_pid_file == 1) {
+        (void)unlink(PIDFILE);
+    }
     exit(EXIT_FAILURE);
 }
 
