@@ -137,9 +137,10 @@ static parse_state_t parse_request_body(struct raw_data_s *raw_data, struct http
     ret = get_http_header_value_by_key(headers, num_headers, KEY_CONTENT_LENGTH, content_len_str, CONTENT_VALUE_LEN);
     if (ret == 0 && content_len_str[0] != 0) {
         size_t content_len = atoi(content_len_str);
-        // Content-Length is not 0, then return STATE_INVALID to tell failed
-        if (content_len == 0) {
-            WARN("[HTTP1.x PARSER] Parsing request body failed because parse content-Length failed.\n");
+        // Content-Length can be 0, for example, in DELETE request, judgement here is to prevent errors
+        // in some extreme cases that Content-Length is not a valid num.
+        if (content_len == 0 && strcmp(content_len_str, "0") != 0) {
+            WARN("[HTTP1.x PARSER] Failed to parse Content-Length of request\n");
             return STATE_INVALID;
         }
         if (content_len > raw_data->data_len - raw_data->current_pos) {
@@ -207,11 +208,11 @@ static parse_state_t parse_response_body(struct raw_data_s *raw_data, struct htt
         size_t content_len = atoi(content_len_str);
         // If Content-Length is not 0, it returns invalid while parsing failed.
         if (content_len == 0) {
-            WARN("[HTTP1.x PARSER] Failed to parse content-Length.\n");
+            WARN("[HTTP1.x PARSER] Failed to parse Content-Length of response.\n");
             return STATE_INVALID;
         }
         if (content_len > raw_data->data_len - raw_data->current_pos) {
-            DEBUG("[HTTP1.x PARSE] Parsing response body needs more data.\n");
+            DEBUG("[HTTP1.x PARSER] Parsing response body needs more data.\n");
             return STATE_NEEDS_MORE_DATA;
         }
         frame_data->body_size = content_len;
