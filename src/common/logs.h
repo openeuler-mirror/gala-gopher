@@ -20,6 +20,31 @@
 #include <pthread.h>
 #include "common.h"
 
+#if !defined(UTEST)
+#define METRICS_LOGS_FILESIZE_MAX   (1024 * 1024 * 1024)
+#define METRICS_LOGS_FILESIZE       (100 * 1024 * 1024) // 100mb
+#define EVENT_LOGS_FILESIZE         (100 * 1024 * 1024)
+#define DEBUG_LOGS_FILESIZE         (200 * 1024 * 1024)
+#define META_LOGS_FILESIZE          (100 * 1024 * 1024)
+#define RAW_LOGS_FILESIZE           (100 * 1024 * 1024)
+
+#define METRICS_LOGS_MAXNUM         (100)
+#define EVENT_LOGS_MAXNUM           (100)
+
+#else
+
+#define LOGS_FILE_SIZE              (1024)
+#define METRICS_LOGS_FILESIZE_MAX   (2 * LOGS_FILE_SIZE)
+#define METRICS_LOGS_FILESIZE       LOGS_FILE_SIZE
+#define EVENT_LOGS_FILESIZE         LOGS_FILE_SIZE
+#define DEBUG_LOGS_FILESIZE         LOGS_FILE_SIZE
+#define META_LOGS_FILESIZE          LOGS_FILE_SIZE
+#define RAW_LOGS_FILESIZE           LOGS_FILE_SIZE
+
+#define METRICS_LOGS_MAXNUM         (5)
+#define EVENT_LOGS_MAXNUM           (5)
+#endif
+
 #define LOGS_SWITCH_ON  1
 #define PATTERN_META_LOGGER_STR "%s\n" // "%m%n"
 #define PATTERN_RAW_LOGGER_STR "%s" // "%m"

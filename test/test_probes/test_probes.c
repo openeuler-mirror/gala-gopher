@@ -18,7 +18,7 @@
 #include <dirent.h>
 #include <sys/types.h>
 #include <CUnit/Basic.h>
-#include "probe.h"
+#include "probe_mng.h"
 #include "../../probes/system_infos.probe/system_cpu.h"
 
 
@@ -51,7 +51,7 @@ void TestSystemMeminfoProbe(void)
     char *substr = NULL;
     uint32_t ret = system_meminfo_init();
     CU_ASSERT_FATAL(ret == 0);
-    
+
     struct probe_params params = {.period = DEFAULT_PERIOD};
 
     // sample test for nprobe_fprintf
@@ -145,7 +145,7 @@ void TestSystemDiskIOStatProbe(void)
     if (g_probe != NULL) {
         CU_ASSERT(g_probe->fifo != NULL);
         (void)snprintf(g_probe->name, MAX_PROBE_NAME_LEN - 1, "test_disk_iostats_probe");
-    
+
         // logs = 1, 上报
         params.logs = 1;
         ret = system_iostat_probe(&params);

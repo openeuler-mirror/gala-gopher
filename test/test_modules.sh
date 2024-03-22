@@ -12,7 +12,7 @@ function compile_test()
     mkdir build
     cd build
 
-    cmake ..
+    cmake "$@" ..
     make
 }
 

@@ -38,6 +38,8 @@ BuildRoot:     %{_builddir}/%{name}-%{version}
 BuildRequires: systemd cmake gcc-c++ elfutils-devel (clang >= 10.0.1 or clang12) llvm
 BuildRequires: libconfig-devel libevent-devel openssl-devel libbpf-devel >= 2:0.8 uthash-devel
 BuildRequires: jsoncpp-devel git libstdc++-devel
+# for DT
+#BuildRequires: CUnit-devel
 
 %if !0%{?disable_kafka_channel}
 BuildRequires: librdkafka-devel
@@ -127,6 +129,9 @@ sh build.sh --debug %{vmlinux_ver} "${BUILD_OPTS[@]}"
 popd
 
 %check
+# pushd test
+# sh test_modules.sh "${BUILD_OPTS[@]}"
+# popd
 
 %install
 install -d %{buildroot}/etc/gala-gopher
