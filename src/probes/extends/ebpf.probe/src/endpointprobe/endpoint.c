@@ -91,11 +91,12 @@ struct estab_latency_histo_s estab_latency_histios[__MAX_LT_RANGE] = {
 struct tcp_listen_s {
     H_HANDLE;
     struct tcp_listen_key_s key;
-    unsigned int proc_id;
+    struct tcp_listen_val_s val;
 };
 
 struct tcp_socket_id_s {
     int tgid;                   // process id
+    int is_multi;                // 1: multi procs listen to one sock
     enum socket_role_e role;
     struct conn_addr_s client_ipaddr;
     struct conn_addr_s server_ipaddr;
@@ -319,7 +320,7 @@ static void output_tcp_socket(struct tcp_socket_s* tcp_sock)
     }
 
     (void)fprintf(stdout,
-        "|%s|%u|%s|%s|%s|%u|%u"
+        "|%s|%u|%s|%s|%s|%u|%u|%d"
         "|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu"
         "|%s|\n",
         OO_TCP_SOCK,
@@ -329,6 +330,7 @@ static void output_tcp_socket(struct tcp_socket_s* tcp_sock)
         tcp_sock->server_ip,
         tcp_sock->id.server_ipaddr.port,
         tcp_sock->id.server_ipaddr.family,
+        tcp_sock->id.is_multi,
 
         tcp_sock->stats[EP_STATS_LISTEN_DROPS],
         tcp_sock->stats[EP_STATS_ACCEPT_OVERFLOW],
@@ -408,7 +410,8 @@ static int add_tcp_sock_evt(struct endpoint_probe_s * probe, struct tcp_socket_e
 
     memcpy(&(id.client_ipaddr), &(evt->client_ipaddr), sizeof(id.client_ipaddr));
     memcpy(&(id.server_ipaddr), &(evt->server_ipaddr), sizeof(id.server_ipaddr));
-    id.tgid = evt->tgid;
+    id.is_multi = evt->is_multi;
+    id.tgid = (id.is_multi == 1) ? getpgid(evt->tgid) : (evt->tgid);
     id.client_ipaddr.port = 0;
     id.role = evt->role;
 
@@ -573,22 +576,21 @@ static int get_netns_fd(pid_t pid)
     return open(path, O_RDONLY);
 }
 
-static int add_tcp_listen(struct endpoint_probe_s *probe, unsigned int proc_id, int port)
+static int add_tcp_listen(struct endpoint_probe_s *probe, struct tcp_listen_port *tlp, int ino)
 {
-    unsigned int net_ns;
     struct tcp_listen_key_s key;
     struct tcp_listen_s *listen;
 
-    (void)get_proc_netns_id((const unsigned int)proc_id, &net_ns);
-
-    key.net_ns = net_ns;
-    key.port = port;
+    key.inode = ino;
 
     listen = lkup_tcp_listen(probe, (const struct tcp_listen_key_s *)&key);
     if (listen) {
-        if (listen->proc_id != proc_id) {
-            return -1;
+        if (listen->val.proc_id == tlp->pid) {
+            return 0;
+        } else if (listen->val.is_multi == 1) {
+            return 0;
         } else {
+            listen->val.is_multi = 1;
             return 0;
         }
     }
@@ -599,8 +601,7 @@ static int add_tcp_listen(struct endpoint_probe_s *probe, unsigned int proc_id, 
     }
     memset(listen, 0, sizeof(struct tcp_listen_s));
     memcpy(&(listen->key), &key, sizeof(key));
-    listen->proc_id = proc_id;
-
+    listen->val.proc_id = tlp->pid;
     H_ADD_KEYPTR(probe->listens, &listen->key, sizeof(struct tcp_listen_key_s), listen);
     return 0;
 }
@@ -619,7 +620,14 @@ static void load_tcp_listens(struct endpoint_probe_s *probe)
     for (int i = 0; i < tlps->tlp_num; i++) {
         tlp = tlps->tlp[i];
         if (tlp && is_snooper(probe, tlp->pid)) {
-            ret = add_tcp_listen(probe, tlp->pid, (int)tlp->port);
+            unsigned long ino;
+            ret = get_listen_sock_inode(tlp, &ino);
+            if (ret < 0) {
+                ERROR("[EPPROBE]: get listen sock inode failed.(PID = %u, COMM = %s, PORT = %u)\n",
+                    tlp->pid, tlp->comm, tlp->port);
+                continue;
+            }
+            ret = add_tcp_listen(probe, tlp, ino);
             if (ret) {
                 ERROR("[EPPROBE]: Add listen port failed.(PID = %u, COMM = %s, PORT = %u)\n",
                     tlp->pid, tlp->comm, tlp->port);
@@ -677,7 +685,7 @@ static void reload_listen_port(struct endpoint_probe_s *probe)
 
 static void reload_listen_map(struct endpoint_probe_s *probe)
 {
-    int value;
+    struct tcp_listen_val_s value;
     struct tcp_listen_key_s k = {0};
     struct tcp_listen_key_s nk = {0};
     struct tcp_listen_s *listen, *tmp;
@@ -688,7 +696,7 @@ static void reload_listen_map(struct endpoint_probe_s *probe)
     }
 
     H_ITER(probe->listens, listen, tmp) {
-        (void)bpf_map_update_elem(probe->listen_port_fd, &(listen->key), &(listen->proc_id), BPF_ANY);
+        (void)bpf_map_update_elem(probe->listen_port_fd, &(listen->key), &(listen->val), BPF_ANY);
     }
     return;
 }

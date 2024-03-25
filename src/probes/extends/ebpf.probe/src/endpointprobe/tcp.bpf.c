@@ -48,7 +48,7 @@ struct tcp_check_req_args_s {
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(key_size, sizeof(struct tcp_listen_key_s));
-    __uint(value_size, sizeof(u32));
+    __uint(value_size, sizeof(struct tcp_listen_val_s));
     __uint(max_entries, __MAX_CONCURRENCY);
 } tcp_listen_port SEC(".maps");
 
@@ -95,6 +95,7 @@ struct {
 struct sock_info_s {
     enum socket_role_e role;
     int tgid;
+    int is_multi;          // 1: multi procs listen to one sock
     u64 syn_start_ts;      // client: ts of SYN_SENT ; server: ts of sending synack
 };
 
@@ -106,16 +107,16 @@ struct {
     __uint(max_entries, __TCP_SOCKS_MAX);
 } tcp_socks SEC(".maps");
 
-static __always_inline u32 lkup_tgid_by_port_ns(struct tcp_listen_key_s *key)
+static __always_inline struct tcp_listen_val_s* lkup_tgid_by_sock_inode(struct tcp_listen_key_s *key)
 {
-    u32 *tgid;
+    struct tcp_listen_val_s *val;
 
-    tgid = bpf_map_lookup_elem(&tcp_listen_port, key);
-    if (tgid == NULL) {
+    val = bpf_map_lookup_elem(&tcp_listen_port, key);
+    if (val == NULL) {
         return 0;
     }
 
-    return *tgid;
+    return val;
 }
 
 static __always_inline struct sock_info_s* lkup_sock(const struct sock *sk)
@@ -125,25 +126,37 @@ static __always_inline struct sock_info_s* lkup_sock(const struct sock *sk)
 
 static __always_inline void add_sock(const struct sock *sk, enum socket_role_e role)
 {
-    struct sock_info_s info = {0};
     int tgid = (int)(bpf_get_current_pid_tgid() >> INT_LEN);
 
-    info.tgid = tgid;
-    info.role = role;
+    struct sock_info_s* info = lkup_sock((const struct sock *)sk);
+    if (info != NULL) {
+        if (info->tgid != tgid) {
+            // multi tgid listen to one sock,
+            // set is_multi to 1, but not update tgid
+            info->is_multi = 1;
+        }
+        return;
+    }
+
+    struct sock_info_s new_info = {0};
+    new_info.tgid = tgid;
+    new_info.is_multi = 0;      // default is 0
+    new_info.role = role;
 
     if (role == TCP_CLIENT) {
-        info.syn_start_ts = bpf_ktime_get_ns();
+        new_info.syn_start_ts = bpf_ktime_get_ns();
     }
 
     bpf_map_update_elem(&tcp_socks, &sk, &info, BPF_ANY);
     return;
 }
 
-static __always_inline void add_sock_and_tgid(const struct sock *sk, enum socket_role_e role, int tgid)
+static __always_inline void add_sock_and_tgid(const struct sock *sk, enum socket_role_e role, struct tcp_listen_val_s *v)
 {
     struct sock_info_s info = {0};
 
-    info.tgid = tgid;
+    info.tgid = v->proc_id;
+    info.is_multi = v->is_multi;
     info.role = role;
     bpf_map_update_elem(&tcp_socks, &sk, &info, BPF_ANY);
     return;
@@ -213,28 +226,27 @@ static __always_inline bool sk_synq_is_full(const struct sock *sk)
     return (u32)syn_qlen >= max_ack_backlog;
 }
 
-static __always_inline void get_listen_port_by_sock(const struct sock* listen_sk, struct tcp_listen_key_s *key)
+static __always_inline void get_inode_by_sock(const struct sock *listen_sk, unsigned long *ino)
 {
-    struct net * net = _(listen_sk->__sk_common.skc_net.net);
-    struct inet_sock *inet = (struct inet_sock *)listen_sk;
-
-    key->port = (int)bpf_ntohs(_(inet->inet_sport));
-    key->net_ns = _(net->ns.inum);
+    struct socket *socket = _(listen_sk->sk_socket);
+    struct socket_alloc *ei = container_of(socket, struct socket_alloc, socket);
+    *ino = BPF_CORE_READ(ei, vfs_inode.i_ino);
 
     return;
 }
 
-static __always_inline int get_tgid_by_listen_sk(const struct sock* listen_sk, int *tgid)
+static __always_inline struct tcp_listen_val_s* get_proc_info_by_listen_sk(const struct sock* listen_sk)
 {
     struct tcp_listen_key_s key = {0};
 
-    get_listen_port_by_sock(listen_sk, &key);
+    get_inode_by_sock(listen_sk, &(key.inode));
 
-    *tgid = lkup_tgid_by_port_ns(&key);
-    if (*tgid == 0) {
-        return -1;
+    struct tcp_listen_val_s *val = lkup_tgid_by_sock_inode(&key);
+    if (val == NULL || val->proc_id == 0) {
+        return NULL;
     }
-    return 0;
+
+    return val;
 }
 
 static __always_inline void get_connect_sockaddr(struct tcp_socket_event_s* evt, const struct sock* sk)
@@ -329,6 +341,7 @@ static __always_inline void report_synack_sent_evt(void *ctx, const struct sock*
     get_request_sockaddr(&evt, req);
     evt.evt = EP_STATS_SYNACK_SENT;
     evt.tgid = info->tgid;
+    evt.is_multi = info->is_multi;
 
     // report;
     evt.role = TCP_SERVER;
@@ -372,6 +385,7 @@ KRETPROBE(tcp_connect, pt_regs)
     get_connect_sockaddr(&evt, (const struct sock *)sk);
     evt.evt = EP_STATS_SYN_SENT;
     evt.tgid = (int)(id >> INT_LEN);
+    evt.is_multi = 0;
 
     // report;
     evt.role = TCP_CLIENT;
@@ -452,6 +466,7 @@ KPROBE(tcp_set_state, pt_regs)
         }
 
         evt.tgid = info->tgid;
+        evt.is_multi = info->is_multi;
         curr_ts = bpf_ktime_get_ns();
         if (info->syn_start_ts != 0 && (curr_ts > info->syn_start_ts)) {
             evt.estab_latency = curr_ts - info->syn_start_ts;
@@ -464,6 +479,7 @@ KPROBE(tcp_set_state, pt_regs)
         get_connect_sockaddr(&evt, (const struct sock *)sk);
         evt.evt = EP_STATS_ACTIVE_FAILS;
         evt.tgid = info->tgid;
+        evt.is_multi = info->is_multi;
 
         // report;
         evt.role = TCP_CLIENT;
@@ -474,6 +490,7 @@ KPROBE(tcp_set_state, pt_regs)
         get_accept_sockaddr(&evt, (const struct sock *)sk);
         evt.evt = EP_STATS_PASSIVE_FAILS;
         evt.tgid = info->tgid;
+        evt.is_multi = info->is_multi;
 
         // report;
         evt.role = TCP_SERVER;
@@ -491,6 +508,7 @@ KPROBE(tcp_set_state, pt_regs)
 
         evt.evt = EP_STATS_CONN_CLOSE;
         evt.tgid = info->tgid;
+        evt.is_multi = info->is_multi;
         evt.role = info->role;
         (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
         del_sock((const struct sock *)sk);
@@ -630,6 +648,7 @@ KPROBE(tcp_conn_request, pt_regs)
     struct sk_buff *skb = (struct sk_buff *)PT_REGS_PARM4(ctx);
     struct tcp_socket_event_s evt = {0};
     int tgid = 0;
+    int is_multi = 0;
 
     if (sk == NULL || skb == NULL) {
         goto end;
@@ -638,12 +657,18 @@ KPROBE(tcp_conn_request, pt_regs)
     struct sock_info_s* info = lkup_sock((const struct sock *)sk);
     if (info && info->role == TCP_LISTEN_SK) {
         tgid = info->tgid;
+        is_multi = info->is_multi;
     } else {
-        (void)get_tgid_by_listen_sk((const struct sock *)sk, &tgid);
+        struct tcp_listen_val_s *val = get_proc_info_by_listen_sk((const struct sock *)sk);
+        if (val == NULL) {
+            goto end;
+        }
+        tgid = val->proc_id;
         if (tgid == 0) {
             goto end;
         }
-        add_sock_and_tgid((const struct sock *)sk, TCP_LISTEN_SK, tgid);
+        is_multi = val->is_multi;
+        add_sock_and_tgid((const struct sock *)sk, TCP_LISTEN_SK, val);
     }
 
     evt.evt = EP_STATS_MAX;
@@ -701,6 +726,7 @@ KPROBE(tcp_conn_request, pt_regs)
     }
 
     evt.tgid = tgid;
+    evt.is_multi = is_multi;
     // report;
     evt.role = TCP_SERVER;
     (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
@@ -727,6 +753,7 @@ KPROBE(tcp_req_err, pt_regs)
     get_accept_sockaddr(&evt, (const struct sock *)sk);
     evt.evt = EP_STATS_LISTEN_DROPS;
     evt.tgid = info->tgid;
+    evt.is_multi = info->is_multi;
 
     // report;
     evt.role = TCP_SERVER;
@@ -755,6 +782,7 @@ KPROBE(tcp_done, pt_regs)
         evt.evt = EP_STATS_ACTIVE_FAILS;
         get_connect_sockaddr(&evt, (const struct sock *)sk);
         evt.tgid = info->tgid;
+        evt.is_multi = info->is_multi;
 
         // report;
         (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
@@ -763,6 +791,7 @@ KPROBE(tcp_done, pt_regs)
         evt.evt = EP_STATS_PASSIVE_FAILS;
         get_accept_sockaddr(&evt, (const struct sock *)sk);
         evt.tgid = info->tgid;
+        evt.is_multi = info->is_multi;
 
         // report;
         (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
@@ -785,6 +814,7 @@ KRAWTRACE(tcp_retransmit_synack, bpf_raw_tracepoint_args)
     get_accept_sockaddr(&evt, (const struct sock *)sk);
     evt.evt = EP_STATS_RETRANS_SYNACK;
     evt.tgid = info->tgid;
+    evt.is_multi = info->is_multi;
 
     // report;
     evt.role = TCP_SERVER;
@@ -806,6 +836,7 @@ int bpf_trace_tcp_retransmit_synack_func(struct trace_event_raw_tcp_retransmit_s
     get_accept_sockaddr(&evt, (const struct sock *)sk);
     evt.evt = EP_STATS_RETRANS_SYNACK;
     evt.tgid = info->tgid;
+    evt.is_multi = info->is_multi;
 
     // report;
     evt.role = TCP_SERVER;
@@ -835,6 +866,7 @@ KPROBE(inet_csk_reqsk_queue_drop_and_put, pt_regs)
         get_accept_sockaddr(&evt, (const struct sock *)sk);
         evt.evt = EP_STATS_REQ_DROP;
         evt.tgid = info->tgid;
+        evt.is_multi = info->is_multi;
 
         // report;
         evt.role = TCP_SERVER;
@@ -855,6 +887,7 @@ static __always_inline void tcp_send_reset(void *ctx, struct sock* sk)
         get_connect_sockaddr(&evt, (const struct sock *)sk);
         evt.evt = EP_STATS_RST_SENT;
         evt.tgid = info->tgid;
+        evt.is_multi = info->is_multi;
 
         // report;
         evt.role = TCP_CLIENT;
@@ -863,6 +896,7 @@ static __always_inline void tcp_send_reset(void *ctx, struct sock* sk)
         get_accept_sockaddr(&evt, (const struct sock *)sk);
         evt.evt = EP_STATS_RST_SENT;
         evt.tgid = info->tgid;
+        evt.is_multi = info->is_multi;
 
         // report;
         evt.role = TCP_SERVER;
@@ -882,6 +916,7 @@ static __always_inline void tcp_recv_reset(void *ctx, struct sock* sk)
         get_connect_sockaddr(&evt, (const struct sock *)sk);
         evt.evt = EP_STATS_RST_RCVS;
         evt.tgid = info->tgid;
+        evt.is_multi = info->is_multi;
 
         // report;
         evt.role = TCP_CLIENT;
@@ -890,6 +925,7 @@ static __always_inline void tcp_recv_reset(void *ctx, struct sock* sk)
         get_accept_sockaddr(&evt, (const struct sock *)sk);
         evt.evt = EP_STATS_RST_RCVS;
         evt.tgid = info->tgid;
+        evt.is_multi = info->is_multi;
 
         // report;
         evt.role = TCP_SERVER;
@@ -963,6 +999,7 @@ KPROBE(tcp_retransmit_skb, pt_regs)
         get_connect_sockaddr(&evt, (const struct sock *)sk);
         evt.evt = EP_STATS_RETRANS_SYN;
         evt.tgid = info->tgid;
+        evt.is_multi = info->is_multi;
 
         // report;
         evt.role = info->role;

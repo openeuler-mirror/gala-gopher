@@ -37,6 +37,11 @@ measurements:
                 type: "key",
                 name: "protocol",
             },
+            {
+                description: "whether tgid means pgid of multi procs",
+                type: "label",
+                name: "multi",
+            },
 	        {
                 description: "listen drops of the tcp socket.",
                 type: "gauge",
