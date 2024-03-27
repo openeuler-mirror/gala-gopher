@@ -170,6 +170,7 @@ static int ConfigMgrLoadGlobalConfig(void *config, config_setting_t *settings)
     return 0;
 }
 
+#if 0
 static int ConfigMgrLoadIngressConfig(void *config, config_setting_t *settings)
 {
     IngressConfig *ingressConfig = (IngressConfig *)config;
@@ -208,6 +209,7 @@ static int ConfigMgrLoadEgressConfig(void *config, config_setting_t *settings)
 
     return 0;
 }
+#endif
 
 static int ConfigMgrLoadKafkaConfig(void *config, config_setting_t *settings)
 {
@@ -510,8 +512,10 @@ int ConfigMgrLoad(const ConfigMgr *mgr, const char *confPath)
 {
     ConfigLoadHandle configLoadHandles[] = {
         { (void *)mgr->globalConfig, "global", ConfigMgrLoadGlobalConfig },
+#if 0
         { (void *)mgr->ingressConfig, "ingress", ConfigMgrLoadIngressConfig },
         { (void *)mgr->egressConfig, "egress", ConfigMgrLoadEgressConfig },
+#endif
         { (void *)mgr->kafkaConfig, "kafka", ConfigMgrLoadKafkaConfig },
         { (void *)mgr->imdbConfig, "imdb", ConfigMgrLoadIMDBConfig },
         { (void *)mgr->webServerConfig, "web_server", ConfigMgrLoadWebServerConfig },

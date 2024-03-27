@@ -30,11 +30,6 @@ extend探针配置文件归档在探针同级目录下。目前有配置文件�
 - meta：元数据metadata输出方式配置
   - out_channel：metadata输出通道，支持logs|kafka，配置为空则输出通道关闭
   - kafka_topic：若输出通道为kafka，此为topic配置信息
-- ingress：探针数据上报相关配置
-  - interval：暂未使用
-- egress：上报数据库相关配置
-  - interval：暂未使用
-  - time_range：暂未使用
 - imdb：cache缓存规格配置
   - max_tables_num：最大的cache表个数，/opt/gala-gopher/meta目录下每个meta对应一个表
   - max_records_num：每张cache表最大记录数，通常每个探针在一个观测周期内产生至少1条观测记录
@@ -139,17 +134,6 @@ meta =
 {
     out_channel = "logs";           # 设置metadata采用logs上报方式
     kafka_topic = "gala_gopher_metadata";
-};
-
-ingress =
-{
-    interval = 5;
-};
-
-egress =
-{
-    interval = 5;
-    time_range = 5;
 };
 
 imdb =
