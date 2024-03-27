@@ -20,7 +20,6 @@ extend探针配置文件归档在探针同级目录下。目前有配置文件�
 - global：gala-gopher全局配置信息
   - log_file_name：gala-gopher日志文件名
   - log_level：gala-gopher日志级别
-  - pin_path：ebpf探针共享map存放路径（建议维持默认配置）
 - metric：指标数据metrics输出方式配置
   - out_channel：metrics输出通道，支持配置web_server|logs|kafka，配置为空则输出通道关闭
   - kafka_topic：若输出通道为kafka，此为topic配置信息
@@ -127,7 +126,6 @@ global =
 {
     log_file_name = "gopher.log";
     log_level = "debug";
-    pin_path = "/sys/fs/bpf/gala-gopher";
 };
 
 metric =

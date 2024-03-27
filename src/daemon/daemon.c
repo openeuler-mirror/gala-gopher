@@ -116,25 +116,10 @@ static void CleanData(const ResourceMgr *mgr)
 {
 #define __SYS_FS_BPF "/sys/fs/bpf/gala-gopher"
     FILE *fp = NULL;
-    char *pinPath;
     char cmd[MAX_COMMAND_LEN];
 
     cmd[0] = 0;
-    pinPath = NULL;
-
-    if (mgr->configMgr && mgr->configMgr->globalConfig) {
-        pinPath = mgr->configMgr->globalConfig->bpfPinPath;
-    }
-
-    if (pinPath == NULL) {
-        return;
-    }
-
-    if (strstr(pinPath, __SYS_FS_BPF) == NULL) {
-        return;
-    }
-
-    (void)snprintf(cmd, MAX_COMMAND_LEN, RM_MAP_CMD, pinPath);
+    (void)snprintf(cmd, MAX_COMMAND_LEN, RM_MAP_CMD, __SYS_FS_BPF);
     fp = popen(cmd, "r");
     if (fp != NULL) {
         (void)pclose(fp);

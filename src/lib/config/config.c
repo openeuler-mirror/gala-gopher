@@ -167,18 +167,6 @@ static int ConfigMgrLoadGlobalConfig(void *config, config_setting_t *settings)
     }
     (void)snprintf(globalConfig->logLevel, sizeof(globalConfig->logLevel), "%s", strVal);
 
-    ret = config_setting_lookup_string(settings, "pin_path", &strVal);
-    if (ret == 0) {
-        ERROR("[CONFIG] load config for pin path failed.\n");
-        return -1;
-    }
-
-    if (check_path_for_security(strVal)) {
-        ERROR("[CONFIG] check pin path for security failed.\n");
-        return -1;
-    }
-
-    (void)snprintf(globalConfig->bpfPinPath, sizeof(globalConfig->bpfPinPath), "%s", strVal);
     return 0;
 }
 
