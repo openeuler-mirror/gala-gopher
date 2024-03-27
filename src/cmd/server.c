@@ -159,7 +159,7 @@ void CmdServer(void *arg)
     
     ret = SetRunDir();
     if (ret != GOPHER_OK) {
-        printf("dir not exist and create fail. ret=%d.\n", ret);
+        printf("dir not exist and create failed. ret=%d.\n", ret);
         goto ERROR2;
     }
 
