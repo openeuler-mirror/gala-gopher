@@ -27,7 +27,6 @@ extend探针配置文件归档在探针同级目录下。目前有配置文件�
   - out_channel：event输出通道，支持配置logs|kafka，配置为空则输出通道关闭
   - kafka_topic：若输出通道为kafka，此为topic配置信息
   - timeout：同一异常事件上报间隔设置
-  - desc_language：异常事件描述信息语言选择，当前支持配置zh_CN|en_US
 - meta：元数据metadata输出方式配置
   - out_channel：metadata输出通道，支持logs|kafka，配置为空则输出通道关闭
   - kafka_topic：若输出通道为kafka，此为topic配置信息
@@ -139,7 +138,6 @@ event =
     out_channel = "kafka";          # 设置event采用kafka上报方式
     kafka_topic = "gala_gopher_event";  # kafka方式下，对应的topic信息
     timeout = 600;  # 10min
-    desc_language = "zh_CN";        # eg: zh_CN | en_US
 };
 
 meta =

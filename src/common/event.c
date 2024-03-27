@@ -263,10 +263,10 @@ static int is_evt_need_report(const char *entityId, time_t cur_time)
     return 0;
 }
 
-void init_event_mgr(unsigned int time_out, char *lang_type)
+void init_event_mgr(unsigned int time_out)
 {
-#if 0
     g_evt_period = time_out;
+#if 0
     g_lang_type[0] = 0;
     if (lang_type != NULL && strlen(lang_type) > 0) {
         (void)snprintf(g_lang_type, sizeof(g_lang_type), "%s", lang_type);

@@ -58,6 +58,6 @@ struct event_info_s {
 void report_logs(const struct event_info_s* evt, enum evt_sec_e sec, const char * fmt, ...);
 void emit_otel_log(struct otel_log *ol);
 
-void init_event_mgr(unsigned int time_out, char *lang_type);
+void init_event_mgr(unsigned int time_out);
 
 #endif

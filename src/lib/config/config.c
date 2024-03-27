@@ -489,11 +489,12 @@ static int ConfigMgrLoadOutConfig(void *config, config_setting_t *settings)
         outConfig->timeout = (uint32_t)timeout;
     }
 
+#if 0
     ret = config_setting_lookup_string(settings, "desc_language", &strVal);
     if (ret > 0) {
         (void)snprintf(outConfig->lang_type, sizeof(outConfig->lang_type), "%s", strVal);
     }
-
+#endif
     return 0;
 }
 
