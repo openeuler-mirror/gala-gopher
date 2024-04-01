@@ -375,11 +375,11 @@ enum probe_type_e {
 struct probe_define_s probe_define[] = {
     {"baseinfo",            "system_infos",                         PROBE_BASEINFO},
     {"virt",                "virtualized_infos",                    PROBE_VIRT},
-    {"flamegraph",          "$gala-gopher-dir/stackprobe",          PROBE_FG},
-    {"l7",                  "$gala-gopher-dir/l7probe",             PROBE_L7},
+    {"flamegraph",          "/opt/gala-gopher/extend_probes/stackprobe",          PROBE_FG},
+    {"l7",                  "/opt/gala-gopher/extend_probes/l7probe",             PROBE_L7},
     ....
-    {"ksli",                "$gala-gopher-dir/ksliprobe",           PROBE_KSLI},
-    {"sched",               "$gala-gopher-dir/schedprobe",          PROBE_SCHED}
+    {"ksli",                "/opt/gala-gopher/extend_probes/ksliprobe",           PROBE_KSLI},
+    {"sched",               "/opt/gala-gopher/extend_probes/schedprobe",          PROBE_SCHED}
 
     // If you want to add a probe, add the probe define.
 };

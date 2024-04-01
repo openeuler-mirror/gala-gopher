@@ -36,31 +36,32 @@
 #include "json_tool.h"
 
 static int set_probe_bin(struct probe_s *probe, const char *bin);
+static void init_probe_bin(struct probe_s *probe, enum probe_type_e probe_type);
 
 struct probe_define_s probe_define[] = {
     {"baseinfo",            "system_infos",                         PROBE_BASEINFO},
     {"virt",                "virtualized_infos",                    PROBE_VIRT},
-    {"flamegraph",          "$gala-gopher-dir/stackprobe",          PROBE_FG},
-    {"l7",                  "$gala-gopher-dir/l7probe",             PROBE_L7},
-    {"tcp",                 "$gala-gopher-dir/tcpprobe",            PROBE_TCP},
-    {"socket",              "$gala-gopher-dir/endpoint",            PROBE_SOCKET},
-    {"io",                  "$gala-gopher-dir/ioprobe",             PROBE_IO},
-    {"proc",                "$gala-gopher-dir/taskprobe",           PROBE_PROC},
-    {"jvm",                 "$gala-gopher-dir/jvmprobe",            PROBE_JVM},
-    {"redis_sli",           "$gala-gopher-dir/redissli",            PROBE_REDIS_SLI},
-    {"postgre_sli",         "$gala-gopher-dir/pgsliprobe",          PROBE_POSTGRE_SLI},
-    {"opengauss_sli",       "$gala-gopher-dir/pg_stat_probe.py",    PROBE_GAUSS_SLI},
-    {"dnsmasq",             "$gala-gopher-dir/rabbitmq_probe.sh",   PROBE_DNSMASQ},
-    {"lvs",                 "$gala-gopher-dir/trace_lvs",           PROBE_LVS},
-    {"nginx",               "$gala-gopher-dir/nginx_probe",         PROBE_NGINX},
-    {"haproxy",             "$gala-gopher-dir/trace_haproxy",       PROBE_HAPROXY},
-    {"kafka",               "$gala-gopher-dir/kafkaprobe",          PROBE_KAFKA},
-    {"tprofiling",          "$gala-gopher-dir/tprofiling",          PROBE_TP},
-    {"hw",                  "$gala-gopher-dir/hwprobe",             PROBE_HW},
-    {"ksli",                "$gala-gopher-dir/ksliprobe",           PROBE_KSLI},
-    {"sched",               "$gala-gopher-dir/schedprobe",          PROBE_SCHED},
-    {"container",           "$gala-gopher-dir/cadvisor_probe.py",   PROBE_CONTAINER},
-    {"sermant",             "$gala-gopher-dir/sermant_probe.py",    PROBE_SERMANT}
+    {"flamegraph",          "/opt/gala-gopher/extend_probes/stackprobe",          PROBE_FG},
+    {"l7",                  "/opt/gala-gopher/extend_probes/l7probe",             PROBE_L7},
+    {"tcp",                 "/opt/gala-gopher/extend_probes/tcpprobe",            PROBE_TCP},
+    {"socket",              "/opt/gala-gopher/extend_probes/endpoint",            PROBE_SOCKET},
+    {"io",                  "/opt/gala-gopher/extend_probes/ioprobe",             PROBE_IO},
+    {"proc",                "/opt/gala-gopher/extend_probes/taskprobe",           PROBE_PROC},
+    {"jvm",                 "/opt/gala-gopher/extend_probes/jvmprobe",            PROBE_JVM},
+    {"redis_sli",           "/opt/gala-gopher/extend_probes/redissli",            PROBE_REDIS_SLI},
+    {"postgre_sli",         "/opt/gala-gopher/extend_probes/pgsliprobe",          PROBE_POSTGRE_SLI},
+    {"opengauss_sli",       "/opt/gala-gopher/extend_probes/pg_stat_probe.py",    PROBE_GAUSS_SLI},
+    {"dnsmasq",             "/opt/gala-gopher/extend_probes/rabbitmq_probe.sh",   PROBE_DNSMASQ},
+    {"lvs",                 "/opt/gala-gopher/extend_probes/trace_lvs",           PROBE_LVS},
+    {"nginx",               "/opt/gala-gopher/extend_probes/nginx_probe",         PROBE_NGINX},
+    {"haproxy",             "/opt/gala-gopher/extend_probes/trace_haproxy",       PROBE_HAPROXY},
+    {"kafka",               "/opt/gala-gopher/extend_probes/kafkaprobe",          PROBE_KAFKA},
+    {"tprofiling",          "/opt/gala-gopher/extend_probes/tprofiling",          PROBE_TP},
+    {"hw",                  "/opt/gala-gopher/extend_probes/hwprobe",             PROBE_HW},
+    {"ksli",                "/opt/gala-gopher/extend_probes/ksliprobe",           PROBE_KSLI},
+    {"sched",               "/opt/gala-gopher/extend_probes/schedprobe",          PROBE_SCHED},
+    {"container",           "/opt/gala-gopher/extend_probes/cadvisor_probe.py",   PROBE_CONTAINER},
+    {"sermant",             "/opt/gala-gopher/extend_probes/sermant_probe.py",    PROBE_SERMANT}
 
     // If you want to add a probe, add the probe define.
 };
@@ -309,7 +310,7 @@ static struct probe_s* new_probe(const char* name, enum probe_type_e probe_type)
     }
     probe->fifo->probe = probe;
     probe->probe_type = probe_type;
-    (void)set_probe_bin(probe, probe_define[probe_type - 1].bin);
+    init_probe_bin(probe, probe_type);
     set_default_params(probe);
 
     ret = attach_probe_fd(g_probe_mng, probe);
@@ -372,64 +373,48 @@ end:
     return ret;
 }
 
-#define INSTALL_DIR_CMD "/usr/bin/rpm -ql gala-gopher | grep -v conf | grep %s | head -n1 2>/dev/null"
-#define DEFAULT_INSTALL_DIR_CMD "ls /opt/gala-gopher/extend_probes/%s | head -n1 2>/dev/null"
-static int __get_install_dir(const char *bin_name, char install_dir[], size_t size)
-{
-    char cmd[COMMAND_LEN];
-
-    cmd[0] = 0;
-    (void)snprintf(cmd, COMMAND_LEN, INSTALL_DIR_CMD, bin_name);
-    if (exec_cmd((const char *)cmd, install_dir, size) < 0) {
-        install_dir[0] = 0;
-        cmd[0] = 0;
-        (void)snprintf(cmd, COMMAND_LEN, DEFAULT_INSTALL_DIR_CMD, bin_name);
-        if (exec_cmd((const char *)cmd, install_dir, size) < 0) {
-            return -1;
-        }
-    }
-
-    return 0;
-}
-
 static int set_probe_bin(struct probe_s *probe, const char *bin)
 {
-    char install_dir[PATH_LEN];
-    char bin_name[PATH_LEN];
 
-    if (bin == NULL) {
-        PARSE_ERR("null binpath");
+    if (bin == NULL || strlen(bin) == 0) {
+        PARSE_ERR("null binfile");
+        return -1;
+    }
+
+    if (probe->is_extend_probe == 0) {
+        if (strncmp(bin, probe->bin, strlen(bin))) {
+            PARSE_ERR("native probes can only be assigned default values");
+            return -1;
+        }
+
+        return 0;
+    }
+
+    if (check_path_for_security(bin)) {
+        PARSE_ERR("unsafe binfile");
+        return -1;
+    }
+
+    if (access(bin,  F_OK) != 0) {
+        PARSE_ERR("not exist binfile");
         return -1;
     }
 
     if (probe->bin) {
         free(probe->bin);
-        probe->bin = NULL;
     }
 
-    if (strlen(bin) && bin[0] == '$') {
-        bin_name[0] = 0;
-        install_dir[0] = 0;
+    probe->bin = strdup(bin);
+    return 0;
+}
 
-        char *p = strrchr(bin, '/');
-        if (p && strlen(p) > 1) {
-            (void)snprintf(bin_name, PATH_LEN, "%s", p + 1);
-            int ret = __get_install_dir((const char *)bin_name, install_dir, PATH_LEN);
-            if (!ret) {
-                probe->bin = strdup(install_dir);
-            }
-        } else {
-            PARSE_ERR("invalid binfile");
-            return -1;
-        }
-    } else {
-        probe->bin = strdup(bin);
+static void init_probe_bin(struct probe_s *probe, enum probe_type_e probe_type)
+{
+    if (probe_type >= PROBE_TYPE_MAX) {
+        return;
     }
 
-    if (check_path_for_security(probe->bin)) {
-        PARSE_ERR("unsafe binfile");
-        return -1;
-    }
+    probe->bin = strdup(probe_define[probe_type - 1].bin);
 
     if (is_extend_probe(probe)) {
         probe->is_extend_probe = 1;
@@ -437,12 +422,13 @@ static int set_probe_bin(struct probe_s *probe, const char *bin)
     } else {
         int ret = set_probe_entry(probe);
         if (ret) {
-            return ret;
+            return;
         }
+        probe->is_extend_probe = 0;
         probe->cb = native_probe_thread_cb;
     }
 
-    return 0;
+    return;
 }
 
 static int get_probe_pid(struct probe_s *probe)
