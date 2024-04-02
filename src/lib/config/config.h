@@ -31,7 +31,6 @@ typedef enum {
 typedef struct {
     char logFileName[PATH_LEN];
     char logLevel[PATH_LEN];
-    char bpfPinPath[MAX_PIN_PATH_LEN];
 } GlobalConfig;
 
 typedef struct {
@@ -50,8 +49,6 @@ typedef struct {
     uint32_t queueBufferingMaxMessages;
     uint32_t queueBufferingMaxKbytes;
     uint32_t queueBufferingMaxMs;
-    char username[KAFKA_USERNAME_LEN];
-    char password[KAFKA_PASSWORD_LEN];
 } KafkaConfig;
 
 typedef struct  {
@@ -82,7 +79,9 @@ typedef struct {
     OutChannelType outChnl;
     char kafka_topic[MAX_KAFKA_TOPIC_LEN];
     uint32_t timeout;
+#if 0
     char lang_type[MAX_LANGUAGE_TYPE_LEN];
+#endif
 } OutConfig;
 
 typedef struct {

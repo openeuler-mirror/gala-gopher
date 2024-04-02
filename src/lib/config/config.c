@@ -167,21 +167,10 @@ static int ConfigMgrLoadGlobalConfig(void *config, config_setting_t *settings)
     }
     (void)snprintf(globalConfig->logLevel, sizeof(globalConfig->logLevel), "%s", strVal);
 
-    ret = config_setting_lookup_string(settings, "pin_path", &strVal);
-    if (ret == 0) {
-        ERROR("[CONFIG] load config for pin path failed.\n");
-        return -1;
-    }
-
-    if (check_path_for_security(strVal)) {
-        ERROR("[CONFIG] check pin path for security failed.\n");
-        return -1;
-    }
-
-    (void)snprintf(globalConfig->bpfPinPath, sizeof(globalConfig->bpfPinPath), "%s", strVal);
     return 0;
 }
 
+#if 0
 static int ConfigMgrLoadIngressConfig(void *config, config_setting_t *settings)
 {
     IngressConfig *ingressConfig = (IngressConfig *)config;
@@ -220,6 +209,7 @@ static int ConfigMgrLoadEgressConfig(void *config, config_setting_t *settings)
 
     return 0;
 }
+#endif
 
 static int ConfigMgrLoadKafkaConfig(void *config, config_setting_t *settings)
 {
@@ -269,20 +259,6 @@ static int ConfigMgrLoadKafkaConfig(void *config, config_setting_t *settings)
         return -1;
     }
     kafkaConfig->queueBufferingMaxMs = intVal;
-
-    ret = config_setting_lookup_string(settings, "username", &strVal);
-    if (ret == 0) {
-        ERROR("[CONFIG] load config for kafka userame failed.\n");
-        return -1;
-    }
-    (void)snprintf(kafkaConfig->username, sizeof(kafkaConfig->username), "%s", strVal);
-
-    ret = config_setting_lookup_string(settings, "password", &strVal);
-    if (ret == 0) {
-        ERROR("[CONFIG] load config for kafka password failed.\n");
-        return -1;
-    }
-    (void)snprintf(kafkaConfig->password, sizeof(kafkaConfig->password), "%s", strVal);
 
     return 0;
 }
@@ -515,11 +491,12 @@ static int ConfigMgrLoadOutConfig(void *config, config_setting_t *settings)
         outConfig->timeout = (uint32_t)timeout;
     }
 
+#if 0
     ret = config_setting_lookup_string(settings, "desc_language", &strVal);
     if (ret > 0) {
         (void)snprintf(outConfig->lang_type, sizeof(outConfig->lang_type), "%s", strVal);
     }
-
+#endif
     return 0;
 }
 
@@ -535,8 +512,10 @@ int ConfigMgrLoad(const ConfigMgr *mgr, const char *confPath)
 {
     ConfigLoadHandle configLoadHandles[] = {
         { (void *)mgr->globalConfig, "global", ConfigMgrLoadGlobalConfig },
+#if 0
         { (void *)mgr->ingressConfig, "ingress", ConfigMgrLoadIngressConfig },
         { (void *)mgr->egressConfig, "egress", ConfigMgrLoadEgressConfig },
+#endif
         { (void *)mgr->kafkaConfig, "kafka", ConfigMgrLoadKafkaConfig },
         { (void *)mgr->imdbConfig, "imdb", ConfigMgrLoadIMDBConfig },
         { (void *)mgr->webServerConfig, "web_server", ConfigMgrLoadWebServerConfig },
