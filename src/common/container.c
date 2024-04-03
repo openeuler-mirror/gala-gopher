@@ -84,6 +84,8 @@
 #define DOCKER_DRIVER_COMMAND "%s info -f '{{ .Driver }}'"
 #define DOCKER_BTRFS_SUBVOL_COMMAND "cat /proc/%u/mounts"
 
+#define PROC_ROOT_COMMAND "/proc/%u/root"
+
 #define PLDD_LIB_COMMAND "cat /proc/%u/maps 2>/dev/null | grep \"%s[^a-zA-Z]\" | awk 'NR==1{print $6}'"
 
 // cgroupdriver=cgroupfs
@@ -652,6 +654,23 @@ static int get_container_merged_path_btrfs(const char *abbr_container_id, char *
     return 0;
 }
 
+int get_container_root_path(const char *abbr_container_id, char *path, unsigned int len)
+{
+    unsigned int pid = 0;
+    int ret;
+
+    ret = __get_container_pid(abbr_container_id, &pid);
+    if (ret || pid == 0) {
+        return -1;
+    }
+    ret = snprintf(path, len, PROC_ROOT_COMMAND, pid);
+    if (ret < 0 || ret >= len) {
+        return -1;
+    }
+
+    return 0;
+}
+
 /*
 parse string
 [root@node2 ~]# docker inspect 92a7a60249cb | grep MergedDir | awk -F '"' '{print $4}'
@@ -950,8 +969,8 @@ int get_elf_path(unsigned int pid, char elf_path[], int max_path_len, const char
     (void)snprintf(pid_str, sizeof(pid_str), "%d", pid);
     if ((get_container_id_by_pid_cpuset(pid_str, container_id, CONTAINER_ABBR_ID_LEN + 1) == 0) &&
         (container_id[0] != 0)) {
-        if (get_container_merged_path(container_id, container_path, PATH_LEN) < 0) {
-            fprintf(stderr, "get container %s merged path failed\n", container_id);
+        if (get_container_root_path(container_id, container_path, PATH_LEN) < 0) {
+            fprintf(stderr, "get container %s root path failed\n", container_id);
             return CONTAINER_ERR;
         }
         (void)snprintf(tmp_path, PATH_LEN, "%s%s", container_path, elf_relative_path);
@@ -993,7 +1012,7 @@ int get_elf_path_by_con_id(char *container_id, char elf_path[], int max_path_len
         return CONTAINER_NOTOK;
     }
 
-    if (get_container_merged_path(container_id, container_path, PATH_LEN) < 0) {
+    if (get_container_root_path(container_id, container_path, PATH_LEN) < 0) {
         return CONTAINER_ERR;
     }
 

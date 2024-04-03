@@ -199,7 +199,7 @@ static int get_pid_root_path(struct proc_symbs_s* proc_symbs, char root_path[], 
     }
 
     container_root[0] = 0;
-    ret = get_container_merged_path((const char *)container_id, container_root, PATH_LEN);
+    ret = get_container_root_path((const char *)container_id, container_root, PATH_LEN);
     if (ret != 0) {
         return ret;
     }
