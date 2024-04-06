@@ -221,6 +221,14 @@ static int load_ksli_bpf_prog()
     prog->skels[prog->num].fn = (skel_destroy_fn)ksliprobe_bpf__destroy;
     prog->custom_btf_paths[prog->num] = ksliprobe_open_opts.btf_custom_path;
 
+    bool is_load = probe_kernel_version() > KERNEL_VERSION(5, 12, 0);
+    PROG_ENABLE_ONLY_IF(ksliprobe, bpf_constprop_tcp_clean_rtx_queue, is_load);
+    PROG_ENABLE_ONLY_IF(ksliprobe, bpf_tcp_clean_rtx_queue, !is_load);
+
+    is_load = probe_kernel_version() >= KERNEL_VERSION(5, 11, 0);
+    PROG_ENABLE_ONLY_IF(ksliprobe, bpf_close_fd, is_load);
+    PROG_ENABLE_ONLY_IF(ksliprobe, bpf___close_fd, !is_load);
+
     PROG_ENABLE_ONLY_IF(ksliprobe, bpf_tcp_recvmsg, probe_tstamp());
 
     LOAD_ATTACH(ksliprobe, ksliprobe, err, 1);

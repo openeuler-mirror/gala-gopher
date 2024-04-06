@@ -460,6 +460,14 @@ static int load_pgsli_kern_prog(void)
     prog->skels[prog->num].fn = (skel_destroy_fn)pgsli_kprobe_bpf__destroy;
     prog->custom_btf_paths[prog->num] = pgsli_kprobe_open_opts.btf_custom_path;
 
+    bool is_load = probe_kernel_version() > KERNEL_VERSION(5, 12, 0);
+    PROG_ENABLE_ONLY_IF(pgsli_kprobe, bpf_constprop_tcp_clean_rtx_queue, is_load);
+    PROG_ENABLE_ONLY_IF(pgsli_kprobe, bpf_tcp_clean_rtx_queue, !is_load);
+
+    is_load = probe_kernel_version() >= KERNEL_VERSION(5, 11, 0);
+    PROG_ENABLE_ONLY_IF(pgsli_kprobe, bpf_close_fd, is_load);
+    PROG_ENABLE_ONLY_IF(pgsli_kprobe, bpf___close_fd, !is_load);
+
     PROG_ENABLE_ONLY_IF(pgsli_kprobe, bpf_tcp_recvmsg, probe_tstamp());
 
     MAP_INIT_BPF_BUFFER(pgsli_kprobe, output, buffer, 1);

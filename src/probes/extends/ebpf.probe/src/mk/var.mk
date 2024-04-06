@@ -79,7 +79,7 @@ CFLAGS += -Wno-format-truncation
 
 CXX_VERSION = $(shell $(C++) -dumpversion)
 CXX_STDLIB_DIR = /usr/include/c++/$(CXX_VERSION)
-CXXABI_INCLUDE_DIR = -I$(CXX_STDLIB_DIR) -I$(CXX_STDLIB_DIR)/$(ARCH)-linux-gnu
+CXXABI_INCLUDE_DIR = -I$(CXX_STDLIB_DIR) -I$(CXX_STDLIB_DIR)/$(ARCH)-linux-gnu -I$(CXX_STDLIB_DIR)/$(ARCH)-openEuler-linux
 
 BASE_INC := -I/usr/include \
             -I$(ROOT_DIR)../include \

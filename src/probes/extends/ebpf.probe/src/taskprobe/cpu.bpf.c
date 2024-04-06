@@ -120,6 +120,17 @@ end:
     return;
 }
 
+KRAWTRACE(sched_switch, bpf_raw_tracepoint_args)
+{
+    struct task_struct *prev = (struct task_struct *)ctx->args[1];
+    conn_ctx_t id = (conn_ctx_t)bpf_get_current_pid_tgid();
+
+    offcpu_start(prev);
+    offcpu_end(ctx, id);
+
+    return 0;
+}
+
 KPROBE(finish_task_switch, pt_regs)
 {
     struct task_struct* prev = (struct task_struct *)PT_REGS_PARM1(ctx);

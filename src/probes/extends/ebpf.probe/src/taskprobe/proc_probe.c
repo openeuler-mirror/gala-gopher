@@ -664,10 +664,15 @@ static int load_proc_page_prog(struct task_probe_s *task_probe, struct bpf_prog_
 
     __OPEN_PROBE(page, err, is_load, buffer);
     if (is_load) {
-        PROG_ENABLE_ONLY_IF(page, bpf_raw_trace_mm_vmscan_direct_reclaim_begin, probe_kernel_version() > KERNEL_VERSION(4, 18, 0));
-        PROG_ENABLE_ONLY_IF(page, bpf_raw_trace_mm_vmscan_direct_reclaim_end, probe_kernel_version() > KERNEL_VERSION(4, 18, 0));
-        PROG_ENABLE_ONLY_IF(page, bpf_trace_mm_vmscan_direct_reclaim_begin_func, probe_kernel_version() < KERNEL_VERSION(4, 18, 0));
-        PROG_ENABLE_ONLY_IF(page, bpf_trace_mm_vmscan_direct_reclaim_end_func, probe_kernel_version() < KERNEL_VERSION(4, 18, 0));
+        int kern_ver = probe_kernel_version();
+        PROG_ENABLE_ONLY_IF(page, bpf_raw_trace_mm_vmscan_direct_reclaim_begin, kern_ver > KERNEL_VERSION(4, 18, 0));
+        PROG_ENABLE_ONLY_IF(page, bpf_raw_trace_mm_vmscan_direct_reclaim_end, kern_ver > KERNEL_VERSION(4, 18, 0));
+        PROG_ENABLE_ONLY_IF(page, bpf_trace_mm_vmscan_direct_reclaim_begin_func, kern_ver < KERNEL_VERSION(4, 18, 0));
+        PROG_ENABLE_ONLY_IF(page, bpf_trace_mm_vmscan_direct_reclaim_end_func, kern_ver < KERNEL_VERSION(4, 18, 0));
+
+        int is_load = (kern_ver >= KERNEL_VERSION(5, 16, 0));
+        PROG_ENABLE_ONLY_IF(page, bpf_folio_account_dirtied, is_load);
+        PROG_ENABLE_ONLY_IF(page, bpf_account_page_dirtied, !is_load);
     }
     LOAD_ATTACH(taskprobe, page, err, is_load);
 
@@ -703,12 +708,15 @@ static int load_proc_io_prog(struct task_probe_s *task_probe, struct bpf_prog_s 
 
     __OPEN_PROBE(proc_io, err, is_load, buffer);
     if (is_load) {
-        int is_load = (probe_kernel_version() > KERNEL_VERSION(4, 19, 0));
-        PROG_ENABLE_ONLY_IF(proc_io, bpf_raw_trace_block_bio_queue, is_load);
+        int kern_ver = probe_kernel_version();
+        int is_load = (kern_ver > KERNEL_VERSION(4, 19, 0));
+        int is_single_arg = (kern_ver > KERNEL_VERSION(5, 11, 0));
+        PROG_ENABLE_ONLY_IF(proc_io, bpf_raw_trace_block_bio_queue_single_arg, is_load && is_single_arg);
+        PROG_ENABLE_ONLY_IF(proc_io, bpf_raw_trace_block_bio_queue_double_arg, is_load && (!is_single_arg));
         PROG_ENABLE_ONLY_IF(proc_io, bpf_generic_make_request_checks, !is_load);
         PROG_ENABLE_ONLY_IF(proc_io, bpf_ret_generic_make_request_checks, !is_load);
 
-        is_load = (probe_kernel_version() > KERNEL_VERSION(4, 18, 0));
+        is_load = (kern_ver > KERNEL_VERSION(4, 18, 0));
         PROG_ENABLE_ONLY_IF(proc_io, bpf_raw_trace_sched_process_hang, is_load);
         PROG_ENABLE_ONLY_IF(proc_io, bpf_trace_sched_process_hang_func, !is_load);
     }
@@ -744,7 +752,14 @@ static int load_proc_cpu_prog(struct task_probe_s *task_probe, struct bpf_prog_s
     int ret = 0;
     struct bpf_buffer *buffer = NULL;
 
-    __LOAD_PROBE(cpu, err, is_load, buffer);
+    __OPEN_PROBE(cpu, err, is_load, buffer);
+    if (is_load) {
+        int is_attach_tp = (probe_kernel_version() >= KERNEL_VERSION(6, 4, 0));
+        PROG_ENABLE_ONLY_IF(cpu, bpf_raw_trace_sched_switch, is_attach_tp);
+        PROG_ENABLE_ONLY_IF(cpu, bpf_finish_task_switch, !is_attach_tp);
+    }
+    LOAD_ATTACH(taskprobe, cpu, err, is_load);
+
     if (is_load) {
         prog->skels[prog->num].skel = cpu_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)cpu_bpf__destroy;

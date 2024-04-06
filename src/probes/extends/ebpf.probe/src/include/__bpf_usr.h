@@ -21,11 +21,13 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 
+#ifndef PT_REGS_PARM6
 #if defined(__TARGET_ARCH_x86)
 #define PT_REGS_PARM6(x) ((x)->r9)
 #elif defined(__TARGET_ARCH_arm64)
 #define PT_REGS_ARM64 const volatile struct user_pt_regs
 #define PT_REGS_PARM6(x) (((PT_REGS_ARM64 *)(x))->regs[5])
+#endif
 #endif
 
 #define _(P)                                        \

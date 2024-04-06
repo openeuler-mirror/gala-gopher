@@ -78,10 +78,6 @@ static void submit_conn_data_user(void *ctx, struct session_data_args_s *args,
 {
     int bytes_sent = 0, bytes_remaining = 0, bytes_truncated = 0;
 
-    if (!args->buf) {
-        return;
-    }
-
     while (1) {
         bytes_remaining = (int)bytes_count - bytes_sent;
         bytes_truncated = (bytes_remaining > CONN_DATA_MAX_SIZE) ? CONN_DATA_MAX_SIZE : bytes_remaining;
@@ -244,7 +240,7 @@ err:
 
 void submit_sock_data_by_session(void *ctx, struct session_data_args_s *args)
 {
-    if (!args || !args->buf || args->buf[0] == 0 || args->bytes_count == 0) {
+    if (!args || args->buf[0] == 0 || args->bytes_count == 0) {
         return;
     }
 

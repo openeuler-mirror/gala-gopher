@@ -775,6 +775,10 @@ static int load_io_pagecache_probe(struct bpf_prog_s *prog, char is_load_pagecac
     prog->skels[prog->num].fn = (skel_destroy_fn)page_cache_bpf__destroy;
     prog->custom_btf_paths[prog->num] = page_cache_open_opts.btf_custom_path;
 
+    int is_load = (probe_kernel_version() >= KERNEL_VERSION(5, 16, 0));
+    PROG_ENABLE_ONLY_IF(page_cache, bpf_folio_account_dirtied, is_load);
+    PROG_ENABLE_ONLY_IF(page_cache, bpf_account_page_dirtied, !is_load);
+
     buffer = bpf_buffer__new(page_cache_skel->maps.page_cache_channel_map, page_cache_skel->maps.heap);
     if (buffer == NULL) {
         goto err;
@@ -822,7 +826,7 @@ static int load_io_scsi_probe(struct bpf_prog_s *prog, char scsi_probe)
     PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_scsi_done, is_load);
     PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_scsi_mq_done, is_load);
 
-    is_load = (kern_ver >= KERNEL_VERSION(4, 18, 0) && kern_ver <= KERNEL_VERSION(5, 14, 0));
+    is_load = (kern_ver >= KERNEL_VERSION(4, 18, 0));
     PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_raw_trace_scsi_dispatch_cmd_start, is_load);
     PROG_ENABLE_ONLY_IF(io_trace_scsi, bpf_raw_trace_scsi_dispatch_cmd_done, is_load);
 

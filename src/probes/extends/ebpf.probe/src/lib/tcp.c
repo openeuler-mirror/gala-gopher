@@ -642,13 +642,13 @@ int get_listen_sock_inode(struct tcp_listen_port *tlp, unsigned long *ino)
     }
     line[0] = 0;
     if (fgets(line, sizeof(line), f) == NULL) {
-        (void)fclose(f);
+        (void)pclose(f);
         return -1;
     }
     SPLIT_NEWLINE_SYMBOL(line);
     *ino = atoi(line);
 
-    (void)fclose(f);
+    (void)pclose(f);
     return 0;
 }
 
