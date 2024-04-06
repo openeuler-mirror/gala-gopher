@@ -77,6 +77,20 @@ static __always_inline int get_io_devt(struct request* req, int *major, int *min
     return 0;
 }
 
+static __always_inline struct request *scsi_cmd_to_request(struct scsi_cmnd *sc)
+{
+    struct request *req;
+
+    if (bpf_core_field_exists(((struct scsi_cmnd *)0)->request)) {
+        req = _(sc->request);
+    } else {
+        // same with scsi_cmd_to_rq() in kernel
+        req = (struct request *)(sc - bpf_core_type_size(struct request));
+    }
+
+    return req;
+}
+
 static __always_inline struct io_err_s* get_io_err(int major, int minor)
 {
     struct io_entity_s io_entity = {.major = major, .first_minor = minor};
@@ -237,7 +251,7 @@ KRAWTRACE(scsi_dispatch_cmd_error, bpf_raw_tracepoint_args)
         return 0;
     }
 
-    struct request* req = _(sc->request);
+    struct request* req = scsi_cmd_to_request(sc);
 
     if (get_io_devt(req, &major, &minor)) {
         return 0;

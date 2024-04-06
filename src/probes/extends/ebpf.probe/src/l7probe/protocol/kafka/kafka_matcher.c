@@ -79,7 +79,7 @@ match_req_resp(struct kafka_frame_s *req_frame, struct kafka_frame_s *resp_frame
         return NULL;
     }
 
-    struct kafka_record_s *r = (struct kafka_record_s *)malloc(sizeof(struct kafka_record_s));
+    struct kafka_record_s *r = (struct kafka_record_s *)calloc(1, sizeof(struct kafka_record_s));
     if (r == NULL) {
         ERROR("[Kafka Match] Malloc kafka record failed.\n");
         return NULL;

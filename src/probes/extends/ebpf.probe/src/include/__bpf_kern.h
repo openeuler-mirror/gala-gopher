@@ -36,6 +36,10 @@
     bpf_section("raw_tracepoint/" #func) \
     int bpf_raw_trace_##func(struct type *ctx)
 
+#define KPROBE_WITH_CONSTPROP(func, type) \
+    bpf_section("kprobe/" #func ".constprop.0") \
+    int bpf_constprop_##func(struct type *ctx)
+
 #if defined(__BTF_ENABLE_ON)
 #define _(P)                                   \
             ({                                         \
@@ -53,8 +57,9 @@
 #endif
 
 #if defined(__TARGET_ARCH_x86)
-
+#ifndef PT_REGS_PARM6
 #define PT_REGS_PARM6(x) ((x)->r9)
+#endif
 
 struct ia64_psr {
     __u64 reserved0 : 1;
@@ -99,8 +104,10 @@ struct ia64_psr {
 static __always_inline __maybe_unused char is_compat_task(struct task_struct *task) {return 0;}
 
 #elif defined(__TARGET_ARCH_arm64)
+#ifndef PT_REGS_PARM6
 #define PT_REGS_ARM64 const volatile struct user_pt_regs
 #define PT_REGS_PARM6(x) (((PT_REGS_ARM64 *)(x))->regs[5])
+#endif
 #define PSR_MODE_EL0t   0x00000000
 #define PSR_MODE_EL1t   0x00000004
 #define PSR_MODE_EL1h   0x00000005

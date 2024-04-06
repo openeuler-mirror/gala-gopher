@@ -108,4 +108,5 @@ KPROBE_PAGE_CACHE(mark_page_accessed, access_pagecache)
 KPROBE_PAGE_CACHE(mark_buffer_dirty, mark_buffer_dirty)
 KPROBE_PAGE_CACHE(add_to_page_cache_lru, load_page_cache)
 KPROBE_PAGE_CACHE(account_page_dirtied, mark_page_dirty)
+KPROBE_PAGE_CACHE(folio_account_dirtied, mark_page_dirty)
 

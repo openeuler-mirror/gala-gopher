@@ -189,4 +189,25 @@ KPROBE(tcp_clean_rtx_queue, pt_regs)
     return 0;
 }
 
+/*
+ * https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=e7ed11ee94
+ * This commit added a const type of param to tcp_clean_rtx_queue so that the function in
+ * /proc/kallsyms turns out to be tcp_clean_rtx_queue.constprop.0. But CONFIG_FPROBE is not
+ * set in openEuler so we directly kprobe to it.
+ */
+KPROBE_WITH_CONSTPROP(tcp_clean_rtx_queue, pt_regs)
+{
+    struct sock *sk;
+    struct sock_stats_s *sock_stats;
+
+    sk = (struct sock *)PT_REGS_PARM1(ctx);
+    sock_stats = (struct sock_stats_s *)bpf_map_lookup_elem(&tcp_link_map, &sk);
+    if (sock_stats == NULL) {
+        return 0;
+    }
+
+    process_send_finish(sk, sock_stats);
+    return 0;
+}
+
 char g_licence[] SEC("license") = "GPL";

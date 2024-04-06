@@ -961,6 +961,9 @@ static int tcp_load_probe_delay(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *pr
     __OPEN_PROBE_WITH_OUTPUT(tcp_delay, err, is_load, buffer);
 
     if (is_load) {
+        bool is_const = probe_kernel_version() > KERNEL_VERSION(5, 12, 0);
+        PROG_ENABLE_ONLY_IF(tcp_delay, bpf_constprop_tcp_clean_rtx_queue, is_const);
+        PROG_ENABLE_ONLY_IF(tcp_delay, bpf_tcp_clean_rtx_queue, !is_const);
         PROG_ENABLE_ONLY_IF(tcp_delay, bpf_tcp_recvmsg, probe_tstamp());
     }
 

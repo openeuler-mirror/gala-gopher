@@ -180,7 +180,29 @@ static __always_inline int update_conn_map_n_conn_samp_map(int fd, int tgid, str
     return init_conn_samp_data(sk);
 }
 
-// 关闭 tcp 连接
+/*
+ * https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/id=8760c909f5
+ * This commit rename __close_fd() to close_fd()
+*/
+KPROBE(close_fd, pt_regs)
+{
+    int fd;
+    u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;
+    struct conn_key_t conn_key = {0};
+    struct conn_data_t *conn_data;
+
+    fd = (int)PT_REGS_PARM2(ctx);
+    init_conn_key(&conn_key, fd, tgid);
+    conn_data = (struct conn_data_t *)bpf_map_lookup_elem(&conn_map, &conn_key);
+    if (conn_data == (void *)0) {
+        return 0;
+    }
+    bpf_map_delete_elem(&conn_samp_map, &conn_data->sk);
+    bpf_map_delete_elem(&conn_map, &conn_key);
+
+    return 0;
+}
+
 KPROBE(__close_fd, pt_regs)
 {
     int fd;
@@ -210,7 +232,7 @@ static __always_inline void parse_msg_to_redis_cmd(char msg_char, int *j, char *
                 *find_state = FIND_MSG_ERR_STOP;
             }
             break;
-            
+
         case FIND1_PARM_NUM:
             if (msg_char == '$') {
                 *find_state = FIND2_CMD_LEN;
@@ -226,7 +248,7 @@ static __always_inline void parse_msg_to_redis_cmd(char msg_char, int *j, char *
                 *find_state = FIND_MSG_OK_STOP;
                 break;
             }
-            if (msg_char >= 'a') 
+            if (msg_char >= 'a')
                 msg_char = msg_char - ('a'-'A');
             if (msg_char >= 'A' && msg_char <= 'Z') {
                 command[*j] = msg_char;
@@ -241,7 +263,7 @@ static __always_inline void parse_msg_to_redis_cmd(char msg_char, int *j, char *
         default:
             break;
     }
-    
+
     return;
 }
 
@@ -414,6 +436,24 @@ static __always_inline void process_rd_msg(u32 tgid, int fd, const char *buf, co
     return;
 }
 
+static __always_inline void process_sample_finish(struct conn_samp_data_t *csd, struct sock *sk)
+{
+    struct tcp_sock *tcp_sk = (struct tcp_sock *)sk;
+    u32 snd_una = _(tcp_sk->snd_una);
+
+    if (csd->status == SAMP_SKB_READY && csd->end_seq <= snd_una) {
+        u64 end_ts_nsec = bpf_ktime_get_ns();
+        if (end_ts_nsec < csd->start_ts_nsec) {
+            csd->status = SAMP_INIT;
+            csd->start_ts_nsec = 0;
+            return;
+        }
+        csd->rtt_ts_nsec = end_ts_nsec - csd->start_ts_nsec;
+        csd->status = SAMP_FINISHED;
+        csd->start_ts_nsec = 0;
+    }
+}
+
 bpf_section("tracepoint/syscalls/sys_enter_read")
 int function_sys_enter_read(struct sys_enter_read_args *ctx)
 {
@@ -432,7 +472,7 @@ int function_sys_enter_read(struct sys_enter_read_args *ctx)
         if (update_conn_map_n_conn_samp_map(fd, tgid, &conn_key) != SLI_OK)
             return 0;
     }
-    
+
     if (conn_data == (void *)0)
         return 0;
 
@@ -496,28 +536,24 @@ KPROBE(tcp_event_new_data_sent, pt_regs)
 
 KPROBE(tcp_clean_rtx_queue, pt_regs)
 {
-    struct sock *sk;
-    struct tcp_sock *tcp_sk;
-    u32 snd_una;
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     struct conn_samp_data_t *csd;
-
-    sk = (struct sock *)PT_REGS_PARM1(ctx);
-    tcp_sk = (struct tcp_sock *)sk;
-    snd_una = _(tcp_sk->snd_una);
 
     csd = (struct conn_samp_data_t *)bpf_map_lookup_elem(&conn_samp_map, &sk);
     if (csd != (void *)0) {
-        if (csd->status == SAMP_SKB_READY && csd->end_seq <= snd_una) {
-            u64 end_ts_nsec = bpf_ktime_get_ns();
-            if (end_ts_nsec < csd->start_ts_nsec) {
-                csd->status = SAMP_INIT;
-                csd->start_ts_nsec = 0;
-                return 0;
-            }
-            csd->rtt_ts_nsec = end_ts_nsec - csd->start_ts_nsec;
-            csd->status = SAMP_FINISHED;
-            csd->start_ts_nsec = 0;
-        }
+        process_sample_finish(csd, sk);
+    }
+    return 0;
+}
+
+KPROBE_WITH_CONSTPROP(tcp_clean_rtx_queue, pt_regs)
+{
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    struct conn_samp_data_t *csd;
+
+    csd = (struct conn_samp_data_t *)bpf_map_lookup_elem(&conn_samp_map, &sk);
+    if (csd != (void *)0) {
+        process_sample_finish(csd, sk);
     }
     return 0;
 }

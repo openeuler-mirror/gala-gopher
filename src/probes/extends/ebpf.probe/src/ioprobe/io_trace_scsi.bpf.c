@@ -21,6 +21,20 @@
 
 char g_linsence[] SEC("license") = "GPL";
 
+static __always_inline struct request *scsi_cmd_to_request(struct scsi_cmnd *sc)
+{
+    struct request *req;
+
+    if (bpf_core_field_exists(((struct scsi_cmnd *)0)->request)) {
+        req = _(sc->request);
+    } else {
+        // same with scsi_cmd_to_rq() in kernel
+        req = (struct request *)(sc - bpf_core_type_size(struct request));
+    }
+
+    return req;
+}
+
 /*
  * Raw tracepoint defined in modules is not supported in this version, so use kprobe as hook instead.
  *    scsi_dispatch_cmd_start --> scsi_dispatch_cmd()
@@ -111,7 +125,7 @@ KRAWTRACE(scsi_dispatch_cmd_start, bpf_raw_tracepoint_args)
         return 0;
     }
 
-    struct request* req = _(sc->request);
+    struct request* req = scsi_cmd_to_request(sc);
 
     io_trace = lkup_io_trace(req);
     if (io_trace == NULL) {
@@ -131,7 +145,7 @@ KRAWTRACE(scsi_dispatch_cmd_done, bpf_raw_tracepoint_args)
         return 0;
     }
 
-    struct request* req = _(sc->request);
+    struct request* req = scsi_cmd_to_request(sc);
 
     io_trace = lkup_io_trace(req);
     if (io_trace == NULL) {

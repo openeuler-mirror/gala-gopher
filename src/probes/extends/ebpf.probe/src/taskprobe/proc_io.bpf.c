@@ -135,7 +135,19 @@ static __always_inline void start_bio(void *ctx, u32 proc_id, struct bio *bio)
     return;
 }
 
-KRAWTRACE(block_bio_queue, bpf_raw_tracepoint_args)
+bpf_section("raw_tracepoint/block_bio_queue") \
+int bpf_raw_trace_block_bio_queue_single_arg(struct bpf_raw_tracepoint_args* ctx)
+{
+    struct bio *bio = (struct bio*)ctx->args[0];
+    u32 proc_id = bpf_get_current_pid_tgid() >> INT_LEN;
+
+    start_bio(ctx, proc_id, bio);
+
+    return 0;
+}
+
+bpf_section("raw_tracepoint/block_bio_queue") \
+int bpf_raw_trace_block_bio_queue_double_arg(struct bpf_raw_tracepoint_args* ctx)
 {
     struct bio *bio = (struct bio*)ctx->args[1];
     u32 proc_id = bpf_get_current_pid_tgid() >> INT_LEN;

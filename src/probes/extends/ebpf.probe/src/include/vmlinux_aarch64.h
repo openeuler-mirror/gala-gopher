@@ -25092,6 +25092,59 @@ typedef struct {
 	long unsigned int val;
 } swp_entry_t;
 
+struct folio {
+	union {
+		struct {
+			long unsigned int flags;
+			union {
+				struct list_head lru;
+				struct {
+					void *__filler;
+					unsigned int mlock_count;
+				};
+			};
+			struct address_space *mapping;
+			long unsigned int index;
+			union {
+				void *private;
+				swp_entry_t swap;
+			};
+			atomic_t _mapcount;
+			atomic_t _refcount;
+			long unsigned int memcg_data;
+		};
+		struct page page;
+	};
+	union {
+		struct {
+			long unsigned int _flags_1;
+			long unsigned int _head_1;
+			long unsigned int _folio_avail;
+			atomic_t _entire_mapcount;
+			atomic_t _nr_pages_mapped;
+			atomic_t _pincount;
+			unsigned int _folio_nr_pages;
+		};
+		struct page __page_1;
+	};
+	union {
+		struct {
+			long unsigned int _flags_2;
+			long unsigned int _head_2;
+			void *_hugetlb_subpool;
+			void *_hugetlb_cgroup;
+			void *_hugetlb_cgroup_rsvd;
+			void *_hugetlb_hwpoison;
+		};
+		struct {
+			long unsigned int _flags_2a;
+			long unsigned int _head_2a;
+			struct list_head _deferred_list;
+		};
+		struct page __page_2;
+	};
+};
+
 enum {
 	BIO_NO_PAGE_REF = 0,
 	BIO_CLONED = 1,

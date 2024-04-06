@@ -214,7 +214,7 @@ static struct files_queue_s *create_queue()
 
 static void destroy_queue(struct files_queue_s *files_que)
 {
-    if (!files_que) {
+    if (files_que) {
         (void)pthread_rwlock_destroy(&(files_que->rwlock));
         free(files_que);
     }
@@ -690,7 +690,7 @@ static void check_file_state(struct logger *logger)
 
 static void write_log(const char *msg, struct logger *logger)
 {
-    if ((logger == NULL) || (!logger->full_path_name)) {
+    if (logger == NULL) {
         return;
     }
     // check file if overflowed
