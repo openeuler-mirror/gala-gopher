@@ -51,15 +51,13 @@ struct probe_define_s probe_define[] = {
     {"redis_sli",           "/opt/gala-gopher/extend_probes/redissli",            PROBE_REDIS_SLI},
     {"postgre_sli",         "/opt/gala-gopher/extend_probes/pgsliprobe",          PROBE_POSTGRE_SLI},
     {"opengauss_sli",       "/opt/gala-gopher/extend_probes/pg_stat_probe.py",    PROBE_GAUSS_SLI},
-    {"dnsmasq",             "/opt/gala-gopher/extend_probes/rabbitmq_probe.sh",   PROBE_DNSMASQ},
-    {"lvs",                 "/opt/gala-gopher/extend_probes/trace_lvs",           PROBE_LVS},
+    {"dnsmasq",             "/opt/gala-gopher/extend_probes/trace_dnsmasq",       PROBE_DNSMASQ},
     {"nginx",               "/opt/gala-gopher/extend_probes/nginx_probe",         PROBE_NGINX},
     {"haproxy",             "/opt/gala-gopher/extend_probes/trace_haproxy",       PROBE_HAPROXY},
     {"kafka",               "/opt/gala-gopher/extend_probes/kafkaprobe",          PROBE_KAFKA},
     {"tprofiling",          "/opt/gala-gopher/extend_probes/tprofiling",          PROBE_TP},
     {"hw",                  "/opt/gala-gopher/extend_probes/hwprobe",             PROBE_HW},
     {"ksli",                "/opt/gala-gopher/extend_probes/ksliprobe",           PROBE_KSLI},
-    {"sched",               "/opt/gala-gopher/extend_probes/schedprobe",          PROBE_SCHED},
     {"container",           "/opt/gala-gopher/extend_probes/cadvisor_probe.py",   PROBE_CONTAINER},
     {"sermant",             "/opt/gala-gopher/extend_probes/sermant_probe.py",    PROBE_SERMANT}
 
@@ -127,9 +125,6 @@ struct probe_range_define_s probe_range_define[] = {
 
     {PROBE_HW,     "hw_nic",              PROBE_RANGE_HW_NIC},
     {PROBE_HW,     "hw_mem",              PROBE_RANGE_HW_MEM},
-
-    {PROBE_SCHED,  "sched_systime",       PROBE_RANGE_SCHED_SYSTIME},
-    {PROBE_SCHED,  "sched_syscall",       PROBE_RANGE_SCHED_SYSCALL},
 
     {PROBE_SERMANT, "l7_bytes_metrics", PROBE_RANGE_SERMANT_BYTES_METRICS},
     {PROBE_SERMANT, "l7_rpc_metrics",   PROBE_RANGE_SERMANT_RPC_METRICS},

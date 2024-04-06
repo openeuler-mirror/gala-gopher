@@ -37,6 +37,8 @@ function load_tailor()
         eval `cat ${TAILOR_PATH_TMP}`
         rm -rf ${TAILOR_PATH_TMP}
     fi
+
+    export EXTEND_PROBES="$EXTEND_PROBES cgprobe lvsprobe schedprobe nsprobe rabbitmq.probe redis_client.probe redis.probe"
 }
 
 function install_daemon_bin()

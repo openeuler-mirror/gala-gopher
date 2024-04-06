@@ -30,8 +30,6 @@ LIBBPF_VER_MINOR=$(echo ${LIBBPF_VER} | awk -F'.' '{print $2}')
 
 DEFAULT_BUILD_OPTS="-DFLAMEGRAPH_SVG=1"
 
-export VMLINUX_VER="${2:-$(uname -r)}"
-
 function load_tailor()
 {
     if [ -f ${TAILOR_PATH} ]; then
@@ -44,6 +42,8 @@ function load_tailor()
 
         rm -rf ${TAILOR_PATH_TMP}
     fi
+    # disable some probes that work not very well
+    export EXTEND_PROBES="$EXTEND_PROBES cgprobe lvsprobe schedprobe nsprobe rabbitmq.probe redis_client.probe redis.probe"
 }
 
 function __get_probes_source_files()
@@ -291,7 +291,7 @@ if [ "$1" == "--check" ]; then
 fi
 
 if [ "$1" = "--release" ];then
-    shift;shift;
+    shift;
     load_tailor
     prepare_probes
     compile_lib || exit 1
@@ -302,7 +302,7 @@ if [ "$1" = "--release" ];then
 fi
 
 if [ "$1" = "--debug" ];then
-    shift;shift;
+    shift;
     load_tailor
     prepare_probes
     compile_lib || exit 1
