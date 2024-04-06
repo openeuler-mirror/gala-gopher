@@ -8,10 +8,9 @@ PROBES_PATH_LIST=`find ${PROJECT_FOLDER}/src/probes -maxdepth 1 | grep ".probe\>
 EXT_PROBE_FOLDER=${PROJECT_FOLDER}/src/probes/extends
 PROBE_MNG_FOLDER=${PROJECT_FOLDER}/src/lib/probe
 JVM_FOLDER=${PROJECT_FOLDER}/src/lib/jvm
-BPFTOOL_FOLDER=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/tools
 VMLINUX_DIR=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/src/include
 EXT_PROBE_BUILD_LIST=`find ${EXT_PROBE_FOLDER} -maxdepth 2 | grep "\<build.sh\>"`
-DEP_LIST=(cmake git librdkafka-devel libconfig-devel uthash-devel libbpf-devel clang
+DEP_LIST=(cmake git librdkafka-devel libconfig-devel uthash-devel libbpf-devel clang bpftool
           llvm java-1.8.0-openjdk-devel jsoncpp-devel libcurl-devel openssl-devel libevent-devel)
 PROBES_LIST=""
 PROBES_C_LIST=""
@@ -60,30 +59,8 @@ function __get_probes_source_files()
     done
 }
 
-function __add_bpftool()
-{
-    cd ${BPFTOOL_FOLDER}
-    if [ -f "bpftool" ];then
-        echo "bpftool has existed."
-        return $?
-    fi
-	ARCH=$(uname -m)
-    LIBBPF_MAJOR=`rpm -qa | grep libbpf-devel | awk -F'-' '{print $3}' | awk -F'.' '{print $1}'`
-    LIBBPF_MINOR=`rpm -qa | grep libbpf-devel | awk -F'-' '{print $3}' | awk -F'.' '{print $2}'`
-    chmod a+x bpftool_v6.8.0/*
-    chmod a+x bpftool*
-    if [ "$LIBBPF_MAJOR" -gt 0 ];then
-        ln -s bpftool_v6.8.0/bpftool_${ARCH} bpftool
-    elif [ "$LIBBPF_MINOR" -ge 8 ];then
-        ln -s bpftool_v6.8.0/bpftool_${ARCH} bpftool
-    else
-        ln -s bpftool_${ARCH} bpftool
-    fi
-}
-
 function __build_bpf()
 {
-	__add_bpftool
     cd ${PROBE_MNG_FOLDER}
     make
 }

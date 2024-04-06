@@ -33,7 +33,7 @@ License:       Mulan PSL v2
 URL:           https://gitee.com/openeuler/gala-gopher
 Source:        %{name}-%{version}.tar.gz
 BuildRoot:     %{_builddir}/%{name}-%{version}
-BuildRequires: systemd cmake gcc-c++ elfutils-devel (clang >= 10.0.1 or clang12) llvm
+BuildRequires: systemd cmake gcc-c++ elfutils-devel (clang >= 10.0.1 or clang12) llvm bpftool >= 6.8
 BuildRequires: libconfig-devel libevent-devel openssl-devel libbpf-devel >= 2:0.8 uthash-devel
 BuildRequires: jsoncpp-devel git libstdc++-devel
 # for DT
@@ -171,7 +171,7 @@ fi
 %attr(0550,root,root) %{_bindir}/*
 %attr(0550,root,root) /opt/gala-gopher/extend_probes/*
 %attr(0640,root,root) /opt/gala-gopher/meta/*
-%attr(0640,root,root) /opt/gala-gopher/btf/*
+#%attr(0640,root,root) /opt/gala-gopher/btf/*
 %attr(0550,root,root) /opt/gala-gopher/lib/*
 %attr(0640,root,root) /etc/gala-gopher/res/event_multy_language.rc
 %attr(0640,root,root) %config(noreplace) /etc/gala-gopher/probes.init

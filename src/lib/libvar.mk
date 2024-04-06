@@ -4,8 +4,7 @@ Q = @
 
 CLANG ?= clang
 LLVM_STRIP ?= llvm-strip
-BPFTOOL ?= $(ROOT_DIR)/../probes/extends/ebpf.probe/tools/bpftool
-TOOL_DIR ?= $(ROOT_DIR)/../probes/extends/ebpf.probe/tools
+BPFTOOL ?= bpftool
 VMLINUX ?= $(ROOT_DIR)/../probes/extends/ebpf.probe/src/include/vmlinux.h
 LIBBPF_DIR = $(ROOT_DIR)/.output
 LIBELF_DIR = /usr/include/libelf

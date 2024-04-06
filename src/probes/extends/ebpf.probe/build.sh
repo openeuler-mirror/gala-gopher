@@ -3,32 +3,11 @@ ARCH=$(uname -m)
 PROGRAM=$0
 PRJ_DIR=$(dirname $(readlink -f "$0"))
 
-TOOLS_DIR=${PRJ_DIR}/tools
 SRC_DIR=${PRJ_DIR}/src
 VMLINUX_DIR=${SRC_DIR}/include
-LINUX_VER="${VMLINUX_VER:-$(uname -r)}"
-DEP_LIST=(elfutils-devel libbpf libbpf-devel llvm libstdc++ libstdc++-devel)
+DEP_LIST=(elfutils-devel libbpf libbpf-devel llvm libstdc++ libstdc++-devel bpftool)
 # tailor probes
 export EBPF_TAILOR_PROBES=$(for probe in ${EXTEND_PROBES//|/ } ; do printf "./%s/ " $probe; done)
-
-function add_bpftool()
-{
-    cd ${TOOLS_DIR}
-    if [ -f "bpftool" ];then
-        echo "bpftool has existed."
-        return $?
-    fi
-
-    LIBBPF_MAJOR=`rpm -qa | grep libbpf-devel | awk -F'-' '{print $3}' | awk -F'.' '{print $1}'`
-    LIBBPF_MINOR=`rpm -qa | grep libbpf-devel | awk -F'-' '{print $3}' | awk -F'.' '{print $2}'`
-    if [ "$LIBBPF_MAJOR" -gt 0 ];then
-        ln -s bpftool_v6.8.0/bpftool_${ARCH} bpftool
-    elif [ "$LIBBPF_MINOR" -ge 8 ];then
-        ln -s bpftool_v6.8.0/bpftool_${ARCH} bpftool
-    else
-        ln -s bpftool_${ARCH} bpftool
-    fi
-}
 
 function check_dep()
 {
@@ -42,8 +21,8 @@ function check_dep()
 
     rpm -q clang --quiet || rpm -q clang12 --quiet
     if [ $? -ne 0 ];then
-            echo "Error: clang and clang12 not installed"
-            exit 1
+        echo "Error: clang and clang12 not installed"
+        exit 1
     fi
 
     V=`clang --version | grep version | awk -F ' ' '{print $3}' | awk -F . '{print $1}'`
@@ -86,8 +65,6 @@ then
     check_dep
     exit
 fi
-
-add_bpftool
 
 if [ "$1" == "-b"  -o  "$1" == "--build" ];
 then
