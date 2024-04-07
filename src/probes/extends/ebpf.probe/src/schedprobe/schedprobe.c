@@ -308,7 +308,7 @@ static void refresh_proc_filter_map(struct ipc_body_s *ipc_body)
         return;
     }
 
-    while (bpf_map_get_next_key(fd, &key, &next_key) != -1) {
+    while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
         (void)bpf_map_delete_elem(fd, &next_key);
         key = next_key;
     }

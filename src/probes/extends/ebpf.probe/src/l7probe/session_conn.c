@@ -156,7 +156,7 @@ static int find_session_sock(struct l7_mng_s *l7_mng, struct session_data_args_s
     struct sock_conn_s sock_conn = {0};
     int conn_tbl_fd = l7_mng->bpf_progs.conn_tbl_fd;
 
-    while (bpf_map_get_next_key(conn_tbl_fd, &key, &next_key) != -1) {
+    while (bpf_map_get_next_key(conn_tbl_fd, &key, &next_key) == 0) {
         if (bpf_map_lookup_elem(conn_tbl_fd, &next_key, &sock_conn) != 0) {
             key = next_key;
             continue;

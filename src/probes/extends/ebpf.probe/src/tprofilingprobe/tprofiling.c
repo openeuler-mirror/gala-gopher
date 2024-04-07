@@ -330,7 +330,7 @@ static void java_symb_mgmt(int proc_filter_map_fd)
     (void)snprintf(args.agent_file_name, FILENAME_LEN, JAVA_SYM_AGENT_FILE);
     (void)snprintf(args.tmp_file_name, FILENAME_LEN, JAVA_SYM_FILE);
 
-    while (bpf_map_get_next_key(proc_filter_map_fd, &key, &next_key) != -1) {
+    while (bpf_map_get_next_key(proc_filter_map_fd, &key, &next_key) == 0) {
         comm[0] = 0;
         if (!detect_proc_is_java(next_key.proc_id, comm, TASK_COMM_LEN)) {
             key = next_key;
@@ -408,7 +408,7 @@ static void refresh_proc_filter_map(struct ipc_body_s *ipc_body)
     struct py_proc_data py_proc_data;
     int i;
 
-    while (bpf_map_get_next_key(tprofiler.procFilterMapFd, &key, &next_key) != -1) {
+    while (bpf_map_get_next_key(tprofiler.procFilterMapFd, &key, &next_key) == 0) {
         (void)bpf_map_delete_elem(tprofiler.procFilterMapFd, &next_key);
         key = next_key;
     }

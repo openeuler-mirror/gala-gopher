@@ -81,7 +81,7 @@ static int l7_load_jsse_agent(struct l7_mng_s *l7_mng, struct java_attach_args *
     struct obj_ref_s obj;
     char comm[TASK_COMM_LEN];
 
-    while (bpf_map_get_next_key(g_proc_obj_map_fd, &key, &next_key) != -1) {
+    while (bpf_map_get_next_key(g_proc_obj_map_fd, &key, &next_key) == 0) {
         if (bpf_map_lookup_elem(g_proc_obj_map_fd, &next_key, &obj) != 0) {
             key = next_key;
             continue;

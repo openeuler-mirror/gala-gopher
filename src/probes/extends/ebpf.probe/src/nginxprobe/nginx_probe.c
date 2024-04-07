@@ -77,7 +77,7 @@ static void pull_probe_data(int map_fd, int statistic_map_fd)
     unsigned char c_ip_str[INET6_ADDRSTRLEN];
     unsigned char c_local_ip_str[INET6_ADDRSTRLEN];
 
-    while (bpf_map_get_next_key(map_fd, &key, &next_key) != -1) {
+    while (bpf_map_get_next_key(map_fd, &key, &next_key) == 0) {
         ret = bpf_map_lookup_elem(map_fd, &next_key, &data);
         if (ret == 0) {
             ip_str(data.src_ip.family, (unsigned char *)&data.src_ip, c_ip_str, INET6_ADDRSTRLEN);
@@ -119,7 +119,7 @@ static void print_statistic_map(int fd)
 
     char *colon = NULL;
 
-    while (bpf_map_get_next_key(fd, &k, &nk) != -1) {
+    while (bpf_map_get_next_key(fd, &k, &nk) == 0) {
         ret = bpf_map_lookup_elem(fd, &nk, &d);
         if (ret == 0) {
             ip_str(nk.family, (unsigned char *)&(nk.cip), cip_str, INET6_ADDRSTRLEN);
