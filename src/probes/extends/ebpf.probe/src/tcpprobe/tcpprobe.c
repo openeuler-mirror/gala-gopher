@@ -168,7 +168,7 @@ static void empty_tcp_fd_map(int map_fd)
 {
     u32 key = 0, next_key = 0;
 
-    while (bpf_map_get_next_key(map_fd, &key, &next_key) != -1) {
+    while (bpf_map_get_next_key(map_fd, &key, &next_key) == 0) {
         (void)bpf_map_delete_elem(map_fd, &next_key);
         key = next_key;
     }

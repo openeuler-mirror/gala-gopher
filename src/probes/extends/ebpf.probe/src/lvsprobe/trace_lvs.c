@@ -154,7 +154,7 @@ static void print_ipvs_collect(int map_fd)
     unsigned char loc_ip_str[INET6_ADDRSTRLEN];
     unsigned char src_ip_str[INET6_ADDRSTRLEN];
 
-    while (bpf_map_get_next_key(map_fd, &key, &next_key) != -1) {
+    while (bpf_map_get_next_key(map_fd, &key, &next_key) == 0) {
         ret = bpf_map_lookup_elem(map_fd, &next_key, &value);
         if (ret == 0) {
             ip_str(next_key.family, (unsigned char *)&(next_key.c_addr), cli_ip_str, INET6_ADDRSTRLEN);

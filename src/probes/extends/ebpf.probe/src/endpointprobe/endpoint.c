@@ -690,7 +690,7 @@ static void reload_listen_map(struct endpoint_probe_s *probe)
     struct tcp_listen_key_s nk = {0};
     struct tcp_listen_s *listen, *tmp;
 
-    while (bpf_map_get_next_key(probe->listen_port_fd, &k, &nk) != -1) {
+    while (bpf_map_get_next_key(probe->listen_port_fd, &k, &nk) == 0) {
         (void)bpf_map_lookup_elem(probe->listen_port_fd, &nk, &value);
         (void)bpf_map_delete_elem(probe->listen_port_fd, &nk);
     }
