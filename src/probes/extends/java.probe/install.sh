@@ -37,10 +37,7 @@ if ! [[ $JAVA_TAILOR_PROBES =~ "stackprobe" ]] ; then
     INSTALL_FILES+=" jstack.probe/JstackPrinter.jar"
 fi
 
-if [ ${INSTALL_PATH} ]; then
-    mkdir -p ${INSTALL_PATH}
-    for file in ${INSTALL_FILES}; do
-        cp ${file} ${INSTALL_PATH}
-    done
-fi
-
+mkdir -p ${INSTALL_PATH}
+for file in ${INSTALL_FILES}; do
+    cp ${file} ${INSTALL_PATH}
+done

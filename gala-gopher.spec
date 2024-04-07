@@ -1,7 +1,5 @@
 %define __os_install_post %{nil}
 
-%define vmlinux_ver 5.10.0-126.0.0.66.oe2203.%{_arch}
-
 %define without_flamegraph    0
 %define without_cadvisor      0
 %define without_jvm           0
@@ -125,7 +123,7 @@ BUILD_OPTS=(
 
 pushd build
 export PATH=$PATH:/usr/lib64/llvm12/bin
-sh build.sh --debug %{vmlinux_ver} "${BUILD_OPTS[@]}"
+sh build.sh --debug "${BUILD_OPTS[@]}"
 popd
 
 %check

@@ -22,7 +22,7 @@ for probe_dir in $(ls $PRJ_DIR | grep ".probe$") ; do
     fi
 done
 
-if [ ${INSTALL_PATH} ]; then
-    mkdir -p ${INSTALL_PATH}
+mkdir -p ${INSTALL_PATH}
+if [ ! -n ${INSTALL_FILES} ] ; then
     \cp ${INSTALL_FILES} ${INSTALL_PATH}
 fi

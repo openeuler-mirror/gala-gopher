@@ -29,17 +29,13 @@ done
 # copy ipc.py to /opt/gala-gopher/extend_probes/
 INSTALL_FILES+=" ${PRJ_DIR}/common/*.py"
 
-if [ ${INSTALL_PATH} ]; then
-    mkdir -p ${INSTALL_PATH}
-    # copy to specify dir
-    for file in ${INSTALL_FILES}; do
-        cp ${file} ${INSTALL_PATH}
-    done
-fi
+mkdir -p ${INSTALL_PATH}
+# copy to specify dir
+for file in ${INSTALL_FILES}; do
+    cp ${file} ${INSTALL_PATH}
+done
 
-if [ ${CONF_PATH} ]; then
-    mkdir -p ${CONF_PATH}
-    for file in ${CONF_FILES}; do
-        cp ${file} ${CONF_PATH}
-    done
-fi
+mkdir -p ${CONF_PATH}
+for file in ${CONF_FILES}; do
+    cp ${file} ${CONF_PATH}
+done
