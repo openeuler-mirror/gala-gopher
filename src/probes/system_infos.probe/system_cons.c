@@ -26,7 +26,7 @@
 #include "system_cons.h"
 
 #define METRICS_CON_IO_NAME "system_con_io"
-#define PROC_DIR_IO         "du -sb %s/%s 2> /dev/null"
+#define PROC_DIR_IO         "/usr/bin/du -sb %s/%s 2> /dev/null"
 
 static con_hash_t *g_conmap = NULL;
 static u64 g_proc_write_bytes_to_dir;        // FROM 'du -sb /proc/<pid>/root/<dir>'
@@ -120,7 +120,7 @@ static con_hash_t* init_one_con(const char *con_id, char *dir_str)
     (void)memset(item, 0, sizeof(con_hash_t));
 
     container_root[0] = 0;
-    ret = get_container_merged_path((const char *)con_id, container_root, PATH_LEN);
+    ret = get_container_root_path((const char *)con_id, container_root, PATH_LEN);
     if (ret != 0) {
         free(item);
         return NULL;
@@ -165,7 +165,7 @@ int refresh_con_filter_map(struct ipc_body_s *ipc_body)
         container = &(ipc_body->snooper_objs[i].obj.con_info);
         p = hash_find_con((const char *)container->con_id);
         if (p == NULL) {
-            item = init_one_con((const char *)container->con_id, ipc_body->probe_param.svg_dir);
+            item = init_one_con((const char *)container->con_id, ipc_body->probe_param.elf_path);
             if (item == NULL) {
                 ERROR("[SYSTEM_PROBE] init container(%s) failed\n", container->con_id);
                 continue;

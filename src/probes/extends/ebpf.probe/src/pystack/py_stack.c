@@ -126,7 +126,7 @@ static int get_real_path(const char *orig_path, char *real_path, int real_path_s
     // consider that the process may runs in container
     pid_root_path[0] = 0;
     if (container_id[0] != 0) {
-        ret = get_container_merged_path(container_id, pid_root_path, sizeof(pid_root_path));
+        ret = get_container_root_path(container_id, pid_root_path, sizeof(pid_root_path));
         if (ret) {
             return ret;
         }

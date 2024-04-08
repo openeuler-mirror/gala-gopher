@@ -87,7 +87,7 @@ static int __do_get_glibc_path_container(const char *container_id, char *path, u
     glibc_path[0] = 0;
     glibc_abs_path[0] = 0;
 
-    ret = get_container_merged_path(container_id, container_abs_path, PATH_LEN);
+    ret = get_container_root_path(container_id, container_abs_path, PATH_LEN);
     if (ret < 0)
         return ret;
 
@@ -169,7 +169,7 @@ static int __do_get_path_from_container(const char *binary_file, const char *con
     char syspath[PATH_LEN] = {0};
     char container_abs_path[PATH_LEN] = {0};
 
-    ret = get_container_merged_path(container_id, container_abs_path, PATH_LEN);
+    ret = get_container_root_path(container_id, container_abs_path, PATH_LEN);
     if (ret < 0) {
         INFO("get container merged_path fail.\n");
         return ret;
