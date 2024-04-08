@@ -31,7 +31,6 @@ ebpf.probe是一个bpf探针程序的开发框架，定义了一些开发规范�
 │       ├── xxprobe.c			# 探针用户态BPF程序
 │       └── xxprobe.h			# 相关头文件
 └── tools					# 工具目录
-    ├── bpftool				# bpftool工具，用于生成vmlinux.h/BPF skeletons头文件
     └── gen_vmlinux_h.sh		# 自动生成vmlinux.h
 ```
 ## 如何编译
@@ -116,7 +115,7 @@ cp tcpprobe/tcpprobe killprobe/killprobe  /usr/bin/extends/ebpf.probe
    -rw-r--r--. 1 root root 2.7K Apr 24 03:57 Makefile
    drwxr-xr-x. 2 root root 4.0K Apr 24 05:33 tcpprobe
    [root@localhost src]#
-   
+
    # 2 Makefile中增加killprobe探针, killprobe/killprobe /前为探针目录名，/后为探针名称（编译完成后，探针名称即为执行程序名）；
    [root@localhost src]# vim Makefile
    # add probe
@@ -147,7 +146,7 @@ cp tcpprobe/tcpprobe killprobe/killprobe  /usr/bin/extends/ebpf.probe
       #endif
       #define BPF_PROG_KERN
       #include "bpf.h"        *SDK 头文件*
-      
+
       // kprobe/kretprobe/raw_trace 三种观测方式对应的API
       #define KPROBE(func, type)  // func 内核探针，BPF程序ctx类型
       #define KRETPROBE(func, type)  // func 内核探针，BPF程序ctx类型
@@ -155,12 +154,12 @@ cp tcpprobe/tcpprobe killprobe/killprobe  /usr/bin/extends/ebpf.probe
       举例：KPROBE(__x64_sys_kill, pt_regs) // 针对内核__x64_sys_kill完成kprobe方式观测
       // 观测点读取参数API
       PT_REGS_PARM1/2/3...6
-      
+
       // 内核同一个观测点，同时完成kprobe/kretprobe的API
       #define KPROBE_RET(func, type)
       举例：KPROBE_RET(tcp_v4_inbound_md5_hash, pt_regs) // 针对内核tcp_v4_inbound_md5_hash同时kprobe/kretprobe。
       这种API一般用于观测点需要同时观测入参、返回值。
-      
+
       // 同时观测kprobe/kretprobe对应的读参API
       #define PROBE_GET_PARMS(func, ctx, probe_val, caller_type)
       #define PROBE_PARM1(probe_val)
@@ -199,15 +198,15 @@ cp tcpprobe/tcpprobe killprobe/killprobe  /usr/bin/extends/ebpf.probe
    #ifdef BPF_PROG_KERN
    #undef BPF_PROG_KERN
    #endif
-   
+
    #ifdef BPF_PROG_USER
    #undef BPF_PROG_USER
    #endif
-   
+
    #include "bpf.h"  // SDK头文件
-   
+
    #include "XX.skel.h"  // xx探针
-   
+
    #define LOAD(probe_name) // 加载XX探针的BPF程序
    #define UNLOAD(probe_name) // 卸载XX探针的BPF程序
    #define GET_MAP_OBJ(map_name) //根据MAP名称GET MAP对象
@@ -237,7 +236,7 @@ cp tcpprobe/tcpprobe killprobe/killprobe  /usr/bin/extends/ebpf.probe
    drwxr-xr-x 2 root root 4.0K Nov 27 09:23 lvsprobe
    -rw-r--r-- 1 root root 3.0K Nov 27 09:23 Makefile
    drwxr-xr-x 2 root root 4.0K Nov 27 14:33 nginxprobe
-   
+
    # 2 Makefile中增加nginxprobe探针, nginxprobe/nginx_probe /前为探针目录名，/后为探针名称（编译完成后，探针名称即为执行程序名）；
    [root@localhost src]# vim Makefile
    # add probe
@@ -271,18 +270,18 @@ cp tcpprobe/tcpprobe killprobe/killprobe  /usr/bin/extends/ebpf.probe
       #endif
       #define BPF_PROG_USER
       #include "bpf.h"        *SDK 头文件*
-      
+
       // uprobe/uretprobe 两种观测方式对应的API
       #define UPROBE(func, type)  // 用户态程序需要观测的function，BPF程序ctx类型
       #define URETPROBE(func, type)  // 用户态程序需要观测的function，BPF程序ctx类型
       举例：UPROBE(ngx_close_connection, pt_regs) // 针对Nginx观测connection关闭行为
       // 观测点读取参数API
       PT_REGS_PARM1/2/3...6
-      
+
       // 内核同一个观测点，同时完成uprobe/uretprobe的API
       #define UPROBE_RET(func, type, prog_id)
       这种API一般用于观测点需要同时观测入参、返回值。
-      
+
       // 同时观测uprobe/uretprobe对应的读参API
       #define PROBE_GET_PARMS(func, ctx, probe_val, prog_id)
       #define PROBE_PARM1(probe_val)
@@ -323,22 +322,22 @@ cp tcpprobe/tcpprobe killprobe/killprobe  /usr/bin/extends/ebpf.probe
    #ifdef BPF_PROG_KERN
    #undef BPF_PROG_KERN
    #endif
-   
+
    #ifdef BPF_PROG_USER
    #undef BPF_PROG_USER
    #endif
-   
+
    #include "bpf.h"  // SDK头文件
-   
+
    #include "XX.skel.h"  // xx探针
-   
+
    #define LOAD(probe_name) // 加载XX探针的BPF程序
    #define UNLOAD(probe_name) // 卸载XX探针的BPF程序
    #define GET_MAP_OBJ(map_name) //根据MAP名称GET MAP对象
    #define GET_MAP_FD(map_name)  //根据MAP名称GET MAP ID
    #define GET_PROG_FD(prog_name) //根据程序名称（观测点）GET PROG ID
-   
-   
+
+
    #define UBPF_ATTACH(probe_name,proc_name,func_name,error)
    #define UBPF_RET_ATTACH(probe_name,proc_name,func_name,error)
    例如：

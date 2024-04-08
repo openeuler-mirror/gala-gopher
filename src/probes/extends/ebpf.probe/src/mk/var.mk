@@ -4,8 +4,7 @@ Q = @
 
 CLANG ?= clang
 LLVM_STRIP ?= llvm-strip
-BPFTOOL ?= $(ROOT_DIR)/../../tools/bpftool
-TOOL_DIR ?= $(ROOT_DIR)/../../tools
+BPFTOOL ?= bpftool
 VMLINUX ?= $(ROOT_DIR)/../include/vmlinux.h
 INCLUDE_DIR ?= $(ROOT_DIR)/../include
 LIBBPF_DIR = $(ROOT_DIR)/../.output
@@ -33,13 +32,6 @@ LIBBPF_VER_MINOR = $(shell echo $(LIBBPF_VER) | awk -F'.' '{print $$2}')
 
 CLANG_VER = $(shell clang --version | head -n 1 | awk -F ' ' '{print $$3}')
 CLANG_VER_MAJOR = $(shell echo $(CLANG_VER) | awk -F '.' '{print $$1}')
-
-ifeq ($(wildcard $(BPFTOOL)), )
-    $(shell cd $(TOOL_DIR); \
-    if [ $(LIBBPF_VER_MAJOR) -gt 0 ]; then ln -s bpftool_v6.8.0/bpftool_${ARCH} bpftool; \
-    elif [ $(LIBBPF_VER_MINOR) -ge 8 ]; then ln -s bpftool_v6.8.0/bpftool_${ARCH} bpftool; \
-    else ln -s bpftool_${ARCH} bpftool; fi; )
-endif
 
 BTF_ENABLE = $(shell if [ -n "$(BTF_ENABLE_OVERRIDE)" ]; then echo "$(BTF_ENABLE_OVERRIDE)"; elif [ -f /sys/kernel/btf/vmlinux ]; then echo "ON" ; else echo "OFF"; fi)
 
