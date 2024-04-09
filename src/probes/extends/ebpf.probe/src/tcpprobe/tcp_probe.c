@@ -352,7 +352,7 @@ static void reset_tcp_abn_stats(struct tcp_tracker_s *tracker)
                                             TIME_OUT, SNDBUF_LIMIT, RMEM_SCHEDULES,
                                             TCP_OOM, SEND_RSTS, RECEIVE_RSTS};
 
-    for (int i = 0; i < sizeof(tcp_abn_stats_arr)/sizeof(tcp_abn_stats_arr[0]); i++) {
+    for (int i = 0; i < sizeof(tcp_abn_stats_arr) / sizeof(tcp_abn_stats_arr[0]); i++) {
         tracker->stats[tcp_abn_stats_arr[i]] = 0;
     }
 }

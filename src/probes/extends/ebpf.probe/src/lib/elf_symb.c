@@ -399,7 +399,7 @@ static int __search_addr_upper_bound(struct elf_symbo_s* elf_symb, int bgn, int 
     if (__ERR_INDEX(elf_symb, right)) {
         return -1;
     }
-    return target_addr >= elf_symb->symbs[right]->start ? (right + 1): right;
+    return target_addr >= elf_symb->symbs[right]->start ? (right + 1) : right;
 }
 
 static int __do_search_addr(struct elf_symbo_s* elf_symb,

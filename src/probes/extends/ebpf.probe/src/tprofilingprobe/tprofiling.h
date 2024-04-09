@@ -47,7 +47,7 @@ enum {
 
 typedef struct {
     unsigned long nr;
-    int flag;
+    unsigned int flag;
 } syscall_m_meta_t;
 
 typedef struct {
@@ -190,7 +190,7 @@ typedef struct {
     int stackMapFd;             /* ebpf map，用于获取调用栈信息 */
     int procFilterMapFd;        /* ebpf map，用于更新进程白名单 */
     int threadBlMapFd;          /* ebpf map，用于更新线程黑名单 */
-    int pyProcMapFd;            
+    int pyProcMapFd;
     int pyStackMapFd;           /* ebpf map，用于获取py调用栈信息 */
     int pySymbMapFd;            /* ebpf map，py符号信息 */
     int pyHeapMapFd;

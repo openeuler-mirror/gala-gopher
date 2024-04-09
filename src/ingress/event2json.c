@@ -136,7 +136,7 @@ static int fill_log_field_resource(IngressMgr *mgr, strbuf_t *dest, strbuf_t *fi
     int ret;
 
     // simply validate resource json format
-    if (field->len < 2 || field->buf[0] != '{' || field->buf[field->len-1] != '}') {
+    if (field->len < 2 || field->buf[0] != '{' || field->buf[field->len - 1] != '}') {
         ERROR("[INGRESS] the resource json format of log validate failed.\n");
         return -1;
     }
@@ -481,7 +481,7 @@ static int fill_evt_field_labels(strbuf_t *dest, strbuf_t evtFields[EVT_ORIG_FIE
         goto err;
     }
 
-    for (i = 0; i < sizeof(labelIdx)/sizeof(labelIdx[0]); i++) {
+    for (i = 0; i < sizeof(labelIdx) / sizeof(labelIdx[0]); i++) {
         ret = strbuf_append_chr_with_check(dest, ',');
         if (ret) {
             goto err;

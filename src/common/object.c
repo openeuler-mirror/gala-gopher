@@ -360,23 +360,6 @@ int obj_module_create_map(char *name)
     return 0;
 }
 
-char obj_module_init_ok(void)
-{
-    int flag = 0;
-
-    if (__obj_module.cgrp_map_fd > 0) {
-        flag |= CGRP_MAP_INIT_OK;
-    }
-    if (__obj_module.nm_map_fd > 0) {
-        flag |= NM_MAP_INIT_OK;
-    }
-    if (__obj_module.proc_map_fd > 0) {
-        flag |= PROC_MAP_INIT_OK;
-    }
-
-    return flag;
-}
-
 void obj_module_set_maps_fd(void)
 {
     if (__obj_module.cgrp_map_fd == 0) {

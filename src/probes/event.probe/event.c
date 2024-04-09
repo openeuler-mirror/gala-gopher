@@ -52,7 +52,10 @@ static int GetFileLineNum(void)
     }
 
     if (!feof(f)) {
-        (void)fgets(count, LEN_BUF, f);
+        if (fgets(count, LEN_BUF, f) == NULL) {
+            (void)pclose(f);
+            return -1;
+        }
     }
 
     ret = atoi(count);
@@ -65,7 +68,7 @@ static int GetFileLineNum(void)
 static void MakeEvent(const char * log)
 {
     struct event_data event = {0};
-    
+
     time_t now;
     time(&now);
     event.timestamp = now*TIME_INTERVAL*TIME_INTERVAL*TIME_INTERVAL;
@@ -80,12 +83,12 @@ static int FilterLogEvent(void)
     FILE *f = NULL;
     char line[LEN_LINE];
     char cmd[LEN_CMD] = {0};
-    
+
     int lineNum = GetFileLineNum();
     if (lineNum < 1) {
        return -1;
     }
-    
+
     // init g_next_line_num, from current file bottom line
     if (g_nextLineNum == 0) {
         g_nextLineNum = lineNum;
@@ -104,19 +107,22 @@ static int FilterLogEvent(void)
     }
 
     while (!feof(f)) {
-        (void)fgets(line, LEN_LINE, f);
+        if (fgets(line, LINE_BUF_LEN, f) == NULL) {
+            goto out;
+        }
         if (strlen(line) > 0) {
             if (line[strlen(line)-1] == '\n') {
-                line[strlen(line)-1] = '\0'; 
+                line[strlen(line)-1] = '\0';
             }
             MakeEvent(line);
             sprintf(line, "");
         }
     }
 
+out:
     g_nextLineNum = lineNum + 1;
 
-    (void)pclose(f); 
+    (void)pclose(f);
 
     return 0;
 }

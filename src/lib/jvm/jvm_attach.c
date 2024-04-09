@@ -136,7 +136,7 @@ static int __start_attach(int pid, int nspid)
     return result;
 }
 
-static int __write_cmd(int fd, int argc, char** argv)
+static int __write_cmd(int fd, int argc, const char** argv)
 {
     // Protocol version
     if (write(fd, "1", 2) <= 0) { // 2 = strlen + 1
@@ -212,7 +212,7 @@ static int __connect_jvm(int nspid)
     return fd;
 }
 
-int __jattach(int pid, int nspid, int argc, char** argv)
+int __jattach(int pid, int nspid, int argc, char **argv)
 {
     struct timeval timeout;
 
@@ -229,7 +229,7 @@ int __jattach(int pid, int nspid, int argc, char** argv)
 
     printf("[JVM_ATTACH]: Connected to remote JVM of pid %d\n", pid);
 
-    if (__write_cmd(fd, argc, argv) != 0) {
+    if (__write_cmd(fd, argc, (const char **)argv) != 0) {
         fprintf(stderr, "[JVM_ATTACH]: Error writing to socket of pid %d\n", pid);
         close(fd);
         return -1;
@@ -244,7 +244,7 @@ int __jattach(int pid, int nspid, int argc, char** argv)
     }
 
     int ret = __read_rsp(fd, argc, argv);
-    
+
     close(fd);
     return ret;
 }

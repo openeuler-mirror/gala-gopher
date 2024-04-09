@@ -70,7 +70,7 @@ struct frame_buf_s {
   Used to cache raw data from bpf
 */
 struct raw_data_s {
-    int flags;
+    u32 flags;
     u64 timestamp_ns;
     size_t data_len;
 

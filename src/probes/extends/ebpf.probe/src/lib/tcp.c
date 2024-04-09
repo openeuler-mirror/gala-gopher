@@ -183,7 +183,6 @@ err:
 static struct tcp_estab_comm* __get_estab_comm(const char *start, unsigned int len)
 {
     /* ("sshd",pid=1264958,fd=3) */
-    int ret;
     char comm[TASK_COMM_LEN];
     char pid_s[PID_LEN];
     char fd_s[FID_LEN];
@@ -197,12 +196,13 @@ static struct tcp_estab_comm* __get_estab_comm(const char *start, unsigned int l
     (void)memcpy(tmp, start, len);
     tmp[len] = 0;
 
-    ret = __get_sub_str(s, "(\"", "\",", comm, TASK_COMM_LEN);
-    ret |= __get_sub_str(s, "pid=", ",fd", pid_s, PID_LEN);
-    ret |= __get_sub_str(s, ",fd=", ")", fd_s, FID_LEN);
-    if (ret < 0 || !__is_digit_str((const char *)pid_s)
-           || !__is_digit_str((const char *)fd_s))
+    if (__get_sub_str(s, "(\"", "\",", comm, TASK_COMM_LEN) ||
+        __get_sub_str(s, "pid=", ",fd", pid_s, PID_LEN) ||
+        __get_sub_str(s, ",fd=", ")", fd_s, FID_LEN) ||
+        !__is_digit_str((const char *)pid_s) ||
+        !__is_digit_str((const char *)fd_s)) {
         return NULL;
+    }
 
     te_comm = (struct tcp_estab_comm *)malloc(sizeof(struct tcp_estab_comm));
     if (te_comm == NULL) {
@@ -304,17 +304,17 @@ static int __get_estab(const char *s, struct tcp_estab* te)
 
     // get establish tcp local address and port
     addr_str[0] = 0;
-    ret = __get_sub_str(s, NULL, "|", addr_str, IP_STR_LEN);
-    ret |= __get_estab_addr(s, &(te->local), addr_str);
-    if (ret < 0)
+    if (__get_sub_str(s, NULL, "|", addr_str, IP_STR_LEN) ||
+        __get_estab_addr(s, &(te->local), addr_str)) {
         goto err;
+    }
 
     // get establish tcp remote address and port
     addr_str[0] = 0;
-    ret = __get_sub_str(s, "|", "@", addr_str, IP_STR_LEN);
-    ret |= __get_estab_addr(s, &(te->remote), addr_str);
-    if (ret < 0)
+    if (__get_sub_str(s, "|", "@", addr_str, IP_STR_LEN) ||
+        __get_estab_addr(s, &(te->remote), addr_str)) {
         goto err;
+    }
 
     // get all comm, pid, fd of establish tcp
     ret = __get_sub_str(s, "@users:(", NULL, comms_str, LINE_BUF_LEN);
@@ -710,7 +710,7 @@ static void __free_tcp_endpoints(struct tcp_endpoints** pteps)
     if (teps == NULL)
         return;
 
-    for (i = 0; i <teps->tep_num; i++) {
+    for (i = 0; i < teps->tep_num; i++) {
         if (teps->tep[i]) {
             (void)free(teps->tep[i]);
             teps->tep[i] = NULL;

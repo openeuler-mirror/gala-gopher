@@ -116,7 +116,7 @@ void wr_meta_logs(const char* logs);
 
 int wr_event_logs(const char* logs, size_t logs_len);
 
-void rm_log_file(char full_path[]);
+void rm_log_file(const char full_path[]);
 
 void destroy_log_mgr(struct log_mgr_s* mgr);
 

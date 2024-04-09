@@ -119,7 +119,7 @@ static bool is_kernel_support_tc_bps_load()
         return false;
     }
 
-    ret = WEXITSTATUS(ret);
+    ret = WEXITSTATUS((unsigned)ret);
     if (ret) {
         INFO("kernel don't support tc bps prog loading\n");
         return false;

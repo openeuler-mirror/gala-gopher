@@ -257,7 +257,7 @@ static int _exe_attach_cmd(char *cmd)
     return 0;
 }
 
-static int _do_attach(u32 pid, struct jvm_process_info *v)
+static int _do_attach(u32 pid, const struct jvm_process_info *v)
 {
     char cmd[LINE_BUF_LEN] = {0};
     char args[LINE_BUF_LEN] = {0};
@@ -390,7 +390,9 @@ void java_msg_handler(u32 pid, struct java_attach_args *args, java_msg_handler_c
     }
 
     (void)fflush(stdout);
-    (void)ftruncate(fd, 0);
+    if (ftruncate(fd, 0)) {
+        DEBUG("[JAVA_SUPPORT]: ftruncate file: %s failed.\n", tmp_file_path);
+    }
     (void)fclose(fp);
 
     return;

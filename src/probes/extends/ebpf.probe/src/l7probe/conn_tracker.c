@@ -823,7 +823,7 @@ static void report_l7_rpc_api(struct l7_link_s *link, struct l7_api_statistic_s 
                   l7_api_statistic->stats[REQ_COUNT],
                   l7_api_statistic->stats[RSP_COUNT],
 
-                  l7_api_statistic->stats[REQ_COUNT] == 0 ? 0.00f :(float)((float)l7_api_statistic->latency_sum / (float)l7_api_statistic->stats[REQ_COUNT]),
+                  l7_api_statistic->stats[REQ_COUNT] == 0 ? 0.00f : (float)((float)l7_api_statistic->latency_sum / (float)l7_api_statistic->stats[REQ_COUNT]),
                   latency_historm,
                   l7_api_statistic->latency_sum,
 
@@ -874,7 +874,7 @@ static void report_l7_rpc(struct l7_link_s *link)
         link->stats[REQ_COUNT],
         link->stats[RSP_COUNT],
 
-        link->stats[REQ_COUNT] == 0 ? 0.00f :(float)((float)link->latency_sum / (float)link->stats[REQ_COUNT]),
+        link->stats[REQ_COUNT] == 0 ? 0.00f : (float)((float)link->latency_sum / (float)link->stats[REQ_COUNT]),
         latency_historm,
         link->latency_sum,
 

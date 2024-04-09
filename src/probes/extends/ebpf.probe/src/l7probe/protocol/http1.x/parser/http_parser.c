@@ -418,7 +418,7 @@ static const struct start_pattern g_start_patterns[] = {
     {MESSAGE_RESPONSE,  "HTTP/1.0 ",    9},
 };
 
-#define ARRAY_NR(array) (sizeof((array))/sizeof((array)[0]))
+#define ARRAY_NR(array) (sizeof((array)) / sizeof((array)[0]))
 
 size_t http_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s *raw_data)
 {

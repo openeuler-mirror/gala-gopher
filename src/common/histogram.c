@@ -168,7 +168,7 @@ static int _deserialize_histo(char *buf, struct histo_bucket_s *bucket, size_t b
         *next_pos = '\0';
 
         bucket[i].max = strtoull(cur_pos, NULL, 10);
-        bucket[i].min = (i == 0) ? 0 : bucket[i-1].max;
+        bucket[i].min = (i == 0) ? 0 : bucket[i - 1].max;
 
         cur_pos = next_pos + 1;
         next_pos = strchr(cur_pos, ' ');
