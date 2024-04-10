@@ -72,7 +72,7 @@ static int __skip_atoi(const char **s)
     return i;
 }
 
-static char* __number(char *str, unsigned long long num, int base, int size, int precision, int type)
+static char* __number(char *str, unsigned long long num, int base, int size, int precision, unsigned int type)
 {
     static const char digits[16] = "0123456789ABCDEF";  // we are called with base 8, 10 or 16, thus don't need "G..."
     char tmp[66];
@@ -171,7 +171,7 @@ int nprobe_fprintf(FILE *stream, const char *curFormat, ...)
     char *str;
     const char *s;
 
-    int flags;          /* flags to number */
+    unsigned int flags; /* flags to number */
     int field_width;    /* width of output field */
     int precision;      /* min. # of digits for integers; max number of chars for from string */
     int qualifier;      /* 'h', 'l', or 'L' for integer fields */

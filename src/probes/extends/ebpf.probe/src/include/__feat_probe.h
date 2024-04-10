@@ -57,7 +57,7 @@ static inline int probe_kernel_version() {
 static inline int __probe_ubuntu_kernel_version()
 {
     static const char *version_signature_path = "/proc/version_signature";
-    int major, minor, patch, retval = 0;
+    u32 major, minor, patch, retval = 0;
     FILE *file;
 
     if (access(version_signature_path, R_OK)) {
@@ -81,7 +81,7 @@ out:
 
 static inline int __parse_debian_kernel_version(struct utsname *uts)
 {
-    int major, minor, patch;
+    u32 major, minor, patch;
     char *p;
 
     p = strstr(uts->version, "Debian ");
@@ -98,7 +98,7 @@ static inline int __parse_debian_kernel_version(struct utsname *uts)
 
 static inline int __parse_normal_kernel_version(struct utsname *uts)
 {
-    int major, minor, patch;
+    u32 major, minor, patch;
 
     if (sscanf(uts->release, "%d.%d.%d", &major, &minor, &patch) != 3) {
         return 0;
@@ -117,7 +117,7 @@ static inline int probe_kernel_version()
     }
 
     uname(&uts);
-    
+
     if ((version = __parse_debian_kernel_version(&uts))) {
         return version;
     }

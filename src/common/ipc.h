@@ -178,7 +178,7 @@ struct ipc_body_s {
     struct snooper_obj_s snooper_objs[SNOOPER_MAX];
 };
 
-int create_ipc_msg_queue(int ipc_flag);
+int create_ipc_msg_queue(unsigned int ipc_flag);
 void destroy_ipc_msg_queue(int msqid);
 int send_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body);
 int recv_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body);

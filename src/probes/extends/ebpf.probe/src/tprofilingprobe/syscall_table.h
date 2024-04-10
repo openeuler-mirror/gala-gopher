@@ -159,7 +159,7 @@
 typedef struct {
     unsigned long nr;
     char name[SYSCALL_NAME_LEN];
-    int flag;
+    unsigned int flag;
     char default_type[MAX_LEN_OF_PROFILE_EVT_TYPE];
     UT_hash_handle hh;
 } syscall_meta_t;

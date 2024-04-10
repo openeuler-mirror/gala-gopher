@@ -354,8 +354,7 @@ static int get_py_symb_stack(char *symbs_str, int symb_size, event_elem_t *cache
     }
     bpf_map_delete_elem(tprofiler.pyStackMapFd, &pyid);
 
-    for (i = py_stack.stack_len -1; i >= 0; i--) {
-
+    for (i = py_stack.stack_len - 1; i >= 0; i--) {
         if (bpf_map_lookup_elem(tprofiler.pySymbMapFd, &py_stack.stack[i & (MAX_PYTHON_STACK_DEPTH_MAX - 1)], &sym) == 0) {
             if (sym.class_name[0] != '\0') {
                 ret = snprintf(symbs_buf.buf, symbs_buf.size, "%s#%s[p];", sym.class_name, sym.func_name);

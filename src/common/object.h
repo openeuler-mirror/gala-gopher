@@ -75,7 +75,6 @@ char is_proc_exist(struct proc_s *obj);
 char is_nm_exist(struct nm_s *obj);
 char is_cgrp_exist(struct cgroup_s *obj);
 
-char obj_module_init_ok(void);
 void obj_module_set_maps_fd(void);
 void obj_module_init(void);
 void obj_module_exit(void);

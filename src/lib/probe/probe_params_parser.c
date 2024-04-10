@@ -59,8 +59,8 @@ static int __get_params_flags(struct param_flags_s param_flags[], size_t size, c
 }
 struct param_key_s;
 struct param_val_s;
-typedef int (*parser_param_key)(struct probe_s *, struct param_key_s *, const void *);
-typedef void (*parser_param_default)(struct probe_params *, struct param_val_s *);
+typedef int (*parser_param_key)(struct probe_s *, const struct param_key_s *, const void *);
+typedef void (*parser_param_default)(struct probe_params *, const struct param_val_s *);
 
 #define __PROBE_PARAM_DEFAULT_STRLEN    64
 struct param_val_s {
@@ -76,7 +76,7 @@ struct param_key_s {
     int key_type;
 };
 
-static int parser_sample_peirod(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_sample_peirod(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     int value = Json_GetValueInt(key_item);
     if (value < param_key->v.min || value > param_key->v.max || value == INVALID_INT_NUM) {
@@ -89,7 +89,7 @@ static int parser_sample_peirod(struct probe_s *probe, struct param_key_s *param
     return 0;
 }
 
-static int parser_report_peirod(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_report_peirod(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     int value = Json_GetValueInt(key_item);
     if (value < param_key->v.min || value > param_key->v.max || value == INVALID_INT_NUM) {
@@ -102,7 +102,7 @@ static int parser_report_peirod(struct probe_s *probe, struct param_key_s *param
     return 0;
 }
 
-static int parser_latency_thr(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_latency_thr(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     int value = Json_GetValueInt(key_item);
     if (value < param_key->v.min || value > param_key->v.max || value == INVALID_INT_NUM) {
@@ -115,7 +115,7 @@ static int parser_latency_thr(struct probe_s *probe, struct param_key_s *param_k
     return 0;
 }
 
-static int parser_offline_thr(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_offline_thr(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     int value = Json_GetValueInt(key_item);
     if (value < param_key->v.min || value > param_key->v.max || value == INVALID_INT_NUM) {
@@ -128,7 +128,7 @@ static int parser_offline_thr(struct probe_s *probe, struct param_key_s *param_k
     return 0;
 }
 
-static int parser_drops_thr(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_drops_thr(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     int value = Json_GetValueInt(key_item);
     if (value < param_key->v.min || value > param_key->v.max || value == INVALID_INT_NUM) {
@@ -141,7 +141,7 @@ static int parser_drops_thr(struct probe_s *probe, struct param_key_s *param_key
     return 0;
 }
 
-static int parser_res_lower_thr(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_res_lower_thr(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     int value = Json_GetValueInt(key_item);
     if (value < param_key->v.min || value > param_key->v.max || value == INVALID_INT_NUM) {
@@ -154,7 +154,7 @@ static int parser_res_lower_thr(struct probe_s *probe, struct param_key_s *param
     return 0;
 }
 
-static int parser_res_upper_thr(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_res_upper_thr(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     int value = Json_GetValueInt(key_item);
     if (value < param_key->v.min || value > param_key->v.max || value == INVALID_INT_NUM) {
@@ -168,7 +168,7 @@ static int parser_res_upper_thr(struct probe_s *probe, struct param_key_s *param
 }
 
 #if 0
-static int parse_host_ip_fields(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parse_host_ip_fields(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     char *p = NULL;
     int index = 0;
@@ -186,7 +186,7 @@ static int parse_host_ip_fields(struct probe_s *probe, struct param_key_s *param
 }
 #endif
 
-static int parser_report_event(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_report_event(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     int value = Json_GetValueInt(key_item);
     if (value < param_key->v.min || value > param_key->v.max || value == INVALID_INT_NUM) {
@@ -199,7 +199,7 @@ static int parser_report_event(struct probe_s *probe, struct param_key_s *param_
     return 0;
 }
 
-static int parser_metrics_type(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_metrics_type(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     void *object;
     u32 metrics_flags;
@@ -214,7 +214,7 @@ static int parser_metrics_type(struct probe_s *probe, struct param_key_s *param_
 
         const char* value = (const char *)Json_GetValueString(object);
         metrics_flags = __get_params_flags(param_metrics_flags,
-                        sizeof(param_metrics_flags)/sizeof(struct param_flags_s), value);
+                        sizeof(param_metrics_flags) / sizeof(struct param_flags_s), value);
         if (metrics_flags == 0) {
             PARSE_ERR("params.%s invalid value: %s", param_key->key, value);
             return -1;
@@ -227,7 +227,7 @@ static int parser_metrics_type(struct probe_s *probe, struct param_key_s *param_
     return 0;
 }
 
-static int parser_work_env(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_work_env(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     void *object;
     u32 env_flags;
@@ -242,7 +242,7 @@ static int parser_work_env(struct probe_s *probe, struct param_key_s *param_key,
         const char* value = (const char *)Json_GetValueString(object);
 
         env_flags = __get_params_flags(param_env_flags,
-                    sizeof(param_env_flags)/sizeof(struct param_flags_s), value);
+                    sizeof(param_env_flags) / sizeof(struct param_flags_s), value);
         if (env_flags == 0) {
             PARSE_ERR("params.%s invalid value: %s", param_key->key, value);
             return -1;
@@ -255,7 +255,7 @@ static int parser_work_env(struct probe_s *probe, struct param_key_s *param_key,
     return 0;
 }
 
-static int parser_l7pro(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_l7pro(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     void *object;
     u32 l7pro_flags;
@@ -270,7 +270,7 @@ static int parser_l7pro(struct probe_s *probe, struct param_key_s *param_key, co
         const char* value = (const char *)Json_GetValueString(object);
 
         l7pro_flags = __get_params_flags(param_l7pro_flags,
-                    sizeof(param_l7pro_flags)/sizeof(struct param_flags_s), value);
+                    sizeof(param_l7pro_flags) / sizeof(struct param_flags_s), value);
         if (l7pro_flags == 0) {
             PARSE_ERR("params.%s invalid value: %s", param_key->key, value);
             return -1;
@@ -283,7 +283,7 @@ static int parser_l7pro(struct probe_s *probe, struct param_key_s *param_key, co
     return 0;
 }
 
-static int parser_support_ssl(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_support_ssl(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     int value = Json_GetValueInt(key_item);
     if (value < param_key->v.min || value > param_key->v.max || value == INVALID_INT_NUM) {
@@ -296,7 +296,7 @@ static int parser_support_ssl(struct probe_s *probe, struct param_key_s *param_k
     return 0;
 }
 
-static int parser_svg_dir(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_svg_dir(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     const char *value = (const char*)Json_GetValueString(key_item);
 
@@ -313,7 +313,7 @@ static int parser_svg_dir(struct probe_s *probe, struct param_key_s *param_key, 
     return 0;
 }
 
-static int parser_flame_dir(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_flame_dir(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     const char *value = (const char*)Json_GetValueString(key_item);
 
@@ -329,7 +329,7 @@ static int parser_flame_dir(struct probe_s *probe, struct param_key_s *param_key
     return 0;
 }
 
-static int parser_pyscope_server(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_pyscope_server(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     const char *value = (const char*)Json_GetValueString(key_item);
 
@@ -351,7 +351,7 @@ static int parser_pyscope_server(struct probe_s *probe, struct param_key_s *para
     return 0;
 }
 
-static int parser_svg_period(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_svg_period(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     int value = Json_GetValueInt(key_item);
     if (value == 0) {
@@ -366,7 +366,7 @@ static int parser_svg_period(struct probe_s *probe, struct param_key_s *param_ke
     return 0;
 }
 
-static int parser_perf_sample_period(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_perf_sample_period(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     int value = Json_GetValueInt(key_item);
     if (value == 0) {
@@ -381,7 +381,7 @@ static int parser_perf_sample_period(struct probe_s *probe, struct param_key_s *
     return 0;
 }
 
-static int parser_multi_instance(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_multi_instance(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     int value = Json_GetValueInt(key_item);
     if (value < param_key->v.min || value > param_key->v.max || value == INVALID_INT_NUM) {
@@ -394,7 +394,7 @@ static int parser_multi_instance(struct probe_s *probe, struct param_key_s *para
     return 0;
 }
 
-static int parser_native_stack(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_native_stack(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     int value = Json_GetValueInt(key_item);
     if (value < param_key->v.min || value > param_key->v.max || value == INVALID_INT_NUM) {
@@ -407,7 +407,7 @@ static int parser_native_stack(struct probe_s *probe, struct param_key_s *param_
     return 0;
 }
 
-static int parser_cluster_ip_backend_flag(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_cluster_ip_backend_flag(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     int value = Json_GetValueInt(key_item);
     if (value < param_key->v.min || value > param_key->v.max || value == INVALID_INT_NUM) {
@@ -435,7 +435,7 @@ static int parser_sysdebuging_dir(struct probe_s *probe, struct param_key_s *par
 }
 #endif
 
-static int parser_dev_name(struct probe_s *probe, struct param_key_s *param_key, const void* key_item)
+static int parser_dev_name(struct probe_s *probe, const struct param_key_s *param_key, const void* key_item)
 {
     const char *value = (const char*)Json_GetValueString(key_item);
 
@@ -453,7 +453,7 @@ static int parser_dev_name(struct probe_s *probe, struct param_key_s *param_key,
     return 0;
 }
 
-static int parser_kafka_port(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_kafka_port(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     int value = Json_GetValueInt(key_item);
     if (value < param_key->v.min || value > param_key->v.max || value == INVALID_INT_NUM) {
@@ -466,7 +466,7 @@ static int parser_kafka_port(struct probe_s *probe, struct param_key_s *param_ke
     return 0;
 }
 
-static int parser_continuous_sampling(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_continuous_sampling(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     int value = Json_GetValueInt(key_item);
     if (value < param_key->v.min || value > param_key->v.max || value == INVALID_INT_NUM) {
@@ -479,7 +479,7 @@ static int parser_continuous_sampling(struct probe_s *probe, struct param_key_s 
     return 0;
 }
 
-static int parser_elf_path(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_elf_path(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     const char *value = (const char*)Json_GetValueString(key_item);
 
@@ -495,7 +495,7 @@ static int parser_elf_path(struct probe_s *probe, struct param_key_s *param_key,
     return 0;
 }
 
-static int parser_cadvisor_port(struct probe_s *probe, struct param_key_s *param_key, const void *key_item)
+static int parser_cadvisor_port(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     int value = Json_GetValueInt(key_item);
     if (value < param_key->v.min || value > param_key->v.max || value == INVALID_INT_NUM) {
@@ -509,19 +509,19 @@ static int parser_cadvisor_port(struct probe_s *probe, struct param_key_s *param
 }
 
 #define SET_DEFAULT_PARAMS_INTER(field) \
-    static void set_default_params_inter_##field(struct probe_params *params, struct param_val_s *value) \
+    static void set_default_params_inter_##field(struct probe_params *params, const struct param_val_s *value) \
     { \
         params->field = (u32)value->default_int; \
     }
 
 #define SET_DEFAULT_PARAMS_CAHR(field) \
-    static void set_default_params_char_##field(struct probe_params *params, struct param_val_s *value) \
+    static void set_default_params_char_##field(struct probe_params *params, const struct param_val_s *value) \
     { \
         params->field = (char)value->default_int; \
     }
 
 #define SET_DEFAULT_PARAMS_STR(field) \
-    static void set_default_params_str_##field(struct probe_params *params, struct param_val_s *value) \
+    static void set_default_params_str_##field(struct probe_params *params, const struct param_val_s *value) \
     { \
         (void)snprintf(params->field, sizeof(params->field), "%s", value->default_string); \
     }

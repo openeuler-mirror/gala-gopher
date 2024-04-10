@@ -145,8 +145,8 @@ static int parse_netmask(char *ip_addr)
 /* 检查IP是否在某网段内 */
 static int check_ip_in_net_segment(char *ip_str, char *net_str)
 {
-    int ips[4];
-    int nets[4];
+    unsigned int ips[4];
+    unsigned int nets[4];
     if (sscanf(ip_str, "%d.%d.%d.%d", &ips[0], &ips[1], &ips[2], &ips[3]) < 4) {
         ERROR("[SYSTEM_OS] sscanf ip_addr_str:%s faield.\n", ip_str);
         return false;

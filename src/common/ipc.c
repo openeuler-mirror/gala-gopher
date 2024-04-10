@@ -1056,7 +1056,7 @@ static int __deserialize_ipc_msg(struct ipc_msg_s* ipc_msg, struct ipc_body_s* i
 #define __GOPHER_BIN_FILE     "/usr/bin/gala-gopher"
 #define __GOPHER_PROJECT_ID   'g'     // used by ftok to generate unique msg queue key
 #define __GOPHER_MSQ_PERM     0600
-int create_ipc_msg_queue(int ipc_flag)
+int create_ipc_msg_queue(unsigned int ipc_flag)
 {
     int msqid;
     key_t key;

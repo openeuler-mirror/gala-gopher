@@ -638,7 +638,7 @@ static int LogsMgrInit(ResourceMgr *resourceMgr)
 
     is_metric_out_log = (configMgr->metricOutConfig->outChnl == OUT_CHNL_WEB_SERVER ||
                          configMgr->metricOutConfig->outChnl == OUT_CHNL_LOGS) ? 1 : 0;
-    is_event_out_log = (configMgr->eventOutConfig->outChnl == OUT_CHNL_LOGS) ? 1: 0;
+    is_event_out_log = (configMgr->eventOutConfig->outChnl == OUT_CHNL_LOGS) ? 1 : 0;
     is_meta_out_log = (configMgr->metaOutConfig->outChnl == OUT_CHNL_LOGS) ? 1 : 0;
 
     logsMgr = create_log_mgr(configMgr->globalConfig->logFileName, is_metric_out_log, is_event_out_log);

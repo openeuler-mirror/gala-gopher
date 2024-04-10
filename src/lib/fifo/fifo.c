@@ -81,7 +81,7 @@ void FifoDestroy(Fifo *fifo)
     return;
 }
 
-int FifoFull(Fifo *fifo)
+int FifoFull(const Fifo *fifo)
 {
     return ((fifo->size - fifo->in + fifo->out) <= 1) ? 1 : 0;
 }

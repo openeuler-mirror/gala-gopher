@@ -200,7 +200,10 @@ struct bpf_object *load_link_pin(struct KafkaConfig *cfg, char **btf_custom_path
     if (ret == -EBUSY) {
         char replication[4];
         KFK_INFO("Do you want to unlink the XDP prog which is runing? please input 'y' or 'n':\n");
-        scanf("%s", replication);
+        if (scanf("%s", replication) != 1) {
+            KFK_ERROR("invalid input!\n");
+            return NULL;
+        }
         if (replication[0] == 'y') {
             unlink_xdp(cfg);
             ret = link_xdp(cfg, obj);

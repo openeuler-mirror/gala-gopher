@@ -56,7 +56,7 @@ parse_state_t decode_unsigned_int_core(struct raw_data_s *raw_data, int64_t *res
     const u_int8_t kByteLength = 7;
 
     int64_t value = 0;
-    for (int i = 0; i < max_length; i += kByteLength) {
+    for (u_int8_t i = 0; i < max_length; i += kByteLength) {
         char char_res = 0;
         parse_state_t decode_status = decoder_extract_char(raw_data, &char_res);
         if (decode_status == STATE_SUCCESS) {

@@ -34,7 +34,7 @@ struct post_info_s {
     char *buf;
 };
 
-#define DAYS_TIME           (24 * 60 *60)   // 1 DAY
+#define DAYS_TIME           (24 * 60 * 60)   // 1 DAY
 #define WEEKS_TIME          (DAYS_TIME * 7)   // 1 WEEK
 
 enum stack_svg_type_e {

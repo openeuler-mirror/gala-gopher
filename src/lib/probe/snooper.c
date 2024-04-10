@@ -944,7 +944,7 @@ static int __read_proc_cmdline(const char *dir_name, char *cmdline, u32 size)
         }
         cmdline[index] = fgetc(f);
         if (cmdline[index] == '\"') {
-            if (index > size -2) {
+            if (index > size - 2) {
                 cmdline[index] = '\0';
                 break;
             } else {

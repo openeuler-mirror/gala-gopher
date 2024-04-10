@@ -59,7 +59,10 @@ static int open_file_with_clear_file(const char *filename)
     if (file_fd < 0) {
         return -1;
     }
-    ftruncate(file_fd, 0);
+    if (ftruncate(file_fd, 0)) {
+        (void)close(file_fd);
+        return -1;
+    }
     lseek(file_fd, 0, SEEK_SET);
     return file_fd;
 }
@@ -89,7 +92,7 @@ static int open_file_without_dir(const char *filename)
     return open_file(filename);
 }
 
-void rm_log_file(char full_path[])
+void rm_log_file(const char full_path[])
 {
     FILE *fp = NULL;
     char command[COMMAND_LEN];
@@ -107,7 +110,7 @@ void rm_log_file(char full_path[])
     }
 }
 
-static void clear_log_dir(char full_path[])
+static void clear_log_dir(const char full_path[])
 {
     FILE *fp = NULL;
     char command[COMMAND_LEN];
@@ -125,7 +128,7 @@ static void clear_log_dir(char full_path[])
     }
 }
 
-static int get_file_name(struct log_mgr_s* mgr, char is_metrics, int file_id, char full_path[], size_t size)
+static int get_file_name(const struct log_mgr_s* mgr, char is_metrics, int file_id, char full_path[], size_t size)
 {
     size_t path_len;
     char last_symbol;
@@ -146,12 +149,12 @@ static int get_file_name(struct log_mgr_s* mgr, char is_metrics, int file_id, ch
     return 0;
 }
 
-static char is_empty_queue(struct files_queue_s *files_que)
+static char is_empty_queue(const struct files_queue_s *files_que)
 {
     return (char)((int)(files_que->rear % (int)files_que->que_size) == files_que->front);
 }
 
-static char is_full_queue(struct files_queue_s *files_que)
+static char is_full_queue(const struct files_queue_s *files_que)
 {
     return (char)((int)((files_que->rear + 1) % (int)files_que->que_size) == files_que->front);
 }

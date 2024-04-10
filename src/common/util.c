@@ -122,7 +122,7 @@ void ip6_str(unsigned char *ip6, unsigned char *ip_str, unsigned int ip_str_size
         if (str[j] == '0' && (j == 0 || ip_str[i - 1] == ':')) {  // the first 0
             if (str[j + 1] != '0') {        // 0XXX
                 j = j + 1;
-            } else if (str[j + 2]!='0') {   // 00XX
+            } else if (str[j + 2] != '0') {   // 00XX
                 j = j + 2;
             } else {                        // 000X 0000
                 j = j + 3;
@@ -435,7 +435,7 @@ int get_proc_cmdline(u32 pid, char *buf, u32 buf_len)
         }
         buf[index] = fgetc(f);
         if (buf[index] == '\"') {
-            if (index > buf_len -2) {
+            if (index > buf_len - 2) {
                 buf[index] = '\0';
                 break;
             } else {
