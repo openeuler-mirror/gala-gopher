@@ -537,7 +537,7 @@ int ConfigMgrLoad(const ConfigMgr *mgr, const char *confPath)
         goto ERR;
     }
 
-    uint32_t configUnitNum = sizeof(configLoadHandles) / sizeof(configLoadHandles[0]);
+    size_t configUnitNum = sizeof(configLoadHandles) / sizeof(configLoadHandles[0]);
     for (int i = 0; i < configUnitNum; i++) {
         settings = config_lookup(&cfg, configLoadHandles[i].sectionName);
         if (settings == NULL) {

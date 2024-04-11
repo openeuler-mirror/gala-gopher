@@ -150,7 +150,7 @@ void ip_str(unsigned int family, unsigned char *ip, unsigned char *ip_str, unsig
 
 void split_newline_symbol(char *s)
 {
-    int len = strlen(s);
+    size_t len = strlen(s);
     if (len > 0 && s[len - 1] == '\n') {
         s[len - 1] = 0;
     }
@@ -527,7 +527,8 @@ int check_path_for_security(const char *path)
         return 0;
     }
 
-    int command_injection_characters_len = sizeof(command_injection_characters) / sizeof(command_injection_characters[0]);
+    size_t command_injection_characters_len = sizeof(command_injection_characters) /
+        sizeof(command_injection_characters[0]);
 
     for (int i = 0; i < command_injection_characters_len; ++i) {
         if (strstr(path, command_injection_characters[i])) {

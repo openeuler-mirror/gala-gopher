@@ -119,7 +119,7 @@ static void parseExtendProbeOutput(struct probe_s *probe, FILE *f)
 #define __WRITE_EVT_PERIOD  5
     int ret = 0;
     char buffer[MAX_DATA_STR_LEN];
-    uint32_t bufferSize = 0;
+    size_t bufferSize = 0;
     time_t last_wr_event = (time_t)0, current = (time_t)0;
     time_t secs;
 

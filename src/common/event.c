@@ -90,7 +90,7 @@ static struct evt_sec_s secs[EVT_SEC_MAX] = {
 #define __EVT_BODY_LEN  512 // same as MAX_IMDB_METRIC_VAL_LEN
 void report_logs(const struct event_info_s* evt, enum evt_sec_e sec, const char * fmt, ...)
 {
-    int len;
+    size_t len;
     va_list args;
     char pid_str[INT_LEN];
     char pid_comm[TASK_COMM_LEN];

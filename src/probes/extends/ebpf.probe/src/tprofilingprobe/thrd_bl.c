@@ -119,7 +119,7 @@ int initThreadBlacklist(ThrdBlacklist *thrdBl)
 {
 
     BlacklistItem *blItems;
-    int blNum;
+    size_t blNum;
     int i;
     int ret;
 

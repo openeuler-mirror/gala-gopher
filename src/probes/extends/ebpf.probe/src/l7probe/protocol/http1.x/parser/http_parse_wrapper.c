@@ -369,7 +369,7 @@ static char *parse_response(char *buf, int buf_len, http_response* res, int *ret
     return parse_headers(buf, buf_end, &res->num_headers, res->headers, ret);
 }
 
-size_t http_parse_request_headers(struct raw_data_s* raw_data, http_request* req)
+int http_parse_request_headers(struct raw_data_s* raw_data, http_request* req)
 {
     int ret = 0;
     char *buf = &raw_data->data[raw_data->current_pos];
@@ -385,7 +385,7 @@ size_t http_parse_request_headers(struct raw_data_s* raw_data, http_request* req
     return buf - buf_start;
 }
 
-size_t http_parse_response_headers(struct raw_data_s* raw_data, http_response* resp)
+int http_parse_response_headers(struct raw_data_s* raw_data, http_response* resp)
 {
     int ret = 0;
     char *buf = &raw_data->data[raw_data->current_pos];
@@ -407,7 +407,7 @@ int get_http_header_value_by_key(struct http_header headers[], size_t num_header
     if (key == NULL || value == NULL) {
         return -1;
     }
-    int klen = strlen(key);
+    size_t klen = strlen(key);
     for (size_t i = 0; i < num_headers; i++) {
         if ((headers[i].name_len == klen) && (strncmp(headers[i].name, key, klen) == 0)) {
             int vlen = (headers[i].value_len < vlen_max) ? headers[i].value_len : (vlen_max - 1);

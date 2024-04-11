@@ -239,8 +239,8 @@ int params_parse(char *s, struct probe_params_deprecated *params)
     char opt;
     char params_val[MAX_PARAM_LEN];
     char temp[MAX_PARAM_LEN];
-    int slen = strlen(s);
-    int split_len = strlen(ARGS_SPILT_STRING);
+    size_t slen = strlen(s);
+    size_t split_len = strlen(ARGS_SPILT_STRING);
     int i, j, start;
 
     __set_default_params(params);

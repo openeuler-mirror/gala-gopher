@@ -59,7 +59,7 @@ typedef struct http_response {
  * @param req
  * @return
  */
-size_t http_parse_request_headers(struct raw_data_s* raw_data, http_request* req);
+int http_parse_request_headers(struct raw_data_s* raw_data, http_request* req);
 
 /**
  * Parse http response header
@@ -68,7 +68,7 @@ size_t http_parse_request_headers(struct raw_data_s* raw_data, http_request* req
  * @param resp
  * @return
  */
-size_t http_parse_response_headers(struct raw_data_s* raw_data, http_response* resp);
+int http_parse_response_headers(struct raw_data_s* raw_data, http_response* resp);
 
 /**
  * parse http headers from req.headers, get 1st value by key.

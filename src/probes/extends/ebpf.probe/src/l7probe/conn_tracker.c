@@ -1013,7 +1013,8 @@ int tracker_msg(void *ctx, void *data, u32 size)
 {
     char *p = data;
     struct l7_mng_s *l7_mng  = ctx;
-    int remain_size = (int)size, step_size = 0, walk_size = 0, offset = 0;
+    int remain_size = (int)size, step_size = 0, offset = 0;
+    size_t walk_size = 0;
     enum tracker_evt_e *evt;
     struct conn_data_msg_s *conn_data_msg;
     char *conn_data_buf;

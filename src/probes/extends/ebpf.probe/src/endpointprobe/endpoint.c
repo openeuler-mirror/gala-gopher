@@ -518,7 +518,7 @@ err:
 static int proc_tcp_sock_evt(void *ctx, void *data, u32 size)
 {
     char *p = data;
-    int remain_size = (int)size, step_size = sizeof(struct tcp_socket_event_s), offset = 0;
+    size_t remain_size = (size_t)size, step_size = sizeof(struct tcp_socket_event_s), offset = 0;
     struct tcp_socket_event_s *evt;
     struct endpoint_probe_s *probe = ctx;
 
@@ -541,7 +541,7 @@ static int proc_tcp_sock_evt(void *ctx, void *data, u32 size)
 static int proc_udp_sock_evt(void *ctx, void *data, u32 size)
 {
     char *p = data;
-    int remain_size = (int)size, step_size = sizeof(struct udp_socket_event_s), offset = 0;
+    size_t remain_size = (size_t)size, step_size = sizeof(struct udp_socket_event_s), offset = 0;
     struct udp_socket_event_s *evt;
     struct endpoint_probe_s *probe = ctx;
 

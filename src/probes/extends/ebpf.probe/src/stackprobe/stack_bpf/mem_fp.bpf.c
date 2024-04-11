@@ -240,7 +240,7 @@ static __always_inline void update_statistics(void *ctx, char stackmap_cur, s64 
     };
     struct py_raw_trace_s *py_trace;
     void *event = (void *)&raw_trace;
-    int event_size = sizeof(struct raw_trace_s);
+    size_t event_size = sizeof(struct raw_trace_s);
 
     bpf_probe_read(&raw_trace.stack_id, sizeof(raw_trace.stack_id), &mmap_info->stack_id);
     if (mmap_info->lang_type == TRACE_LANG_TYPE_PYTHON) {

@@ -5,7 +5,7 @@
 
 typedef struct {
     char *buf;
-    int len;
+    size_t len;
     int size;
 } strbuf_t;
 

@@ -193,7 +193,7 @@ static parse_state_t parse_response_body(struct raw_data_s *raw_data, struct htt
     // 1. When the response is of HEAD request, we have parsed the response headers, the pointer is at the start of next frame started with HTTP Version such as HTTP.
     if (frame_data->type == MESSAGE_RESPONSE && starts_with(buf, "HTTP") == 1) {
         http_response resp = {0};
-        size_t next_resp_header_offset = http_parse_response_headers(raw_data, &resp);
+        int next_resp_header_offset = http_parse_response_headers(raw_data, &resp);
         if (next_resp_header_offset > 0) {
             frame_data->body_size = 0;
             return STATE_SUCCESS;
@@ -269,7 +269,7 @@ static parse_state_t parse_request_frame(struct raw_data_s *raw_data, http_messa
     http_request req = {0};
 
     // Parse request headers
-    size_t offset = http_parse_request_headers(raw_data, &req);
+    int offset = http_parse_request_headers(raw_data, &req);
 
     // If retval is -2, it means parsing successfully partially, but need more data to continue parsing.
     if (offset == -2) {
@@ -319,7 +319,7 @@ static parse_state_t parse_response_frame(struct raw_data_s *raw_data, struct ht
     http_response resp = {0};
 
     // Parse response header
-    size_t offset = http_parse_response_headers(raw_data, &resp);
+    int offset = http_parse_response_headers(raw_data, &resp);
 
     // If retval is -2, it means parsing successfully partially, but need more data to continue parsing.
     if (offset == -2) {

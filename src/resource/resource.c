@@ -101,7 +101,7 @@ int ResourceMgrInit(ResourceMgr *resourceMgr)
         return -1;
 
     int ret = 0;
-    uint32_t initTblSize = sizeof(gSubModuleInitorTbl) / sizeof(gSubModuleInitorTbl[0]);
+    size_t initTblSize = sizeof(gSubModuleInitorTbl) / sizeof(gSubModuleInitorTbl[0]);
     for (int i = 0; i < initTblSize; i++) {
         ret = gSubModuleInitorTbl[i].subModuleInitFunc(resourceMgr);
         if (ret != 0)
@@ -133,7 +133,7 @@ void ResourceMgrDeinit(ResourceMgr *resourceMgr)
 
     ResourceMgrDeleteTimer(resourceMgr);
 
-    uint32_t initTblSize = sizeof(gSubModuleInitorTbl) / sizeof(gSubModuleInitorTbl[0]);
+    size_t initTblSize = sizeof(gSubModuleInitorTbl) / sizeof(gSubModuleInitorTbl[0]);
     for (int i = 0; i < initTblSize; i++)
         gSubModuleInitorTbl[i].subModuleDeinitFunc(resourceMgr);
 
