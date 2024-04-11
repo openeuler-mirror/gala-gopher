@@ -131,8 +131,6 @@ static con_hash_t* init_one_con(const char *con_id, char *dir_str)
 
     (void)snprintf(item->cmd, sizeof(item->cmd), PROC_DIR_IO, container_root, dir_str);
 
-    (void)update_con_infos(item->cmd, &item->proc_write_bytes_to_dir);
-
     return item;
 }
 
