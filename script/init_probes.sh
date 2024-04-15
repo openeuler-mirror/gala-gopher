@@ -16,7 +16,11 @@
 GOPHER_CONF="/etc/gala-gopher/gala-gopher.conf"
 GOPHER_INITIAL_CONF="/etc/gala-gopher/probes.init"
 RETRY_COUNT=5
+ssl_auth_on="on"
 rest_server_port=""
+rest_server_ssl_auth=""
+rest_server_private_key=""
+rest_server_cert_file=""
 
 function load_gopher_conf()
 {
@@ -24,9 +28,22 @@ function load_gopher_conf()
         exit 1;
     fi
     rest_server_line_num=$(sed -ne '/rest_api_server/=' $GOPHER_CONF)
+
     rest_server_port_line=$(sed -n "$rest_server_line_num,/port =/p" $GOPHER_CONF | tail -n1)
     rest_server_port=$(echo $rest_server_port_line  | awk -F ' = ' '{print $2}')
     rest_server_port=${rest_server_port%;}
+
+    rest_server_ssl_auth_line=$(sed -n "$rest_server_line_num,/ssl_auth =/p" $GOPHER_CONF | tail -n1)
+    rest_server_ssl_auth=$(echo $rest_server_ssl_auth_line | awk -F ' = ' '{print $2}')
+    rest_server_ssl_auth=$(echo ${rest_server_ssl_auth%;} |  sed 's/"//g')
+
+    rest_server_private_key_line=$(sed -n "$rest_server_line_num,/private_key =/p" $GOPHER_CONF | tail -n1)
+    rest_server_private_key=$(echo $rest_server_private_key_line | awk -F ' = ' '{print $2}')
+    rest_server_private_key=$(echo ${rest_server_private_key%;} |  sed 's/"//g')
+
+    rest_server_cert_file_line=$(sed -n "$rest_server_line_num,/cert_file =/p" $GOPHER_CONF | tail -n1)
+    rest_server_cert_file=$(echo $rest_server_cert_file_line | awk -F ' = ' '{print $2}')
+    rest_server_cert_file=$(echo ${rest_server_cert_file%;} |  sed 's/"//g')
 
     if [ -z "${rest_server_port}" ] ; then
         exit 1;
@@ -61,7 +78,12 @@ function init_probes_json()
         if [ -z "$put_data" ] ; then
             exit 1
         fi
-        curl -s -X PUT http://localhost:${rest_server_port}/$url -d json=${put_data} -o /dev/null
+
+        if test $rest_server_ssl_auth = $ssl_auth_on ; then
+            curl --cert $rest_server_cert_file --key $rest_server_private_key -k -s -X PUT https://localhost:${rest_server_port}/$url -d json=${put_data} -o /dev/null
+        else
+            curl -s -X PUT http://localhost:${rest_server_port}/$url -d json=${put_data} -o /dev/null
+        fi
     done < ${GOPHER_INITIAL_CONF}
 }
 
