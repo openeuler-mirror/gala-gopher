@@ -216,7 +216,7 @@ static int ConfigMgrLoadKafkaConfig(void *config, config_setting_t *settings)
     KafkaConfig *kafkaConfig = (KafkaConfig *)config;
     uint32_t ret = 0;
     const char *strVal = NULL;
-    uint32_t intVal = 0;
+    int intVal = 0;
 
     ret = config_setting_lookup_string(settings, "kafka_broker", &strVal);
     if (ret == 0) {
@@ -226,7 +226,7 @@ static int ConfigMgrLoadKafkaConfig(void *config, config_setting_t *settings)
     (void)snprintf(kafkaConfig->broker, sizeof(kafkaConfig->broker), "%s", strVal);
 
     ret = config_setting_lookup_int(settings, "batch_num_messages", &intVal);
-    if (ret == 0) {
+    if (ret == 0 || intVal <= 0) {
         ERROR("[CONFIG] load config for batch.num.messages failed.\n");
         return -1;
     }
@@ -240,21 +240,21 @@ static int ConfigMgrLoadKafkaConfig(void *config, config_setting_t *settings)
     (void)snprintf(kafkaConfig->compressionCodec, sizeof(kafkaConfig->compressionCodec), "%s", strVal);
 
     ret = config_setting_lookup_int(settings, "queue_buffering_max_messages", &intVal);
-    if (ret == 0) {
+    if (ret == 0 || intVal <= 0) {
         ERROR("[CONFIG] load config for queue.buffering.max.messages failed.\n");
         return -1;
     }
     kafkaConfig->queueBufferingMaxMessages = intVal;
 
     ret = config_setting_lookup_int(settings, "queue_buffering_max_kbytes", &intVal);
-    if (ret == 0) {
+    if (ret == 0 || intVal <= 0) {
         ERROR("[CONFIG] load config for queue.buffering.max.kbytes failed.\n");
         return -1;
     }
     kafkaConfig->queueBufferingMaxKbytes = intVal;
 
     ret = config_setting_lookup_int(settings, "queue_buffering_max_ms", &intVal);
-    if (ret == 0) {
+    if (ret == 0 || intVal <= 0) {
         ERROR("[CONFIG] load config for queue.buffering.max.ms failed.\n");
         return -1;
     }
@@ -267,31 +267,31 @@ static int ConfigMgrLoadIMDBConfig(void *config, config_setting_t *settings)
 {
     IMDBConfig *imdbConfig = (IMDBConfig *)config;
     uint32_t ret = 0;
-    uint32_t intVal = 0;
+    int intVal = 0;
 
     ret = config_setting_lookup_int(settings, "max_tables_num", &intVal);
-    if (ret == 0) {
+    if (ret == 0 || intVal <= 0) {
         ERROR("[CONFIG] load config for imdbConfig max_tables_num failed.\n");
         return -1;
     }
     imdbConfig->maxTablesNum = intVal;
 
     ret = config_setting_lookup_int(settings, "max_records_num", &intVal);
-    if (ret == 0) {
+    if (ret == 0 || intVal <= 0) {
         ERROR("[CONFIG] load config for imdbConfig max_records_num failed.\n");
         return -1;
     }
     imdbConfig->maxRecordsNum = intVal;
 
     ret = config_setting_lookup_int(settings, "max_metrics_num", &intVal);
-    if (ret == 0) {
+    if (ret == 0 || intVal <= 0) {
         ERROR("[CONFIG] load config for imdbConfig max_metrics_num failed.\n");
         return -1;
     }
     imdbConfig->maxMetricsNum = intVal;
 
     ret = config_setting_lookup_int(settings, "record_timeout", &intVal);
-    if (ret == 0) {
+    if (ret == 0 || intVal <= 0) {
         ERROR("[CONFIG] load config for imdbConfig record_timeout failed, use default setting instead.\n");
     } else {
         imdbConfig->recordTimeout = intVal;
@@ -308,7 +308,7 @@ static int ConfigMgrLoadWebServerConfig(void *config, config_setting_t *settings
     int intVal = 0;
 
     ret = config_setting_lookup_int(settings, "port", &intVal);
-    if (ret == 0) {
+    if (ret == 0 || intVal <= 0) {
         ERROR("[CONFIG] load config for webServerConfig port failed.\n");
         return -1;
     }
@@ -370,7 +370,7 @@ static int ConfigMgrLoadRestServerConfig(void *config, config_setting_t *setting
     (void)snprintf(restServerConfig->bindAddr, sizeof(restServerConfig->bindAddr), "%s", strVal);
 
     ret = config_setting_lookup_int(settings, "port", &intVal);
-    if (ret == 0) {
+    if (ret == 0 || intVal <= 0) {
         ERROR("[CONFIG] load config for restServerConfig port failed.\n");
         return -1;
     }
@@ -414,10 +414,10 @@ static int ConfigMgrLoadLogsConfig(void *config, config_setting_t *settings)
     LogsConfig *logsConfig = (LogsConfig *)config;
     uint32_t ret = 0;
     const char *strVal = NULL;
-    uint32_t intVal = 0;
+    int intVal = 0;
 
     ret = config_setting_lookup_int(settings, "metric_total_size", &intVal);
-    if (ret == 0) {
+    if (ret == 0 || intVal <= 0) {
         ERROR("[CONFIG] load config for metric_total_size failed.\n");
         return -1;
     }
