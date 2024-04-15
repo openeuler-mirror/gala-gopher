@@ -15,10 +15,10 @@
 
 #include <string.h>
 
-#include "pgsql_parser.h"
 #include "../utils/macros.h"
 #include "../utils/binary_decoder.h"
 #include "../common/protocol_common.h"
+#include "pgsql_parser.h"
 
 #define CHECK_RAW_DATA_LEN (raw_data->data_len == 0 || raw_data->current_pos == raw_data->data_len)
 

@@ -16,7 +16,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <errno.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 

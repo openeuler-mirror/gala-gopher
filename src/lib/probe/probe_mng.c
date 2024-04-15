@@ -28,12 +28,12 @@
 #include <bpf/bpf.h>
 
 #include "ipc.h"
-#include "probe_mng.h"
 #include "pod_mng.h"
 #include "snooper.h"
 #include "__compat.h"
 #include "probe_params_parser.h"
 #include "json_tool.h"
+#include "probe_mng.h"
 
 static int set_probe_bin(struct probe_s *probe, const char *bin);
 static void init_probe_bin(struct probe_s *probe, enum probe_type_e probe_type);
@@ -998,8 +998,8 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
     }
 
     /* Send snooper obj after parsing successfully */
-    if (ret == 0 && (IS_STARTED_PROBE(probe) || IS_RUNNING_PROBE(probe))
-        && (probe->is_params_chg || probe->is_snooper_chg || probe->resnd_snooper_for_restart)) {
+    if (ret == 0 && (IS_STARTED_PROBE(probe) || IS_RUNNING_PROBE(probe)) &&
+        (probe->is_params_chg || probe->is_snooper_chg || probe->resnd_snooper_for_restart)) {
         ret = send_snooper_obj(probe);
         if (ret) {
             PARSE_ERR("failed to send ipc msg to probe");

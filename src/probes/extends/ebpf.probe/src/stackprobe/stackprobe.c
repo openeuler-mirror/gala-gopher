@@ -47,8 +47,8 @@
 #include "debug_elf_reader.h"
 #include "elf_symb.h"
 #include "container.h"
-#include "stackprobe.h"
 #include "java_support.h"
+#include "stackprobe.h"
 
 #define IS_LOAD_PROBE(LOAD_TYPE, PROG_TYPE) (LOAD_TYPE & PROG_TYPE)
 
@@ -1122,10 +1122,10 @@ static int stack_id2histogram(struct stack_trace_s *st, enum stack_svg_type_e en
     } else {
         raw_st = svg_st->raw_stack_trace_b;
     }
-    if (raw_st == NULL) { 
+    if (raw_st == NULL) {
         return -1;
     }
-    
+
     int rt_count = raw_st->raw_trace_count;
     for (int i = 0; i < rt_count; i++) {
         if (g_stop) {
@@ -1411,7 +1411,7 @@ static void destroy_stack_trace(struct stack_trace_s **ptr_st)
         }
         destroy_svg_stack_trace(&st->svg_stack_traces[i]);
     }
-    
+
     if (st->ksymbs) {
         destroy_ksymbs_tbl(st->ksymbs);
         (void)free(st->ksymbs);
@@ -1829,7 +1829,7 @@ static void set_pids_inactive()
     if (bpf_link_head == NULL) {
         return;
     }
-    
+
     H_ITER(bpf_link_head, item, tmp) {
         item->v.pid_state = PID_NOEXIST;
     }
@@ -1921,7 +1921,7 @@ static void clear_invalid_pids()
             (void)free(pid_bpf_links);
         }
     }
-    
+
 }
 
 static bool get_bpf_prog(struct bpf_program *prog, char func_sec[], int func_len)
@@ -1991,7 +1991,7 @@ static void *__uprobe_attach_check(void *arg)
                     pid_bpf_links->v.bpf_links[i] = bpf_program__attach_uprobe(prog, is_uretprobe, -1,
                         elf_path, (size_t)symbol_offset);
 
-                    err = libbpf_get_error(pid_bpf_links->v.bpf_links[i]); 
+                    err = libbpf_get_error(pid_bpf_links->v.bpf_links[i]);
                     if (err) {
                         ERROR("[STACKPROBE]: attach mem bpf to pid %u failed %d\n", pid_bpf_links->pid, err);
                         break;
@@ -2033,7 +2033,7 @@ static int attach_mem_pagefault_or_fp_bpf_prog(struct ipc_body_s *ipc_body, stru
             continue;
         }
         svg_st->links[i] = bpf_program__attach(prog);
-        err = libbpf_get_error(svg_st->links[i]); 
+        err = libbpf_get_error(svg_st->links[i]);
         if (err) {
             ERROR("[STACKPROBE]: attach mem bpf failed %d\n", err);
             svg_st->links[i] = NULL;
@@ -2250,7 +2250,7 @@ static int set_jstack_args(struct java_attach_args *attach_args)
     if (ret < 0) {
         return ret;
     }
-    (void)snprintf(attach_args->agent_file_name, FILENAME_LEN, "%s", JSTACK_AGENT_FILE); 
+    (void)snprintf(attach_args->agent_file_name, FILENAME_LEN, "%s", JSTACK_AGENT_FILE);
     return 0;
 }
 
@@ -2274,7 +2274,7 @@ static void print_jstack(u32 pid, struct java_attach_args *args)
 {
     char cmd[LINE_BUF_LEN];
     cmd[0] = 0;
-    char ns_java_data_path[PATH_LEN]; 
+    char ns_java_data_path[PATH_LEN];
 
     set_ns_java_data_dir(pid, ns_java_data_path, PATH_LEN);
     // java -jar /opt/gala-gopher/extend_probes/JstackPrinter.jar "/proc/<pid>/root/tmp/java-data-$PID" "oncpu|offcpu|mem|"
@@ -2287,7 +2287,7 @@ static void print_jstack(u32 pid, struct java_attach_args *args)
     }
 }
 
-// load cmd example: 
+// load cmd example:
 // jvm_attach 123456 1 load instrument false "/tmp/JstackProbeAgent.jar=123456,/tmp/java-data-123456,oncpu|offcpu|mem|,10"
 static void load_jstack_agent()
 {
@@ -2348,7 +2348,7 @@ static void switch_stackmap()
     st->convert_stack_count++;
     update_convert_counter();
 
-    /* 
+    /*
      *  The jstack agent walks call stack based on JFR, which is different from the perf-event-based stack walker for
      *  native language process. Therefore when the jstack agent is used to walk call stack, the flame graphs of
      *  different processes cannot be merged, meanwhile, the call stack of the JVM itself (that is, the local language
@@ -2415,7 +2415,7 @@ static int init_enabled_svg_stack_traces(struct ipc_body_s *ipc_body)
         { PROBE_RANGE_MEM_GLIBC, STACK_SVG_MEM_GLIBC, "mem_glibc", MEM_GLIBC_PROG, attach_mem_glibc_bpf_prog, process_mem_glibc_raw_stack_trace},
         { PROBE_RANGE_IO, STACK_SVG_IO, "io", IO_PROG, NULL, NULL},
     };
-    
+
     for (int i = 0; i < STACK_SVG_MAX; i++) {
         if (!IS_LOAD_PROBE(ipc_body->probe_range_flags, flameProcs[i].sw)) {
             continue;
@@ -2447,7 +2447,7 @@ static int init_enabled_svg_stack_traces(struct ipc_body_s *ipc_body)
     return 0;
 }
 
-// load cmd example: 
+// load cmd example:
 // jvm_attach 123456 1 load /tmp/jvm_agent.so true /tmp/java-data-123456
 static void load_jvm_agent()
 {

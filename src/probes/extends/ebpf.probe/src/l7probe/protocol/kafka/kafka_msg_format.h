@@ -18,12 +18,12 @@
 #define __KAFKA_MSG_FORMAT_H__
 #pragma once
 
-#include "hash.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include "../../include/data_stream.h"
+#include "hash.h"
 
 
 // The following variable length unit is bytes

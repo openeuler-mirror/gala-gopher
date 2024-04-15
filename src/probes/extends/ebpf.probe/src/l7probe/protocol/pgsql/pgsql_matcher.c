@@ -16,8 +16,8 @@
 #include <stdbool.h>
 #include <string.h>
 #include "common.h"
-#include "pgsql_matcher.h"
 #include "pgsql_parser.h"
+#include "pgsql_matcher.h"
 
 static parse_state_t pgsql_handle_query(struct pgsql_regular_msg_s *msg, struct frame_buf_s *req_frames,
                                  struct frame_buf_s *rsp_frames, struct pgsql_query_req_resp_s *req_rsp)

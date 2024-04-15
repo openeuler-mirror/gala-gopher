@@ -30,12 +30,12 @@
 #include "args.h"
 #include "profiling_event.h"
 #include "tprofiling.h"
-#include "bpf_prog.h"
 #include "syscall_file.skel.h"
 #include "syscall_net.skel.h"
 #include "syscall_lock.skel.h"
 #include "syscall_sched.skel.h"
 #include "oncpu.skel.h"
+#include "bpf_prog.h"
 
 static char is_load_probe_ipc(struct ipc_body_s *ipc_body, u32 probe)
 {

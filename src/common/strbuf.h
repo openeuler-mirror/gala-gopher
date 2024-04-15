@@ -1,8 +1,6 @@
 #ifndef __STRBUF_H__
 #define __STRBUF_H__
 
-#include <string.h>
-
 typedef struct {
     char *buf;
     size_t len;

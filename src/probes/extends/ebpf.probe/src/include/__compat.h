@@ -169,10 +169,8 @@ static inline int bpf_buffer__poll(struct bpf_buffer *buffer, int timeout_ms)
     {
     case BPF_MAP_TYPE_PERF_EVENT_ARRAY:
         return perf_buffer__poll((struct perf_buffer *)buffer->inner, timeout_ms);
-        break;
     case BPF_MAP_TYPE_RINGBUF:
         return ring_buffer__poll((struct ring_buffer *)buffer->inner, timeout_ms);
-        break;
     default:
         return -EINVAL;
     }

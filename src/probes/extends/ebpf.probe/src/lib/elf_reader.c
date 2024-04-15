@@ -24,8 +24,8 @@
 #include <errno.h>
 
 #include "bpf.h"
-#include "elf_reader.h"
 #include "container.h"
+#include "elf_reader.h"
 
 #define DEFAULT_PATH_LIST   "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/root/bin"
 
@@ -152,6 +152,9 @@ static int __do_get_path_from_host(const char *binary_file, char **res_buf, int 
                 break;
             }
             res_buf[r_len] = (char *)malloc(PATH_LEN * sizeof(char));
+            if (res_buf[r_len] == NULL) {
+                return r_len;
+            }
             (void)snprintf(res_buf[r_len], PATH_LEN, "%s", abs_path);
             r_len++;
         }

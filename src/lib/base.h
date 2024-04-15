@@ -19,8 +19,6 @@
 
 #define GALA_GOPHER_INFO(description)   1
 
-#include "common.h"
-
 // ======== COMMON ========
 // fifo
 #define MAX_FIFO_NUM          32

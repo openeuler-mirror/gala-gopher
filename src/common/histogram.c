@@ -16,7 +16,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <signal.h>
-#include <errno.h>
+#include <string.h>
 
 #include "strbuf.h"
 #include "histogram.h"

@@ -15,9 +15,9 @@
  ******************************************************************************/
 
 #include <string.h>
-#include "kafka_parser.h"
 #include "../common/protocol_common.h"
 #include "../utils/binary_decoder.h"
+#include "kafka_parser.h"
 
 // Kafka request/response format: https://kafka.apache.org/protocol.html#protocol_messages
 parse_state_t kafka_parse_frame(enum message_type_t msg_type, struct raw_data_s *raw_data, struct frame_data_s **frame)

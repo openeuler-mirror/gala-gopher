@@ -16,7 +16,6 @@
 #define __IPC_H__
 
 #include <sys/ipc.h>
-#include <sys/msg.h>
 
 #include "common.h"
 #include "args.h"

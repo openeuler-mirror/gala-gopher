@@ -22,8 +22,8 @@
 #include <time.h>
 #include <signal.h>
 
-#include "daemon.h"
 #include "object.h"
+#include "daemon.h"
 
 #define RM_MAP_CMD "/usr/bin/find %s/* 2> /dev/null | /usr/bin/xargs rm -f"
 static const ResourceMgr *resouce_msg;
