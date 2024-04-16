@@ -256,8 +256,8 @@ destroy_ipc_body(&ipc_body);
 
 
 
-- IPC消息类型定义：定义参见 [enum probe_type_e](https://gitee.com/openeuler/gala-gopher/blob/dev/src/common/ipc.h#L91), 不同的探针使用不同的IPC消息类型
-- IPC消息格式：参见[struct ipc_body_s](https://gitee.com/openeuler/gala-gopher/blob/dev/src/common/ipc.h#L158)
+- IPC消息类型定义：定义参见 [enum probe_type_e](../src/common/ipc.h#L91), 不同的探针使用不同的IPC消息类型
+- IPC消息格式：参见[struct ipc_body_s](../src/common/ipc.h#L158)
 
 ```
 IPC msg format:

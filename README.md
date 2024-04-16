@@ -81,7 +81,7 @@ Redis/PostgreSQL常用于为应用提供数据存储服务，现有性能监控�
 - [Redis性能监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#redis%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7)：提供精细化的（具体到某个TCP）redis时延监控能力。（注意不支持加密场景）
 - [PostgreSQL性能监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#postgresql%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7)：提供精细化的（具体到某个TCP）Postgre时延监控能力。
 
-备注：与[应用访问性能监控](https://gitee.com/openeuler/gala-gopher/blob/dev/README.md#%E5%BA%94%E7%94%A8%E5%BE%AE%E6%9C%8D%E5%8A%A1%E8%AE%BF%E9%97%AE%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7)的区别在于，该观测精度略低，但是其底噪更低。
+备注：与[应用访问性能监控](./README.md#%E5%BA%94%E7%94%A8%E5%BE%AE%E6%9C%8D%E5%8A%A1%E8%AE%BF%E9%97%AE%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7)的区别在于，该观测精度略低，但是其底噪更低。
 
 ## 软件架构
 
@@ -267,7 +267,7 @@ hub.oepkgs.net/a-ops/gala-gopher-x86_64
 
 **构建环境要求**：openEuler-22.03-LTS-SP1及以上，并配置OS版本配套的openEuler repo源，至少包含everything、update、EPOL三个目录（具体配置方法可参考openEuler社区文档《管理员指南》）。
 
-下载仓库源码到本地，确认切换到dev分支，然后在源码的[build目录](./build)下执行以下构建动作：
+下载仓库源码到本地，确认切换到master分支，然后在源码的[build目录](./build)下执行以下构建动作：
 
 1. 安装构建依赖包
 
@@ -305,7 +305,7 @@ hub.oepkgs.net/a-ops/gala-gopher-x86_64
 
 **构建环境要求**：openEuler-22.03-LTS-SP1及以上，并配置OS版本配套的openEuler repo源，至少包含everything、update、EPOL三个目录（具体配置方法可参考openEuler社区文档《管理员指南》）。
 
-下载仓库源码到本地，确认切换到dev分支，取出源码根目录下的[gala-gopher.spec](./gala-gopher.spec)后执行如下构建动作：
+下载仓库源码到本地，确认切换到master分支，取出源码根目录下的[gala-gopher.spec](./gala-gopher.spec)后执行如下构建动作：
 
 1. 安装rpm-build以及构建依赖包（参照编译二进制）
 
@@ -363,7 +363,7 @@ hub.oepkgs.net/a-ops/gala-gopher-x86_64
 
 ### 探针开发
 
-[探针开发指南](https://gitee.com/openeuler/gala-gopher/blob/dev/doc/how_to_add_probe.md)
+[探针开发指南](./doc/how_to_add_probe.md)
 
 ## Q&A
 
@@ -385,7 +385,7 @@ gala-gopher提供的微服务访问性能监控可以非侵入、多语言的完
 
 ### 如何解决跨版本兼容性问题
 
-参考[这里](https://gitee.com/openeuler/gala-gopher/blob/dev/doc/compatible.md)。
+参考[这里](./doc/compatible.md)。
 
 ## 路线图
 
