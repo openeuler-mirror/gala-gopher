@@ -50,20 +50,6 @@ static __always_inline void report_sockbuf(void *ctx, struct tcp_metrics_s *metr
 
 static void get_tcp_sock_buf(struct sock *sk, struct tcp_sockbuf* stats)
 {
-#if 0
-    stats->tcpi_sk_err_que_size = _(sk->sk_error_queue.qlen);
-    stats->tcpi_sk_rcv_que_size = _(sk->sk_receive_queue.qlen);
-    stats->tcpi_sk_wri_que_size = _(sk->sk_write_queue.qlen);
-    stats->tcpi_sk_backlog_size = (u32)_(sk->sk_backlog.len);
-    stats->tcpi_sk_omem_size    = (u32)_(sk->sk_omem_alloc.counter);
-    stats->tcpi_sk_forward_size = (u32)_(sk->sk_forward_alloc);
-    /* 4.13-rc1 convert sock.sk_wmem_alloc from atomic_t to refcount_t*/
-    if (probe_kernel_version() < KERNEL_VERSION(4, 14, 0)) {
-        stats->tcpi_sk_wmem_size    = (u32)_(sk->sk_wmem_alloc.counter);
-    } else {
-        stats->tcpi_sk_wmem_size    = (u32)_(sk->sk_wmem_alloc.refs.counter);
-    }
-#endif
     stats->sk_rcvbuf    = (int)_(sk->sk_rcvbuf);
     stats->sk_sndbuf    = (int)_(sk->sk_sndbuf);
 
@@ -76,35 +62,6 @@ static void set_last_sockbuf_stats(struct tcp_sockbuf* stats, struct tcp_sockbuf
 
 static int is_sockbuf_stats_changed(struct tcp_sockbuf* stats, struct tcp_sockbuf* last_stats)
 {
-#if 0
-    if (last_stats->tcpi_sk_err_que_size != stats->tcpi_sk_err_que_size) {
-        return 1;
-    }
-
-    if (last_stats->tcpi_sk_rcv_que_size != stats->tcpi_sk_rcv_que_size) {
-        return 1;
-    }
-
-    if (last_stats->tcpi_sk_wri_que_size != stats->tcpi_sk_wri_que_size) {
-        return 1;
-    }
-
-    if (last_stats->tcpi_sk_backlog_size != stats->tcpi_sk_backlog_size) {
-        return 1;
-    }
-
-    if (last_stats->tcpi_sk_omem_size != stats->tcpi_sk_omem_size) {
-        return 1;
-    }
-
-    if  (last_stats->tcpi_sk_forward_size != stats->tcpi_sk_forward_size) {
-        return 1;
-    }
-
-    if (last_stats->tcpi_sk_wmem_size != stats->tcpi_sk_wmem_size) {
-        return 1;
-    }
-#endif
     if (last_stats->sk_rcvbuf != stats->sk_rcvbuf) {
         return 1;
     }

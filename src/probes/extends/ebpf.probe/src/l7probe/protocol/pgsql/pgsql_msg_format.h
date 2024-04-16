@@ -136,10 +136,6 @@ struct pgsql_name_value_pair_s {
 struct pgsql_startup_msg_s {
     int32_t len;
     struct pgsql_protocol_version_s protocol_ver;
-#if 0
-    struct pgsql_name_value_pair_s *name_value_pairs[__NAME_VALUE_PAIR_BUF_SIZE];
-    size_t name_value_pair_len;
-#endif
 };
 
 /**
@@ -359,10 +355,6 @@ void free_pgsql_query_req(struct pgsql_query_req_s *query_req);
 struct pgsql_query_resp_s {
     uint64_t timestamp_ns;
     struct pgsql_row_description_s *row_desc;
-#if 0
-    struct pgsql_data_row_s *data_rows[__PGSQL_ROW_DATA_SIZE];
-    size_t data_row_len;
-#endif
     struct pgsql_cmd_complete_s *cmd_cmpl;
     bool is_err_resp;
     struct pgsql_err_resp_s *err_resp;
@@ -415,10 +407,6 @@ struct pgsql_parse_req_s {
     uint64_t timestamp_ns;
     char *stmt_name;
     char *query;
-#if 0
-    int32_t *param_type_oid[__PARAM_TYPE_OID_SIZE];
-    size_t param_type_oid_len;
-#endif
 };
 
 /**
@@ -498,12 +486,6 @@ struct pgsql_bind_req_s {
     uint64_t timestamp_ns;
     char *dest_portal_name;
     char *src_prepared_stat_name;
-#if 0
-    struct pgsql_param_s *params[__PGSQL_BIND_PARAM_SIZE];
-    size_t params_len;
-    int *res_col_fmt_codes[__PGSQL_BIND_PARAM_SIZE];
-    size_t col_fmt_codes_len;
-#endif
 };
 
 /**
@@ -646,9 +628,6 @@ void free_pgsql_describe_req_resp(struct pgsql_describe_req_resp_s *desc_req_rsp
 struct pgsql_execute_req_s {
     uint64_t timestamp_ns;
     char *query;
-#if 0
-    struct pgsql_param_s *params[0];
-#endif
 };
 
 /**

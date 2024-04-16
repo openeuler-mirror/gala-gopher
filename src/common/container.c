@@ -107,63 +107,6 @@ static char *current_docker_command = NULL;
 static char current_docker_command_chroot[COMMAND_LEN];
 static char current_docker_driver[CONTAINER_DRIVER_LEN] = {0};
 
-#if 0
-static bool __is_install_rpm(const char* command)
-{
-    char line[LINE_BUF_LEN];
-    FILE *f;
-    bool is_installed;
-
-    is_installed = false;
-    f = popen(command, "r");
-    if (f == NULL) {
-        return false;
-    }
-
-    (void)memset(line, 0, LINE_BUF_LEN);
-    if (fgets(line, LINE_BUF_LEN, f) == NULL) {
-        goto out;
-    }
-
-    if (strstr(line, ERR_MSG2) != NULL) {
-        goto out;
-    }
-
-    is_installed = true;
-out:
-    (void)pclose(f);
-    return is_installed;
-}
-
-static bool __is_service_running(const char* service)
-{
-    char line[LINE_BUF_LEN];
-    FILE *f;
-    bool is_running;
-
-    is_running = false;
-    f = popen(service, "r");
-    if (f == NULL) {
-        return false;
-    }
-
-    while (!feof(f)) {
-        (void)memset(line, 0, LINE_BUF_LEN);
-        if (fgets(line, LINE_BUF_LEN, f) == NULL) {
-            goto out;
-        }
-        if (strstr(line, RUNNING) != NULL) {
-            is_running = true;
-            goto out;
-        }
-    }
-
-out:
-    (void)pclose(f);
-    return is_running;
-}
-#endif
-
 static bool __is_docker_running(const char *docker_command)
 {
     char command[COMMAND_LEN];
@@ -718,46 +661,6 @@ int exec_container_command(const char *abbr_container_id, const char *exec, char
 
     return exec_cmd_chroot((const char *)command, buf, len);
 }
-
-#if 0
-/*
-[root@localhost /]# docker ps -q | xargs docker inspect --format '{{.State.Pid}}, {{.Id}}' | grep -w 3013984 | awk -F ', ' '{print $2}'
-f2e933da43a7e2cff0e36e1726cb91eb45a0959b02fd9b39e2dbc67022f4a88c
-
-*/
-int get_container_id_by_pid(unsigned int pid, char *container_id, unsigned int buf_len)
-{
-    int ret;
-    char command[COMMAND_LEN];
-    char line[LINE_BUF_LEN];
-
-    if (buf_len < CONTAINER_ABBR_ID_LEN + 1) {
-        return -1;
-    }
-
-    if (!get_current_command()) {
-        return -1;
-    }
-
-    command[0] = 0;
-    line[0] = 0;
-    if (__is_containerd()) {
-        (void)snprintf(command, COMMAND_LEN, CONTAINERD_ID_COMMAND, get_current_command(), get_current_command(), pid);
-    } else {
-        (void)snprintf(command, COMMAND_LEN, DOCKER_ID_COMMAND, get_current_command(), get_current_command(), pid);
-    }
-
-    ret = exec_cmd_chroot((const char *)command, line, LINE_BUF_LEN);
-    if (ret < 0) {
-        return -1;
-    }
-
-    (void)memcpy(container_id, line, CONTAINER_ABBR_ID_LEN);
-    container_id[CONTAINER_ABBR_ID_LEN] = 0;
-    return 0;
-}
-#endif
-
 
 static enum cgrp_driver_t get_cgroup_drvier(const char *cgrp_path)
 {

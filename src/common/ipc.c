@@ -723,20 +723,6 @@ static int __build_probe_range_tlv(char *buf, size_t size, struct ipc_body_s* ip
     return (sizeof(struct ipc_tlv_s) + sizeof(u32));
 }
 
-#if 0
-static int __build_probe_flags_tlv(char *buf, size_t size, struct ipc_body_s* ipc_body)
-{
-    u32 *value;
-    struct ipc_tlv_s *tlv = (struct ipc_tlv_s *)buf;
-
-    tlv->type = IPCT_PROBE_FLAGS;
-    tlv->len = sizeof(u32);
-    value = (u32 *)(buf + sizeof(struct ipc_tlv_s));
-    *value = ipc_body->probe_flags;
-    return (sizeof(struct ipc_tlv_s) + sizeof(u32));
-}
-#endif
-
 static int __build_snooper_num_tlv(char *buf, size_t size, struct ipc_body_s* ipc_body)
 {
     u32 *value;
@@ -805,16 +791,6 @@ static int __build_ipc_msg(char *buf, size_t size, struct ipc_body_s* ipc_body)
     }
     cur += build_len;
     fill_len += build_len;
-
-#if 0
-    build_len = __build_probe_flags_tlv(cur, (size_t)max_len, ipc_body);
-    max_len = max_len - build_len;
-    if (max_len <= 0) {
-        return -1;
-    }
-    cur += build_len;
-    fill_len += build_len;
-#endif
 
     build_len = __build_snooper_num_tlv(cur, (size_t)max_len, ipc_body);
     max_len = max_len - build_len;
@@ -923,20 +899,6 @@ static int __deserialize_probe_params_tlv(char *buf, size_t size, struct ipc_bod
     return (tlv->len + sizeof(struct ipc_tlv_s));
 }
 
-#if 0
-static int __deserialize_probe_flags_tlv(char *buf, size_t size, struct ipc_body_s* ipc_body)
-{
-    struct ipc_tlv_s *tlv = (struct ipc_tlv_s *)buf;
-
-    if ((tlv->type != IPCT_PROBE_FLAGS) || (tlv->len != sizeof(u32))) {
-        return -1;
-    }
-
-    ipc_body->probe_flags = *(u32 *)tlv->value;
-    return (tlv->len + sizeof(struct ipc_tlv_s));
-}
-#endif
-
 static int __deserialize_snooper_num_tlv(char *buf, size_t size, struct ipc_body_s* ipc_body)
 {
     struct ipc_tlv_s *tlv = (struct ipc_tlv_s *)buf;
@@ -1013,19 +975,6 @@ static int __deserialize_ipc_msg(struct ipc_msg_s* ipc_msg, struct ipc_body_s* i
     if (max_len < 0) {
         return -1;
     }
-
-#if 0
-    cur = start + offset;
-    deserialize_len = __deserialize_probe_flags_tlv(cur, (size_t)max_len, ipc_body);
-    if (deserialize_len < 0) {
-        return -1;
-    }
-    offset += deserialize_len;
-    max_len -= deserialize_len;
-    if (max_len < 0) {
-        return -1;
-    }
-#endif
 
     cur = start + offset;
     deserialize_len = __deserialize_snooper_num_tlv(cur, (size_t)max_len, ipc_body);

@@ -1490,11 +1490,6 @@ static struct stack_trace_s *create_stack_trace(struct ipc_body_s *ipc_body)
     st->whitelist_enable = 1; // Only the flame graph of the specified process is collected
     st->multi_instance_flag = ipc_body->probe_param.multi_instance_flag;
     st->native_stack_flag = ipc_body->probe_param.native_stack_flag;
-#if 0
-    if (stacktrace_create_log_mgr(st, conf->generalConfig->logDir)) {
-        goto err;
-    }
-#endif
 
     if (set_post_server(&st->post_server, ipc_body->probe_param.pyroscope_server,
                         ipc_body->probe_param.perf_sample_period, ipc_body->probe_param.multi_instance_flag) != 0) {

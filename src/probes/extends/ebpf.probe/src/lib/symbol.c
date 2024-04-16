@@ -212,16 +212,6 @@ static void __print_mods(struct mod_s *mod)
     (void)snprintf(pos, len, "%*u\n", offset[i++], mod->symbs_count);
     INFO(buf);
 
-#if 0
-    if (mod->symbs_count > 0) {
-        __print_symbs_header();
-    }
-    for (i = 0; i < mod->symbs_count; i++) {
-        if (mod->symbs[i]) {
-            __print_symbs(mod->symbs[i]);
-        }
-    }
-#endif
     if (mod->addr_ranges_count > 0) {
         __print_range_header();
     }
@@ -268,21 +258,6 @@ static void __print_proc(struct proc_symbs_s* proc_symbs)
 }
 #endif
 
-#if 1
-#if 0
-static void symb_destroy(struct symb_s *symb)
-{
-    if (!symb) {
-        return;
-    }
-
-    if (symb->symb_name) {
-        (void)free(symb->symb_name);
-        symb->symb_name = NULL;
-    }
-    return;
-}
-#endif
 static void mod_info_destroy(struct mod_info_s *mod_info)
 {
     if (mod_info->name) {
@@ -325,90 +300,7 @@ static void proc_symbs_destroy(struct proc_symbs_s *proc_symbs)
     }
     return;
 }
-#endif
 
-#if 0
-static int inc_symbs_capability(struct mod_s* mod)
-{
-    u32 new_capa, old_capa;
-    struct symb_s** new_symbs_capa;
-    struct symb_s** old_symbs_capa;
-
-    old_capa = mod->symbs_capability;
-    new_capa = mod->symbs_capability + SYMBS_STEP_COUNT;
-    if (new_capa >= SYMBS_MAX_COUNT) {
-        return -1;
-    }
-
-    old_symbs_capa = mod->__symbs;
-
-    new_symbs_capa = (struct symb_s **)malloc(new_capa * sizeof(struct symb_s *));
-    if (!new_symbs_capa) {
-        return -1;
-    }
-
-    (void)memset(new_symbs_capa, 0, new_capa * sizeof(struct symb_s *));
-    if (old_capa > 0 && old_symbs_capa != NULL) {
-        (void)memcpy(new_symbs_capa, old_symbs_capa, old_capa * sizeof(struct symb_s *));
-    }
-    if (old_symbs_capa != NULL) {
-        (void)free(old_symbs_capa);
-        old_symbs_capa = NULL;
-    }
-    mod->__symbs = new_symbs_capa;
-    mod->symbs_capability = new_capa;
-    return 0;
-}
-
-static ELF_CB_RET __add_symbs(const char *symb, u64 addr_start, u64 size, void *ctx)
-{
-    struct mod_s* mod = ctx;
-    struct symb_s* new_symb;
-
-    if (mod->symbs_count >= mod->symbs_capability) {
-        if (inc_symbs_capability(mod)) {
-            ERROR("[SYMBOL]: Too many symbos(%s).\n", mod->mod_name ?: __UNKNOW_NAME);
-            return ELF_SYMB_CB_ERR;
-        }
-    }
-
-    new_symb = (struct symb_s*)malloc(sizeof(struct symb_s));
-    if (!new_symb) {
-        return ELF_SYMB_CB_ERR;
-    }
-
-    (void)memset(new_symb, 0, sizeof(struct symb_s));
-    new_symb->start = addr_start;
-    new_symb->size = size;
-    new_symb->symb_name = strdup(symb);
-    SPLIT_NEWLINE_SYMBOL(new_symb->symb_name);
-
-    mod->symbs[mod->symbs_count++] = new_symb;
-    return ELF_SYMB_CB_OK;
-}
-
-static int __symb_cmp(const void *a, const void *b)
-{
-    struct symb_s **symb1 = (struct symb_s **)a;
-    struct symb_s **symb2 = (struct symb_s **)b;
-
-    return (*symb1)->start - (*symb2)->start;
-}
-
-static int sort_symbs(struct mod_s* mod)
-{
-    if (!mod) {
-        return SORT_SYMBS;
-    }
-    if (mod->symbs_count == 0) {
-        return 0;
-    }
-    qsort(mod->symbs, mod->symbs_count, sizeof(struct symb_s *), __symb_cmp);
-    return 0;
-}
-#endif
-
-#if 1
 static u64 __get_mod_target_addr(struct mod_s* mod, struct mod_addr_rage_s *range, u64 addr)
 {
     if (mod->mod_type == MODULE_SO || mod->mod_type == MODULE_VDSO) {
@@ -432,70 +324,6 @@ static char is_mod_contain_addr(struct mod_s* mod, u64 addr, u64 *target_addr)
     return 0;
 }
 
-#if 0
-#define MOD_ERR_INDEX(mod, index)   (((index) < 0) || (mod->symbs_count <= (index)))
-
-static int search_addr_upper_bound(struct mod_s* mod, int bgn, int end, u64 target_addr)
-{
-    int left = bgn, right = end, mid = 0;
-
-    if ((bgn >= end) || (bgn < 0) || (end < 0)) {
-        return -1;
-    }
-
-    while (left < right) {
-        mid = (left + right) / 2;
-        if (mid >= mod->symbs_count) {
-            return -1;
-        }
-        if (target_addr >= mod->symbs[mid]->start) {
-            left = mid + 1;
-        } else {
-            right = mid - 1;
-        }
-    }
-
-    if (MOD_ERR_INDEX(mod, right)) {
-        return -1;
-    }
-    return target_addr >= mod->symbs[right]->start ? (right + 1): right;
-}
-
-static int __do_mod_search_addr(struct mod_s* mod, u64 orign_addr, u64 target_addr, struct addr_symb_s* addr_symb)
-{
-    u64 range;
-    int search_index = search_addr_upper_bound(mod, 0, mod->symbs_count, target_addr);
-
-    // Take a step back.
-    search_index -= 1;
-    if (MOD_ERR_INDEX(mod, search_index)) {
-        return -1;
-    }
-
-    range = mod->symbs[search_index]->start;
-
-    while (!MOD_ERR_INDEX(mod, search_index) && target_addr >= mod->symbs[search_index]->start) {
-        if (target_addr < mod->symbs[search_index]->start + mod->symbs[search_index]->size) {
-            addr_symb->sym = mod->symbs[search_index]->symb_name;
-            addr_symb->offset = target_addr - mod->symbs[search_index]->start;
-            addr_symb->orign_addr = orign_addr;
-            addr_symb->mod = mod->mod_name;
-            return 0;
-        }
-        if (range > mod->symbs[search_index]->start + mod->symbs[search_index]->size) {
-            break;
-        }
-        // Take a step back.
-        search_index -= 1;
-    }
-
-    return -1;
-}
-#endif
-#endif
-
-#if 1
-
 static int load_debug_symbs(struct proc_symbs_s* proc_symbs, struct mod_s* mod)
 {
     char debug_file[PATH_LEN];
@@ -516,15 +344,6 @@ static int load_debug_symbs(struct proc_symbs_s* proc_symbs, struct mod_s* mod)
         mod->debug_symbs = get_symb_from_file((const char *)debug_file, ELF_SYM);
     }
 
-#if 0
-    elf_symb = get_elf_symbol(mod->elf_reader, proc_symbs->proc_id,
-                (const char *)mod->mod_name, (const char *)mod->mod_path);
-    if (!elf_symb) {
-        return -1;
-    }
-
-    mod->debug_symbs = elf_symb;
-#endif
     return 0;
 }
 
@@ -547,14 +366,6 @@ static int load_symbs(struct mod_s* mod)
             return LOAD_SYMBS;
         }
         return 0;
-#if 0
-        if (gopher_iter_elf_file_symb((const char *)(mod->mod_path), __add_symbs, mod)) {
-            ERROR("[SYMBOL]: Failed to load elf %s.\n", mod->mod_path);
-            return LOAD_SYMBS;
-        } else {
-            return 0;
-        }
-#endif
     }
 
     /*
@@ -624,12 +435,6 @@ static int add_mod(void *elf_reader, struct proc_symbs_s* proc_symbs, struct mod
             proc_symbs->need_update = 0;
     }
 
-#if 0
-    ret = sort_symbs(new_mod);
-    if (ret != 0) {
-        goto err;
-    }
-#endif
     ret = get_mod_elf_so_offset(new_mod);
     if (ret != 0) {
         goto err;
@@ -838,9 +643,7 @@ static int get_mod_name(struct mod_info_s* mod_info, char *maps_line, struct pro
 
     return 0;
 }
-#endif
 
-#if 1
 static struct mod_s* proc_get_mod_by_name(struct proc_symbs_s* proc_symbs, const char *name)
 {
     struct mod_s *mod;
@@ -919,38 +722,6 @@ next:
 
     return is_over ? ret : 0;
 }
-
-#if 0
-#define __GET_CONTAINER_ID_CMD  "/usr/bin/cat /proc/%d/cpuset 2>/dev/null | awk -F '/' '{print $NF}'"
-static int __get_container_id_by_pid(int pid, char container_id[], size_t len)
-{
-    char cmd[COMMAND_LEN];
-    char buf[CONTAINER_ID_LEN];
-
-    if (len <= CONTAINER_ABBR_ID_LEN) {
-        return -1;
-    }
-
-    buf[0] = 0;
-    cmd[0] = 0;
-    (void)snprintf(cmd, COMMAND_LEN, __GET_CONTAINER_ID_CMD, pid);
-
-    if (exec_cmd((const char *)cmd, buf, CONTAINER_ID_LEN) < 0) {
-        return -1;
-    }
-
-    if (strstr(buf, "No such file")) {
-        return -1;
-    }
-
-    if (buf[0] == 0) {
-        return -1;
-    }
-
-    (void)snprintf(container_id, CONTAINER_ABBR_ID_LEN + 1, "%s", buf);
-    return 0;
-}
-#endif
 
 void __get_proc_info(struct proc_symbs_s* proc_symbs, int proc_id)
 {
@@ -1098,4 +869,3 @@ int proc_search_addr_symb(struct proc_symbs_s *proc_symbs,
 
     return ret;
 }
-#endif

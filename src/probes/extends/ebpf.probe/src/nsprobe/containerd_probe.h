@@ -36,16 +36,6 @@ struct container_value {
     u32 net_ns_id;                          // Net namespace id of container
 
     unsigned long long bps;
-
-#if 0
-    u64 memory_usage_in_bytes;
-    u64 memory_limit_in_bytes;
-    u64 cpuacct_usage;
-    u64 cpuacct_usage_user;
-    u64 cpuacct_usage_sys;
-    u64 pids_current;
-    u64 pids_limit;
-#endif
     char name[CONTAINER_NAME_LEN];           // Name of container
 
     char cpucg_dir[PATH_LEN];

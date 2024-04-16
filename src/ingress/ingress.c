@@ -58,53 +58,6 @@ static int IngressInit(IngressMgr *mgr)
     return 0;
 }
 
-#if 0
-static int IngressInit(IngressMgr *mgr)
-{
-    struct epoll_event event;
-    uint32_t ret = 0;
-
-    mgr->epoll_fd = epoll_create(MAX_EPOLL_SIZE);
-    if (mgr->epoll_fd < 0) {
-        return -1;
-    }
-
-    // add all probe triggerFd into mgr->epoll_fd
-    ProbeMgr *probeMgr = mgr->probeMgr;
-    for (int i = 0; i < probeMgr->probesNum; i++) {
-        Probe *probe = probeMgr->probes[i];
-        event.events = EPOLLIN;
-        event.data.ptr = probe->fifo;
-
-        ret = epoll_ctl(mgr->epoll_fd, EPOLL_CTL_ADD, probe->fifo->triggerFd, &event);
-        if (ret < 0) {
-            ERROR("[INGRESS] add EPOLLIN event failed, probe %s.\n", probe->name);
-            return -1;
-        }
-
-        INFO("[INGRESS] add EPOLLIN event success, probe %s.\n", probe->name);
-    }
-
-    // add all extend probe triggerfd into mgr->epoll_fd
-    ExtendProbeMgr *extendProbeMgr = mgr->extendProbeMgr;
-    for (int i = 0; i < extendProbeMgr->probesNum; i++) {
-        ExtendProbe *extendProbe = extendProbeMgr->probes[i];
-        event.events = EPOLLIN;
-        event.data.ptr = extendProbe->fifo;
-
-        ret = epoll_ctl(mgr->epoll_fd, EPOLL_CTL_ADD, extendProbe->fifo->triggerFd, &event);
-        if (ret < 0) {
-            ERROR("[INGRESS] add EPOLLIN event failed, extend probe %s.\n", extendProbe->name);
-            return -1;
-        }
-
-        INFO("[INGRESS] add EPOLLIN event success, extend probe %s.\n", extendProbe->name);
-    }
-
-    return 0;
-}
-#endif
-
 static int LogData2Egress(IngressMgr *mgr, const char *logData)
 {
     int ret = 0;
@@ -435,50 +388,3 @@ void IngressMain(IngressMgr *mgr)
         }
     }
 }
-
-#if 0
-int IngressRemovePorbe(IngressMgr *mgr, ExtendProbe *probe)
-{
-    int ret;
-
-    if (probe->fifo == NULL)
-        return 0;
-
-    ret = epoll_ctl(mgr->epoll_fd, EPOLL_CTL_DEL, probe->fifo->triggerFd, NULL);
-    if (ret != 0) {
-        ERROR("[INGRESS] remove probe(%s) trigger fd failed(fd=%d, ret=%d).\n", probe->name,
-                        probe->fifo->triggerFd, ret);
-        return -1;
-    }
-    ret = close(probe->fifo->triggerFd);
-    if (ret != 0) {
-        ERROR("[INGRESS] close probe(%s) trigger fd failed(fd=%d, ret=%d).\n", probe->name,
-                        probe->fifo->triggerFd, ret);
-        return -1;
-    }
-    probe->fifo->triggerFd = 0;
-    return 0;
-}
-
-int IngressAddPorbe(IngressMgr *mgr, ExtendProbe *probe)
-{
-    int ret;
-    struct epoll_event event;
-
-    if (probe->fifo == NULL)
-        return 0;
-
-    probe->fifo->triggerFd = eventfd(0, 0);
-
-    event.events = EPOLLIN;
-    event.data.ptr = probe->fifo;
-    ret = epoll_ctl(mgr->epoll_fd, EPOLL_CTL_ADD, probe->fifo->triggerFd, &event);
-    if (ret != 0) {
-        ERROR("[INGRESS] add probe(%s) trigger fd failed(fd=%d, ret=%d).\n", probe->name,
-                            probe->fifo->triggerFd, ret);
-        return -1;
-    }
-
-    return 0;
-}
-#endif

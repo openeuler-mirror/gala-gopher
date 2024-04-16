@@ -121,17 +121,6 @@ static void report_proc_metrics(struct proc_data_s *proc)
                     proc->syscall.failed);
     }
 
-#if 0
-    if (proc->dns_op.gethostname_failed > 0) {
-        evt.metrics = "gethostname_failed";
-        report_logs((const struct event_info_s *)&evt,
-                    EVT_SEC_WARN,
-                    "Process(COMM:%s PID:%u) gethostname failed(COUNT:%u).",
-                    proc->comm,
-                    proc->proc_id,
-                    proc->dns_op.gethostname_failed);
-    }
-#endif
     if (latency_thr_us > 0 && (proc->proc_cpu.iowait_ns >> 3) > latency_thr_us) {
         evt.metrics = "iowait_ns";
         report_logs((const struct event_info_s *)&evt,
@@ -286,20 +275,6 @@ static void output_proc_metrics_page(struct proc_data_s *proc)
         proc->page_op.count_load_page_cache,
         proc->page_op.count_mark_page_dirty);
 }
-
-#if 0
-static void output_proc_metrics_dns(struct proc_data_s *proc)
-{
-    (void)fprintf(stdout,
-        "|%s|%u|"
-        "%llu|%llu|\n",
-        PROC_TBL_DNS,
-        proc->proc_id,
-
-        proc->dns_op.gethostname_failed,
-        proc->dns_op.gethostname_ns);
-}
-#endif
 
 static void output_proc_io_stats(struct proc_data_s *proc)
 {
