@@ -16,9 +16,11 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
+#include <utlist.h>
 #include "debug_elf_reader.h"
 #include "elf_symb.h"
 #include "container.h"
+#include "tprofiling.h"
 #include "java_support.h"
 #include "proc_info.h"
 
@@ -73,6 +75,34 @@ unsigned int HASH_count_proc_table(proc_info_t **proc_table)
     return HASH_COUNT(*proc_table);
 }
 
+void HASH_add_thrd_info_with_LRU(thrd_info_t **thrd_table, thrd_info_t *thrd_info)
+{
+    thrd_info_t *ti, *tmp;
+
+    if (HASH_COUNT(*thrd_table) >= MAX_CACHE_THRD_NUM) {
+        HASH_ITER(hh, *thrd_table, ti, tmp) {
+            HASH_DEL(*thrd_table, ti);
+            free_thrd_info(ti);
+            break;
+        }
+    }
+
+    HASH_ADD_INT(*thrd_table, pid, thrd_info);
+}
+
+thrd_info_t *HASH_find_thrd_info_with_LRU(thrd_info_t **thrd_table, int pid)
+{
+    thrd_info_t *ti;
+
+    HASH_FIND_INT(*thrd_table, &pid, ti);
+    if (ti) {
+        HASH_DEL(*thrd_table, ti);
+        HASH_ADD_INT(*thrd_table, pid, ti);
+    }
+
+    return ti;
+}
+
 int set_proc_comm(int tgid, char *comm, int size)
 {
     char cmd[MAX_CMD_SIZE];
@@ -80,13 +110,13 @@ int set_proc_comm(int tgid, char *comm, int size)
 
     ret = snprintf(cmd, sizeof(cmd), CMD_CAT_PROC_COMM, tgid);
     if (ret < 0 || ret >= sizeof(cmd)) {
-        fprintf(stderr, "ERROR: Failed to set command.\n");
+        TP_ERROR("Failed to set command.\n");
         return -1;
     }
 
     ret = exec_cmd(cmd, comm, size);
     if (ret) {
-        fprintf(stderr, "ERROR: Failed to execute command:%s.\n", cmd);
+        TP_DEBUG("Failed to execute command: %s.\n", cmd);
         return -1;
     }
 
@@ -100,13 +130,13 @@ int set_thrd_comm(int pid, int tgid, char *comm, int size)
 
     ret = snprintf(cmd, sizeof(cmd), CMD_CAT_THRD_COMM, tgid, pid);
     if (ret < 0 || ret >= sizeof(cmd)) {
-        fprintf(stderr, "ERROR: Failed to set command.\n");
+        TP_ERROR("Failed to set command.\n");
         return -1;
     }
 
     ret = exec_cmd(cmd, comm, size);
     if (ret) {
-        fprintf(stderr, "ERROR: Failed to execute command:%s.\n", cmd);
+        TP_ERROR("Failed to execute command: %s.\n", cmd);
         return -1;
     }
 
@@ -181,7 +211,7 @@ proc_info_t *add_proc_info(proc_info_t **proc_table, int tgid)
 
     pi = (proc_info_t *)calloc(1, sizeof(proc_info_t));
     if (pi == NULL) {
-        fprintf(stderr, "ERROR: Failed to allocate process info.\n");
+        TP_ERROR("Failed to allocate process info.\n");
         return NULL;
     }
 
@@ -194,11 +224,19 @@ proc_info_t *add_proc_info(proc_info_t **proc_table, int tgid)
 
     pi->fd_table = (fd_info_t **)malloc(sizeof(fd_info_t *));
     if (pi->fd_table == NULL) {
-        fprintf(stderr, "ERROR: Failed to allocate fd table.\n");
+        TP_ERROR("Failed to allocate fd table.\n");
         free(pi);
         return NULL;
     }
     *(pi->fd_table) = NULL;
+
+    pi->thrd_table = (thrd_info_t **)malloc(sizeof(thrd_info_t *));
+    if (pi->thrd_table == NULL) {
+        TP_ERROR("Failed to allocate thread table.\n");
+        free(pi);
+        return NULL;
+    }
+    *(pi->thrd_table) = NULL;
 
     HASH_add_proc_info_with_LRU(proc_table, pi);
     return pi;
@@ -216,6 +254,35 @@ proc_info_t *get_proc_info(proc_info_t **proc_table, int tgid)
     return pi;
 }
 
+thrd_info_t *add_thrd_info(proc_info_t *proc_info, int pid)
+{
+    thrd_info_t *ti;
+
+    ti = (thrd_info_t *)calloc(1, sizeof(thrd_info_t));
+    if (ti == NULL) {
+        TP_ERROR("Failed to allocate thread info.\n");
+        return NULL;
+    }
+
+    ti->pid = pid;
+    ti->proc_info = proc_info;
+
+    HASH_add_thrd_info_with_LRU(proc_info->thrd_table, ti);
+    return ti;
+}
+
+thrd_info_t *get_thrd_info(proc_info_t *proc_info, int pid)
+{
+    thrd_info_t *ti;
+
+    ti = HASH_find_thrd_info_with_LRU(proc_info->thrd_table, pid);
+    if (ti == NULL) {
+        ti = add_thrd_info(proc_info, pid);
+    }
+
+    return ti;
+}
+
 // get fd info from `/proc/<tgid>/fd/<fd>`
 fd_info_t *add_fd_info(proc_info_t *proc_info, int fd)
 {
@@ -224,7 +291,7 @@ fd_info_t *add_fd_info(proc_info_t *proc_info, int fd)
 
     fi = (fd_info_t *)malloc(sizeof(fd_info_t));
     if (fi == NULL) {
-        fprintf(stderr, "ERROR: Failed to allocate fd info.\n");
+        TP_ERROR("Failed to allocate fd info.\n");
         return NULL;
     }
     memset(fi, 0, sizeof(fd_info_t));
@@ -252,6 +319,12 @@ fd_info_t *get_fd_info(proc_info_t *proc_info, int fd)
     return fi;
 }
 
+void delete_fd_info(proc_info_t *proc_info, fd_info_t *fd_info)
+{
+    HASH_del_fd_info(proc_info->fd_table, fd_info);
+    free_fd_info(fd_info);
+}
+
 #define SYMB_DEBUG_DIR "/usr/lib/debug"
 static struct elf_reader_s gElfReader = {
     .global_dbg_dir = SYMB_DEBUG_DIR
@@ -260,8 +333,18 @@ static struct elf_reader_s gElfReader = {
 struct proc_symbs_s *add_symb_info(proc_info_t *proc_info)
 {
     struct proc_symbs_s *symbs;
+    int ret;
 
-    symbs = proc_load_all_symbs(&gElfReader, proc_info->tgid);
+    symbs = new_proc_symbs(proc_info->tgid);
+    if (symbs == NULL) {
+        return NULL;
+    }
+
+    ret = proc_load_all_symbs(symbs, &gElfReader, proc_info->tgid, 0);
+    if (ret != 0) {
+        return NULL;
+    }
+
     proc_info->symbs = symbs;
 
     return symbs;
@@ -315,6 +398,11 @@ void free_proc_info(proc_info_t *proc_info)
         free(proc_info->fd_table);
     }
 
+    if (proc_info->thrd_table != NULL) {
+        free_thrd_table(proc_info->thrd_table);
+        free(proc_info->thrd_table);
+    }
+
     if (proc_info->symbs != NULL) {
         proc_delete_all_symbs(proc_info->symbs);
     }
@@ -336,4 +424,91 @@ void free_proc_table(proc_info_t **proc_table)
     }
 
     *proc_table = NULL;
+}
+
+static void free_cached_events(event_elem_t *cached_evts)
+{
+    event_elem_t *evt, *tmp;
+
+    if (cached_evts == NULL) {
+        return;
+    }
+
+    DL_FOREACH_SAFE(cached_evts, evt, tmp) {
+        DL_DELETE(cached_evts, evt);
+        free(evt);
+    }
+}
+
+void clean_cached_events(thrd_info_t *thrd_info)
+{
+    free_cached_events(thrd_info->cached_evts);
+    thrd_info->cached_evts = NULL;
+    thrd_info->evt_num = 0;
+}
+
+void free_thrd_info(thrd_info_t *thrd_info)
+{
+    if (thrd_info == NULL) {
+        return;
+    }
+
+    free_cached_events(thrd_info->cached_evts);
+
+    free(thrd_info);
+}
+
+void free_thrd_table(thrd_info_t **thrd_table)
+{
+    thrd_info_t *ti, *tmp;
+
+    if (*thrd_table == NULL) {
+        return;
+    }
+
+    HASH_ITER(hh, *thrd_table, ti, tmp) {
+        HASH_DEL(*thrd_table, ti);
+        free_thrd_info(ti);
+    }
+
+    *thrd_table = NULL;
+}
+
+event_elem_t *create_event_elem(unsigned int data_size)
+{
+    event_elem_t *elem;
+
+    if (data_size == 0) {
+        TP_ERROR("Event data size must be non-zero.\n");
+        return NULL;
+    }
+
+    elem = (event_elem_t *)calloc(1, sizeof(event_elem_t) + data_size);
+    if (elem == NULL) {
+        TP_ERROR("Failed to malloc event element memory.\n");
+        return NULL;
+    }
+    elem->data = (void *)(elem + 1);
+
+    return elem;
+}
+
+void delete_first_k_events(thrd_info_t *thrd_info, int k)
+{
+    event_elem_t *cached_evt, *tmp;
+    int i = 0;
+
+    DL_FOREACH_SAFE(thrd_info->cached_evts, cached_evt, tmp) {
+        if (i == k) {
+            break;
+        }
+        DL_DELETE(thrd_info->cached_evts, cached_evt);
+        free(cached_evt);
+        i++;
+    }
+    thrd_info->evt_num -= k;
+
+    if (thrd_info->evt_num == 0) {
+        thrd_info->cached_evts = NULL;
+    }
 }

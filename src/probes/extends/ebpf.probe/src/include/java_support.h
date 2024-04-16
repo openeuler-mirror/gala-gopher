@@ -18,27 +18,42 @@
 #pragma once
 
 #define FILENAME_LEN    64
+#define ATTACH_TYPE_LEN 64
 
-#define JAVA_SYM_AGENT_FILE     "jvm_agent.so"
-#define JAVA_SYM_FILE           "java-symbols.bin"
+#ifndef JAVA_SYM_AGENT_VER
+#define JAVA_SYM_AGENT_VER ""
+#endif
 
-struct java_attach_args {
-    int proc_obj_map_fd;
-    int loop_period;
-    int is_only_attach_once;    // 1 - attach only once, eg: jvmtiagent
-                                // 0 - attach every loop, eg: jsseprobeagent
-    char agent_file_name[FILENAME_LEN];
-    char tmp_file_name[FILENAME_LEN];
+#define JAVA_SYM_AGENT_FILE     "jvm_agent" JAVA_SYM_AGENT_VER ".so"
+#define JAVA_SYM_FILE           "java-symbols" JAVA_SYM_AGENT_VER ".bin"
+
+enum java_pid_state_t {
+    PID_NOT_JAVA,
+    PID_NEED_TO_ATTACH,
+    PID_NO_NEED_ATTACH
 };
-
+struct java_attach_args {
+    char agent_file_name[FILENAME_LEN];
+    char tmp_file_name[FILENAME_LEN]; // for msg_handler
+    char action[ATTACH_TYPE_LEN];
+};
 struct java_property_s {
     char mainClassName[PROC_CMDLINE_LEN];
 };
 
-int get_host_java_tmp_file(int pid, const char *file_name, char *file_path, int path_len);
-int detect_proc_is_java(int pid, char *comm, int comm_len);
-void *java_support(void *arg);
-void java_msg_handler(void *arg);
+struct file_ref_s {
+    u32 pid;
+    int fd;
+    FILE *fp;
+};
+
+typedef void (*java_msg_handler_cb)(void *ctx, struct file_ref_s *file_ref);
+int set_ns_java_data_dir(u32 pid, char *ns_java_data_path, int path_len);
+int get_host_java_tmp_file(u32 pid, const char *file_name, char *file_path, int path_len);
+int detect_proc_is_java(u32 pid, char *comm, int comm_len);
+void java_offload_jvm_agent(u32 pid);
+int java_load(u32 pid, struct java_attach_args *args);
+void java_msg_handler(u32 pid, struct java_attach_args *args, java_msg_handler_cb cb, void *cb_ctx);
 int get_java_property(int pid, struct java_property_s *prop);
 
 #endif

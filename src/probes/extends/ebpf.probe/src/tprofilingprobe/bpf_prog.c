@@ -30,40 +30,24 @@
 #include "args.h"
 #include "profiling_event.h"
 #include "tprofiling.h"
-#include "bpf_prog.h"
 #include "syscall_file.skel.h"
 #include "syscall_net.skel.h"
 #include "syscall_lock.skel.h"
 #include "syscall_sched.skel.h"
 #include "oncpu.skel.h"
+#include "bpf_prog.h"
 
-static char is_load_probe(struct probe_params *args, u32 probe)
+static char is_load_probe_ipc(struct ipc_body_s *ipc_body, u32 probe)
 {
-    if (args->load_probe & probe) {
+    if (ipc_body->probe_range_flags & probe) {
         return 1;
     }
     return 0;
 }
 
-static void perf_event_handler(void *ctx, int cpu, void *data, __u32 size)
+static int perf_event_handler(void *ctx, void *data, __u32 size)
 {
     output_profiling_event((trace_event_data_t *)data);
-}
-
-static int load_syscall_create_pb(struct bpf_prog_s *prog, int fd)
-{
-    struct perf_buffer *pb;
-
-    if (prog->pb == NULL) {
-        pb = create_pref_buffer(fd, perf_event_handler);
-        if (pb == NULL) {
-            fprintf(stderr, "ERROR: create perf buffer failed\n");
-            return -1;
-        }
-        prog->pb = pb;
-        printf("INFO: Success to create syscall pb buffer.\n");
-    }
-
     return 0;
 }
 
@@ -75,16 +59,16 @@ LOAD_SYSCALL_BPF_PROG(lock)
 
 LOAD_SYSCALL_BPF_PROG(sched)
 
-struct bpf_prog_s *load_syscall_bpf_prog(struct probe_params *params)
+struct bpf_prog_s *load_syscall_bpf_prog(struct ipc_body_s *ipc_body)
 {
     struct bpf_prog_s *prog;
     char is_load_syscall_file, is_load_syscall_net;
     char is_load_syscall_lock, is_load_syscall_sched;
 
-    is_load_syscall_file = is_load_probe(params, TPROFILING_PROBE_SYSCALL_FILE);
-    is_load_syscall_net = is_load_probe(params, TPROFILING_PROBE_SYSCALL_NET);
-    is_load_syscall_lock = is_load_probe(params, TPROFILING_PROBE_SYSCALL_LOCK);
-    is_load_syscall_sched = is_load_probe(params, TPROFILING_PROBE_SYSCALL_SCHED);
+    is_load_syscall_file = is_load_probe_ipc(ipc_body, TPROFILING_PROBE_SYSCALL_FILE);
+    is_load_syscall_net = is_load_probe_ipc(ipc_body, TPROFILING_PROBE_SYSCALL_NET);
+    is_load_syscall_lock = is_load_probe_ipc(ipc_body, TPROFILING_PROBE_SYSCALL_LOCK);
+    is_load_syscall_sched = is_load_probe_ipc(ipc_body, TPROFILING_PROBE_SYSCALL_SCHED);
 
     prog = alloc_bpf_prog();
     if (prog == NULL) {
@@ -114,49 +98,48 @@ err:
     return NULL;
 }
 
-static int load_oncpu_create_pb(struct bpf_prog_s *prog, int fd)
-{
-    struct perf_buffer *pb;
-
-    if (prog->pb == NULL) {
-        pb = create_pref_buffer(fd, perf_event_handler);
-        if (pb == NULL) {
-            fprintf(stderr, "ERROR: create perf buffer failed\n");
-            return -1;
-        }
-        prog->pb = pb;
-        printf("INFO: Success to create oncpu pb buffer.\n");
-    }
-
-    return 0;
-}
-
 static int __load_oncpu_bpf_prog(struct bpf_prog_s *prog, char is_load)
 {
     int ret = 0;
+    struct bpf_buffer *buffer = NULL;
 
-    LOAD_ONCPU_PROBE(oncpu, err, is_load);
+    LOAD_ONCPU_PROBE(oncpu, err, is_load, buffer);
     if (is_load) {
         prog->skels[prog->num].skel = oncpu_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)oncpu_bpf__destroy;
-        prog->num++;
+        prog->custom_btf_paths[prog->num] = oncpu_open_opts.btf_custom_path;
 
-        ret = load_oncpu_create_pb(prog, GET_MAP_FD(oncpu, event_map));
+        int is_attach_tp = (probe_kernel_version() >= KERNEL_VERSION(6, 4, 0));
+        PROG_ENABLE_ONLY_IF(oncpu, bpf_raw_trace_sched_switch, is_attach_tp);
+        PROG_ENABLE_ONLY_IF(oncpu, bpf_finish_task_switch, !is_attach_tp);
+
+        LOAD_ATTACH(tprofiling, oncpu, err, is_load);
+
+        ret = bpf_buffer__open(buffer, perf_event_handler, NULL, NULL);
+        if (ret) {
+            TP_ERROR("Open bpf_buffer failed in oncpu.\n");
+            bpf_buffer__free(buffer);
+            return -1;
+        }
+
+        prog->buffers[prog->num] = buffer;
+        prog->num++;
     }
 
     return ret;
 err:
     UNLOAD(oncpu);
+    CLEANUP_CUSTOM_BTF(oncpu);
     return -1;
 }
 
-struct bpf_prog_s *load_oncpu_bpf_prog(struct probe_params *params)
+struct bpf_prog_s *load_oncpu_bpf_prog(struct ipc_body_s *ipc_body)
 {
 
     struct bpf_prog_s *prog;
     char is_load_oncpu;
 
-    is_load_oncpu = is_load_probe(params, TPROFILING_PROBE_ONCPU);
+    is_load_oncpu = is_load_probe_ipc(ipc_body, TPROFILING_PROBE_ONCPU);
 
     prog = alloc_bpf_prog();
     if (prog == NULL) {

@@ -25,15 +25,9 @@
 #include "args_map.h"
 #include "proc.h"
 
-#define BPF_F_INDEX_MASK    0xffffffffULL
-#define BPF_F_CURRENT_CPU   BPF_F_INDEX_MASK
-
-#define PERF_OUT_MAX (64)
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, PERF_OUT_MAX);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } g_proc_output SEC(".maps");
 
 #define IS_PROC_TMOUT(stats_ts, ts, period, type, tmout) \
@@ -73,10 +67,12 @@ static __always_inline __maybe_unused char is_proc_tmout(struct proc_data_s *pro
         IS_PROC_TMOUT(stats_ts, ts, period, tmpfs_op, tmout);
     } else if (flags & TASK_PROBE_PAGE_OP) {
         IS_PROC_TMOUT(stats_ts, ts, period, page, tmout);
-    } else if (flags & TASK_PROBE_DNS_OP) {
-        IS_PROC_TMOUT(stats_ts, ts, period, dns, tmout);
     } else if (flags & TASK_PROBE_IO) {
         IS_PROC_TMOUT(stats_ts, ts, period, io, tmout);
+    } else if (flags & TASK_PROBE_CPU) {
+        IS_PROC_TMOUT(stats_ts, ts, period, cpu, tmout);
+    } else if (flags & TASK_PROBE_IOCTL_SYSCALL) {
+        IS_PROC_TMOUT(stats_ts, ts, period, syscall_ioctl, tmout);
     } else {
         tmout = 0;
     }
@@ -116,10 +112,14 @@ static __always_inline __maybe_unused void reset_proc_stats(struct proc_data_s *
         __builtin_memset(&(proc->op_tmpfs), 0x0, sizeof(proc->op_tmpfs));
     } else if (flags & TASK_PROBE_PAGE_OP) {
         __builtin_memset(&(proc->page_op), 0x0, sizeof(proc->page_op));
-    } else if (flags & TASK_PROBE_DNS_OP) {
-        __builtin_memset(&(proc->dns_op), 0x0, sizeof(proc->dns_op));
     } else if (flags & TASK_PROBE_IO) {
         __builtin_memset(&(proc->proc_io), 0x0, sizeof(proc->proc_io));
+    } else if (flags & TASK_PROBE_CPU) {
+        __builtin_memset(&(proc->proc_cpu), 0x0, sizeof(proc->proc_cpu));
+    } else if (flags & TASK_PROBE_IOCTL_SYSCALL) {
+        proc->syscall.ns_ioctl = 0;
+        proc->syscall.ioctl_fd = 0;
+        proc->syscall.ioctl_cmd = 0;
     }
 }
 
@@ -130,7 +130,7 @@ static __always_inline __maybe_unused void report_proc(void *ctx, struct proc_da
     }
 
     proc->flags = flags;
-    (void)bpf_perf_event_output(ctx, &g_proc_output, BPF_F_CURRENT_CPU, proc, sizeof(struct proc_data_s));
+    (void)bpfbuf_output(ctx, &g_proc_output, proc, sizeof(struct proc_data_s));
 
     proc->flags = 0;
     reset_proc_stats(proc, flags);

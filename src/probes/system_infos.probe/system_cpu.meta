@@ -86,6 +86,11 @@ measurements:
                 description: "CPU utilization (%)",
                 type: "gauge",
                 name: "util_per",
+            },
+            {
+                description: "CPU MHz",
+                type: "gauge",
+                name: "mhz"
             }
         )
     },

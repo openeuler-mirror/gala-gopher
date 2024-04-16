@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "tprofiling.h"
 #include "thrd_bl.h"
 
 struct thrdBl {
@@ -102,14 +103,14 @@ static int initThreadBlacklistItem(struct thrdBl *thrdBlItem, BlacklistItem *blI
 {
     int i;
 
-    strncpy(blItem->procComm, thrdBlItem->procComm, TASK_COMM_LEN - 1);
+    (void)snprintf(blItem->procComm, sizeof(blItem->procComm), "%s", thrdBlItem->procComm);
     blItem->thrdNum = thrdBlItem->thrdNum;
     blItem->thrdComms = createThreadComms(blItem->thrdNum);
     if (blItem->thrdComms == NULL) {
         return -1;
     }
     for (i = 0; i < blItem->thrdNum; i++) {
-        strncpy(blItem->thrdComms[i], (*thrdBlItem->thrdComms)[i], TASK_COMM_LEN - 1);
+        (void)snprintf(blItem->thrdComms[i], TASK_COMM_LEN, "%s", (*thrdBlItem->thrdComms)[i]);
     }
     return 0;
 }
@@ -118,14 +119,14 @@ int initThreadBlacklist(ThrdBlacklist *thrdBl)
 {
 
     BlacklistItem *blItems;
-    int blNum;
+    size_t blNum;
     int i;
     int ret;
 
     blNum = sizeof(thrdBlLocal) / sizeof(struct thrdBl);
     blItems = (BlacklistItem *)calloc(blNum, sizeof(BlacklistItem));
     if (blItems == NULL) {
-        fprintf(stderr, "ERROR: create blacklist items failed: malloc memory failed\n");
+        TP_ERROR("Failed to create blacklist items: malloc memory failed\n");
         return -1;
     }
 

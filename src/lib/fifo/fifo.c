@@ -75,8 +75,15 @@ void FifoDestroy(Fifo *fifo)
         fifo->triggerFd = 0;
     }
 
+    fifo->probe = NULL;
+
     free(fifo);
     return;
+}
+
+int FifoFull(const Fifo *fifo)
+{
+    return ((fifo->size - fifo->in + fifo->out) <= 1) ? 1 : 0;
 }
 
 uint32_t FifoPut(Fifo *fifo, void *element)

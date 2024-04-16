@@ -19,6 +19,7 @@
 
 #pragma once
 
+#if 0
 #define MAX_EVENT_NUM           512
 #define MAX_ENTITY_NAME_LEN     128
 #define MAX_METRIC_NAME_LEN     64
@@ -43,5 +44,6 @@ typedef struct {
 
 int events_config_init(EventsConfig **conf, char *lang_type);
 int get_event_field(EventsConfig *conf, const char *entity, const char *metric, char *desc_fmt);
+#endif
 
 #endif

@@ -21,7 +21,7 @@
 #define MAX_PATH_SIZE 128
 #define MAX_NET_CONN_INFO_SIZE 128
 
-#define CMD_LSOF_SOCK_INFO "lsof -a -nP -d %d -p %d -FnPt"
+#define CMD_LSOF_SOCK_INFO "nsenter -t %d -n lsof -a -nP -d %d -p %d -FnPt"
 #define MAX_CMD_SIZE 64
 
 #define SOCK_TYPE_IPV4_STR "IPv4"
@@ -63,6 +63,7 @@ typedef struct {
 
 typedef struct {
     int fd;
+    unsigned long ino;
     enum fd_type type;
     union {
         reg_info_t reg_info;

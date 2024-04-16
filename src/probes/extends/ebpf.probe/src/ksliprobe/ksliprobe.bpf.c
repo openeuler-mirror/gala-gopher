@@ -18,10 +18,8 @@
 #define BPF_PROG_KERN
 #include "bpf.h"
 #include <bpf/bpf_endian.h>
+#include "feat_probe.h"
 #include "ksliprobe.h"
-
-#define BPF_F_INDEX_MASK        0xffffffffULL
-#define BPF_F_CURRENT_CPU       BPF_F_INDEX_MASK
 
 #define MAX_CONN_LEN                8192
 #define MAX_CHECK_TIMES                2
@@ -29,6 +27,27 @@
 #define TCP_SKB_CB(__skb) ((struct tcp_skb_cb *)&((__skb)->cb[0]))
 
 char g_license[] SEC("license") = "GPL";
+
+struct stash_args {
+    unsigned int fd;
+    char *buf;
+};
+
+// cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_read/format
+struct sys_enter_read_args {
+    unsigned long long __unused__;
+    long __syscall_nr;
+    unsigned int fd;
+    char *buf;
+    u64 count;
+};
+
+// cat /sys/kernel/debug/tracing/events/syscalls/sys_exit_read/format
+struct sys_exit_read_args {
+    unsigned long long __unused__;
+    long __syscall_nr;
+    int ret;
+};
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
@@ -38,9 +57,8 @@ struct {
 } conn_map SEC(".maps");
 
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } msg_event_map SEC(".maps");
 
 // Data collection args
@@ -50,6 +68,13 @@ struct {
     __uint(value_size, sizeof(struct ksli_args_s)); // args
     __uint(max_entries, 1);
 } args_map SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(u64));
+    __uint(value_size, sizeof(struct stash_args));
+    __uint(max_entries, 10 * 1024);
+} stash_args_map SEC(".maps");
 
 enum samp_status_t {
     SAMP_INIT = 0,
@@ -87,8 +112,8 @@ static __always_inline int init_conn_id(struct conn_id_t *conn_id, int fd, int t
         conn_id->server_ip_info.ipaddr.ip4 = _(sk->sk_rcv_saddr);
         conn_id->client_ip_info.ipaddr.ip4 = _(sk->sk_daddr);
     } else if (conn_id->client_ip_info.family == AF_INET6) {
-        bpf_probe_read(conn_id->server_ip_info.ipaddr.ip6, IP6_LEN, &sk->sk_v6_rcv_saddr);
-        bpf_probe_read(conn_id->client_ip_info.ipaddr.ip6, IP6_LEN, &sk->sk_v6_daddr);
+        bpf_core_read(conn_id->server_ip_info.ipaddr.ip6, IP6_LEN, &sk->sk_v6_rcv_saddr);
+        bpf_core_read(conn_id->client_ip_info.ipaddr.ip6, IP6_LEN, &sk->sk_v6_daddr);
     } else {
         return -1;
     }
@@ -155,7 +180,29 @@ static __always_inline int update_conn_map_n_conn_samp_map(int fd, int tgid, str
     return init_conn_samp_data(sk);
 }
 
-// 关闭 tcp 连接
+/*
+ * https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/id=8760c909f5
+ * This commit rename __close_fd() to close_fd()
+*/
+KPROBE(close_fd, pt_regs)
+{
+    int fd;
+    u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;
+    struct conn_key_t conn_key = {0};
+    struct conn_data_t *conn_data;
+
+    fd = (int)PT_REGS_PARM2(ctx);
+    init_conn_key(&conn_key, fd, tgid);
+    conn_data = (struct conn_data_t *)bpf_map_lookup_elem(&conn_map, &conn_key);
+    if (conn_data == (void *)0) {
+        return 0;
+    }
+    bpf_map_delete_elem(&conn_samp_map, &conn_data->sk);
+    bpf_map_delete_elem(&conn_map, &conn_key);
+
+    return 0;
+}
+
 KPROBE(__close_fd, pt_regs)
 {
     int fd;
@@ -185,7 +232,7 @@ static __always_inline void parse_msg_to_redis_cmd(char msg_char, int *j, char *
                 *find_state = FIND_MSG_ERR_STOP;
             }
             break;
-            
+
         case FIND1_PARM_NUM:
             if (msg_char == '$') {
                 *find_state = FIND2_CMD_LEN;
@@ -201,7 +248,7 @@ static __always_inline void parse_msg_to_redis_cmd(char msg_char, int *j, char *
                 *find_state = FIND_MSG_OK_STOP;
                 break;
             }
-            if (msg_char >= 'a') 
+            if (msg_char >= 'a')
                 msg_char = msg_char - ('a'-'A');
             if (msg_char >= 'A' && msg_char <= 'Z') {
                 command[*j] = msg_char;
@@ -216,7 +263,7 @@ static __always_inline void parse_msg_to_redis_cmd(char msg_char, int *j, char *
         default:
             break;
     }
-    
+
     return;
 }
 
@@ -257,7 +304,7 @@ static __always_inline int parse_req(struct conn_data_t *conn_data, const unsign
     return PROTOCOL_NO_REDIS;
 }
 
-static __always_inline int periodic_report(u64 ts_nsec, struct conn_data_t *conn_data, struct pt_regs *ctx)
+static __always_inline int periodic_report(u64 ts_nsec, struct conn_data_t *conn_data, void *ctx)
 {
     long err;
     int ret = 0;
@@ -284,8 +331,7 @@ static __always_inline int periodic_report(u64 ts_nsec, struct conn_data_t *conn
             msg_evt_data.client_ip_info = conn_data->id.client_ip_info;
             msg_evt_data.latency = conn_data->latency;
             msg_evt_data.max = conn_data->max;
-            err = bpf_perf_event_output(ctx, &msg_event_map, BPF_F_CURRENT_CPU,
-                                        &msg_evt_data, sizeof(struct msg_event_data_t));
+            err = bpfbuf_output(ctx, &msg_event_map, &msg_evt_data, sizeof(struct msg_event_data_t));
             if (err < 0) {
                 bpf_printk("message event sent failed.\n");
             }
@@ -320,7 +366,7 @@ static __always_inline void mark_no_redis_conn(struct conn_data_t *conn_data)
 }
 
 static __always_inline void process_rd_msg(u32 tgid, int fd, const char *buf, const unsigned int count,
-                                             struct pt_regs *ctx)
+                                           void *ctx)
 {
     struct conn_key_t conn_key = {0};
     struct conn_data_t *conn_data;
@@ -377,23 +423,48 @@ static __always_inline void process_rd_msg(u32 tgid, int fd, const char *buf, co
 
     __builtin_memcpy(&csd->command, conn_data->current.command, MAX_COMMAND_REQ_SIZE);
 
-#ifndef KERNEL_SUPPORT_TSTAMP
-    csd->start_ts_nsec = ts_nsec;
-#else
-    if (csd->start_ts_nsec == 0) {
+    if (!probe_tstamp()) {
         csd->start_ts_nsec = ts_nsec;
+    } else {
+        if (csd->start_ts_nsec == 0 || csd->start_ts_nsec > ts_nsec) {
+            csd->start_ts_nsec = ts_nsec;
+        }
     }
-#endif
+
     csd->status = SAMP_READ_READY;
 
     return;
 }
 
-KPROBE(ksys_read, pt_regs)
+static __always_inline void process_sample_finish(struct conn_samp_data_t *csd, struct sock *sk)
 {
-    int fd = (int)PT_REGS_PARM1(ctx);
+    struct tcp_sock *tcp_sk = (struct tcp_sock *)sk;
+    u32 snd_una = _(tcp_sk->snd_una);
+
+    if (csd->status == SAMP_SKB_READY && csd->end_seq <= snd_una) {
+        u64 end_ts_nsec = bpf_ktime_get_ns();
+        if (end_ts_nsec < csd->start_ts_nsec) {
+            csd->status = SAMP_INIT;
+            csd->start_ts_nsec = 0;
+            return;
+        }
+        csd->rtt_ts_nsec = end_ts_nsec - csd->start_ts_nsec;
+        csd->status = SAMP_FINISHED;
+        csd->start_ts_nsec = 0;
+    }
+}
+
+bpf_section("tracepoint/syscalls/sys_enter_read")
+int function_sys_enter_read(struct sys_enter_read_args *ctx)
+{
+    int fd = ctx->fd;
+    if (fd == 0) {
+        return 0;
+    }
+
     struct conn_key_t conn_key = {0};
-    u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;
+    u64 key = bpf_get_current_pid_tgid();
+    u32 tgid = (u32)(key >> INT_LEN);
     init_conn_key(&conn_key, fd, tgid);
 
     struct conn_data_t * conn_data = (struct conn_data_t *)bpf_map_lookup_elem(&conn_map, &conn_key);
@@ -401,7 +472,7 @@ KPROBE(ksys_read, pt_regs)
         if (update_conn_map_n_conn_samp_map(fd, tgid, &conn_key) != SLI_OK)
             return 0;
     }
-    
+
     if (conn_data == (void *)0)
         return 0;
 
@@ -413,29 +484,31 @@ KPROBE(ksys_read, pt_regs)
             return 0;
     }
 
-    KPROBE_PARMS_STASH(ksys_read, ctx, CTX_USER);
+    struct stash_args in_params = {0};
+    in_params.fd = fd;
+    in_params.buf = ctx->buf;
+    (void)bpf_map_update_elem(&stash_args_map, &key, &in_params, BPF_ANY);
     return 0;
 }
 
-// 跟踪连接 read 读消息
-KRETPROBE(ksys_read, pt_regs)
+bpf_section("tracepoint/syscalls/sys_exit_read")
+int function_sys_exit_read(struct sys_exit_read_args *ctx)
 {
-    struct probe_val val;
-    int err;
-
-    err = PROBE_GET_PARMS(ksys_read, ctx, val, CTX_USER);
-    if (err < 0) {
+    u64 key = bpf_get_current_pid_tgid();
+    struct stash_args *in_params = (struct stash_args *)bpf_map_lookup_elem(&stash_args_map, &key);
+    if (in_params == (void *)0) {
         return 0;
     }
+    int fd = in_params->fd;
+    char *buf = in_params->buf;
+    (void)bpf_map_delete_elem(&stash_args_map, &key);
 
-    int count = PT_REGS_RC(ctx);
+    int count = ctx->ret;
     if (count <= 0) {
         return 0;
     }
 
-    int fd = (int)PROBE_PARM1(val);
-    char *buf = (char *)PROBE_PARM2(val);
-    u32 tgid = bpf_get_current_pid_tgid() >> INT_LEN;
+    u32 tgid = (u32)(key >> INT_LEN);
     process_rd_msg(tgid, fd, buf, count, ctx);
 
     return 0;
@@ -463,31 +536,28 @@ KPROBE(tcp_event_new_data_sent, pt_regs)
 
 KPROBE(tcp_clean_rtx_queue, pt_regs)
 {
-    struct sock *sk;
-    struct tcp_sock *tcp_sk;
-    u32 snd_una;
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     struct conn_samp_data_t *csd;
-
-    sk = (struct sock *)PT_REGS_PARM1(ctx);
-    tcp_sk = (struct tcp_sock *)sk;
-    snd_una = _(tcp_sk->snd_una);
 
     csd = (struct conn_samp_data_t *)bpf_map_lookup_elem(&conn_samp_map, &sk);
     if (csd != (void *)0) {
-        if (csd->status == SAMP_SKB_READY && csd->end_seq <= snd_una) {
-            u64 end_ts_nsec = bpf_ktime_get_ns();
-            if (end_ts_nsec < csd->start_ts_nsec) {
-                csd->status = SAMP_INIT;
-                return 0;
-            }
-            csd->rtt_ts_nsec = end_ts_nsec - csd->start_ts_nsec;
-            csd->status = SAMP_FINISHED;
-        }
+        process_sample_finish(csd, sk);
     }
     return 0;
 }
 
-#ifdef KERNEL_SUPPORT_TSTAMP
+KPROBE_WITH_CONSTPROP(tcp_clean_rtx_queue, pt_regs)
+{
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    struct conn_samp_data_t *csd;
+
+    csd = (struct conn_samp_data_t *)bpf_map_lookup_elem(&conn_samp_map, &sk);
+    if (csd != (void *)0) {
+        process_sample_finish(csd, sk);
+    }
+    return 0;
+}
+
 KPROBE(tcp_recvmsg, pt_regs)
 {
     struct sock *sk;
@@ -507,4 +577,3 @@ KPROBE(tcp_recvmsg, pt_regs)
     }
     return 0;
 }
-#endif

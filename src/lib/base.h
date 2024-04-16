@@ -19,16 +19,9 @@
 
 #define GALA_GOPHER_INFO(description)   1
 
-#include "common.h"
-
 // ======== COMMON ========
-// probe
-#define MAX_PROBES_NUM        32
-// extend probe
-#define MAX_EXTEND_PROBES_NUM   32
-
 // fifo
-#define MAX_FIFO_NUM          MAX_PROBES_NUM
+#define MAX_FIFO_NUM          32
 #define MAX_FIFO_SIZE         1024
 
 // meta
@@ -45,7 +38,7 @@
 #define MAX_EPOLL_EVENTS_NUM  512
 
 // egress
-#define MAX_DATA_STR_LEN      2048
+#define MAX_DATA_STR_LEN      8192
 
 // kafka
 #define MAX_KAFKA_ERRSTR_SIZE 512
@@ -86,16 +79,12 @@ typedef enum {
     PROBE_SWITCH_MAX
 } ProbeSwitch;
 
-typedef enum {
-    PROBE_CHK_CNT = 0,
-    PROBE_CHK_MAX
-} ProbeStartCheckType;
-
 // out_channel
 typedef enum {
     OUT_CHNL_LOGS = 0,
     OUT_CHNL_KAFKA,
     OUT_CHNL_WEB_SERVER,
+    OUT_CHNL_NULL,
 
     OUT_CHNL_MAX
 } OutChannelType;

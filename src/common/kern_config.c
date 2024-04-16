@@ -18,6 +18,8 @@
 #include <stdbool.h>
 #include <unistd.h>
 
+#include "common.h"
+
 #define KERN_CONFIG_CAT   "/usr/bin/cat /boot/config-$(uname -r) | grep -wn %s awk -F \":\" '{print $2}'"
 
 #define CONFIG_NAME_LEN     128
@@ -29,7 +31,8 @@ struct kern_config {
     char is_on;
 };
 
-void __do_parse_config(struct kern_config *config, char buf[])
+#if 0
+static void __do_parse_config(struct kern_config *config, char buf[])
 {
     char *p1, *p2;
 
@@ -47,7 +50,7 @@ void __do_parse_config(struct kern_config *config, char buf[])
     return;
 }
 
-int __do_grep_config(struct kern_config *config, char buf[], unsigned int buf_len)
+static int __do_grep_config(const struct kern_config *config, char buf[], int buf_len)
 {
     char command[COMMAND_LEN];
     FILE *f;
@@ -55,7 +58,7 @@ int __do_grep_config(struct kern_config *config, char buf[], unsigned int buf_le
     command[0] = 0;
     buf[0] = 0;
     (void)snprintf(command, COMMAND_LEN, KERN_CONFIG_CAT, config->name);
-    f = popen(command, "r");
+    f = popen_chroot(command, "r");
     if (f == NULL) {
         return -1;
     }
@@ -69,7 +72,7 @@ int __do_grep_config(struct kern_config *config, char buf[], unsigned int buf_le
     return 0;
 }
 
-bool kern_config_is_on(char *name)
+static bool kern_config_is_on(char *name)
 {
     int ret;
     char buf[BUF_LEN];
@@ -85,4 +88,4 @@ bool kern_config_is_on(char *name)
     __do_parse_config(&config, buf);
     return (config.is_on == 1);
 }
-
+#endif

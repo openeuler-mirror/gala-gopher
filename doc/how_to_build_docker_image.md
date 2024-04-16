@@ -30,22 +30,38 @@
    ```shell
    # 确认构建容器镜像依赖的基础镜像(默认不需要修改)
    # base image
-   FROM openeuler/openeuler:20.03-lts-sp1
+   FROM hub.oepkgs.net/openeuler/openeuler_x86_64:22.03-lts-sp1
+   
+   MAINTAINER GALA
    
    # 内网用户需要配置代理
    # aops_agent configuration is needed for intranet users
    # ENV http_proxy=http://username:password@proxy.huawei.com:8080
    # ENV https_proxy=http://username:password@proxy.huawei.com:8080
    
-   # 确认本地安装包包名，如下两个rpm包名必须是真实的包名
+   # container work directory
+   WORKDIR /gala-gopher
+   
+   # copy current directory files to container work directory
+   ADD ./gala-gopher
+   
    # install library dependencies
-   RUN yum install -y libbpf-0.3-1.oe1.x86_64.rpm \
-    && yum install -y gala-gopher-1.0.1-2.x86_64.rpm \
-    && yum install -y docker
-       
-   # 确认暴露端口(默认为8888，如果修改，则在创建容器时需要修改-p选项后映射的端口为实际端口)
-   # expose port
-   EXPOSE 8888
+   COPY ./entrypoint.sh/
+   RUN chmod +x /entrypoint.sh
+   
+   #install library dependencies
+   RUN sed -i
+   's/repo.openeuler.org/mirrors.tools.huawei.com\/openeuler/g'/etc/yum.repos.d/openEuler.repo\
+   && yum install -y docker\
+   && yum install -y gala-gopher-2.0.0-3.x86_64.rpm\
+   && yum install -y java-1.8.0-openjdk\
+   && yum clean all\
+   && rm -rf /var/cache/yum/*
+   
+   # start gala-gopher
+   ENTRYPOINT ["/entrypoint.sh"]
+   
+   CMD ["/usr/bin/gala-gopher"]
    ```
    
 3. ##### 下载openEuler镜像源

@@ -25,14 +25,6 @@
 #define BPF_F_USER_STACK    (1ULL << 8)
 #endif
 
-#ifndef BPF_F_INDEX_MASK
-#define BPF_F_INDEX_MASK        0xffffffffULL
-#endif
-
-#ifndef BPF_F_CURRENT_CPU
-#define BPF_F_CURRENT_CPU       BPF_F_INDEX_MASK
-#endif
-
 #define KERN_STACKID_FLAGS (0 | BPF_F_FAST_STACK_CMP)
 #define USER_STACKID_FLAGS (0 | BPF_F_FAST_STACK_CMP | BPF_F_USER_STACK)
 

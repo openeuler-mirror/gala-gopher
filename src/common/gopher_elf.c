@@ -85,6 +85,10 @@ static int gopher_iter_section_symb(Elf *e, Elf_Scn *sec,
     GElf_Sym sym;
     Elf_Data *data = NULL;
 
+    if (entry_size == 0) {
+        return -1;
+    }
+
     while ((data = elf_getdata(sec, data)) != NULL) {
         sym_count = data->d_size / entry_size;
 
@@ -303,7 +307,7 @@ err:
 }
 
 int gopher_iter_elf_fd_symb(int fd, elf_sym_cb cb, void *ctx)
-{
+{
     int ret = 0;
     Elf *e = NULL;
 
@@ -326,7 +330,7 @@ err:
 }
 
 int gopher_iter_elf_file_symb(const char *elf_file, elf_sym_cb cb, void *ctx)
-{
+{
     int ret = 0, elf_fd = -1;
     Elf *e = NULL;
 
@@ -350,11 +354,10 @@ err:
     return ret;
 }
 
-int gopher_get_elf_symb(const char *elf_file, char *symb_name, u64 *symb_offset)
+int gopher_get_elf_symb_addr(const char *elf_file, char *symb_name, u64 *symb_addr)
 {
     int ret;
     int elf_type;
-    struct elf_header_s hdr = {0};
     struct elf_symb_s elf_symb = {.symb = symb_name, .start_addr = 0};
 
     if (elf_file == NULL || symb_name == NULL) {
@@ -370,17 +373,32 @@ int gopher_get_elf_symb(const char *elf_file, char *symb_name, u64 *symb_offset)
         return ret;
     }
 
-    if ((ret = gopher_get_elf_hdr_info(elf_file, &hdr)) && ret != 0) {
-        return ret;
-    }
-
     if (elf_symb.start_addr == 0) {
         return -1;
     }
 
-    // calculate symbol offset : symb.start_addr - hdr.p_vaddr + hdr.p_offset
-    if (elf_symb.start_addr >= hdr.p_vaddr && elf_symb.start_addr < (hdr.p_vaddr + hdr.p_memsz)) {
-        *symb_offset = elf_symb.start_addr - hdr.p_vaddr + hdr.p_offset;
+    *symb_addr = elf_symb.start_addr;
+    return 0;
+}
+
+int gopher_get_elf_symb(const char *elf_file, char *symb_name, u64 *symb_offset)
+{
+    int ret;
+    u64 start_addr = 0;
+    struct elf_header_s hdr = {0};
+
+    ret = gopher_get_elf_symb_addr(elf_file, symb_name, &start_addr);
+    if (ret) {
+        return ret;
+    }
+
+    if ((ret = gopher_get_elf_hdr_info(elf_file, &hdr)) && ret != 0) {
+        return ret;
+    }
+
+    // calculate symbol offset : start_addr - hdr.p_vaddr + hdr.p_offset
+    if (start_addr >= hdr.p_vaddr && start_addr < (hdr.p_vaddr + hdr.p_memsz)) {
+        *symb_offset = start_addr - hdr.p_vaddr + hdr.p_offset;
         return 0;
     }
     return -1;
@@ -409,7 +427,7 @@ int gopher_get_elf_build_id(const char *elf_file, char build_id[], size_t len)
     d_buf = (char *)data->d_buf + __ELF_BUILD_ID_LEN;
     d_size = data->d_size - __ELF_BUILD_ID_LEN;
     for (size_t i = 0; i < d_size; i++) {
-      snprintf(build_id + (i * 2), len ,"%02hhx", d_buf[i]);
+        snprintf(build_id + (i * 2), len ,"%02hhx", d_buf[i]);
     }
 
 err:
@@ -442,7 +460,7 @@ int gopher_get_elf_debug_link(const char *elf_file, char debug_link[], size_t le
 
     debug_file = (char *)data->d_buf;
 
-    (void)strncpy(debug_link, debug_file, len - 1);
+    (void)snprintf(debug_link, len, "%s", debug_file);
 
 err:
     if (e) {

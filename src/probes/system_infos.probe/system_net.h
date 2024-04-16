@@ -14,7 +14,7 @@
  ******************************************************************************/
 #ifndef SYSTEM_NET_RPOBE__H
 #define SYSTEM_NET_RPOBE__H
-#include "args.h"
+#include "ipc.h"
 #include "common.h"
 
 #define NET_DEVICE_NAME_SIZE    16
@@ -60,7 +60,7 @@ typedef struct net_dev_stat {
 
 int system_tcp_probe(void);
 void system_tcp_init(void);
-int system_net_probe(struct probe_params *params);
+int system_net_probe(struct ipc_body_s *ipc_body);
 int system_net_init(void);
 void system_net_destroy(void);
 

@@ -9,6 +9,10 @@
 // 用户态中存储kafka client的最大数目
 #define CLIENT_MAX_ITEM 256
 
+#define KFK_INFO(fmt, ...) INFO("[KFKPROBE] " fmt, ##__VA_ARGS__)
+#define KFK_WARN(fmt, ...) WARN("[KFKPROBE] " fmt, ##__VA_ARGS__)
+#define KFK_ERROR(fmt, ...) ERROR("[KFKPROBE] " fmt, ##__VA_ARGS__)
+
 struct KafkaConfig {
     char ifname[MIDDLE_BUF_SIZE];
     __u32 ifindex;
@@ -20,7 +24,7 @@ struct KafkaConfig {
 };
 
 // loader.c
-struct bpf_object *load_link_pin(struct KafkaConfig *cfg);
+struct bpf_object *load_link_pin(struct KafkaConfig *cfg, char **btf_custom_path);
 int unpin_unlink_unload(struct KafkaConfig *cfg, struct bpf_object *obj);
 int open_bpf_map_file(struct KafkaConfig *cfg, const char *map_name, int *map_fd);
 int unlink_xdp(struct KafkaConfig *cfg);

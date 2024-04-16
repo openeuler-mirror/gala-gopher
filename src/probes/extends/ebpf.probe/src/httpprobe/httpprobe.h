@@ -44,10 +44,6 @@
 
 #define TGID_LSHIFT_LEN         0x20
 
-#if !defined INET_ADDRSTRLEN
-    #define INET_ADDRSTRLEN     0x4
-#endif
-
 #define HTTP_CONN_PATH          "/sys/fs/bpf/gala-gopher/__http_conn"
 #define HTTP_CONN_SAMP_PATH     "/sys/fs/bpf/gala-gopher/__http_conn_samp"
 

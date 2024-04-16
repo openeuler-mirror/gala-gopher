@@ -104,7 +104,8 @@ struct proc_symbs_s {
     struct mod_s* mods[MOD_MAX_COUNT];
 };
 
-struct proc_symbs_s* proc_load_all_symbs(void *elf_reader, int proc_id);
+struct proc_symbs_s *new_proc_symbs(int proc_id);
+int proc_load_all_symbs(struct proc_symbs_s* proc_symbs, void *elf_reader, int proc_id, char native_stack_flag);
 void proc_delete_all_symbs(struct proc_symbs_s *proc_symbs);
 int proc_search_addr_symb(struct proc_symbs_s *proc_symbs,
         u64 addr, struct addr_symb_s *addr_symb, char *comm);

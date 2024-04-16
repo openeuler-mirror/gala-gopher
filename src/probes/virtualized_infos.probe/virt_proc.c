@@ -35,7 +35,7 @@ static int do_read_line(char *command, char line[])
         return -1;
     }
 
-    f = popen(command, "r");
+    f = popen_chroot(command, "r");
     if (f == NULL) {
         return -1;
     }
@@ -129,7 +129,7 @@ static int get_vhost_proc_tgid(struct proc_infos *one_proc)
         return -1;
     }
 
-    (void)strncpy(tmp.uuid, one_proc->uuid, MAX_SYSTEM_UUID_LEN -1);
+    (void)snprintf(tmp.uuid, sizeof(tmp.uuid), "%s", one_proc->uuid);
 
     vhost_comm[0] = 0;
     (void)snprintf(vhost_comm, TASK_COMM_LEN, "vhost-%d", one_proc->tgid);
@@ -173,7 +173,7 @@ int virt_proc_probe(void)
     }
     cmd[0] = 0;
     (void)snprintf(cmd, COMMAND_LEN, VIRT_GET_ALL_VM);
-    f = popen(cmd, "r");
+    f = popen_chroot(cmd, "r");
     if (f == NULL) {
         return -1;
     }

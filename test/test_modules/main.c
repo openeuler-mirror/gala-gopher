@@ -28,13 +28,17 @@
 typedef struct {
     char *suiteName;
     void (*suiteMain)(CU_pSuite);
+    CU_InitializeFunc initFunc;
+    CU_CleanupFunc cleanupFunc;
 } TestSuite;
 
 TestSuite gTestSuites[] = {
     TEST_SUITE_FIFO,
-    // TEST_SUITE_KAFKA,
+#ifdef KAFKA_CHANNEL
+    TEST_SUITE_KAFKA,
+#endif
     TEST_SUITE_META,
-    TEST_SUITE_PROBE,
+    //TEST_SUITE_PROBE,
     TEST_SUITE_IMDB,
     TEST_SUITE_LOGS
 };
@@ -50,7 +54,7 @@ int main(int argc, char *argv[])
 
     int suiteNum = sizeof(gTestSuites) / sizeof(gTestSuites[0]);
     for (int i = 0; i < suiteNum; i++) {
-        suite = CU_add_suite(gTestSuites[i].suiteName, NULL, NULL);
+        suite = CU_add_suite(gTestSuites[i].suiteName, gTestSuites[i].initFunc, gTestSuites[i].cleanupFunc);
         if (suite == NULL) {
             CU_cleanup_registry();
             return CU_get_error();

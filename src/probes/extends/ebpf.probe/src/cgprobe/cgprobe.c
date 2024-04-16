@@ -42,9 +42,9 @@
     OPEN(probe_name, end, load); \
     MAP_SET_PIN_PATH(probe_name, output, OUTPUT_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, args_map, ARGS_PATH, load); \
-    LOAD_ATTACH(probe_name, end, load)
+    LOAD_ATTACH(cgprobe, probe_name, end, load)
 
-static struct probe_params params = {.period = DEFAULT_PERIOD};
+static struct probe_params_deprecated params = {.period = DEFAULT_PERIOD};
 
 
 static void print_cg_metrics(void *ctx, int cpu, void *data, __u32 size)
@@ -60,7 +60,7 @@ static void print_cg_metrics(void *ctx, int cpu, void *data, __u32 size)
     (void)fflush(stdout);
 }
 
-static void load_args(int args_fd, struct probe_params* params)
+static void load_args(int args_fd, struct probe_params_deprecated* params)
 {
     __u32 key = 0;
     struct ns_args_s args = {0};
@@ -87,7 +87,7 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    printf("arg parse interval time:%us\n", params.period);
+    INFO("arg parse interval time:%us\n", params.period);
 
     INIT_BPF_APP(cgprobe, EBPF_RLIM_LIMITED);
     __LOAD_CG_PROBE(cgprobe, err, 1);
@@ -98,7 +98,7 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    printf("Successfully started!\n");
+    INFO("Successfully started!\n");
     poll_pb(pb, params.period * THOUSAND);
 
 err:

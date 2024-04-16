@@ -100,7 +100,7 @@ static __always_inline struct conn_data_t *get_conn_from_client(client *c)
 }
 
 #define __PERIOD ((u64)30 * 1000000000)
-static __always_inline u64 get_period()
+static __always_inline u64 get_period(void)
 {
     u32 key = 0;
     u64 period = __PERIOD;

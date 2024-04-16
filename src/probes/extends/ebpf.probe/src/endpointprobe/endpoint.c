@@ -18,6 +18,11 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <string.h>
+#include <time.h>
+#include <sys/syscall.h>
+#include <sys/stat.h>
+#include <sched.h>
+#include <fcntl.h>
 
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
@@ -29,436 +34,1032 @@
 
 #include <bpf/bpf.h>
 #include "bpf.h"
-#include "args.h"
 #include "tcp.skel.h"
 #include "udp.skel.h"
-#include "endpoint.h"
 #include "tcp.h"
 #include "event.h"
+#include "ipc.h"
+#include "hash.h"
+#include "container.h"
+#include "histogram.h"
+#include "endpoint.h"
 
 #define EP_ENTITY_ID_LEN 64
 
-#define OO_NAME     "endpoint"
+#define OO_TCP_SOCK     "endpoint_tcp"
+#define OO_UDP_SOCK     "endpoint_udp"
 
-#define LISTEN_TBL_NAME     "listen"
-#define CONNECT_TBL_NAME    "connect"
-#define BIND_TBL_NAME       "bind"
-#define UDP_TBL_NAME        "udp"
+#define OPEN_TCP_PROBE(probe_name, end, load, buffer) \
+    INIT_OPEN_OPTS(probe_name); \
+    PREPARE_CUSTOM_BTF(probe_name); \
+    OPEN_OPTS(probe_name, end, load); \
+    MAP_INIT_BPF_BUFFER(probe_name, tcp_evt_map, buffer, load);
 
-#define ENDPOINT_PATH "/sys/fs/bpf/gala-gopher/__endpoint_sock"
-#define OUTPUT_PATH "/sys/fs/bpf/gala-gopher/__endpoint_output"
-#define ARGS_PATH "/sys/fs/bpf/gala-gopher/__endpoint_args"
-#define RM_BPF_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__endpoint*"
+#define OPEN_UDP_PROBE(probe_name, end, load, buffer) \
+    INIT_OPEN_OPTS(probe_name); \
+    PREPARE_CUSTOM_BTF(probe_name); \
+    OPEN_OPTS(probe_name, end, load); \
+    MAP_INIT_BPF_BUFFER(probe_name, udp_evt_map, buffer, load);
 
-#define __LOAD_ENDPOINT_PROBE(probe_name, end, load) \
-    OPEN(probe_name, end, load); \
-    MAP_SET_PIN_PATH(probe_name, g_endpoint_map, ENDPOINT_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, g_ep_output, OUTPUT_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, args_map, ARGS_PATH, load); \
-    LOAD_ATTACH(probe_name, end, load)
+// unit: ns
+enum estab_latency_range_t {
+    LT_RANGE_1 = 0,         // (0 ~ 3]ms
+    LT_RANGE_2,             // (3 ~ 10]ms
+    LT_RANGE_3,             // (10 ~ 50]ms
+    LT_RANGE_4,             // (50 ~ 100]ms
+    LT_RANGE_5,             // (100 ~ 500]ms
+    LT_RANGE_6,             // (500 ~ 1000]ms
+    LT_RANGE_7,            // (1000 ~ 10000]ms
 
-static struct probe_params params = {.period = DEFAULT_PERIOD};
+    __MAX_LT_RANGE
+};
 
-static void print_tcp_listen_metrics(struct endpoint_val_t *value)
+struct estab_latency_histo_s {
+    enum estab_latency_range_t range;
+    u64 min, max;
+};
+
+struct estab_latency_histo_s estab_latency_histios[__MAX_LT_RANGE] = {
+    {LT_RANGE_1, 0,          3000000},
+    {LT_RANGE_2, 3000000,    10000000},
+    {LT_RANGE_3, 10000000,   50000000},
+    {LT_RANGE_4, 50000000,   100000000},
+    {LT_RANGE_5, 100000000,  500000000},
+    {LT_RANGE_6, 500000000,  1000000000},
+    {LT_RANGE_7, 1000000000, 10000000000}
+};
+struct tcp_listen_s {
+    H_HANDLE;
+    struct tcp_listen_key_s key;
+    struct tcp_listen_val_s val;
+};
+
+struct tcp_socket_id_s {
+    int tgid;                   // process id
+    int is_multi;                // 1: multi procs listen to one sock
+    enum socket_role_e role;
+    struct conn_addr_s client_ipaddr;
+    struct conn_addr_s server_ipaddr;
+};
+
+struct tcp_socket_s {
+    H_HANDLE;
+    struct tcp_socket_id_s id;
+    int inactive;
+    char *client_ip;
+    char *server_ip;
+    u64 stats[EP_STATS_MAX];
+    time_t last_rcv_data;
+
+    struct histo_bucket_s estab_latency_buckets[__MAX_LT_RANGE];
+};
+
+struct udp_socket_id_s {
+    int tgid;                   // process id
+    struct conn_addr_s local_ipaddr;
+    struct conn_addr_s remote_ipaddr;
+};
+
+struct udp_socket_s {
+    H_HANDLE;
+    struct udp_socket_id_s id;
+    u64 stats[EP_STATS_MAX];
+    char *local_ip;
+    char *remote_ip;
+    time_t last_rcv_data;
+};
+
+struct endpoint_probe_s {
+    struct ipc_body_s ipc_body;
+    struct bpf_prog_s* prog;
+    int listen_port_fd;
+    struct udp_socket_s *udps;
+    struct tcp_socket_s *tcps;
+    struct tcp_listen_s *listens;
+    int tcp_socks_num;
+    int udp_socks_num;
+    time_t last_report;
+};
+
+static volatile sig_atomic_t g_stop;
+static struct endpoint_probe_s g_ep_probe;
+
+static char is_snooper(struct endpoint_probe_s *probe, int tgid)
 {
-    fprintf(stdout,
-            "|%s|%d|%s|%d|%s|%lu|%lu|%lu|%lu|%lu|%lu|%lu|\n",
-            LISTEN_TBL_NAME,
-            value->key.key.tcp_listen_key.tgid,
-            "*",
-            value->key.key.tcp_listen_key.port,
-            LISTEN_TBL_NAME,
-            value->ep_stats.stats[EP_STATS_LISTEN_DROPS],
-            value->ep_stats.stats[EP_STATS_ACCEPT_OVERFLOW],
-            value->ep_stats.stats[EP_STATS_SYN_OVERFLOW],
-            value->ep_stats.stats[EP_STATS_PASSIVE_OPENS],
-            value->ep_stats.stats[EP_STATS_PASSIVE_FAILS],
-            value->ep_stats.stats[EP_STATS_RETRANS_SYNACK],
-            value->ep_stats.stats[EP_STATS_LOST_SYNACK]);
-}
-
-static void print_tcp_connect_metrics(struct endpoint_val_t *value)
-{
-    unsigned char s_addr[INET6_ADDRSTRLEN];
-    ip_str(value->key.key.tcp_connect_key.ip_addr.family, 
-           (unsigned char *)&(value->key.key.tcp_connect_key.ip_addr.ip), 
-           s_addr, 
-           INET6_ADDRSTRLEN);
-    fprintf(stdout,
-            "|%s|%d|%s|%d|%s|%lu|%lu|\n",
-            CONNECT_TBL_NAME,
-            value->key.key.tcp_connect_key.tgid,
-            s_addr,
-            0,
-            CONNECT_TBL_NAME,
-            value->ep_stats.stats[EP_STATS_ACTIVE_OPENS],
-            value->ep_stats.stats[EP_STATS_ACTIVE_FAILS]);
-}
-
-static void print_bind_metrics(struct endpoint_val_t *value)
-{
-    unsigned char s_addr[INET6_ADDRSTRLEN];
-    ip_str(value->key.key.udp_server_key.ip_addr.family, 
-           (unsigned char *)&(value->key.key.udp_server_key.ip_addr.ip), 
-           s_addr, 
-           INET6_ADDRSTRLEN);
-    fprintf(stdout,
-            "|%s|%d|%s|%d|%s|%lu|%lu|%lu|%d|\n",
-            BIND_TBL_NAME,
-            value->key.key.udp_server_key.tgid,
-            s_addr,
-            0,
-            BIND_TBL_NAME,
-            value->ep_stats.stats[EP_STATS_QUE_RCV_FAILED],
-            value->ep_stats.stats[EP_STATS_UDP_SENDS],
-            value->ep_stats.stats[EP_STATS_UDP_RCVS],
-            value->udp_err_code);
-}
-
-static void print_udp_metrics(struct endpoint_val_t *value)
-{
-    unsigned char s_addr[INET6_ADDRSTRLEN];
-    ip_str(value->key.key.udp_client_key.ip_addr.family, 
-           (unsigned char *)&(value->key.key.udp_client_key.ip_addr.ip), 
-           s_addr, 
-           INET6_ADDRSTRLEN);
-    fprintf(stdout,
-            "|%s|%d|%s|%d|%s|%lu|%lu|%lu|%d|\n",
-            UDP_TBL_NAME,
-            value->key.key.udp_client_key.tgid,
-            s_addr,
-            0,
-            UDP_TBL_NAME,
-            value->ep_stats.stats[EP_STATS_QUE_RCV_FAILED],
-            value->ep_stats.stats[EP_STATS_UDP_SENDS],
-            value->ep_stats.stats[EP_STATS_UDP_RCVS],
-            value->udp_err_code);
-}
-
-static void build_entity_id(struct endpoint_val_t *ep, char *buf, int buf_len)
-{
-    unsigned char s_addr[INET6_ADDRSTRLEN];
-
-    if (ep->key.type == SK_TYPE_LISTEN_TCP) {
-        (void)snprintf(buf, buf_len, "%d_%s_%d_%s",
-                        ep->key.key.tcp_listen_key.tgid,
-                        "*",
-                        ep->key.key.tcp_listen_key.port,
-                        LISTEN_TBL_NAME);
-    } else if (ep->key.type == SK_TYPE_CLIENT_TCP) {
-        ip_str(ep->key.key.tcp_connect_key.ip_addr.family, 
-               (unsigned char *)&(ep->key.key.tcp_connect_key.ip_addr.ip), 
-               s_addr, 
-               INET6_ADDRSTRLEN);
-        (void)snprintf(buf, buf_len, "%d_%s_%d_%s",
-                        ep->key.key.tcp_connect_key.tgid,
-                        s_addr,
-                        0,
-                        CONNECT_TBL_NAME);
-    } else if (ep->key.type == SK_TYPE_LISTEN_UDP) {
-        ip_str(ep->key.key.udp_server_key.ip_addr.family, 
-               (unsigned char *)&(ep->key.key.udp_server_key.ip_addr.ip), 
-               s_addr, 
-               INET6_ADDRSTRLEN);
-        (void)snprintf(buf, buf_len, "%d_%s_%d_%s",
-                        ep->key.key.udp_server_key.tgid,
-                        s_addr,
-                        0,
-                        BIND_TBL_NAME);
-    } else {
-        ip_str(ep->key.key.udp_client_key.ip_addr.family, 
-               (unsigned char *)&(ep->key.key.udp_client_key.ip_addr.ip), 
-               s_addr, 
-               INET6_ADDRSTRLEN);
-        (void)snprintf(buf, buf_len, "%d_%s_%d_%s",
-                        ep->key.key.udp_client_key.tgid,
-                        s_addr,
-                        0,
-                        UDP_TBL_NAME);
-    }
-}
-
-static void build_event_lable(struct endpoint_val_t *ep, struct event_info_s *evt)
-{
-    size_t size = sizeof(evt->ip);
-    unsigned char s_addr[INET6_ADDRSTRLEN];
-
-    evt->ip[0] = 0;
-    s_addr[0] = 0;
-    switch (ep->key.type) {
-        case SK_TYPE_LISTEN_TCP: {
-            (void)snprintf(evt->ip, size, "Listen port %d", ep->key.key.tcp_listen_key.port);
-            evt->pid = ep->key.key.tcp_listen_key.tgid;
-            break;
-        }
-        case SK_TYPE_LISTEN_UDP: {
-            ip_str(ep->key.key.udp_server_key.ip_addr.family, 
-                   (unsigned char *)&(ep->key.key.udp_server_key.ip_addr.ip), 
-                   s_addr, 
-                   INET6_ADDRSTRLEN);
-            (void)snprintf(evt->ip, size, "udp bind %s", s_addr);
-            evt->pid = ep->key.key.udp_server_key.tgid;
-            break;
-        }
-        case SK_TYPE_CLIENT_TCP: {
-            ip_str(ep->key.key.tcp_connect_key.ip_addr.family, 
-                   (unsigned char *)&(ep->key.key.tcp_connect_key.ip_addr.ip), 
-                   s_addr, 
-                   INET6_ADDRSTRLEN);
-            (void)snprintf(evt->ip, size, "Tcp connect %s", s_addr);
-            evt->pid = ep->key.key.tcp_connect_key.tgid;
-            break;
-        }
-        case SK_TYPE_CLIENT_UDP: {
-            ip_str(ep->key.key.udp_client_key.ip_addr.family, 
-                   (unsigned char *)&(ep->key.key.udp_client_key.ip_addr.ip), 
-                   s_addr, 
-                   INET6_ADDRSTRLEN);
-            (void)snprintf(evt->ip, size, "Udp rcv %s", s_addr);
-            evt->pid = ep->key.key.udp_client_key.tgid;
-            break;
+    struct snooper_obj_s *snooper;
+    for (int i = 0; i < probe->ipc_body.snooper_obj_num; i++) {
+        if (probe->ipc_body.snooper_objs[i].type == SNOOPER_OBJ_PROC) {
+            snooper = &(probe->ipc_body.snooper_objs[i]);
+            if (snooper->obj.proc.proc_id == (unsigned int )tgid) {
+                return 1;
+            }
         }
     }
+    return 0;
 }
 
-static void report_ep(struct endpoint_val_t *ep)
+static void free_tcp_sock(struct tcp_socket_s *tcp_sock)
 {
-    char entityId[EP_ENTITY_ID_LEN];
-    struct event_info_s evt = {0};
-
-    if (params.logs == 0)
+    if (tcp_sock == NULL) {
         return;
-
-    entityId[0] = 0;
-    if (ep->ep_stats.stats[EP_STATS_LISTEN_DROPS] != 0) {
-        build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
-
-        evt.metrics = "listendrop";
-        evt.entityId = entityId;
-        evt.entityName = OO_NAME;
-        build_event_lable(ep, &evt);
-
-        report_logs((const struct event_info_s *)&evt,
-                    EVT_SEC_WARN,
-                    "TCP listen drops(%lu).",
-                    ep->ep_stats.stats[EP_STATS_LISTEN_DROPS]);
     }
 
-    if (ep->ep_stats.stats[EP_STATS_ACCEPT_OVERFLOW] != 0) {
-        if (entityId[0] != 0) {
-            build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
-        }
-
-        evt.metrics = "accept_overflow";
-        evt.entityId = entityId;
-        evt.entityName = OO_NAME;
-        build_event_lable(ep, &evt);
-
-        report_logs((const struct event_info_s *)&evt,
-                    EVT_SEC_WARN,
-                    "TCP accept queue overflow(%lu).",
-                    ep->ep_stats.stats[EP_STATS_ACCEPT_OVERFLOW]);
+    if (tcp_sock->client_ip != NULL) {
+        free(tcp_sock->client_ip);
     }
 
-    if (ep->ep_stats.stats[EP_STATS_SYN_OVERFLOW] != 0) {
-        if (entityId[0] != 0) {
-            build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
-        }
-
-        evt.metrics = "syn_overflow";
-        evt.entityId = entityId;
-        evt.entityName = OO_NAME;
-        build_event_lable(ep, &evt);
-
-        report_logs((const struct event_info_s *)&evt,
-                    EVT_SEC_WARN,
-                    "TCP syn queue overflow(%lu).",
-                    ep->ep_stats.stats[EP_STATS_SYN_OVERFLOW]);
+    if (tcp_sock->server_ip != NULL) {
+        free(tcp_sock->server_ip);
     }
-
-    if (ep->ep_stats.stats[EP_STATS_PASSIVE_FAILS] != 0) {
-        if (entityId[0] != 0) {
-            build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
-        }
-
-        evt.metrics = "passive_open_failed";
-        evt.entityId = entityId;
-        evt.entityName = OO_NAME;
-        build_event_lable(ep, &evt);
-
-        report_logs((const struct event_info_s *)&evt,
-                    EVT_SEC_WARN,
-                    "TCP passive open failed(%lu).",
-                    ep->ep_stats.stats[EP_STATS_PASSIVE_FAILS]);
-    }
-
-    entityId[0] = 0;
-    if (ep->ep_stats.stats[EP_STATS_ACTIVE_FAILS] != 0) {
-        build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
-
-        evt.metrics = "active_open_failed";
-        evt.entityId = entityId;
-        evt.entityName = OO_NAME;
-        build_event_lable(ep, &evt);
-
-        report_logs((const struct event_info_s *)&evt,
-                    EVT_SEC_WARN,
-                    "TCP active open failed(%lu).",
-                    ep->ep_stats.stats[EP_STATS_ACTIVE_FAILS]);
-    }
-
-    entityId[0] = 0;
-    if (ep->ep_stats.stats[EP_STATS_QUE_RCV_FAILED] != 0) {
-        build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
-
-        evt.entityId = entityId;
-        evt.entityName = OO_NAME;
-        evt.metrics = "udp_rcv_drops";
-        build_event_lable(ep, &evt);
-
-        if (ep->key.type == SK_TYPE_LISTEN_UDP) {
-            report_logs((const struct event_info_s *)&evt,
-                        EVT_SEC_WARN,
-                        "UDP(S) queue drops(%lu).",
-                        ep->ep_stats.stats[EP_STATS_QUE_RCV_FAILED]);
-        } else {
-            report_logs((const struct event_info_s *)&evt,
-                        EVT_SEC_WARN,
-                        "UDP(C) queue drops(%lu).",
-                        ep->ep_stats.stats[EP_STATS_QUE_RCV_FAILED]);
-        }
-    }
-
-    entityId[0] = 0;
-    if (ep->ep_stats.stats[EP_STATS_LOST_SYNACK] != 0) {
-        build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
-
-        if (ep->key.type == SK_TYPE_LISTEN_TCP) {
-            evt.entityId = entityId;
-            evt.entityName = OO_NAME;
-            evt.metrics = "lost_synacks";
-            build_event_lable(ep, &evt);
-            report_logs((const struct event_info_s *)&evt,
-                        EVT_SEC_WARN,
-                        "TCP connection setup failure due to loss of SYN/ACK(%lu).",
-                        ep->ep_stats.stats[EP_STATS_LOST_SYNACK]);
-        }
-    }
-
-    entityId[0] = 0;
-    if (ep->ep_stats.stats[EP_STATS_RETRANS_SYNACK] != 0) {
-        build_entity_id(ep, entityId, EP_ENTITY_ID_LEN);
-
-        if (ep->key.type == SK_TYPE_LISTEN_TCP) {
-            evt.entityId = entityId;
-            evt.entityName = OO_NAME;
-            evt.metrics = "retran_synacks";
-            build_event_lable(ep, &evt);
-            report_logs((const struct event_info_s *)&evt,
-                        EVT_SEC_WARN,
-                        "TCP SYN/ACK retransmission occurs.(%lu).",
-                        ep->ep_stats.stats[EP_STATS_RETRANS_SYNACK]);
-        }
-    }
-
+    free(tcp_sock);
+    return;
 }
 
-static void print_endpoint_metrics(void *ctx, int cpu, void *data, __u32 size)
+static void free_udp_sock(struct udp_socket_s *udp_sock)
 {
-    struct endpoint_val_t *value  = (struct endpoint_val_t *)data;
-    if (value->key.type == SK_TYPE_LISTEN_TCP) {
-        print_tcp_listen_metrics(value);
-    } else if (value->key.type == SK_TYPE_CLIENT_TCP) {
-        print_tcp_connect_metrics(value);
-    } else if (value->key.type == SK_TYPE_LISTEN_UDP) {
-        print_bind_metrics(value);
-    } else {
-        print_udp_metrics(value);
+    if (udp_sock == NULL) {
+        return;
     }
 
-    report_ep(value);
+    if (udp_sock->local_ip != NULL) {
+        free(udp_sock->local_ip);
+    }
+
+    if (udp_sock->remote_ip != NULL) {
+        free(udp_sock->remote_ip);
+    }
+    free(udp_sock);
+    return;
+}
+
+static void destroy_tcp_socks(struct endpoint_probe_s *probe)
+{
+    struct tcp_socket_s *tcp, *tmp;
+
+    H_ITER(probe->tcps, tcp, tmp) {
+        H_DEL(probe->tcps, tcp);
+        free_tcp_sock(tcp);
+    }
+    probe->tcps = NULL;
+    return;
+}
+
+static void destroy_tcp_listens(struct endpoint_probe_s *probe)
+{
+    struct tcp_listen_s *listen, *tmp;
+
+    H_ITER(probe->listens, listen, tmp) {
+        H_DEL(probe->listens, listen);
+        free(listen);
+    }
+    probe->listens = NULL;
+    return;
+}
+
+static void destroy_udp_socks(struct endpoint_probe_s *probe)
+{
+    struct udp_socket_s *udp, *tmp;
+
+    H_ITER(probe->udps, udp, tmp) {
+        H_DEL(probe->udps, udp);
+        free_udp_sock(udp);
+    }
+    probe->udps = NULL;
+    return;
+}
+
+static char tcp_sock_inactive(struct tcp_socket_s *tcp)
+{
+#define __INACTIVE_TIME_SECS     (10 * 60)       // 10min
+    time_t current = time(NULL);
+    time_t secs;
+
+    if (tcp->inactive) {
+        return 1;
+    }
+
+    if (current > tcp->last_rcv_data) {
+        secs = current - tcp->last_rcv_data;
+        if (secs >= __INACTIVE_TIME_SECS) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static char udp_sock_inactive(struct udp_socket_s *udp)
+{
+#define __INACTIVE_TIME_SECS     (10 * 60)       // 10min
+    time_t current = time(NULL);
+    time_t secs;
+
+    if (current > udp->last_rcv_data) {
+        secs = current - udp->last_rcv_data;
+        if (secs >= __INACTIVE_TIME_SECS) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static void aging_endpoint_socks(struct endpoint_probe_s *probe)
+{
+    struct tcp_socket_s *tcp, *tmp_tcp;
+    struct udp_socket_s *udp, *tmp_udp;
+
+    H_ITER(probe->tcps, tcp, tmp_tcp) {
+        if (tcp_sock_inactive(tcp)) {
+            H_DEL(probe->tcps, tcp);
+            free_tcp_sock(tcp);
+            probe->tcp_socks_num--;
+        }
+    }
+
+    H_ITER(probe->udps, udp, tmp_udp) {
+        if (udp_sock_inactive(udp)) {
+            H_DEL(probe->udps, udp);
+            free_udp_sock(udp);
+            probe->udp_socks_num--;
+        }
+    }
+}
+
+static struct tcp_listen_s* lkup_tcp_listen(struct endpoint_probe_s *probe, const struct tcp_listen_key_s *key)
+{
+    struct tcp_listen_s* listen = NULL;
+
+    H_FIND(probe->listens, key, sizeof(struct tcp_listen_key_s), listen);
+    return listen;
+}
+
+static struct tcp_socket_s* lkup_tcp_socket(struct endpoint_probe_s *probe, const struct tcp_socket_id_s *id)
+{
+    struct tcp_socket_s* tcp = NULL;
+
+    H_FIND(probe->tcps, id, sizeof(struct tcp_socket_id_s), tcp);
+    return tcp;
+}
+
+static struct udp_socket_s* lkup_udp_socket(struct endpoint_probe_s *probe, const struct udp_socket_id_s *id)
+{
+    struct udp_socket_s* udp = NULL;
+
+    H_FIND(probe->udps, id, sizeof(struct udp_socket_id_s), udp);
+    return udp;
+}
+
+static void output_tcp_socket(struct tcp_socket_s* tcp_sock)
+{
+    char estab_latency_histogram[MAX_HISTO_SERIALIZE_SIZE];
+    estab_latency_histogram[0] = 0;
+
+    if (serialize_histo(tcp_sock->estab_latency_buckets, __MAX_LT_RANGE, estab_latency_histogram, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+
+    (void)fprintf(stdout,
+        "|%s|%u|%s|%s|%s|%u|%u|%d"
+        "|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu"
+        "|%s|\n",
+        OO_TCP_SOCK,
+        tcp_sock->id.tgid,
+        (tcp_sock->id.role == TCP_SERVER) ? "server" : "client",
+        tcp_sock->client_ip,
+        tcp_sock->server_ip,
+        tcp_sock->id.server_ipaddr.port,
+        tcp_sock->id.server_ipaddr.family,
+        tcp_sock->id.is_multi,
+
+        tcp_sock->stats[EP_STATS_LISTEN_DROPS],
+        tcp_sock->stats[EP_STATS_ACCEPT_OVERFLOW],
+        tcp_sock->stats[EP_STATS_SYN_OVERFLOW],
+        tcp_sock->stats[EP_STATS_PASSIVE_OPENS],
+        tcp_sock->stats[EP_STATS_PASSIVE_FAILS],
+        tcp_sock->stats[EP_STATS_RETRANS_SYNACK],
+        tcp_sock->stats[EP_STATS_RETRANS_SYN],
+        tcp_sock->stats[EP_STATS_REQ_DROP],
+        tcp_sock->stats[EP_STATS_ACTIVE_OPENS],
+        tcp_sock->stats[EP_STATS_ACTIVE_FAILS],
+        tcp_sock->stats[EP_STATS_SYN_SENT],
+        tcp_sock->stats[EP_STATS_SYNACK_SENT],
+        tcp_sock->stats[EP_STATS_RST_SENT],
+        tcp_sock->stats[EP_STATS_RST_RCVS],
+
+        estab_latency_histogram);
     (void)fflush(stdout);
 }
 
-static void load_args(int args_fd, struct probe_params* params)
+static void output_udp_socket(struct udp_socket_s* udp_sock)
 {
-    __u32 key = 0;
-    struct endpoint_args_s args = {0};
+    (void)fprintf(stdout,
+        "|%s|%u|%s|%s|%u"
+        "|%llu|%llu|%llu|\n",
+        OO_UDP_SOCK,
+        udp_sock->id.tgid,
+        udp_sock->local_ip,
+        udp_sock->remote_ip,
+        udp_sock->id.local_ipaddr.family,
 
-    args.period = (__u64)params->period * 1000000000;
-    args.filter_by_task = (__u32)params->filter_task_probe;
-    args.filter_by_tgid = (__u32)params->filter_pid;
-
-    (void)bpf_map_update_elem(args_fd, &key, &args, BPF_ANY);
+        udp_sock->stats[EP_STATS_QUE_RCV_FAILED],
+        udp_sock->stats[EP_STATS_UDP_SENDS],
+        udp_sock->stats[EP_STATS_UDP_RCVS]);
+    (void)fflush(stdout);
 }
 
-static void load_listen_fd(int fd)
+static void process_tcp_establish_latency(struct tcp_socket_s *tcp, struct tcp_socket_event_s* evt)
 {
-    struct tcp_listen_ports *tlps = NULL;
-    struct tcp_listen_port *tlp = NULL;
-    struct listen_sockfd_key_t listen_sockfd_key = {0};
+    if (evt->evt != EP_STATS_ACTIVE_OPENS && evt->evt != EP_STATS_PASSIVE_OPENS) {
+        return;
+    }
+
+    (void)histo_bucket_add_value(tcp->estab_latency_buckets, __MAX_LT_RANGE, evt->estab_latency);
+}
+
+static void init_tcp_sock_latency_buckets(struct histo_bucket_s latency_buckets[], size_t size)
+{
+    for (int i = 0; i < size; i++) {
+        (void)init_histo_bucket(&(latency_buckets[i]), estab_latency_histios[i].min, estab_latency_histios[i].max);
+    }
+}
+
+static int process_tcp_conn_close(struct tcp_socket_s *tcp, struct tcp_socket_event_s* evt)
+{
+    if (evt->evt != EP_STATS_CONN_CLOSE) {
+        return 1;
+    }
+
+    if (tcp) {
+        tcp->inactive = 1;
+    }
+    return 0;
+}
+
+#define MAX_ENDPOINT_ENTITES    (5 * 1024)
+static int add_tcp_sock_evt(struct endpoint_probe_s * probe, struct tcp_socket_event_s* evt)
+{
+    struct tcp_socket_id_s id;
+    struct tcp_socket_s *tcp, *new_tcp;
+    unsigned char client_ip_str[INET6_ADDRSTRLEN];
+    unsigned char server_ip_str[INET6_ADDRSTRLEN];
+
+    if (!is_snooper(probe, evt->tgid)) {
+        return 0;
+    }
+
+    memcpy(&(id.client_ipaddr), &(evt->client_ipaddr), sizeof(id.client_ipaddr));
+    memcpy(&(id.server_ipaddr), &(evt->server_ipaddr), sizeof(id.server_ipaddr));
+    id.is_multi = evt->is_multi;
+    id.tgid = (id.is_multi == 1) ? getpgid(evt->tgid) : (evt->tgid);
+    id.client_ipaddr.port = 0;
+    id.role = evt->role;
+
+    tcp = lkup_tcp_socket(probe, (const struct tcp_socket_id_s *)&id);
+    if (process_tcp_conn_close(tcp, evt) == 0) {
+        return 0;
+    }
+
+    if (tcp) {
+        process_tcp_establish_latency(tcp, evt);
+        tcp->stats[evt->evt]++;
+        tcp->last_rcv_data = time(NULL);
+        tcp->inactive = 0;
+        return 0;
+    }
+
+    if (probe->tcp_socks_num >= MAX_ENDPOINT_ENTITES) {
+        return -1;
+    }
+
+    new_tcp = (struct tcp_socket_s *)malloc(sizeof(struct tcp_socket_s));
+    if (new_tcp == NULL) {
+        return -1;
+    }
+    memset(new_tcp, 0, sizeof(struct tcp_socket_s));
+    memcpy(&(new_tcp->id), &id, sizeof(id));
+    init_tcp_sock_latency_buckets(new_tcp->estab_latency_buckets, __MAX_LT_RANGE);
+
+    process_tcp_establish_latency(new_tcp, evt);
+    new_tcp->stats[evt->evt] += 1;
+    new_tcp->last_rcv_data = time(NULL);
+
+    ip_str(new_tcp->id.client_ipaddr.family, (unsigned char *)&(new_tcp->id.client_ipaddr.ip), client_ip_str, INET6_ADDRSTRLEN);
+    ip_str(new_tcp->id.server_ipaddr.family, (unsigned char *)&(new_tcp->id.server_ipaddr.ip), server_ip_str, INET6_ADDRSTRLEN);
+    new_tcp->client_ip = strdup((const char *)client_ip_str);
+    new_tcp->server_ip = strdup((const char *)server_ip_str);
+
+    if (new_tcp->client_ip == NULL || new_tcp->server_ip == NULL) {
+        goto err;
+    }
+
+    H_ADD_KEYPTR(probe->tcps, &new_tcp->id, sizeof(struct tcp_socket_id_s), new_tcp);
+    probe->tcp_socks_num++;
+    return 0;
+err:
+    free_tcp_sock(new_tcp);
+    return -1;
+}
+
+static int add_udp_sock_evt(struct endpoint_probe_s * probe, struct udp_socket_event_s* evt)
+{
+    struct udp_socket_id_s id;
+    struct udp_socket_s *udp, *new_udp;
+    unsigned char local_ip_str[INET6_ADDRSTRLEN];
+    unsigned char remote_ip_str[INET6_ADDRSTRLEN];
+
+    if (!is_snooper(probe, evt->tgid)) {
+        return 0;
+    }
+
+    memcpy(&(id.local_ipaddr), &(evt->local_ipaddr), sizeof(id.local_ipaddr));
+    memcpy(&(id.remote_ipaddr), &(evt->remote_ipaddr), sizeof(id.remote_ipaddr));
+    id.tgid = evt->tgid;
+    id.local_ipaddr.port = 0;
+    id.remote_ipaddr.port = 0;
+
+    udp = lkup_udp_socket(probe, (const struct udp_socket_id_s *)&id);
+    if (udp) {
+        udp->stats[evt->evt] += evt->val;
+        udp->last_rcv_data = time(NULL);
+        return 0;
+    }
+
+    if (probe->udp_socks_num >= MAX_ENDPOINT_ENTITES) {
+        return -1;
+    }
+
+    new_udp = (struct udp_socket_s *)malloc(sizeof(struct udp_socket_s));
+    if (new_udp == NULL) {
+        return -1;
+    }
+    memset(new_udp, 0, sizeof(struct udp_socket_s));
+    memcpy(&(new_udp->id), &id, sizeof(id));
+    new_udp->stats[evt->evt] += evt->val;
+    new_udp->last_rcv_data = time(NULL);
+
+    ip_str(new_udp->id.local_ipaddr.family, (unsigned char *)&(new_udp->id.local_ipaddr.ip), local_ip_str, INET6_ADDRSTRLEN);
+    ip_str(new_udp->id.remote_ipaddr.family, (unsigned char *)&(new_udp->id.remote_ipaddr.ip), remote_ip_str, INET6_ADDRSTRLEN);
+    new_udp->local_ip = strdup((const char *)local_ip_str);
+    new_udp->remote_ip = strdup((const char *)remote_ip_str);
+
+    if (new_udp->local_ip == NULL || new_udp->remote_ip == NULL) {
+        goto err;
+    }
+
+    H_ADD_KEYPTR(probe->udps, &new_udp->id, sizeof(struct udp_socket_id_s), new_udp);
+    probe->udp_socks_num++;
+    return 0;
+err:
+    free_udp_sock(new_udp);
+    return -1;
+}
+
+static int proc_tcp_sock_evt(void *ctx, void *data, u32 size)
+{
+    char *p = data;
+    size_t remain_size = (size_t)size, step_size = sizeof(struct tcp_socket_event_s), offset = 0;
+    struct tcp_socket_event_s *evt;
+    struct endpoint_probe_s *probe = ctx;
+
+    do {
+        if (remain_size < step_size) {
+            break;
+        }
+        p = (char *)data + offset;
+        evt  = (struct tcp_socket_event_s *)p;
+
+        (void)add_tcp_sock_evt(probe, evt);
+
+        offset += step_size;
+        remain_size -= step_size;
+    } while (1);
+
+    return 0;
+}
+
+static int proc_udp_sock_evt(void *ctx, void *data, u32 size)
+{
+    char *p = data;
+    size_t remain_size = (size_t)size, step_size = sizeof(struct udp_socket_event_s), offset = 0;
+    struct udp_socket_event_s *evt;
+    struct endpoint_probe_s *probe = ctx;
+
+    do {
+        if (remain_size < step_size) {
+            break;
+        }
+        p = (char *)data + offset;
+        evt  = (struct udp_socket_event_s *)p;
+
+        (void)add_udp_sock_evt(probe, evt);
+
+        offset += step_size;
+        remain_size -= step_size;
+    } while (1);
+
+    return 0;
+}
+
+static void sig_int(int signo)
+{
+    g_stop = 1;
+}
+
+static int get_netns_fd(pid_t pid)
+{
+    const char *fmt = "/proc/%u/ns/net";
+    char path[PATH_LEN];
+
+    path[0] = 0;
+    (void)snprintf(path, PATH_LEN, fmt, pid);
+    return open(path, O_RDONLY);
+}
+
+static int add_tcp_listen(struct endpoint_probe_s *probe, struct tcp_listen_port *tlp, int ino)
+{
+    struct tcp_listen_key_s key;
+    struct tcp_listen_s *listen;
+
+    key.inode = ino;
+
+    listen = lkup_tcp_listen(probe, (const struct tcp_listen_key_s *)&key);
+    if (listen) {
+        if (listen->val.proc_id == tlp->pid) {
+            return 0;
+        } else if (listen->val.is_multi == 1) {
+            return 0;
+        } else {
+            listen->val.is_multi = 1;
+            return 0;
+        }
+    }
+
+    listen = (struct tcp_listen_s *)malloc(sizeof(struct tcp_listen_s));
+    if (listen == NULL) {
+        return -1;
+    }
+    memset(listen, 0, sizeof(struct tcp_listen_s));
+    memcpy(&(listen->key), &key, sizeof(key));
+    listen->val.proc_id = tlp->pid;
+    H_ADD_KEYPTR(probe->listens, &listen->key, sizeof(struct tcp_listen_key_s), listen);
+    return 0;
+}
+
+static void load_tcp_listens(struct endpoint_probe_s *probe)
+{
+    int ret;
+    struct tcp_listen_ports* tlps;
+    struct tcp_listen_port *tlp;
 
     tlps = get_listen_ports();
     if (tlps == NULL) {
-        return;
+        goto err;
     }
 
     for (int i = 0; i < tlps->tlp_num; i++) {
         tlp = tlps->tlp[i];
-        listen_sockfd_key.tgid = tlp->pid;
-        listen_sockfd_key.fd = tlp->fd;
-        (void)bpf_map_update_elem(fd, &listen_sockfd_key, &(tlp->fd), BPF_ANY);
+        if (tlp && is_snooper(probe, tlp->pid)) {
+            unsigned long ino;
+            ret = get_listen_sock_inode(tlp, &ino);
+            if (ret < 0) {
+                ERROR("[EPPROBE]: get listen sock inode failed.(PID = %u, COMM = %s, PORT = %u)\n",
+                    tlp->pid, tlp->comm, tlp->port);
+                continue;
+            }
+            ret = add_tcp_listen(probe, tlp, ino);
+            if (ret) {
+                ERROR("[EPPROBE]: Add listen port failed.(PID = %u, COMM = %s, PORT = %u)\n",
+                    tlp->pid, tlp->comm, tlp->port);
+            } else {
+                INFO("[EPPROBE]: Add listen port succeed.(PID = %u, COMM = %s, PORT = %u)\n",
+                    tlp->pid, tlp->comm, tlp->port);
+            }
+        }
     }
 
-    free_listen_ports(&tlps);
+err:
+    if (tlps) {
+        free_listen_ports(&tlps);
+    }
+
+    return;
+}
+
+static void reload_listen_port(struct endpoint_probe_s *probe)
+{
+    int ret, netns_fd;
+    struct snooper_con_info_s *container;
+    struct ipc_body_s *ipc_body = &probe->ipc_body;
+
+    destroy_tcp_listens(probe);
+
+    netns_fd = get_netns_fd(getpid());
+    if (netns_fd <= 0) {
+        ERROR("[EPPROBE]: Get netns fd failed.\n");
+        return;
+    }
+
+    load_tcp_listens(probe);
+
+    for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_body->snooper_objs[i].type != SNOOPER_OBJ_CON) {
+            continue;
+        }
+
+        container = &(ipc_body->snooper_objs[i].obj.con_info);
+        ret = enter_container_netns((const char *)container->con_id);
+        if (ret) {
+            ERROR("[EPPROBE]: Enter container netns failed.(container_name = %s)\n", container->container_name);
+            continue;
+        }
+
+        load_tcp_listens(probe);
+
+        (void)exit_container_netns(netns_fd);
+    }
+
+    (void)close(netns_fd);
+    return;
+}
+
+static void reload_listen_map(struct endpoint_probe_s *probe)
+{
+    struct tcp_listen_val_s value;
+    struct tcp_listen_key_s k = {0};
+    struct tcp_listen_key_s nk = {0};
+    struct tcp_listen_s *listen, *tmp;
+
+    while (bpf_map_get_next_key(probe->listen_port_fd, &k, &nk) == 0) {
+        (void)bpf_map_lookup_elem(probe->listen_port_fd, &nk, &value);
+        (void)bpf_map_delete_elem(probe->listen_port_fd, &nk);
+    }
+
+    H_ITER(probe->listens, listen, tmp) {
+        (void)bpf_map_update_elem(probe->listen_port_fd, &(listen->key), &(listen->val), BPF_ANY);
+    }
+    return;
+}
+
+static void build_tcp_id(struct tcp_socket_s *tcp_sock, char *buf, int buf_len)
+{
+    (void)snprintf(buf, buf_len, "%d_%s_%s_%u_%u",
+                    tcp_sock->id.tgid,
+                    tcp_sock->client_ip,
+                    tcp_sock->server_ip,
+                    tcp_sock->id.server_ipaddr.port,
+                    tcp_sock->id.role);
+    return;
+}
+
+static void build_tcp_lable(struct tcp_socket_s *tcp_sock, struct event_info_s *evt)
+{
+    (void)snprintf(evt->ip, sizeof(evt->ip),
+        "Client %s, Server %s:%u",
+        tcp_sock->client_ip,
+        tcp_sock->server_ip,
+        tcp_sock->id.server_ipaddr.port);
+    evt->pid = tcp_sock->id.tgid;
+    return;
+}
+
+static void report_tcp_sock(struct tcp_socket_s *tcp_sock)
+{
+    char entityId[EP_ENTITY_ID_LEN];
+    struct event_info_s evt = {0};
+
+    if (tcp_sock->stats[EP_STATS_LISTEN_DROPS] > 0) {
+        build_tcp_id(tcp_sock, entityId, EP_ENTITY_ID_LEN);
+
+        evt.metrics = "listendrop";
+        evt.entityId = entityId;
+        evt.entityName = OO_TCP_SOCK;
+        build_tcp_lable(tcp_sock, &evt);
+
+        report_logs((const struct event_info_s *)&evt,
+                    EVT_SEC_WARN,
+                    "TCP listen drops(%llu).",
+                    tcp_sock->stats[EP_STATS_LISTEN_DROPS]);
+    }
+
+    if (tcp_sock->stats[EP_STATS_ACCEPT_OVERFLOW] != 0) {
+        if (entityId[0] == 0)
+            build_tcp_id(tcp_sock, entityId, EP_ENTITY_ID_LEN);
+
+        evt.metrics = "accept_overflow";
+        evt.entityId = entityId;
+        evt.entityName = OO_TCP_SOCK;
+        build_tcp_lable(tcp_sock, &evt);
+
+        report_logs((const struct event_info_s *)&evt,
+                    EVT_SEC_WARN,
+                    "TCP accept queue overflow(%llu).",
+                    tcp_sock->stats[EP_STATS_ACCEPT_OVERFLOW]);
+    }
+
+    if (tcp_sock->stats[EP_STATS_SYN_OVERFLOW] != 0) {
+        if (entityId[0] == 0)
+            build_tcp_id(tcp_sock, entityId, EP_ENTITY_ID_LEN);
+
+        evt.metrics = "syn_overflow";
+        evt.entityId = entityId;
+        evt.entityName = OO_TCP_SOCK;
+        build_tcp_lable(tcp_sock, &evt);
+
+        report_logs((const struct event_info_s *)&evt,
+                    EVT_SEC_WARN,
+                    "TCP syn queue overflow(%llu).",
+                    tcp_sock->stats[EP_STATS_SYN_OVERFLOW]);
+    }
+
+    if (tcp_sock->stats[EP_STATS_RETRANS_SYNACK] != 0) {
+        if (entityId[0] == 0)
+            build_tcp_id(tcp_sock, entityId, EP_ENTITY_ID_LEN);
+
+        evt.metrics = "retran_synacks";
+        evt.entityId = entityId;
+        evt.entityName = OO_TCP_SOCK;
+        build_tcp_lable(tcp_sock, &evt);
+        report_logs((const struct event_info_s *)&evt,
+                    EVT_SEC_WARN,
+                    "TCP SYN/ACK retransmission occurs.(%llu).",
+                    tcp_sock->stats[EP_STATS_RETRANS_SYNACK]);
+    }
+
+    if (tcp_sock->stats[EP_STATS_REQ_DROP] != 0) {
+        if (entityId[0] == 0)
+            build_tcp_id(tcp_sock, entityId, EP_ENTITY_ID_LEN);
+
+        evt.metrics = "req_drops";
+        evt.entityId = entityId;
+        evt.entityName = OO_TCP_SOCK;
+        build_tcp_lable(tcp_sock, &evt);
+        report_logs((const struct event_info_s *)&evt,
+                    EVT_SEC_WARN,
+                    "TCP request drops(listen closed).(%llu).",
+                    tcp_sock->stats[EP_STATS_REQ_DROP]);
+    }
+    return;
+}
+
+static void report_tcp_socks(struct endpoint_probe_s * probe)
+{
+    struct tcp_socket_s *tcp, *tcp_tmp;
+
+    if (probe->ipc_body.probe_param.logs == 0)
+        return;
+
+    H_ITER(probe->tcps, tcp, tcp_tmp) {
+        report_tcp_sock(tcp);
+    }
+    return;
+}
+
+static int endpoint_load_probe_tcp(struct endpoint_probe_s *probe, struct bpf_prog_s *prog, char is_load)
+{
+    struct bpf_buffer *buffer = NULL;
+
+    OPEN_TCP_PROBE(tcp, err, is_load, buffer);
+    if (is_load) {
+
+        int kernel_version = probe_kernel_version();
+        PROG_ENABLE_ONLY_IF(tcp, bpf_raw_trace_tcp_retransmit_synack, kernel_version > KERNEL_VERSION(4, 18, 0));
+        PROG_ENABLE_ONLY_IF(tcp, bpf_trace_tcp_retransmit_synack_func, kernel_version <= KERNEL_VERSION(4, 18, 0));
+
+        PROG_ENABLE_ONLY_IF(tcp, bpf_raw_trace_tcp_send_reset, kernel_version > KERNEL_VERSION(4, 18, 0));
+        PROG_ENABLE_ONLY_IF(tcp, bpf_raw_trace_tcp_receive_reset, kernel_version > KERNEL_VERSION(4, 18, 0));
+        PROG_ENABLE_ONLY_IF(tcp, bpf_trace_tcp_send_reset_func, kernel_version <= KERNEL_VERSION(4, 18, 0));
+        PROG_ENABLE_ONLY_IF(tcp, bpf_trace_tcp_receive_reset_func, kernel_version <= KERNEL_VERSION(4, 18, 0));
+
+        LOAD_ATTACH(endpoint, tcp, err, is_load);
+
+        prog->skels[prog->num].skel = tcp_skel;
+        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = tcp_open_opts.btf_custom_path;
+
+        int ret = bpf_buffer__open(buffer, proc_tcp_sock_evt, NULL, probe);
+        if (ret) {
+            ERROR("[ENDPOINT] Open 'tcp_evt_map' bpf_buffer failed.\n");
+            bpf_buffer__free(buffer);
+            goto err;
+        }
+        prog->buffers[prog->num] = buffer;
+        prog->num++;
+        probe->listen_port_fd = GET_MAP_FD(tcp, tcp_listen_port);
+    }
+
+    return 0;
+err:
+    UNLOAD(tcp);
+    CLEANUP_CUSTOM_BTF(tcp);
+    return -1;
+}
+
+static int endpoint_load_probe_udp(struct endpoint_probe_s *probe, struct bpf_prog_s *prog, char is_load)
+{
+    struct bpf_buffer *buffer = NULL;
+
+    OPEN_UDP_PROBE(udp, err, is_load, buffer);
+    if (is_load) {
+
+        LOAD_ATTACH(endpoint, udp, err, is_load);
+
+        prog->skels[prog->num].skel = udp_skel;
+        prog->skels[prog->num].fn = (skel_destroy_fn)udp_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = udp_open_opts.btf_custom_path;
+
+        int ret = bpf_buffer__open(buffer, proc_udp_sock_evt, NULL, probe);
+        if (ret) {
+            ERROR("[ENDPOINT] Open 'udp_evt_map' bpf_buffer failed.\n");
+            bpf_buffer__free(buffer);
+            goto err;
+        }
+        prog->buffers[prog->num] = buffer;
+        prog->num++;
+    }
+
+    return 0;
+err:
+    UNLOAD(udp);
+    CLEANUP_CUSTOM_BTF(udp);
+    return -1;
+}
+
+static int endpoint_load_probe(struct endpoint_probe_s *probe, struct ipc_body_s *ipc_body)
+{
+    char is_load_tcp, is_load_udp;
+    struct bpf_prog_s *new_prog = NULL;
+
+    is_load_tcp = ipc_body->probe_range_flags & PROBE_RANGE_SOCKET_TCP;
+    is_load_udp = ipc_body->probe_range_flags & PROBE_RANGE_SOCKET_UDP;
+    if (!(is_load_tcp | is_load_udp)) {
+        return 0;
+    }
+
+    new_prog = alloc_bpf_prog();
+    if (new_prog == NULL) {
+        return -1;
+    }
+
+    if (endpoint_load_probe_tcp(probe, new_prog, is_load_tcp)) {
+        goto err;
+    }
+
+    if (endpoint_load_probe_udp(probe, new_prog, is_load_udp)) {
+        goto err;
+    }
+
+    probe->last_report = time(NULL);
+    probe->prog = new_prog;
+    return 0;
+
+err:
+    unload_bpf_prog(&new_prog);
+    return -1;
+}
+
+static int poll_endpoint_pb(struct endpoint_probe_s *probe)
+{
+    int ret;
+    struct bpf_prog_s* prog = probe->prog;
+
+    if (prog == NULL) {
+        return -1;
+    }
+
+    for (int i = 0; i < prog->num && i < SKEL_MAX_NUM; i++) {
+        if (prog->buffers[i]) {
+            ret = bpf_buffer__poll(prog->buffers[i], THOUSAND);
+            if (ret < 0 && ret != -EINTR) {
+                return ret;
+            }
+        }
+    }
+
+    return 0;
+}
+
+static char is_report_tmout(struct endpoint_probe_s *probe)
+{
+    time_t current = time(NULL);
+    time_t secs;
+
+    if (current > probe->last_report) {
+        secs = current - probe->last_report;
+        if (secs >= probe->ipc_body.probe_param.period) {
+            probe->last_report = current;
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static void reset_tcp_socket(struct tcp_socket_s* tcp_sock)
+{
+    memset(&(tcp_sock->stats), 0, sizeof(u64) * EP_STATS_MAX);
+    (void)histo_bucket_reset(tcp_sock->estab_latency_buckets, __MAX_LT_RANGE);
+}
+
+static void reset_udp_socket(struct udp_socket_s* udp_sock)
+{
+    memset(&(udp_sock->stats), 0, sizeof(u64) * EP_STATS_MAX);
+}
+
+static void reset_endpoint_stats(struct endpoint_probe_s *probe)
+{
+    struct tcp_socket_s *tcp, *tcp_tmp;
+    struct udp_socket_s *udp, *udp_tmp;
+
+    H_ITER(probe->tcps, tcp, tcp_tmp) {
+        reset_tcp_socket(tcp);
+    }
+
+    H_ITER(probe->udps, udp, udp_tmp) {
+        reset_udp_socket(udp);
+    }
+
+    return;
+}
+
+static void report_endpoint(struct endpoint_probe_s *probe)
+{
+    struct tcp_socket_s *tcp, *tcp_tmp;
+    struct udp_socket_s *udp, *udp_tmp;
+
+    if (!is_report_tmout(probe)) {
+        return;
+    }
+
+    H_ITER(probe->tcps, tcp, tcp_tmp) {
+        output_tcp_socket(tcp);
+    }
+
+    H_ITER(probe->udps, udp, udp_tmp) {
+        output_udp_socket(udp);
+    }
+
+    aging_endpoint_socks(probe);
+    reset_endpoint_stats(probe);
     return;
 }
 
 int main(int argc, char **argv)
 {
-    int err = -1;
-    int out_put_fd;
-    const int load_udp = 1;
-    struct perf_buffer* pb = NULL;
-    FILE *fp = NULL;
+    int ret = -1, msq_id;
+    struct ipc_body_s ipc_body;
 
-    err = args_parse(argc, argv, &params);
-    if (err != 0) {
-        return -1;
+    memset(&g_ep_probe, 0, sizeof(g_ep_probe));
+
+    if (signal(SIGINT, sig_int) == SIG_ERR) {
+        ERROR("[ENDPOINTPROBE] Can't set signal handler: %d\n", errno);
+        return errno;
     }
-    printf("arg parse interval time:%us\n", params.period);
-    fp = popen(RM_BPF_PATH, "r");
-    if (fp != NULL) {
-        (void)pclose(fp);
+
+    msq_id = create_ipc_msg_queue(IPC_EXCL);
+    if (msq_id < 0) {
+        ERROR("[ENDPOINTPROBE] Create ipc msg queue failed.\n");
+        return -1;
     }
 
     INIT_BPF_APP(endpoint, EBPF_RLIM_LIMITED);
+    INFO("[ENDPOINTPROBE] Successfully started!\n");
 
-    __LOAD_ENDPOINT_PROBE(tcp, err2, 1);
-    __LOAD_ENDPOINT_PROBE(udp, err, load_udp);
+    while(!g_stop) {
+        ret = recv_ipc_msg(msq_id, (long)PROBE_SOCKET, &ipc_body);
+        if (ret == 0) {
+            if (ipc_body.probe_range_flags != g_ep_probe.ipc_body.probe_range_flags) {
+                unload_bpf_prog(&(g_ep_probe.prog));
+                if (endpoint_load_probe(&g_ep_probe, &ipc_body)) {
+                    break;
+                }
+            }
 
-    out_put_fd = GET_MAP_FD(tcp, g_ep_output);
-    pb = create_pref_buffer(out_put_fd, print_endpoint_metrics);
-    if (pb == NULL) {
-        fprintf(stderr, "ERROR: crate perf buffer failed\n");
-        goto err;
+            /* Probe range was changed to 0 */
+            if (g_ep_probe.prog == NULL) {
+                continue;
+            }
+
+            destroy_ipc_body(&(g_ep_probe.ipc_body));
+            (void)memcpy(&(g_ep_probe.ipc_body), &ipc_body, sizeof(g_ep_probe.ipc_body));
+            reload_listen_port(&g_ep_probe);
+            reload_listen_map(&g_ep_probe);
+        }
+
+        if (poll_endpoint_pb(&g_ep_probe)) {
+            sleep(1);
+        }
+
+        report_tcp_socks(&g_ep_probe);
+        report_endpoint(&g_ep_probe);
     }
 
-    load_listen_fd(GET_MAP_FD(tcp, listen_sockfd_map));
-    load_args(GET_MAP_FD(tcp, args_map), &params);
+    destroy_tcp_socks(&g_ep_probe);
+    destroy_udp_socks(&g_ep_probe);
+    destroy_tcp_listens(&g_ep_probe);
 
-    printf("Successfully started!\n");
-    poll_pb(pb, THOUSAND);
+    unload_bpf_prog(&(g_ep_probe.prog));
+    destroy_ipc_body(&(g_ep_probe.ipc_body));
 
-err:
-    if (load_udp) {
-        UNLOAD(udp);
-    }
-err2:
-    UNLOAD(tcp);
-
-    if (pb)
-        perf_buffer__free(pb);
-
-    return -err;
+    return ret;
 }

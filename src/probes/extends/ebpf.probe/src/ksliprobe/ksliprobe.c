@@ -30,8 +30,10 @@
 #include "bpf.h"
 #include "args.h"
 #include "event.h"
+#include "ipc.h"
 #include "ksliprobe.skel.h"
 #include "tc_loader.h"
+#include "feat_probe.h"
 #include "ksliprobe.h"
 
 #define OO_NAME "sli"
@@ -39,26 +41,31 @@
 #define SLI_TBL_NAME "redis_sli"
 #define MAX_SLI_TBL_NAME "redis_max_sli"
 
+struct ksli_probe_s {
+    struct ipc_body_s ipc_body;
+    struct bpf_prog_s* ksli_bpf_prog;
+    int args_fd;
+};
+
+static struct ksli_probe_s g_ksli_probe = {0};
 static volatile sig_atomic_t stop;
-static struct probe_params params = {.period = DEFAULT_PERIOD, .continuous_sampling_flag = 0};
 
 static void sig_int(int signo)
 {
     stop = 1;
 }
 
-#define MS2NS(ms)   ((u64)(ms) * 1000000)
 #define __ENTITY_ID_LEN 128
 
 static void report_sli_event(struct msg_event_data_t *msg_evt_data)
 {
     char entityId[__ENTITY_ID_LEN];
-    u64 latency_thr_ns = MS2NS(params.latency_thr);
+    u64 latency_thr_ns = MS2NS(g_ksli_probe.ipc_body.probe_param.latency_thr);
     unsigned char ser_ip_str[INET6_ADDRSTRLEN];
     unsigned char cli_ip_str[INET6_ADDRSTRLEN];
     struct event_info_s evt = {0};
 
-    if (params.logs == 0) {
+    if (g_ksli_probe.ipc_body.probe_param.logs == 0) {
         return;
     }
 
@@ -78,10 +85,10 @@ static void report_sli_event(struct msg_event_data_t *msg_evt_data)
         evt.metrics = "rtt_nsec";
         evt.pid = (int)msg_evt_data->conn_id.tgid;
         (void)snprintf(evt.ip, EVT_IP_LEN, "CIP(%s:%u), SIP(%s:%u)",
-                        cli_ip_str,
-                        ntohs(msg_evt_data->client_ip_info.port),
-                        ser_ip_str,
-                        msg_evt_data->server_ip_info.port);
+                       cli_ip_str,
+                       ntohs(msg_evt_data->client_ip_info.port),
+                       ser_ip_str,
+                       msg_evt_data->server_ip_info.port);
 
         report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
@@ -96,7 +103,7 @@ static void report_sli_event(struct msg_event_data_t *msg_evt_data)
     }
 }
 
-static void msg_event_handler(void *ctx, int cpu, void *data, unsigned int size)
+static int msg_event_handler(void *ctx, void *data, unsigned int size)
 {
     struct msg_event_data_t *msg_evt_data = (struct msg_event_data_t *)data;
     unsigned char ser_ip_str[INET6_ADDRSTRLEN];
@@ -122,7 +129,7 @@ static void msg_event_handler(void *ctx, int cpu, void *data, unsigned int size)
             cli_ip_str,
             ntohs(msg_evt_data->client_ip_info.port),
             msg_evt_data->latency.rtt_nsec);
-    if (params.continuous_sampling_flag) {
+    if (g_ksli_probe.ipc_body.probe_param.continuous_sampling_flag) {
         fprintf(stdout,
             "|%s|%d|%d|%s|%s|%s|%u|%s|%u|%llu|\n",
             MAX_SLI_TBL_NAME,
@@ -139,98 +146,196 @@ static void msg_event_handler(void *ctx, int cpu, void *data, unsigned int size)
 
     (void)fflush(stdout);
 
-    return;
+    return 0;
 }
 
 static void *msg_event_receiver(void *arg)
 {
-    int fd = *(int *)arg;
-    struct perf_buffer *pb;
-
-    pb = create_pref_buffer(fd, msg_event_handler);
-    if (pb == NULL) {
-        fprintf(stderr, "Failed to create perf buffer.\n");
-        stop = 1;
-        return NULL;
+    if (g_ksli_probe.ksli_bpf_prog->buffer == NULL) {
+        goto err;
     }
 
-    poll_pb(pb, params.period * 1000);
-
+    int ret;
+    while ((ret = bpf_buffer__poll(g_ksli_probe.ksli_bpf_prog->buffer, THOUSAND)) >= 0 || ret == -EINTR) {
+        ;
+    }
+    ERROR("[KSLIPROBE]: bpf buffer poll failed.\n");
+err:
     stop = 1;
     return NULL;
 }
 
-static int init_conn_mgt_process(int msg_evt_map_fd)
+static int init_conn_mgt_process()
 {
     int err;
     pthread_t msg_evt_hdl_thd;
 
     // 启动读写消息事件处理程序
-    err = pthread_create(&msg_evt_hdl_thd, NULL, msg_event_receiver, (void *)&msg_evt_map_fd);
+    err = pthread_create(&msg_evt_hdl_thd, NULL, msg_event_receiver, NULL);
     if (err != 0) {
         fprintf(stderr, "Failed to create connection read/write message event handler thread.\n");
         return -1;
     }
     (void)pthread_detach(msg_evt_hdl_thd);
-    printf("Connection read/write message event handler thread successfully started!\n");
+    INFO("Connection read/write message event handler thread successfully started!\n");
 
     return 0;
 }
 
-static void load_args(int args_fd, struct probe_params* params)
+static void load_args(int args_fd, struct ipc_body_s* ipc_body)
 {
     __u32 key = 0;
     struct ksli_args_s args = {0};
-
-    args.period = NS(params->period);
-    args.continuous_sampling_flag = params->continuous_sampling_flag;
+    args.period = NS(ipc_body->probe_param.period);
+    args.continuous_sampling_flag = ipc_body->probe_param.continuous_sampling_flag;
 
     (void)bpf_map_update_elem(args_fd, &key, &args, BPF_ANY);
 }
 
-int main(int argc, char **argv)
+static void reload_tc_bpf(struct ipc_body_s* ipc_body, bool is_first_load)
 {
-    int err;
+    if (strcmp(g_ksli_probe.ipc_body.probe_param.target_dev, ipc_body->probe_param.target_dev) != 0 || is_first_load) {
+        offload_tc_bpf(TC_TYPE_INGRESS);
+        load_tc_bpf(ipc_body->probe_param.target_dev, TC_PROG, TC_TYPE_INGRESS);
+    }
+    return;
+}
 
-    err = args_parse(argc, argv, &params);
-    if (err != 0) {
+static int load_ksli_bpf_prog()
+{
+    int ret;
+    struct bpf_prog_s *prog;
+    struct bpf_buffer *buffer = NULL;
+
+    prog = alloc_bpf_prog();
+    if (prog == NULL) {
         return -1;
     }
-    printf("arg parse interval time:%us\n", params.period);
-    printf("arg parse if cycle sampling:%s\n", params.continuous_sampling_flag ? "true": "false");
 
-#ifdef KERNEL_SUPPORT_TSTAMP
-    load_tc_bpf(params.netcard_list, TC_PROG, TC_TYPE_INGRESS);
-#else
-    printf("The kernel version does not support loading the tc tstamp program\n");
-#endif
+    INIT_OPEN_OPTS(ksliprobe);
+    PREPARE_CUSTOM_BTF(ksliprobe);
+    OPEN_OPTS(ksliprobe, err, 1);
+    MAP_INIT_BPF_BUFFER(ksliprobe, msg_event_map, buffer, 1);
 
-    INIT_BPF_APP(ksliprobe, EBPF_RLIM_LIMITED);
-    LOAD(ksliprobe, err);
-    load_args(GET_MAP_FD(ksliprobe, args_map), &params);
-    
-    if (signal(SIGINT, sig_int) == SIG_ERR) {
-        fprintf(stderr, "Can't set signal handler: %d\n", errno);
+    prog->skels[prog->num].skel = ksliprobe_skel;
+    prog->skels[prog->num].fn = (skel_destroy_fn)ksliprobe_bpf__destroy;
+    prog->custom_btf_paths[prog->num] = ksliprobe_open_opts.btf_custom_path;
+
+    bool is_load = probe_kernel_version() > KERNEL_VERSION(5, 12, 0);
+    PROG_ENABLE_ONLY_IF(ksliprobe, bpf_constprop_tcp_clean_rtx_queue, is_load);
+    PROG_ENABLE_ONLY_IF(ksliprobe, bpf_tcp_clean_rtx_queue, !is_load);
+
+    is_load = probe_kernel_version() >= KERNEL_VERSION(5, 11, 0);
+    PROG_ENABLE_ONLY_IF(ksliprobe, bpf_close_fd, is_load);
+    PROG_ENABLE_ONLY_IF(ksliprobe, bpf___close_fd, !is_load);
+
+    PROG_ENABLE_ONLY_IF(ksliprobe, bpf_tcp_recvmsg, probe_tstamp());
+
+    LOAD_ATTACH(ksliprobe, ksliprobe, err, 1);
+
+    g_ksli_probe.args_fd = GET_MAP_FD(ksliprobe, args_map);
+    if (g_ksli_probe.args_fd <= 0) {
+        fprintf(stderr, "ERROR: Failed to get args map fd.\n");
         goto err;
     }
 
+    ret = bpf_buffer__open(buffer, msg_event_handler, NULL, NULL);
+    if (ret) {
+        ERROR("[KSLIPROBE] Open 'ksliprobe' bpf_buffer failed.\n");
+        bpf_buffer__free(buffer);
+        goto err;
+    }
+    prog->buffer = buffer;
+    prog->num++;
+
+    g_ksli_probe.ksli_bpf_prog = prog;
+
+    return 0;
+err:
+    UNLOAD(ksliprobe);
+    CLEANUP_CUSTOM_BTF(ksliprobe);
+    if (prog) {
+        free_bpf_prog(prog);
+    }
+    return -1;
+}
+
+static int init_probe_first_load(bool is_first_load)
+{
+    int err = 0;
+
+    if (!is_first_load) {
+        return 0;
+    }
+
+    err = load_ksli_bpf_prog();
+    if (err) {
+        return err;
+    }
     // 初始化连接管理程序
-    err = init_conn_mgt_process(GET_MAP_FD(ksliprobe, msg_event_map));
+    err = init_conn_mgt_process();
     if (err != 0) {
         fprintf(stderr, "Init connection management process failed.\n");
-        goto err;
+        return err;
     }
 
-    printf("SLI probe successfully started!\n");
+    return 0;
+}
+
+int main(int argc, char **argv)
+{
+    int err = 0;
+    struct ipc_body_s ipc_body;
+    int msq_id;
+    bool is_first_load = true;
+    bool supports_tstamp;
+
+    supports_tstamp = probe_tstamp();
+
+    msq_id = create_ipc_msg_queue(IPC_EXCL);
+    if (msq_id < 0) {
+        return -1;
+    }
+
+    INIT_BPF_APP(ksliprobe, EBPF_RLIM_LIMITED);
+
+    if (signal(SIGINT, sig_int) == SIG_ERR) {
+        ERROR("[KSLIPROBE]: Can't set signal handler: %d\n", errno);
+        return -1;
+    }
+
+    if (!supports_tstamp) {
+        INFO("[KSLIPROBE]: The kernel version does not support loading the tc tstamp program.\n");
+    }
+
+    INFO("[KSLIPROBE]: SLI probe successfully started!\n");
 
     while (!stop) {
-        sleep(params.period);
+        err = recv_ipc_msg(msq_id, (long)PROBE_KSLI, &ipc_body);
+        if (err == 0) {
+            if (supports_tstamp) {
+                reload_tc_bpf(&ipc_body, is_first_load);
+            }
+
+            err = init_probe_first_load(is_first_load);
+            if (err) {
+                goto err;
+            }
+            is_first_load = false;
+
+            load_args(g_ksli_probe.args_fd, &ipc_body);
+            destroy_ipc_body(&g_ksli_probe.ipc_body);
+            (void)memcpy(&g_ksli_probe.ipc_body, &ipc_body, sizeof(struct ipc_body_s));
+        }
+
+        sleep(DEFAULT_PERIOD);
     }
 
 err:
-    UNLOAD(ksliprobe);
-#ifdef KERNEL_SUPPORT_TSTAMP
-    offload_tc_bpf(TC_TYPE_INGRESS);
-#endif
+    unload_bpf_prog(&g_ksli_probe.ksli_bpf_prog);
+    if (supports_tstamp) {
+        offload_tc_bpf(TC_TYPE_INGRESS);
+    }
+    destroy_ipc_body(&g_ksli_probe.ipc_body);
     return -err;
 }

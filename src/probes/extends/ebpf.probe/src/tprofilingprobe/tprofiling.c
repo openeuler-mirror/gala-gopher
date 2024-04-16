@@ -17,8 +17,8 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
-#include <linux/limits.h>
 #include <pthread.h>
+#include <linux/limits.h>
 
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
@@ -30,16 +30,17 @@
 
 #include "bpf.h"
 #include "args.h"
+#include "ipc.h"
 #include "profiling_event.h"
 #include "java_support.h"
 #include "bpf_prog.h"
+#include "syscall.h"
 #include "tprofiling.h"
-
 Tprofiler tprofiler;
 
-static struct probe_params g_params;
 static volatile sig_atomic_t stop = 0;
-static struct java_attach_args g_args = {0};
+
+static struct ipc_body_s g_ipc_body = {0};
 
 static syscall_meta_t g_syscall_metas[] = {
     // file
@@ -57,7 +58,9 @@ static syscall_meta_t g_syscall_metas[] = {
     {SYSCALL_NANOSLEEP_ID, SYSCALL_NANOSLEEP_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_SCHED},
     {SYSCALL_CLOCK_NANOSLEEP_ID, SYSCALL_CLOCK_NANOSLEEP_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_SCHED},
     {SYSCALL_WAIT4_ID, SYSCALL_WAIT4_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_SCHED},
+#if defined(__TARGET_ARCH_x86)
     {SYSCALL_WAITPID_ID, SYSCALL_WAITPID_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_SCHED},
+#endif
     {SYSCALL_SELECT_ID, SYSCALL_SELECT_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_SCHED},
     {SYSCALL_PSELECT6_ID, SYSCALL_PSELECT6_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_SCHED},
     {SYSCALL_POLL_ID, SYSCALL_POLL_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_SCHED},
@@ -75,33 +78,68 @@ static syscall_meta_t g_syscall_metas[] = {
 };
 
 static void sig_handling(int signal);
-static int init_tprofiler();
-static int init_tprofiler_map_fds();
-static int init_setting_map(int setting_map_fd);
-static int init_proc_thrd_filter();
-static int init_proc_filter_map(int proc_filter_map_fd);
-static int init_syscall_metas();
-static void init_java_symb_mgmt(int proc_filter_map_fd);
-static void clean_map_files();
-static void clean_tprofiler();
+static int init_tprofiler(void);
+static int init_tprofiler_map_fds(struct ipc_body_s *ipc_body);
+static int init_syscall_metas(void);
+static void java_symb_mgmt(int proc_filter_map_fd);
+static void clean_map_files(void);
+static void clean_tprofiler(void);
+static int refresh_tprofiler(struct ipc_body_s *ipc_body);
+static void refresh_proc_filter_map(struct ipc_body_s *ipc_body);
 
+static int __poll_pb(struct bpf_prog_s* prog)
+{
+    int ret;
+
+    for (int i = 0; i < prog->num && i < SKEL_MAX_NUM; i++) {
+        if (prog->buffers[i]) {
+            ret = bpf_buffer__poll(prog->buffers[i], THOUSAND);
+            if (ret < 0 && ret != -EINTR) {
+                return ret;
+            }
+        }
+    }
+
+    return 0;
+}
+static int init_py_sample_heap(int map_fd)
+{
+    int nr_cpus = NR_CPUS;
+    struct py_sample *samples;
+    u32 zero = 0;
+    int i;
+    int ret;
+
+    samples = (struct py_sample *)calloc(nr_cpus, sizeof(struct py_sample));
+    if (!samples) {
+        return -1;
+    }
+    for (i = 0; i < nr_cpus; i++) {
+        samples[i].nr_cpus = nr_cpus;
+    }
+    ret = bpf_map_update_elem(map_fd, &zero, samples, BPF_ANY);
+    free(samples);
+    return ret;
+}
 int main(int argc, char **argv)
 {
     int err = -1;
     struct bpf_prog_s *syscall_bpf_progs = NULL;
     struct bpf_prog_s *oncpu_bpf_progs = NULL;
+    struct ipc_body_s ipc_body;
+    int msq_id;
 
     if (signal(SIGINT, sig_handling) == SIG_ERR) {
-        fprintf(stderr, "can't set signal handler: %s\n", strerror(errno));
+        TP_ERROR("Can't set signal handler: %s\n", strerror(errno));
         return -1;
     }
     if (signal(SIGTERM, sig_handling) == SIG_ERR) {
-        fprintf(stderr, "can't set signal handler: %s\n", strerror(errno));
+        TP_ERROR("Can't set signal handler: %s\n", strerror(errno));
         return -1;
     }
 
-    err = args_parse(argc, argv, &g_params);
-    if (err != 0) {
+    msq_id = create_ipc_msg_queue(IPC_EXCL);
+    if (msq_id < 0) {
         return -1;
     }
 
@@ -113,57 +151,52 @@ int main(int argc, char **argv)
 
     INIT_BPF_APP(tprofiling, EBPF_RLIM_LIMITED);
 
-    syscall_bpf_progs = load_syscall_bpf_prog(&g_params);
-    if (syscall_bpf_progs == NULL) {
-        goto cleanup;
-    }
+    TP_INFO("Tprofiling probe start successfully.\n");
 
-    oncpu_bpf_progs = load_oncpu_bpf_prog(&g_params);
-    if (oncpu_bpf_progs == NULL) {
-        goto cleanup;
-    }
+    while (!stop) {
+        err = recv_ipc_msg(msq_id, (long)PROBE_TP, &ipc_body);
+        if (err == 0) {
+            if (ipc_body.probe_flags & IPC_FLAGS_PARAMS_CHG || ipc_body.probe_flags == 0) {
+                unload_bpf_prog(&syscall_bpf_progs);
+                unload_bpf_prog(&oncpu_bpf_progs);
 
-    if (init_tprofiler_map_fds()) {
-        goto cleanup;
-    }
+                syscall_bpf_progs = load_syscall_bpf_prog(&ipc_body);
+                if (syscall_bpf_progs == NULL) {
+                    goto cleanup;
+                }
+                oncpu_bpf_progs = load_oncpu_bpf_prog(&ipc_body);
+                if (oncpu_bpf_progs == NULL) {
+                    goto cleanup;
+                }
+            }
 
-    err = init_setting_map(tprofiler.settingMapFd);
-    if (err) {
-        fprintf(stderr, "ERROR: init bpf prog setting failed.\n");
-        goto cleanup;
-    }
+            if (refresh_tprofiler(&ipc_body)) {
+                goto cleanup;
+            }
+            destroy_ipc_body(&g_ipc_body);
+            (void)memcpy(&g_ipc_body, &ipc_body, sizeof(g_ipc_body));
+        }
 
-    // 如果本地指定了进程过滤参数，则使用本地 map 进行过滤；否则使用全局共享的进程 map 过滤
-    if (tprofiler.filterLocal) {
-        err = init_proc_filter_map(tprofiler.procFilterMapFd);
-        if (err) {
-            fprintf(stderr, "ERROR: init bpf process filter failed.\n");
+        if (syscall_bpf_progs == NULL && oncpu_bpf_progs == NULL) {
+            sleep(DEFAULT_PERIOD);
+            continue;
+        }
+        if (__poll_pb(syscall_bpf_progs)) {
+            goto cleanup;
+        }
+
+        if (__poll_pb(oncpu_bpf_progs)) {
             goto cleanup;
         }
     }
 
-    if (tprofiler.stackMapFd > 0) {
-        init_java_symb_mgmt(tprofiler.procFilterMapFd);
-    }
-
-    while (!stop) {
-        if (syscall_bpf_progs->pb != NULL) {
-            if (perf_buffer__poll(syscall_bpf_progs->pb, THOUSAND) < 0) {
-                goto cleanup;
-            }
-        }
-        if (oncpu_bpf_progs->pb != NULL) {
-            if (perf_buffer__poll(oncpu_bpf_progs->pb, THOUSAND) < 0) {
-                goto cleanup;
-            }
-        }
-    }
-
+    TP_INFO("Tprofiling probe closed.\n");
 cleanup:
     unload_bpf_prog(&syscall_bpf_progs);
     unload_bpf_prog(&oncpu_bpf_progs);
     clean_tprofiler();
     clean_map_files();
+    destroy_ipc_body(&g_ipc_body);
     return -err;
 }
 
@@ -172,131 +205,98 @@ static void sig_handling(int signal)
     stop = 1;
 }
 
-static int init_tprofiler()
+static int init_tprofiler(void)
 {
-    if (init_proc_thrd_filter()) {
-        fprintf(stderr, "ERROR: init process/thread filter failed.\n");
+    if (initThreadBlacklist(&tprofiler.thrdBl)) {
+        TP_ERROR("Failed to init thread blacklist.\n");
         return -1;
     }
 
     if (init_sys_boot_time(&tprofiler.sysBootTime)) {
-        fprintf(stderr, "ERROR: get system boot time failed.\n");
+        TP_ERROR("Failed to get system boot time.\n");
         return -1;
     }
 
     if (init_syscall_metas()) {
-        fprintf(stderr, "ERROR: init syscall meta info failed.\n");
+        TP_ERROR("Failed to init syscall meta info.\n");
         return -1;
     }
 
     return 0;
 }
 
-static int init_tprofiler_map_fds()
+static int init_tprofiler_map_fds(struct ipc_body_s *ipc_body)
 {
-    tprofiler.settingMapFd = bpf_obj_get(SETTING_MAP_PATH);
-    if (tprofiler.settingMapFd < 0) {
-        fprintf(stderr, "ERROR: get bpf prog setting map failed.\n");
-        return -1;
-    }
-
-    tprofiler.procFilterMapFd = bpf_obj_get(PROC_MAP_PATH);
-    if (tprofiler.filterLocal) {
+    if (tprofiler.procFilterMapFd <= 0) {
         tprofiler.procFilterMapFd = bpf_obj_get(PROC_FILTER_MAP_PATH);
-    }
-    if (tprofiler.procFilterMapFd < 0) {
-        fprintf(stderr, "ERROR: get bpf prog process filter map failed.\n");
-        return -1;
-    }
-
-    tprofiler.threadBlMapFd = bpf_obj_get(THRD_BL_MAP_PATH);
-    if (tprofiler.threadBlMapFd < 0) {
-        fprintf(stderr, "ERROR: get bpf prog thread blacklist map failed.\n");
-        return -1;
-    }
-
-    if ((g_params.load_probe & TPROFILING_PROBE_SYSCALL_ALL)) {
-        tprofiler.stackMapFd = bpf_obj_get(STACK_MAP_PATH);
-        if (tprofiler.stackMapFd < 0) {
-            fprintf(stderr, "ERROR: get bpf prog stack map failed.\n");
+        if (tprofiler.procFilterMapFd < 0) {
+            TP_ERROR("Failed to get bpf prog process filter map.\n");
             return -1;
         }
     }
 
-    return 0;
-}
-
-// 初始化 bpf 程序的全局配置项
-static int init_setting_map(int setting_map_fd)
-{
-    __u32 key = 0;
-    profiling_setting_t ps = {0};
-    long ret;
-
-    ps.inited = 1;
-    ps.filter_local = tprofiler.filterLocal;
-
-    ret = bpf_map_update_elem(setting_map_fd, &key, &ps, BPF_ANY);
-    if (ret) {
-        return -1;
-    }
-
-    return 0;
-}
-
-// 初始化进程/线程过滤参数
-static int init_proc_thrd_filter()
-{
-    int ret;
-
-    if (g_params.tgids != NULL && g_params.tgids[0] != '\0') {
-        tprofiler.filterLocal = 1;
-    }
-
-    ret = initThreadBlacklist(&tprofiler.thrdBl);
-    if (ret) {
-        return -1;
-    }
-
-    return 0;
-}
-
-// 从探针命令行参数 `-f tgid1,tgid2,tgid3` 中解析需要观测的进程范围
-static int init_proc_filter_map(int proc_filter_map_fd)
-{
-    char *token;
-    int tgid;
-    struct proc_s key = {0};
-    struct obj_ref_s val = {.count = 0};
-    int ret;
-
-    if (g_params.tgids == NULL || g_params.tgids[0] == '\0') {
-        return 0;
-    }
-
-    token = strtok(g_params.tgids, ",");
-    while (token != NULL) {
-        tgid = atoi(token);
-        if (tgid <= 0) {
-            fprintf(stderr, "ERROR: invalid process filter parameter: %s.\n", g_params.tgids);
+    if (tprofiler.threadBlMapFd <= 0) {
+        tprofiler.threadBlMapFd = bpf_obj_get(THRD_BL_MAP_PATH);
+        if (tprofiler.threadBlMapFd < 0) {
+            TP_ERROR("Failed to get bpf prog thread blacklist map.\n");
             return -1;
         }
+    }
 
-        key.proc_id = tgid;
-        ret = bpf_map_update_elem(proc_filter_map_fd, &key, &val, BPF_ANY);
-        if (ret) {
-            fprintf(stderr, "ERROR: add tgid %d to process filter map failed.\n", tgid);
-            return -1;
+    if ((ipc_body->probe_range_flags & TPROFILING_PROBE_SYSCALL_ALL)) {
+        if (tprofiler.stackMapFd <= 0) {
+            tprofiler.stackMapFd = bpf_obj_get(STACK_MAP_PATH);
+            if (tprofiler.stackMapFd < 0) {
+                TP_ERROR("Failed to get bpf prog stack map.\n");
+                return -1;
+            }
         }
-
-        token = strtok(NULL, ",");
+        if (tprofiler.pyProcMapFd <= 0) {
+            tprofiler.pyProcMapFd = bpf_obj_get(PY_PROC_MAP_PATH);
+            if (tprofiler.pyProcMapFd < 0) {
+                TP_ERROR("Failed to get bpf prog py_proc map.\n");
+                return -1;
+            }
+        }
+        if (tprofiler.pyStackMapFd <= 0) {
+            tprofiler.pyStackMapFd = bpf_obj_get(PY_STACK_MAP_PATH);
+            if (tprofiler.pyStackMapFd < 0) {
+                TP_ERROR("Failed to get bpf prog py_stack map.\n");
+                return -1;
+            }
+        }
+	    if (tprofiler.pyHeapMapFd <= 0) {
+            tprofiler.pyHeapMapFd = bpf_obj_get(STACK_PY_SAMPLE_HEAP_MAP_PATH);
+            if (tprofiler.pyHeapMapFd < 0) {
+                TP_ERROR("Failed to get bpf prog py_heap map.\n");
+                return -1;
+            }
+            int ret = init_py_sample_heap(tprofiler.pyHeapMapFd);
+            if (ret){
+                TP_ERROR("Failed to init python sample heap map.\n");
+                return -1;
+            }
+        }
+        if (tprofiler.pySymbMapFd <= 0) {
+            tprofiler.pySymbMapFd = bpf_obj_get(STACK_PY_SYMBOL_IDS_MAP_PATH);
+            if (tprofiler.pySymbMapFd < 0) {
+                TP_ERROR("Failed to get bpf prog py_symb map.\n");
+                return -1;
+            }
+        }
+    } else {
+        tprofiler.stackMapFd = 0;
+        tprofiler.pyProcMapFd = 0;
+        tprofiler.pyStackMapFd = 0;
+        tprofiler.pySymbMapFd = 0;
+        tprofiler.pyHeapMapFd = 0;
     }
 
     return 0;
 }
 
 // 初始化需要观测的系统调用
-static int init_syscall_metas()
+static int init_syscall_metas(void)
 {
     syscall_meta_t *scm = NULL;
 
@@ -315,28 +315,38 @@ static int init_syscall_metas()
     return 0;
 }
 
-// 创建一个子线程，针对 Java 程序，定期更新它的符号表
-static void init_java_symb_mgmt(int proc_filter_map_fd)
+// 针对 Java 程序，加载一个 java agent 用于获取它的符号表
+static void java_symb_mgmt(int proc_filter_map_fd)
 {
-    int ret;
-    pthread_t thd;
+    struct java_attach_args args = {0};
+    struct proc_s key = {0};
+    struct proc_s next_key = {0};
+    char comm[TASK_COMM_LEN];
 
-    g_args.proc_obj_map_fd = proc_filter_map_fd;
-    g_args.is_only_attach_once = 1;
-    g_args.loop_period = DEFAULT_PERIOD;
-    (void)snprintf(g_args.agent_file_name, FILENAME_LEN, JAVA_SYM_AGENT_FILE);
-    (void)snprintf(g_args.tmp_file_name, FILENAME_LEN, JAVA_SYM_FILE);
-
-    ret = pthread_create(&thd, NULL, java_support, (void *)&g_args);
-    if (ret) {
-        fprintf(stderr, "ERROR: Failed to create java support thread.\n");
+    if (tprofiler.stackMapFd <= 0) {
         return;
     }
-    (void)pthread_detach(thd);
-    printf("INFO: java support thread sucessfully started.\n");
+
+    (void)snprintf(args.agent_file_name, FILENAME_LEN, JAVA_SYM_AGENT_FILE);
+    (void)snprintf(args.tmp_file_name, FILENAME_LEN, JAVA_SYM_FILE);
+
+    while (bpf_map_get_next_key(proc_filter_map_fd, &key, &next_key) == 0) {
+        comm[0] = 0;
+        if (!detect_proc_is_java(next_key.proc_id, comm, TASK_COMM_LEN)) {
+            key = next_key;
+            continue;
+        }
+        java_offload_jvm_agent(next_key.proc_id);
+        if (java_load(next_key.proc_id, &args)) {
+            TP_WARN("Failed to load java agent to proc %u\n", next_key.proc_id);
+        }
+        TP_INFO("Succeed to load java agent to proc %u\n", next_key.proc_id);
+
+        key = next_key;
+    }
 }
 
-static void clean_map_files()
+static void clean_map_files(void)
 {
     FILE *fp = NULL;
 
@@ -359,7 +369,7 @@ static void clean_syscall_meta_table(syscall_meta_t **scmTable)
     *scmTable = NULL;
 }
 
-static void clean_tprofiler()
+static void clean_tprofiler(void)
 {
     if (tprofiler.scmTable) {
         clean_syscall_meta_table(&tprofiler.scmTable);
@@ -370,4 +380,49 @@ static void clean_tprofiler()
     }
 
     destroyThreadBlacklist(&tprofiler.thrdBl);
+}
+
+static int refresh_tprofiler(struct ipc_body_s *ipc_body)
+{
+    tprofiler.report_period = ipc_body->probe_param.period;
+
+    if (ipc_body->probe_flags & IPC_FLAGS_PARAMS_CHG || ipc_body->probe_flags == 0) {
+        if (init_tprofiler_map_fds(ipc_body)) {
+            return -1;
+        }
+    }
+
+    if (ipc_body->probe_flags & IPC_FLAGS_SNOOPER_CHG || ipc_body->probe_flags == 0) {
+        refresh_proc_filter_map(ipc_body);
+        java_symb_mgmt(tprofiler.procFilterMapFd);
+    }
+
+    return 0;
+}
+
+static void refresh_proc_filter_map(struct ipc_body_s *ipc_body)
+{
+    struct proc_s key = {0};
+    struct proc_s next_key = {0};
+    struct obj_ref_s val = {.count = 0};
+    struct py_proc_data py_proc_data;
+    int i;
+
+    while (bpf_map_get_next_key(tprofiler.procFilterMapFd, &key, &next_key) == 0) {
+        (void)bpf_map_delete_elem(tprofiler.procFilterMapFd, &next_key);
+        key = next_key;
+    }
+
+    for (i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_body->snooper_objs[i].type != SNOOPER_OBJ_PROC) {
+            continue;
+        }
+        key.proc_id = ipc_body->snooper_objs[i].obj.proc.proc_id;
+        (void)bpf_map_update_elem(tprofiler.procFilterMapFd, &key, &val, BPF_ANY);
+
+        if(try_init_py_proc_data(key.proc_id, &py_proc_data)){
+            continue;
+        }
+        (void)bpf_map_update_elem(tprofiler.pyProcMapFd, &key.proc_id, &py_proc_data, BPF_ANY);
+    }
 }

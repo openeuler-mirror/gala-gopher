@@ -18,25 +18,31 @@
 #pragma once
 
 #include <time.h>
-#include "stack.h"
 #include <curl/curl.h>
+#include "stack.h"
+
+enum proc_stack_type_e {
+    PROC_STACK_STORE_IN_HASH = 0, // when load_jvm_agent
+    PROC_STACK_STORE_IN_FILE = 1, // when load_jstack_agent
+    PROC_STACK_STORE_READED = 2   // when load_jstack_agent
+};
 
 struct post_info_s {
     int post_flag;
     int remain_size;
     char *buf_start;
     char *buf;
-    CURL *curl;
 };
 
-#define DAYS_TIME           (24 * 60 *60)   // 1 DAY
+#define DAYS_TIME           (24 * 60 * 60)   // 1 DAY
 #define WEEKS_TIME          (DAYS_TIME * 7)   // 1 WEEK
 
 enum stack_svg_type_e {
     STACK_SVG_ONCPU = 0,
     STACK_SVG_OFFCPU = 1,
+    STACK_SVG_MEM,
+    STACK_SVG_MEM_GLIBC,
     STACK_SVG_IO,
-    STACK_SVG_MEMLEAK,
     STACK_SVG_MAX
 };
 
@@ -53,15 +59,14 @@ struct stack_svgs_s {
     struct stack_svg_s svg_files;
 };
 
-#define FLAME_GRAPH_NEW     0x00000001
 struct stack_flamegraph_s {
-    u32 flags;
     FILE *fp;
     char flame_graph_file[PATH_LEN];
     char *flame_graph_dir;
 };
 
 struct stack_svg_mng_s {
+    time_t last_post_ts;
     struct stack_svgs_s svg;
     struct stack_flamegraph_s flame_graph;
 };
@@ -69,7 +74,7 @@ struct stack_svg_mng_s {
 struct stack_svg_mng_s* create_svg_mng(u32 default_period);
 void destroy_svg_mng(struct stack_svg_mng_s* svg_mng);
 int set_svg_dir(struct stack_svgs_s *svg, const char *dir, const char *flame_name);
-int create_svg_file(struct stack_svg_mng_s* svg_mng, const char *flame_graph, int en_type);
+int create_svg_file(struct stack_svg_mng_s* svg_mng, const char *flame_graph, int en_type, int proc_id);
 char is_svg_tmout(struct stack_svg_mng_s* svg_mng);
 
 #endif

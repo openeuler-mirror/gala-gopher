@@ -1,5 +1,10 @@
+# force BPF programs to use CO-RE helpers regardless of whether kernel BTF is
+# present in the build environment
+BTF_ENABLE_OVERRIDE := ON
+
 include ../mk/var.mk
 INCLUDES = $(BASE_INC)
+INCLUDES += -I../pystack/
 
 APP := tprofiling
 
@@ -12,6 +17,7 @@ DEPS += $(patsubst %.bpf.c, %.skel.h, $(BPF_C))
 DEPS += $(patsubst %.cpp, %.o, $(SRC_CPLUS))
 
 SRC_C := $(filter-out $(BPF_C), $(wildcard *.c))
+SRC_C += $(wildcard ../pystack/*.c)
 SRC_C += $(CFILES)
 
 .PHONY: all clean install
@@ -21,7 +27,7 @@ pre: $(OUTPUT)
 deps: $(DEPS)
 # build bpf code
 %.bpf.o: %.bpf.c
-	$(CLANG) $(CFLAGS) -target bpf $(INCLUDES) -c $(filter %.c,$^) -o $@
+	$(CLANG) $(CLANGFLAGS) -target bpf $(INCLUDES) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@
 
 # build skel.h

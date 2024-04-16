@@ -21,154 +21,40 @@
 #include <sys/prctl.h>
 #include <unistd.h>
 #include <stdarg.h>
+
+#include "syscall.h"
 #include "nprobe_fprintf.h"
-#include "probe.h"
+#include "probe_mng.h"
 
-#define MACRO2STR1(MACRO) #MACRO
-#define MACRO2STR2(MACRO) MACRO2STR1(MACRO)
+#define ZEROPAD 1       /* pad with zero */
+#define SIGN    2       /* unsigned/signed long */
+#define PLUS    4       /* show plus */
+#define SPACE   8       /* space if plus */
+#define LEFT    16      /* left justified */
+#define SMALL   32      /* Must be 32 == 0x20 */
+#define SPECIAL 64      /* 0x */
 
-__thread Probe *g_probe;
+__thread struct probe_s *g_probe;
 
-Probe *ProbeCreate(void)
+void *native_probe_thread_cb(void *arg)
 {
-    Probe *probe = NULL;
-    probe = (Probe *)malloc(sizeof(Probe));
-    if (probe == NULL)
-        return NULL;
+    g_probe = (struct probe_s *)arg;
 
-    memset(probe, 0, sizeof(Probe));
+    char thread_name[MAX_THREAD_NAME_LEN];
+    snprintf(thread_name, MAX_THREAD_NAME_LEN - 1, "[PROBE]%s", g_probe->name);
+    prctl(PR_SET_NAME, thread_name);
 
-    probe->fifo = FifoCreate(MAX_FIFO_SIZE);
-    if (probe->fifo == NULL) {
-        free(probe);
-        return NULL;
-    }
-    return probe;
-}
+    (void)pthread_rwlock_wrlock(&g_probe->rwlock);
+    g_probe->pid = (int)gettid();
+    (void)pthread_rwlock_unlock(&g_probe->rwlock);
 
-void ProbeDestroy(Probe *probe)
-{
-    if (probe == NULL)
-        return;
+    SET_PROBE_FLAGS(g_probe, PROBE_FLAGS_RUNNING);
+    UNSET_PROBE_FLAGS(g_probe, PROBE_FLAGS_STOPPED);
 
-    if (probe->fifo != NULL)
-        FifoDestroy(probe->fifo);
-
-    free(probe);
-    return;
-}
-
-ProbeMgr *ProbeMgrCreate(uint32_t size)
-{
-    ProbeMgr *mgr = NULL;
-    mgr = (ProbeMgr *)malloc(sizeof(ProbeMgr));
-    if (mgr == NULL)
-        return NULL;
-
-    memset(mgr, 0, sizeof(ProbeMgr));
-
-    mgr->probes = (Probe **)malloc(sizeof(Probe *) * size);
-    if (mgr->probes == NULL) {
-        free(mgr);
-        return NULL;
-    }
-    memset(mgr->probes, 0, sizeof(Probe *) * size);
-
-    mgr->size = size;
-    return mgr;
-}
-
-void ProbeMgrDestroy(ProbeMgr *mgr)
-{
-    if (mgr == NULL)
-        return;
-
-    if (mgr->probes != NULL) {
-        for (int i = 0; i < mgr->probesNum; i++)
-            ProbeDestroy(mgr->probes[i]);
-
-        free(mgr->probes);
-    }
-
-    free(mgr);
-    return;
-}
-
-int ProbeMgrPut(ProbeMgr *mgr, Probe *probe)
-{
-    if (mgr->probesNum == mgr->size)
-        return -1;
-
-    mgr->probes[mgr->probesNum] = probe;
-    mgr->probesNum++;
-    return 0;
-}
-
-Probe *ProbeMgrGet(ProbeMgr *mgr, const char *probeName)
-{
-    for (int i = 0; i < mgr->probesNum; i++) {
-        if (strcmp(mgr->probes[i]->name, probeName) == 0)
-            return mgr->probes[i];
-    }
-    return NULL;
-}
-
-int ProbeMgrLoadProbes(ProbeMgr *mgr)
-{
-    int count = 0;
-    char *p = NULL;
-
-    char probesList[] = MACRO2STR2(PROBES_LIST);
-    char probesMetaList[] = MACRO2STR2(PROBES_META_LIST);
-
-    Probe *probe;
-    int ret;
-    // get probe name
-    count = 0;
-    p = strtok(probesList, " ");
-    while (p != NULL) {
-        probe = ProbeCreate();
-        if (probe == NULL)
-            return -1;
-
-        memcpy(probe->name, p, strlen(p));
-
-        ret = ProbeMgrPut(mgr, probe);
-        if (ret != 0)
-            return 0;
-
-        p = strtok(NULL, " ");
-        count++;
-    }
-
-    // get probe meta path
-    count = 0;
-    p = strtok(probesMetaList, " ");
-    while (p != NULL) {
-        memcpy(mgr->probes[count]->metaPath, p, strlen(p));
-        p = strtok(NULL, " ");
-        count++;
-    }
-
-    // get probe process func
-    char probeMainStr[MAX_PROBE_NAME_LEN];
-    void *hdl = dlopen(NULL, RTLD_NOW | RTLD_GLOBAL);
-    if (hdl == NULL)
-        return -1;
-
-    INFO("[PROBE] get probes_num: %u\n", mgr->probesNum);
-    for (int i = 0; i < mgr->probesNum; i++) {
-        (void)snprintf(probeMainStr, MAX_PROBE_NAME_LEN - 1, "probe_main_%s", mgr->probes[i]->name);
-        mgr->probes[i]->func = dlsym(hdl, (char *)probeMainStr);
-        if (mgr->probes[i]->func == NULL) {
-            ERROR("[PROBE] Unknown func: %s\n", probeMainStr);
-            dlclose(hdl);
-            return -1;
-        }
-    }
-
-    dlclose(hdl);
-    return 0;
+    g_probe->probe_entry(&(g_probe->probe_param));
+    SET_PROBE_FLAGS(g_probe, PROBE_FLAGS_STOPPED);
+    UNSET_PROBE_FLAGS(g_probe, PROBE_FLAGS_RUNNING);
+    clear_ipc_msg((long)g_probe->probe_type);
 }
 
 static inline int __isdigit(int ch)
@@ -186,7 +72,7 @@ static int __skip_atoi(const char **s)
     return i;
 }
 
-static char* __number(char *str, unsigned long long num, int base, int size, int precision, int type)
+static char* __number(char *str, unsigned long long num, int base, int size, int precision, unsigned int type)
 {
     static const char digits[16] = "0123456789ABCDEF";  // we are called with base 8, 10 or 16, thus don't need "G..."
     char tmp[66];
@@ -285,7 +171,7 @@ int nprobe_fprintf(FILE *stream, const char *curFormat, ...)
     char *str;
     const char *s;
 
-    int flags;          /* flags to number */
+    unsigned int flags; /* flags to number */
     int field_width;    /* width of output field */
     int precision;      /* min. # of digits for integers; max number of chars for from string */
     int qualifier;      /* 'h', 'l', or 'L' for integer fields */
@@ -435,6 +321,8 @@ int nprobe_fprintf(FILE *stream, const char *curFormat, ...)
                 break;
             case 'x':
                 flags |= SMALL;
+                base = 16;
+                break;
             case 'X':
                 base = 16;
                 break;
@@ -495,3 +383,4 @@ int nprobe_fprintf(FILE *stream, const char *curFormat, ...)
     return 0;
 
 }
+

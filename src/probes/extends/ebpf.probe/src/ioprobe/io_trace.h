@@ -24,13 +24,6 @@
 #define MAJOR(dev)    ((unsigned int) ((dev) >> MINORBITS))
 #define MINOR(dev)    ((unsigned int) ((dev) & MINORMASK))
 
-#define IO_PROBE_TRACE      (u32)(1)
-#define IO_PROBE_ERR        (u32)(1 << 1)
-#define IO_PROBE_COUNT      (u32)(1 << 2)
-#define IO_PROBE_PAGECACHE  (u32)(1 << 3)
-#define IO_PROBE_ALL        (u32)(IO_PROBE_TRACE | IO_PROBE_ERR \
-                | IO_PROBE_COUNT | IO_PROBE_PAGECACHE)
-
 #define IS_LOAD_PROBE(LOAD_TYPE, PROG_TYPE) (LOAD_TYPE & PROG_TYPE)
 
 // Refer to linux souce code: include/scsi/scsi.h

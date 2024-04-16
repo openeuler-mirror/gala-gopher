@@ -64,7 +64,7 @@ static __always_inline __maybe_unused u64 get_lat_thr(void)
         } \
     } while (0)
 
-static __always_inline __maybe_unused char is_targe_comm(char *comm, u32 proc_id)
+static __always_inline __maybe_unused char is_target_proc(u32 proc_id)
 {
     u32 key = 0;
 
@@ -79,15 +79,6 @@ static __always_inline __maybe_unused char is_targe_comm(char *comm, u32 proc_id
         return is_proc_exist(&obj);
     }
 
-    if (args->target_comm[0] == 0) {
-        return 1;
-    }
-
-    int ret;
-    __COMP_ARRAY(args->target_comm, comm, TASK_COMM_LEN, ret);
-    if (ret == 0) {
-        return 1;
-    }
     return 0;
 }
 

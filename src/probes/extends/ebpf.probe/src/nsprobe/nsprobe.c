@@ -55,9 +55,9 @@
     OPEN(probe_name, end, load); \
     MAP_SET_PIN_PATH(probe_name, output, OUTPUT_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, args_map, ARGS_PATH, load); \
-    LOAD_ATTACH(probe_name, end, load)
+    LOAD_ATTACH(nsprobe, probe_name, end, load)
 
-static struct probe_params params = {.period = DEFAULT_PERIOD};
+static struct probe_params_deprecated params = {.period = DEFAULT_PERIOD};
 static volatile sig_atomic_t g_stop;
 static struct container_hash_t *head = NULL;
 
@@ -86,7 +86,7 @@ static void output_qdisc_metrics(void *ctx, int cpu, void *data, __u32 size)
     (void)fflush(stdout);
 }
 
-static void load_args(int args_fd, struct probe_params* params)
+static void load_args(int args_fd, struct probe_params_deprecated* params)
 {
     __u32 key = 0;
     struct ns_args_s args = {0};
@@ -119,9 +119,9 @@ static bool is_kernel_support_tc_bps_load()
         return false;
     }
 
-    ret = WEXITSTATUS(ret);
+    ret = WEXITSTATUS((unsigned)ret);
     if (ret) {
-        printf("kernel don't support tc bps prog loading\n");
+        INFO("kernel don't support tc bps prog loading\n");
         return false;
     }
     return true;
@@ -183,7 +183,7 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    printf("arg parse interval time:%us\n", params.period);
+    INFO("arg parse interval time:%us\n", params.period);
 
     INIT_BPF_APP(nsprobe, EBPF_RLIM_LIMITED);
     __LOAD_NS_PROBE(qdisc, err, 1);
@@ -207,7 +207,7 @@ int main(int argc, char **argv)
         }
     }
 
-    printf("Successfully started!\n");
+    INFO("Successfully started!\n");
     obj_module_init();
 
     while (!g_stop) {
@@ -215,7 +215,7 @@ int main(int argc, char **argv)
         if ((err = perf_buffer__poll(qdisc_pb, THOUSAND)) < 0) {
             break;
         }
-        if (tc_load && ((err = perf_buffer__poll(tc_pb, THOUSAND)) < 0)) {
+        if (tc_load && ((err = perf_buffer__poll(tc_pb, THOUSAND)) < 0) && err != -EINTR) {
             break;
         }
         output_containers_metrics(&head);

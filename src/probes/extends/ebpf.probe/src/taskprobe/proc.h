@@ -45,6 +45,11 @@ struct syscall_s {
     u64 ns_fork;
     u64 ns_vfork;
     u64 ns_clone;
+
+    // ioctl syscall
+    int ioctl_fd;
+    u64 ioctl_cmd;
+    u64 ns_ioctl;
 };
 
 struct fs_op_s {
@@ -63,18 +68,13 @@ struct page_op_s {
     u64 count_mark_page_dirty;
 };
 
-struct dns_op_s {
-    u64 gethostname_start_ts;
-    u64 gethostname_ns;
-    u64 gethostname_failed;
-};
-
 struct proc_ts_s {
     u64 ts_syscall;
     u64 ts_syscall_io;
     u64 ts_syscall_net;
     u64 ts_syscall_sched;
     u64 ts_syscall_fork;
+    u64 ts_syscall_ioctl;
 
     u64 ts_ext4_op;
     u64 ts_overlay_op;
@@ -84,6 +84,8 @@ struct proc_ts_s {
     u64 ts_dns;
 
     u64 ts_io;
+
+    u64 ts_cpu;
 };
 
 struct proc_io_s {
@@ -94,7 +96,11 @@ struct proc_io_s {
     u32 bio_latency;
     u32 bio_err_count;
     u32 hang_count;
-    u64 iowait_us;
+};
+
+struct proc_cpu_s {
+    u64 iowait_ns;
+    u64 offcpu_ns;
 };
 
 struct proc_data_s {
@@ -108,13 +114,7 @@ struct proc_data_s {
     struct fs_op_s op_overlay;
     struct fs_op_s op_tmpfs;
     struct page_op_s page_op;
-    struct dns_op_s dns_op;
     struct proc_io_s proc_io;
+    struct proc_cpu_s proc_cpu;
 };
-
-struct proc_exec_evt {
-    char filename[PATH_LEN];
-    u32 pid;
-};
-
 #endif

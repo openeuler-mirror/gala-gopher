@@ -17,8 +17,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
-#include "args.h"
+#include "ipc.h"
 #include "virt_proc.h"
+
+static struct ipc_body_s g_ipc_body;
 
 static int virt_probe_init(struct probe_params * params)
 {
@@ -36,22 +38,36 @@ static void virt_probe_destroy(void)
 int main(struct probe_params * params)
 {
     int ret;
+    struct ipc_body_s ipc_body;
+
+    (void)memset(&g_ipc_body, 0, sizeof(struct ipc_body_s));
+
+    int msq_id = create_ipc_msg_queue(IPC_EXCL);
+    if (msq_id < 0) {
+        return -1;
+    }
 
     /* system probes init */
     if (virt_probe_init(params) < 0) {
         goto err;
     }
 
-    for (;;) {
+    while(1) {
+        ret = recv_ipc_msg(msq_id, (long)PROBE_VIRT, &ipc_body);
+        if (ret == 0) {
+            destroy_ipc_body(&g_ipc_body);
+            (void)memcpy(&g_ipc_body, &ipc_body, sizeof(g_ipc_body));
+        }
         ret = virt_proc_probe();
         if (ret < 0) {
             ERROR("[VIRT_PROBE] system virt proc probe fail.\n");
             goto err;
         }
-        sleep(params->period);
+        sleep(g_ipc_body.probe_param.period);
     }
 
 err:
     virt_probe_destroy();
+    destroy_ipc_body(&g_ipc_body);
     return -1;
 }

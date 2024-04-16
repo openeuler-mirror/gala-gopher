@@ -28,37 +28,16 @@
 #endif
 
 #include "bpf.h"
-#include "sched_systime.skel.h"
-#include "sched_syscall.skel.h"
 #include "args.h"
+#include "bpf_prog.h"
 #include "sched.h"
 #include "kern_symb.h"
 #include "event.h"
 
-struct sched_probe_s {
-    struct probe_params params;
-    struct ksymb_tbl_s *ksymbs;
-    int sched_args_fd;
-    int sched_latency_stackmap_fd;
-    int sched_syscall_stackmap_fd;
-    int sched_systime_stackmap_fd;
-};
-
 static struct sched_probe_s probe;
-
-/* Path to pin map */
-#define SCHED_ARGS_PATH            "/sys/fs/bpf/gala-gopher/__sched_args"
-#define SCHED_REPORT_CHANNEL_PATH  "/sys/fs/bpf/gala-gopher/__sched_report_channel"
-
-#define RM_SCHED_PATH              "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__sched*"
+static volatile sig_atomic_t stop = 0;
 
 #define OO_NAME         "proc"
-
-#define __LOAD_SCHED_LATENCY(probe_name, end, load) \
-    OPEN(probe_name, end, load); \
-    MAP_SET_PIN_PATH(probe_name, sched_args_map, SCHED_ARGS_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, sched_report_channel_map, SCHED_REPORT_CHANNEL_PATH, load); \
-    LOAD_ATTACH(probe_name, end, load)
 
 #define IS_IEG_ADDR(addr)     ((addr) != 0xcccccccccccccccc && (addr) != 0xffffffffffffffff)
 
@@ -173,7 +152,7 @@ static void report_sched_logs(struct event *sched_evt)
     char *metrics[EVT_MAX] = {"sched_systime", "sched_syscall"};
     struct event_info_s evt = {0};
 
-    if (probe.params.logs == 0) {
+    if (probe.ipc_body.probe_param.logs == 0) {
         return;
     }
 
@@ -238,7 +217,6 @@ static void report_sched_metrics(struct event *sched_evt)
 
     (void)fprintf(stdout, "|%s|%u"
         "|%llu|\n",
-
         tbl[sched_evt->e],
         sched_evt->proc_id,
 
@@ -246,7 +224,7 @@ static void report_sched_metrics(struct event *sched_evt)
     (void)fflush(stdout);
 }
 
-static void rcv_sched_reprot(void *ctx, int cpu, void *data, __u32 size)
+void rcv_sched_report(void *ctx, int cpu, void *data, __u32 size)
 {
     struct event *evt = data;
 
@@ -254,21 +232,31 @@ static void rcv_sched_reprot(void *ctx, int cpu, void *data, __u32 size)
     report_sched_metrics(evt);
 }
 
-static void load_sched_args(int fd, struct probe_params* args)
+static int is_target_wl(struct ipc_body_s *ipc_body)
+{
+    int i;
+
+    for (i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_body->snooper_objs[i].type == SNOOPER_OBJ_PROC) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static void load_sched_args(int fd, struct ipc_body_s *ipc_body)
 {
     u32 key = 0;
     struct sched_args_s sched_args = {0};
+    struct probe_params *args = &ipc_body->probe_param;
 
     if (args->latency_thr != 0) {
         sched_args.latency_thr = (u64)((u64)args->latency_thr * 1000 * 1000);
     }
 
-    if (args->filter_task_probe != 0) {
+    if (is_target_wl(ipc_body)) {
         sched_args.is_target_wl = 1;
-    }
-
-    if (args->target_comm[0] != 0) {
-        memcpy(sched_args.target_comm, args->target_comm, TASK_COMM_LEN);
     }
 
     (void)bpf_map_update_elem(fd, &key, &sched_args, BPF_ANY);
@@ -301,12 +289,73 @@ static void __deinit_probe(struct sched_probe_s *probep)
     return;
 }
 
+static void sig_handling(int signal)
+{
+    stop = 1;
+}
+
+static void refresh_proc_filter_map(struct ipc_body_s *ipc_body)
+{
+    struct proc_s key = {0};
+    struct proc_s next_key = {0};
+    struct obj_ref_s val = {.count = 0};
+    int fd;
+    int i;
+
+    fd = bpf_obj_get(GET_PROC_MAP_PIN_PATH(schedprobe));
+    if (fd < 0) {
+        fprintf(stderr, "WARN: Failed to get proc map fd\n");
+        return;
+    }
+
+    while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
+        (void)bpf_map_delete_elem(fd, &next_key);
+        key = next_key;
+    }
+
+    for (i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_body->snooper_objs[i].type != SNOOPER_OBJ_PROC) {
+            continue;
+        }
+
+        key.proc_id = ipc_body->snooper_objs[i].obj.proc.proc_id;
+        (void)bpf_map_update_elem(fd, &key, &val, BPF_ANY);
+    }
+}
+
+static int reload_sched_probe(struct ipc_body_s *ipc_body)
+{
+    int ret;
+
+    if (ipc_body->probe_range_flags != probe.ipc_body.probe_range_flags) {
+        unload_bpf_prog(&probe.sched_prog);
+        ret = load_sched_bpf_prog(ipc_body, &probe);
+        if (ret) {
+            return -1;
+        }
+    }
+
+    load_sched_args(probe.sched_args_fd, ipc_body);
+    refresh_proc_filter_map(ipc_body);
+
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     int ret = 0;
-    FILE *fp = NULL;
-    struct perf_buffer *sched_report_pb = NULL;
-    char is_load_systime, is_load_syscall;
+    struct ipc_body_s ipc_body;
+    int msq_id;
+
+    if (signal(SIGINT, sig_handling) == SIG_ERR) {
+        fprintf(stderr, "can't set signal handler: %s\n", strerror(errno));
+        return -1;
+    }
+
+    msq_id = create_ipc_msg_queue(IPC_EXCL);
+    if (msq_id < 0) {
+        return -1;
+    }
 
     ret = __init_probe(&probe);
     if (ret != 0) {
@@ -314,75 +363,40 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    ret = args_parse(argc, argv, &(probe.params));
-    if (ret != 0) {
-        __deinit_probe(&probe);
-        return -1;
-    }
-
-    is_load_systime = IS_LOAD_PROBE(probe.params.load_probe, SCHED_PROBE_SYSTIME);
-    is_load_syscall = IS_LOAD_PROBE(probe.params.load_probe, SCHED_PROBE_SYSCALL);
-
-    if (!is_load_systime && !is_load_syscall) {
-        fprintf(stderr, "Not anything eBPF prog need load.\n");
-        __deinit_probe(&probe);
-        return -1;
-    }
-
-    fp = popen(RM_SCHED_PATH, "r");
-    if (fp != NULL) {
-        (void)pclose(fp);
-        fp = NULL;
-    }
+    clean_map_files();
 
     INIT_BPF_APP(schedprobe, EBPF_RLIM_LIMITED);
 
-    __LOAD_SCHED_LATENCY(sched_systime, err1, is_load_systime);
-    __LOAD_SCHED_LATENCY(sched_syscall, err, is_load_syscall);
+    INFO("Successfully started!\n");
 
-    if (is_load_systime) {
-        probe.sched_systime_stackmap_fd = GET_MAP_FD(sched_systime, systime_latency_stackmap);
+    while (!stop) {
+        ret = recv_ipc_msg(msq_id, (long)PROBE_SCHED, &ipc_body);
+        if (ret == 0) {
+            if (reload_sched_probe(&ipc_body)) {
+                goto err;
+            }
+
+            destroy_ipc_body(&probe.ipc_body);
+            (void)memcpy(&probe.ipc_body, &ipc_body, sizeof(struct ipc_body_s));
+        }
+
+        if (probe.sched_prog == NULL) {
+            sleep(DEFAULT_PERIOD);
+            continue;
+        }
+
+        if (probe.sched_prog->pb != NULL) {
+            if (perf_buffer__poll(probe.sched_prog->pb, THOUSAND) < 0 && ret != -EINTR) {
+                goto err;
+            }
+        }
     }
-    if (is_load_syscall) {
-        probe.sched_syscall_stackmap_fd = GET_MAP_FD(sched_syscall, syscall_latency_stackmap);
-    }
 
-    if (is_load_systime) {
-        probe.sched_args_fd = GET_MAP_FD(sched_systime, sched_args_map);
-        sched_report_pb = create_pref_buffer(GET_MAP_FD(sched_systime, sched_report_channel_map),
-                                           rcv_sched_reprot);
-    } else {
-        probe.sched_args_fd = GET_MAP_FD(sched_syscall, sched_args_map);
-        sched_report_pb = create_pref_buffer(GET_MAP_FD(sched_syscall, sched_report_channel_map),
-                                           rcv_sched_reprot);
-    }
-
-    if (sched_report_pb == NULL) {
-        fprintf(stderr, "Create sched perf channel failed.\n");
-        goto err;
-    }
-
-    load_sched_args(probe.sched_args_fd, &(probe.params));
-
-    printf("Successfully started!\n");
-
-    poll_pb(sched_report_pb, THOUSAND);
-
+    return 0;
 err:
-    if (sched_report_pb) {
-        perf_buffer__free(sched_report_pb);
-        sched_report_pb = NULL;
-    }
-    if (is_load_syscall) {
-        UNLOAD(sched_syscall);
-    }
-err1:
-    if (is_load_systime) {
-        UNLOAD(sched_systime);
-    }
-
+    unload_bpf_prog(&probe.sched_prog);
+    destroy_ipc_body(&probe.ipc_body);
     __deinit_probe(&probe);
-
-    return ret;
+    return -1;
 }
 

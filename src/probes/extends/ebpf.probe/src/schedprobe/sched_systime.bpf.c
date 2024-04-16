@@ -197,11 +197,8 @@ KRETPROBE(account_process_tick, pt_regs)
         return 0;
     }
 
-    char comm[TASK_COMM_LEN] = {0};
-    bpf_get_current_comm(&comm, sizeof(comm));
-
     tgid = _(tsk->tgid);
-    if (!is_targe_comm(comm, tgid)) {
+    if (!is_target_proc(tgid)) {
         return 0;
     }
 

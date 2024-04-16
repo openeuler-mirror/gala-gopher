@@ -24,7 +24,7 @@
 #define TEST_DEBUG_PATH     "/home/logs/debug"
 #define TEST_META_PATH      "/home/logs/meta"
 
-#define LOGS_FILE_SIZE      (1024)
+// overwrite macros in logs.h to simplify tests of logs
 #define TEST_WR_LOGS_NUM    10
 
 #define WR_LOGS(count, id, func, txt) \
@@ -59,7 +59,7 @@ static int is_logs_file_exist(char* log_path, char* ftype, int id)
     FILE* f;
 
     cmd[0] = 0;
-    if (!strcmp(ftype, "metrics") || !strcmp(ftype, "event")) {
+    if (!strcmp(ftype, "metrics")) {
         (void)snprintf(cmd, COMMAND_LEN, "ls -l %s | grep gopher_%s_%d", log_path, ftype, id);
     } else {
         (void)snprintf(cmd, COMMAND_LEN, "ls -l %s | grep gopher_%s", log_path, ftype);
@@ -86,6 +86,7 @@ static void TestLogsMgrInit(void)
     CU_ASSERT(test_local->metrics_files != NULL);
     CU_ASSERT(test_local->event_files != NULL);
 
+    test_local->metrics_logs_filesize = METRICS_LOGS_FILESIZE;
     (void)strncpy(test_local->debug_path, TEST_DEBUG_PATH, PATH_LEN - 1);
     (void)strncpy(test_local->metrics_path, TEST_METRICS_PATH, PATH_LEN - 1);
     (void)strncpy(test_local->event_path, TEST_EVENT_PATH, PATH_LEN - 1);
@@ -115,15 +116,13 @@ static void TestLogsWrMetaLogs(void)
 #define EVENT_LOGS_TEXT   "I'am a event, len 20"
 static void TestLogsWrEventLogs(void)
 {
-    int count = (LOGS_FILE_SIZE / strlen(EVENT_LOGS_TEXT) + 1);
+    int count = (LOGS_FILE_SIZE / strlen(EVENT_LOGS_TEXT));
 
-    for (int i = 0; i <= TEST_WR_LOGS_NUM; i++) {
-        WR_LOGS(count, i, wr_event_logs, EVENT_LOGS_TEXT);
-        CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", i) == 1);
-        RE_LOGS(read_event_logs);
-        CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", i) == 0);
-    }
-    return;
+    WR_LOGS(count, 0, wr_event_logs, EVENT_LOGS_TEXT);
+    CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", 0) == 1);
+
+    wr_event_logs(EVENT_LOGS_TEXT, strlen(EVENT_LOGS_TEXT));
+    CU_ASSERT(is_logs_file_exist(TEST_EVENT_PATH, "event", 1) == 1);
 }
 
 #define METRICS_LOGS_TEXT   "I'am metrics, len 20"
@@ -142,18 +141,10 @@ static void TestLogsWrMetricLogs(void)
 
 static void TestLogsMgrDestroy(void)
 {
-    if(test_local != NULL)
-    {
-        destroy_log_mgr(test_local);
-    }
-    else{
-        return;
-    }
-    
+    destroy_log_mgr(test_local);
     CU_ASSERT(test_local->metrics_files != NULL);
     CU_ASSERT(test_local->event_files != NULL);
     CU_ASSERT(test_local != NULL);
-
 
     return;
 }

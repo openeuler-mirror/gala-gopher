@@ -31,7 +31,7 @@ struct {
 } args_map SEC(".maps");
 
 #define PERIOD NS(30)  // 30s
-static __always_inline __maybe_unused u64 get_period()
+static __always_inline __maybe_unused u64 get_period(void)
 {
     u32 key = 0;
     u64 period = PERIOD;

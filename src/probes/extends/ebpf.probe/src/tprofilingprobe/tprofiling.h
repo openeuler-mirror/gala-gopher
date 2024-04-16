@@ -15,6 +15,7 @@
 #ifndef __TPROFILING_H__
 #define __TPROFILING_H__
 #include "syscall_table.h"
+#include "py_stack.h"
 
 #ifndef __u64
 typedef unsigned long long __u64;
@@ -29,13 +30,9 @@ typedef unsigned int __u32;
 #define MAX_SIZE_OF_STASH_EVENT 10240
 #define THREAD_COMM_LEN 16
 
-#define DFT_AGGR_DURATION (1000 * NSEC_PER_MSEC)
-#define MIN_EXEC_DURATION 0
-
-typedef struct {
-    int inited;
-    int filter_local;
-} profiling_setting_t;
+#define DFT_AGGR_DURATION   (10 * NSEC_PER_SEC)
+#define DFT_STATS_DURATION  (100 * NSEC_PER_MSEC)
+#define MIN_EXEC_DURATION   0
 
 typedef enum {
     EVT_TYPE_SYSCALL = 1,
@@ -50,12 +47,13 @@ enum {
 
 typedef struct {
     unsigned long nr;
-    int flag;
+    unsigned int flag;
 } syscall_m_meta_t;
 
 typedef struct {
     int uid;    // 用户栈ID
     int kid;    // 内核栈ID
+    __u64 pyid;   // py栈ID
 } stack_trace_t;
 
 typedef union {
@@ -74,21 +72,69 @@ typedef struct {
     syscall_ext_info_t ext_info;
 } syscall_m_enter_t;
 
+#define STATS_STACK_MAX_NUM             100
+#define STATS_STACK_MAX_NUM_MASK        128 // used for bpf bound verification, must be large than STATS_STACK_MAX_NUM
+#define STATS_TOP_COMMON_MAX_NUM        3
+#define STATS_TOP_COMMON_MAX_NUM_MASK   4   // used for bpf bound verification, must be large than STATS_TOP_COMMON_MAX_NUM
+#define STATS_TOP_FD_MAX_NUM            STATS_TOP_COMMON_MAX_NUM
+#define STATS_TOP_FD_MAX_NUM_MASK       STATS_TOP_COMMON_MAX_NUM_MASK
+#define STATS_TOP_FUTEX_MAX_NUM         STATS_TOP_COMMON_MAX_NUM
+#define STATS_TOP_FUTEX_MAX_NUM_MASK    STATS_TOP_COMMON_MAX_NUM_MASK
+
+struct stats_stack_elem {
+    stack_trace_t stack;
+    __u64 duration;
+};
+
+struct stats_stack {
+    __u32 num;
+    struct stats_stack_elem stacks[STATS_STACK_MAX_NUM_MASK];
+};
+
+struct stats_fd_elem {
+    int fd;
+    unsigned long ino;
+    unsigned short imode;
+    __u64 duration;
+};
+
+struct stats_fd {
+    __u32 num;
+    struct stats_fd_elem fds[STATS_TOP_FD_MAX_NUM_MASK];
+};
+
+struct stats_futex_elem {
+    int op;
+    __u64 duration;
+};
+
+struct stats_futex {
+    __u32 num;
+    struct stats_futex_elem ops[STATS_TOP_FUTEX_MAX_NUM_MASK];
+};
+
+typedef struct {
+    struct stats_stack stats_stack;
+    union {
+        struct stats_fd stats_fd;
+        struct stats_futex stats_futex;
+    };
+} stats_syscall_t;
+
 typedef struct {
     unsigned long nr;   // 系统调用号
     __u64 start_time;   // 系统调用的开始时间（若为多个系统调用事件聚合，则表示第一个事件的开始时间）
     __u64 end_time;     // 系统调用的结束时间（若为多个系统调用事件聚合，则表示最后一个事件的结束时间）
     __u64 duration;     // 系统调用的执行时间（若为多个系统调用事件聚合，则表示累计的执行时间）
     int count;          // 聚合的系统调用事件的数量
-    syscall_ext_info_t ext_info;    // 不同系统调用类型的扩展信息
-    stack_trace_t stack_info;       // 函数调用栈信息
+    __u64 last_stat_time;   // 上一次触发事件内容统计的时间，包括调用栈统计、fd统计等
+    stats_syscall_t stats;
 } syscall_data_t;
 
 typedef struct {
     int pid;
     unsigned long nr;
 } syscall_m_stash_key_t;
-typedef syscall_data_t syscall_m_stash_val_t;
 
 typedef struct {
     int pid;
@@ -104,7 +150,6 @@ typedef struct {
 } oncpu_data_t;
 
 typedef struct {
-    __u64 timestamp;
     int pid;
     int tgid;
     char comm[THREAD_COMM_LEN];
@@ -116,19 +161,44 @@ typedef struct {
 } trace_event_data_t;
 
 #if !defined(BPF_PROG_KERN) && !defined(BPF_PROG_USER)
+#include <time.h>
+#include <pthread.h>
+#include <uthash.h>
+
 #include "proc_info.h"
 #include "thrd_bl.h"
 
+#define TP_DEBUG(fmt, ...) DEBUG("[TPROFILING] " fmt, ##__VA_ARGS__)
+#define TP_INFO(fmt, ...) INFO("[TPROFILING] " fmt, ##__VA_ARGS__)
+#define TP_WARN(fmt, ...) WARN("[TPROFILING] " fmt, ##__VA_ARGS__)
+#define TP_ERROR(fmt, ...) ERROR("[TPROFILING] " fmt, ##__VA_ARGS__)
+
 typedef struct {
-    int settingMapFd;           /* ebpf map，用于bpf程序配置 */
+    trace_event_type_t type;
+    union {
+        syscall_data_t syscall_d;
+        oncpu_data_t oncpu_d;
+    };
+} event_data_t;
+
+#define EVT_DATA(evt_elem) ((event_data_t *)(evt_elem)->data)
+#define EVT_DATA_TYPE(evt_elem) (EVT_DATA(evt_elem)->type)
+#define EVT_DATA_SC(evt_elem) (&EVT_DATA(evt_elem)->syscall_d)
+#define EVT_DATA_CPU(evt_elem) (&EVT_DATA(evt_elem)->oncpu_d)
+
+typedef struct {
     int stackMapFd;             /* ebpf map，用于获取调用栈信息 */
     int procFilterMapFd;        /* ebpf map，用于更新进程白名单 */
     int threadBlMapFd;          /* ebpf map，用于更新线程黑名单 */
-    int filterLocal;            /* 是否启用本地配置进行进程过滤。若值为 1 则启用，否则使用全局共享的进程白名单进行过滤 */
+    int pyProcMapFd;
+    int pyStackMapFd;           /* ebpf map，用于获取py调用栈信息 */
+    int pySymbMapFd;            /* ebpf map，py符号信息 */
+    int pyHeapMapFd;
     syscall_meta_t *scmTable;   /* 系统调用元数据表，是一个 hash 表 */
     __u64 sysBootTime;          /* 系统启动时间，单位：纳秒（ns） */
     proc_info_t *procTable;     /* 缓存的进程信息表，是一个 hash 表 */
     ThrdBlacklist thrdBl;       /* 线程黑名单 */
+    int report_period;          /* 线程 profiling 事件上报周期 */
 } Tprofiler;
 
 extern Tprofiler tprofiler;
@@ -149,20 +219,10 @@ extern Tprofiler tprofiler;
 #define USER_STACKID_FLAGS (0 | BPF_F_FAST_STACK_CMP | BPF_F_USER_STACK)
 
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, MAX_CPU);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } event_map SEC(".maps");
 
-struct {
-    __uint(type, BPF_MAP_TYPE_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(profiling_setting_t));
-    __uint(max_entries, 1);
-} setting_map SEC(".maps");
-
-// filter process locally if enabled
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(key_size, sizeof(struct proc_s));
@@ -184,28 +244,19 @@ struct {
     __uint(max_entries, 1024);
 } stack_map SEC(".maps");
 
-static __always_inline profiling_setting_t *get_tp_setting()
-{
-    u32 setting_k = 0;
-    profiling_setting_t *ps;
+struct {
+    __uint(type, BPF_MAP_TYPE_LRU_HASH);
+    __uint(key_size, sizeof(u64));
+    __uint(value_size, sizeof(struct py_stack));
+    __uint(max_entries, 100000);
+} py_stack_cached SEC(".maps");
 
-    ps = (profiling_setting_t *)bpf_map_lookup_elem(&setting_map, &setting_k);
-    if (ps && ps->inited) {
-        return ps;
-    }
-    return (void *)0;
-}
-
-static __always_inline bool is_proc_enabled(u32 tgid, profiling_setting_t *setting)
+static __always_inline bool is_proc_enabled(u32 tgid)
 {
     struct proc_s proc_k = {.proc_id = tgid};
     void *proc_v;
 
-    if (setting->filter_local) {
-        proc_v = bpf_map_lookup_elem(&proc_filter_map, &proc_k);
-    } else {
-        proc_v = bpf_map_lookup_elem(&proc_obj_map, &proc_k);
-    }
+    proc_v = bpf_map_lookup_elem(&proc_filter_map, &proc_k);
     if (proc_v != (void *)0) {
         return true;
     }
@@ -230,7 +281,7 @@ static __always_inline bool is_thrd_enabled(u32 pid, u32 tgid)
     }
 }
 
-static __always_inline __maybe_unused bool is_proc_thrd_enabled(profiling_setting_t *setting)
+static __always_inline __maybe_unused bool is_proc_thrd_enabled()
 {
     u64 pid_tgid;
     u32 tgid, pid;
@@ -239,12 +290,20 @@ static __always_inline __maybe_unused bool is_proc_thrd_enabled(profiling_settin
     tgid = pid_tgid >> INT_LEN;
     pid = (u32)pid_tgid;
 
-    return is_proc_enabled(tgid, setting) && is_thrd_enabled(pid, tgid);
+    return is_proc_enabled(tgid) && is_thrd_enabled(pid, tgid);
 }
 
 static __always_inline bool can_emit(u64 stime, u64 etime)
 {
     if (etime >= stime + DFT_AGGR_DURATION) {
+        return true;
+    }
+    return false;
+}
+
+static __always_inline bool is_stats_triggered(u64 last_stat_time, u64 curr_time)
+{
+    if (curr_time >= last_stat_time + DFT_STATS_DURATION) {
         return true;
     }
     return false;

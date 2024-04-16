@@ -6,9 +6,25 @@ EXT_PROBE_FOLDER=${PROJECT_FOLDER}/src/probes/extends
 SHARED_LIB_FOLDER=${PROJECT_FOLDER}/src/common
 EXT_PROBE_INSTALL_LIST=`find ${EXT_PROBE_FOLDER} -maxdepth 2 | grep "\<install.sh\>"`
 SHARED_LIB_LIST=`find ${SHARED_LIB_FOLDER} -name "*.so"`
-
+JVM_ATTACH_BIN=${PROJECT_FOLDER}/src/lib/jvm/jvm_attach
 TAILOR_PATH=${PROJECT_FOLDER}/tailor.conf
 TAILOR_PATH_TMP=${TAILOR_PATH}.tmp
+BTF_CACHE=${PROJECT_FOLDER}/.cache
+BTF_DIR=${PROJECT_FOLDER}/btf
+
+function __create_btf_cache()
+{
+    rm -rf ${BTF_CACHE}
+    mkdir -p ${BTF_CACHE}
+    ARCH=$(uname -m)
+    find ${BTF_DIR} -name "*"${ARCH}"*.btf.tar.xz" | xargs -n1 tar -xf
+    find ./ -name "*.btf" | xargs mv -t ${BTF_CACHE}
+}
+
+function __delete_btf_cache()
+{
+    rm -rf ${BTF_CACHE}
+}
 
 function load_tailor()
 {
@@ -21,6 +37,8 @@ function load_tailor()
         eval `cat ${TAILOR_PATH_TMP}`
         rm -rf ${TAILOR_PATH_TMP}
     fi
+
+    export EXTEND_PROBES="$EXTEND_PROBES cgprobe lvsprobe schedprobe nsprobe rabbitmq.probe redis_client.probe redis.probe"
 }
 
 function install_daemon_bin()
@@ -49,7 +67,7 @@ function install_daemon_bin()
 function install_conf()
 {
     GOPHER_CONF_FILE=${PROJECT_FOLDER}/config/gala-gopher.conf
-    TASKPROBE_WHITELIST_FILE=${PROJECT_FOLDER}/config/gala-gopher-app.conf
+    GOPHER_PROBES_INIT_FILE=${PROJECT_FOLDER}/config/probes.init
     GOPHER_CONF_TARGET_DIR=/etc/gala-gopher
 
     if [ $# -eq 1 ]; then
@@ -61,8 +79,8 @@ function install_conf()
         echo "${GOPHER_CONF_FILE} not exist. please check ./config dir."
         exit 1
     fi
-    if [ ! -f ${TASKPROBE_WHITELIST_FILE} ]; then
-        echo "${TASKPROBE_WHITELIST_FILE} not exist. please check ./config dir."
+    if [ ! -f ${GOPHER_PROBES_INIT_FILE} ]; then
+        echo "${GOPHER_PROBES_INIT_FILE} not exist. please check ./config dir."
     fi
 
     # install gala-gopher.conf
@@ -71,9 +89,8 @@ function install_conf()
     fi
     cp -f ${GOPHER_CONF_FILE} ${GOPHER_CONF_TARGET_DIR}
     echo "install ${GOPHER_CONF_FILE} success."
-    cp -f ${TASKPROBE_WHITELIST_FILE} ${GOPHER_CONF_TARGET_DIR}
-    echo "install ${TASKPROBE_WHITELIST_FILE} success."
-
+    cp -f ${GOPHER_PROBES_INIT_FILE} ${GOPHER_CONF_TARGET_DIR}
+    echo "install ${GOPHER_PROBES_INIT_FILE} success."
 }
 
 function install_res()
@@ -120,8 +137,35 @@ function install_meta()
     do
         cp ${file} ${GOPHER_META_DIR}
     done
-    echo "install meta file success."
 
+    echo "install meta file success."
+}
+
+function install_btf()
+{
+    GOPHER_BTF_DIR=/opt/gala-gopher/btf
+
+    __create_btf_cache
+
+    if [ $# -eq 1 ]; then
+        GOPHER_BTF_DIR=$1/btf
+    fi
+
+    rm -rf ${GOPHER_BTF_DIR}/*.btf
+
+    cd ${PROJECT_FOLDER}
+
+    # install btf files
+    if [ ! -d ${GOPHER_BTF_DIR} ]; then
+        mkdir -p ${GOPHER_BTF_DIR}
+    fi
+    BTF_FILES=`find ${BTF_CACHE} -name "*.btf"`
+    for file in ${BTF_FILES}
+    do
+        cp ${file} ${GOPHER_BTF_DIR}
+    done
+    __delete_btf_cache
+    echo "install btf files success."
 }
 
 function install_shared_lib()
@@ -141,6 +185,9 @@ function install_shared_lib()
         echo "install lib:" ${SHARED_LIB}
         cp ${SHARED_LIB} ${GOPHER_SHARED_LIB_DIR}
     done
+
+    echo "install lib:" ${JVM_ATTACH_BIN}
+    cp ${JVM_ATTACH_BIN} ${GOPHER_SHARED_LIB_DIR}
 }
 
 function install_extend_probes()
@@ -163,30 +210,31 @@ function install_extend_probes()
     for INSTALL_PATH in ${EXT_PROBE_INSTALL_LIST}
     do
         echo "install path:" ${INSTALL_PATH}
-        ${INSTALL_PATH} -b ${GOPHER_EXTEND_PROBE_DIR} -c ${GOPHER_EXTEND_PROBE_CONF_DIR}
+        sh ${INSTALL_PATH} -b ${GOPHER_EXTEND_PROBE_DIR} -c ${GOPHER_EXTEND_PROBE_CONF_DIR}
     done
 }
 
-
-function install_client_bin()
+function install_script()
 {
-    CLI_BIN_FILE=${PROJECT_FOLDER}/gopher-ctl
-    CLI_BIN_TARGET_DIR=/usr/bin
+    INIT_PROBES_SCRIPT=${PROJECT_FOLDER}/script/init_probes.sh
+    SCRIPT_TARGET_DIR=/usr/libexec/gala-gopher
 
     if [ $# -eq 1 ]; then
-        CLI_BIN_TARGET_DIR=$1
+        SCRIPT_TARGET_DIR=$1
+    fi
+
+    if [ ! -d ${SCRIPT_TARGET_DIR} ]; then
+        mkdir -p ${SCRIPT_TARGET_DIR}
     fi
 
     cd ${PROJECT_FOLDER}
-    if [ ! -f ${CLI_BIN_FILE} ]; then
-        echo "${CLI_BIN_FILE} does not exist. Please check if build success."
+    if [ ! -f ${INIT_PROBES_SCRIPT} ]; then
+        echo "${INIT_PROBES_SCRIPT} does not exist. Please check ./script dir"
         exit 1
     fi
 
-    # install gopher-cli bin
-    cp -f ${CLI_BIN_FILE} ${CLI_BIN_TARGET_DIR}
-    echo "install ${CLI_BIN_FILE} success."
-
+    cp -f ${INIT_PROBES_SCRIPT} ${SCRIPT_TARGET_DIR}
+    echo "install ${INIT_PROBES_SCRIPT} success."
 }
 
 # main process
@@ -197,4 +245,5 @@ install_res $3
 install_meta $2
 install_shared_lib $2
 install_extend_probes $2 $3
-install_client_bin $1
+install_script $4
+install_btf $5

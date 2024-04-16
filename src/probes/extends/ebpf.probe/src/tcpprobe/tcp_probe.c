@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/resource.h>
+#include <time.h>
 
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
@@ -28,8 +29,10 @@
 #endif
 
 #include "bpf.h"
-#include "args.h"
+#include "feat_probe.h"
+#include "ipc.h"
 #include "tcpprobe.h"
+#include "tcp_tracker.h"
 #include "tcp_event.h"
 #include "tcp_tx_rx.skel.h"
 #include "tcp_windows.skel.h"
@@ -38,7 +41,7 @@
 #include "tcp_rate.skel.h"
 #include "tcp_abn.skel.h"
 #include "tcp_link.skel.h"
-#include "tcp_rtt2.skel.h"
+#include "tcp_delay.skel.h"
 
 #define TCP_TBL_ABN     "tcp_abn"
 #define TCP_TBL_SYNRTT  "tcp_srtt"
@@ -47,362 +50,944 @@
 #define TCP_TBL_RATE    "tcp_rate"
 #define TCP_TBL_SOCKBUF "tcp_sockbuf"
 #define TCP_TBL_TXRX    "tcp_tx_rx"
+#define TCP_TBL_DELAY   "proc_flow_perf"
 
-static struct probe_params *g_args = NULL;
-
-static void output_tcp_metrics(void *ctx, int cpu, void *data, u32 size);
-static unsigned int is_load_probe(struct probe_params *args, u32 probe);
-
-static void output_tcp_abn(void *ctx, int cpu, void *data, __u32 size)
+static int is_load_probe(struct tcp_mng_s *tcp_mng, u32 probe_load_flag)
 {
-    u32 sk_drops_delta;
-    u32 lost_out_delta;
-    u32 sacked_out_delta;
-    struct tcp_link_s *link;
-    unsigned char src_ip_str[INET6_ADDRSTRLEN];
-    unsigned char dst_ip_str[INET6_ADDRSTRLEN];
+    if (tcp_mng->ipc_body.probe_range_flags & probe_load_flag) {
+        return 1;
+    }
+    return 0;
+}
 
-    struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
+static void output_tcp_abn(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
+{
+    float retrans_ratio = 0.0;
+    report_tcp_abn_evt(&(tcp_mng->ipc_body.probe_param), tracker);
 
-    report_tcp_abn_evt(g_args, metrics);
-
-    link = &(metrics->link);
-    ip_str(link->family, (unsigned char *)&(link->c_ip), src_ip_str, INET6_ADDRSTRLEN);
-    ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
-
-    sk_drops_delta = (metrics->abn_stats.sk_drops >= metrics->abn_stats.last_time_sk_drops) ?
-        (metrics->abn_stats.sk_drops - metrics->abn_stats.last_time_sk_drops) : metrics->abn_stats.sk_drops;
-
-    lost_out_delta = (metrics->abn_stats.lost_out >= metrics->abn_stats.last_time_lost_out) ?
-        (metrics->abn_stats.lost_out - metrics->abn_stats.last_time_lost_out) : metrics->abn_stats.lost_out;
-
-    sacked_out_delta = (metrics->abn_stats.sacked_out >= metrics->abn_stats.last_time_sacked_out) ?
-        (metrics->abn_stats.sacked_out - metrics->abn_stats.last_time_sacked_out) : metrics->abn_stats.sacked_out;
+    if (tracker->stats[RETRANS] > 0) {
+        retrans_ratio = tracker->stats[SEGS_SENT] == 0 ? 0.00f : (float) ((float) tracker->stats[RETRANS] /
+                                                                          (float) tracker->stats[SEGS_SENT]);
+    }
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u"
-        "|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%d|%d|\n",
+        "|%s|%u|%s|%s|%s|%u|%u"
+        "|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|\n",
         TCP_TBL_ABN,
-        link->tgid,
-        link->role,
-        src_ip_str,
-        dst_ip_str,
-        link->c_port,
-        link->s_port,
-        link->family,
+        tracker->id.tgid,
+        (tracker->id.role == 0) ? "server" : "client",
+        tracker->src_ip,
+        tracker->dst_ip,
+        tracker->id.port,
+        tracker->id.family,
 
-        metrics->abn_stats.total_retrans,
-        metrics->abn_stats.backlog_drops,
-        sk_drops_delta,
-        lost_out_delta,
-        sacked_out_delta,
-        metrics->abn_stats.filter_drops,
-        metrics->abn_stats.tmout,
-        metrics->abn_stats.sndbuf_limit,
-        metrics->abn_stats.rmem_scheduls,
-        metrics->abn_stats.tcp_oom,
-        metrics->abn_stats.send_rsts,
-        metrics->abn_stats.receive_rsts,
-        metrics->abn_stats.sk_err,
-        metrics->abn_stats.sk_err_soft);
+        tracker->stats[RETRANS],
+        tracker->stats[BACKLOG_DROPS],
+        tracker->stats[SK_DROPS],
+        tracker->stats[LOST_OUT],
+        tracker->stats[SACKED_OUT],
+        tracker->stats[FILTER_DROPS],
+        tracker->stats[TIME_OUT],
+        tracker->stats[SNDBUF_LIMIT],
+        tracker->stats[RMEM_SCHEDULES],
+        tracker->stats[TCP_OOM],
+        tracker->stats[SEND_RSTS],
+        tracker->stats[RECEIVE_RSTS],
+        retrans_ratio);
     (void)fflush(stdout);
 }
 
-static void output_tcp_syn_rtt(void *ctx, int cpu, void *data, __u32 size)
+static void output_tcp_syn_rtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
 {
-    struct tcp_link_s *link;
-    unsigned char src_ip_str[INET6_ADDRSTRLEN];
-    unsigned char dst_ip_str[INET6_ADDRSTRLEN];
+    char *syn_srtt_historm = tcp_mng->historms[TCP_HISTORM_RTT_SYN_SRTT];
 
-    struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
+    syn_srtt_historm[0] = 0;
 
-    report_tcp_syn_rtt_evt(g_args, metrics);
+    if (serialize_histo(tracker->syn_srtt_buckets, __MAX_RTT_SIZE, syn_srtt_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
 
-    output_tcp_metrics(ctx, cpu, data, size);
-
-    link = &(metrics->link);
-    ip_str(link->family, (unsigned char *)&(link->c_ip), src_ip_str, INET6_ADDRSTRLEN);
-    ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
+    report_tcp_syn_rtt_evt(&(tcp_mng->ipc_body.probe_param), tracker);
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u"
-        "|%u|\n",
+        "|%s|%u|%s|%s|%s|%u|%u"
+        "|%s|%llu|\n",
         TCP_TBL_SYNRTT,
-        link->tgid,
-        link->role,
-        src_ip_str,
-        dst_ip_str,
-        link->c_port,
-        link->s_port,
-        link->family,
+        tracker->id.tgid,
+        (tracker->id.role == 0) ? "server" : "client",
+        tracker->src_ip,
+        tracker->dst_ip,
+        tracker->id.port,
+        tracker->id.family,
 
-        metrics->srtt_stats.syn_srtt);
+        syn_srtt_historm,
+        tracker->stats[SYN_SRTT_MAX]);
     (void)fflush(stdout);
 }
 
-static void output_tcp_rtt(void *ctx, int cpu, void *data, __u32 size)
+static void output_tcp_rtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
 {
-    struct tcp_link_s *link;
-    unsigned char src_ip_str[INET6_ADDRSTRLEN];
-    unsigned char dst_ip_str[INET6_ADDRSTRLEN];
+    char *srtt_historm = tcp_mng->historms[TCP_HISTORM_RTT_SRTT];
+    char *rcv_rtt_historm = tcp_mng->historms[TCP_HISTORM_RTT_RCV_RTT];
 
-    struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
+    srtt_historm[0] = 0;
+    rcv_rtt_historm[0] = 0;
 
-    link = &(metrics->link);
-    ip_str(link->family, (unsigned char *)&(link->c_ip), src_ip_str, INET6_ADDRSTRLEN);
-    ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
+    if (serialize_histo(tracker->srtt_buckets, __MAX_RTT_SIZE, srtt_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+    if (serialize_histo(tracker->rcv_rtt_buckets, __MAX_RTT_SIZE, rcv_rtt_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u"
-        "|%u|%u|||\n",
+        "|%s|%u|%s|%s|%s|%u|%u"
+        "|%s|%s|\n",
         TCP_TBL_RTT,
-        link->tgid,
-        link->role,
-        src_ip_str,
-        dst_ip_str,
-        link->c_port,
-        link->s_port,
-        link->family,
+        tracker->id.tgid,
+        (tracker->id.role == 0) ? "server" : "client",
+        tracker->src_ip,
+        tracker->dst_ip,
+        tracker->id.port,
+        tracker->id.family,
 
-        metrics->rtt_stats.tcpi_srtt,
-        metrics->rtt_stats.tcpi_rcv_rtt);
+        srtt_historm,
+        rcv_rtt_historm);
     (void)fflush(stdout);
 }
 
-static void output_tcp_rtt2(void *ctx, int cpu, void *data, __u32 size)
+static void output_tcp_txrx(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
 {
-    struct tcp_link_s *link;
-    unsigned char src_ip_str[INET6_ADDRSTRLEN];
-    unsigned char dst_ip_str[INET6_ADDRSTRLEN];
+    (void)fprintf(stdout,
+        "|%s|%u|%s|%s|%s|%u|%u"
+        "|%llu|%llu|%llu|%llu|\n",
+        TCP_TBL_TXRX,
+        tracker->id.tgid,
+        (tracker->id.role == 0) ? "server" : "client",
+        tracker->src_ip,
+        tracker->dst_ip,
+        tracker->id.port,
+        tracker->id.family,
 
-    struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
+        tracker->stats[BYTES_RECV],
+        tracker->stats[BYTES_SENT],
+        tracker->stats[SEGS_RECV],
+        tracker->stats[SEGS_SENT]);
+    (void)fflush(stdout);
+}
 
-    link = &(metrics->link);
-    ip_str(link->family, (unsigned char *)&(link->c_ip), src_ip_str, INET6_ADDRSTRLEN);
-    ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
+static void output_tcp_win(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
+{
+    char *snd_cwnd_historm = tcp_mng->historms[TCP_HISTORM_WIND_SND_CWND];
+    char *not_sent_historm = tcp_mng->historms[TCP_HISTORM_WIND_NOT_SENT];
+    char *not_acked_historm = tcp_mng->historms[TCP_HISTORM_WIND_ACKED];
+    char *reordering_historm = tcp_mng->historms[TCP_HISTORM_WIND_REORDERING];
+    char *snd_wind_historm = tcp_mng->historms[TCP_HISTORM_WIND_SND];
+    char *rcv_wind_historm = tcp_mng->historms[TCP_HISTORM_WIND_RCV];
+    char *avl_snd_wind_historm = tcp_mng->historms[TCP_HISTORM_WIND_AVL_SND];
+
+    snd_cwnd_historm[0] = 0;
+    not_sent_historm[0] = 0;
+    not_acked_historm[0] = 0;
+    reordering_historm[0] = 0;
+    snd_wind_historm[0] = 0;
+    rcv_wind_historm[0] = 0;
+    avl_snd_wind_historm[0] = 0;
+
+    if (serialize_histo(tracker->snd_cwnd_buckets, __MAX_WIND_SIZE, snd_cwnd_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+    if (serialize_histo(tracker->not_sent_buckets, __MAX_WIND_SIZE, not_sent_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+    if (serialize_histo(tracker->not_acked_buckets, __MAX_WIND_SIZE, not_acked_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+    if (serialize_histo(tracker->reordering_buckets, __MAX_WIND_SIZE, reordering_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+    if (serialize_histo(tracker->snd_wnd_buckets, __MAX_WIND_SIZE, snd_wind_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+    if (serialize_histo(tracker->rcv_wnd_buckets, __MAX_WIND_SIZE, rcv_wind_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+    if (serialize_histo(tracker->avl_snd_wnd_buckets, __MAX_WIND_SIZE, avl_snd_wind_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+
+    if (tracker->stats[ZERO_WIN_RX] > 0) {
+        tracker->zero_win_rx_ratio = tracker->stats[BYTES_RECV] == 0 ? 0.00f :
+                                     (float) ((float) tracker->stats[ZERO_WIN_RX] / (float) tracker->stats[BYTES_RECV]);
+    }
+
+    if (tracker->stats[ZERO_WIN_TX] > 0) {
+        tracker->zero_win_tx_ratio = tracker->stats[BYTES_SENT] == 0 ? 0.00f :
+                                     (float) ((float) tracker->stats[ZERO_WIN_TX] / (float) tracker->stats[BYTES_SENT]);
+    }
+
+    report_tcp_win_evt(&(tcp_mng->ipc_body.probe_param), tracker);
 
     (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u||"
-        "|%u|%u|\n",
-        TCP_TBL_RTT,
-        link->tgid,
-        link->role,
-        src_ip_str,
-        dst_ip_str,
-        link->c_port,
-        link->s_port,
-        link->family,
+        "|%s|%u|%s|%s|%s|%u|%u"
+        "|%s|%s|%s|%s|%s|%s|%s"
 
-        metrics->rtt_stats.tcpi_srtt_max,
-        metrics->rtt_stats.tcpi_rcv_rtt_max);
+        "|%llu|%llu"
+
+        "|%.2f|%.2f|\n",
+        TCP_TBL_WIN,
+        tracker->id.tgid,
+        (tracker->id.role == 0) ? "server" : "client",
+        tracker->src_ip,
+        tracker->dst_ip,
+        tracker->id.port,
+        tracker->id.family,
+
+        snd_cwnd_historm,
+        not_sent_historm,
+        not_acked_historm,
+        reordering_historm,
+        snd_wind_historm,
+        rcv_wind_historm,
+        avl_snd_wind_historm,
+
+        tracker->stats[ZERO_WIN_RX],
+        tracker->stats[ZERO_WIN_TX],
+
+        tracker->zero_win_rx_ratio, tracker->zero_win_tx_ratio);
     (void)fflush(stdout);
 }
 
-static void output_tcp_txrx(void *ctx, int cpu, void *data, __u32 size)
+static void output_tcp_rate(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
+{
+    char *rto_historm = tcp_mng->historms[TCP_HISTORM_RTO];
+    char *ato_historm = tcp_mng->historms[TCP_HISTORM_ATO];
+
+    rto_historm[0] = 0;
+    ato_historm[0] = 0;
+
+    if (serialize_histo(tracker->rto_buckets, __MAX_RTO_SIZE, rto_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+    if (serialize_histo(tracker->ato_buckets, __MAX_RTO_SIZE, ato_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+
+    (void)fprintf(stdout,
+        "|%s|%u|%s|%s|%s|%u|%u"
+        "|%s|%s|\n",
+        TCP_TBL_RATE,
+        tracker->id.tgid,
+        (tracker->id.role == 0) ? "server" : "client",
+        tracker->src_ip,
+        tracker->dst_ip,
+        tracker->id.port,
+        tracker->id.family,
+
+        rto_historm, ato_historm);
+    (void)fflush(stdout);
+}
+
+static void output_tcp_sockbuf(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
+{
+    char *rcv_buf_historm = tcp_mng->historms[TCP_HISTORM_SOCKBUF_RCV];
+    char *snd_buf_historm = tcp_mng->historms[TCP_HISTORM_SOCKBUF_SND];
+
+    rcv_buf_historm[0] = 0;
+    snd_buf_historm[0] = 0;
+
+    if (serialize_histo(tracker->rcv_buf_buckets, __MAX_SOCKBUF_SIZE, rcv_buf_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+    if (serialize_histo(tracker->snd_buf_buckets, __MAX_SOCKBUF_SIZE, snd_buf_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+
+    (void)fprintf(stdout,
+        "|%s|%u|%s|%s|%s|%u|%u"
+        "|%s|%s|\n",
+        TCP_TBL_SOCKBUF,
+        tracker->id.tgid,
+        (tracker->id.role == 0) ? "server" : "client",
+        tracker->src_ip,
+        tracker->dst_ip,
+        tracker->id.port,
+        tracker->id.family,
+
+        rcv_buf_historm, snd_buf_historm);
+    (void)fflush(stdout);
+}
+
+static void output_tcp_flow_delay(struct tcp_mng_s *tcp_mng, struct tcp_flow_tracker_s *tracker)
+{
+    char *send_delay_buf = tcp_mng->historms[TCP_HISTORM_DELAY_TX];
+    char *recv_delay_buf = tcp_mng->historms[TCP_HISTORM_DELAY_RX];
+
+    send_delay_buf[0] = 0;
+    recv_delay_buf[0] = 0;
+    if (serialize_histo(tracker->send_delay_buckets, __MAX_DELAY_SIZE, send_delay_buf, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+    if (serialize_histo(tracker->recv_delay_buckets, __MAX_DELAY_SIZE, recv_delay_buf, MAX_HISTO_SERIALIZE_SIZE)) {
+        return;
+    }
+
+    (void)fprintf(stdout,
+        "|%s|%u|%s|%s|%u"
+        "|%s|%s|\n",
+        TCP_TBL_DELAY,
+        tracker->id.tgid,
+        (tracker->id.role == 0) ? "server" : "client",
+        tracker->id.remote_ip,
+        tracker->id.port,
+
+        recv_delay_buf, send_delay_buf);
+    (void)fflush(stdout);
+}
+
+static void reset_tcp_abn_stats(struct tcp_tracker_s *tracker)
+{
+    enum tcp_stats_t tcp_abn_stats_arr[] = {RETRANS, BACKLOG_DROPS, SK_DROPS,
+                                            LOST_OUT, SACKED_OUT, FILTER_DROPS,
+                                            TIME_OUT, SNDBUF_LIMIT, RMEM_SCHEDULES,
+                                            TCP_OOM, SEND_RSTS, RECEIVE_RSTS};
+
+    for (int i = 0; i < sizeof(tcp_abn_stats_arr) / sizeof(tcp_abn_stats_arr[0]); i++) {
+        tracker->stats[tcp_abn_stats_arr[i]] = 0;
+    }
+}
+
+static void reset_tcp_syn_rtt_stats(struct tcp_tracker_s *tracker)
+{
+    histo_bucket_reset(tracker->syn_srtt_buckets, __MAX_RTT_SIZE);
+    tracker->stats[SYN_SRTT_MAX] = 0;
+}
+
+static void reset_tcp_win_stats(struct tcp_tracker_s *tracker)
+{
+    histo_bucket_reset(tracker->snd_wnd_buckets, __MAX_WIND_SIZE);
+    histo_bucket_reset(tracker->rcv_wnd_buckets, __MAX_WIND_SIZE);
+    histo_bucket_reset(tracker->avl_snd_wnd_buckets, __MAX_WIND_SIZE);
+    histo_bucket_reset(tracker->snd_cwnd_buckets, __MAX_WIND_SIZE);
+    histo_bucket_reset(tracker->not_sent_buckets, __MAX_WIND_SIZE);
+    histo_bucket_reset(tracker->not_acked_buckets, __MAX_WIND_SIZE);
+    histo_bucket_reset(tracker->reordering_buckets, __MAX_WIND_SIZE);
+
+    tracker->stats[ZERO_WIN_RX] = 0;
+    tracker->stats[ZERO_WIN_TX] = 0;
+    tracker->zero_win_rx_ratio = 0.0;
+    tracker->zero_win_tx_ratio = 0.0;
+}
+
+static void reset_tcp_rtt_stats(struct tcp_tracker_s *tracker)
+{
+    histo_bucket_reset(tracker->srtt_buckets, __MAX_RTT_SIZE);
+    histo_bucket_reset(tracker->rcv_rtt_buckets, __MAX_RTT_SIZE);
+}
+
+static void reset_tcp_txrx_stats(struct tcp_tracker_s *tracker)
+{
+    tracker->stats[BYTES_RECV] = 0;
+    tracker->stats[BYTES_SENT] = 0;
+    tracker->stats[SEGS_RECV] = 0;
+    tracker->stats[SEGS_SENT] = 0;
+}
+
+static void reset_tcp_sockbuf_stats(struct tcp_tracker_s *tracker)
+{
+    histo_bucket_reset(tracker->snd_buf_buckets, __MAX_SOCKBUF_SIZE);
+    histo_bucket_reset(tracker->rcv_buf_buckets, __MAX_SOCKBUF_SIZE);
+}
+
+static void reset_tcp_rate_stats(struct tcp_tracker_s *tracker)
+{
+    histo_bucket_reset(tracker->rto_buckets, __MAX_RTO_SIZE);
+    histo_bucket_reset(tracker->ato_buckets, __MAX_RTO_SIZE);
+}
+
+static void reset_tcp_flow_tracker_stats(struct tcp_flow_tracker_s *tracker)
+{
+    histo_bucket_reset(tracker->send_delay_buckets, __MAX_DELAY_SIZE);
+    histo_bucket_reset(tracker->recv_delay_buckets, __MAX_DELAY_SIZE);
+    return;
+}
+
+static int output_tcp_metrics(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
+{
+    int outputed = 0;
+    u32 flags = tracker->report_flags & TCP_PROBE_ALL;
+
+    if ((flags & TCP_PROBE_ABN) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_ABNORMAL)) {
+        outputed = 1;
+        output_tcp_abn(tcp_mng, tracker);
+        reset_tcp_abn_stats(tracker);
+    }
+
+    if ((flags & TCP_PROBE_SRTT) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_SRTT)) {
+        outputed = 1;
+        output_tcp_syn_rtt(tcp_mng, tracker);
+        reset_tcp_syn_rtt_stats(tracker);
+    }
+
+    if ((flags & TCP_PROBE_WINDOWS) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_WINDOWS)) {
+        outputed = 1;
+        output_tcp_win(tcp_mng, tracker);
+        reset_tcp_win_stats(tracker);
+    }
+
+    if ((flags & TCP_PROBE_RTT) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_RTT)) {
+        outputed = 1;
+        output_tcp_rtt(tcp_mng, tracker);
+        reset_tcp_rtt_stats(tracker);
+    }
+
+    if ((flags & TCP_PROBE_TXRX) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_STATS)) {
+        outputed = 1;
+        output_tcp_txrx(tcp_mng, tracker);
+        reset_tcp_txrx_stats(tracker);
+    }
+
+    if ((flags & TCP_PROBE_SOCKBUF) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_SOCKBUF)) {
+        outputed = 1;
+        output_tcp_sockbuf(tcp_mng, tracker);
+        reset_tcp_sockbuf_stats(tracker);
+    }
+
+    if ((flags & TCP_PROBE_RATE) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_RATE)) {
+        outputed = 1;
+        output_tcp_rate(tcp_mng, tracker);
+        reset_tcp_rate_stats(tracker);
+    }
+
+    tracker->report_flags = 0;
+    return outputed;
+}
+
+static int output_tcp_flow_metrics(struct tcp_mng_s *tcp_mng, struct tcp_flow_tracker_s *tracker)
+{
+    int need_reset = 0;
+    u32 flags = tracker->report_flags & TCP_PROBE_ALL;
+
+    if ((flags & TCP_PROBE_DELAY) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_DELAY)) {
+        need_reset = 1;
+        output_tcp_flow_delay(tcp_mng, tracker);
+    }
+
+    tracker->report_flags = 0;
+    if (need_reset) {
+        reset_tcp_flow_tracker_stats(tracker);
+    }
+    return need_reset;
+}
+
+#if 1
+
+static void proc_tcp_txrx(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker, const struct tcp_tx_rx *data)
 {
     u32 segs_out_delta, segs_in_delta;
-    struct tcp_link_s *link;
-    unsigned char src_ip_str[INET6_ADDRSTRLEN];
-    unsigned char dst_ip_str[INET6_ADDRSTRLEN];
 
-    struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
+    tracker->stats[BYTES_SENT] += data->tx;
+    tracker->stats[BYTES_RECV] += data->rx;
 
-    link = &(metrics->link);
-    ip_str(link->family, (unsigned char *)&(link->c_ip), src_ip_str, INET6_ADDRSTRLEN);
-    ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
-
-    segs_in_delta = (metrics->tx_rx_stats.segs_in >= metrics->tx_rx_stats.last_time_segs_in) ?
-        (metrics->tx_rx_stats.segs_in - metrics->tx_rx_stats.last_time_segs_in) : metrics->tx_rx_stats.segs_in;
-    segs_out_delta = (metrics->tx_rx_stats.segs_out >= metrics->tx_rx_stats.last_time_segs_out) ?
-        (metrics->tx_rx_stats.segs_out - metrics->tx_rx_stats.last_time_segs_out) : metrics->tx_rx_stats.segs_out;
-
-    (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u"
-        "|%llu|%llu|%u|%u|\n",
-        TCP_TBL_TXRX,
-        link->tgid,
-        link->role,
-        src_ip_str,
-        dst_ip_str,
-        link->c_port,
-        link->s_port,
-        link->family,
-
-        metrics->tx_rx_stats.rx,
-        metrics->tx_rx_stats.tx,
-        segs_in_delta,
-        segs_out_delta);
-    (void)fflush(stdout);
+    segs_in_delta = (data->segs_in >= data->last_time_segs_in) ?
+        (data->segs_in - data->last_time_segs_in) : data->segs_in;
+    segs_out_delta = (data->segs_out >= data->last_time_segs_out) ?
+        (data->segs_out - data->last_time_segs_out) : data->segs_out;
+    tracker->stats[SEGS_SENT] += segs_out_delta;
+    tracker->stats[SEGS_RECV] += segs_in_delta;
+    tracker->report_flags |= TCP_PROBE_TXRX;
+    return;
 }
 
-static void output_tcp_win(void *ctx, int cpu, void *data, __u32 size)
+static void proc_tcp_abnormal(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker, const struct tcp_abn *data)
 {
-    struct tcp_link_s *link;
-    unsigned char src_ip_str[INET6_ADDRSTRLEN];
-    unsigned char dst_ip_str[INET6_ADDRSTRLEN];
+    u32 sk_drops_delta, lost_out_delta, sacked_out_delta;
 
-    struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
+    sk_drops_delta = (data->sk_drops >= data->last_time_sk_drops) ?
+        (data->sk_drops - data->last_time_sk_drops) : data->sk_drops;
 
-    report_tcp_win_evt(g_args, metrics);
+    lost_out_delta = (data->lost_out >= data->last_time_lost_out) ?
+        (data->lost_out - data->last_time_lost_out) : data->lost_out;
 
-    link = &(metrics->link);
-    ip_str(link->family, (unsigned char *)&(link->c_ip), src_ip_str, INET6_ADDRSTRLEN);
-    ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
+    sacked_out_delta = (data->sacked_out >= data->last_time_sacked_out) ?
+        (data->sacked_out - data->last_time_sacked_out) : data->sacked_out;
 
-    (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u"
-        "|%u|%u|%u|%u|%u|%u|%u|\n",
-        TCP_TBL_WIN,
-        link->tgid,
-        link->role,
-        src_ip_str,
-        dst_ip_str,
-        link->c_port,
-        link->s_port,
-        link->family,
-
-        metrics->win_stats.tcpi_snd_cwnd,
-        metrics->win_stats.tcpi_notsent_bytes,
-        metrics->win_stats.tcpi_notack_bytes,
-        metrics->win_stats.tcpi_reordering,
-        metrics->win_stats.tcpi_snd_wnd,
-        metrics->win_stats.tcpi_rcv_wnd,
-        metrics->win_stats.tcpi_avl_snd_wnd);
-    (void)fflush(stdout);
+    tracker->stats[RETRANS] += data->total_retrans;
+    tracker->stats[BACKLOG_DROPS] += data->backlog_drops;
+    tracker->stats[FILTER_DROPS] += data->filter_drops;
+    tracker->stats[SK_DROPS] += sk_drops_delta;
+    tracker->stats[LOST_OUT] += lost_out_delta;
+    tracker->stats[SACKED_OUT] += sacked_out_delta;
+    tracker->stats[TIME_OUT] += data->tmout;
+    tracker->stats[SNDBUF_LIMIT] += data->sndbuf_limit;
+    tracker->stats[RMEM_SCHEDULES] += data->rmem_scheduls;
+    tracker->stats[TCP_OOM] += data->tcp_oom;
+    tracker->stats[SEND_RSTS] += data->send_rsts;
+    tracker->stats[RECEIVE_RSTS] += data->receive_rsts;
+    tracker->report_flags |= TCP_PROBE_ABN;
+    return;
 }
 
-static void output_tcp_rate(void *ctx, int cpu, void *data, __u32 size)
+static void proc_tcp_windows(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker, const struct tcp_windows *data)
 {
-    struct tcp_link_s *link;
-    unsigned char src_ip_str[INET6_ADDRSTRLEN];
-    unsigned char dst_ip_str[INET6_ADDRSTRLEN];
+    (void)histo_bucket_add_value(tracker->snd_wnd_buckets, __MAX_WIND_SIZE, data->tcpi_snd_wnd);
+    (void)histo_bucket_add_value(tracker->rcv_wnd_buckets, __MAX_WIND_SIZE, data->tcpi_rcv_wnd);
+    (void)histo_bucket_add_value(tracker->avl_snd_wnd_buckets, __MAX_WIND_SIZE, data->tcpi_avl_snd_wnd);
+    (void)histo_bucket_add_value(tracker->snd_cwnd_buckets, __MAX_WIND_SIZE, data->tcpi_snd_cwnd);
 
-    struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
+    (void)histo_bucket_add_value(tracker->not_sent_buckets, __MAX_WIND_SIZE, data->tcpi_notsent_bytes);
+    (void)histo_bucket_add_value(tracker->not_acked_buckets, __MAX_WIND_SIZE, data->tcpi_notack_bytes);
+    (void)histo_bucket_add_value(tracker->reordering_buckets, __MAX_WIND_SIZE, data->tcpi_reordering);
 
-    link = &(metrics->link);
-    ip_str(link->family, (unsigned char *)&(link->c_ip), src_ip_str, INET6_ADDRSTRLEN);
-    ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
+    if (data->tcpi_snd_wnd == 0) {
+        tracker->stats[ZERO_WIN_TX]++;
+    }
 
-    (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u"
-        "|%u|%u|%u|%u|%u|%u|%llu|%u|%u|%u|%u|%u|\n",
-        TCP_TBL_RATE,
-        link->tgid,
-        link->role,
-        src_ip_str,
-        dst_ip_str,
-        link->c_port,
-        link->s_port,
-        link->family,
-
-        metrics->rate_stats.tcpi_rto,
-        metrics->rate_stats.tcpi_ato,
-        metrics->rate_stats.tcpi_snd_ssthresh,
-        metrics->rate_stats.tcpi_rcv_ssthresh,
-        metrics->rate_stats.tcpi_advmss,
-        metrics->rate_stats.tcpi_rcv_space,
-        metrics->rate_stats.tcpi_delivery_rate,
-        metrics->rate_stats.tcpi_busy_time,
-        metrics->rate_stats.tcpi_rwnd_limited,
-        metrics->rate_stats.tcpi_sndbuf_limited,
-        metrics->rate_stats.tcpi_pacing_rate,
-        metrics->rate_stats.tcpi_max_pacing_rate);
-    (void)fflush(stdout);
+    if (data->tcpi_rcv_wnd == 0) {
+        tracker->stats[ZERO_WIN_RX]++;
+    }
+    tracker->report_flags |= TCP_PROBE_WINDOWS;
+    return;
 }
 
-static void output_tcp_sockbuf(void *ctx, int cpu, void *data, __u32 size)
+static void proc_tcp_rtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker, const struct tcp_rtt *data)
 {
-    struct tcp_link_s *link;
-    unsigned char src_ip_str[INET6_ADDRSTRLEN];
-    unsigned char dst_ip_str[INET6_ADDRSTRLEN];
-
-    struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
-
-    link = &(metrics->link);
-    ip_str(link->family, (unsigned char *)&(link->c_ip), src_ip_str, INET6_ADDRSTRLEN);
-    ip_str(link->family, (unsigned char *)&(link->s_ip), dst_ip_str, INET6_ADDRSTRLEN);
-
-    (void)fprintf(stdout,
-        "|%s|%u|%u|%s|%s|%u|%u|%u"
-        "|%u|%u|%u|%u|%u|%u|%u|%d|%d|\n",
-        TCP_TBL_SOCKBUF,
-        link->tgid,
-        link->role,
-        src_ip_str,
-        dst_ip_str,
-        link->c_port,
-        link->s_port,
-        link->family,
-
-        metrics->sockbuf_stats.tcpi_sk_err_que_size,
-        metrics->sockbuf_stats.tcpi_sk_rcv_que_size,
-        metrics->sockbuf_stats.tcpi_sk_wri_que_size,
-        metrics->sockbuf_stats.tcpi_sk_backlog_size,
-        metrics->sockbuf_stats.tcpi_sk_omem_size,
-        metrics->sockbuf_stats.tcpi_sk_forward_size,
-        metrics->sockbuf_stats.tcpi_sk_wmem_size,
-        metrics->sockbuf_stats.sk_rcvbuf,
-        metrics->sockbuf_stats.sk_sndbuf);
-    (void)fflush(stdout);
+    (void)histo_bucket_add_value(tracker->srtt_buckets, __MAX_RTT_SIZE, data->tcpi_srtt);
+    (void)histo_bucket_add_value(tracker->rcv_rtt_buckets, __MAX_RTT_SIZE, data->tcpi_rcv_rtt);
+    tracker->report_flags |= TCP_PROBE_RTT;
+    return;
 }
 
-// 由于目前各个子探针数据周期性上报，如果连接down以后会导致部分数据不上报
-// 因而在tcp_link中会捕捉TCP down并上报数据，同时在用户态检查其他flag，有数据则一起上报
-static void output_tcp_metrics(void *ctx, int cpu, void *data, u32 size)
+static void proc_tcp_srtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker, const struct tcp_srtt *data)
 {
-    struct tcp_metrics_s *metrics  = (struct tcp_metrics_s *)data;
-
-    char is_load_txrx, is_load_abn, is_load_win, is_load_rate, is_load_rtt, is_load_sockbuf;
-    short is_load_rtt2;
-
-    is_load_txrx = (char)is_load_probe(g_args, TCP_PROBE_TXRX);
-    is_load_abn = (char)is_load_probe(g_args, TCP_PROBE_ABN);
-    is_load_rate = (char)is_load_probe(g_args, TCP_PROBE_RATE);
-    is_load_win = (char)is_load_probe(g_args, TCP_PROBE_WINDOWS);
-    is_load_rtt = (char)is_load_probe(g_args, TCP_PROBE_RTT);
-    is_load_sockbuf = (char)is_load_probe(g_args, TCP_PROBE_SOCKBUF);
-
-    is_load_rtt2 = (is_load_rtt == 0) ? (short)is_load_probe(g_args, TCP_PROBE_RTT2) : 0;
-
-    u32 flags = metrics->report_flags & TCP_PROBE_ALL;
-
-    if ((flags & TCP_PROBE_ABN) && is_load_abn) {
-        output_tcp_abn(ctx, cpu, data, size);
-    }
-
-    if ((flags & TCP_PROBE_WINDOWS) && is_load_win) {
-        output_tcp_win(ctx, cpu, data, size);
-    }
-
-
-    if ((flags & TCP_PROBE_RTT) && is_load_rtt) {
-        output_tcp_rtt(ctx, cpu, data, size);
-    }
-
-
-    if ((flags & TCP_PROBE_TXRX) && is_load_txrx) {
-        output_tcp_txrx(ctx, cpu, data, size);
-    }
-
-
-    if ((flags & TCP_PROBE_SOCKBUF) && is_load_sockbuf) {
-        output_tcp_sockbuf(ctx, cpu, data, size);
-    }
-
-
-    if ((flags & TCP_PROBE_RATE) && is_load_rate) {
-        output_tcp_rate(ctx, cpu, data, size);
-    }
-
-    if ((flags & TCP_PROBE_RTT2) && is_load_rtt2) {
-        output_tcp_rtt2(ctx, cpu, data, size);
-    }
-
+    (void)histo_bucket_add_value(tracker->syn_srtt_buckets, __MAX_RTT_SIZE, data->syn_srtt);
+    tracker->stats[SYN_SRTT_MAX] = max(tracker->stats[SYN_SRTT_MAX], data->syn_srtt);
+    tracker->report_flags |= TCP_PROBE_SRTT;
+    return;
 }
 
-static unsigned int is_load_probe(struct probe_params *args, u32 probe)
+static void proc_tcp_rate(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker, const struct tcp_rate *data)
 {
-    return args->load_probe & probe;
+    (void)histo_bucket_add_value(tracker->rto_buckets, __MAX_RTO_SIZE, data->tcpi_rto >> 3);
+    (void)histo_bucket_add_value(tracker->ato_buckets, __MAX_RTO_SIZE, data->tcpi_ato >> 3);
+    tracker->report_flags |= TCP_PROBE_RATE;
+    return;
+}
+
+static void proc_tcp_sockbuf(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker, const struct tcp_sockbuf *data)
+{
+    (void)histo_bucket_add_value(tracker->rcv_buf_buckets, __MAX_SOCKBUF_SIZE, data->sk_rcvbuf);
+    (void)histo_bucket_add_value(tracker->snd_buf_buckets, __MAX_SOCKBUF_SIZE, data->sk_sndbuf);
+    tracker->report_flags |= TCP_PROBE_SOCKBUF;
+    return;
+}
+
+static void proc_tcp_flow_delay(struct tcp_mng_s *tcp_mng, struct tcp_flow_tracker_s *tracker,
+    const struct tcp_delay *data)
+{
+    if (data->recv_state == DELAY_SAMP_FINISH) {
+        (void)histo_bucket_add_value(tracker->recv_delay_buckets, __MAX_DELAY_SIZE, data->net_recv_delay);
+    }
+    if (data->send_state == DELAY_SAMP_FINISH) {
+        (void)histo_bucket_add_value(tracker->send_delay_buckets, __MAX_DELAY_SIZE, data->net_send_delay);
+    }
+    tracker->report_flags |= TCP_PROBE_DELAY;
+    return;
+}
+
+static char is_tracker_inactive(struct tcp_tracker_s *tracker)
+{
+#define __INACTIVE_TIME_SECS     (5 * 60)       // 5min
+    time_t current = (time_t)time(NULL);
+    time_t secs;
+
+    if (current > tracker->last_rcv_data) {
+        secs = current - tracker->last_rcv_data;
+        if (secs >= __INACTIVE_TIME_SECS) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static char is_flow_tracker_inactive(struct tcp_flow_tracker_s *tracker)
+{
+#define __INACTIVE_TIME_SECS     (5 * 60)       // 5min
+    time_t current = (time_t)time(NULL);
+    time_t secs;
+
+    if (current > tracker->last_rcv_data) {
+        secs = current - tracker->last_rcv_data;
+        if (secs >= __INACTIVE_TIME_SECS) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static char is_track_tmout(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
+{
+    time_t current = (time_t)time(NULL);
+    time_t secs;
+
+    if (current > tracker->last_report) {
+        secs = current - tracker->last_report;
+        if (secs >= tcp_mng->ipc_body.probe_param.period) {
+            tracker->last_report = current;
+            return 1;
+        }
+    }
+
+    if (current < tracker->last_report) {
+        tracker->last_report = current;
+    }
+
+    return 0;
+}
+
+static char is_flow_track_tmout(struct tcp_mng_s *tcp_mng, struct tcp_flow_tracker_s *tracker)
+{
+    time_t current = (time_t)time(NULL);
+    time_t secs;
+
+    if (current > tracker->last_report) {
+        secs = current - tracker->last_report;
+        if (secs >= tcp_mng->ipc_body.probe_param.period) {
+            tracker->last_report = current;
+            return 1;
+        }
+    }
+
+    if (current < tracker->last_report) {
+        tracker->last_report = current;
+    }
+
+    return 0;
+}
+
+static void process_tcp_tracker_metrics(struct tcp_mng_s *tcp_mng, struct tcp_metrics_s *metrics)
+{
+    struct tcp_tracker_s* tracker = NULL;
+    u32 metrics_flags = metrics->report_flags & TCP_PROBE_ALL;
+
+    tracker = get_tcp_tracker(tcp_mng, (const void *)(&(metrics->link)));
+    if (tracker == NULL) {
+        return;
+    }
+
+    tracker->last_rcv_data = (time_t)time(NULL);
+
+    if (metrics_flags & TCP_PROBE_SRTT) {
+        proc_tcp_srtt(tcp_mng, tracker, (const struct tcp_srtt *)(&(metrics->srtt_stats)));
+    }
+
+    if (metrics_flags & TCP_PROBE_ABN) {
+        proc_tcp_abnormal(tcp_mng, tracker, (const struct tcp_abn *)(&(metrics->abn_stats)));
+    }
+
+    if (metrics_flags & TCP_PROBE_WINDOWS) {
+        proc_tcp_windows(tcp_mng, tracker, (const struct tcp_windows *)(&(metrics->win_stats)));
+    }
+
+    if (metrics_flags & TCP_PROBE_RTT) {
+        proc_tcp_rtt(tcp_mng, tracker, (const struct tcp_rtt *)(&(metrics->rtt_stats)));
+    }
+
+    if (metrics_flags & TCP_PROBE_TXRX) {
+        proc_tcp_txrx(tcp_mng, tracker, (const struct tcp_tx_rx *)(&(metrics->tx_rx_stats)));
+    }
+
+    if (metrics_flags & TCP_PROBE_SOCKBUF) {
+        proc_tcp_sockbuf(tcp_mng, tracker, (const struct tcp_sockbuf *)(&(metrics->sockbuf_stats)));
+    }
+
+    if (metrics_flags & TCP_PROBE_RATE) {
+        proc_tcp_rate(tcp_mng, tracker, (const struct tcp_rate *)(&(metrics->rate_stats)));
+    }
+    return;
+}
+
+static void process_tcp_flow_tracker_metrics(struct tcp_mng_s *tcp_mng, struct tcp_metrics_s *metrics)
+{
+    struct tcp_flow_tracker_s* tracker = NULL;
+    u32 metrics_flags = metrics->report_flags & TCP_PROBE_ALL;
+
+    tracker = get_tcp_flow_tracker(tcp_mng, (const void *)(&(metrics->link)));
+    if (tracker == NULL) {
+        return;
+    }
+
+    tracker->last_rcv_data = (time_t)time(NULL);
+
+    if (metrics_flags & TCP_PROBE_DELAY) {
+        proc_tcp_flow_delay(tcp_mng, tracker, (const struct tcp_delay *)(&(metrics->delay_stats)));
+    }
+    return;
+}
+
+static int proc_tcp_metrics_evt(void *ctx, void *data, u32 size)
+{
+    char *p = data;
+    size_t remain_size = (size_t)size, step_size = sizeof(struct tcp_metrics_s), offset = 0;
+    struct tcp_metrics_s *metrics;
+    struct tcp_mng_s *tcp_mng = ctx;
+
+    do {
+        if (remain_size < step_size) {
+            break;
+        }
+        p = (char *)data + offset;
+        metrics  = (struct tcp_metrics_s *)p;
+
+        process_tcp_tracker_metrics(tcp_mng, metrics);
+        process_tcp_flow_tracker_metrics(tcp_mng, metrics);
+
+        offset += step_size;
+        remain_size -= step_size;
+    } while (1);
+
+    return 0;
+}
+
+#endif
+
+static int tcp_load_probe_sockbuf(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
+{
+    int err;
+    struct bpf_buffer *buffer = NULL;
+
+    __OPEN_PROBE_WITH_OUTPUT(tcp_sockbuf, err, is_load, buffer);
+
+    if (is_load) {
+        __SELECT_RCV_ESTABLISHED_HOOKPOINT(tcp_sockbuf);
+    }
+
+    __LOAD_PROBE(tcp_sockbuf, err, is_load);
+
+    if (is_load) {
+        prog->skels[prog->num].skel = tcp_sockbuf_skel;
+        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_sockbuf_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = tcp_sockbuf_open_opts.btf_custom_path;
+
+        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+        if (err) {
+            ERROR("[TCPPROBE] Open 'tcp_sockbuf' bpf_buffer failed.\n");
+            bpf_buffer__free(buffer);
+            goto err;
+        }
+        prog->buffers[prog->num] = buffer;
+        prog->num++;
+    }
+
+    return 0;
+err:
+    __UNLOAD_PROBE(tcp_sockbuf);
+    return -1;
+}
+
+static int tcp_load_probe_rtt(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
+{
+    int err;
+    struct bpf_buffer *buffer = NULL;
+
+    __OPEN_PROBE_WITH_OUTPUT(tcp_rtt, err, is_load, buffer);
+
+    if (is_load) {
+        __SELECT_RCV_ESTABLISHED_HOOKPOINT(tcp_rtt);
+    }
+
+    __LOAD_PROBE(tcp_rtt, err, is_load);
+
+    if (is_load) {
+        prog->skels[prog->num].skel = tcp_rtt_skel;
+        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_rtt_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = tcp_rtt_open_opts.btf_custom_path;
+
+        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+        if (err) {
+            ERROR("[TCPPROBE] Open 'tcp_rtt' bpf_buffer failed.\n");
+            bpf_buffer__free(buffer);
+            goto err;
+        }
+        prog->buffers[prog->num] = buffer;
+        prog->num++;
+    }
+
+    return 0;
+err:
+    __UNLOAD_PROBE(tcp_rtt);
+    return -1;
+}
+
+static int tcp_load_probe_win(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
+{
+    int err;
+    struct bpf_buffer *buffer = NULL;
+
+    __OPEN_PROBE_WITH_OUTPUT(tcp_windows, err, is_load, buffer);
+
+    if (is_load) {
+        __SELECT_SPACE_ADJUST_HOOKPOINT(tcp_windows);
+    }
+
+    __LOAD_PROBE(tcp_windows, err, is_load);
+
+    if (is_load) {
+        prog->skels[prog->num].skel = tcp_windows_skel;
+        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_windows_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = tcp_windows_open_opts.btf_custom_path;
+
+        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+        if (err) {
+            ERROR("[TCPPROBE] Open 'tcp_windows' bpf_buffer failed.\n");
+            bpf_buffer__free(buffer);
+            goto err;
+        }
+        prog->buffers[prog->num] = buffer;
+        prog->num++;
+    }
+
+    return 0;
+err:
+    __UNLOAD_PROBE(tcp_windows);
+    return -1;
+}
+
+static int tcp_load_probe_rate(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
+{
+    int err;
+    struct bpf_buffer *buffer = NULL;
+
+    __OPEN_PROBE_WITH_OUTPUT(tcp_rate, err, is_load, buffer);
+
+    if (is_load) {
+        __SELECT_SPACE_ADJUST_HOOKPOINT(tcp_rate);
+    }
+
+    __LOAD_PROBE(tcp_rate, err, is_load);
+
+    if (is_load) {
+        prog->skels[prog->num].skel = tcp_rate_skel;
+        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_rate_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = tcp_rate_open_opts.btf_custom_path;
+
+        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+        if (err) {
+            ERROR("[TCPPROBE] Open 'tcp_rate' bpf_buffer failed.\n");
+            bpf_buffer__free(buffer);
+            goto err;
+        }
+        prog->buffers[prog->num] = buffer;
+        prog->num++;
+    }
+
+    return 0;
+err:
+    __UNLOAD_PROBE(tcp_rate);
+    return -1;
+}
+
+static int tcp_load_probe_abn(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
+{
+    int err;
+    struct bpf_buffer *buffer = NULL;
+
+    __OPEN_PROBE_WITH_OUTPUT(tcp_abn, err, is_load, buffer);
+
+    if (is_load) {
+        __SELECT_RCV_ESTABLISHED_HOOKPOINT(tcp_abn);
+        __SELECT_RESET_HOOKPOINTS(tcp_abn);
+
+        PROG_ENABLE_ONLY_IF(tcp_abn, bpf_tcp_write_err, probe_kernel_version() < KERNEL_VERSION(5, 10, 0));
+    }
+
+    __LOAD_PROBE(tcp_abn, err, is_load);
+
+    if (is_load) {
+        prog->skels[prog->num].skel = tcp_abn_skel;
+        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_abn_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = tcp_abn_open_opts.btf_custom_path;
+
+        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+        if (err) {
+            ERROR("[TCPPROBE] Open 'tcp_abn' bpf_buffer failed.\n");
+            bpf_buffer__free(buffer);
+            goto err;
+        }
+        prog->buffers[prog->num] = buffer;
+        prog->num++;
+    }
+
+    return 0;
+err:
+    __UNLOAD_PROBE(tcp_abn);
+    return -1;
+}
+
+static int tcp_load_probe_txrx(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
+{
+    int err;
+    struct bpf_buffer *buffer = NULL;
+
+    __OPEN_LOAD_PROBE_WITH_OUTPUT(tcp_tx_rx, err, is_load, buffer);
+    if (is_load) {
+        prog->skels[prog->num].skel = tcp_tx_rx_skel;
+        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_tx_rx_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = tcp_tx_rx_open_opts.btf_custom_path;
+
+        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+        if (err) {
+            ERROR("[TCPPROBE] Open 'tcp_tx_rx' bpf_buffer failed.\n");
+            bpf_buffer__free(buffer);
+            goto err;
+        }
+        prog->buffers[prog->num] = buffer;
+        prog->num++;
+    }
+
+    return 0;
+err:
+    __UNLOAD_PROBE(tcp_tx_rx);
+    return -1;
+}
+
+static int tcp_load_probe_delay(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
+{
+    int err;
+    struct bpf_buffer *buffer = NULL;
+
+    __OPEN_PROBE_WITH_OUTPUT(tcp_delay, err, is_load, buffer);
+
+    if (is_load) {
+        bool is_const = probe_kernel_version() > KERNEL_VERSION(5, 12, 0);
+        PROG_ENABLE_ONLY_IF(tcp_delay, bpf_constprop_tcp_clean_rtx_queue, is_const);
+        PROG_ENABLE_ONLY_IF(tcp_delay, bpf_tcp_clean_rtx_queue, !is_const);
+        PROG_ENABLE_ONLY_IF(tcp_delay, bpf_tcp_recvmsg, probe_tstamp());
+    }
+
+    __LOAD_PROBE(tcp_delay, err, is_load);
+
+    if (is_load) {
+        prog->skels[prog->num].skel = tcp_delay_skel;
+        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_delay_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = tcp_delay_open_opts.btf_custom_path;
+
+        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+        if (err) {
+            ERROR("[TCPPROBE] Open 'tcp_delay' bpf_buffer failed.\n");
+            bpf_buffer__free(buffer);
+            goto err;
+        }
+        prog->buffers[prog->num] = buffer;
+        prog->num++;
+    }
+
+    return 0;
+err:
+    __UNLOAD_PROBE(tcp_delay);
+    return -1;
 }
 
 static void load_args(int args_fd, struct probe_params* params)
@@ -410,281 +995,153 @@ static void load_args(int args_fd, struct probe_params* params)
     u32 key = 0;
     struct tcp_args_s args = {0};
 
-    args.cport_flag = (u32)params->cport_flag;
-    args.period = NS(params->period);
-    args.filter_by_task = (u32)params->filter_task_probe;
-    args.filter_by_tgid = (u32)params->filter_pid;
+    args.sample_period = MS2NS(params->sample_period);
 
     (void)bpf_map_update_elem(args_fd, &key, &args, BPF_ANY);
 }
 
-static int tcp_load_probe_sockbuf(struct bpf_prog_s *prog, char is_load)
+static int tcp_load_probe_link(struct tcp_mng_s *tcp_mng, struct probe_params *args, struct bpf_prog_s *prog)
 {
-    int fd;
-    struct perf_buffer *pb = NULL;
+    int err;
+    struct bpf_buffer *buffer = NULL;
 
-    __LOAD_PROBE(tcp_sockbuf, err, is_load);
-    if (is_load) {
-        prog->skels[prog->num].skel = tcp_sockbuf_skel;
-        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_sockbuf_bpf__destroy;
-
-        fd = GET_MAP_FD(tcp_sockbuf, tcp_output);
-        pb = create_pref_buffer(fd, output_tcp_sockbuf);
-        if (pb == NULL) {
-            ERROR("[TCPPROBE] Crate 'tcp_sockbuf' perf buffer failed.\n");
-            goto err;
-        }
-        prog->pbs[prog->num] = pb;
-        prog->num++;
-    }
-
-    return 0;
-err:
-    UNLOAD(tcp_sockbuf);
-    return -1;
-}
-
-static int tcp_load_probe_rtt(struct bpf_prog_s *prog, char is_load)
-{
-    int fd;
-    struct perf_buffer *pb = NULL;
-
-    __LOAD_PROBE(tcp_rtt, err, is_load);
-    if (is_load) {
-        prog->skels[prog->num].skel = tcp_rtt_skel;
-        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_rtt_bpf__destroy;
-
-        fd = GET_MAP_FD(tcp_rtt, tcp_output);
-        pb = create_pref_buffer(fd, output_tcp_rtt);
-        if (pb == NULL) {
-            ERROR("[TCPPROBE] Crate 'tcp_rtt' perf buffer failed.\n");
-            goto err;
-        }
-        prog->pbs[prog->num] = pb;
-        prog->num++;
-    }
-
-    return 0;
-err:
-    UNLOAD(tcp_rtt);
-    return -1;
-}
-
-static int tcp_load_probe_rtt2(struct bpf_prog_s *prog, short is_load)
-{
-    int fd;
-    struct perf_buffer *pb = NULL;
-
-    __LOAD_PROBE(tcp_rtt2, err, is_load);
-    if (is_load) {
-        prog->skels[prog->num].skel = tcp_rtt2_skel;
-        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_rtt2_bpf__destroy;
-
-        fd = GET_MAP_FD(tcp_rtt2, tcp_output);
-        pb = create_pref_buffer(fd, output_tcp_rtt2);
-        if (pb == NULL) {
-            ERROR("[TCPPROBE] Crate 'tcp_rtt2' perf buffer failed.\n");
-            goto err;
-        }
-        prog->pbs[prog->num] = pb;
-        prog->num++;
-    }
-
-    return 0;
-err:
-    UNLOAD(tcp_rtt2);
-    return -1;
-}
-
-static int tcp_load_probe_win(struct bpf_prog_s *prog, char is_load)
-{
-    int fd;
-    struct perf_buffer *pb = NULL;
-
-    __LOAD_PROBE(tcp_windows, err, is_load);
-    if (is_load) {
-        prog->skels[prog->num].skel = tcp_windows_skel;
-        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_windows_bpf__destroy;
-
-        fd = GET_MAP_FD(tcp_windows, tcp_output);
-        pb = create_pref_buffer(fd, output_tcp_win);
-        if (pb == NULL) {
-            ERROR("[TCPPROBE] Crate 'tcp_windows' perf buffer failed.\n");
-            goto err;
-        }
-        prog->pbs[prog->num] = pb;
-        prog->num++;
-    }
-
-    return 0;
-err:
-    UNLOAD(tcp_windows);
-    return -1;
-}
-
-static int tcp_load_probe_rate(struct bpf_prog_s *prog, char is_load)
-{
-    int fd;
-    struct perf_buffer *pb = NULL;
-
-    __LOAD_PROBE(tcp_rate, err, is_load);
-    if (is_load) {
-        prog->skels[prog->num].skel = tcp_rate_skel;
-        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_rate_bpf__destroy;
-
-        fd = GET_MAP_FD(tcp_rate, tcp_output);
-        pb = create_pref_buffer(fd, output_tcp_rate);
-        if (pb == NULL) {
-            ERROR("[TCPPROBE] Crate 'tcp_rate' perf buffer failed.\n");
-            goto err;
-        }
-        prog->pbs[prog->num] = pb;
-        prog->num++;
-    }
-
-    return 0;
-err:
-    UNLOAD(tcp_rate);
-    return -1;
-}
-
-static int tcp_load_probe_abn(struct bpf_prog_s *prog, char is_load)
-{
-    int fd;
-    struct perf_buffer *pb = NULL;
-
-    __LOAD_PROBE(tcp_abn, err, is_load);
-    if (is_load) {
-        prog->skels[prog->num].skel = tcp_abn_skel;
-        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_abn_bpf__destroy;
-
-        fd = GET_MAP_FD(tcp_abn, tcp_output);
-        pb = create_pref_buffer(fd, output_tcp_abn);
-        if (pb == NULL) {
-            ERROR("[TCPPROBE] Crate 'tcp_abn' perf buffer failed.\n");
-            goto err;
-        }
-        prog->pbs[prog->num] = pb;
-        prog->num++;
-    }
-
-    return 0;
-err:
-    UNLOAD(tcp_abn);
-    return -1;
-}
-
-static int tcp_load_probe_txrx(struct bpf_prog_s *prog, char is_load)
-{
-    int fd;
-    struct perf_buffer *pb = NULL;
-
-    __LOAD_PROBE(tcp_tx_rx, err, is_load);
-    if (is_load) {
-        prog->skels[prog->num].skel = tcp_tx_rx_skel;
-        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_tx_rx_bpf__destroy;
-
-        fd = GET_MAP_FD(tcp_tx_rx, tcp_output);
-        pb = create_pref_buffer(fd, output_tcp_txrx);
-        if (pb == NULL) {
-            ERROR("[TCPPROBE] Crate 'tcp_tx_rx' perf buffer failed.\n");
-            goto err;
-        }
-        prog->pbs[prog->num] = pb;
-        prog->num++;
-    }
-
-    return 0;
-err:
-    UNLOAD(tcp_tx_rx);
-    return -1;
-}
-
-static int tcp_load_probe_link(struct probe_params *args, struct bpf_prog_s *prog)
-{
-    int fd;
-    struct perf_buffer *pb = NULL;
-
+    __OPEN_PROBE_WITH_OUTPUT(tcp_link, err, 1, buffer);
+    __SELECT_DESTROY_SOCK_HOOKPOINT(tcp_link);
     __LOAD_PROBE(tcp_link, err, 1);
+
     prog->skels[prog->num].skel = tcp_link_skel;
     prog->skels[prog->num].fn = (skel_destroy_fn)tcp_link_bpf__destroy;
+    prog->custom_btf_paths[prog->num] = tcp_link_open_opts.btf_custom_path;
 
-    fd = GET_MAP_FD(tcp_link, tcp_output);
-    pb = create_pref_buffer(fd, output_tcp_syn_rtt);
-    if (pb == NULL) {
-        ERROR("[TCPPROBE] Crate 'tcp_link' perf buffer failed.\n");
+    err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+    if (err) {
+        ERROR("[TCPPROBE] Open 'tcp_link' bpf_buffer failed.\n");
+        bpf_buffer__free(buffer);
         goto err;
     }
-    prog->pbs[prog->num] = pb;
+    prog->buffers[prog->num] = buffer;
     prog->num++;
 
     load_args(GET_MAP_FD(tcp_link, args_map), args);
 
     return 0;
 err:
-    UNLOAD(tcp_link);
+    __UNLOAD_PROBE(tcp_link);
     return -1;
 }
 
-struct bpf_prog_s* tcp_load_probe(struct probe_params *args)
+int tcp_load_probe(struct tcp_mng_s *tcp_mng, struct ipc_body_s *ipc_body, struct bpf_prog_s **new_prog)
 {
+    char is_load = 0;
     struct bpf_prog_s *prog;
-    char is_load_txrx, is_load_abn, is_load_win, is_load_rate, is_load_rtt, is_load_sockbuf;
-    short is_load_rtt2;
+    char is_load_txrx, is_load_abn, is_load_win, is_load_rate, is_load_rtt, is_load_sockbuf, is_load_delay;
 
-    is_load_txrx = (char)is_load_probe(args, TCP_PROBE_TXRX);
-    is_load_abn = (char)is_load_probe(args, TCP_PROBE_ABN);
-    is_load_rate = (char)is_load_probe(args, TCP_PROBE_RATE);
-    is_load_win = (char)is_load_probe(args, TCP_PROBE_WINDOWS);
-    is_load_rtt = (char)is_load_probe(args, TCP_PROBE_RTT);
-    is_load_sockbuf = (char)is_load_probe(args, TCP_PROBE_SOCKBUF);
-    // tcp_rtt and tcp_rtt2 only one takes effect at same time, default tcp_rtt takes effect
-    is_load_rtt2 = (is_load_rtt == 0) ? (short)is_load_probe(args, TCP_PROBE_RTT2) : 0;
+    is_load_txrx = ipc_body->probe_range_flags & PROBE_RANGE_TCP_STATS;
+    is_load_abn = ipc_body->probe_range_flags & PROBE_RANGE_TCP_ABNORMAL;
+    is_load_rate = ipc_body->probe_range_flags & PROBE_RANGE_TCP_RATE;
+    is_load_win = ipc_body->probe_range_flags & PROBE_RANGE_TCP_WINDOWS;
+    is_load_rtt = ipc_body->probe_range_flags & PROBE_RANGE_TCP_RTT;
+    is_load_sockbuf = ipc_body->probe_range_flags & PROBE_RANGE_TCP_SOCKBUF;
+    is_load_delay = ipc_body->probe_range_flags & PROBE_RANGE_TCP_DELAY;
 
-    g_args = args;
+    is_load = is_load_txrx | is_load_abn | is_load_rate | is_load_win | is_load_rtt | is_load_sockbuf | is_load_delay;
+    if (!is_load) {
+        return 0;
+    }
 
     prog = alloc_bpf_prog();
     if (prog == NULL) {
-        return NULL;
+        return -1;
     }
 
-    if (tcp_load_probe_link(args, prog)) {
+    if (tcp_load_probe_link(tcp_mng, &(ipc_body->probe_param), prog)) {
         goto err;
     }
 
-    if (tcp_load_probe_txrx(prog, is_load_txrx)) {
+    if (tcp_load_probe_txrx(tcp_mng, prog, is_load_txrx)) {
         goto err;
     }
 
-    if (tcp_load_probe_abn(prog, is_load_abn)) {
+    if (tcp_load_probe_abn(tcp_mng, prog, is_load_abn)) {
         goto err;
     }
 
-    if (tcp_load_probe_rate(prog, is_load_rate)) {
+    if (tcp_load_probe_rate(tcp_mng, prog, is_load_rate)) {
         goto err;
     }
 
-    if (tcp_load_probe_win(prog, is_load_win)) {
+    if (tcp_load_probe_win(tcp_mng, prog, is_load_win)) {
         goto err;
     }
 
-    if (tcp_load_probe_rtt(prog, is_load_rtt)) {
+    if (tcp_load_probe_rtt(tcp_mng, prog, is_load_rtt)) {
         goto err;
     }
 
-    if (tcp_load_probe_sockbuf(prog, is_load_sockbuf)) {
+    if (tcp_load_probe_sockbuf(tcp_mng, prog, is_load_sockbuf)) {
         goto err;
     }
 
-    if (tcp_load_probe_rtt2(prog, is_load_rtt2)) {
+    if (tcp_load_probe_delay(tcp_mng, prog, is_load_delay)) {
         goto err;
     }
 
-    return prog;
+    INFO("[TCPPROBE]: Successfully load ebpf prog.\n");
+    *new_prog = prog;
+    return 0;
 
 err:
-
     unload_bpf_prog(&prog);
-    return NULL;
+    return -1;
 }
 
+void aging_tcp_trackers(struct tcp_mng_s *tcp_mng)
+{
+    struct tcp_tracker_s *tracker, *tmp;
+
+    H_ITER(tcp_mng->trackers, tracker, tmp) {
+        if (is_tracker_inactive(tracker)) {
+            H_DEL(tcp_mng->trackers, tracker);
+            destroy_tcp_tracker(tracker);
+            tcp_mng->tcp_tracker_count--;
+        }
+    }
+}
+
+void aging_tcp_flow_trackers(struct tcp_mng_s *tcp_mng)
+{
+    struct tcp_flow_tracker_s *tracker, *tmp;
+
+    H_ITER(tcp_mng->flow_trackers, tracker, tmp) {
+        if (is_flow_tracker_inactive(tracker)) {
+            H_DEL(tcp_mng->flow_trackers, tracker);
+            destroy_tcp_flow_tracker(tracker);
+            tcp_mng->tcp_flow_tracker_count--;
+        }
+    }
+}
+
+#define __STEP (200)
+void scan_tcp_trackers(struct tcp_mng_s *tcp_mng)
+{
+    int count = 0;
+    struct tcp_tracker_s *tracker, *tmp;
+
+    H_ITER(tcp_mng->trackers, tracker, tmp) {
+        if ((count < __STEP) && is_track_tmout(tcp_mng, tracker)) {
+            count += output_tcp_metrics(tcp_mng, tracker);
+        }
+    }
+}
+
+void scan_tcp_flow_trackers(struct tcp_mng_s *tcp_mng)
+{
+    int count = 0;
+    struct tcp_flow_tracker_s *tracker, *tmp;
+
+    H_ITER(tcp_mng->flow_trackers, tracker, tmp) {
+        if ((count < __STEP) && is_flow_track_tmout(tcp_mng, tracker)) {
+            count += output_tcp_flow_metrics(tcp_mng, tracker);
+        }
+    }
+}

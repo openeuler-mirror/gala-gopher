@@ -52,29 +52,23 @@ ConfigMgr *ConfigMgrCreate(void)
     }
     memset(mgr->kafkaConfig, 0, sizeof(KafkaConfig));
 
-    mgr->probesConfig = (ProbesConfig *)malloc(sizeof(ProbesConfig));
-    if (mgr->probesConfig == NULL) {
-        goto ERR;
-    }
-    memset(mgr->probesConfig, 0, sizeof(ProbesConfig));
-
-    mgr->extendProbesConfig = (ExtendProbesConfig *)malloc(sizeof(ExtendProbesConfig));
-    if (mgr->extendProbesConfig == NULL) {
-        goto ERR;
-    }
-    memset(mgr->extendProbesConfig, 0, sizeof(ExtendProbesConfig));
-
     mgr->imdbConfig = (IMDBConfig *)malloc(sizeof(IMDBConfig));
     if (mgr->imdbConfig == NULL) {
         goto ERR;
     }
     memset(mgr->imdbConfig, 0, sizeof(IMDBConfig));
 
-    mgr->webServerConfig = (WebServerConfig *)malloc(sizeof(WebServerConfig));
+    mgr->webServerConfig = (HttpServerConfig *)malloc(sizeof(HttpServerConfig));
     if (mgr->webServerConfig == NULL) {
         goto ERR;
     }
-    memset(mgr->webServerConfig, 0, sizeof(WebServerConfig));
+    memset(mgr->webServerConfig, 0, sizeof(HttpServerConfig));
+
+    mgr->restServerConfig = (HttpServerConfig *)malloc(sizeof(HttpServerConfig));
+    if (mgr->restServerConfig == NULL) {
+        goto ERR;
+    }
+    memset(mgr->restServerConfig, 0, sizeof(HttpServerConfig));
 
     mgr->logsConfig = (LogsConfig *)malloc(sizeof(LogsConfig));
     if (mgr->logsConfig == NULL) {
@@ -120,30 +114,16 @@ void ConfigMgrDestroy(ConfigMgr *mgr)
         free(mgr->kafkaConfig);
     }
 
-    if (mgr->probesConfig != NULL) {
-        for (int i = 0; i < mgr->probesConfig->probesNum; i++) {
-            if (mgr->probesConfig->probesConfig[i] != NULL) {
-                free(mgr->probesConfig->probesConfig[i]);
-            }
-        }
-        free(mgr->probesConfig);
-    }
-
-    if (mgr->extendProbesConfig != NULL) {
-        for (int i = 0; i < mgr->extendProbesConfig->probesNum; i++) {
-            if (mgr->extendProbesConfig->probesConfig[i] != NULL) {
-                free(mgr->extendProbesConfig->probesConfig[i]);
-            }
-        }
-        free(mgr->extendProbesConfig);
-    }
-
     if (mgr->imdbConfig != NULL) {
         free(mgr->imdbConfig);
     }
 
     if (mgr->webServerConfig != NULL) {
         free(mgr->webServerConfig);
+    }
+
+    if (mgr->restServerConfig != NULL) {
+        free(mgr->restServerConfig);
     }
 
     if (mgr->logsConfig != NULL) {
@@ -178,7 +158,7 @@ static int ConfigMgrLoadGlobalConfig(void *config, config_setting_t *settings)
         return -1;
     }
 
-    (void)strncpy(globalConfig->logFileName, strVal, PATH_LEN - 1);
+    (void)snprintf(globalConfig->logFileName, sizeof(globalConfig->logFileName), "%s", strVal);
 
     ret = config_setting_lookup_string(settings, "log_level", &strVal);
     if (ret == 0) {
@@ -187,16 +167,10 @@ static int ConfigMgrLoadGlobalConfig(void *config, config_setting_t *settings)
     }
     (void)snprintf(globalConfig->logLevel, sizeof(globalConfig->logLevel), "%s", strVal);
 
-    ret = config_setting_lookup_string(settings, "pin_path", &strVal);
-    if (ret == 0) {
-        ERROR("[CONFIG] load config for pin path failed.\n");
-        return -1;
-    }
-
-    (void)strncpy(globalConfig->bpfPinPath, strVal, MAX_PIN_PATH_LEN - 1);
     return 0;
 }
 
+#if 0
 static int ConfigMgrLoadIngressConfig(void *config, config_setting_t *settings)
 {
     IngressConfig *ingressConfig = (IngressConfig *)config;
@@ -235,23 +209,24 @@ static int ConfigMgrLoadEgressConfig(void *config, config_setting_t *settings)
 
     return 0;
 }
+#endif
 
 static int ConfigMgrLoadKafkaConfig(void *config, config_setting_t *settings)
 {
     KafkaConfig *kafkaConfig = (KafkaConfig *)config;
     uint32_t ret = 0;
     const char *strVal = NULL;
-    uint32_t intVal = 0;
+    int intVal = 0;
 
     ret = config_setting_lookup_string(settings, "kafka_broker", &strVal);
     if (ret == 0) {
         ERROR("[CONFIG] load config for kafka_broker failed.\n");
         return -1;
     }
-    (void)strncpy(kafkaConfig->broker, strVal, MAX_KAFKA_BROKER_LEN - 1);
+    (void)snprintf(kafkaConfig->broker, sizeof(kafkaConfig->broker), "%s", strVal);
 
     ret = config_setting_lookup_int(settings, "batch_num_messages", &intVal);
-    if (ret == 0) {
+    if (ret == 0 || intVal <= 0) {
         ERROR("[CONFIG] load config for batch.num.messages failed.\n");
         return -1;
     }
@@ -262,24 +237,24 @@ static int ConfigMgrLoadKafkaConfig(void *config, config_setting_t *settings)
         ERROR("[CONFIG] load config for compression.codec failed.\n");
         return -1;
     }
-    (void)strncpy(kafkaConfig->compressionCodec, strVal, KAFKA_COMPRESSION_CODEC_LEN - 1);
+    (void)snprintf(kafkaConfig->compressionCodec, sizeof(kafkaConfig->compressionCodec), "%s", strVal);
 
     ret = config_setting_lookup_int(settings, "queue_buffering_max_messages", &intVal);
-    if (ret == 0) {
+    if (ret == 0 || intVal <= 0) {
         ERROR("[CONFIG] load config for queue.buffering.max.messages failed.\n");
         return -1;
     }
     kafkaConfig->queueBufferingMaxMessages = intVal;
 
     ret = config_setting_lookup_int(settings, "queue_buffering_max_kbytes", &intVal);
-    if (ret == 0) {
+    if (ret == 0 || intVal <= 0) {
         ERROR("[CONFIG] load config for queue.buffering.max.kbytes failed.\n");
         return -1;
     }
     kafkaConfig->queueBufferingMaxKbytes = intVal;
 
     ret = config_setting_lookup_int(settings, "queue_buffering_max_ms", &intVal);
-    if (ret == 0) {
+    if (ret == 0 || intVal <= 0) {
         ERROR("[CONFIG] load config for queue.buffering.max.ms failed.\n");
         return -1;
     }
@@ -288,171 +263,35 @@ static int ConfigMgrLoadKafkaConfig(void *config, config_setting_t *settings)
     return 0;
 }
 
-static int ConfigMgrLoadProbesConfig(void *config, config_setting_t *settings)
-{
-    ProbesConfig *probesConfig = (ProbesConfig *)config;
-    uint32_t ret = 0;
-    int count = 0;
-    const char *strVal = NULL;
-    uint32_t intVal = 0;
-
-    count = config_setting_length(settings);
-    for (int i = 0; i < count; i++) {
-        if (probesConfig->probesNum == MAX_PROBES_NUM) {
-            ERROR("[CONFIG] probesConfig list full.\n");
-            return -1;
-        }
-        config_setting_t *_probe = config_setting_get_elem(settings, i);
-
-        ProbeConfig *_probeConfig = (ProbeConfig *)malloc(sizeof(ProbeConfig));
-        if (_probeConfig == NULL) {
-            ERROR("[CONFIG] failed to malloc memory for ProbeConfig \n");
-            return -1;
-        }
-        memset(_probeConfig, 0, sizeof(ProbeConfig));
-        probesConfig->probesConfig[probesConfig->probesNum] = _probeConfig;
-        probesConfig->probesNum++;
-
-        ret = config_setting_lookup_string(_probe, "name", &strVal);
-        if (ret == 0) {
-            ERROR("[CONFIG] load config for probe name failed.\n");
-            return -1;
-        }
-        (void)strncpy(_probeConfig->name, strVal, MAX_PROBE_NAME_LEN - 1);
-
-        ret = config_setting_lookup_string(_probe, "param", &strVal);
-        if (ret == 0) {
-            ERROR("[CONFIG] load config for probe param failed.\n");
-            return -1;
-        }
-        (void)strncpy(_probeConfig->param, strVal, MAX_PARAM_LEN - 1);
-
-        ret = config_setting_lookup_string(_probe, "switch", &strVal);
-        if (ret == 0) {
-            ERROR("[CONFIG] load config for probe switch failed.\n");
-            return -1;
-        }
-        if (strcmp(strVal, "auto") == 0) {
-            _probeConfig->probeSwitch = PROBE_SWITCH_AUTO;
-        } else if (strcmp(strVal, "on") == 0) {
-            _probeConfig->probeSwitch = PROBE_SWITCH_ON;
-        } else {
-            _probeConfig->probeSwitch = PROBE_SWITCH_OFF;
-        }
-    }
-
-    return 0;
-}
-
-static int ConfigMgrLoadExtendProbesConfig(void *config, config_setting_t *settings)
-{
-    ExtendProbesConfig *probesConfig = (ExtendProbesConfig *)config;
-    uint32_t ret = 0;
-    int count = 0;
-    const char *strVal = NULL;
-    int intVal = 0;
-
-    count = config_setting_length(settings);
-    for (int i = 0; i < count; i++) {
-        if (probesConfig->probesNum == MAX_EXTEND_PROBES_NUM) {
-            ERROR("[CONFIG] extendProbesConfig list full.\n");
-            return -1;
-        }
-        config_setting_t *_probe = config_setting_get_elem(settings, i);
-
-        ExtendProbeConfig *_probeConfig = (ExtendProbeConfig *)malloc(sizeof(ExtendProbeConfig));
-        if (_probeConfig == NULL) {
-            ERROR("[CONFIG] failed to malloc memory for ExtendProbeConfig \n");
-            return -1;
-        }
-        memset(_probeConfig, 0, sizeof(ExtendProbeConfig));
-        probesConfig->probesConfig[probesConfig->probesNum] = _probeConfig;
-        probesConfig->probesNum++;
-
-        ret = config_setting_lookup_string(_probe, "name", &strVal);
-        if (ret == 0) {
-            ERROR("[CONFIG] load config for extend probe name failed.\n");
-            return -1;
-        }
-        (void)strncpy(_probeConfig->name, strVal, MAX_PROBE_NAME_LEN - 1);
-
-        ret = config_setting_lookup_string(_probe, "command", &strVal);
-        if (ret == 0) {
-            ERROR("[CONFIG] load config for extend probe command failed.\n");
-            return -1;
-        }
-        (void)strncpy(_probeConfig->command, strVal, MAX_EXTEND_PROBE_COMMAND_LEN - 1);
-
-        ret = config_setting_lookup_string(_probe, "param", &strVal);
-        if (ret == 0) {
-            ERROR("[CONFIG] load config for extend probe param failed.\n");
-            return -1;
-        }
-        (void)strncpy(_probeConfig->param, strVal, MAX_PARAM_LEN - 1);
-
-        ret = config_setting_lookup_string(_probe, "switch", &strVal);
-        if (ret == 0) {
-            ERROR("[CONFIG] load config for extend probe switch failed.\n");
-            return -1;
-        }
-        if (strcmp(strVal, "auto") == 0) {
-            _probeConfig->probeSwitch = PROBE_SWITCH_AUTO;
-        } else if (strcmp(strVal, "on") == 0) {
-            _probeConfig->probeSwitch = PROBE_SWITCH_ON;
-        } else {
-            _probeConfig->probeSwitch = PROBE_SWITCH_OFF;
-        }
-
-        if (_probeConfig->probeSwitch != PROBE_SWITCH_AUTO) {
-            continue;
-        }
-        /* probe satrt check param -- not necessary */
-        _probeConfig->startChkType = PROBE_CHK_MAX;
-        ret = config_setting_lookup_string(_probe, "start_check", &strVal);
-        if (ret == 0) {
-            continue;
-        }
-        (void)strncpy(_probeConfig->startChkCmd, strVal, MAX_EXTEND_PROBE_COMMAND_LEN - 1);
-
-        ret = config_setting_lookup_string(_probe, "check_type", &strVal);
-        if (ret != 0 && strcmp(strVal, "count") == 0) {
-            _probeConfig->startChkType = PROBE_CHK_CNT;
-        }
-    }
-
-    return 0;
-}
-
-
 static int ConfigMgrLoadIMDBConfig(void *config, config_setting_t *settings)
 {
     IMDBConfig *imdbConfig = (IMDBConfig *)config;
     uint32_t ret = 0;
-    uint32_t intVal = 0;
+    int intVal = 0;
 
     ret = config_setting_lookup_int(settings, "max_tables_num", &intVal);
-    if (ret == 0) {
+    if (ret == 0 || intVal <= 0) {
         ERROR("[CONFIG] load config for imdbConfig max_tables_num failed.\n");
         return -1;
     }
     imdbConfig->maxTablesNum = intVal;
 
     ret = config_setting_lookup_int(settings, "max_records_num", &intVal);
-    if (ret == 0) {
+    if (ret == 0 || intVal <= 0) {
         ERROR("[CONFIG] load config for imdbConfig max_records_num failed.\n");
         return -1;
     }
     imdbConfig->maxRecordsNum = intVal;
 
     ret = config_setting_lookup_int(settings, "max_metrics_num", &intVal);
-    if (ret == 0) {
+    if (ret == 0 || intVal <= 0) {
         ERROR("[CONFIG] load config for imdbConfig max_metrics_num failed.\n");
         return -1;
     }
     imdbConfig->maxMetricsNum = intVal;
 
     ret = config_setting_lookup_int(settings, "record_timeout", &intVal);
-    if (ret == 0) {
+    if (ret == 0 || intVal <= 0) {
         ERROR("[CONFIG] load config for imdbConfig record_timeout failed, use default setting instead.\n");
     } else {
         imdbConfig->recordTimeout = intVal;
@@ -463,17 +302,109 @@ static int ConfigMgrLoadIMDBConfig(void *config, config_setting_t *settings)
 
 static int ConfigMgrLoadWebServerConfig(void *config, config_setting_t *settings)
 {
-    WebServerConfig *webServerConfig = (WebServerConfig *)config;
+    HttpServerConfig *webServerConfig = (HttpServerConfig *)config;
     uint32_t ret = 0;
     const char *strVal = NULL;
     int intVal = 0;
 
     ret = config_setting_lookup_int(settings, "port", &intVal);
-    if (ret == 0) {
+    if (ret == 0 || intVal <= 0) {
         ERROR("[CONFIG] load config for webServerConfig port failed.\n");
         return -1;
     }
     webServerConfig->port = (uint16_t)intVal;
+
+
+    ret = config_setting_lookup_string(settings, "bind_addr", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for webServerConfig bind_addr failed.\n");
+        return -1;
+    }
+    (void)snprintf(webServerConfig->bindAddr, sizeof(webServerConfig->bindAddr), "%s", strVal);
+
+    ret = config_setting_lookup_string(settings, "ssl_auth", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for webServerConfig ssl_auth failed.\n");
+        return -1;
+    }
+    if (strcmp(strVal, "on") == 0) {
+        webServerConfig->sslAuth = 1;
+    }
+
+    ret = config_setting_lookup_string(settings, "private_key", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for restServerConfig private_key failed.\n");
+        return -1;
+    }
+    (void)snprintf(webServerConfig->privateKey, sizeof(webServerConfig->privateKey), "%s", strVal);
+
+    ret = config_setting_lookup_string(settings, "cert_file", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for webServerConfig cert_file failed.\n");
+        return -1;
+    }
+    (void)snprintf(webServerConfig->certFile, sizeof(webServerConfig->certFile), "%s", strVal);
+
+    ret = config_setting_lookup_string(settings, "ca_file", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for webServerConfig ca_file failed.\n");
+        return -1;
+    }
+    (void)snprintf(webServerConfig->caFile, sizeof(webServerConfig->caFile), "%s", strVal);
+
+    return 0;
+}
+
+static int ConfigMgrLoadRestServerConfig(void *config, config_setting_t *settings)
+{
+    HttpServerConfig *restServerConfig = (HttpServerConfig *)config;
+    uint32_t ret = 0;
+    const char *strVal = NULL;
+    uint32_t intVal = 0;
+
+    ret = config_setting_lookup_string(settings, "bind_addr", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for restServerConfig bind_addr failed.\n");
+        return -1;
+    }
+    (void)snprintf(restServerConfig->bindAddr, sizeof(restServerConfig->bindAddr), "%s", strVal);
+
+    ret = config_setting_lookup_int(settings, "port", &intVal);
+    if (ret == 0 || intVal <= 0) {
+        ERROR("[CONFIG] load config for restServerConfig port failed.\n");
+        return -1;
+    }
+    restServerConfig->port = (uint16_t)intVal;
+
+    ret = config_setting_lookup_string(settings, "ssl_auth", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for restServerConfig ssl_auth failed.\n");
+        return -1;
+    }
+    if (strcmp(strVal, "on") == 0) {
+        restServerConfig->sslAuth = 1;
+    }
+
+    ret = config_setting_lookup_string(settings, "private_key", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for restServerConfig private_key failed.\n");
+        return -1;
+    }
+    (void)snprintf(restServerConfig->privateKey, sizeof(restServerConfig->privateKey), "%s", strVal);
+
+    ret = config_setting_lookup_string(settings, "cert_file", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for restServerConfig cert_file failed.\n");
+        return -1;
+    }
+    (void)snprintf(restServerConfig->certFile, sizeof(restServerConfig->certFile), "%s", strVal);
+
+    ret = config_setting_lookup_string(settings, "ca_file", &strVal);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for restServerConfig ca_file failed.\n");
+        return -1;
+    }
+    (void)snprintf(restServerConfig->caFile, sizeof(restServerConfig->caFile), "%s", strVal);
 
     return 0;
 }
@@ -483,34 +414,42 @@ static int ConfigMgrLoadLogsConfig(void *config, config_setting_t *settings)
     LogsConfig *logsConfig = (LogsConfig *)config;
     uint32_t ret = 0;
     const char *strVal = NULL;
+    int intVal = 0;
+
+    ret = config_setting_lookup_int(settings, "metric_total_size", &intVal);
+    if (ret == 0 || intVal <= 0) {
+        ERROR("[CONFIG] load config for metric_total_size failed.\n");
+        return -1;
+    }
+    logsConfig->metricTotalSize = intVal;
 
     ret = config_setting_lookup_string(settings, "metric_dir", &strVal);
-    if (ret == 0) {
+    if (ret == 0 || check_path_for_security(strVal)) {
         ERROR("[CONFIG] load config for metric_dir failed.\n");
         return -1;
     }
-    (void)strncpy(logsConfig->metricDir, strVal, PATH_LEN - 1);
+    (void)snprintf(logsConfig->metricDir, sizeof(logsConfig->metricDir), "%s", strVal);
 
     ret = config_setting_lookup_string(settings, "event_dir", &strVal);
-    if (ret == 0) {
+    if (ret == 0 || check_path_for_security(strVal)) {
         ERROR("[CONFIG] load config for event_dir failed.\n");
         return -1;
     }
-    (void)strncpy(logsConfig->eventDir, strVal, PATH_LEN - 1);
+    (void)snprintf(logsConfig->eventDir, sizeof(logsConfig->eventDir), "%s", strVal);
 
     ret = config_setting_lookup_string(settings, "meta_dir", &strVal);
     if (ret == 0) {
         ERROR("[CONFIG] load config for meta_dir failed.\n");
         return -1;
     }
-    (void)strncpy(logsConfig->metaDir, strVal, PATH_LEN - 1);
+    (void)snprintf(logsConfig->metaDir, sizeof(logsConfig->metaDir), "%s", strVal);
 
     ret = config_setting_lookup_string(settings, "debug_dir", &strVal);
     if (ret == 0) {
         ERROR("[CONFIG] load config for debug_dir failed.\n");
         return -1;
     }
-    (void)strncpy(logsConfig->debugDir, strVal, PATH_LEN - 1);
+    (void)snprintf(logsConfig->debugDir, sizeof(logsConfig->debugDir), "%s", strVal);
 
     return 0;
 }
@@ -533,6 +472,8 @@ static int ConfigMgrLoadOutConfig(void *config, config_setting_t *settings)
         outConfig->outChnl = OUT_CHNL_KAFKA;
     } else if (!strcmp(strVal, "web_server")) {
         outConfig->outChnl = OUT_CHNL_WEB_SERVER;
+    } else if (!strlen(strVal)) {
+        outConfig->outChnl = OUT_CHNL_NULL;
     } else {
         outConfig->outChnl = -1;
         WARN("[CONFIG] config out_channel:%s invalid\n", strVal);
@@ -543,18 +484,19 @@ static int ConfigMgrLoadOutConfig(void *config, config_setting_t *settings)
         ERROR("[CONFIG] load config for out kafka_topic failed.\n");
         return -1;
     }
-    (void)strncpy(outConfig->kafka_topic, strVal, MAX_KAFKA_TOPIC_LEN - 1);
+    (void)snprintf(outConfig->kafka_topic, sizeof(outConfig->kafka_topic), "%s", strVal);
 
     ret = config_setting_lookup_int(settings, "timeout", &timeout);
     if (ret > 0) {
         outConfig->timeout = (uint32_t)timeout;
     }
 
+#if 0
     ret = config_setting_lookup_string(settings, "desc_language", &strVal);
     if (ret > 0) {
-        (void)strncpy(outConfig->lang_type, strVal, MAX_LANGUAGE_TYPE_LEN - 1);
+        (void)snprintf(outConfig->lang_type, sizeof(outConfig->lang_type), "%s", strVal);
     }
-
+#endif
     return 0;
 }
 
@@ -570,13 +512,14 @@ int ConfigMgrLoad(const ConfigMgr *mgr, const char *confPath)
 {
     ConfigLoadHandle configLoadHandles[] = {
         { (void *)mgr->globalConfig, "global", ConfigMgrLoadGlobalConfig },
+#if 0
         { (void *)mgr->ingressConfig, "ingress", ConfigMgrLoadIngressConfig },
         { (void *)mgr->egressConfig, "egress", ConfigMgrLoadEgressConfig },
+#endif
         { (void *)mgr->kafkaConfig, "kafka", ConfigMgrLoadKafkaConfig },
-        { (void *)mgr->probesConfig, "probes", ConfigMgrLoadProbesConfig },
-        { (void *)mgr->extendProbesConfig, "extend_probes", ConfigMgrLoadExtendProbesConfig },
         { (void *)mgr->imdbConfig, "imdb", ConfigMgrLoadIMDBConfig },
         { (void *)mgr->webServerConfig, "web_server", ConfigMgrLoadWebServerConfig },
+        { (void *)mgr->restServerConfig, "rest_api_server", ConfigMgrLoadRestServerConfig },
         { (void *)mgr->logsConfig, "logs", ConfigMgrLoadLogsConfig },
         { (void *)mgr->metricOutConfig, "metric", ConfigMgrLoadOutConfig },
         { (void *)mgr->eventOutConfig, "event", ConfigMgrLoadOutConfig },
@@ -594,7 +537,7 @@ int ConfigMgrLoad(const ConfigMgr *mgr, const char *confPath)
         goto ERR;
     }
 
-    uint32_t configUnitNum = sizeof(configLoadHandles) / sizeof(configLoadHandles[0]);
+    size_t configUnitNum = sizeof(configLoadHandles) / sizeof(configLoadHandles[0]);
     for (int i = 0; i < configUnitNum; i++) {
         settings = config_lookup(&cfg, configLoadHandles[i].sectionName);
         if (settings == NULL) {
