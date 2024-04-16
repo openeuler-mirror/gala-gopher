@@ -55,7 +55,7 @@ static char attach_type[ATTACH_TYPE_LEN];   // start | stop
     Gid:    0       <eGid>       0       0
     NStgid: <pid>   <inner_pid>  <inner_inner_pid>
 */
-int _set_effective_id(int pid, struct jvm_process_info *v)
+static int _set_effective_id(int pid, struct jvm_process_info *v)
 {
     uid_t cur_uid = geteuid();
     gid_t cur_gid = getegid();
@@ -400,7 +400,7 @@ void java_msg_handler(u32 pid, struct java_attach_args *args, java_msg_handler_c
 
 #define KW_MAIN_CLASS_NAME "sun.java.command="
 
-void resolve_main_class_name(struct java_property_s *prop, char *buf, int buf_size)
+static void resolve_main_class_name(struct java_property_s *prop, char *buf, int buf_size)
 {
     char *start = NULL;
     char *first_space = NULL;

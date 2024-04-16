@@ -31,6 +31,7 @@ struct kern_config {
     char is_on;
 };
 
+#if 0
 static void __do_parse_config(struct kern_config *config, char buf[])
 {
     char *p1, *p2;
@@ -71,7 +72,7 @@ static int __do_grep_config(const struct kern_config *config, char buf[], int bu
     return 0;
 }
 
-bool kern_config_is_on(char *name)
+static bool kern_config_is_on(char *name)
 {
     int ret;
     char buf[BUF_LEN];
@@ -87,4 +88,4 @@ bool kern_config_is_on(char *name)
     __do_parse_config(&config, buf);
     return (config.is_on == 1);
 }
-
+#endif
