@@ -17,8 +17,8 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
-#include "include/data_stream.h"
 #include "protocol/expose/protocol_parser.h"
+#include "include/data_stream.h"
 
 #if 1
 
@@ -367,7 +367,7 @@ next:
 
 rebound:
         new_pos = proto_find_frame_boundary(data_stream->type, msg_type, raw_data);
-        if (-1 == new_pos) {
+        if (new_pos == -1) {
             raw_data = pop_raw_data(data_stream);
             if (raw_data) {
                 destroy_raw_data(raw_data);

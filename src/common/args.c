@@ -129,11 +129,13 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params_deprecate
             break;
         case 'U':
             params->res_percent_upper = (char)atoi(arg);
+            break;
         case 'e':
             params->env_flags = (char)atoi(arg);
             if (params->env_flags == 0) {
                 params->env_flags = SUPPORT_NODE_ENV;
             }
+            break;
         case 'm':
             params->metrics_flags = (char)atoi(arg);
             if (params->metrics_flags == 0) {

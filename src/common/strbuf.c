@@ -1,3 +1,4 @@
+#include <string.h>
 #include "strbuf.h"
 
 void strbuf_update_offset(strbuf_t *dest, int offset)

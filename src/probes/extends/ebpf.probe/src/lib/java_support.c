@@ -405,7 +405,7 @@ void resolve_main_class_name(struct java_property_s *prop, char *buf, int buf_si
     char *start = NULL;
     char *first_space = NULL;
 
-    if (sizeof(KW_MAIN_CLASS_NAME) >= buf_size) {
+    if (buf_size <= sizeof(KW_MAIN_CLASS_NAME)) {
         return;
     }
     start = buf + sizeof(KW_MAIN_CLASS_NAME) - 1;

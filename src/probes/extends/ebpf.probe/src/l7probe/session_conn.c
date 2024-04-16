@@ -27,8 +27,8 @@
 #include "bpf.h"
 #include "args.h"
 #include "include/conn_tracker.h"
-#include "session_conn.h"
 #include "l7_common.h"
+#include "session_conn.h"
 
 // Session connection to socket connection mapping.
 // This is for connections that cannot obtain socket fd

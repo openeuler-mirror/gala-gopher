@@ -31,11 +31,11 @@
 #include "container.h"
 #include "histogram.h"
 #include "conntrack.h"
-#include "include/conn_tracker.h"
 #include "include/connect.h"
 #include "protocol/expose/protocol_parser.h"
 #include "include/data_stream.h"
 #include "l7_common.h"
+#include "include/conn_tracker.h"
 
 #define OO_NAME         "l7"
 #define L7_TBL_LINK     "l7_link"

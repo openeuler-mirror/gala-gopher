@@ -169,8 +169,8 @@ static int __add_libssl_prog(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog, c
 static char __is_exist_libssl_prog(struct l7_mng_s *l7_mng, const char *libssl)
 {
     for (int i = 0; i < LIBSSL_EBPF_PROG_MAX; i++) {
-        if (l7_mng->bpf_progs.libssl_progs[i].libssl_path
-            && !strcmp(libssl, l7_mng->bpf_progs.libssl_progs[i].libssl_path)) {
+        if (l7_mng->bpf_progs.libssl_progs[i].libssl_path &&
+            !strcmp(libssl, l7_mng->bpf_progs.libssl_progs[i].libssl_path)) {
             return 1;
         }
     }

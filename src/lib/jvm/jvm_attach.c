@@ -24,7 +24,6 @@
 #include <sys/syscall.h>
 #include <sys/stat.h>
 #include <sys/un.h>
-#include <errno.h>
 #include "syscall.h"
 #include "common.h"
 

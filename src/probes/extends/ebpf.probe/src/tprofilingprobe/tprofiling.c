@@ -17,8 +17,8 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
-#include <linux/limits.h>
 #include <pthread.h>
+#include <linux/limits.h>
 
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
@@ -34,8 +34,8 @@
 #include "profiling_event.h"
 #include "java_support.h"
 #include "bpf_prog.h"
-#include "tprofiling.h"
 #include "syscall.h"
+#include "tprofiling.h"
 Tprofiler tprofiler;
 
 static volatile sig_atomic_t stop = 0;

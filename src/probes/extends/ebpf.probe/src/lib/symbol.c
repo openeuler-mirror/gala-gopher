@@ -31,8 +31,8 @@
 #include "debug_elf_reader.h"
 #include "elf_symb.h"
 #include "container.h"
-#include "symbol.h"
 #include "java_support.h"
+#include "symbol.h"
 
 #ifdef symbs
 #undef symbs

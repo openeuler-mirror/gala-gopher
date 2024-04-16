@@ -19,8 +19,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "binary_decoder.h"
 #include "../common/protocol_common.h"
+#include "binary_decoder.h"
 
 parse_state_t decoder_extract_char(struct raw_data_s *raw_data, char *res)
 {

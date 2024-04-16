@@ -54,11 +54,15 @@ void insert_into_multiple_map(http_headers_map **map, const char *key, const cha
 {
     http_headers_map *kv = NULL;
     H_FIND_S(*map, key, kv);
-    bool found = kv != NULL;
+    bool found = (kv != NULL);
     if (!found) {
         kv = init_http_headers_map();
         kv->key = strdup(key);
         H_ADD_S(*map, key, kv);
+    }
+
+    if (kv == NULL) {
+        return;
     }
 
     if (kv->val_len == MAX_HEADERS_SIZE) {

@@ -29,11 +29,12 @@
 #include "container.h"
 #include "probe_mng.h"
 #include "pod_mng.h"
+#include "json_tool.h"
 
 #include "ipc.h"
-#include "snooper.h"
 #include "snooper.skel.h"
 #include "snooper_bpf.h"
+#include "snooper.h"
 
 // Snooper obj name define
 #define SNOOPER_OBJNAME_PROCID      "proc_id"

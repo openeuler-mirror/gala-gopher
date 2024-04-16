@@ -360,6 +360,7 @@ static bool find_cmd(char *opt_cmd)
 static bool get_redis_cmd(UT_array *payloads, char *res)
 {
     const int double_cmd_num = 2;
+    char *des = NULL;
     if (utarray_len(payloads) == 0) {
         return false;
     }
@@ -369,8 +370,10 @@ static bool get_redis_cmd(UT_array *payloads, char *res)
         char *first = *(char **) utarray_eltptr(payloads, 0);
         char *second = *(char **) utarray_eltptr(payloads, 1);
         size_t size = strlen(first) + strlen(second) + 2;
-        char des[size];
-
+        des = (char *)malloc(size);
+        if (des == NULL) {
+            return false;
+        }
         // 使用空格拼接redis double-words command
         strcpy(des, first);
         strcat(des, " ");
@@ -380,6 +383,7 @@ static bool get_redis_cmd(UT_array *payloads, char *res)
         if (find_cmd(opt_cmd)) {
             strcpy(res, opt_cmd);
             utarray_erase(payloads, 0, double_cmd_num);
+            free(des);
             return true;
         }
     }
@@ -387,8 +391,10 @@ static bool get_redis_cmd(UT_array *payloads, char *res)
     if (find_cmd(opt_cmd)) {
         strcpy(res, opt_cmd);
         utarray_erase(payloads, 0, 1);
+        free(des);
         return true;
     }
+    free(des);
     return false;
 }
 

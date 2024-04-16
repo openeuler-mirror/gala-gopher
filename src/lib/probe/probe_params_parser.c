@@ -12,7 +12,6 @@
  * Create: 2023-04-06
  * Description: probe params parser
  ******************************************************************************/
-#include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -20,6 +19,7 @@
 
 #include "args.h"
 #include "probe_mng.h"
+#include "json_tool.h"
 #include "probe_params_parser.h"
 
 struct param_flags_s {

@@ -18,6 +18,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sys/msg.h>
+
 #include "ipc.h"
 
 #define IPC_TLV_LEN_DEFAULT ((2 * (sizeof(struct ipc_tlv_s) + sizeof(u32))) \

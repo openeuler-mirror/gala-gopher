@@ -16,9 +16,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "http_parser.h"
 #include "../../utils/macros.h"
 #include "http_parse_wrapper.h"
+#include "http_parser.h"
 
 #define CONTENT_VALUE_LEN       64
 /**

@@ -14,10 +14,10 @@
  *
  ******************************************************************************/
 
-#include "kafka_matcher.h"
+#include <string.h>
 #include "kafka_decoder.h"
 #include "../utils/frame_decoder.h"
-#include <string.h>
+#include "kafka_matcher.h"
 
 parse_state_t decode_fetch_resp(struct raw_data_s *resp_frame, int16_t api_version, size_t *error_count)
 {
@@ -64,6 +64,7 @@ parse_state_t handle_response(struct kafka_frame_s *resp_frame, struct kafka_res
     switch (api_key) {
         case Fetch:
             decode_fetch_resp(resp_frame->msg, api_version, error_count);
+            break;
         default:
             break;
     }

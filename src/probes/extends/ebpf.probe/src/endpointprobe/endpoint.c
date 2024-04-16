@@ -36,13 +36,13 @@
 #include "bpf.h"
 #include "tcp.skel.h"
 #include "udp.skel.h"
-#include "endpoint.h"
 #include "tcp.h"
 #include "event.h"
 #include "ipc.h"
 #include "hash.h"
 #include "container.h"
 #include "histogram.h"
+#include "endpoint.h"
 
 #define EP_ENTITY_ID_LEN 64
 

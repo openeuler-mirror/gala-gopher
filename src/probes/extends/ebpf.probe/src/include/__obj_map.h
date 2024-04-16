@@ -18,10 +18,10 @@
 #if defined( BPF_PROG_KERN ) || defined( BPF_PROG_USER )
 
 #ifdef BPF_PROG_USER
-#include <linux/bpf.h>
-#include <linux/ptrace.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
+#include <linux/bpf.h>
+#include <linux/ptrace.h>
 #endif
 
 #ifdef BPF_PROG_KERN
@@ -31,7 +31,6 @@
 #include <bpf/bpf_core_read.h>
 #endif
 
-#include "bpf.h"
 #include "object.h"
 
 /* !!! NOTICE

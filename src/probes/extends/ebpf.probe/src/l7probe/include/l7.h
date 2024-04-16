@@ -99,8 +99,8 @@ static __inline enum message_type_t __get_http_type(const char* buf, size_t coun
     }
 
     // http delete
-    if (buf[0] == 'D' && buf[1] == 'E' && buf[2] == 'L'
-        && buf[3] == 'E' && buf[4] == 'T' && buf[5] == 'E') {
+    if (buf[0] == 'D' && buf[1] == 'E' && buf[2] == 'L' &&
+        buf[3] == 'E' && buf[4] == 'T' && buf[5] == 'E') {
         return MESSAGE_REQUEST;
     }
 

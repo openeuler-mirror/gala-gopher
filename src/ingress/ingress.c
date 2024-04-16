@@ -20,8 +20,8 @@
 #include <sys/eventfd.h>
 #include <unistd.h>
 #include "logs.h"
-#include "ingress.h"
 #include "event2json.h"
+#include "ingress.h"
 
 IngressMgr *IngressMgrCreate(void)
 {

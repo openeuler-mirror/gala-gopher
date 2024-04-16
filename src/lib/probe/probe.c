@@ -321,6 +321,8 @@ int nprobe_fprintf(FILE *stream, const char *curFormat, ...)
                 break;
             case 'x':
                 flags |= SMALL;
+                base = 16;
+                break;
             case 'X':
                 base = 16;
                 break;

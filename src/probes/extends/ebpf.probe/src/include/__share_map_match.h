@@ -18,10 +18,10 @@
 #if defined( BPF_PROG_KERN ) || defined( BPF_PROG_USER )
 
 #ifdef BPF_PROG_USER
-#include <linux/bpf.h>
-#include <linux/ptrace.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
+#include <linux/bpf.h>
+#include <linux/ptrace.h>
 #endif
 
 #ifdef BPF_PROG_KERN
@@ -140,7 +140,7 @@ static __maybe_unused int __do_pop_match_map_entry(const struct __probe_key *key
         ret;\
     })
 #endif
-                                    
+
 #define PROBE_PARM1(probe_val) (probe_val).val.params[__PROBE_PARAM1]
 #define PROBE_PARM2(probe_val) (probe_val).val.params[__PROBE_PARAM2]
 #define PROBE_PARM3(probe_val) (probe_val).val.params[__PROBE_PARAM3]

@@ -67,9 +67,9 @@ static int get_tcp_abn_stats(struct sock *sk, struct tcp_abn* stats)
     stats->lost_out = _(tcp_sk->lost_out);
     stats->sacked_out = _(tcp_sk->sacked_out);
 
-    if ((stats->sk_drops > stats->last_time_sk_drops)
-        || (stats->lost_out > stats->last_time_lost_out)
-        || (stats->sacked_out > stats->last_time_sacked_out)) {
+    if ((stats->sk_drops > stats->last_time_sk_drops) ||
+        (stats->lost_out > stats->last_time_lost_out) ||
+        (stats->sacked_out > stats->last_time_sacked_out)) {
         return 1;
     }
 

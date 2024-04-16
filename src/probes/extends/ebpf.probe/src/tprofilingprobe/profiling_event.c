@@ -15,8 +15,8 @@
 #include <stdio.h>
 #include <time.h>
 #include <utlist.h>
-#include <linux/futex.h>
 #include <sys/stat.h>
+#include <linux/futex.h>
 
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN

@@ -38,7 +38,7 @@ int mkdirp(const char *path, mode_t mode)
     }
     int rc = mkdir(path, mode);
 
-    return (0 == rc) || EEXIST == errno ? 0 : -1;
+    return (rc == 0) || (errno == EEXIST) ? 0 : -1;
 }
 
 #define LOG_FILE_PERMISSION 0640

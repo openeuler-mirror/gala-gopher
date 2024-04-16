@@ -18,8 +18,8 @@
 #pragma once
 
 #include <time.h>
-#include "stack.h"
 #include <curl/curl.h>
+#include "stack.h"
 
 enum proc_stack_type_e {
     PROC_STACK_STORE_IN_HASH = 0, // when load_jvm_agent

@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 #include "base.h"
+#include "common.h"
 
 typedef enum {
     LOG_DEBUG = 0,

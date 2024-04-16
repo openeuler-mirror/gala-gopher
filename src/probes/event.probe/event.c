@@ -16,6 +16,7 @@
 #include <string.h>
 #include <time.h>
 #include "nprobe_fprintf.h"
+#include "common.h"
 #include "event.h"
 
 #define LOG_MESSAGES "/var/log/messages"

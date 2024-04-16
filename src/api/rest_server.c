@@ -18,8 +18,8 @@
 #include <string.h>
 #include <errno.h>
 
-#include "rest_server.h"
 #include "probe_mng.h"
+#include "rest_server.h"
 
 #define PUT_DATA_KEY          "json="
 #define ITER_BUFFER_SIZE       512
