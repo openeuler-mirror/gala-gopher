@@ -1171,7 +1171,7 @@ void clear_ipc_msg(long msg_type)
 {
     int msqid;
     struct ipc_msg_s *ipc_msg;
-    u32 msg_len;
+    size_t msg_len;
 
     msqid = create_ipc_msg_queue(IPC_EXCL);
     if (msqid < 0) {

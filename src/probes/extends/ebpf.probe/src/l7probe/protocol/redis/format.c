@@ -322,7 +322,7 @@ static char *format_as_json_array(UT_array *args)
 
 static char *format_as_str_separated_by_space(UT_array *args)
 {
-    int total_len = 0;
+    size_t total_len = 0;
     int len = utarray_len(args);
     for (int i = 0; i < len; ++i) {
         char *str = *(char **) utarray_eltptr(args, i);

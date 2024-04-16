@@ -865,7 +865,7 @@ static int set_evt_attrs_batch(thrd_info_t *thrd_info, char *evt_attrs, int attr
     };
     const char *prefix = "{\"values\":[";
     const char *suffix = "]}";
-    const int suffix_size = strlen(suffix) + 1;
+    const size_t suffix_size = strlen(suffix) + 1;
     int ret;
 
     ret = strbuf_append_str_with_check(&sbuf, prefix, strlen(prefix));

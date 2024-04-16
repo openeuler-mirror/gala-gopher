@@ -771,7 +771,7 @@ static int MetricTypeSatisfyPrometheus(IMDB_Metric *metric)
         "summary"
     };
 
-    int size = sizeof(prometheusTypes) / sizeof(prometheusTypes[0]);
+    size_t size = sizeof(prometheusTypes) / sizeof(prometheusTypes[0]);
     for (int i = 0; i < size; i++) {
         if (strcmp(metric->type, prometheusTypes[i]) == 0) {
             return 0;
@@ -830,7 +830,8 @@ static int IMDB_BuildMetrics(const char *entity_name,
 static int IMDB_BuildPrometheusMetrics(const IMDB_Metric *metric, char *buffer, uint32_t maxLen,
                                        const char *entity_name, const char *labels)
 {
-    int ret, len;
+    int ret;
+    size_t len;
     char *p = buffer;
     int size = (int)maxLen;
     time_t now;
@@ -1144,7 +1145,8 @@ static void RequeueTable(IMDB_Table **tables, uint32_t tablesNum)
 
 static void IMDB_AdjustTblPrio(IMDB_DataBaseMgr *mgr)
 {
-    int nameLen, num_adjust = 0;
+    size_t nameLen;
+    int num_adjust = 0;
     char tblName[MAX_IMDB_TABLE_NAME_LEN];
 
     if (!mgr->tables[0]->weighting) {
@@ -1212,7 +1214,8 @@ static int append_label_histo_le_inf(strbuf_t *labels_buf)
 static int IMDB_BuildPrometheusHistoMetrics(const IMDB_Metric *metric, char *buffer, uint32_t maxLen,
     const char *entity_name, strbuf_t *labels_buf)
 {
-    int ret, len;
+    int ret;
+    size_t len;
     char *p = buffer;
     int size = (int)maxLen;
     int orig_labels_len;

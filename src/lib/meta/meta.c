@@ -473,7 +473,7 @@ static int is_filed_type_metric(char *field_type)
         "counter",
         "gauge"
     };
-    int size = sizeof(meta_fileld_type_metric) / sizeof(meta_fileld_type_metric[0]);
+    size_t size = sizeof(meta_fileld_type_metric) / sizeof(meta_fileld_type_metric[0]);
 
     for (i = 0; i < size; i++) {
         if (strcmp(field_type, meta_fileld_type_metric[i]) == 0) {

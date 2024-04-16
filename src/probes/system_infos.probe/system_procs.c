@@ -144,7 +144,7 @@ out:
 
 static int __is_valid_container_id(char *str)
 {
-    int len = strlen(str);
+    size_t len = strlen(str);
     if (len != 64) {
         return 0;
     }
@@ -179,7 +179,7 @@ static int get_proc_max_fdnum(u32 pid, proc_info_t *proc_info)
     FILE *f = NULL;
     char buffer[LINE_BUF_LEN];
     const char *prefix = "Max open files";
-    int prefixLen = strlen(prefix);
+    size_t prefixLen = strlen(prefix);
     int ret;
 
     f = get_proc_file(pid, PROC_LIMIT);

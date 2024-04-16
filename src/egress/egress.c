@@ -141,7 +141,7 @@ static int EgressDataProcess(const EgressMgr *mgr)
     struct epoll_event events[MAX_EPOLL_EVENTS_NUM];
     int events_num;
     Fifo *fifo = NULL;
-    uint32_t ret = 0;
+    int ret = 0;
 
     events_num = epoll_wait(mgr->epoll_fd, events, MAX_EPOLL_EVENTS_NUM, -1);
     if ((events_num < 0) && (errno != EINTR)) {

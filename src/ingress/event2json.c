@@ -91,8 +91,8 @@ static inline void error_log2json_buffer_no_enough_space()
 // if `fillQuote` is true, fill format: "<field_name>":"<field_val>"
 static int fill_log_field_simple(strbuf_t *dest, strbuf_t *fieldVal, const char *fieldName, int fillQuote)
 {
-    int fieldNameSize = strlen(fieldName);
-    int requiredSize = fieldNameSize + fieldVal->len + 3;
+    size_t fieldNameSize = strlen(fieldName);
+    size_t requiredSize = fieldNameSize + fieldVal->len + 3;
 
     if (fillQuote) { requiredSize += 2; }
 
@@ -302,7 +302,7 @@ static void transfer_entityId(char *entityId)
 {
     int i, j;
     char specialSymbols[] = {'/'};     // 不支持的符号集合，可以新增
-    int symSize = sizeof(specialSymbols) / sizeof(specialSymbols[0]);
+    size_t symSize = sizeof(specialSymbols) / sizeof(specialSymbols[0]);
 
     for (i = 0; entityId[i] != '\0'; i++) {
         for (j = 0; j < symSize; j++) {
@@ -328,7 +328,7 @@ static int get_entityId(char *entityId, int size, IMDB_NodeInfo *nodeInfo, strbu
     int requiredSize;
 #define __MAX_MACHINE_ID_LEN (MAX_IMDB_SYSTEM_UUID_LEN + MAX_IMDB_HOSTIP_LEN)
     char machineId[__MAX_MACHINE_ID_LEN];
-    int machineIdLen;
+    size_t machineIdLen;
     char *entityIdPos = NULL;
     strbuf_t sbuf = {
         .buf = entityId,
@@ -385,7 +385,7 @@ static int get_metricId(char *metricId, int size, strbuf_t *entityName, strbuf_t
 {
     int requiredSize;
     const char *prefix = "gala_gopher";
-    int prefixLen = strlen(prefix);
+    size_t prefixLen = strlen(prefix);
     strbuf_t sbuf = {
         .buf = metricId,
         .size = size

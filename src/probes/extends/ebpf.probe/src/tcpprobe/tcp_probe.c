@@ -730,7 +730,7 @@ static void process_tcp_flow_tracker_metrics(struct tcp_mng_s *tcp_mng, struct t
 static int proc_tcp_metrics_evt(void *ctx, void *data, u32 size)
 {
     char *p = data;
-    int remain_size = (int)size, step_size = sizeof(struct tcp_metrics_s), offset = 0;
+    size_t remain_size = (size_t)size, step_size = sizeof(struct tcp_metrics_s), offset = 0;
     struct tcp_metrics_s *metrics;
     struct tcp_mng_s *tcp_mng = ctx;
 
