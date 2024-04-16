@@ -29,7 +29,7 @@ enum {
 #define __MAX_SSL_ENTRIES 1024
 
 // ssl struct in openssl 1.1.1
-typedef long (*bio_callback_fn)();
+typedef long (*bio_callback_fn)(void);
 struct ssl_method_st {};
 
 struct bio_st {

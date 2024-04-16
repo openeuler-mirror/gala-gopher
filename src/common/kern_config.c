@@ -49,7 +49,7 @@ static void __do_parse_config(struct kern_config *config, char buf[])
     return;
 }
 
-static int __do_grep_config(const struct kern_config *config, char buf[], unsigned int buf_len)
+static int __do_grep_config(const struct kern_config *config, char buf[], int buf_len)
 {
     char command[COMMAND_LEN];
     FILE *f;

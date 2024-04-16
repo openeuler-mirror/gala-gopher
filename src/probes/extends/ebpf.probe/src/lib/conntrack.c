@@ -281,7 +281,7 @@ int get_cluster_ip_backend(struct tcp_connect_s *connect, int *transform)
         return -1;
     }
 
-    while (!feof(f)) {
+    while (feof(f) == 0) {
         line[0] = 0;
         if (fgets(line, LINE_BUF_LEN, f) == NULL) {
             break;

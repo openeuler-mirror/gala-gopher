@@ -72,7 +72,7 @@ struct {
 } tcp_fd_map SEC(".maps");
 
 #define __PERIOD    NS(30)
-static __always_inline __maybe_unused u64 get_period()
+static __always_inline __maybe_unused u64 get_period(void)
 {
     u32 key = 0;
     u64 period = __PERIOD;

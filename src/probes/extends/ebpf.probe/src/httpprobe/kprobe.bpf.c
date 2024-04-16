@@ -54,7 +54,7 @@ struct sys_exit_accept4_args {
 #ifndef PERIOD
 #define PERIOD NS(5)
 #endif
-static __always_inline u64 get_period()
+static __always_inline u64 get_period(void)
 {
     u32 key = 0;
     u64 period = PERIOD;

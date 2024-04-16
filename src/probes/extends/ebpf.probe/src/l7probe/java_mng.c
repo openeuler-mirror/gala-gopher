@@ -265,7 +265,7 @@ static void parse_java_msg(void *ctx, struct file_ref_s *file_ref)
     return;
 }
 
-static void set_pids_noexit()
+static void set_pids_noexit(void)
 {
     struct file_conn_hash_t *item, *tmp;
     if (file_conn_head == NULL) {
@@ -277,7 +277,7 @@ static void set_pids_noexit()
     }
 }
 
-static void clear_pids_noexit()
+static void clear_pids_noexit(void)
 {
     struct file_conn_hash_t *item, *tmp;
     if (file_conn_head == NULL) {

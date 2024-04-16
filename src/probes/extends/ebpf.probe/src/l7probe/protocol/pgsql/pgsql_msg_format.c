@@ -64,7 +64,7 @@ bool contains_pgsql_tag(char tag)
     return false;
 }
 
-struct pgsql_regular_msg_s *init_pgsql_regular_msg()
+struct pgsql_regular_msg_s *init_pgsql_regular_msg(void)
 {
     struct pgsql_regular_msg_s *msg = (struct pgsql_regular_msg_s *) malloc(sizeof(struct pgsql_regular_msg_s));
     if (msg == NULL) {

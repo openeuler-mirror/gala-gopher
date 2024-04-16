@@ -17,7 +17,7 @@
 
 #pragma once
 
-int nprobe_fprintf(FILE *stream, const char *format, ...);
+int nprobe_fprintf(FILE *stream, const char *curFormat, ...);
 
 #endif
 

@@ -99,7 +99,7 @@ static __always_inline void sample_finished(struct conn_data_t *conn_data, struc
     csd->status = SAMP_INIT;
 }
 
-static __always_inline u64 get_period()
+static __always_inline u64 get_period(void)
 {
     u32 key = 0;
     u64 period = __PERIOD;

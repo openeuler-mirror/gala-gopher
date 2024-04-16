@@ -30,7 +30,7 @@ enum {
 };
 
 // ssl struct in opennssl 1.1.1
-typedef long (*bio_callback_fn)();
+typedef long (*bio_callback_fn)(void);
 struct ssl_method_st {};
 
 struct bio_st {

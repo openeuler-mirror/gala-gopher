@@ -82,7 +82,7 @@ static int open_file_without_dir(const char *filename)
         return -1;
     }
     u_char dir_exist = (access(base_dir, F_OK) == 0);
-    if (!dir_exist) {
+    if (dir_exist == 0) {
         int status = mkdirp(base_dir, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
         if (status != 0) {
             ERROR("popen mkdir %s failed, errno %d\n", base_dir, errno);
@@ -128,11 +128,11 @@ static void clear_log_dir(const char full_path[])
     }
 }
 
-static int get_file_name(const struct log_mgr_s* mgr, char is_metrics, int file_id, char full_path[], size_t size)
+static int get_file_name(const struct log_mgr_s* mgr, int is_metrics, int file_id, char full_path[], size_t size)
 {
     size_t path_len;
     char last_symbol;
-    const char *ftype = is_metrics ? "metrics" : "event";
+    const char *ftype = (is_metrics != 0) ? "metrics" : "event";
     const char *path = is_metrics ? mgr->metrics_path : mgr->event_path;
 
     path_len = strlen(path);
@@ -285,7 +285,7 @@ static char que_current_is_invalid(struct log_mgr_s *mgr, int is_metrics)
     (void)pthread_rwlock_wrlock(&(files_que->rwlock));
 
     char full_path[PATH_LEN];
-    if (get_file_name(mgr, (char)is_metrics, files_que->current.file_id, full_path, PATH_LEN)) {
+    if (get_file_name(mgr, is_metrics, files_que->current.file_id, full_path, PATH_LEN)) {
         ERROR("get file name by curr file_id: %d failed !\n", files_que->current.file_id);
         invalid = 1;
         goto out;
@@ -359,7 +359,7 @@ static int init_logger_path(struct logger *logger, const char *log_path)
     return 0;
 }
 
-static void init_all_logger()
+static void init_all_logger(void)
 {
     init_logger(&g_metrics_logger, "metrics", 0, METRICS_LOGS_FILESIZE);
     init_logger(&g_event_logger, "event", 1, EVENT_LOGS_FILESIZE);
@@ -558,20 +558,20 @@ int init_log_mgr(struct log_mgr_s* mgr, int is_meta_out_log, char *logLevel)
         (void)fprintf(stderr, "metric_total_size is too large. metrics_logs_filesize will reset to %ld MB.\n", mgr->metrics_logs_filesize);
     }
     g_metrics_logger.max_file_size = mgr->metrics_logs_filesize / (g_metrics_logger.max_backup_index + 1);  // update metrics size special.
-    if ((mgr->debug_path[0] != 0) && append_debug_logger(mgr)) {
+    if ((mgr->debug_path[0] != 0) && (append_debug_logger(mgr) != 0)) {
         (void)fprintf(stderr, "Append debug logger failed.\n");
         return -1;
     }
 
     if (is_meta_out_log == 1) {
         mgr->is_meta_out_log = LOGS_SWITCH_ON;
-        if ((mgr->meta_path[0] != 0) && append_meta_logger(mgr)) {
+        if ((mgr->meta_path[0] != 0) && (append_meta_logger(mgr) != 0)) {
             (void)fprintf(stderr, "Append meta logger failed.\n");
             return -1;
         }
     }
 
-    if ((mgr->raw_path[0] != 0) && append_raw_logger(mgr)) {
+    if ((mgr->raw_path[0] != 0) && (append_raw_logger(mgr) != 0)) {
         (void)fprintf(stderr, "Append raw logger failed.\n");
         return -1;
     }
@@ -633,7 +633,7 @@ static void reappend_raw_logger(struct log_mgr_s * mgr)
 // function has lock by user.
 static void log_rollover(struct logger *logger)
 {
-    if ((logger == NULL) || (!strlen(logger->full_path_name))) {
+    if ((logger == NULL) || (strlen(logger->full_path_name) == 0)) {
         return;
     }
     (void)pthread_rwlock_wrlock(&logger->rwlock);
@@ -702,9 +702,9 @@ static void write_log(const char *msg, struct logger *logger)
 
     (void)pthread_rwlock_wrlock(&logger->rwlock);
     int ret = faccessat(0, logger->full_path_name, F_OK, 0);
-    if (ret && (logger->file_fd >= 0)) {
-	(void)close(logger->file_fd);
-	logger->file_fd = -1;
+    if ((ret != 0) && (logger->file_fd >= 0)) {
+        (void)close(logger->file_fd);
+        logger->file_fd = -1;
     }
     if (logger->file_fd < 0) {
         logger->file_fd = open_file(logger->full_path_name);
@@ -726,7 +726,7 @@ static void write_log(const char *msg, struct logger *logger)
 #define MAX_RAW_BUFFER_LEN (1024 * 1024) // 1 MB
 static void log_without_date(struct logger *logger, const char *detail)
 {
-    if ((detail == NULL) || (!logger) || (!logger->pattern) || (!strlen(logger->pattern))) {
+    if ((detail == NULL) || (!logger) || (!logger->pattern) || (strlen(logger->pattern) == 0)) {
         return;
     }
     char msg[MAX_RAW_BUFFER_LEN] = {0};
@@ -849,7 +849,7 @@ static int get_log_time(struct tm *t)
 #define TM_YEAR_SHOW_OFFSET 2000
 void log_with_date(struct logger *logger, const char *detail)
 {
-    if ((detail == NULL) || (!logger) || (!logger->pattern) || (!strlen(logger->pattern))) {
+    if ((detail == NULL) || (!logger) || (!logger->pattern) || (strlen(logger->pattern) == 0)) {
         return;
     }
     struct tm t;

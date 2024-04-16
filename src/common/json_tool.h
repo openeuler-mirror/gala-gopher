@@ -82,9 +82,9 @@ int Json_GetValueInt(const void *jsonObj);
  *  write json data relative
 ***/
 /* as the same as create object */
-void* Json_CreateArray();
+void* Json_CreateArray(void);
 
-void* Json_CreateObject();
+void* Json_CreateObject(void);
 
 void Json_AddStringToObject(void *jsonObj, const char *nameCStr, const char *valCStr);
 

@@ -132,7 +132,7 @@ static parse_state_t parse_bulk_string_msg(struct raw_data_s *raw_data_buf, stru
     return STATE_SUCCESS;
 }
 
-static parse_state_t parse_msg_recursive(enum message_type_t msg_type, struct raw_data_s *raw_data_buf,
+static parse_state_t parse_msg_recursive(enum message_type_t msg_type, struct raw_data_s *raw_data,
     struct redis_msg_s *msg);
 
 // The format of Array is as follows: *<size_str>\r\n[one of simple string, error, bulk string, etc.]

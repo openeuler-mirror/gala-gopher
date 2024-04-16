@@ -28,8 +28,8 @@ void wr_flamegraph(struct proc_stack_trace_histo_s **proc_histo_tbl, struct stac
     struct post_server_s *post_server);
 void create_pids_svg_file(int proc_obj_map_fd, struct stack_svg_mng_s *svg_mng, int en_type);
 int set_flame_graph_path(struct stack_svg_mng_s *svg_mng, const char* path, const char *flame_name);
-int set_post_server(struct post_server_s *post_server, const char *pyroscopeServer,
-    unsigned int perf_sample_period, char multi_instance_flag);
-void clean_post_server();
-void clean_curl();
+int set_post_server(struct post_server_s *post_server, const char *server_str, unsigned int perf_sample_period,
+                    char multi_instance_flag);
+void clean_post_server(void);
+void clean_curl(void);
 #endif

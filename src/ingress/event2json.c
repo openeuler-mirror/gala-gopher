@@ -82,7 +82,7 @@ static char gEvtField[EVT_FIELD_MAX][MAX_FIELD_NAME] = {
 
 // opentelemetry log
 
-static inline void error_log2json_buffer_no_enough_space()
+static inline void error_log2json_buffer_no_enough_space(void)
 {
     ERROR("[INGRESS] the log2json buffer has not enough space.\n");
 }
@@ -257,7 +257,7 @@ int LogData2Json(IngressMgr *mgr, const char *logData, char *jsonFmt, int jsonSi
 
 // gopher event
 
-static inline void error_evt2json_buffer_no_enough_space()
+static inline void error_evt2json_buffer_no_enough_space(void)
 {
     ERROR("[INGRESS] the event2json buffer has not enough space.\n");
 }

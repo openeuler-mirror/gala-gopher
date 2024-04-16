@@ -50,11 +50,11 @@ struct bpf_ringbuf {
 #if defined(BPF_PROG_KERN) || defined(BPF_PROG_USER)
 extern int LINUX_KERNEL_VERSION __kconfig;
 
-static inline int probe_kernel_version() {
+static inline int probe_kernel_version(void) {
     return LINUX_KERNEL_VERSION;
 }
 #else
-static inline int __probe_ubuntu_kernel_version()
+static inline int __probe_ubuntu_kernel_version(void)
 {
     static const char *version_signature_path = "/proc/version_signature";
     u32 major, minor, patch, retval = 0;
@@ -107,7 +107,7 @@ static inline int __parse_normal_kernel_version(struct utsname *uts)
     return KERNEL_VERSION(major, minor, patch);
 }
 
-static inline int probe_kernel_version()
+static inline int probe_kernel_version(void)
 {
     int version;
     struct utsname uts;
@@ -127,7 +127,7 @@ static inline int probe_kernel_version()
 #endif
 
 #if defined(BPF_PROG_KERN) || defined(BPF_PROG_USER)
-static inline char probe_ringbuf()
+static inline char probe_ringbuf(void)
 {
 #if CLANG_VER_MAJOR >= 12
     return (char)bpf_core_type_exists(struct bpf_ringbuf);
@@ -137,7 +137,7 @@ static inline char probe_ringbuf()
 }
 #endif
 #if !defined(BPF_PROG_KERN) && !defined(BPF_PROG_USER)
-static inline bool probe_ringbuf() {
+static inline bool probe_ringbuf(void) {
     int map_fd;
 
     if ((map_fd = bpf_map_create(BPF_MAP_TYPE_RINGBUF, NULL, 0, 0, getpagesize(), NULL)) < 0) {
