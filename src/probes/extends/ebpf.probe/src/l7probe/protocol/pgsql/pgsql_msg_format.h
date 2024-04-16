@@ -193,7 +193,7 @@ struct pgsql_regular_msg_s {
  *
  * @return struct pgsql_regular_msg_s*
  */
-struct pgsql_regular_msg_s *init_pgsql_regular_msg();
+struct pgsql_regular_msg_s *init_pgsql_regular_msg(void);
 
 /**
  * 释放struct pgsql_regular_msg_s*

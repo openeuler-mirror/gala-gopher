@@ -17,7 +17,7 @@
 #include "common.h"
 #include "redis_msg_format.h"
 
-struct redis_msg_s *init_redis_msg()
+struct redis_msg_s *init_redis_msg(void)
 {
     struct redis_msg_s *msg = (struct redis_msg_s *)malloc(sizeof(struct redis_msg_s));
     if (msg == NULL) {
@@ -45,7 +45,7 @@ void free_redis_msg(struct redis_msg_s *msg)
     free(msg);
 }
 
-struct redis_record_s *init_redis_record()
+struct redis_record_s *init_redis_record(void)
 {
     struct redis_record_s *record = (struct redis_record_s *)malloc(sizeof(struct redis_record_s));
     if (record == NULL) {

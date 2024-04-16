@@ -36,12 +36,12 @@ static char *g_host_path_prefix;
 const char* command_injection_characters[] = {"|", ";", "&", "$", ">", "<", "(", ")", "./", "/.", "?", "*",
                                     "\'", "`", "[", "]", "\\", "!", "\n"};
 
-static char *get_host_path_prefix()
+static char *get_host_path_prefix(void)
 {
     static char running_in_container = 1;
 
     /* gala-gopher running on host */
-    if (!running_in_container) {
+    if (running_in_container == 0) {
         return NULL;
     }
 
@@ -313,7 +313,7 @@ int copy_file(const char *dst_file, const char *src_file) {
 
     while (1) {
         int op = fread(buffer, 1, 1, fp2);
-        if(!op) {
+        if(op == 0) {
             break;
         }
         (void)fwrite(buffer, 1, 1, fp1);
@@ -428,7 +428,7 @@ int get_proc_cmdline(u32 pid, char *buf, u32 buf_len)
         return -1;
     }
     /* parse line */
-    while (!feof(f)) {
+    while (feof(f) == 0) {
         if (index >= buf_len - 1) {
             buf[index] = '\0';
             break;

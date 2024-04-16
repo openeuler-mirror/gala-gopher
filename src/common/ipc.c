@@ -582,7 +582,7 @@ end:
         __free_container_obj(container);
         obj->type = SNOOPER_OBJ_MAX;
     }
-    return (err) ? -1 : (int)(offset + sizeof(struct ipc_tlv_s));
+    return (err != 0) ? -1 : (int)(offset + sizeof(struct ipc_tlv_s));
 }
 
 static int deserialize_tlv_gaussdb(char *buf, size_t size, struct snooper_obj_s *obj)
@@ -679,7 +679,7 @@ end:
         __free_gaussdb_obj(gaussdb);
         obj->type = SNOOPER_OBJ_MAX;
     }
-    return (err) ? -1 : (int)(offset + sizeof(struct ipc_tlv_s));
+    return (err != 0) ? -1 : (int)(offset + sizeof(struct ipc_tlv_s));
 }
 
 typedef u32 (*GetTlvLen)(struct snooper_obj_s *);
@@ -1161,7 +1161,7 @@ int recv_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body)
     }
 
 end:
-    if (err && msg_rcvd) {
+    if ((err != 0) && (msg_rcvd != 0)) {
         destroy_ipc_body(ipc_body);
     }
     return err;

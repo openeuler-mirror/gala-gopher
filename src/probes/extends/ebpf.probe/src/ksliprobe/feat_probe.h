@@ -27,14 +27,14 @@ struct feature_probe {
 
 #include "vmlinux.h"
 
-static inline bool probe_tstamp()
+static inline bool probe_tstamp(void)
 {
     return bpf_core_field_exists(((struct sk_buff *)0)->tstamp);
 }
 #endif
 
 #if !defined(BPF_PROG_KERN) && !defined(BPF_PROG_USER)
-bool probe_tstamp();
+bool probe_tstamp(void);
 #endif
 
 #endif

@@ -176,7 +176,7 @@ int RunExtendProbe(struct probe_s *probe)
     UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPED);
 
 retry:
-    if (lkup_and_set_probe_pid(probe) && retry <= PROBE_LKUP_PID_RETRY_MAX) {
+    if ((lkup_and_set_probe_pid(probe) != 0) && retry <= PROBE_LKUP_PID_RETRY_MAX) {
         /* The process may still be inaccessible here, so just retry */
         sleep(PROBE_LKUP_PID_DELAY);
         retry++;

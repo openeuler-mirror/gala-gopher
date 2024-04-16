@@ -1823,7 +1823,7 @@ cleanup:
 }
 
 #if 1   // this is for mem_glibc.bpf.c
-static void set_pids_inactive()
+static void set_pids_inactive(void)
 {
     struct bpf_link_hash_t *item, *tmp;
     if (bpf_link_head == NULL) {
@@ -1879,7 +1879,7 @@ static struct bpf_link_hash_t* find_bpf_link(unsigned int pid)
 /*
 [root@localhost ~]# ps -e -o pid,comm | grep gaussdb | awk '{print $1}'
 */
-static int add_pids()
+static int add_pids(void)
 {
     unsigned int pid = 0;
     int ret = 0;
@@ -2289,7 +2289,7 @@ static void print_jstack(u32 pid, struct java_attach_args *args)
 
 // load cmd example: 
 // jvm_attach 123456 1 load instrument false "/tmp/JstackProbeAgent.jar=123456,/tmp/java-data-123456,oncpu|offcpu|mem|,10"
-static void load_jstack_agent()
+static void load_jstack_agent(void)
 {
     if (!g_st || (g_st->proc_obj_map_fd <= 0)) {
         ERROR("[STACKPROBE]: Load jvm agent failed!\n");
@@ -2332,7 +2332,7 @@ static void load_jstack_agent()
     }
 }
 
-static void switch_stackmap()
+static void switch_stackmap(void)
 {
     struct stack_trace_s *st = g_st;
     if (st == NULL) {
@@ -2535,7 +2535,7 @@ static int reload_probe_params(struct ipc_body_s *ipc_body)
     return 0;
 }
 
-static void set_java_agent_type()
+static void set_java_agent_type(void)
 {
     g_use_jstack_agent = 0;
 

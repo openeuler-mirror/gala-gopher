@@ -44,12 +44,12 @@ static int do_get_os_release_path(char path[], int path_len)
 {
     // The file /etc/os-release takes precedence over /usr/lib/os-release
     convert_to_host_path(path, OS_RELEASE_PATH1, path_len);
-    if (!access(path, 0)) {
+    if (access(path, 0) == 0) {
         return 0;
     }
 
     convert_to_host_path(path, OS_RELEASE_PATH2, path_len);
-    if (!access(path, 0)) {
+    if (access(path, 0) == 0) {
         return 0;
     }
     ERROR("[SYSTEM_OS] os-release file isn't /etc/os-release or /usr/lib/os-release.\n");
@@ -113,9 +113,9 @@ static int get_os_release_info(struct node_infos *infos)
     (void)snprintf(infos->kernel_version, sizeof(infos->kernel_version), "%s", line);
 
     os_latest_path[0] = 0;
-    if (!strcasecmp(infos->os_id, "openEuler")) {
+    if (strcasecmp(infos->os_id, "openEuler") == 0) {
         convert_to_host_path(os_latest_path, "/etc/openEuler-latest", sizeof(os_latest_path));
-    } else if (!strcasecmp(infos->os_id, "euleros")) {
+    } else if (strcasecmp(infos->os_id, "euleros") == 0) {
         convert_to_host_path(os_latest_path, "/etc/euleros-latest", sizeof(os_latest_path));
     } else {
         (void)snprintf(infos->os_version, sizeof(infos->os_version), "%s", infos->os_pretty_name);
@@ -158,7 +158,7 @@ static int check_ip_in_net_segment(char *ip_str, char *net_str)
 
     int mask = parse_netmask(net_str);
     for (int i = 0; i < 4; i++) {
-        int temp = (mask - 8 > 0) ? 8 : (mask > 0) ? mask : 0;
+        unsigned int temp = (mask - 8 > 0) ? 8 : (mask > 0) ? mask : 0;
         if ((ips[i] & temp) != (nets[i] & temp)) {
             return false;
         }
@@ -182,7 +182,7 @@ static int check_skip_ifa(struct ifaddrs *ifa, struct ipc_body_s * ipc_body)
         return 1;
     }
     /* Skip the loopback interface and interfaces that are not UP */
-    if (ifa->ifa_flags & IFF_LOOPBACK || !(ifa->ifa_flags & IFF_UP)) {
+    if (ifa->ifa_flags & IFF_LOOPBACK || ((ifa->ifa_flags & IFF_UP) == 0)) {
         return 1;
     }
     family = ifa->ifa_addr->sa_family;
@@ -308,7 +308,7 @@ static int get_host_type(struct node_infos *infos)
         ERROR("[SYSTEM_OS] systemd detect virt environment failed.\n");
         return -1;
     }
-    if (!strcmp(line, "none")) {
+    if (strcmp(line, "none") == 0) {
         infos->is_host_vm = 0;
     } else {
         infos->is_host_vm = 1;

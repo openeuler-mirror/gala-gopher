@@ -78,12 +78,12 @@ static syscall_meta_t g_syscall_metas[] = {
 };
 
 static void sig_handling(int signal);
-static int init_tprofiler();
+static int init_tprofiler(void);
 static int init_tprofiler_map_fds(struct ipc_body_s *ipc_body);
-static int init_syscall_metas();
+static int init_syscall_metas(void);
 static void java_symb_mgmt(int proc_filter_map_fd);
-static void clean_map_files();
-static void clean_tprofiler();
+static void clean_map_files(void);
+static void clean_tprofiler(void);
 static int refresh_tprofiler(struct ipc_body_s *ipc_body);
 static void refresh_proc_filter_map(struct ipc_body_s *ipc_body);
 
@@ -205,7 +205,7 @@ static void sig_handling(int signal)
     stop = 1;
 }
 
-static int init_tprofiler()
+static int init_tprofiler(void)
 {
     if (initThreadBlacklist(&tprofiler.thrdBl)) {
         TP_ERROR("Failed to init thread blacklist.\n");
@@ -296,7 +296,7 @@ static int init_tprofiler_map_fds(struct ipc_body_s *ipc_body)
 }
 
 // 初始化需要观测的系统调用
-static int init_syscall_metas()
+static int init_syscall_metas(void)
 {
     syscall_meta_t *scm = NULL;
 
@@ -346,7 +346,7 @@ static void java_symb_mgmt(int proc_filter_map_fd)
     }
 }
 
-static void clean_map_files()
+static void clean_map_files(void)
 {
     FILE *fp = NULL;
 
@@ -369,7 +369,7 @@ static void clean_syscall_meta_table(syscall_meta_t **scmTable)
     *scmTable = NULL;
 }
 
-static void clean_tprofiler()
+static void clean_tprofiler(void)
 {
     if (tprofiler.scmTable) {
         clean_syscall_meta_table(&tprofiler.scmTable);

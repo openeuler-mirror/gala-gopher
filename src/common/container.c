@@ -221,7 +221,7 @@ static const char *get_current_command()
     return (const char *)current_docker_command;
 }
 
-static const char *get_current_command_chroot()
+static const char *get_current_command_chroot(void)
 {
     if (current_docker_command_chroot[0] != 0) {
         return (const char *)current_docker_command_chroot;
@@ -255,7 +255,7 @@ static const char *get_docker_driver()
     return (const char *)current_docker_driver;
 }
 
-static const char *get_current_driver()
+static const char *get_current_driver(void)
 {
     if (*current_docker_driver != '\0') {
         return (const char *)current_docker_driver;

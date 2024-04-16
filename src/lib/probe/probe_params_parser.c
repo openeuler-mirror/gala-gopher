@@ -51,7 +51,7 @@ struct param_flags_s param_env_flags[] = {
 static int __get_params_flags(struct param_flags_s param_flags[], size_t size, const char *target)
 {
     for (int i = 0; i < size; i++) {
-        if (!strcasecmp(param_flags[i].desc, target)) {
+        if (strcasecmp(param_flags[i].desc, target) == 0) {
             return param_flags[i].flags;
         }
     }
@@ -208,7 +208,7 @@ static int parser_metrics_type(struct probe_s *probe, const struct param_key_s *
     size_t size = Json_GetArraySize(key_item);
     for (int i = 0; i < size; i++) {
         object = Json_GetArrayItem(key_item, i);
-        if (!Json_IsString(object)) {
+        if (Json_IsString(object) == 0) {
             return -1;
         }
 
@@ -236,7 +236,7 @@ static int parser_work_env(struct probe_s *probe, const struct param_key_s *para
     size_t size = Json_GetArraySize(key_item);
     for (int i = 0; i < size; i++) {
         object = Json_GetArrayItem(key_item, i);
-        if (!Json_IsString(object)) {
+        if (Json_IsString(object) == 0) {
             return -1;
         }
         const char* value = (const char *)Json_GetValueString(object);
@@ -264,7 +264,7 @@ static int parser_l7pro(struct probe_s *probe, const struct param_key_s *param_k
     size_t size = Json_GetArraySize(key_item);
     for (int i = 0; i < size; i++) {
         object = Json_GetArrayItem(key_item, i);
-        if (!Json_IsString(object)) {
+        if (Json_IsString(object) == 0) {
             return -1;
         }
         const char* value = (const char *)Json_GetValueString(object);
@@ -300,7 +300,7 @@ static int parser_svg_dir(struct probe_s *probe, const struct param_key_s *param
 {
     const char *value = (const char*)Json_GetValueString(key_item);
 
-    if (!Json_IsString(key_item)) {
+    if (Json_IsString(key_item) == 0) {
         return -1;
     }
 
@@ -317,7 +317,7 @@ static int parser_flame_dir(struct probe_s *probe, const struct param_key_s *par
 {
     const char *value = (const char*)Json_GetValueString(key_item);
 
-    if (!Json_IsString(key_item)) {
+    if (Json_IsString(key_item) == 0) {
         return -1;
     }
 
@@ -333,7 +333,7 @@ static int parser_pyscope_server(struct probe_s *probe, const struct param_key_s
 {
     const char *value = (const char*)Json_GetValueString(key_item);
 
-    if (!Json_IsString(key_item)) {
+    if (Json_IsString(key_item) == 0) {
         return -1;
     }
 
@@ -439,7 +439,7 @@ static int parser_dev_name(struct probe_s *probe, const struct param_key_s *para
 {
     const char *value = (const char*)Json_GetValueString(key_item);
 
-    if (!Json_IsString(key_item) || value == NULL) {
+    if (Json_IsString(key_item) == 0 || value == NULL) {
         return -1;
     }
 
@@ -483,7 +483,7 @@ static int parser_elf_path(struct probe_s *probe, const struct param_key_s *para
 {
     const char *value = (const char*)Json_GetValueString(key_item);
 
-    if (!Json_IsString(key_item)) {
+    if (Json_IsString(key_item) == 0) {
         return -1;
     }
 

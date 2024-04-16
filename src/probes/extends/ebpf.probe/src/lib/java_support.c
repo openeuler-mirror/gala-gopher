@@ -88,7 +88,7 @@ int _set_effective_id(int pid, struct jvm_process_info *v)
         }
     }
 
-    if (!nspid_found) {
+    if (nspid_found == 0) {
         ret = -1;
     }
 

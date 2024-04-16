@@ -56,7 +56,7 @@ struct {
 #ifndef __PERIOD
 #define __PERIOD NS(30)
 #endif
-static __always_inline u64 get_period()
+static __always_inline u64 get_period(void)
 {
     u32 key = 0;
     u64 period = __PERIOD;

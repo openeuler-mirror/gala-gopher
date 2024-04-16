@@ -57,7 +57,7 @@ struct redis_record_s {
  *
  * @return struct redis_msg_s*
  */
-struct redis_msg_s *init_redis_msg();
+struct redis_msg_s *init_redis_msg(void);
 
 /**
  * 释放struct redis_msg_s*
@@ -71,13 +71,13 @@ void free_redis_msg(struct redis_msg_s *msg);
  *
  * @return struct redis_record_s*
  */
-struct redis_record_s *init_redis_record();
+struct redis_record_s *init_redis_record(void);
 
 /**
  * 释放struct redis_record_s*
  *
  * @param msg struct redis_record_s指针
  */
-void free_redis_record(struct redis_record_s *msg);
+void free_redis_record(struct redis_record_s *record);
 
 #endif

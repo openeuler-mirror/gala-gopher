@@ -405,12 +405,12 @@ int set_post_server(struct post_server_s *post_server, const char *server_str, u
     return 0;
 }
 
-void clean_post_server()
+void clean_post_server(void)
 {
     curl_global_cleanup();
 }
 
-void clean_curl()
+void clean_curl(void)
 {
     if (g_curl != NULL) {
         curl_easy_cleanup(g_curl);
