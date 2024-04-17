@@ -1,3 +1,7 @@
+# force BPF programs to use CO-RE helpers regardless of whether kernel BTF is
+# present in the build environment
+BTF_ENABLE_OVERRIDE := ON
+
 include ../mk/var.mk
 INCLUDES = $(BASE_INC)
 
@@ -21,7 +25,7 @@ pre: $(OUTPUT)
 deps: $(DEPS)
 # build bpf code
 %.bpf.o: %.bpf.c
-	$(CLANG) $(CFLAGS) -target bpf $(INCLUDES) -c $(filter %.c,$^) -o $@
+	$(CLANG) $(CLANGFLAGS) -target bpf $(INCLUDES) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@
 
 # build skel.h

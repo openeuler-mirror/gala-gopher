@@ -26,7 +26,8 @@ The observation points of virtblk all in the io_trace_bpf.h file.
 Therefore, this BPF source file is just used to load the 'io_trace_bpf.h' file.
 The'block_spilt' tracepoint nothing to do.
 */
-KRAWTRACE(block_split, bpf_raw_tracepoint_args)
+SEC("tracepoint/block/block_split")
+int bpf_trace_block_split_func(struct trace_event_raw_block_split *ctx)
 {
     // NOTHING TO DO.
     return 0;

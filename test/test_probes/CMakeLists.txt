@@ -49,8 +49,6 @@ SET(SOURCES main.c test_probes.c
     ${COMMON_DIR}/util.c
     ${COMMON_DIR}/object.c
     ${COMMON_DIR}/event.c
-    ${COMMON_DIR}/logs.cpp
-    ${COMMON_DIR}/whitelist_config.c
     ${COMMON_DIR}/event_config.c
 )
 
@@ -77,5 +75,5 @@ TARGET_INCLUDE_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE
     ${WEBSERVER_DIR}
 )
 
-TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE config pthread dl rdkafka microhttpd cunit rt bpf log4cplus)
+TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE config pthread dl rdkafka microhttpd cunit rt bpf)
 

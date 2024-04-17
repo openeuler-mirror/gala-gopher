@@ -20,6 +20,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <time.h>
+#include <cxxabi.h>
 
 #include <sys/ioctl.h>
 #include <sys/wait.h>
@@ -61,7 +62,7 @@ int __get_inode(const char *elf, u32 *inode)
     inode_s[0] = 0;
     (void)snprintf(command, COMMAND_LEN, __STAT_INODE, elf);
 
-    if (exec_cmd((const char *)command, inode_s, INT_LEN) < 0) {
+    if (exec_cmd_chroot((const char *)command, inode_s, INT_LEN) < 0) {
         return -1;
     }
 
@@ -179,6 +180,26 @@ static int __inc_symbs_capability(struct elf_symbo_s* elf_symbo)
     return 0;
 }
 
+static char *dup_symb_with_demangling(const char *symb)
+{
+    int status;
+    char *symb1;
+    char *real_symb;
+
+    symb1 = strdup(symb);
+    if (!symb1) {
+        return NULL;
+    }
+    SPLIT_NEWLINE_SYMBOL(symb1);
+
+    real_symb = __cxa_demangle(symb1, NULL, NULL, &status);
+    if (!real_symb) {
+        return symb1;
+    }
+    free(symb1);
+    return real_symb;
+}
+
 static ELF_CB_RET __add_symbs(const char *symb, u64 addr_start, u64 size, void *ctx)
 {
     struct elf_symbo_s* elf_symbo = ctx;
@@ -199,8 +220,7 @@ static ELF_CB_RET __add_symbs(const char *symb, u64 addr_start, u64 size, void *
     (void)memset(new_symb, 0, sizeof(struct symb_s));
     new_symb->start = addr_start;
     new_symb->size = size;
-    new_symb->symb_name = strdup(symb);
-    SPLIT_NEWLINE_SYMBOL(new_symb->symb_name);
+    new_symb->symb_name = dup_symb_with_demangling(symb);
 
     elf_symbo->symbs[elf_symbo->symbs_count++] = new_symb;
     return ELF_SYMB_CB_OK;
@@ -379,7 +399,7 @@ static int __search_addr_upper_bound(struct elf_symbo_s* elf_symb, int bgn, int 
     if (__ERR_INDEX(elf_symb, right)) {
         return -1;
     }
-    return target_addr >= elf_symb->symbs[right]->start ? (right + 1): right;
+    return target_addr >= elf_symb->symbs[right]->start ? (right + 1) : right;
 }
 
 static int __do_search_addr(struct elf_symbo_s* elf_symb,
@@ -486,7 +506,7 @@ struct elf_symbo_s* get_symb_from_file(const char* elf, enum sym_file_t sym_file
 
     H_ADD_I(__head, i_inode, new_item);
     if (sym_file_type == JAVA_SYM) {
-        INFO("[ELF_SYMBOL]: Succeed to init JVM symbs %s(symbs_count = %u).\n", new_item->elf, new_item->symbs_count);
+        DEBUG("[ELF_SYMBOL]: Succeed to init JVM symbs %s(symbs_count = %u).\n", new_item->elf, new_item->symbs_count);
     }
 
     return new_item;

@@ -38,6 +38,8 @@
 #include "stack.h"
 #include "svg.h"
 
+#ifdef FLAMEGRAPH_SVG
+
 #define __COMMAND_LEN       (2 * COMMAND_LEN)
 #define FAMEGRAPH_BIN       "/usr/bin/flamegraph.pl"
 #define SVG_COMMAND   "%s --title=\" %s \" %s %s > %s 2>/dev/null"
@@ -51,10 +53,11 @@ struct svg_param_s {
 static struct svg_param_s svg_params[STACK_SVG_MAX] =
     {{"oncpu", "--countname=us", "On-CPU Time Flame Graph"},
     {"offcpu", "--colors=io --countname=us", "Off-CPU Time Flame Graph"},
-    {"io", "--colors=io --countname=us", "IO Time Flame Graph"},
-    {"memleak", "--colors=mem --countname=Bytes", "Memory Leak Flame Graph"}};
-
-#if 1
+    {"mem", "--colors=mem --countname=Bytes", "Memory Leak Flame Graph"},
+    {"mem", "--colors=mem --countname=Bytes", "Memory Leak Flame Graph"},
+    {"io", "--colors=io --countname=us", "IO Time Flame Graph"}};
+#endif
+#ifdef FLAMEGRAPH_SVG
 static void __rm_svg(const char *svg_file)
 {
     FILE *fp;
@@ -71,7 +74,7 @@ static void __rm_svg(const char *svg_file)
     if (fp != NULL) {
         (void)pclose(fp);
         fp = NULL;
-        INFO("[SVG]: Delete svg file(%s)\n", svg_file);
+        DEBUG("[SVG]: Delete svg file(%s)\n", svg_file);
     }
 }
 
@@ -100,7 +103,7 @@ static int __new_svg(const char *flame_graph, const char *svg_file, int en_type)
     if (fp != NULL) {
         (void)pclose(fp);
         fp = NULL;
-        INFO("[SVG]: Create svg file(%s)\n", svg_file);
+        DEBUG("[SVG]: Create svg file(%s)\n", svg_file);
         return 0;
     }
 
@@ -178,7 +181,7 @@ int __mkdir_with_svg_date(const char *svg_dir, char *svg_date_dir, size_t size)
     return 0;
 }
 
-static int stack_get_next_svg_file(struct stack_svgs_s* svgs, char svg_file[], size_t size, int en_type)
+static int stack_get_next_svg_file(struct stack_svgs_s* svgs, char svg_file[], size_t size, int en_type, int proc_id)
 {
     int next;
     char svg_name[PATH_LEN];
@@ -204,7 +207,7 @@ static int stack_get_next_svg_file(struct stack_svgs_s* svgs, char svg_file[], s
     }
 
     svg_name[0] = 0;
-    (void)snprintf(svg_name, PATH_LEN, "%s.svg", get_cur_time());
+    (void)snprintf(svg_name, PATH_LEN, "%s-%d.svg", get_cur_time(), proc_id);
 
     svg_file[0] = 0;
     (void)snprintf(svg_file, size, "%s/%s", svg_date_dir, svg_name);
@@ -215,7 +218,6 @@ static int stack_get_next_svg_file(struct stack_svgs_s* svgs, char svg_file[], s
     svgs->svg_files.next = next;
     return 0;
 }
-#endif
 
 char is_svg_tmout(struct stack_svg_mng_s* svg_mng)
 {
@@ -233,20 +235,20 @@ char is_svg_tmout(struct stack_svg_mng_s* svg_mng)
     return 0;
 }
 
-int create_svg_file(struct stack_svg_mng_s* svg_mng, const char *flame_graph, int en_type)
+int create_svg_file(struct stack_svg_mng_s* svg_mng, const char *flame_graph, int en_type, int proc_id)
 {
     char svg_file[LINE_BUF_LEN];
     struct stack_svgs_s* svgs;
 
     svgs = &(svg_mng->svg);
 
-    if (stack_get_next_svg_file(svgs, svg_file, LINE_BUF_LEN, en_type)) {
+    if (stack_get_next_svg_file(svgs, svg_file, LINE_BUF_LEN, en_type, proc_id)) {
         return -1;
     }
 
     return __new_svg(flame_graph, (const char *)svg_file, en_type);
 }
-
+#endif
 struct stack_svg_mng_s* create_svg_mng(u32 default_period)
 {
     struct stack_svg_mng_s* svg_mng = malloc(sizeof(struct stack_svg_mng_s));
@@ -256,17 +258,24 @@ struct stack_svg_mng_s* create_svg_mng(u32 default_period)
 
     (void)memset(svg_mng, 0, sizeof(struct stack_svg_mng_s));
 
+    if (default_period == 0) {
+        default_period = 180;
+    }
+
     svg_mng->svg.last_create_time = (time_t)time(NULL);
     svg_mng->svg.period = default_period;
+#ifdef FLAMEGRAPH_SVG
     (void)__create_svg_files(&svg_mng->svg.svg_files, default_period);
-
+#endif
     return svg_mng;
 }
 
 void destroy_svg_mng(struct stack_svg_mng_s* svg_mng)
 {
+#ifdef FLAMEGRAPH_SVG
     struct stack_svgs_s *svgs;
     struct stack_flamegraph_s *flame_graph;
+#endif
     enum stack_svg_type_e en_type = STACK_SVG_ONCPU;
 
     if (!svg_mng) {
@@ -274,11 +283,13 @@ void destroy_svg_mng(struct stack_svg_mng_s* svg_mng)
     }
 
     for (; en_type < STACK_SVG_MAX; en_type++) {
+#ifdef FLAMEGRAPH_SVG
         svgs = &(svg_mng->svg);
         __destroy_svg_files(&(svgs->svg_files));
 
         flame_graph = &(svg_mng->flame_graph);
         __destroy_flamegraph(flame_graph);
+#endif
     }
     (void)free(svg_mng);
     return;
@@ -307,6 +318,10 @@ int set_svg_dir(struct stack_svgs_s *svg, const char *dir, const char *flame_nam
         return -1;
     }
 
+    if (dir == NULL || dir[0] == 0) {
+        dir = "/var/log/gala-gopher/stacktrace";
+    }
+
     len = strlen(dir);
     if (len <= 1 || len + strlen(flame_name) >= PATH_LEN) {
         return -1;
@@ -318,24 +333,6 @@ int set_svg_dir(struct stack_svgs_s *svg, const char *dir, const char *flame_nam
         (void)snprintf(svg->svg_dir, PATH_LEN, "%s/%s", dir, flame_name);
     }
     __mkdir_svg_dir(svg);
-    return 0;
-}
-
-int set_svg_period(struct stack_svg_mng_s* svg_mng, u32 period)
-{
-    struct stack_svgs_s *svgs;
-
-    if (!svg_mng) {
-        return -1;
-    }
-    svgs = &(svg_mng->svg);
-
-    __destroy_svg_files(&svgs->svg_files);
-    if (__create_svg_files(&svgs->svg_files, period)) {
-        return -1;
-    }
-    svgs->period = period;
-
     return 0;
 }
 

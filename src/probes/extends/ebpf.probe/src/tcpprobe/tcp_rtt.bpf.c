@@ -42,7 +42,7 @@ static __always_inline void report_rtt(void *ctx, struct tcp_metrics_s *metrics)
 {
     metrics->report_flags |= TCP_PROBE_RTT;
 
-    (void)bpf_perf_event_output(ctx, &tcp_output, BPF_F_CURRENT_CPU, metrics, sizeof(struct tcp_metrics_s));
+    (void)bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
 
     metrics->report_flags &= ~TCP_PROBE_RTT;
     //__builtin_memset(&(metrics->rtt_stats), 0x0, sizeof(metrics->rtt_stats));
@@ -66,30 +66,30 @@ static void tcp_rtt_probe_func(void *ctx, struct sock *sk)
 {
     struct tcp_metrics_s *metrics;
 
-    // Avoid high performance costs
-    if (!is_tmout_rtt(sk)) {
-        return;
-    }
-
     metrics = get_tcp_metrics(sk);
     if (metrics) {
         get_tcp_rtt(sk, &(metrics->rtt_stats));
+
+        // Avoid high performance costs
+        if (!is_tmout_rtt(sk)) {
+            return;
+        }
+
         report_rtt(ctx, metrics);
     }
 }
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
+
 KRAWTRACE(tcp_probe, bpf_raw_tracepoint_args)
 {
     struct sock *sk = (struct sock*)ctx->args[0];
     tcp_rtt_probe_func(ctx, sk);
     return 0;
 }
-#else
+
 KPROBE(tcp_rcv_established, pt_regs)
 {
     struct sock *sk = (struct sock*)PT_REGS_PARM1(ctx);
     tcp_rtt_probe_func(ctx, sk);
     return 0;
 }
-#endif
 

@@ -107,7 +107,7 @@ void tracepoint_sys_enter(struct sys_enter_arg *ctx)
 
     bpf_get_current_comm(&comm, sizeof(comm));
 
-    if (!is_targe_comm(comm, proc_id)) {
+    if (!is_target_proc(proc_id)) {
         return;
     }
 

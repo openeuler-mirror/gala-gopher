@@ -14,6 +14,8 @@
  ******************************************************************************/
 #include <stdio.h>
 #include <time.h>
+#include <utlist.h>
+#include <sys/stat.h>
 #include <linux/futex.h>
 
 #ifdef BPF_PROG_KERN
@@ -27,20 +29,21 @@
 #include "bpf.h"
 #include "event.h"
 #include "strbuf.h"
+#include "kern_symb.h"
 #include "proc_info.h"
 #include "profiling_event.h"
-#include "kern_symb.h"
 
 #define LEN_OF_RESOURCE 1024
-#define LEN_OF_ATTRS    8192
+#define LEN_OF_ATTRS    (8192 - LEN_OF_RESOURCE)
 
 static int get_sys_boot_time(__u64 *boot_time);
 static __u64 get_unix_time_from_uptime(__u64 uptime);
 
 static void set_syscall_name(unsigned long nr, char *name);
-static int set_evt_resource(trace_event_data_t *evt_data, char *evt_resource, int resource_size);
-static int set_evt_attrs(trace_event_data_t *evt_data, char *evt_attrs, int attrs_size);
+static int set_evt_attrs_batch(thrd_info_t *thrd_info, char *evt_attrs, int attrs_size);
 static int filter_by_thread_bl(trace_event_data_t *evt_data);
+static void cache_thrd_event(thrd_info_t **thrd_info_ptr, trace_event_data_t *evt_data);
+static void try_report_thrd_events(thrd_info_t *thrd_info);
 
 int init_sys_boot_time(__u64 *sysBootTime)
 {
@@ -54,30 +57,18 @@ static __u64 get_unix_time_from_uptime(__u64 uptime)
 
 void output_profiling_event(trace_event_data_t *evt_data)
 {
-    __u64 timestamp = 0;
-    char resource[LEN_OF_RESOURCE] = {0};
-    char attrs[LEN_OF_ATTRS] = {0};
-    struct otel_log ol = {0};
+    thrd_info_t *ti = NULL;
 
     if (filter_by_thread_bl(evt_data)) {
         return;
     }
 
-    timestamp = get_unix_time_from_uptime(evt_data->timestamp) / NSEC_PER_MSEC;
-    if (set_evt_resource(evt_data, resource, LEN_OF_RESOURCE)) {
-        return;
-    }
-    if (set_evt_attrs(evt_data, attrs, LEN_OF_ATTRS)) {
+    cache_thrd_event(&ti, evt_data);
+    if (ti == NULL) {
         return;
     }
 
-    ol.timestamp = timestamp;
-    ol.sec = EVT_SEC_INFO;
-    ol.resource = resource;
-    ol.attrs = attrs;
-    ol.body = "";
-
-    emit_otel_log(&ol);
+    try_report_thrd_events(ti);
 }
 
 // system boot time = current time - uptime since system boot.
@@ -112,7 +103,7 @@ static syscall_meta_t *get_syscall_meta(unsigned long nr)
 
     HASH_FIND(hh, tprofiler.scmTable, &nr, sizeof(unsigned long), scm);
     if (scm == NULL) {
-        fprintf(stderr, "WARN: cannot find syscall metadata of syscall number:%ld.\n", nr);
+        TP_WARN("Cannot find syscall metadata of syscall number:%lu.\n", nr);
     }
 
     return scm;
@@ -129,13 +120,13 @@ static void set_syscall_name(unsigned long nr, char *name)
     strcpy(name, scm->name);
 }
 
-static int set_evt_resource(trace_event_data_t *evt_data, char *evt_resource, int resource_size)
+static int set_evt_resource(thrd_info_t *thrd_info, char *evt_resource, int resource_size)
 {
     int expect_size = 0;
     proc_info_t *pi;
     container_info_t *ci;
 
-    pi = get_proc_info(&tprofiler.procTable, evt_data->tgid);
+    pi = thrd_info->proc_info;
     if (pi == NULL) {
         return -1;
     }
@@ -145,20 +136,123 @@ static int set_evt_resource(trace_event_data_t *evt_data, char *evt_resource, in
                            "{\"thread.pid\":\"%d\",\"thread.tgid\":\"%d\",\"thread.comm\":\"%s\""
                            ",\"process.comm\":\"%s\",\"process.name\":\"%s\""
                            ",\"container.id\":\"%s\",\"container.name\":\"%s\"}",
-                           evt_data->pid, evt_data->tgid, evt_data->comm,
+                           thrd_info->pid, pi->tgid, thrd_info->comm,
                            pi->comm, pi->proc_name, ci->id, ci->name);
     if (expect_size >= resource_size) {
-        fprintf(stderr, "ERROR: resource size not large enough\n");
+        TP_ERROR("Resource size not large enough\n");
         return -1;
     }
 
     return 0;
 }
 
+static void set_cached_event_data(event_elem_t *cached_evt, trace_event_data_t *evt_data)
+{
+    event_data_t *cached_evt_data = EVT_DATA(cached_evt);
+
+    cached_evt_data->type = evt_data->type;
+    if (evt_data->type == EVT_TYPE_SYSCALL) {
+        memcpy(&cached_evt_data->syscall_d, &evt_data->syscall_d, sizeof(syscall_data_t));
+    } else if (evt_data->type == EVT_TYPE_ONCPU) {
+        memcpy(&cached_evt_data->oncpu_d, &evt_data->oncpu_d, sizeof(oncpu_data_t));
+    }
+}
+
+static void cache_thrd_event(thrd_info_t **thrd_info_ptr, trace_event_data_t *evt_data)
+{
+    proc_info_t *pi;
+    thrd_info_t *ti;
+    event_elem_t *cached_evt;
+
+    pi = get_proc_info(&tprofiler.procTable, evt_data->tgid);
+    if (pi == NULL) {
+        return;
+    }
+
+    ti = get_thrd_info(pi, evt_data->pid);
+    if (ti == NULL) {
+        return;
+    }
+    if (ti->comm[0] == 0) {
+        (void)snprintf(ti->comm, sizeof(ti->comm), "%s", evt_data->comm);
+    }
+
+    cached_evt = create_event_elem(sizeof(event_data_t));
+    if (cached_evt == NULL) {
+        return;
+    }
+    cached_evt->thrd_info = ti;
+    set_cached_event_data(cached_evt, evt_data);
+
+    DL_APPEND(ti->cached_evts, cached_evt);
+    ti->evt_num++;
+    *thrd_info_ptr = ti;
+}
+
+static void report_thrd_events(thrd_info_t *thrd_info)
+{
+    char resource[LEN_OF_RESOURCE];
+    char attrs[LEN_OF_ATTRS];
+    struct otel_log ol;
+    int ret;
+
+    resource[0] = 0;
+    if (set_evt_resource(thrd_info, resource, LEN_OF_RESOURCE)) {
+        return;
+    }
+
+    while (thrd_info->evt_num > 0) {
+        attrs[0] = 0;
+        ret = set_evt_attrs_batch(thrd_info, attrs, LEN_OF_ATTRS);
+        if (ret) {
+            clean_cached_events(thrd_info);
+            return;
+        }
+
+        ol.timestamp = (u64)time(NULL) * MSEC_PER_SEC;
+        ol.sec = EVT_SEC_INFO;
+        ol.resource = resource;
+        ol.attrs = attrs;
+        ol.body = "";
+
+        emit_otel_log(&ol);
+    }
+}
+
+static inline bool can_report(time_t now, time_t last)
+{
+    if (now < last + tprofiler.report_period) {
+        return false;
+    }
+    return true;
+}
+
+/*
+ * 若满足以下条件之一，则触发线程 profiling 事件的上报：
+ * 1. 超过上报周期
+ * 2. 超过单个线程最大缓存的事件数量
+*/
+static void try_report_thrd_events(thrd_info_t *thrd_info)
+{
+    time_t now;
+
+    now = time(NULL);
+    if (thrd_info->evt_num <= MAX_CACHE_EVENT_NUM && !can_report(now, thrd_info->last_report_time)) {
+        return;
+    }
+    if (thrd_info->cached_evts == NULL || thrd_info->evt_num == 0) {
+        return;
+    }
+
+    report_thrd_events(thrd_info);
+
+    thrd_info->last_report_time = now;
+}
+
 int get_addr_stack(__u64 *addr_stack, int uid)
 {
     if (tprofiler.stackMapFd <= 0) {
-        fprintf(stderr, "ERROR: cannot get stack map fd:%d.\n", tprofiler.stackMapFd);
+        TP_ERROR("Can not get stack map fd: %d.\n", tprofiler.stackMapFd);
         return -1;
     }
 
@@ -195,22 +289,21 @@ static void stack_transfer_addrs2symbs(__u64 *addrs, int addr_num,
         memset(&symb, 0, sizeof(symb));
         ret = proc_search_addr_symb(symbs, addrs[i], &symb, proc_info->comm);
         if (ret) {
-            symb_name = "";
+            symb_name = "[unknown]";
         } else {
             symb_name = symb.sym ?: symb.mod;
         }
-
-        ret = snprintf(symbs_buf.buf, symbs_buf.size, "%s;", symb_name);
+        ret = snprintf(symbs_buf.buf, symbs_buf.size , "%s[u];", symb_name);
         if (ret < 0 || ret >= symbs_buf.size) {
             // it is allowed that stack may be truncated
-            fprintf(stderr, "WARN: stack buffer not large enough.\n");
+            TP_WARN("Stack buffer not large enough.\n");
             return;
         }
         strbuf_update_offset(&symbs_buf, ret);
     }
 }
 
-static int get_symb_stack(char *symbs_str, int symb_size, trace_event_data_t *evt_data)
+static int get_symb_stack(char *symbs_str, int symb_size, event_elem_t *cached_evt)
 {
     __u64 ip[PERF_MAX_STACK_DEPTH] = {0};
 
@@ -218,12 +311,12 @@ static int get_symb_stack(char *symbs_str, int symb_size, trace_event_data_t *ev
     struct proc_symbs_s *symbs;
     int uid;
 
-    uid = evt_data->syscall_d.stack_info.uid;
+    uid = EVT_DATA_SC(cached_evt)->stats.stats_stack.stacks[0].stack.uid;
     if (get_addr_stack(ip, uid)) {
         return -1;
     }
 
-    pi = get_proc_info(&tprofiler.procTable, evt_data->tgid);
+    pi = cached_evt->thrd_info->proc_info;
     if (pi == NULL) {
         return -1;
     }
@@ -239,58 +332,108 @@ static int get_symb_stack(char *symbs_str, int symb_size, trace_event_data_t *ev
     return 0;
 }
 
-#define FUNC_NAME_LEN 32
+static int get_py_symb_stack(char *symbs_str, int symb_size, event_elem_t *cached_evt)
+{
+    struct py_stack py_stack;
+    struct py_symbol sym;
+    __u64 pyid;
+    int i;
+    int ret;
 
-static int append_stack_attrs(strbuf_t *attrs_buf, trace_event_data_t *evt_data)
+    strbuf_t symbs_buf = {
+        .buf = symbs_str,
+        .size = symb_size
+    };
+
+    pyid = EVT_DATA_SC(cached_evt)->stats.stats_stack.stacks[0].stack.pyid;
+    if (pyid == 0){
+        return 0;
+    }
+    if (bpf_map_lookup_elem(tprofiler.pyStackMapFd, &pyid, &py_stack) != 0) {
+        return -1;
+    }
+    bpf_map_delete_elem(tprofiler.pyStackMapFd, &pyid);
+
+    for (i = py_stack.stack_len - 1; i >= 0; i--) {
+        if (bpf_map_lookup_elem(tprofiler.pySymbMapFd, &py_stack.stack[i & (MAX_PYTHON_STACK_DEPTH_MAX - 1)], &sym) == 0) {
+            if (sym.class_name[0] != '\0') {
+                ret = snprintf(symbs_buf.buf, symbs_buf.size, "%s#%s[p];", sym.class_name, sym.func_name);
+            } else {
+                ret = snprintf(symbs_buf.buf, symbs_buf.size, "%s[p];", sym.func_name);
+            }
+        } else {
+            char *symb_name;
+            symb_name = "[unknown]";
+            ret = snprintf(symbs_buf.buf, symbs_buf.size , "%s[p];", symb_name);
+        }
+
+        if (ret < 0 || ret >= symbs_buf.size) {
+            // it is allowed that stack may be truncated
+            TP_WARN("Stack buffer not large enough.\n");
+            return -ERR_TP_NO_BUFF;
+        }
+
+        strbuf_update_offset(&symbs_buf, ret);
+    }
+
+    return 0;
+
+}
+
+#define FUNC_NAME_LEN 64
+
+static int append_stack_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
 {
     int ret;
     char symbs_str[PERF_MAX_STACK_DEPTH * FUNC_NAME_LEN] = {0};
 
-    ret = get_symb_stack(symbs_str, sizeof(symbs_str), evt_data);
-    if (ret) {
-        return 0;
+    ret = get_py_symb_stack(symbs_str, sizeof(symbs_str), cached_evt);
+    if (ret){
+        return -1;
     }
-
+    ret = get_symb_stack(symbs_str + strlen(symbs_str), sizeof(symbs_str) - strlen(symbs_str), cached_evt);
+    if (ret) {
+        return -1;
+    }
     ret = snprintf(attrs_buf->buf, attrs_buf->size, ",\"func.stack\":\"%s\"", symbs_str);
     if (ret < 0 || ret >= attrs_buf->size) {
-        fprintf(stderr, "ERROR: Failed to set func.stack attribute.\n");
-        return -1;
+        return -ERR_TP_NO_BUFF;
     }
     strbuf_update_offset(attrs_buf, ret);
 
     return 0;
 }
 
-static int append_regular_file_attrs(strbuf_t *attrs_buf, fd_info_t *fd_info)
+static int append_regular_file_attrs(strbuf_t *attrs_buf, fd_info_t *fd_info, struct stats_fd_elem *fd_elem, bool first_flag)
 {
     int ret;
+    char *comma = first_flag ? "" : ",";
 
     ret = snprintf(attrs_buf->buf, attrs_buf->size,
-                   ",\"event.type\":\"%s\",\"file.path\":\"%s\"",
-                   PROFILE_EVT_TYPE_FILE, fd_info->reg_info.name);
+                   "%s{\"file.path\":\"%s\",\"duration\":%.3lf}",
+                   comma, fd_info->reg_info.name, (double)fd_elem->duration / NSEC_PER_MSEC);
     if (ret < 0 || ret >= attrs_buf->size) {
-        fprintf(stderr, "ERROR: Failed to set file.path attribute.\n");
-        return -1;
+        return -ERR_TP_NO_BUFF;
     }
     strbuf_update_offset(attrs_buf, ret);
 
     return 0;
 }
 
-static int append_sock_attrs(strbuf_t *attrs_buf, fd_info_t *fd_info)
+static int append_sock_attrs(strbuf_t *attrs_buf, fd_info_t *fd_info, struct stats_fd_elem *fd_elem, bool first_flag)
 {
     int ret;
     sock_info_t *si = &fd_info->sock_info;
+    char *comma = first_flag ? "" : ",";
 
     switch (si->type) {
         case SOCK_TYPE_IPV4:
         case SOCK_TYPE_IPV6:
             ret = snprintf(attrs_buf->buf, attrs_buf->size,
-                           ",\"event.type\":\"%s\",\"sock.conn\": \"%s\"",
-                           PROFILE_EVT_TYPE_NET, si->ip_info.conn);
+                           "%s{\"sock.conn\":\"%s\",\"duration\": %.3lf}",
+                           comma, si->ip_info.conn, (double)fd_elem->duration / NSEC_PER_MSEC);
             if (ret < 0 || ret >= attrs_buf->size) {
-                fprintf(stderr, "ERROR: Failed to set sock attributes.\n");
-                return -1;
+                return -ERR_TP_NO_BUFF;
             }
             strbuf_update_offset(attrs_buf, ret);
             break;
@@ -300,31 +443,111 @@ static int append_sock_attrs(strbuf_t *attrs_buf, fd_info_t *fd_info)
     return 0;
 }
 
-static int append_fd_attrs(strbuf_t *attrs_buf, trace_event_data_t *evt_data)
+static int append_inode_attrs(strbuf_t *attrs_buf, struct stats_fd_elem *fd_elem, bool first_flag)
 {
-    int tgid = evt_data->tgid;
-    int fd = evt_data->syscall_d.ext_info.fd_info.fd;
-    proc_info_t *pi;
+    int ret;
+    char *comma = first_flag ? "" : ",";
+
+    ret = snprintf(attrs_buf->buf, attrs_buf->size,
+                   "%s{\"file.inode\":%lu,\"duration\":%.3lf}",
+                   comma, fd_elem->ino, (double)fd_elem->duration / NSEC_PER_MSEC);
+    if (ret < 0 || ret >= attrs_buf->size) {
+        return -ERR_TP_NO_BUFF;
+    }
+    strbuf_update_offset(attrs_buf, ret);
+
+    return 0;
+}
+
+static int append_fd_attr(strbuf_t *attrs_buf, proc_info_t *proc_info, struct stats_fd_elem *fd_elem, bool first_flag)
+{
     fd_info_t *fi;
 
-    pi = get_proc_info(&tprofiler.procTable, tgid);
-    if (pi == NULL) {
-        return -1;
-    }
-
-    fi = get_fd_info(pi, fd);
+    fi = get_fd_info(proc_info, fd_elem->fd);
     if (fi == NULL) {
-        return -1;
+        return append_inode_attrs(attrs_buf, fd_elem, first_flag);
+    }
+    if (fi->ino != fd_elem->ino) {
+        delete_fd_info(proc_info, fi);
+        return append_inode_attrs(attrs_buf, fd_elem, first_flag);
     }
 
     switch (fi->type) {
         case FD_TYPE_REG:
-            return append_regular_file_attrs(attrs_buf, fi);
+            return append_regular_file_attrs(attrs_buf, fi, fd_elem, first_flag);
         case FD_TYPE_SOCK:
-            return append_sock_attrs(attrs_buf, fi);
+            return append_sock_attrs(attrs_buf, fi, fd_elem, first_flag);
         default:
-            return -1;
+            return append_inode_attrs(attrs_buf, fd_elem, first_flag);
     }
+}
+
+// 带fd类事件可能既包含文件操作、也包含网络操作，因此默认选择第一个fd事件的类型。
+static const char *get_fd_evt_type(event_elem_t *cached_evt)
+{
+    const char *dft_type = PROFILE_EVT_TYPE_OTHER;
+    struct stats_fd *stats_fd;
+    int i;
+
+    stats_fd = &EVT_DATA_SC(cached_evt)->stats.stats_fd;
+    for (i = 0; i < stats_fd->num && i < STATS_TOP_FD_MAX_NUM; i++) {
+        switch (stats_fd->fds[i].imode & S_IFMT) {
+            case S_IFDIR:
+            case S_IFREG:
+                return PROFILE_EVT_TYPE_FILE;
+            case S_IFSOCK:
+                return PROFILE_EVT_TYPE_NET;
+            default:
+                return dft_type;
+        }
+    }
+
+    return dft_type;
+}
+
+static int append_fd_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
+{
+    struct stats_fd *stats_fd;
+    proc_info_t *pi;
+    const char *prefix = ",\"io.top\":[";
+    const char *suffix = "]";
+    bool first_flag = true;
+    const char *evt_type;
+    int i;
+    int ret;
+
+    pi = cached_evt->thrd_info->proc_info;
+    if (pi == NULL) {
+        return -1;
+    }
+
+    ret = strbuf_append_str_with_check(attrs_buf, prefix, strlen(prefix));
+    if (ret) {
+        return -ERR_TP_NO_BUFF;
+    }
+
+    stats_fd = &EVT_DATA_SC(cached_evt)->stats.stats_fd;
+    for (i = 0; i < stats_fd->num && i < STATS_TOP_FD_MAX_NUM; i++) {
+        ret = append_fd_attr(attrs_buf, pi, &stats_fd->fds[i], first_flag);
+        if (ret == -ERR_TP_NO_BUFF) {
+            return ret;
+        }
+        first_flag = false;
+    }
+
+    ret = strbuf_append_str_with_check(attrs_buf, suffix, strlen(suffix));
+    if (ret) {
+        return -ERR_TP_NO_BUFF;
+    }
+
+    evt_type = get_fd_evt_type(cached_evt);
+    ret = snprintf(attrs_buf->buf, attrs_buf->size, ",\"event.type\":\"%s\"", evt_type);
+    if (ret < 0 || ret >= attrs_buf->size) {
+        return -ERR_TP_NO_BUFF;
+    }
+    strbuf_update_offset(attrs_buf, ret);
+
+    return 0;
 }
 
 static int is_futex_wait_op(int op)
@@ -345,32 +568,74 @@ static int is_futex_wake_op(int op)
     return 0;
 }
 
-static int append_futex_attrs(strbuf_t *attrs_buf, trace_event_data_t *evt_data)
+static const char *get_futex_op_name(int op)
 {
-    int ret;
-    char futexOp[8] = {0};
-    int op;
+    const char *op_name = "";
 
-    op = evt_data->syscall_d.ext_info.futex_info.op;
     if (is_futex_wait_op(op)) {
-        strcpy(futexOp, "wait");
+        op_name = "wait";
     } else if (is_futex_wake_op(op)) {
-        strcpy(futexOp, "wake");
+        op_name = "wake";
     }
 
+    return op_name;
+}
+
+static int append_futex_attr(strbuf_t *attrs_buf, struct stats_futex_elem *futex_elem, bool first_flag)
+{
+    int ret;
+    const char *futexOp = get_futex_op_name(futex_elem->op);
+    char *comma = first_flag ? "" : ",";
+
     ret = snprintf(attrs_buf->buf, attrs_buf->size,
-                   ",\"event.type\":\"%s\",\"futex.op\":\"%s\"",
-                   PROFILE_EVT_TYPE_LOCK, futexOp);
+                   "%s{\"futex.op\":\"%s\",\"duration\":%.3lf}",
+                   comma, futexOp, (double)futex_elem->duration / NSEC_PER_MSEC);
     if (ret < 0 || ret >= attrs_buf->size) {
-        fprintf(stderr, "ERROR: Failed to set futex attributes.\n");
-        return -1;
+        return -ERR_TP_NO_BUFF;
     }
     strbuf_update_offset(attrs_buf, ret);
 
     return 0;
 }
 
-static int append_untyped_attrs(strbuf_t *attrs_buf, syscall_meta_t *scm, trace_event_data_t *evt_data)
+static int append_futex_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
+{
+    struct stats_futex *stats_futex;
+    const char *prefix = ",\"futex.top\":[";
+    const char *suffix = "]";
+    bool first_flag = true;
+    int i;
+    int ret;
+
+    ret = strbuf_append_str_with_check(attrs_buf, prefix, strlen(prefix));
+    if (ret) {
+        return -ERR_TP_NO_BUFF;
+    }
+
+    stats_futex = &EVT_DATA_SC(cached_evt)->stats.stats_futex;
+    for (i = 0; i < stats_futex->num && i < STATS_TOP_FD_MAX_NUM; i++) {
+        ret = append_futex_attr(attrs_buf, &stats_futex->ops[i], first_flag);
+        if (ret == -ERR_TP_NO_BUFF) {
+            return ret;
+        }
+        first_flag = false;
+    }
+
+    ret = strbuf_append_str_with_check(attrs_buf, suffix, strlen(suffix));
+    if (ret) {
+        return -ERR_TP_NO_BUFF;
+    }
+
+    ret = snprintf(attrs_buf->buf, attrs_buf->size, ",\"event.type\": \"%s\"", PROFILE_EVT_TYPE_LOCK);
+    if (ret < 0 || ret >= attrs_buf->size) {
+        return -ERR_TP_NO_BUFF;
+    }
+    strbuf_update_offset(attrs_buf, ret);
+
+    return 0;
+}
+
+static int append_untyped_attrs(strbuf_t *attrs_buf, syscall_meta_t *scm)
 {
     char *evt_type;
     int ret;
@@ -378,17 +643,16 @@ static int append_untyped_attrs(strbuf_t *attrs_buf, syscall_meta_t *scm, trace_
     evt_type = scm->default_type[0] != '\0' ? scm->default_type : PROFILE_EVT_TYPE_OTHER;
     ret = snprintf(attrs_buf->buf, attrs_buf->size, ",\"event.type\":\"%s\"", evt_type);
     if (ret < 0 || ret >= attrs_buf->size) {
-        fprintf(stderr, "ERROR: Failed to set untyped attributes.\n");
-        return -1;
+        return -ERR_TP_NO_BUFF;
     }
     strbuf_update_offset(attrs_buf, ret);
 
     return 0;
 }
-static int append_syscall_attrs_by_nr(strbuf_t *attrs_buf, trace_event_data_t *evt_data)
+static int append_syscall_attrs_by_nr(strbuf_t *attrs_buf, event_elem_t *cached_evt)
 {
     syscall_meta_t *scm;
-    unsigned long nr = evt_data->syscall_d.nr;
+    unsigned long nr = EVT_DATA_SC(cached_evt)->nr;
     bool typed = false;
     int ret;
 
@@ -396,39 +660,40 @@ static int append_syscall_attrs_by_nr(strbuf_t *attrs_buf, trace_event_data_t *e
     if (!scm) {
         return -1;
     }
-
     if (scm->flag & SYSCALL_FLAG_FD) {
-        if (append_fd_attrs(attrs_buf, evt_data)) {
-            return -1;
+        ret = append_fd_attrs(attrs_buf, cached_evt);
+        if (ret) {
+            return ret;
         }
         typed = true;
     }
 
     if (nr == SYSCALL_FUTEX_ID) {
-        if (append_futex_attrs(attrs_buf, evt_data)) {
-            return -1;
+        ret = append_futex_attrs(attrs_buf, cached_evt);
+        if (ret) {
+            return ret;
         }
         typed = true;
     }
-
     if (scm->flag & SYSCALL_FLAG_STACK) {
         // 获取函数调用栈
-        ret = append_stack_attrs(attrs_buf, evt_data);
+        // TODO: 换成使用火焰图结构存储调用栈信息
+        ret = append_stack_attrs(attrs_buf, cached_evt);
         if (ret) {
-            return -1;
+            return ret;
         }
     }
 
     if (!typed) {
-        return append_untyped_attrs(attrs_buf, scm, evt_data);
+        return append_untyped_attrs(attrs_buf, scm);
     }
 
     return 0;
 }
 
-static int append_syscall_common_attrs(strbuf_t *attrs_buf, trace_event_data_t *evt_data)
+static int append_syscall_common_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
 {
-    syscall_data_t *syscall_d = &evt_data->syscall_d;
+    syscall_data_t *syscall_d = EVT_DATA_SC(cached_evt);
     char evt_name[EVENT_NAME_LEN] = {0};
     __u64 start_time, end_time;
     double duration;
@@ -439,7 +704,7 @@ static int append_syscall_common_attrs(strbuf_t *attrs_buf, trace_event_data_t *
     start_time = get_unix_time_from_uptime(syscall_d->start_time) / NSEC_PER_MSEC;
     end_time = get_unix_time_from_uptime(syscall_d->start_time + syscall_d->duration) / NSEC_PER_MSEC;
     if (start_time > end_time) {
-        fprintf(stderr, "ERROR: Event start time large than end time\n");
+        TP_ERROR("Event start time large than end time\n");
         return -1;
     }
     duration = (double)syscall_d->duration / NSEC_PER_MSEC;
@@ -448,33 +713,32 @@ static int append_syscall_common_attrs(strbuf_t *attrs_buf, trace_event_data_t *
                    "\"event.name\":\"%s\",\"start_time\":%llu,\"end_time\":%llu,\"duration\":%.3lf,\"count\":%d",
                    evt_name, start_time, end_time, duration, syscall_d->count);
     if (ret < 0 || ret >= attrs_buf->size) {
-        fprintf(stderr, "ERROR: attributes size not large enough.\n");
-        return -1;
+        return -ERR_TP_NO_BUFF;
     }
     strbuf_update_offset(attrs_buf, ret);
 
     return 0;
 }
 
-static int set_syscall_evt_attrs(strbuf_t *attrs_buf, trace_event_data_t *evt_data)
+static int set_syscall_evt_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
 {
     int ret;
 
-    ret = append_syscall_common_attrs(attrs_buf, evt_data);
+    ret = append_syscall_common_attrs(attrs_buf, cached_evt);
     if (ret) {
-        return -1;
+        return ret;
     }
-    ret = append_syscall_attrs_by_nr(attrs_buf, evt_data);
+    ret = append_syscall_attrs_by_nr(attrs_buf, cached_evt);
     if (ret) {
-        return -1;
+        return ret;
     }
 
     return 0;
 }
 
-static int set_oncpu_evt_attrs(strbuf_t *attrs_buf, trace_event_data_t *evt_data)
+static int set_oncpu_evt_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
 {
-    oncpu_data_t *oncpu_d = &evt_data->oncpu_d;
+    oncpu_data_t *oncpu_d = EVT_DATA_CPU(cached_evt);
     __u64 start_time, end_time;
     double duration;
     int ret;
@@ -482,7 +746,7 @@ static int set_oncpu_evt_attrs(strbuf_t *attrs_buf, trace_event_data_t *evt_data
     start_time = get_unix_time_from_uptime(oncpu_d->start_time) / NSEC_PER_MSEC;
     end_time = get_unix_time_from_uptime(oncpu_d->start_time + oncpu_d->duration) / NSEC_PER_MSEC;
     if (start_time > end_time) {
-        fprintf(stderr, "ERROR: Event start time large than end time.\n");
+        TP_ERROR("Event start time large than end time.\n");
         return -1;
     }
     duration = (double)oncpu_d->duration / NSEC_PER_MSEC;
@@ -492,51 +756,140 @@ static int set_oncpu_evt_attrs(strbuf_t *attrs_buf, trace_event_data_t *evt_data
                    "\"count\":%d,\"event.type\":\"%s\"",
                    "oncpu", start_time, end_time, duration, oncpu_d->count, PROFILE_EVT_TYPE_ONCPU);
     if (ret < 0 || ret >= attrs_buf->size) {
-        fprintf(stderr, "ERROR: attributes size not large enough.\n");
-        return -1;
+        return -ERR_TP_NO_BUFF;
     }
     strbuf_update_offset(attrs_buf, ret);
 
     return 0;
 }
 
-static int set_typed_evt_attrs(strbuf_t *attrs_buf, trace_event_data_t *evt_data)
+static int set_typed_evt_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
 {
-    switch (evt_data->type) {
+    trace_event_type_t type = EVT_DATA_TYPE(cached_evt);
+
+    switch (type) {
         case EVT_TYPE_SYSCALL:
-            return set_syscall_evt_attrs(attrs_buf, evt_data);
+            return set_syscall_evt_attrs(attrs_buf, cached_evt);
         case EVT_TYPE_ONCPU:
-            return set_oncpu_evt_attrs(attrs_buf, evt_data);
+            return set_oncpu_evt_attrs(attrs_buf, cached_evt);
         default:
-            fprintf(stderr, "ERROR: unknown event type %d.\n", evt_data->type);
+            TP_ERROR("Unknown event type %d.\n", type);
             return -1;
     }
 }
 
-static int set_evt_attrs(trace_event_data_t *evt_data, char *evt_attrs, int attrs_size)
+// format like: `{"key1":"value1","key2":value2}`
+static int set_evt_attrs_single(strbuf_t *attrs_buf, event_elem_t *cached_evt)
 {
     int ret;
+
+    ret = strbuf_append_chr_with_check(attrs_buf, '{');
+    if (ret) {
+        return -ERR_TP_NO_BUFF;
+    }
+
+    ret = set_typed_evt_attrs(attrs_buf, cached_evt);
+    if (ret) {
+        return ret;
+    }
+
+    ret = strbuf_append_chr_with_check(attrs_buf, '}');
+    if (ret) {
+        return -ERR_TP_NO_BUFF;
+    }
+
+    return 0;
+}
+
+/*
+ * 批量添加缓存的线程 profiling 事件到属性列表中。
+ * 考虑到一次上报的事件的内存容量的限制，当添加的 profiling 事件达到内存容量的上限时，
+ * 允许将已添加的 profiling 事件先上报，剩余的 profiling 事件添加到下一次上报的事件中。
+ *
+ * 针对添加单个线程 profiling 事件失败的情况，处理如下：
+ * 1. 若返回错误码 -ERR_TP_NO_BUFF ，表示 buff 容量不足，恢复 buff 到上一次的状态，并不再添加新的 profiling 事件。
+ * 2. 若返回其它错误，表示该 profiling 事件添加失败，忽略它并继续添加新的 profiling 事件。
+ *
+ * 返回值：当成功添加的线程 profiling 事件数量大于 0 时才返回成功，否则返回失败。
+*/
+static int append_evt_attrs_batch(strbuf_t *attrs_buf, thrd_info_t *thrd_info)
+{
+    strbuf_t buf_back;
+    event_elem_t *cached_evt = NULL;
+    int consumed_num = 0;
+    int succeed_num = 0;
+    bool is_first = true;
+    int ret = 0;
+
+    DL_FOREACH(thrd_info->cached_evts, cached_evt) {
+        memcpy(&buf_back, attrs_buf, sizeof(strbuf_t));
+
+        if (!is_first) {
+            ret = strbuf_append_chr_with_check(attrs_buf, ',');
+            if (ret) {
+                ret = -ERR_TP_NO_BUFF;
+                break;
+            }
+        }
+
+        ret = set_evt_attrs_single(attrs_buf, cached_evt);
+        if (ret) {
+            memcpy(attrs_buf, &buf_back, sizeof(strbuf_t));
+            if (ret == -ERR_TP_NO_BUFF) {
+                break;
+            }
+        } else {
+            succeed_num++;
+            is_first = false;
+        }
+        consumed_num++;
+    }
+
+    if (succeed_num == 0) {
+        if (ret == -ERR_TP_NO_BUFF) {
+            return ret;
+        }
+        return -1;
+    }
+    delete_first_k_events(thrd_info, consumed_num);
+
+    return 0;
+}
+
+// format like: `{"values":[{},{}]}`
+static int set_evt_attrs_batch(thrd_info_t *thrd_info, char *evt_attrs, int attrs_size)
+{
     strbuf_t sbuf = {
         .buf = evt_attrs,
         .size = attrs_size
     };
+    const char *prefix = "{\"values\":[";
+    const char *suffix = "]}";
+    const size_t suffix_size = strlen(suffix) + 1;
+    int ret;
 
-    if (sbuf.size < 2) {
-        fprintf(stderr, "ERROR: attributes size not large enough.\n");
-        return -1;
-    }
-    strbuf_append_chr(&sbuf, '{');
-
-    ret = set_typed_evt_attrs(&sbuf, evt_data);
+    ret = strbuf_append_str_with_check(&sbuf, prefix, strlen(prefix));
     if (ret) {
+        TP_ERROR("Attributes size not large enough.\n");
+        return -1;
+    }
+    // reserve space for the suffix
+    if (sbuf.size < suffix_size) {
+        TP_ERROR("Attributes size not large enough.\n");
+        return -1;
+    }
+    sbuf.size -= suffix_size;
+
+    ret = append_evt_attrs_batch(&sbuf, thrd_info);
+    if (ret) {
+        if (ret == -ERR_TP_NO_BUFF) {
+            TP_ERROR("Attributes size not large enough.\n");
+        }
         return -1;
     }
 
-    if (sbuf.size < 2) {
-        fprintf(stderr, "ERROR: attributes size not large enough.\n");
-        return -1;
-    }
-    strbuf_append_chr(&sbuf, '}');
+    sbuf.size += suffix_size;
+    strbuf_append_str(&sbuf, suffix, suffix_size - 1);
     strbuf_append_chr(&sbuf, '\0');
 
     return 0;

@@ -24,6 +24,7 @@ typedef struct {
     uint32_t out;
 
     int triggerFd;
+    void *probe;    // pointed to the probe who creates it
 } Fifo;
 
 typedef struct {
@@ -35,6 +36,7 @@ typedef struct {
 Fifo *FifoCreate(uint32_t size);
 void FifoDestroy(Fifo *fifo);
 
+int FifoFull(const Fifo *fifo);
 uint32_t FifoPut(Fifo *fifo, void *element);
 uint32_t FifoGet(Fifo *fifo, void **elements);
 

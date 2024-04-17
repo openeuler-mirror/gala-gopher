@@ -19,12 +19,13 @@
 #define BPF_PROG_KERN
 #include "bpf.h"
 #include "syscall.bpf.h"
+#include "syscall_tp_args.h"
 
 char g_license[] SEC("license") = "GPL";
 
-SET_SYSCALL_PARAMS(sendto)
+SET_TP_SYSCALL_PARAMS(sendto)
 {
-    sce->ext_info.fd_info.fd = (int)_(PT_REGS_PARM1(regs));
+    sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(sendto)
@@ -33,9 +34,9 @@ SET_SYSCALL_META(sendto)
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
-SET_SYSCALL_PARAMS(recvfrom)
+SET_TP_SYSCALL_PARAMS(recvfrom)
 {
-    sce->ext_info.fd_info.fd = (int)_(PT_REGS_PARM1(regs));
+    sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(recvfrom)
@@ -44,9 +45,9 @@ SET_SYSCALL_META(recvfrom)
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
-SET_SYSCALL_PARAMS(sendmsg)
+SET_TP_SYSCALL_PARAMS(sendmsg)
 {
-    sce->ext_info.fd_info.fd = (int)_(PT_REGS_PARM1(regs));
+    sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(sendmsg)
@@ -55,9 +56,9 @@ SET_SYSCALL_META(sendmsg)
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
-SET_SYSCALL_PARAMS(recvmsg)
+SET_TP_SYSCALL_PARAMS(recvmsg)
 {
-    sce->ext_info.fd_info.fd = (int)_(PT_REGS_PARM1(regs));
+    sce->ext_info.fd_info.fd = ctx->fd;
 
 }
 
@@ -67,9 +68,9 @@ SET_SYSCALL_META(recvmsg)
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
-SET_SYSCALL_PARAMS(sendmmsg)
+SET_TP_SYSCALL_PARAMS(sendmmsg)
 {
-    sce->ext_info.fd_info.fd = (int)_(PT_REGS_PARM1(regs));
+    sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(sendmmsg)
@@ -78,9 +79,9 @@ SET_SYSCALL_META(sendmmsg)
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
-SET_SYSCALL_PARAMS(recvmmsg)
+SET_TP_SYSCALL_PARAMS(recvmmsg)
 {
-    sce->ext_info.fd_info.fd = (int)_(PT_REGS_PARM1(regs));
+    sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(recvmmsg)
@@ -89,18 +90,9 @@ SET_SYSCALL_META(recvmmsg)
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
-#if defined(__TARGET_ARCH_x86)
-KPROBE_SYSCALL(__x64_sys_, sendto)
-KPROBE_SYSCALL(__x64_sys_, recvfrom)
-KPROBE_SYSCALL(__x64_sys_, sendmsg)
-KPROBE_SYSCALL(__x64_sys_, recvmsg)
-KPROBE_SYSCALL(__x64_sys_, sendmmsg)
-KPROBE_SYSCALL(__x64_sys_, recvmmsg)
-#elif defined(__TARGET_ARCH_arm64)
-KPROBE_SYSCALL(__arm64_sys_, sendto)
-KPROBE_SYSCALL(__arm64_sys_, recvfrom)
-KPROBE_SYSCALL(__arm64_sys_, sendmsg)
-KPROBE_SYSCALL(__arm64_sys_, recvmsg)
-KPROBE_SYSCALL(__arm64_sys_, sendmmsg)
-KPROBE_SYSCALL(__arm64_sys_, recvmmsg)
-#endif
+TP_SYSCALL(sendto)
+TP_SYSCALL(recvfrom)
+TP_SYSCALL(sendmsg)
+TP_SYSCALL(recvmsg)
+TP_SYSCALL(sendmmsg)
+TP_SYSCALL(recvmmsg)

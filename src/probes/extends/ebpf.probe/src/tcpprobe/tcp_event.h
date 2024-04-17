@@ -17,11 +17,11 @@
 
 #pragma once
 
-#include "args.h"
-#include "tcpprobe.h"
+#include "ipc.h"
+#include "tcp_tracker.h"
 
-void report_tcp_syn_rtt_evt(struct probe_params *args, struct tcp_metrics_s *metrics);
-void report_tcp_abn_evt(struct probe_params *args, struct tcp_metrics_s *metrics);
-void report_tcp_win_evt(struct probe_params *args, struct tcp_metrics_s *metrics);
+void report_tcp_syn_rtt_evt(struct probe_params *args, struct tcp_tracker_s *tracker);
+void report_tcp_abn_evt(struct probe_params *args, struct tcp_tracker_s *tracker);
+void report_tcp_win_evt(struct probe_params *args, struct tcp_tracker_s *tracker);
 
 #endif

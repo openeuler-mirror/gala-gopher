@@ -6,7 +6,7 @@
 
 ## 实现方案
 
-jvmprobe 基于`Java Agent`实现零侵入监控，当系统中有新的java进程时，动态地将`JvmProbeAgent.jar`即代理包`attach`到应用程序。这里attach动作利用`/opt/gala-gopher/extend_probe/jvm_attach`二进制实现。
+jvmprobe 基于`Java Agent`实现零侵入监控，当系统中有新的java进程时，动态地将`JvmProbeAgent.jar`即代理包`attach`到应用程序。这里attach动作利用`/opt/gala-gopher/lib/jvm_attach`二进制实现。
 
 JvmProbeAgent 利用Java的`JMX`机制来读取JVM运行时的一些监控数据，通过调用java.lang.management API监视和管理应用程序的内存使用、线程、GC情况以及运行时编译等方面的信息，并将监控信息转换成固定格式记录到`/tmp/java-data-<pid>/jvm-metric.txt`文件中。
 

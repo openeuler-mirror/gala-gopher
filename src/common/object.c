@@ -306,17 +306,17 @@ static int get_map_fd_by_name(const char* map_name)
     return bpf_map_get_fd_by_id(id);
 }
 
-int obj_get_cgrp_obj_map_fd()
+int obj_get_cgrp_obj_map_fd(void)
 {
     return get_map_fd_by_name("cgrp_obj_map");
 }
 
-int obj_get_nm_obj_map_fd()
+int obj_get_nm_obj_map_fd(void)
 {
     return get_map_fd_by_name("nm_obj_map");
 }
 
-int obj_get_proc_obj_map_fd()
+int obj_get_proc_obj_map_fd(void)
 {
     return get_map_fd_by_name("proc_obj_map");
 }
@@ -349,7 +349,7 @@ int obj_module_create_map(char *name)
             ERROR("object module create %s failed.\n", name);
             return -1;
         }
-        strncpy(pin_path, PROC_MAP_PATH, PATH_LEN - 1);
+        strcpy(pin_path, PROC_MAP_PATH);
     }
     if (bpf_obj_pin(map_fd, pin_path) < 0) {
         ERROR("object module pin %s failed.\n", name);
@@ -358,23 +358,6 @@ int obj_module_create_map(char *name)
     }
 
     return 0;
-}
-
-char obj_module_init_ok(void)
-{
-    int flag = 0;
-
-    if (__obj_module.cgrp_map_fd > 0) {
-        flag |= CGRP_MAP_INIT_OK;
-    }
-    if (__obj_module.nm_map_fd > 0) {
-        flag |= NM_MAP_INIT_OK;
-    }
-    if (__obj_module.proc_map_fd > 0) {
-        flag |= PROC_MAP_INIT_OK;
-    }
-
-    return flag;
 }
 
 void obj_module_set_maps_fd(void)

@@ -16,7 +16,7 @@
 #define __PROFILING_EVENT_H__
 
 #include "tprofiling.h"
-
+#include "stack.h"
 #define MAX_LEN_OF_PROFILE_EVT_TYPE 8
 
 #define PROFILE_EVT_TYPE_FILE  "file"
@@ -25,6 +25,8 @@
 #define PROFILE_EVT_TYPE_LOCK "lock"
 #define PROFILE_EVT_TYPE_ONCPU "oncpu"
 #define PROFILE_EVT_TYPE_OTHER "other"
+
+#define ERR_TP_NO_BUFF 2
 
 int init_sys_boot_time(__u64 *sysBootTime);
 void output_profiling_event(trace_event_data_t *evt_data);

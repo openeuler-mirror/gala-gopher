@@ -26,6 +26,7 @@
 
 #define setns(FD, NSTYPE) syscall(__NR_setns, (int)(FD), (int)(NSTYPE))
 #define open_pid(PID, FLAGS) syscall(__NR_pidfd_open, (int)(PID), (int)(FLAGS))
+#define gettid() ((pid_t)syscall(SYS_gettid))
 
 #define perf_event_open(attr, pid, cpu, group_id, flags) syscall(__NR_perf_event_open, (attr), pid, cpu, group_id, flags)
 

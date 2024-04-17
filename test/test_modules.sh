@@ -12,25 +12,16 @@ function compile_test()
     mkdir build
     cd build
 
-    cmake ..
+    cmake "$@" ..
     make
 }
 
 function run_test()
 {
     cd ${TEST_FOLDER}
-    ./submodule_test > test.log 2>&1
+    ./submodule_test
 }
 
-function log_info()
-{
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"
-}
-
-log_info "Compiling test modules..."
 compile_test
-log_info "Test modules compiled successfully."
-
-log_info "Running test..."
 run_test
-log_info "Running test..."
+

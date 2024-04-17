@@ -17,6 +17,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "common.h"
+#include "tprofiling.h"
 #include "fd_info.h"
 
 void HASH_add_fd_info(fd_info_t **fd_table, fd_info_t *fd_info)
@@ -77,7 +78,7 @@ static int fill_reg_file_info(fd_info_t *fd_info, const char *fd_path)
     fd_info->type = FD_TYPE_REG;
     ret = readlink(fd_path, fd_info->reg_info.name, sizeof(fd_info->reg_info.name));
     if (ret < 0 || ret >= sizeof(fd_info->reg_info.name)) {
-        fprintf(stderr, "ERROR: read link of fd %s failed.\n", fd_path);
+        TP_DEBUG("Failed to read link of fd %s\n", fd_path);
         return -1;
     }
     fd_info->reg_info.name[ret] = '\0';
@@ -111,24 +112,28 @@ static int fill_sock_info(fd_info_t *fd_info, int tgid)
 {
     char cmd[MAX_CMD_SIZE];
     char buf[64];
-    char conn[64] = {0};
-    char sock_type[8] = {0};
-    char proto_type[8] = {0};
+    char conn[64];
+    char sock_type[8];
+    char proto_type[8];
     FILE *file;
     sock_info_t *si = &fd_info->sock_info;
     int ret;
 
+    conn[0] = 0;
+    sock_type[0] = 0;
+    proto_type[0] = 0;
+
     fd_info->type = FD_TYPE_SOCK;
 
-    ret = snprintf(cmd, sizeof(cmd), CMD_LSOF_SOCK_INFO, fd_info->fd, tgid);
+    ret = snprintf(cmd, sizeof(cmd), CMD_LSOF_SOCK_INFO, tgid, fd_info->fd, tgid);
     if (ret < 0 || ret >= sizeof(cmd)) {
-        fprintf(stderr, "ERROR: Failed to set lsof command.\n");
+        TP_ERROR("Failed to set lsof command.\n");
         return -1;
     }
 
     file = popen(cmd, "r");
     if (file == NULL) {
-        fprintf(stderr, "ERROR: Failed to execute lsof command:%s\n", cmd);
+        TP_DEBUG("Failed to execute lsof command: %s\n", cmd);
         return -1;
     }
 
@@ -136,13 +141,13 @@ static int fill_sock_info(fd_info_t *fd_info, int tgid)
         SPLIT_NEWLINE_SYMBOL(buf);
         switch (buf[0]) {
             case 't':
-                strncpy(sock_type, buf + 1, sizeof(sock_type) - 1);
+                (void)snprintf(sock_type, sizeof(sock_type), "%s", buf + 1);
                 break;
             case 'P':
-                strncpy(proto_type, buf + 1, sizeof(proto_type) - 1);
+                (void)snprintf(proto_type, sizeof(proto_type), "%s", buf + 1);
                 break;
             case 'n':
-                strncpy(conn, buf + 1, sizeof(conn) - 1);
+                (void)snprintf(conn, sizeof(conn), "%s", buf + 1);
                 break;
             default:
                 continue;
@@ -152,7 +157,7 @@ static int fill_sock_info(fd_info_t *fd_info, int tgid)
     si->type = get_sock_type(sock_type);
     if (si->type == SOCK_TYPE_IPV4 || si->type == SOCK_TYPE_IPV6) {
         si->ip_info.proto = get_proto_type(proto_type);
-        strncpy(si->ip_info.conn, conn, sizeof(si->ip_info.conn) - 1);
+        (void)snprintf(si->ip_info.conn, sizeof(si->ip_info.conn), "%s", conn);
     }
 
     pclose(file);
@@ -167,21 +172,23 @@ int fill_fd_info(fd_info_t *fd_info, int tgid)
 
     ret = snprintf(fd_path, sizeof(fd_path), "/proc/%d/fd/%d", tgid, fd_info->fd);
     if (ret < 0 || ret >= sizeof(fd_path)) {
-        fprintf(stderr, "ERROR: Failed to get fd path.\n");
+        TP_ERROR("Failed to get fd path.\n");
         return -1;
     }
 
     if (stat(fd_path, &st)) {
         return -1;
     }
+    fd_info->ino = st.st_ino;
 
     switch (st.st_mode & S_IFMT) {
         case S_IFREG:
+        case S_IFDIR:
             return fill_reg_file_info(fd_info, fd_path);
         case S_IFSOCK:
             return fill_sock_info(fd_info, tgid);
         default:
-            fprintf(stderr, "WARN: Unsupported file type of fd %s.\n", fd_path);
+            TP_DEBUG("Unsupported file type of fd %s.\n", fd_path);
             fd_info->type = FD_TYPE_UNSUPPORTED;
             return 0;
     }

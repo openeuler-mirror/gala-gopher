@@ -16,6 +16,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <sys/stat.h>
 #include "base.h"
 #include "config.h"
 #include "args.h"
@@ -24,10 +25,8 @@
 #if GALA_GOPHER_INFO("inner func")
 static int ConfigMgrInit(ResourceMgr *resourceMgr);
 static void ConfigMgrDeinit(ResourceMgr *resourceMgr);
-static int ProbeMgrInit(ResourceMgr *resourceMgr);
-static void ProbeMgrDeinit(ResourceMgr *resourceMgr);
-static int ExtendProbeMgrInit(ResourceMgr *resourceMgr);
-static void ExtendProbeMgrDeinit(ResourceMgr *resourceMgr);
+static int ProbeMngInit(ResourceMgr *resourceMgr);
+static void ProbeMngDeinit(ResourceMgr *resourceMgr);
 static int MeasurementMgrInit(ResourceMgr *resourceMgr);
 static void MeasurementMgrDeinit(ResourceMgr *resourceMgr);
 static int FifoMgrInit(ResourceMgr *resourceMgr);
@@ -42,6 +41,8 @@ static int EgressMgrInit(ResourceMgr *resourceMgr);
 static void EgressMgrDeinit(ResourceMgr *resourceMgr);
 static int WebServerInit(ResourceMgr *resourceMgr);
 static void WebServerDeinit(ResourceMgr *resourceMgr);
+static int RestServerInit(ResourceMgr *resourceMgr);
+static void RestServerDeinit(ResourceMgr *resourceMgr);
 static int LogsMgrInit(ResourceMgr *resourceMgr);
 static void LogsMgrDeinit(ResourceMgr *resourceMgr);
 static int EventMgrInit(ResourceMgr *resourceMgr);
@@ -57,15 +58,17 @@ extern char* g_galaConfPath;
 
 SubModuleInitor gSubModuleInitorTbl[] = {
     { ConfigMgrInit,        ConfigMgrDeinit },      // config must be the first
-    { ProbeMgrInit,         ProbeMgrDeinit },
-    { ExtendProbeMgrInit,   ExtendProbeMgrDeinit },
+    { ProbeMngInit,         ProbeMngDeinit },
     { MeasurementMgrInit,   MeasurementMgrDeinit },
     { FifoMgrInit,          FifoMgrDeinit },
+#ifdef KAFKA_CHANNEL
     { KafkaMgrInit,         KafkaMgrDeinit },       // kafka must precede egress
+#endif
     { IMDBMgrInit,          IMDBMgrDeinit },        // IMDB must precede ingress
     { EgressMgrInit,        EgressMgrDeinit },      // egress must precede ingress
     { IngressMgrInit,       IngressMgrDeinit },
     { WebServerInit,        WebServerDeinit },
+    { RestServerInit,       RestServerDeinit },
     { LogsMgrInit,          LogsMgrDeinit },
     { EventMgrInit,         EventMgrDeinit }
 };
@@ -98,7 +101,7 @@ int ResourceMgrInit(ResourceMgr *resourceMgr)
         return -1;
 
     int ret = 0;
-    uint32_t initTblSize = sizeof(gSubModuleInitorTbl) / sizeof(gSubModuleInitorTbl[0]);
+    size_t initTblSize = sizeof(gSubModuleInitorTbl) / sizeof(gSubModuleInitorTbl[0]);
     for (int i = 0; i < initTblSize; i++) {
         ret = gSubModuleInitorTbl[i].subModuleInitFunc(resourceMgr);
         if (ret != 0)
@@ -130,7 +133,7 @@ void ResourceMgrDeinit(ResourceMgr *resourceMgr)
 
     ResourceMgrDeleteTimer(resourceMgr);
 
-    uint32_t initTblSize = sizeof(gSubModuleInitorTbl) / sizeof(gSubModuleInitorTbl[0]);
+    size_t initTblSize = sizeof(gSubModuleInitorTbl) / sizeof(gSubModuleInitorTbl[0]);
     for (int i = 0; i < initTblSize; i++)
         gSubModuleInitorTbl[i].subModuleDeinitFunc(resourceMgr);
 
@@ -167,6 +170,7 @@ static void ConfigMgrDeinit(ResourceMgr *resourceMgr)
     return;
 }
 
+#if 0
 static int ProbeMgrInit(ResourceMgr *resourceMgr)
 {
     int ret = 0;
@@ -261,13 +265,34 @@ static void ExtendProbeMgrDeinit(ResourceMgr *resourceMgr)
     resourceMgr->probeMgr = NULL;
     return;
 }
+#endif
+
+static int ProbeMngInit(ResourceMgr *resourceMgr)
+{
+    int ret = 0;
+
+    struct probe_mng_s *probe_mng = NULL;
+
+    probe_mng = create_probe_mng();
+    if (probe_mng == NULL)
+        return -1;
+
+    resourceMgr->probe_mng = probe_mng;
+    return 0;
+}
+
+static void ProbeMngDeinit(ResourceMgr *resourceMgr)
+{
+    destroy_probe_mng();
+    resourceMgr->probe_mng = NULL;
+}
 
 static int MeasurementMgrInit(ResourceMgr *resourceMgr)
 {
     int ret = 0;
     MeasurementMgr *mmMgr = NULL;
 
-    mmMgr = MeasurementMgrCreate(resourceMgr->configMgr->imdbConfig->maxTablesNum, 
+    mmMgr = MeasurementMgrCreate(resourceMgr->configMgr->imdbConfig->maxTablesNum,
                                     resourceMgr->configMgr->imdbConfig->maxMetricsNum);
     if (mmMgr == NULL) {
         ERROR("[RESOURCE] create mmMgr failed.\n");
@@ -317,6 +342,7 @@ static void FifoMgrDeinit(ResourceMgr *resourceMgr)
     return;
 }
 
+#ifdef KAFKA_CHANNEL
 static int KafkaMgrInit(ResourceMgr *resourceMgr)
 {
     ConfigMgr *configMgr = NULL;
@@ -334,7 +360,7 @@ static int KafkaMgrInit(ResourceMgr *resourceMgr)
         resourceMgr->metric_kafkaMgr = kafkaMgr;
         INFO("[RESOURCE] create kafkaMgr of metric success.\n");
     } else {
-        INFO("[RESOURCE] metric out_channel isn't kafka, ship create kafkaMgr.\n");
+        INFO("[RESOURCE] metric out_channel isn't kafka, skip create kafkaMgr.\n");
     }
     /* init meta_kafka */
     kafkaMgr = NULL;
@@ -350,7 +376,7 @@ static int KafkaMgrInit(ResourceMgr *resourceMgr)
         }
         INFO("[RESOURCE] create kafkaMgr of meta success.\n");
     } else {
-        INFO("[RESOURCE] meta out_channel isn't kafka, ship create kafkaMgr.\n");
+        INFO("[RESOURCE] meta out_channel isn't kafka, skip create kafkaMgr.\n");
     }
     /* init event_kafka */
     kafkaMgr = NULL;
@@ -363,7 +389,7 @@ static int KafkaMgrInit(ResourceMgr *resourceMgr)
         resourceMgr->event_kafkaMgr = kafkaMgr;
         INFO("[RESOURCE] create kafkaMgr of event success.\n");
     } else {
-        INFO("[RESOURCE] event out_channel isn't kafka, ship create kafkaMgr.\n");
+        INFO("[RESOURCE] event out_channel isn't kafka, skip create kafkaMgr.\n");
     }
 
     return 0;
@@ -382,6 +408,7 @@ static void KafkaMgrDeinit(ResourceMgr *resourceMgr)
 
     return;
 }
+#endif
 
 static int IMDBMgrTableLoad(IMDB_Table *table, Measurement *mm)
 {
@@ -493,8 +520,7 @@ static int IngressMgrInit(ResourceMgr *resourceMgr)
 
     ingressMgr->fifoMgr = resourceMgr->fifoMgr;
     ingressMgr->mmMgr = resourceMgr->mmMgr;
-    ingressMgr->probeMgr = resourceMgr->probeMgr;
-    ingressMgr->extendProbeMgr = resourceMgr->extendProbeMgr;
+    ingressMgr->probsMgr = resourceMgr->probe_mng;
     ingressMgr->imdbMgr = resourceMgr->imdbMgr;
 
     ingressMgr->egressMgr = resourceMgr->egressMgr;
@@ -521,8 +547,10 @@ static int EgressMgrInit(ResourceMgr *resourceMgr)
         return -1;
     }
 
+#ifdef KAFKA_CHANNEL
     egressMgr->metric_kafkaMgr = resourceMgr->metric_kafkaMgr;
     egressMgr->event_kafkaMgr = resourceMgr->event_kafkaMgr;
+#endif
     egressMgr->interval = resourceMgr->configMgr->egressConfig->interval;
     egressMgr->timeRange = resourceMgr->configMgr->egressConfig->timeRange;
 
@@ -539,30 +567,66 @@ static void EgressMgrDeinit(ResourceMgr *resourceMgr)
 
 static int WebServerInit(ResourceMgr *resourceMgr)
 {
+    int ret;
     ConfigMgr *configMgr = resourceMgr->configMgr;
-    WebServer *webServer = NULL;
+    http_server_mgr_s *web_server_mgr;
 
     if (configMgr->metricOutConfig->outChnl != OUT_CHNL_WEB_SERVER) {
         INFO("[RESOURCE] metirc out channel isn't web_server, skip create webServer.\n");
         return 0;
     }
-    webServer = WebServerCreate(configMgr->webServerConfig->port);
-    if (webServer == NULL) {
-        ERROR("[RESOURCE] create webServer failed.\n");
+
+    web_server_mgr = (http_server_mgr_s *)calloc(1, sizeof(http_server_mgr_s));
+    if (web_server_mgr == NULL) {
+        ERROR("[RESOURCE] create web server mgr failed.\n");
         return -1;
     }
 
-    resourceMgr->webServer = webServer;
+    resourceMgr->web_server_mgr = web_server_mgr;
+    ret = init_web_server_mgr(web_server_mgr, configMgr->webServerConfig);
+    if (ret) {
+        return -1;
+    }
+
     if (resourceMgr->imdbMgr) {
         resourceMgr->imdbMgr->writeLogsOn = 1;
     }
+
     return 0;
 }
 
 static void WebServerDeinit(ResourceMgr *resourceMgr)
 {
-    WebServerDestroy(resourceMgr->webServer);
-    resourceMgr->webServer = NULL;
+    destroy_http_server_mgr(resourceMgr->web_server_mgr);
+    resourceMgr->web_server_mgr = NULL;
+    return;
+}
+
+static int RestServerInit(ResourceMgr *resourceMgr)
+{
+    int ret;
+    ConfigMgr *configMgr = resourceMgr->configMgr;
+    http_server_mgr_s *rest_server_mgr;
+
+    rest_server_mgr = (http_server_mgr_s *)calloc(1, sizeof(http_server_mgr_s));
+    if (rest_server_mgr == NULL) {
+        ERROR("[RESOURCE] create rest server mgr failed\n");
+        return -1;
+    }
+
+    resourceMgr->rest_server_mgr = rest_server_mgr;
+    ret = init_rest_server_mgr(rest_server_mgr, configMgr->restServerConfig);
+    if (ret) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static void RestServerDeinit(ResourceMgr *resourceMgr)
+{
+    destroy_http_server_mgr(resourceMgr->rest_server_mgr);
+    resourceMgr->rest_server_mgr = NULL;
     return;
 }
 
@@ -574,30 +638,34 @@ static int LogsMgrInit(ResourceMgr *resourceMgr)
 
     is_metric_out_log = (configMgr->metricOutConfig->outChnl == OUT_CHNL_WEB_SERVER ||
                          configMgr->metricOutConfig->outChnl == OUT_CHNL_LOGS) ? 1 : 0;
-    is_event_out_log = (configMgr->eventOutConfig->outChnl == OUT_CHNL_LOGS) ? 1: 0;
+    is_event_out_log = (configMgr->eventOutConfig->outChnl == OUT_CHNL_LOGS) ? 1 : 0;
     is_meta_out_log = (configMgr->metaOutConfig->outChnl == OUT_CHNL_LOGS) ? 1 : 0;
 
-    logsMgr =  create_log_mgr(configMgr->globalConfig->logFileName, is_metric_out_log, is_event_out_log);
+    logsMgr = create_log_mgr(configMgr->globalConfig->logFileName, is_metric_out_log, is_event_out_log);
     if (logsMgr == NULL) {
         ERROR("[RESOURCE] create logsMgr failed.\n");
         return -1;
     }
 
-    (void)strncpy(logsMgr->debug_path, configMgr->logsConfig->debugDir, PATH_LEN - 1);
-    (void)strncpy(logsMgr->metrics_path, configMgr->logsConfig->metricDir, PATH_LEN - 1);
-    (void)strncpy(logsMgr->event_path, configMgr->logsConfig->eventDir, PATH_LEN - 1);
-    (void)strncpy(logsMgr->meta_path, configMgr->logsConfig->metaDir, PATH_LEN - 1);
+    mode_t old_mask = umask(S_IWGRP | S_IROTH | S_IWOTH | S_IXOTH);
+
+    // metricTotalSize divided by 2 because there is a backup file
+    logsMgr->metrics_logs_filesize = configMgr->logsConfig->metricTotalSize * 1024 * 1024;
+    (void)snprintf(logsMgr->debug_path, sizeof(logsMgr->debug_path), "%s", configMgr->logsConfig->debugDir);
+    (void)snprintf(logsMgr->metrics_path, sizeof(logsMgr->metrics_path), "%s", configMgr->logsConfig->metricDir);
+    (void)snprintf(logsMgr->event_path, sizeof(logsMgr->event_path), "%s", configMgr->logsConfig->eventDir);
+    (void)snprintf(logsMgr->meta_path, sizeof(logsMgr->meta_path), "%s", configMgr->logsConfig->metaDir);
 
     if (init_log_mgr(logsMgr, is_meta_out_log, configMgr->globalConfig->logLevel) < 0) {
         return -1;
     }
-
     resourceMgr->logsMgr = logsMgr;
     if (is_metric_out_log == 1) {
         if (resourceMgr->imdbMgr) {
             resourceMgr->imdbMgr->writeLogsOn = 1;
         }
     }
+    umask(old_mask);
     return 0;
 }
 
@@ -605,13 +673,12 @@ static void LogsMgrDeinit(ResourceMgr *resourceMgr)
 {
     destroy_log_mgr(resourceMgr->logsMgr);
     resourceMgr->logsMgr = NULL;
-    return;
 }
 
 static int EventMgrInit(ResourceMgr *resourceMgr)
 {
     ConfigMgr *configMgr = resourceMgr->configMgr;
-    init_event_mgr(configMgr->eventOutConfig->timeout, configMgr->eventOutConfig->lang_type);
+    init_event_mgr(configMgr->eventOutConfig->timeout);
     return 0;
 }
 

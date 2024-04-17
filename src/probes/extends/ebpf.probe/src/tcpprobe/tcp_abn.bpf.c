@@ -50,7 +50,7 @@ static __always_inline void report_abn(void *ctx, struct tcp_metrics_s *metrics,
     u32 last_time_lost_out = metrics->abn_stats.lost_out;
     u32 last_time_sacked_out = metrics->abn_stats.sacked_out;
 
-    (void)bpf_perf_event_output(ctx, &tcp_output, BPF_F_CURRENT_CPU, metrics, sizeof(struct tcp_metrics_s));
+    (void)bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
 
     __builtin_memset(&(metrics->abn_stats), 0x0, sizeof(metrics->abn_stats));
     metrics->abn_stats.last_time_sk_drops = last_time_sk_drops;
@@ -63,15 +63,13 @@ static int get_tcp_abn_stats(struct sock *sk, struct tcp_abn* stats)
 {
     struct tcp_sock *tcp_sk = (struct tcp_sock *)sk;
 
-    stats->sk_err = _(sk->sk_err);
-    stats->sk_err_soft = _(sk->sk_err_soft);
     stats->sk_drops = _(sk->sk_drops.counter);
     stats->lost_out = _(tcp_sk->lost_out);
     stats->sacked_out = _(tcp_sk->sacked_out);
 
-    if ((stats->sk_drops > stats->last_time_sk_drops)
-        || (stats->lost_out > stats->last_time_lost_out)
-        || (stats->sacked_out > stats->last_time_sacked_out)) {
+    if ((stats->sk_drops > stats->last_time_sk_drops) ||
+        (stats->lost_out > stats->last_time_lost_out) ||
+        (stats->sacked_out > stats->last_time_sacked_out)) {
         return 1;
     }
 
@@ -82,31 +80,25 @@ static void tcp_abn_stats_probe_func(void *ctx, struct sock *sk)
 {
     struct tcp_metrics_s *metrics;
 
-    // Avoid high performance costs
-    if (!is_tmout_abn(sk)) {
-        return;
-    }
-
     metrics = get_tcp_metrics(sk);
     if (metrics && get_tcp_abn_stats(sk, &(metrics->abn_stats))) {
         report_abn(ctx, metrics, sk, 1);
     }
 }
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
+
 KRAWTRACE(tcp_probe, bpf_raw_tracepoint_args)
 {
     struct sock *sk = (struct sock*)ctx->args[0];
     tcp_abn_stats_probe_func(ctx, sk);
     return 0;
 }
-#else
+
 KPROBE(tcp_rcv_established, pt_regs)
 {
     struct sock *sk = (struct sock*)PT_REGS_PARM1(ctx);
     tcp_abn_stats_probe_func(ctx, sk);
     return 0;
 }
-#endif
 
 KPROBE_RET(tcp_add_backlog, pt_regs, CTX_KERNEL)
 {
@@ -152,7 +144,7 @@ KPROBE_RET(tcp_filter, pt_regs, CTX_KERNEL)
     }
     return 0;
 }
-#ifndef TCP_WRITE_ERR_PROBE_OFF
+
 KPROBE(tcp_write_err, pt_regs)
 {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
@@ -165,7 +157,7 @@ KPROBE(tcp_write_err, pt_regs)
     }
     return 0;
 }
-#endif
+
 KRAWTRACE(sock_exceed_buf_limit, bpf_raw_tracepoint_args)
 {
     struct sock *sk = (struct sock*)ctx->args[0];
@@ -203,7 +195,6 @@ static int tcp_abn_rcv_rsts_probe_func(void *ctx, struct sock *sk)
     return 0;
 }
 
-#if (CURRENT_KERNEL_VERSION > KERNEL_VERSION(4, 18, 0))
 KRAWTRACE(tcp_send_reset, bpf_raw_tracepoint_args)
 {
     struct sock *sk = (struct sock *)ctx->args[0];
@@ -215,7 +206,7 @@ KRAWTRACE(tcp_receive_reset, bpf_raw_tracepoint_args)
     struct sock *sk = (struct sock *)ctx->args[0];
     return tcp_abn_rcv_rsts_probe_func(ctx, sk);
 }
-#elif (CURRENT_KERNEL_VERSION < KERNEL_VERSION(4, 13, 0))
+
 static __always_inline unsigned char *__skb_transport_header(struct sk_buff *skb)
 {
     return _(skb->head) + _(skb->transport_header);
@@ -236,9 +227,7 @@ static __always_inline int tcp_abn_snd_rsts_probe_precheck(struct sock *sk, stru
     }
 
     th = __tcp_hdr(skb);
-    /* rst is the llth bit of the byte after tcphdr:ack_seq */
-    bpf_probe_read(&rst_flag, sizeof(rst_flag), (char *)&(th->ack_seq) + sizeof(th->ack_seq));
-    rst_flag = (rst_flag >> 10) & 0x1;
+    rst_flag = BPF_CORE_READ_BITFIELD_PROBED(th, rst);
 
     /* Will not send a reset in response to a reset. */
     if (rst_flag) {
@@ -291,7 +280,7 @@ KPROBE(tcp_reset, pt_regs)
     tcp_abn_rcv_rsts_probe_func(ctx, sk);
     return 0;
 }
-#else
+
 SEC("tracepoint/tcp/tcp_send_reset")
 int bpf_trace_tcp_send_reset_func(struct trace_event_raw_tcp_event_sk_skb *ctx)
 {
@@ -305,7 +294,6 @@ int bpf_trace_tcp_receive_reset_func(struct trace_event_raw_tcp_event_sk_skb *ct
     struct sock *sk = (struct sock *)ctx->skaddr;
     return tcp_abn_rcv_rsts_probe_func(ctx, sk);
 }
-#endif
 
 KPROBE(tcp_retransmit_skb, pt_regs)
 {

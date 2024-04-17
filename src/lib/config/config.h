@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 #include "base.h"
+#include "common.h"
 
 typedef enum {
     LOG_DEBUG = 0,
@@ -31,7 +32,6 @@ typedef enum {
 typedef struct {
     char logFileName[PATH_LEN];
     char logLevel[PATH_LEN];
-    char bpfPinPath[MAX_PIN_PATH_LEN];
 } GlobalConfig;
 
 typedef struct {
@@ -52,32 +52,6 @@ typedef struct {
     uint32_t queueBufferingMaxMs;
 } KafkaConfig;
 
-typedef struct {
-    char name[MAX_PROBE_NAME_LEN];
-    ProbeSwitch probeSwitch;
-    uint32_t interval;
-    char param[MAX_PARAM_LEN];
-} ProbeConfig;
-
-typedef struct {
-    uint32_t probesNum;
-    ProbeConfig *probesConfig[MAX_PROBES_NUM];
-} ProbesConfig;
-
-typedef struct {
-    char name[MAX_PROBE_NAME_LEN];
-    char command[MAX_EXTEND_PROBE_COMMAND_LEN];
-    char param[MAX_PARAM_LEN];
-    char startChkCmd[MAX_EXTEND_PROBE_COMMAND_LEN];
-    ProbeStartCheckType startChkType;
-    ProbeSwitch probeSwitch;
-} ExtendProbeConfig;
-
-typedef struct {
-    uint32_t probesNum;
-    ExtendProbeConfig *probesConfig[MAX_PROBES_NUM];
-} ExtendProbesConfig;
-
 typedef struct  {
     uint32_t maxTablesNum;
     uint32_t maxRecordsNum;
@@ -87,9 +61,15 @@ typedef struct  {
 
 typedef struct {
     uint16_t port;
-} WebServerConfig;
+    char bindAddr[IP_STR_LEN];
+    char sslAuth;              // enable https and client authentication
+    char privateKey[PATH_LEN];
+    char certFile[PATH_LEN];
+    char caFile[PATH_LEN];
+} HttpServerConfig;
 
 typedef struct {
+    uint32_t metricTotalSize;
     char metricDir[PATH_LEN];
     char eventDir[PATH_LEN];
     char metaDir[PATH_LEN];
@@ -100,7 +80,9 @@ typedef struct {
     OutChannelType outChnl;
     char kafka_topic[MAX_KAFKA_TOPIC_LEN];
     uint32_t timeout;
+#if 0
     char lang_type[MAX_LANGUAGE_TYPE_LEN];
+#endif
 } OutConfig;
 
 typedef struct {
@@ -108,10 +90,9 @@ typedef struct {
     IngressConfig *ingressConfig;
     EgressConfig *egressConfig;
     KafkaConfig *kafkaConfig;
-    ProbesConfig *probesConfig;
-    ExtendProbesConfig *extendProbesConfig;
     IMDBConfig *imdbConfig;
-    WebServerConfig *webServerConfig;
+    HttpServerConfig *webServerConfig;
+    HttpServerConfig *restServerConfig;
     LogsConfig *logsConfig;
     OutConfig *metricOutConfig;
     OutConfig *eventOutConfig;

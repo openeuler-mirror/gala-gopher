@@ -16,65 +16,40 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/types.h>
 #include <dirent.h>
 #include <errno.h>
-#include "object.h"
+#include <time.h>
+#include "common.h"
 #include "nprobe_fprintf.h"
-#include "whitelist_config.h"
 #include "system_procs.h"
-#include "java_support.h"
 
 #define METRICS_PROC_NAME   "system_proc"
-#define PROC_STAT           "/proc/%s/stat"
-#define PROC_START_TIME_CMD "/usr/bin/cat /proc/%s/stat | awk '{print $22}'"
-#define PROC_FD             "/proc/%s/fd"
-#define PROC_FD_CNT_CMD     "/usr/bin/ls /proc/%s/fd 2>/dev/null | wc -l 2>/dev/null"
-#define PROC_IO             "/proc/%s/io"
-#define PROC_IO_CMD         "/usr/bin/cat /proc/%s/io"
-#define PROC_SMAPS          "/proc/%s/smaps_rollup"
-#define PROC_SMAPS_CMD      "/usr/bin/cat /proc/%s/smaps_rollup 2> /dev/null"
-#define PROC_STAT_CMD       "/usr/bin/cat /proc/%s/stat | awk '{print $10\":\"$12\":\"$14\":\"$15\":\"$23\":\"$24}'"
-#define PROC_ID_CMD         "ps -eo pid,ppid,pgid,comm | /usr/bin/awk '{if($1==\"%s\"){print $2 \"|\" $3}}'"
-#define PROC_CPUSET         "/proc/%s/cpuset"
-#define PROC_CPUSET_CMD     "/usr/bin/cat /proc/%s/cpuset | awk -F '/' '{print $NF}'"
-#define PROC_LIMIT          "/proc/%s/limits"
-#define PROC_LIMIT_CMD      "/usr/bin/cat /proc/%s/limits | grep \"open files\" | awk '{print $4}'"
+#define PROC_STAT           "/proc/%u/stat"
+#define FULL_PER            100
+#define PROC_FD             "/proc/%u/fd"
+#define PROC_IO             "/proc/%u/io"
+#define PROC_SMAPS          "/proc/%u/smaps_rollup"
+#define PROC_ID_CMD         "ps -eo pid,ppid,pgid,comm | /usr/bin/awk '{if($1==\"%u\"){print $2 \"|\" $3}}'"
+#define PROC_CPUSET         "/proc/%u/cpuset"
+#define PROC_CPUSET_CMD     "/usr/bin/cat /proc/%u/cpuset 2>/dev/null | awk -F '/' '{print $NF}'"
+#define PROC_LIMIT          "/proc/%u/limits"
 
 static proc_hash_t *g_procmap = NULL;
 static proc_info_t g_pre_proc_info;
 
-static ApplicationConfig g_appsConfig[PROC_MAX_RANGE] = {0};
-static int g_appsConfig_len = 0;
-
-static void add_proc_obj(const int pid)
-{
-    struct proc_s obj;
-    obj.proc_id = pid;
-
-    (void)proc_add(&obj);
-}
-
-static void put_proc_obj(const int pid)
-{
-    struct proc_s obj;
-    obj.proc_id = pid;
-
-    (void)proc_put(&obj);
-}
-
 static void hash_add_proc(proc_hash_t *one_proc)
 {
     HASH_ADD(hh, g_procmap, key, sizeof(proc_key_t), one_proc);
-    add_proc_obj(one_proc->key.pid);
     return;
 }
 
-static proc_hash_t *hash_find_proc(const char *pid, const char *stime)
+static proc_hash_t *hash_find_proc(u32 pid, const char *stime)
 {
     proc_hash_t *p = NULL;
     proc_hash_t temp = {0};
 
-    temp.key.pid = (u32)atoi(pid);
+    temp.key.pid = pid;
     temp.key.start_time = (u64)atoll(stime);
     HASH_FIND(hh, g_procmap, &temp.key, sizeof(proc_key_t), p);
 
@@ -104,7 +79,6 @@ static void hash_clear_invalid_proc(void)
         if (!is_proc_exited(r->key.pid)) {
             continue;
         }
-        put_proc_obj(r->key.pid);
         HASH_DEL(g_procmap, r);
         if (r != NULL) {
             (void)free(r);
@@ -112,44 +86,29 @@ static void hash_clear_invalid_proc(void)
     }
 }
 
-static int do_read_line(const char* pid, const char *command, const char *fname, char *buf, u32 buf_len)
+static void hash_clear_all_proc(void)
 {
-    FILE *f = NULL;
-    char fname_or_cmd[LINE_BUF_LEN];
-    char line[LINE_BUF_LEN];
-
-    fname_or_cmd[0] = 0;
-    (void)snprintf(fname_or_cmd, LINE_BUF_LEN, fname, pid);
-    if (access((const char *)fname_or_cmd, 0) != 0) {
-        return -1;
+    if (g_procmap == NULL) {
+        return;
     }
-
-    fname_or_cmd[0] = 0;
-    line[0] = 0;
-    (void)snprintf(fname_or_cmd, LINE_BUF_LEN, command, pid);
-    f = popen(fname_or_cmd, "r");
-    if (f == NULL) {
-        ERROR("[SYSTEM_PROBE] proc cat fail, popen error.\n");
-        return -1;
+    proc_hash_t *r, *tmp;
+    HASH_ITER(hh, g_procmap, r, tmp) {
+        HASH_DEL(g_procmap, r);
+        if (r != NULL) {
+            (void)free(r);
+        }
     }
-    if (fgets(line, LINE_BUF_LEN, f) == NULL) {
-        (void)pclose(f);
-        ERROR("[SYSTEM_PROBE] proc get_info fail, line is null.\n");
-        return -1;
-    }
-
-    SPLIT_NEWLINE_SYMBOL(line);
-    (void)strncpy(buf, line, buf_len - 1);
-    (void)pclose(f);
-    return 0;
 }
 
-static int get_proc_start_time(const char* pid, char *buf)
+static inline int is_proc_subdir(const char *d_name)
 {
-    return do_read_line(pid, PROC_START_TIME_CMD, PROC_STAT, buf, PROC_NAME_MAX);
+    if (*d_name >= '1' && *d_name <= '9') {
+        return 0;
+    }
+    return -1;
 }
 
-static void get_proc_id(const char* pid, proc_info_t *proc_info)
+static void get_proc_id(u32 pid, proc_info_t *proc_info)
 {
     FILE *f = NULL;
     char cmd[LINE_BUF_LEN];
@@ -183,38 +142,9 @@ out:
     return;
 }
 
-#define JINFO_NOT_INSTALLED 0
-#define JINFO_IS_INSTALLED  1
-
-static int is_jinfo_installed()
-{
-    FILE *f = NULL;
-    char cmd[LINE_BUF_LEN];
-    char line[LINE_BUF_LEN];
-    int is_installed = JINFO_NOT_INSTALLED;
-
-    cmd[0] = 0;
-    (void)snprintf(cmd, LINE_BUF_LEN, "which jinfo");
-    f = popen(cmd, "r");
-    if (f == NULL) {
-        goto out;
-    }
-    if (fgets(line, LINE_BUF_LEN, f) == NULL) {
-        goto out;
-    }
-    if (strstr(line, "no jinfo in") == NULL) {
-        is_installed = JINFO_IS_INSTALLED;
-    }
-out:
-    if (f != NULL) {
-        (void)pclose(f);
-    }
-    return is_installed;
-}
-
 static int __is_valid_container_id(char *str)
 {
-    int len = strlen(str);
+    size_t len = strlen(str);
     if (len != 64) {
         return 0;
     }
@@ -233,27 +163,74 @@ static int __is_valid_container_id(char *str)
     return 1;
 }
 
-static int get_proc_max_fdnum(const char* pid, proc_info_t *proc_info)
+static FILE *get_proc_file(u32 pid, const char *file_fmt)
 {
+    FILE *f = NULL;
+    char fname[PATH_LEN];
+
+    fname[0] = 0;
+    (void)snprintf(fname, sizeof(fname), file_fmt, pid);
+    f = fopen(fname, "r");
+    return f;
+}
+
+static int get_proc_max_fdnum(u32 pid, proc_info_t *proc_info)
+{
+    FILE *f = NULL;
     char buffer[LINE_BUF_LEN];
-    buffer[0] = 0;
-    int ret = do_read_line(pid, PROC_LIMIT_CMD, PROC_LIMIT, buffer, LINE_BUF_LEN);
-    if (ret < 0) {
+    const char *prefix = "Max open files";
+    size_t prefixLen = strlen(prefix);
+    int ret;
+
+    f = get_proc_file(pid, PROC_LIMIT);
+    if (f == NULL) {
         return -1;
     }
-    proc_info->max_fd_limit = (u32)atoi(buffer);
+
+    while (!feof(f)) {
+        buffer[0] = 0;
+        if (fgets(buffer, sizeof(buffer), f) == NULL) {
+            (void)fclose(f);
+            return -1;
+        }
+        if (strncmp(prefix, buffer, prefixLen) != 0) {
+            continue;
+        }
+        ret = sscanf(buffer + prefixLen, "%u", &proc_info->max_fd_limit);
+        if (ret <= 0) {
+            (void)fclose(f);
+            return -1;
+        }
+        break;
+    }
+
+    (void)fclose(f);
     return 0;
 }
 
-static int get_proc_fdcnt(const char *pid, proc_info_t *proc_info)
+static int get_proc_fdcnt(u32 pid, proc_info_t *proc_info)
 {
-    char buffer[LINE_BUF_LEN];
-    buffer[0] = 0;
-    int ret = do_read_line(pid, PROC_FD_CNT_CMD, PROC_FD, buffer, LINE_BUF_LEN);
-    if (ret < 0) {
+    char fname[PATH_LEN];
+    DIR *dir;
+    struct dirent *entry;
+    u32 fd_count = 0;
+
+    fname[0] = 0;
+    (void)snprintf(fname, sizeof(fname), PROC_FD, pid);
+    dir = opendir(fname);
+    if (!dir) {
         return -1;
     }
-    proc_info->fd_count = (u32)atoi(buffer);
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        fd_count++;
+    }
+
+    closedir(dir);
+    proc_info->fd_count = fd_count;
     return 0;
 }
 
@@ -274,35 +251,71 @@ static void do_set_proc_stat(proc_info_t *proc_info, char *buf, int index)
         case PROC_STAT_STIME:
             proc_info->proc_stat_stime = value;
             break;
+        case PROC_STAT_CUTIME:
+            proc_info->proc_stat_cutime = value;
+            break;
+        case PROC_STAT_CSTIME:
+            proc_info->proc_stat_cstime = value;
+            break;
+        case PROC_STAT_PRIORITY:
+            proc_info->proc_stat_priority = value;
+            break;
+        case PROC_STAT_NICE:
+            proc_info->proc_stat_nice = value;
+            break;
+        case PROC_STAT_NUM_THREADS:
+            proc_info->proc_stat_num_threads = value;
+            break;
+        case PROC_STAT_STARTTIME:
+            proc_info->proc_start_time = value;
+            break;
         case PROC_STAT_VSIZE:
             proc_info->proc_stat_vsize = value;
             break;
         case PROC_STAT_RSS:
             proc_info->proc_stat_rss = value;
             break;
+        case PROC_STAT_CPU:
+            proc_info->proc_stat_cpu = value;
+            break;
+        case PROC_STAT_GUEST_TIME:
+            proc_info->proc_stat_guest_time = value;
+            break;
         default:
             break;
     }
 }
 
-static int get_proc_stat(const char *pid, proc_info_t *proc_info)
+static int get_proc_stat(u32 pid, proc_info_t *proc_info)
 {
+    FILE *f = NULL;
     char buffer[LINE_BUF_LEN];
     char *p = NULL;
-    int index = 0;
-    buffer[0] = 0;
-    int ret = do_read_line(pid, PROC_STAT_CMD, PROC_STAT, buffer, LINE_BUF_LEN);
+    int index = 1;
 
-    if (ret < 0) {
+    f = get_proc_file(pid, PROC_STAT);
+    if (f == NULL) {
         return -1;
     }
-    p = strtok(buffer, ":");
+
+    buffer[0] = 0;
+    if (fgets(buffer, sizeof(buffer), f) == NULL) {
+        (void)fclose(f);
+        return -1;
+    }
+    SPLIT_NEWLINE_SYMBOL(buffer);
+
+    p = strtok(buffer, " \t");
     while (p != NULL && index < PROC_STAT_MAX) {
         do_set_proc_stat(proc_info, p, index);
-        p = strtok(NULL, ":");
+        p = strtok(NULL, " \t");
         index++;
     }
+    if (index != PROC_STAT_MAX) {
+        DEBUG("[SYSTEM_PROC] get proc stats incompletely, last position is:%d\n", index);
+    }
 
+    (void)fclose(f);
     return 0;
 }
 
@@ -336,25 +349,19 @@ static void do_set_proc_io(proc_info_t *proc_info, u64 value, int index)
     }
 }
 
-static int get_proc_io(const char *pid, proc_info_t *proc_info)
+static int get_proc_io(u32 pid, proc_info_t *proc_info)
 {
     FILE *f = NULL;
     int index = 0;
     u64 value = 0;
-    char fname_or_cmd[LINE_BUF_LEN];
+    char fname[PATH_LEN];
     char line[LINE_BUF_LEN];
 
-    fname_or_cmd[0] = 0;
-    (void)snprintf(fname_or_cmd, LINE_BUF_LEN, PROC_IO, pid);
-    if (access((const char *)fname_or_cmd, 0) != 0) {
-        goto out;
-    }
-    fname_or_cmd[0] = 0;
-    (void)snprintf(fname_or_cmd, LINE_BUF_LEN, PROC_IO_CMD, pid);
-    f = popen(fname_or_cmd, "r");
+    f = get_proc_file(pid, PROC_IO);
     if (f == NULL) {
-        goto out;
+        return -1;
     }
+
     while (!feof(f) && (index < PROC_IO_MAX)) {
         line[0] = 0;
         if (fgets(line, LINE_BUF_LEN, f) == NULL) {
@@ -368,9 +375,7 @@ static int get_proc_io(const char *pid, proc_info_t *proc_info)
         index++;
     }
 out:
-    if (f != NULL) {
-        (void)pclose(f);
-    }
+    (void)fclose(f);
     return 0;
 }
 
@@ -407,29 +412,22 @@ static void do_set_proc_mss(proc_info_t *proc_info, u32 value, int index)
     }
 }
 
-static int get_proc_mss(const char *pid, proc_info_t *proc_info)
+static int get_proc_mss(u32 pid, proc_info_t *proc_info)
 {
     FILE *f = NULL;
     int index = 0;
     u32 value = 0;
-    char fname_or_cmd[LINE_BUF_LEN];
     char line[LINE_BUF_LEN];
     char key[LINE_BUF_LEN];
     char smap_key_list[PROC_MSS_MAX][LINE_BUF_LEN] = {"Shared_Clean:", "Shared_Dirty:", "Private_Clean:",
         "Private_Dirty:", "Referenced:", "LazyFree:", "Swap:", "SwapPss:"};
     int smap_index = 0;
 
-    fname_or_cmd[0] = 0;
-    (void)snprintf(fname_or_cmd, LINE_BUF_LEN, PROC_SMAPS, pid);
-    if (access((const char *)fname_or_cmd, 0) != 0) {
-        goto out;
-    }
-    fname_or_cmd[0] = 0;
-    (void)snprintf(fname_or_cmd, LINE_BUF_LEN, PROC_SMAPS_CMD, pid);
-    f = popen(fname_or_cmd, "r");
+    f = get_proc_file(pid, PROC_SMAPS);
     if (f == NULL) {
-        goto out;
+        return -1;
     }
+
     while (!feof(f)) {
         line[0] = 0;
         key[0] = 0;
@@ -452,17 +450,20 @@ static int get_proc_mss(const char *pid, proc_info_t *proc_info)
         smap_index++;
     }
 out:
-    if (f != NULL) {
-        (void)pclose(f);
-    }
+    (void)pclose(f);
     return 0;
 }
 
-static int update_proc_infos(const char *pid, proc_info_t *proc_info)
+static int update_proc_infos(u32 pid, proc_info_t *proc_info)
 {
     int ret = 0;
 
     (void)memcpy(&g_pre_proc_info, proc_info, sizeof(proc_info_t));
+
+    ret = get_proc_stat(pid, proc_info);
+    if (ret < 0) {
+        return -1;
+    }
 
     ret = get_proc_fdcnt(pid, proc_info);
     if (ret < 0) {
@@ -479,26 +480,35 @@ static int update_proc_infos(const char *pid, proc_info_t *proc_info)
         return -1;
     }
 
-    ret = get_proc_stat(pid, proc_info);
-    if (ret < 0) {
-        return -1;
-    }
-
     return 0;
 }
 
-static void output_proc_infos(proc_hash_t *one_proc)
+static void output_proc_infos(proc_hash_t *one_proc, unsigned int period)
 {
     u32 fd_free = one_proc->info.max_fd_limit - one_proc->info.fd_count;
     float fd_free_per = fd_free / (float)one_proc->info.max_fd_limit * 100;
 
+    u64 sys_clock_ticks = (u64)sysconf(_SC_CLK_TCK);
+
+    float proc_cpu_util = (float)((one_proc->info.proc_stat_utime + one_proc->info.proc_stat_stime) -
+        (g_pre_proc_info.proc_stat_utime + g_pre_proc_info.proc_stat_stime)) / (period * sys_clock_ticks) * FULL_PER;
+
+    float proc_cpu_user_util = 0.0;
+    float cur_proc_user_ticks = (one_proc->info.proc_stat_utime - one_proc->info.proc_stat_guest_time);
+    float prev_proc_user_ticks = (g_pre_proc_info.proc_stat_utime - g_pre_proc_info.proc_stat_guest_time);
+    if (cur_proc_user_ticks > prev_proc_user_ticks) {
+        proc_cpu_user_util = (float)(cur_proc_user_ticks - prev_proc_user_ticks) / (period * sys_clock_ticks) * FULL_PER;
+    }
+
+    float proc_cpu_system_util = (float)(one_proc->info.proc_stat_stime - g_pre_proc_info.proc_stat_stime) /
+        (period * sys_clock_ticks) * FULL_PER;
+
     nprobe_fprintf(stdout,
-        "|%s|%lu|%d|%d|%s|%u|%.2f|%llu|%llu|%u|%u|%llu|%llu|%llu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%llu|%llu|%llu|%llu|%llu|%llu|\n",
+        "|%s|%lu|%d|%d|%u|%.2f|%llu|%llu|%u|%u|%llu|%llu|%llu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%lu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|%llu|%.2f|%.2f|%.2f|\n",
         METRICS_PROC_NAME,
         one_proc->key.pid,
         one_proc->info.pgid,
         one_proc->info.ppid,
-        one_proc->info.cmdline == NULL ? "" : one_proc->info.cmdline,
         one_proc->info.fd_count,
         fd_free_per,
         one_proc->info.proc_rchar_bytes - g_pre_proc_info.proc_rchar_bytes,
@@ -520,33 +530,37 @@ static void output_proc_infos(proc_hash_t *one_proc)
         one_proc->info.proc_stat_maj_flt - g_pre_proc_info.proc_stat_maj_flt,
         one_proc->info.proc_stat_utime - g_pre_proc_info.proc_stat_utime,
         one_proc->info.proc_stat_stime - g_pre_proc_info.proc_stat_stime,
+        one_proc->info.proc_stat_cutime - g_pre_proc_info.proc_stat_cutime,
+        one_proc->info.proc_stat_cstime - g_pre_proc_info.proc_stat_cstime,
+        one_proc->info.proc_stat_priority,
+        one_proc->info.proc_stat_nice,
+        one_proc->info.proc_stat_num_threads,
         one_proc->info.proc_stat_vsize,
-        one_proc->info.proc_stat_rss);
+        one_proc->info.proc_stat_rss * (u64)sysconf(_SC_PAGESIZE),
+        one_proc->info.proc_stat_rss * 1.0 * FULL_PER / (u64)sysconf(_SC_PHYS_PAGES),
+        one_proc->info.proc_stat_cpu,
+        proc_cpu_util,
+        proc_cpu_user_util,
+        proc_cpu_system_util);
     return;
 }
 
-static proc_hash_t* init_one_proc(char *pid, char *stime, char *comm)
+static proc_hash_t* init_one_proc(u32 pid, char *stime, char *comm)
 {
     int ret;
     proc_hash_t *item;
-    struct java_property_s java_prop = {0};
 
     item = (proc_hash_t *)malloc(sizeof(proc_hash_t));
+    if (item == NULL) {
+        return NULL;
+    }
     (void)memset(item, 0, sizeof(proc_hash_t));
 
-    item->key.pid = (u32)atoi(pid);
+    item->key.pid = pid;
     item->key.start_time = (u64)atoll(stime);
 
-    (void)strncpy(item->info.comm, comm, PROC_NAME_MAX - 1);
+    (void)snprintf(item->info.comm, sizeof(item->info.comm), "%s", comm);
     item->flag = PROC_IN_PROBE_RANGE;
-    if (strcmp(comm, "java") == 0) {
-        ret = get_java_property((int)item->key.pid, &java_prop);
-        if (ret == 0) {
-            (void)snprintf(item->info.cmdline, sizeof(item->info.cmdline), "%s", java_prop.mainClassName);
-        }
-    } else {
-        (void)get_proc_cmdline((const char *)pid, item->info.cmdline, sizeof(item->info.cmdline));
-    }
 
     (void)get_proc_max_fdnum(pid, &item->info);
 
@@ -557,81 +571,55 @@ static proc_hash_t* init_one_proc(char *pid, char *stime, char *comm)
     return item;
 }
 
-int system_proc_probe(void)
+int system_proc_probe(struct ipc_body_s *ipc_body)
 {
-    DIR *dir = NULL;
-    struct dirent *entry;
-    char comm[PROC_NAME_MAX];
-    char stime[PROC_NAME_MAX];
-    char pid_str[PROC_NAME_MAX];
-    proc_hash_t *l, *p = NULL;
+    proc_hash_t *proc, *tmp;
 
-    u32 proc_whitelist[PROC_LIST_LEN_MAX] = {0};
-
-    get_probe_proc_whitelist(g_appsConfig, g_appsConfig_len, proc_whitelist, PROC_LIST_LEN_MAX);
-
-    for (int i = 0; i < PROC_LIST_LEN_MAX; i++) {
-        if (proc_whitelist[i] == 0) {
-            break;
-        }
-        snprintf(pid_str, sizeof(pid_str), "%d", proc_whitelist[i]);
-        /* proc start time(avoid repetition of pid) */
-        stime[0] = 0;
-        (void)get_proc_start_time(pid_str, stime);
-
-        /* if the proc(pid+start_time) is finded in g_procmap, it means
-           the proc was probed before and output proc_infos directly */
-        p = hash_find_proc(pid_str, stime);
-        if (p != NULL && p->flag == PROC_IN_PROBE_RANGE) {
-            (void)update_proc_infos(pid_str, &p->info);
-            output_proc_infos(p);
+    HASH_ITER(hh, g_procmap, proc, tmp) {
+        if (!is_valid_proc(proc->key.pid)) {
+            HASH_DEL(g_procmap, proc);
+            free(proc);
             continue;
         }
+        if (proc->flag == PROC_IN_PROBE_RANGE) {
+            (void)update_proc_infos(proc->key.pid, &proc->info);
+            if (proc->key.start_time != proc->info.proc_start_time) {
+                HASH_DEL(g_procmap, proc);
+                free(proc);
+                continue;
+            }
 
-        comm[0] = 0;
-        (void)get_proc_comm(pid_str, comm);
-
-        l = init_one_proc(pid_str, stime, comm);
-
-        /* add new_proc to hashmap and output */
-        hash_add_proc(l);
+            output_proc_infos(proc, ipc_body->probe_param.period);
+        }
     }
-    closedir(dir);
-    hash_clear_invalid_proc();
+
     return 0;
 }
 
-void system_proc_destroy(void)
+int refresh_proc_filter_map(struct ipc_body_s *ipc_body)
 {
-    obj_module_exit();
-}
+    u32 pid;
+    char comm[PROC_NAME_MAX];
+    char stime[PROC_NAME_MAX];
+    proc_hash_t *item, *p;
 
-void system_proc_init(char *task_whitelist)
-{
-    int i;
-    ApplicationsConfig *conf;
+    hash_clear_all_proc();
 
-    obj_module_init();
-    // if proc_obj_map's fd is 0, create obj_map
-    if (!(obj_module_init_ok() & PROC_MAP_INIT_OK)) {
-        DEBUG("[SYSTEM_PROC] proc_obj_map init pok, create map here.\n");
-        (void)obj_module_create_map("proc_obj_map");
-        obj_module_set_maps_fd();
+    for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_body->snooper_objs[i].type != SNOOPER_OBJ_PROC) {
+            continue;
+        }
+        comm[0] = 0;
+        pid = ipc_body->snooper_objs[i].obj.proc.proc_id;
+        (void)get_proc_comm(pid, comm, PROC_NAME_MAX);
+        stime[0] = 0;
+        (void)get_proc_start_time(pid, stime, PROC_NAME_MAX);
+
+        p = hash_find_proc(pid, stime);
+        if (p == NULL) {
+            item = init_one_proc(pid, stime, comm);
+            hash_add_proc(item);
+        }
     }
-
-    if (parse_whitelist_config(&conf, task_whitelist) < 0) {
-        ERROR("[SYSTEM_PROC] parse whitelist failed.\n");
-        return;
-    }
-
-    for (i = 0; i < conf->apps_num; i++) {
-        ApplicationConfig *_app = conf->apps[i];
-        strncpy(g_appsConfig[i].comm, _app->comm, PROC_NAME_MAX - 1);
-        strncpy(g_appsConfig[i].cmd_line, _app->cmd_line, PROC_CMDLINE_LEN - 1);
-    }
-    g_appsConfig_len = i;
-
-    whitelist_config_destroy(conf);
-
-    return;
+    return 0;
 }

@@ -43,6 +43,16 @@ measurements:
                 name: "host_type",
             },
             {
+                description: "The number of clock ticks per second",
+                type: "label",
+                name: "clock_ticks",
+            },
+            {
+                description: "System startup time",
+                type: "label",
+                name: "os_btime",
+            },
+            {
                 description: "a fixed num as metric",
                 type: "gauge",
                 name: "value",

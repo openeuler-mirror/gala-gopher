@@ -8,7 +8,7 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Author: Hubble_Zhu 
+ * Author: Hubble_Zhu
  * Create: 2021-04-12
  * Description:
  ******************************************************************************/
@@ -20,6 +20,7 @@
 #include <errno.h>
 #include <sys/epoll.h>
 
+#include "base.h"
 #include "egress.h"
 
 EgressMgr *EgressMgrCreate(void)
@@ -60,6 +61,10 @@ void EgressMgrDestroy(EgressMgr *mgr)
 
     if (mgr->event_fifo != NULL) {
         FifoDestroy(mgr->event_fifo);
+    }
+
+    if (mgr->epoll_fd > 0) {
+        close(mgr->epoll_fd);
     }
 
     (void)free(mgr);
@@ -103,9 +108,10 @@ static int EgressDataProcesssInput(Fifo *fifo, const EgressMgr *mgr)
     // read data from fifo
     char *dataStr = NULL;
     int ret = 0;
+#ifdef KAFKA_CHANNEL
     KafkaMgr *mkafkaMgr = mgr->metric_kafkaMgr;
     KafkaMgr *ekafkaMgr = mgr->event_kafkaMgr;
-
+#endif
     uint64_t val = 0;
     ret = read(fifo->triggerFd, &val, sizeof(val));
     if (ret < 0) {
@@ -115,15 +121,16 @@ static int EgressDataProcesssInput(Fifo *fifo, const EgressMgr *mgr)
 
     while (FifoGet(fifo, (void **)&dataStr) == 0) {
         // Add Egress data handlement.
-
+#ifdef KAFKA_CHANNEL
         if ((mkafkaMgr != NULL) && (fifo->triggerFd == mgr->metric_fifo->triggerFd)) {
-            KafkaMsgProduce(mkafkaMgr, dataStr, strlen(dataStr));
-            DEBUG("[EGRESS] kafka metric_topic produce one data: %s\n", dataStr);
+            if (KafkaMsgProduce(mkafkaMgr, dataStr, strlen(dataStr)) != 0) {
+                continue;
+            }
         }
         if ((ekafkaMgr != NULL) && (fifo->triggerFd == mgr->event_fifo->triggerFd)) {
             KafkaMsgProduce(ekafkaMgr, dataStr, strlen(dataStr));
-            DEBUG("[EGRESS] kafka event_topic produce one data: %s\n", dataStr);
         }
+#endif
     }
 
     return 0;
@@ -134,7 +141,7 @@ static int EgressDataProcess(const EgressMgr *mgr)
     struct epoll_event events[MAX_EPOLL_EVENTS_NUM];
     int events_num;
     Fifo *fifo = NULL;
-    uint32_t ret = 0;
+    int ret = 0;
 
     events_num = epoll_wait(mgr->epoll_fd, events, MAX_EPOLL_EVENTS_NUM, -1);
     if ((events_num < 0) && (errno != EINTR)) {

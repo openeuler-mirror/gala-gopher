@@ -20,9 +20,10 @@
 #define SLI_OK       0
 #define SLI_ERR      (-1)
 
-#if ((CURRENT_KERNEL_VERSION == KERNEL_VERSION(4, 18, 0)) || (CURRENT_KERNEL_VERSION >= KERNEL_VERSION(5, 10, 0)))
-#define KERNEL_SUPPORT_TSTAMP
-#endif
+#define PGSLI_DEBUG(fmt, ...) DEBUG("[PGSLIPROBE] " fmt, ##__VA_ARGS__)
+#define PGSLI_INFO(fmt, ...) INFO("[PGSLIPROBE] " fmt, ##__VA_ARGS__)
+#define PGSLI_WARN(fmt, ...) WARN("[HPGSLIROBE] " fmt, ##__VA_ARGS__)
+#define PGSLI_ERROR(fmt, ...) ERROR("[PGSLIPROBE] " fmt, ##__VA_ARGS__)
 
 struct ogsli_args_s {
     __u64 period; // Sampling period, unit ns

@@ -22,8 +22,14 @@
 
 int do_wr_stack_histo(struct stack_svg_mng_s *svg_mng,
                         struct stack_trace_histo_s *stack_trace_histo, int first, struct post_info_s *post_info);
-void wr_flamegraph(struct stack_svg_mng_s *svg_mng, int en_type, struct post_server_s *post_server);
+void curl_post(struct stack_svg_mng_s *svg_mng, struct post_server_s *post_server, struct post_info_s *post_info, int en_type, int proc_id);
+void init_curl_handle(struct post_server_s *post_server, struct post_info_s *post_info);
+void wr_flamegraph(struct proc_stack_trace_histo_s **proc_histo_tbl, struct stack_svg_mng_s *svg_mng, int en_type,
+    struct post_server_s *post_server);
+void create_pids_svg_file(int proc_obj_map_fd, struct stack_svg_mng_s *svg_mng, int en_type);
 int set_flame_graph_path(struct stack_svg_mng_s *svg_mng, const char* path, const char *flame_name);
-int set_post_server(struct post_server_s *post_server, const char *pyroscopeServer);
-void clean_post_server();
+int set_post_server(struct post_server_s *post_server, const char *server_str, unsigned int perf_sample_period,
+                    char multi_instance_flag);
+void clean_post_server(void);
+void clean_curl(void);
 #endif

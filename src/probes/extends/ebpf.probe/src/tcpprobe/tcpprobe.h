@@ -15,7 +15,6 @@
 #ifndef __TCPPROBE__H
 #define __TCPPROBE__H
 
-#include "args.h"
 #include "bpf.h"
 
 #define LINK_ROLE_SERVER 0
@@ -26,6 +25,7 @@
 #define TCP_LINK_ARGS_PATH      "/sys/fs/bpf/gala-gopher/__tcplink_args"
 #define TCP_LINK_SOCKS_PATH     "/sys/fs/bpf/gala-gopher/__tcplink_socks"
 #define TCP_LINK_TCP_PATH       "/sys/fs/bpf/gala-gopher/__tcplink_tcp"
+#define TCP_LINK_FD_PATH        "/sys/fs/bpf/gala-gopher/__tcplink_tcp_fd"
 
 #define TCP_PROBE_ABN       (u32)(1)
 #define TCP_PROBE_WINDOWS   (u32)(1 << 1)
@@ -34,21 +34,14 @@
 #define TCP_PROBE_SOCKBUF   (u32)(1 << 4)
 #define TCP_PROBE_RATE      (u32)(1 << 5)
 #define TCP_PROBE_SRTT      (u32)(1 << 6)
-#define TCP_PROBE_RTT2      (u32)(1 << 8)
+#define TCP_PROBE_DELAY     (u32)(1 << 7)
 #define TCP_PROBE_ALL       (u32)(TCP_PROBE_ABN | TCP_PROBE_WINDOWS \
-                | TCP_PROBE_RTT | TCP_PROBE_TXRX | TCP_PROBE_SOCKBUF \
-                | TCP_PROBE_RATE | TCP_PROBE_SRTT | TCP_PROBE_RTT2)
+                | TCP_PROBE_RTT | TCP_PROBE_TXRX \
+                | TCP_PROBE_SOCKBUF | TCP_PROBE_RATE | TCP_PROBE_SRTT | TCP_PROBE_DELAY)
 
-#if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(5, 10, 0))
 #define TCP_FD_PER_PROC_MAX (10)
-#else
-#define TCP_FD_PER_PROC_MAX (100)
-#endif
 
-#if (CURRENT_KERNEL_VERSION == KERNEL_VERSION(5, 10, 0))
-#define TCP_WRITE_ERR_PROBE_OFF 1
-#endif
-
+#define TC_PROG "tcp_bpf/tc_tstamp.bpf.o"
 #define BPF_F_INDEX_MASK    0xffffffffULL
 #define BPF_F_CURRENT_CPU   BPF_F_INDEX_MASK
 
@@ -78,9 +71,6 @@ struct tcp_abn {
     __u32 tcp_oom;          // FROM tcp_check_oom event
     __u32 send_rsts;        // FROM tcp_send_reset event
     __u32 receive_rsts;     // FROM tcp_receive_reset event
-
-    int sk_err;             // FROM sock.sk_err
-    int sk_err_soft;        // FROM sock.sk_err_soft
 };
 
 struct tcp_tx_rx {
@@ -93,6 +83,7 @@ struct tcp_tx_rx {
 };
 
 struct tcp_sockbuf {
+#if 0
     __u32   tcpi_sk_err_que_size;   // FROM sock.sk_error_queue.qlen
     __u32   tcpi_sk_rcv_que_size;   // FROM sock.sk_receive_queue.qlen
     __u32   tcpi_sk_wri_que_size;   // FROM sock.sk_write_queue.qlen
@@ -101,7 +92,7 @@ struct tcp_sockbuf {
     __u32   tcpi_sk_omem_size;      // FROM sock.sk_omem_alloc
     __u32   tcpi_sk_forward_size;   // FROM sock.sk_forward_alloc
     __u32   tcpi_sk_wmem_size;      // FROM sock.sk_wmem_alloc
-
+#endif
     int   sk_rcvbuf;                    // FROM sock.sk_rcvbuf
     int   sk_sndbuf;                // FROM sock.sk_sndbuf
 };
@@ -109,7 +100,7 @@ struct tcp_sockbuf {
 struct tcp_rate {
     __u32   tcpi_rto;           // Retransmission timeOut(us)
     __u32   tcpi_ato;           // Estimated value of delayed ACK(us)
-
+#if 0
     __u32   tcpi_snd_ssthresh;  // Slow start threshold for congestion control.
     __u32   tcpi_rcv_ssthresh;  // Current receive window size.
     __u32   tcpi_advmss;        // Local MSS upper limit.
@@ -123,6 +114,7 @@ struct tcp_rate {
 
     __u32   tcpi_pacing_rate;    // bytes per second
     __u32   tcpi_max_pacing_rate;   // bytes per second
+#endif
 };
 
 struct tcp_windows {
@@ -138,9 +130,24 @@ struct tcp_windows {
 
 struct tcp_rtt {
     __u32   tcpi_srtt;          // FROM tcp_sock.srtt_us in tcp_recvmsg
-    __u32   tcpi_srtt_max;      // max value of tcpi_srtt
     __u32   tcpi_rcv_rtt;       // Receive end RTT (unidirectional measurement).
-    __u32   tcpi_rcv_rtt_max;   // max value of tcpi_rcv_rtt
+};
+
+// #define NET_DELAY_BUCKET_SIZE   6
+
+enum tcp_delay_samp_state {
+    DELAY_SAMP_INIT = 0,
+    DELAY_SAMP_START_READY,
+    DELAY_SAMP_FINISH
+};
+
+struct tcp_delay {
+    __u64 net_send_delay;
+    __u64 net_recv_delay;
+    enum tcp_delay_samp_state send_state;
+    enum tcp_delay_samp_state recv_state;
+    __u64 write_start_ts;   // use for net_send_delay calculation
+    __u32 write_seq;        // use for net_send_delay calculation
 };
 
 #define TCP_BACKLOG_DROPS_INC(data) __sync_fetch_and_add(&((data).backlog_drops), 1)
@@ -157,11 +164,6 @@ struct tcp_rtt {
 #define TCP_RX_XADD(data, delta) __sync_fetch_and_add(&((data).rx), (__u64)(delta))
 #define TCP_TX_XADD(data, delta) __sync_fetch_and_add(&((data).tx), (__u64)(delta))
 
-#define CALC_MAX_VAL(cur_data, max_data) \
-do { \
-    max_data = (cur_data > max_data) ? cur_data : max_data; \
-} while(0)
-
 struct tcp_link_s {
     __u32 tgid;     // process id
     union {
@@ -175,8 +177,7 @@ struct tcp_link_s {
     __u16 s_port;   // server port
     __u16 c_port;   // client port
     __u16 family;
-    __u16 c_flag;   // c_port valid:1/invalid:0
-    __u32 role;     // role: client:1/server:0
+    __u16 role;     // role: client:1/server:0
     char comm[TASK_COMM_LEN];
 };
 
@@ -191,6 +192,7 @@ struct tcp_metrics_s {
     struct tcp_srtt srtt_stats;
     struct tcp_rate rate_stats;
     struct tcp_sockbuf sockbuf_stats;
+    struct tcp_delay delay_stats;
 };
 
 struct sock_info_s {
@@ -207,6 +209,7 @@ struct tcp_ts {
     u64 txrx_ts;
     u64 sockbuf_ts;
     u64 rate_ts;
+    u64 delay_ts;
 };
 
 struct sock_stats_s {
@@ -215,24 +218,91 @@ struct sock_stats_s {
 };
 
 struct tcp_args_s {
-    __u64 period;               // Sampling period, unit ns
-    __u32 cport_flag;           // Indicates whether the probes(such as tcp) identifies the client port
-    __u32 filter_by_task;       // Filtering PID monitoring ranges by task probe
-    __u32 filter_by_tgid;       // Filtering PID monitoring ranges by specific pid
+    __u64 sample_period;               // Sampling period, unit ns
 };
 
-void load_established_tcps(struct probe_params *args, int map_fd);
-void lkup_established_tcp(void);
+#if !defined(BPF_PROG_KERN) && !defined(BPF_PROG_USER)
+#include "ipc.h"
+
+void lkup_established_tcp(int proc_map_fd, struct ipc_body_s *ipc_body);
 void destroy_established_tcps(void);
-struct bpf_prog_s* tcp_load_probe(struct probe_params *args);
 int tcp_load_fd_probe(void);
 void tcp_unload_fd_probe(void);
+int is_tcp_fd_probe_loaded(void);
 
-#define __LOAD_PROBE(probe_name, end, load) \
-    OPEN(probe_name, end, load); \
+#define __OPEN_PROBE(probe_name, end, load) \
+    INIT_OPEN_OPTS(probe_name); \
+    PREPARE_CUSTOM_BTF(probe_name); \
+    OPEN_OPTS(probe_name, end, load); \
     MAP_SET_PIN_PATH(probe_name, args_map, TCP_LINK_ARGS_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, tcp_link_map, TCP_LINK_TCP_PATH, load); \
     MAP_SET_PIN_PATH(probe_name, sock_map, TCP_LINK_SOCKS_PATH, load); \
-    LOAD_ATTACH(probe_name, end, load)
+    MAP_SET_PIN_PATH(probe_name, tcp_fd_map, TCP_LINK_FD_PATH, load)
+
+#define __OPEN_PROBE_WITH_OUTPUT(probe_name, end, load, buffer) \
+    INIT_OPEN_OPTS(probe_name); \
+    PREPARE_CUSTOM_BTF(probe_name); \
+    OPEN_OPTS(probe_name, end, load); \
+    MAP_INIT_BPF_BUFFER(probe_name, tcp_output, buffer, load); \
+    MAP_SET_PIN_PATH(probe_name, args_map, TCP_LINK_ARGS_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, tcp_link_map, TCP_LINK_TCP_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, sock_map, TCP_LINK_SOCKS_PATH, load); \
+    MAP_SET_PIN_PATH(probe_name, tcp_fd_map, TCP_LINK_FD_PATH, load);
+
+#define __LOAD_PROBE(probe_name, end, load) \
+    LOAD_ATTACH(tcpprobe, probe_name, end, load)
+
+#define __OPEN_LOAD_PROBE(probe_name, end, load) \
+    __OPEN_PROBE(probe_name, end, load); \
+    __LOAD_PROBE(probe_name, end, load)
+
+#define __OPEN_LOAD_PROBE_WITH_OUTPUT(probe_name, end, load, buffer) \
+    __OPEN_PROBE_WITH_OUTPUT(probe_name, end, load, buffer); \
+    __LOAD_PROBE(probe_name, end, load)
+
+#define __UNLOAD_PROBE(probe_name) \
+    UNLOAD(probe_name); \
+    CLEANUP_CUSTOM_BTF(probe_name)
+
+#define __SELECT_RCV_ESTABLISHED_HOOKPOINT(probe_name) \
+    do { \
+        bool use_raw_tracepoint = probe_kernel_version() > KERNEL_VERSION(4, 18, 0); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_raw_trace_tcp_probe, use_raw_tracepoint); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_tcp_rcv_established, !use_raw_tracepoint); \
+    } while (0)
+
+#define __SELECT_SPACE_ADJUST_HOOKPOINT(probe_name) \
+    do { \
+        int kernel_version = probe_kernel_version(); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_raw_trace_tcp_rcv_space_adjust, kernel_version > KERNEL_VERSION(4, 18, 0)); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_tcp_rcv_space_adjust, kernel_version < KERNEL_VERSION(4, 13, 0)); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_trace_tcp_rcv_space_adjust_func, kernel_version >= KERNEL_VERSION(4, 13, 0) && kernel_version <= KERNEL_VERSION(4, 18, 0)); \
+    } while (0)
+
+#define __SELECT_DESTROY_SOCK_HOOKPOINT(probe_name) \
+    do { \
+        int kernel_version = probe_kernel_version(); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_raw_trace_tcp_destroy_sock, kernel_version > KERNEL_VERSION(4, 18, 0)); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_tcp_v4_destroy_sock, kernel_version < KERNEL_VERSION(4, 13, 0)); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_trace_tcp_destroy_sock_func, kernel_version >= KERNEL_VERSION(4, 13, 0) && kernel_version <= KERNEL_VERSION(4, 18, 0)); \
+    } while (0)
+
+#define __SELECT_RESET_HOOKPOINTS(probe_name) \
+    do { \
+        int kernel_version = probe_kernel_version(); \
+        bool use_raw_tracepoint = kernel_version > KERNEL_VERSION(4, 18, 0); \
+        bool use_kprobe = kernel_version < KERNEL_VERSION(4, 13, 0); \
+        bool use_tracepoint = !use_raw_tracepoint && !use_kprobe; \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_raw_trace_tcp_send_reset, use_raw_tracepoint); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_raw_trace_tcp_receive_reset, use_raw_tracepoint); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_tcp_v4_send_reset, use_kprobe); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_tcp_v6_send_reset, use_kprobe); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_tcp_send_active_reset, use_kprobe); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_tcp_reset, use_kprobe); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_trace_tcp_send_reset_func, use_tracepoint); \
+        PROG_ENABLE_ONLY_IF(probe_name, bpf_trace_tcp_receive_reset_func, use_tracepoint); \
+    } while (0)
+
+#endif
 
 #endif

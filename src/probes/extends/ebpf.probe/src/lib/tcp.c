@@ -43,6 +43,9 @@
 */
 #define SS_ESTAB_COMMAND "ss -anpt | grep ESTAB |  awk '{print $4 \"|\" $5 \"@\" $6}'"
 
+#define LS_SOCK_INODE_CMD \
+    "/usr/bin/ls -l /proc/%d/fd/%d | /usr/bin/awk -F '[' '{print $2}' | /usr/bin/awk -F ']' '{print $1}'"
+
 #define PORT_LEN 11
 #define PID_LEN 32
 #define FID_LEN 32
@@ -98,7 +101,7 @@ static int __get_sub_str(const char *s, const char* start, const char *end,
         p1 += strlen(start);
     }
 
-    len = p2 - p1;
+    len = (int)(p2 - p1);
     if ((len <= 0) || (len >= buf_len))
         return -1;
 
@@ -180,7 +183,6 @@ err:
 static struct tcp_estab_comm* __get_estab_comm(const char *start, unsigned int len)
 {
     /* ("sshd",pid=1264958,fd=3) */
-    int ret;
     char comm[TASK_COMM_LEN];
     char pid_s[PID_LEN];
     char fd_s[FID_LEN];
@@ -194,14 +196,18 @@ static struct tcp_estab_comm* __get_estab_comm(const char *start, unsigned int l
     (void)memcpy(tmp, start, len);
     tmp[len] = 0;
 
-    ret = __get_sub_str(s, "(\"", "\",", comm, TASK_COMM_LEN);
-    ret |= __get_sub_str(s, "pid=", ",fd", pid_s, PID_LEN);
-    ret |= __get_sub_str(s, ",fd=", ")", fd_s, FID_LEN);
-    if (ret < 0 || !__is_digit_str((const char *)pid_s)
-           || !__is_digit_str((const char *)fd_s))
+    if (__get_sub_str(s, "(\"", "\",", comm, TASK_COMM_LEN) ||
+        __get_sub_str(s, "pid=", ",fd", pid_s, PID_LEN) ||
+        __get_sub_str(s, ",fd=", ")", fd_s, FID_LEN) ||
+        !__is_digit_str((const char *)pid_s) ||
+        !__is_digit_str((const char *)fd_s)) {
         return NULL;
+    }
 
     te_comm = (struct tcp_estab_comm *)malloc(sizeof(struct tcp_estab_comm));
+    if (te_comm == NULL) {
+        return NULL;
+    }
     te_comm->comm[0] = 0;
     (void)strcpy(te_comm->comm, comm);
     te_comm->pid = (unsigned int)atoi(pid_s);
@@ -298,17 +304,17 @@ static int __get_estab(const char *s, struct tcp_estab* te)
 
     // get establish tcp local address and port
     addr_str[0] = 0;
-    ret = __get_sub_str(s, NULL, "|", addr_str, IP_STR_LEN);
-    ret |= __get_estab_addr(s, &(te->local), addr_str);
-    if (ret < 0)
+    if (__get_sub_str(s, NULL, "|", addr_str, IP_STR_LEN) ||
+        __get_estab_addr(s, &(te->local), addr_str)) {
         goto err;
+    }
 
     // get establish tcp remote address and port
     addr_str[0] = 0;
-    ret = __get_sub_str(s, "|", "@", addr_str, IP_STR_LEN);
-    ret |= __get_estab_addr(s, &(te->remote), addr_str);
-    if (ret < 0)
+    if (__get_sub_str(s, "|", "@", addr_str, IP_STR_LEN) ||
+        __get_estab_addr(s, &(te->remote), addr_str)) {
         goto err;
+    }
 
     // get all comm, pid, fd of establish tcp
     ret = __get_sub_str(s, "@users:(", NULL, comms_str, LINE_BUF_LEN);
@@ -424,7 +430,7 @@ static int __get_listen_port(const char *s, unsigned int *port)
 */
 static int __get_listen_comm(const char *s, char *comm_buf, unsigned int buf_len)
 {
-    return __get_sub_str(s, "((\"", "\",pid", comm_buf, buf_len);
+    return __get_sub_str(s, "(\"", "\",pid", comm_buf, buf_len);
 }
 
 /*
@@ -456,7 +462,7 @@ static int __get_listen_fd(const char *s, int *fd)
     int ret;
     char fd_str[FID_LEN];
 
-    ret = __get_sub_str(s, "fd=", "))", fd_str, FID_LEN);
+    ret = __get_sub_str(s, "fd=", NULL, fd_str, FID_LEN);
     if (ret < 0)
         return -1;
 
@@ -467,17 +473,13 @@ static int __get_listen_fd(const char *s, int *fd)
     return 0;
 }
 
-static struct tcp_listen_port* __new_tlp(const char *s)
+static struct tcp_listen_port* __new_tlp(const char *s, unsigned int port)
 {
     int ret;
-    unsigned int port, pid;
+    unsigned pid;
     int fd;
     char comm[TASK_COMM_LEN];
     struct tcp_listen_port* tlp;
-
-    ret = __get_listen_port(s, &port);
-    if (ret < 0)
-        return NULL;
 
     ret = __get_listen_comm(s, comm, TASK_COMM_LEN);
     if (ret < 0)
@@ -531,17 +533,45 @@ static void __free_tlps(struct tcp_listen_ports** ptlps)
 
 static int __add_tlp(struct tcp_listen_ports* tlps, const struct tcp_listen_port* tlp)
 {
-    // Already judge legal of 'tlp->port' in function __get_listen_port
-    if (tlps->tlp_hash[tlp->port] == 1)
-        return -1;
-
     if (tlps->tlp_num >= LTP_MAX_NUM)
         return -1;
 
-    tlps->tlp_hash[tlp->port] = 1;
+    tlps->tlp_hash[tlp->port] += 1;
     tlps->tlp[tlps->tlp_num] = (struct tcp_listen_port *)tlp;
     tlps->tlp_num++;
     return 0;
+}
+
+static int __parse_tlp_line(struct tcp_listen_ports* tlps, const char *s)
+{
+    int ret;
+    unsigned int port;
+
+    ret = __get_listen_port(s, &port);
+    if (ret < 0) {
+        return -1;
+    }
+
+    char *user_begin = strstr(s, "((");
+    if (user_begin == NULL) {
+        return -1;
+    }
+
+    struct tcp_listen_port* tlp;
+    char *sub_line, *save;
+    sub_line = __strtok_r(user_begin, ")", &save);
+    while (sub_line != NULL) {
+        tlp = __new_tlp(sub_line, port);
+        if (tlp != NULL) {
+            ret = __add_tlp(tlps, tlp);
+            if (ret < 0) {
+                (void)free(tlp);
+            }
+        }
+        sub_line = __strtok_r(NULL, ")", &save);
+    }
+
+    return ret;
 }
 
 static int __get_tlps(struct tcp_listen_ports* tlps)
@@ -549,8 +579,6 @@ static int __get_tlps(struct tcp_listen_ports* tlps)
     char line[LINE_BUF_LEN];
     FILE *f;
     const char *command = SS_LISTEN_PORTS_COMMAND;
-    struct tcp_listen_port* tlp;
-    int ret;
 
     f = popen(command, "r");
     if (f == NULL)
@@ -561,13 +589,10 @@ static int __get_tlps(struct tcp_listen_ports* tlps)
         if (fgets(line, LINE_BUF_LEN, f) == NULL)
             break;
 
-        tlp = __new_tlp((const char *)line);
-        if (tlp == NULL)
-            continue;
-
-        ret = __add_tlp(tlps, tlp);
-        if (ret < 0)
-            (void)free(tlp);
+        if (__parse_tlp_line(tlps, line) < 0) {
+            (void)pclose(f);
+            return -1;
+        }
     }
     (void)pclose(f);
     return 0;
@@ -601,6 +626,30 @@ struct tcp_listen_ports* get_listen_ports(void)
 void free_listen_ports(struct tcp_listen_ports** ptlps)
 {
     __free_tlps(ptlps);
+}
+
+int get_listen_sock_inode(struct tcp_listen_port *tlp, unsigned long *ino)
+{
+    FILE *f = NULL;
+    char cmd[COMMAND_LEN];
+    char line[LINE_BUF_LEN];
+
+    cmd[0] = 0;
+    (void)snprintf(cmd, COMMAND_LEN, LS_SOCK_INODE_CMD, tlp->pid, tlp->fd);
+    f = popen(cmd, "r");
+    if (f == NULL) {
+        return -1;
+    }
+    line[0] = 0;
+    if (fgets(line, sizeof(line), f) == NULL) {
+        (void)pclose(f);
+        return -1;
+    }
+    SPLIT_NEWLINE_SYMBOL(line);
+    *ino = atoi(line);
+
+    (void)pclose(f);
+    return 0;
 }
 
 struct tcp_estabs* get_estab_tcps(struct tcp_listen_ports* tlps)
@@ -661,7 +710,7 @@ static void __free_tcp_endpoints(struct tcp_endpoints** pteps)
     if (teps == NULL)
         return;
 
-    for (i = 0; i <teps->tep_num; i++) {
+    for (i = 0; i < teps->tep_num; i++) {
         if (teps->tep[i]) {
             (void)free(teps->tep[i]);
             teps->tep[i] = NULL;

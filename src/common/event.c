@@ -21,7 +21,7 @@
 #include <stdarg.h>
 #include "common.h"
 #include "container.h"
-#include "event_config.h"
+// #include "event_config.h"
 #include "event.h"
 #ifdef NATIVE_PROBE_FPRINTF
 #include "nprobe_fprintf.h"
@@ -29,8 +29,8 @@
 
 static struct evt_ts_hash_t *g_evt_head = NULL;
 static unsigned int g_evt_period = 600;
-static EventsConfig *g_evt_conf;
-static char g_lang_type[MAX_EVT_GRP_NAME_LEN] = "zh_CN";
+// static EventsConfig *g_evt_conf;
+// static char g_lang_type[MAX_EVT_GRP_NAME_LEN] = "zh_CN";
 
 static void hash_clear_older_evt(time_t cur_time);
 static unsigned int hash_count_evt(void);
@@ -49,12 +49,13 @@ static void __get_local_time(char *buf, int buf_len, time_t *cur_time)
     *cur_time = rawtime;
 }
 
+#if 0
 static void __replace_desc_fmt(const char* entityName, const char* metrics, const char *fmt, char *new_fmt)
 {
     if (new_fmt == NULL) {
         return;
     }
-    (void)strncpy(new_fmt, fmt, MAX_EVT_BODY_LEN - 1);
+    (void)snprintf(new_fmt, MAX_EVT_BODY_LEN, "%s", fmt);
 
     if (g_lang_type[0] == 0) {
         return;
@@ -71,6 +72,7 @@ static void __replace_desc_fmt(const char* entityName, const char* metrics, cons
     }
     return;
 }
+#endif
 
 #define __SEC_TXT_LEN  32
 struct evt_sec_s {
@@ -86,11 +88,9 @@ static struct evt_sec_s secs[EVT_SEC_MAX] = {
 };
 
 #define __EVT_BODY_LEN  512 // same as MAX_IMDB_METRIC_VAL_LEN
-void report_logs(const struct event_info_s* evt,
-                      enum evt_sec_e sec,
-                      const char * fmt, ...)
+void report_logs(const struct event_info_s* evt, enum evt_sec_e sec, const char * fmt, ...)
 {
-    int len;
+    size_t len;
     va_list args;
     char pid_str[INT_LEN];
     char pid_comm[TASK_COMM_LEN];
@@ -114,11 +114,11 @@ void report_logs(const struct event_info_s* evt,
     p = body + strlen(body);
     len = __EVT_BODY_LEN - strlen(body);
 
-    char fmt2[MAX_EVT_BODY_LEN];
-    fmt2[0] = 0;
+    //char fmt2[MAX_EVT_BODY_LEN];
+    //fmt2[0] = 0;
     va_start(args, fmt);
-    __replace_desc_fmt(evt->entityName, evt->metrics, fmt, fmt2);
-    (void)vsnprintf(p, len, fmt2, args);
+    //__replace_desc_fmt(evt->entityName, evt->metrics, fmt, fmt2);
+    (void)vsnprintf(p, len, fmt, args);
     va_end(args);
 
     pid_str[0] = 0;
@@ -127,7 +127,7 @@ void report_logs(const struct event_info_s* evt,
     if (evt->pid != 0) {
         (void)snprintf(pid_str, INT_LEN, "%d", evt->pid);
         (void)get_container_id_by_pid_cpuset((const char *)pid_str, container_id, CONTAINER_ABBR_ID_LEN + 1);
-        (void)get_comm(evt->pid, pid_comm, TASK_COMM_LEN);
+        (void)get_proc_comm(evt->pid, pid_comm, TASK_COMM_LEN);
     }
 
     pod_id[0] = 0;
@@ -137,34 +137,34 @@ void report_logs(const struct event_info_s* evt,
 
 #ifdef NATIVE_PROBE_FPRINTF
     (void)nprobe_fprintf(stdout, "|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%d|%s|\n",
-                            "event",
-                            evt->entityName,
-                            evt->entityId,
-                            evt->metrics,
-                            (pid_str[0] != 0) ? pid_str : "",
-                            (pid_comm[0] != 0) ? pid_comm : "",
-                            (evt->ip[0] != 0) ? evt->ip : "",
-                            (container_id[0] != 0) ? container_id : "",
-                            (pod_id[0] != 0) ? pod_id : "",
-                            evt->dev ? evt->dev : "",
-                            secs[sec].sec_text,
-                            secs[sec].sec_number,
-                            body);
+                         "event",
+                         evt->entityName,
+                         evt->entityId,
+                         evt->metrics,
+                         (pid_str[0] != 0) ? pid_str : "",
+                         (pid_comm[0] != 0) ? pid_comm : "",
+                         (evt->ip[0] != 0) ? evt->ip : "",
+                         (container_id[0] != 0) ? container_id : "",
+                         (pod_id[0] != 0) ? pod_id : "",
+                         evt->dev ? evt->dev : "",
+                         secs[sec].sec_text,
+                         secs[sec].sec_number,
+                         body);
 #else
     (void)fprintf(stdout, "|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%d|%s|\n",
-                            "event",
-                            evt->entityName,
-                            evt->entityId,
-                            evt->metrics,
-                            (pid_str[0] != 0) ? pid_str : "",
-                            (pid_comm[0] != 0) ? pid_comm : "",
-                            (evt->ip[0] != 0) ? evt->ip : "",
-                            (container_id[0] != 0) ? container_id : "",
-                            (pod_id[0] != 0) ? pod_id : "",
-                            evt->dev ? evt->dev : "",
-                            secs[sec].sec_text,
-                            secs[sec].sec_number,
-                            body);
+                  "event",
+                  evt->entityName,
+                  evt->entityId,
+                  evt->metrics,
+                  (pid_str[0] != 0) ? pid_str : "",
+                  (pid_comm[0] != 0) ? pid_comm : "",
+                  (evt->ip[0] != 0) ? evt->ip : "",
+                  (container_id[0] != 0) ? container_id : "",
+                  (pod_id[0] != 0) ? pod_id : "",
+                  evt->dev ? evt->dev : "",
+                  secs[sec].sec_text,
+                  secs[sec].sec_number,
+                  body);
 #endif
     return;
 }
@@ -197,7 +197,7 @@ static void hash_add_evt(const char *entityId, time_t cur_time)
         return;
     }
     item->entity_id[0] = 0;
-    strncpy(item->entity_id, entityId, MAX_ENTITY_NAME_LEN - 1);
+    (void)snprintf(item->entity_id, sizeof(item->entity_id), "%s", entityId);
     item->evt_ts = cur_time;
     H_ADD_S(g_evt_head, entity_id, item);
 }
@@ -211,7 +211,7 @@ static struct evt_ts_hash_t *hash_find_evt(const char *entityId)
     }
 
     str[0] = 0;
-    strncpy(str, entityId, MAX_ENTITY_NAME_LEN - 1);
+    (void)snprintf(str, sizeof(str), "%s", entityId);
     H_FIND_S(g_evt_head, str, item);
     if (item == NULL) {
         return NULL;
@@ -263,11 +263,14 @@ static int is_evt_need_report(const char *entityId, time_t cur_time)
     return 0;
 }
 
-void init_event_mgr(unsigned int time_out, char *lang_type)
+void init_event_mgr(unsigned int time_out)
 {
     g_evt_period = time_out;
+#if 0
     g_lang_type[0] = 0;
     if (lang_type != NULL && strlen(lang_type) > 0) {
-        (void)strncpy(g_lang_type, lang_type, MAX_EVT_GRP_NAME_LEN - 1);
+        (void)snprintf(g_lang_type, sizeof(g_lang_type), "%s", lang_type);
     }
+#endif
+    return;
 }

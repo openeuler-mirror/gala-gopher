@@ -20,7 +20,6 @@
 #include "imdb.h"
 #include "logs.h"
 
-
 #define LEN_1M (1024 * 1024)     // 1 MB
 static char g_buffer[LEN_1M];
 
@@ -32,7 +31,7 @@ int ReadMetricsLogs(char logs_file_name[])
 
 void RemoveMetricsLogs(char logs_file_name[])
 {
-    return rm_log_file(logs_file_name);
+    rm_log_file(logs_file_name);
 }
 
 static int WriteMetricsLogs(IMDB_DataBaseMgr *imdbMgr)
@@ -50,6 +49,10 @@ static int WriteMetricsLogs(IMDB_DataBaseMgr *imdbMgr)
     if (buffer_len == 0) {
         // return when no data in tables
         return 0;
+    }
+
+    if (g_buffer[buffer_len] != 0) {
+        ERROR("[METRICLOG] g_buffer[buffer_len] is not 0.\n");
     }
 
     ret = wr_metrics_logs(g_buffer, buffer_len);
@@ -72,11 +75,10 @@ void WriteMetricsLogsMain(IMDB_DataBaseMgr *mgr)
     }
 
     for (;;) {
+        sleep(METRIC_LOG_WRITE_INTERVAL);
         ret = WriteMetricsLogs(mgr);
         if (ret < 0) {
             ERROR("[METRICLOG] write buffer error.\n");
-            return;
         }
-        sleep(METRIC_LOG_WRITE_INTERVAL);
     }
 }

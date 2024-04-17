@@ -26,10 +26,18 @@ if ! [[ $JAVA_TAILOR_PROBES =~ "jvm.probe" ]] ; then
     INSTALL_FILES+=" jvm.probe/JvmProbeAgent${version}.jar"
 fi
 
-if [ ${INSTALL_PATH} ]; then
-    mkdir -p ${INSTALL_PATH}
-    for file in ${INSTALL_FILES}; do
-        cp ${file} ${INSTALL_PATH}
-    done
+# tailor jsseprobe jar when tailoring l7probe
+if ! [[ $JAVA_TAILOR_PROBES =~ "l7probe" ]] ; then
+    INSTALL_FILES+=" jsse.probe/JSSEProbeAgent.jar"
 fi
 
+# tailor jstackprobe jar when tailoring stackprobe
+if ! [[ $JAVA_TAILOR_PROBES =~ "stackprobe" ]] ; then
+    INSTALL_FILES+=" jstack.probe/JstackProbeAgent.jar"
+    INSTALL_FILES+=" jstack.probe/JstackPrinter.jar"
+fi
+
+mkdir -p ${INSTALL_PATH}
+for file in ${INSTALL_FILES}; do
+    cp ${file} ${INSTALL_PATH}
+done

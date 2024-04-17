@@ -18,14 +18,13 @@
 #pragma once
 
 #include "common.h"
-#include "args.h"
+#include "ipc.h"
 #define KEY_BUF_LEN 256
 
 struct system_meminfo_field {
     char key[KEY_BUF_LEN];
     unsigned long long value;
 };
-
 
 enum mem_infos {
     MEM_TOTAL = 0,
@@ -35,15 +34,35 @@ enum mem_infos {
     CACHED,
     ACTIVE,
     INACTIVE,
+    ACTIVE_ANON,
+    INACTIVE_ANON,
+    ACTIVE_FILE,
+    INACTIVE_FILE,
+    MLOCKED,
     SWAP_TOTAL,
     SWAP_FREE,
+    SHMEM,
+    SLAB,
+    S_RECLAIMABLE,
+    S_UNRECLAIM,
+    KERNEL_STACK,
+    PAGE_TABLES,
+    VMALLOC_USED,
+    HUGEPAGES_TOTAL,
+    HUGEPAGE_SIZE,
 
     TOTAL_DATA_INDEX,
 };
 
+struct dentry_stat {
+    int dentry;
+    int unused;
+    int age_limit;
+};
+
 int system_meminfo_init(void);
 void system_meminfo_destroy(void);
-int system_meminfo_probe(struct probe_params *params);
+int system_meminfo_probe(struct ipc_body_s *ipc_body);
 
 
 #endif

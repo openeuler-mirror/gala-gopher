@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include "kafka.h"
 
+#ifdef KAFKA_CHANNEL
 static void dr_msg_cb(rd_kafka_t *rk, const rd_kafka_message_t *rkmessage, void *opaque)
 {
     if (rkmessage->err) {
@@ -45,21 +46,22 @@ KafkaMgr *KafkaMgrCreate(const ConfigMgr *configMgr, const char *topic_type)
     }
     if (strcmp(topic_type, "kafka_topic") == 0) {
         /* metric topic */
-        (void)strncpy(mgr->kafkaTopic, configMgr->metricOutConfig->kafka_topic, MAX_KAFKA_TOPIC_LEN - 1);
+        (void)snprintf(mgr->kafkaTopic, sizeof(mgr->kafkaTopic), "%s", configMgr->metricOutConfig->kafka_topic);
     } else if (strcmp(topic_type, "metadata_topic") == 0) {
         /* metadata topic */
-        (void)strncpy(mgr->kafkaTopic, configMgr->metaOutConfig->kafka_topic, MAX_KAFKA_TOPIC_LEN - 1);
+        (void)snprintf(mgr->kafkaTopic, sizeof(mgr->kafkaTopic), "%s", configMgr->metaOutConfig->kafka_topic);
     } else if (strcmp(topic_type, "event_topic") == 0) {
         /* event topic */
-        (void)strncpy(mgr->kafkaTopic, configMgr->eventOutConfig->kafka_topic, MAX_KAFKA_TOPIC_LEN - 1);
+        (void)snprintf(mgr->kafkaTopic, sizeof(mgr->kafkaTopic), "%s", configMgr->eventOutConfig->kafka_topic);
     } else {
         ERROR("input kafka topic_type(%s) error.\n", topic_type);
         free(mgr);
         return NULL;
     }
 
-    (void)strncpy(mgr->kafkaBroker, configMgr->kafkaConfig->broker, MAX_KAFKA_BROKER_LEN - 1);
-    (void)strncpy(mgr->compressionCodec, configMgr->kafkaConfig->compressionCodec, KAFKA_COMPRESSION_CODEC_LEN - 1);
+    (void)snprintf(mgr->kafkaBroker, sizeof(mgr->kafkaBroker), "%s", configMgr->kafkaConfig->broker);
+    (void)snprintf(mgr->compressionCodec, sizeof(mgr->compressionCodec), "%s",
+                   configMgr->kafkaConfig->compressionCodec);
     mgr->batchNumMessages = configMgr->kafkaConfig->batchNumMessages;
     mgr->queueBufferingMaxKbytes = configMgr->kafkaConfig->queueBufferingMaxKbytes;
     mgr->queueBufferingMaxMessages = configMgr->kafkaConfig->queueBufferingMaxMessages;
@@ -182,3 +184,4 @@ retry:
     return 0;
 }
 
+#endif

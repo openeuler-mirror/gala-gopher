@@ -59,24 +59,24 @@ static int excute_cmd(const char *format, ...)
 {
     int ret;
     va_list args;
-    
+
     va_start(args, format);
     ret = vsnprintf(g_cmdBuf, MAX_CMD_LEN, format, args);
     va_end(args);
     if (ret < 0) {
         return TC_ERR;
     }
-    
+
     ret = system(g_cmdBuf);
     if (ret < 0) {
         fprintf(stderr, "execute cmd[%s] error: %d\n", g_cmdBuf, ret);
         return TC_ERR;
     }
-    ret = WEXITSTATUS(ret);
+    ret = WEXITSTATUS((unsigned)ret);
     if (ret != 0) {
         return TC_ERR;
     }
-    
+
     return TC_OK;
 }
 
@@ -113,7 +113,7 @@ static int disable_one_netcard(const char *ethdev)
         DEBUG("offload netcard[%s] tc bpf err\n", ethdev);
         return TC_ERR;
     }
-    
+
     INFO("offload netcard[%s] tc bpf success\n", ethdev);
     return TC_OK;
 }
@@ -144,7 +144,7 @@ static int enable_one_netcard(const char *ethdev)
             goto clear;
         }
 
-        ret = WEXITSTATUS(ret);
+        ret = WEXITSTATUS((unsigned)ret);
         if (ret && g_enableSeq[i].verifyRet) {
             DEBUG("netcard[%s] execute cmd ret wrong: %s\n", ethdev, g_enableSeq[i].cmdStr);
             goto clear;
@@ -204,15 +204,18 @@ static void for_each_netcard(NetdevCallback fn, char netcard_list[])
 {
     int ret = TC_OK;
     char *ptr_end = NULL;
-    char *ptr_start = netcard_list;
+    char *ptr_start = NULL;
     char buf[MAX_CMD_LEN];
+    char netcard_list_tmp[MAX_PATH_LEN];
     FILE *fstream = NULL;
 
-    netcard_list[MAX_PATH_LEN - 1] = 0;
+    netcard_list_tmp[0] = 0;
+    (void)snprintf(netcard_list_tmp, sizeof(netcard_list_tmp), "%s", netcard_list);
+    ptr_start = netcard_list_tmp;
 
     // when there are "-n" args, enable the net card specified by -n
-    if (strlen(netcard_list) > 0) {
-        while (ptr_start < netcard_list + MAX_PATH_LEN && *ptr_start != '\0') {
+    if (strlen(netcard_list_tmp) > 0) {
+        while (ptr_start < netcard_list_tmp + MAX_PATH_LEN && *ptr_start != '\0') {
             ptr_end = strchr(ptr_start, ',');
             if (ptr_end != NULL) {
                 *ptr_end = '\0';

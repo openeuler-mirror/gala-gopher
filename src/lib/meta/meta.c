@@ -151,14 +151,14 @@ static int MeasurementLoad(MeasurementMgr *mgr, Measurement *mm, config_setting_
         ERROR("load measurement name failed.\n");
         return -1;
     }
-    (void)strncpy(mm->name, name, MAX_MEASUREMENT_NAME_LEN - 1);
+    (void)snprintf(mm->name, sizeof(mm->name), "%s", name);
 
     ret = config_setting_lookup_string(mmConfig, "entity_name", &entity);
     if (ret == 0) {
         ERROR("load measurement entity failed.\n");
         return -1;
     }
-    (void)strncpy(mm->entity, entity, MAX_MEASUREMENT_NAME_LEN - 1);
+    (void)snprintf(mm->entity, sizeof(mm->entity), "%s", entity);
 
 #if LIBCONFIG_VER_MAJOR == 1 && LIBCONFIG_VER_MINOR < 5
     config_setting_t *fields = config_lookup_from(mmConfig, "fields");
@@ -340,7 +340,6 @@ static int metadata_build_vrsion(const Measurement *mm, char *json_str, int max_
 }
 
 /* "keys": ["machine_id", "tgid"] */
-#define META_FIELD_TYPE_KEY "key"
 static int metadata_build_keys(const Measurement *mm, char *json_str, int max_len)
 {
     int i, ret;
@@ -348,7 +347,7 @@ static int metadata_build_keys(const Measurement *mm, char *json_str, int max_le
     int str_len = max_len;
     int total_len = 0;
 
-    ret = snprintf(str, str_len, ", \"keys\": [\"machine_id\"");
+    ret = snprintf(str, str_len, ", \"keys\": [\"%s\"", META_COMMON_KEY_HOST_ID);
     if (ret < 0 || ret >= str_len) {
         return -1;
     }
@@ -376,8 +375,24 @@ static int metadata_build_keys(const Measurement *mm, char *json_str, int max_le
     return total_len;
 }
 
+static int is_proc_level(const Measurement *mm)
+{
+    int i;
+
+    for (i = 0; i < mm->fieldsNum; i++) {
+        if (strcmp(mm->fields[i].type, META_FIELD_TYPE_KEY) != 0 &&
+            strcmp(mm->fields[i].type, META_FIELD_TYPE_LABEL) != 0) {
+            continue;
+        }
+        if (strcasecmp(mm->fields[i].name, META_FIELD_NAME_PROC) == 0) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 /* "labels": ["hostname", "blk_type", "comm"] */
-#define META_FIELD_TYPE_LABEL "label"
 static int metadata_build_labels(const Measurement *mm, char *json_str, int max_len)
 {
     int i, ret;
@@ -385,7 +400,7 @@ static int metadata_build_labels(const Measurement *mm, char *json_str, int max_
     int str_len = max_len;
     int total_len = 0;
 
-    ret = snprintf(str, str_len, ", \"labels\": [\"hostname\"");
+    ret = snprintf(str, str_len, ", \"labels\": [\"%s\"", META_COMMON_LABEL_HOST_NAME);
     if (ret < 0 || ret >= str_len) {
         return -1;
     }
@@ -404,6 +419,43 @@ static int metadata_build_labels(const Measurement *mm, char *json_str, int max_
             total_len += ret;
         }
     }
+
+    if (is_proc_level(mm)) {
+        ret = snprintf(str, str_len, ", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"",
+            META_COMMON_LABEL_PROC_COMM, META_COMMON_LABEL_CONTAINER_ID, 
+            META_COMMON_LABEL_CONTAINER_NAME, META_COMMON_LABEL_CONTAINER_IMAGE,
+            META_COMMON_LABEL_POD_ID, META_COMMON_LABEL_POD_NAME, META_COMMON_LABEL_POD_NAMESPACE);
+        if (ret < 0 || ret >= str_len) {
+            return -1;
+        }
+        str += ret;
+        str_len -= ret;
+        total_len += ret;
+    }
+
+    if (is_entity_proc(mm->entity)) {
+        ret = snprintf(str, str_len, ", \"%s\", \"%s\"",
+            META_PROC_LABEL_CMDLINE, META_PROC_LABEL_START_TIME);
+        if (ret < 0 || ret >= str_len) {
+            return -1;
+        }
+        str += ret;
+        str_len -= ret;
+        total_len += ret;
+    }
+
+    if (is_entity_container(mm->entity)) {
+        ret = snprintf(str, str_len, ", \"%s\", \"%s\", \"%s\", \"%s\"",
+            META_COMMON_LABEL_CONTAINER_NAME, META_COMMON_LABEL_CONTAINER_IMAGE, 
+            META_COMMON_LABEL_POD_ID, META_COMMON_LABEL_POD_NAME, META_COMMON_LABEL_POD_NAMESPACE);
+        if (ret < 0 || ret >= str_len) {
+            return -1;
+        }
+        str += ret;
+        str_len -= ret;
+        total_len += ret;
+    }
+
     ret = snprintf(str, str_len, "]");
     if (ret < 0 || ret >= str_len) {
         return -1;
@@ -421,7 +473,7 @@ static int is_filed_type_metric(char *field_type)
         "counter",
         "gauge"
     };
-    int size = sizeof(meta_fileld_type_metric) / sizeof(meta_fileld_type_metric[0]);
+    size_t size = sizeof(meta_fileld_type_metric) / sizeof(meta_fileld_type_metric[0]);
 
     for (i = 0; i < size; i++) {
         if (strcmp(field_type, meta_fileld_type_metric[i]) == 0) {
@@ -552,6 +604,7 @@ static int report_one_metadata(const MeasurementMgr *mgr, const Measurement *mm)
         return -1;
     }
 
+#ifdef KAFKA_CHANNEL
     if (mgr->meta_out_channel == OUT_CHNL_KAFKA) {
         // Report meta to kafka
         KafkaMgr *meta_kafka = mgr->meta_kafkaMgr;
@@ -563,11 +616,12 @@ static int report_one_metadata(const MeasurementMgr *mgr, const Measurement *mm)
         (void)KafkaMsgProduce(meta_kafka, json_str, strlen(json_str));
         DEBUG("[META] kafka metadata_topic produce one data: %s\n", json_str);
     }
+#endif
 
     if (mgr->meta_out_channel == OUT_CHNL_LOGS) {
         // Write meta to log
         wr_meta_logs(json_str);
-        DEBUG("[META] write metadata to logs fail.\n");
+        DEBUG("[META] write metadata to logs: %s\n", json_str);
         (void)free(json_str);
     }
 
@@ -599,15 +653,21 @@ static int ReportMeteData(const MeasurementMgr *mgr)
 int ReportMetaDataMain(const MeasurementMgr *mgr)
 {
     int ret;
+    if (mgr->meta_out_channel == OUT_CHNL_NULL) {
+        INFO("[META] metadata out channel is null, skip creating metadata report thread\n");
+        return 0;
+    }
 
     if (mgr->meta_out_channel != OUT_CHNL_LOGS && mgr->meta_out_channel != OUT_CHNL_KAFKA) {
         ERROR("[META] metadata out channel isn't logs or kafka, break.\n");
         return -1;
     }
+#ifdef KAFKA_CHANNEL
     if (mgr->meta_out_channel == OUT_CHNL_KAFKA && mgr->meta_kafkaMgr == NULL) {
         ERROR("[META] metadata out channel is kafka but kafkaMgr is NULL, break.\n");
         return -1;
     }
+#endif
 
     for (;;) {
         ret = ReportMeteData(mgr);
@@ -616,6 +676,22 @@ int ReportMetaDataMain(const MeasurementMgr *mgr)
         }
         sleep(TEM_MINUTES);
     }
+}
+
+int is_entity_proc(const char *entity_name)
+{
+    if (strcmp(entity_name, ENTITY_PROC) == 0) {
+        return 1;
+    }
+    return 0;
+}
+
+int is_entity_container(const char *entity_name)
+{
+    if (strcmp(entity_name, ENTITY_CONTAINER) == 0) {
+        return 1;
+    }
+    return 0;
 }
 
 #endif

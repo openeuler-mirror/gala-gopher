@@ -24,8 +24,8 @@
 #include <errno.h>
 
 #include "bpf.h"
-#include "elf_reader.h"
 #include "container.h"
+#include "elf_reader.h"
 
 #define DEFAULT_PATH_LIST   "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/root/bin"
 
@@ -42,7 +42,7 @@ static int __get_link_path(const char* link, char *path, unsigned int len)
 
     command[0] = 0;
     (void)snprintf(command, COMMAND_LEN, COMMAND_REAL_PATH, link);
-    return exec_cmd(command, path, len);
+    return exec_cmd_chroot(command, path, len);
 }
 
 static int __do_get_glibc_path_host(char *path, unsigned int len)
@@ -50,11 +50,12 @@ static int __do_get_glibc_path_host(char *path, unsigned int len)
     int ret;
     FILE *f = NULL;
     char line[LINE_BUF_LEN];
+    char path_buf[PATH_LEN];
 
-    path[0] = 0;
+    path_buf[0] = 0;
     line[0] = 0;
 
-    f = popen(COMMAND_GLIBC_PATH, "r");
+    f = popen_chroot(COMMAND_GLIBC_PATH, "r");
     if (f == NULL)
         return -1;
 
@@ -64,12 +65,13 @@ static int __do_get_glibc_path_host(char *path, unsigned int len)
     }
 
     split_newline_symbol(line);
-    ret = __get_link_path((const char *)line, path, len);
+    ret = __get_link_path((const char *)line, path_buf, len);
     if (ret < 0) {
         (void)pclose(f);
         return -1;
     }
 
+    convert_to_host_path(path, path_buf, len);
     (void)pclose(f);
     return 0;
 }
@@ -85,7 +87,7 @@ static int __do_get_glibc_path_container(const char *container_id, char *path, u
     glibc_path[0] = 0;
     glibc_abs_path[0] = 0;
 
-    ret = get_container_merged_path(container_id, container_abs_path, PATH_LEN);
+    ret = get_container_root_path(container_id, container_abs_path, PATH_LEN);
     if (ret < 0)
         return ret;
 
@@ -132,6 +134,7 @@ static int __do_get_path_from_host(const char *binary_file, char **res_buf, int 
     char *p = NULL;
     char *syspath_ptr = getenv("PATH");
     char syspath[PATH_LEN];
+    char path_buf[PATH_LEN];
 
     if (syspath_ptr == NULL) {
         (void)snprintf((void *)syspath, PATH_LEN, "%s", DEFAULT_PATH_LIST);
@@ -141,13 +144,17 @@ static int __do_get_path_from_host(const char *binary_file, char **res_buf, int 
     p = strtok(syspath_ptr, ":");
     while (p != NULL) {
         char abs_path[PATH_LEN] = {0};
-        (void)snprintf((char *)abs_path, PATH_LEN, "%s/%s", p, binary_file);
+        convert_to_host_path(path_buf, p, PATH_LEN);
+        (void)snprintf((char *)abs_path, PATH_LEN, "%s/%s", path_buf, binary_file);
         if (__is_exec_file(abs_path)) {
             if (r_len >= res_len) {
-                printf("host abs_path's num[%d] beyond res_buf's size[%d].\n", r_len, res_len);
+                INFO("host abs_path's num[%d] beyond res_buf's size[%d].\n", r_len, res_len);
                 break;
             }
             res_buf[r_len] = (char *)malloc(PATH_LEN * sizeof(char));
+            if (res_buf[r_len] == NULL) {
+                return r_len;
+            }
             (void)snprintf(res_buf[r_len], PATH_LEN, "%s", abs_path);
             r_len++;
         }
@@ -165,15 +172,15 @@ static int __do_get_path_from_container(const char *binary_file, const char *con
     char syspath[PATH_LEN] = {0};
     char container_abs_path[PATH_LEN] = {0};
 
-    ret = get_container_merged_path(container_id, container_abs_path, PATH_LEN);
+    ret = get_container_root_path(container_id, container_abs_path, PATH_LEN);
     if (ret < 0) {
-        printf("get container merged_path fail.\n");
+        INFO("get container merged_path fail.\n");
         return ret;
     }
 
     ret = exec_container_command(container_id, COMMAND_ENV_PATH, syspath, PATH_LEN);
     if (ret < 0) {
-        printf("get container's env PATH fail.\n");
+        INFO("get container's env PATH fail.\n");
         return ret;
     }
 
@@ -186,7 +193,7 @@ static int __do_get_path_from_container(const char *binary_file, const char *con
         (void)snprintf((char *)abs_path, PATH_LEN, "%s%s/%s", container_abs_path, p, binary_file);
         if (__is_exec_file(abs_path)) {
             if (r_len >= res_len) {
-                printf("container abs_path's num[%d] beyond res_buf's size[%d].\n", r_len, res_len);
+                INFO("container abs_path's num[%d] beyond res_buf's size[%d].\n", r_len, res_len);
                 break;
             }
             res_buf[r_len] = (char *)malloc(PATH_LEN * sizeof(char));
@@ -203,19 +210,24 @@ int get_exec_file_path(const char *binary_file, const char *specified_path, cons
                         char **res_buf, int res_len)
 {
     int ret_path_num = -1;
+    char specified_host_path[PATH_LEN];
 
     if (binary_file == NULL || !strcmp(binary_file, "NULL")) {
-        printf("please input binary_file name.\n");
+        INFO("please input binary_file name.\n");
         return -1;
     }
     /* specified file path */
     if (specified_path != NULL && strlen(specified_path)) {
-        if (!__is_exec_file(specified_path)) {
-            printf("specified path check error[%d].\n", errno);
+        convert_to_host_path(specified_host_path, specified_path, PATH_LEN);
+        if (!__is_exec_file(specified_host_path)) {
+            INFO("specified path check error[%d].\n", errno);
             return -1;
         }
         res_buf[0] = (char *)malloc(PATH_LEN * sizeof(char));
-        (void)snprintf(res_buf[0], PATH_LEN, "%s", specified_path);
+        if (res_buf[0] == NULL) {
+            return -1;
+        }
+        (void)snprintf(res_buf[0], PATH_LEN, "%s", specified_host_path);
         return 1;
     }
 
@@ -228,7 +240,7 @@ int get_exec_file_path(const char *binary_file, const char *specified_path, cons
     }
 
     if (ret_path_num == 0) {
-        printf("no executable in system default path, please specify abs_path.\n");
+        INFO("no executable in system default path, please specify abs_path.\n");
         return -1;
     }
     return ret_path_num;

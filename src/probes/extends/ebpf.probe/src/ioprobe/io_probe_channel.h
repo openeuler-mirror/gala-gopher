@@ -13,20 +13,6 @@
 #include <bpf/bpf_core_read.h>
 #include "io_trace.h"
 
-#define BPF_F_INDEX_MASK    0xffffffffULL
-#define BPF_F_ALL_CPU   BPF_F_INDEX_MASK
-
-#ifndef __PERF_OUT_MAX
-#define __PERF_OUT_MAX (64)
-#endif
-
-struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, __PERF_OUT_MAX);
-} io_latency_channel_map SEC(".maps");
-
 // Data collection args
 struct {
     __uint(type, BPF_MAP_TYPE_ARRAY);
@@ -91,23 +77,6 @@ static __always_inline __maybe_unused char is_report_tmout(struct io_report_s* i
         return 1;
     }
     return 0;
-}
-
-static __always_inline __maybe_unused void report_io_latency(void *ctx, struct io_latency_s* io_latency)
-{
-    if (is_report_tmout(&(io_latency->io_latency_ts))) {
-        (void)bpf_perf_event_output(ctx,
-                                    &io_latency_channel_map,
-                                    BPF_F_ALL_CPU,
-                                    io_latency,
-                                    sizeof(struct io_latency_s));
-        io_latency->proc_id = 0;
-        io_latency->data_len = 0;
-        io_latency->io_latency_ts.ts = 0;
-        __builtin_memset(io_latency->comm, 0, sizeof(io_latency->comm));
-        __builtin_memset(io_latency->rwbs, 0, sizeof(io_latency->rwbs));
-        __builtin_memset(io_latency->latency, 0, sizeof(io_latency->latency));
-    }
 }
 
 #endif

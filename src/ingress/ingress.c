@@ -20,8 +20,8 @@
 #include <sys/eventfd.h>
 #include <unistd.h>
 #include "logs.h"
-#include "ingress.h"
 #include "event2json.h"
+#include "ingress.h"
 
 IngressMgr *IngressMgrCreate(void)
 {
@@ -40,10 +40,25 @@ void IngressMgrDestroy(IngressMgr *mgr)
         return;
     }
 
+    if (mgr->epoll_fd > 0) {
+        close(mgr->epoll_fd);
+    }
     free(mgr);
     return;
 }
 
+static int IngressInit(IngressMgr *mgr)
+{
+    mgr->epoll_fd = epoll_create(MAX_EPOLL_SIZE);
+    if (mgr->epoll_fd < 0) {
+        return -1;
+    }
+
+    mgr->probsMgr->ingress_epoll_fd = mgr->epoll_fd;
+    return 0;
+}
+
+#if 0
 static int IngressInit(IngressMgr *mgr)
 {
     struct epoll_event event;
@@ -67,7 +82,7 @@ static int IngressInit(IngressMgr *mgr)
             return -1;
         }
 
-        INFO("[INGRESS] Add EPOLLIN event success, probe %s.\n", probe->name);
+        INFO("[INGRESS] add EPOLLIN event success, probe %s.\n", probe->name);
     }
 
     // add all extend probe triggerfd into mgr->epoll_fd
@@ -83,11 +98,12 @@ static int IngressInit(IngressMgr *mgr)
             return -1;
         }
 
-        INFO("[INGRESS] Add EPOLLIN event success, extend probe %s.\n", extendProbe->name);
+        INFO("[INGRESS] add EPOLLIN event success, extend probe %s.\n", extendProbe->name);
     }
 
     return 0;
 }
+#endif
 
 static int LogData2Egress(IngressMgr *mgr, const char *logData)
 {
@@ -123,7 +139,7 @@ static int LogData2Egress(IngressMgr *mgr, const char *logData)
     return 0;
 }
 
-static int IngressData2Egress(IngressMgr *mgr, IMDB_Table *table, IMDB_Record* rec, const char *dataStr)
+static int EventData2Egress(IngressMgr *mgr, const char *content)
 {
     int ret = 0;
 
@@ -133,35 +149,23 @@ static int IngressData2Egress(IngressMgr *mgr, IMDB_Table *table, IMDB_Record* r
         ERROR("[INGRESS] alloc jsonStr failed.\n");
         return -1;
     }
-    ret = IMDB_Rec2Json(mgr->imdbMgr, table, rec, dataStr, jsonStr, MAX_DATA_STR_LEN);
-    if (ret != 0) {
-        ERROR("[INGRESS] reformat dataStr to json failed.\n");
+
+    ret = EventData2Json(mgr, content, jsonStr, MAX_DATA_STR_LEN);
+    if (ret) {
+        ERROR("[INGRESS] transfer event data to json failed.\n");
         goto err;
     }
 
     uint64_t msg = 1;
-    if (strcmp(table->entity_name, "event") == 0) {
-        ret = FifoPut(mgr->egressMgr->event_fifo, (void *)jsonStr);
-        if (ret != 0) {
-            ERROR("[INGRESS] egress event fifo full.\n");
-            goto err;
-        }
-        ret = write(mgr->egressMgr->event_fifo->triggerFd, &msg, sizeof(uint64_t));
-        if (ret != sizeof(uint64_t)) {
-            ERROR("[INGRESS] send trigger msg to egress event_fifo fd failed.\n");
-            return -1;
-        }
-    } else {
-        ret = FifoPut(mgr->egressMgr->metric_fifo, (void *)jsonStr);
-        if (ret != 0) {
-            ERROR("[INGRESS] egress metric fifo full.\n");
-            goto err;
-        }
-        ret = write(mgr->egressMgr->metric_fifo->triggerFd, &msg, sizeof(uint64_t));
-        if (ret != sizeof(uint64_t)) {
-            ERROR("[INGRESS] send trigger msg to egress metric_fifo fd failed.\n");
-            return -1;
-        }
+    ret = FifoPut(mgr->egressMgr->event_fifo, (void *)jsonStr);
+    if (ret != 0) {
+        ERROR("[INGRESS] egress event fifo full.\n");
+        goto err;
+    }
+    ret = write(mgr->egressMgr->event_fifo->triggerFd, &msg, sizeof(uint64_t));
+    if (ret != sizeof(uint64_t)) {
+        ERROR("[INGRESS] send trigger msg to egress event_fifo fd failed.\n");
+        return -1;
     }
     return 0;
 
@@ -170,10 +174,43 @@ err:
     return -1;
 }
 
-static int IngressEventWrite2Logs(IMDB_DataBaseMgr *mgr, IMDB_Table *table, IMDB_Record* rec, const char *dataStr)
+static int MetricData2Egress(IngressMgr *mgr, IMDB_Table *table, IMDB_Record* rec)
 {
     int ret = 0;
-    int str_len = 0;
+
+    // format data to json
+    char *jsonStr = malloc(MAX_DATA_STR_LEN);
+    if (jsonStr == NULL) {
+        ERROR("[INGRESS] alloc jsonStr failed.\n");
+        return -1;
+    }
+    ret = IMDB_Record2Json(mgr->imdbMgr, table, rec, jsonStr, MAX_DATA_STR_LEN);
+    if (ret != 0) {
+        ERROR("[INGRESS] reformat imdb record to json failed.\n");
+        goto err;
+    }
+
+    uint64_t msg = 1;
+    ret = FifoPut(mgr->egressMgr->metric_fifo, (void *)jsonStr);
+    if (ret != 0) {
+        ERROR("[INGRESS] egress metric fifo full.\n");
+        goto err;
+    }
+    ret = write(mgr->egressMgr->metric_fifo->triggerFd, &msg, sizeof(uint64_t));
+    if (ret != sizeof(uint64_t)) {
+        ERROR("[INGRESS] send trigger msg to egress metric_fifo fd failed.\n");
+        return -1;
+    }
+    return 0;
+
+err:
+    (void)free(jsonStr);
+    return -1;
+}
+
+static int IngressEventWrite2Logs(IngressMgr *mgr, const char *content)
+{
+    int ret = 0;
 
     // format data to json
     char *jsonStr = malloc(MAX_DATA_STR_LEN);
@@ -181,16 +218,16 @@ static int IngressEventWrite2Logs(IMDB_DataBaseMgr *mgr, IMDB_Table *table, IMDB
         ERROR("[EVENTLOG] alloc jsonStr failed.\n");
         return -1;
     }
-    ret = IMDB_Rec2Json(mgr, table, rec, dataStr, jsonStr, MAX_DATA_STR_LEN);
-    if (ret != 0) {
+
+    ret = EventData2Json(mgr, content, jsonStr, MAX_DATA_STR_LEN);
+    if (ret) {
         ERROR("[EVENTLOG] reformat dataStr to json failed.\n");
         goto err;
     }
 
-    str_len = strlen(jsonStr);
-    ret = wr_event_logs(jsonStr, str_len);
+    ret = wr_event_logs(jsonStr, strlen(jsonStr));
     if (ret < 0) {
-        ERROR("[EVENTLOG] write event logs fail.\n");
+        ERROR("[EVENTLOG] write event logs failed.\n");
         goto err;
     }
 
@@ -226,25 +263,87 @@ static int GetTableNameAndContent(const char* buf, char *tblName, size_t size, c
     return 0;
 }
 
-static int isRecordCanSend2Egress(IngressMgr *mgr, IMDB_Table *table)
+// process log (one telemetry category in otel) message
+static int ProcessOtelLogData(IngressMgr *mgr, const char *content)
 {
-    if (mgr->egressMgr == NULL) {
-        return 0;
+#ifdef KAFKA_CHANNEL
+    int ret = 0;
+    if (mgr->egressMgr && mgr->egressMgr->event_kafkaMgr) {
+        // send log data to egress
+        ret = LogData2Egress(mgr, content);
+        if (ret) {
+            ERROR("[INGRESS] send log data to egress failed.\n");
+            return -1;
+        } else {
+            DEBUG("[INGRESS] send log data to egress succeed.(content=%s)\n", content);
+        }
     }
-    if (strcmp(table->name, "event") == 0 && mgr->egressMgr->event_kafkaMgr == NULL) {
-        return 0;
-    }
-    if (strcmp(table->name, "event") != 0 && mgr->egressMgr->metric_kafkaMgr == NULL) {
-        return 0;
-    }
-    return 1;
+#endif
+    return 0;
 }
 
-static int isEventWriteLogs(IngressMgr *mgr, IMDB_Table *table)
+static int ProcessEventData(IngressMgr *mgr, const char *content)
 {
-    if (strcmp(table->name, "event") == 0 && mgr->event_out_channel == OUT_CHNL_LOGS) {
-        return 1;
+    int ret = 0;
+
+    if (mgr->event_out_channel == OUT_CHNL_LOGS) {
+        // write event data to logs
+        ret = IngressEventWrite2Logs(mgr, content);
+        if (ret != 0) {
+            ERROR("[INGRESS] write event to logs failed.\n");
+            return -1;
+        } else {
+            DEBUG("[INGRESS] write event to logs succeed.(content=%s)\n", content);
+        }
     }
+
+#ifdef KAFKA_CHANNEL
+    if (mgr->egressMgr && mgr->egressMgr->event_kafkaMgr) {
+        // send data to egress
+        ret = EventData2Egress(mgr, content);
+        if (ret != 0) {
+            ERROR("[INGRESS] send event data to egress failed.\n");
+            return -1;
+        }
+    }
+#endif
+    return 0;
+}
+
+static int ProcessMetricData(IngressMgr *mgr, const char *content, const char *tblName, struct probe_s *probe)
+{
+    IMDB_Table* table;
+    IMDB_Record* rec = NULL;
+    int ret = 0;
+
+    table = IMDB_DataBaseMgrFindTable(mgr->imdbMgr, tblName);
+    if (table == NULL || table->recordKeySize == 0)
+        return -1;
+    if (probe) {
+        IMDB_TableUpdateExtLabelConf(table, &probe->ext_label_conf);
+    }
+
+    if (mgr->imdbMgr->writeLogsOn) {
+        // save metric to imdb
+        rec = IMDB_DataBaseMgrCreateRec(mgr->imdbMgr, table, content);
+        if (rec == NULL) {
+            ERROR("[INGRESS] insert metric data into imdb failed.\n");
+            return -1;
+        }
+    }
+
+#ifdef KAFKA_CHANNEL
+    if (mgr->egressMgr && mgr->egressMgr->metric_kafkaMgr) {
+        // send metric to egress
+        ret = MetricData2Egress(mgr, table, rec);
+        if (ret) {
+            ERROR("[INGRESS] send metric data to egress failed.\n");
+            return -1;
+        } else {
+            DEBUG("[INGRESS] send metric data to egress succeed.(tbl=%s,content=%s)\n", table->name, content);
+        }
+    }
+#endif
     return 0;
 }
 
@@ -268,60 +367,21 @@ static int IngressDataProcesssInput(Fifo *fifo, IngressMgr *mgr)
         if (dataStr == NULL)
             continue;
 
-        // skip string not start with '|'
         ret = GetTableNameAndContent((const char*)dataStr, tblName, MAX_IMDB_TABLE_NAME_LEN, &content);
         if (ret < 0 || (content == NULL)) {
             ERROR("[INGRESS] Get dirty data str: %s\n", dataStr);
-            goto next;
+            free(dataStr);
+            continue;
         }
 
-        // process log (one telemetry category in otel) message
-        if (strcmp(tblName, "log") == 0 && mgr->egressMgr->event_kafkaMgr) {
-            // send log data to egress
-            ret = LogData2Egress(mgr, content);
-            if (ret) {
-                ERROR("[INGRESS] send log data to egress failed.\n");
-            } else {
-                DEBUG("[INGRESS] send log data to egress succeed.(tbl=%s,content=%s)\n", tblName, content);
-            }
-            goto next;
+        if (strcmp(tblName, "log") == 0) {
+            (void)ProcessOtelLogData(mgr, content);
+        } else if (strcmp(tblName, "event") == 0) {
+            (void)ProcessEventData(mgr, content);
+        } else {
+            (void)ProcessMetricData(mgr, content, tblName, (struct probe_s *)fifo->probe);
         }
 
-        table = IMDB_DataBaseMgrFindTable(mgr->imdbMgr, tblName);
-        if (table == NULL)
-            goto next;
-
-        rec = NULL;
-
-        if (table->recordKeySize > 0 && mgr->imdbMgr->writeLogsOn) {
-            // save data to imdb
-            rec = IMDB_DataBaseMgrCreateRec(mgr->imdbMgr, table, content);
-            if (rec == NULL) {
-                ERROR("[INGRESS] insert data into imdb failed.\n");
-                goto next;
-            }
-        }
-
-        if (isEventWriteLogs(mgr, table) == 1) {
-            // write event data to logs
-            ret = IngressEventWrite2Logs(mgr->imdbMgr, table, rec, content);
-            if (ret != 0) {
-                ERROR("[INGRESS] write event to logs failed.\n");
-            } else {
-                DEBUG("[INGRESS] write event to logs succeed.(tbl=%s,content=%s)\n", table->name, content);
-            }
-        }
-
-        if (isRecordCanSend2Egress(mgr, table) == 1) {
-            // send data to egress
-            ret = IngressData2Egress(mgr, table, rec, content);
-            if (ret != 0) {
-                ERROR("[INGRESS] send data to egress failed.\n");
-            } else {
-                DEBUG("[INGRESS] send data to egress succeed.(tbl=%s,content=%s)\n", table->name, content);
-            }
-        }
-next:
         free(dataStr);
     }
 
@@ -333,7 +393,7 @@ static int IngressDataProcesss(IngressMgr *mgr)
     struct epoll_event events[MAX_EPOLL_EVENTS_NUM];
     int events_num;
     Fifo *fifo = NULL;
-    uint32_t ret = 0;
+    int ret = 0;
 
     events_num = epoll_wait(mgr->epoll_fd, events, MAX_EPOLL_EVENTS_NUM, -1);
     if ((events_num < 0) && (errno != EINTR)) {

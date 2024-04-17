@@ -53,16 +53,25 @@
 #define CONTAINER_NAME_LEN      64
 #define CONTAINER_ID_LEN        64
 #define CONTAINER_ABBR_ID_LEN   12
+#define CONTAINER_DRIVER_LEN    64
+#define CONTAINER_IMAGE_LEN     128
+#define CONTAINER_IMAGE_ID_LEN  12
 #define NAMESPACE_LEN           64
+#define DOMAIN_LEN              64
 #define POD_NAME_LEN            64
+#define POD_ID_LEN              36 // Pod id len may be 32 or 36
+#define POD_NAMESPACE_LEN       64
+#define POD_LABEL_KEY_LEN       64
+#define POD_LABEL_VAL_LEN       128
+#define POD_LABELS_BUF_SIZE     4096
 
 #define COMMAND_LEN             256
+#define CHROOT_COMMAND_LEN      512
 #define LINE_BUF_LEN            512
 #define PATH_LEN                256
-#define POD_ID_LEN              64
 
 #if !defined INET6_ADDRSTRLEN
-    #define INET6_ADDRSTRLEN    48
+    #define INET6_ADDRSTRLEN    46
 #endif
 
 #if !defined DISK_NAME_LEN
@@ -76,6 +85,8 @@
 #ifndef PERF_MAX_STACK_DEPTH
 #define PERF_MAX_STACK_DEPTH    127
 #endif
+
+#define HOST_PATH_PREFIX_ENV    "GOPHER_HOST_PATH"
 
 void convert_output_to_log(char *buffer, int bufferSize);
 void debug_logs(const char* format, ...);
@@ -130,6 +141,8 @@ static inline int __debug_printf(const char *format, ...)
 #endif
 
 #define NS(sec)  ((__u64)(sec) * 1000000000)
+#define MS2NS(ms) ((__u64)(ms) * NSEC_PER_MSEC)
+#define NS2MS(ns) ((__u64)(ns) / NSEC_PER_MSEC)
 
 #ifndef __u8
 typedef unsigned char __u8;
@@ -169,6 +182,7 @@ typedef long long unsigned int __u64;
 typedef __u64 u64;
 #endif
 
+#define KERNEL_VERSION(a, b, c) (((a) << 16) + ((b) << 8) + (c))
 
 void split_newline_symbol(char *s);
 #define SPLIT_NEWLINE_SYMBOL(s)     split_newline_symbol(s)
@@ -197,15 +211,26 @@ char *get_cur_date(void);
 char *get_cur_time(void);
 
 void ip_str(unsigned int family, unsigned char *ip, unsigned char *ip_str, unsigned int ip_str_size);
+const char *get_cmd_chroot(const char *orig_cmd, char *chroot_cmd, unsigned int buf_len);
+void *popen_chroot(const char *command, const char *modes);
 int exec_cmd(const char *cmd, char *buf, unsigned int buf_len);
+int exec_cmd_chroot(const char *cmd, char *buf, unsigned int buf_len);
 char is_exist_mod(const char *mod);
 int __snprintf(char **buf, const int bufLen, int *remainLen, const char *format, ...);
 char is_digit_str(const char *s);
 int get_system_uuid(char *buffer, unsigned int size);
 int get_system_ip(char ip_str[], unsigned int size);
-int get_comm(int pid, char comm_str[], unsigned int size);
-int get_proc_startup_ts(int pid);
+int get_system_hostname(char *buf, unsigned int size);
 int copy_file(const char *dst_file, const char *src_file);
 int check_path_for_security(const char *path);
+
+int access_check_read_line(u32 pid, const char *command, const char *fname, char *buf, u32 buf_len);
+int get_proc_start_time(u32 pid, char *buf, int buf_len);
+u64 get_proc_startup_ts(int pid);
+int get_proc_comm(u32 pid, char *buf, int buf_len);
+int get_proc_cmdline(u32 pid, char *buf, u32 buf_len);
+int get_kern_version(u32 *kern_version);
+int is_valid_proc(int pid);
+void convert_to_host_path(char *host_path, const char *path, int path_len);
 
 #endif

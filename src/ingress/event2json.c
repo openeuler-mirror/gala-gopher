@@ -10,8 +10,11 @@
 #define VAL_WITH_QUOTE 1
 #define VAL_WITHOUT_QUOTE 0
 
-#define ENTITY_ID_LEN 128
-#define EVENT_ID_LEN  128
+// data format as machine_uuid(40)-entityName-entityid(128)
+#define ENTITY_ID_LEN 256
+// event_id data format as timestamp-entity_id
+#define TIMESTAMP_LEN_MAX  128
+#define EVENT_ID_LEN  (ENTITY_ID_LEN + TIMESTAMP_LEN_MAX)
 #define METRIC_ID_LEN 64
 
 #define COMM_FIELD_TIMESTAMP "Timestamp"
@@ -44,6 +47,12 @@ enum {
     EVT_ORIG_FIELD_ENTITY_NAME = 0,
     EVT_ORIG_FIELD_ENTITY_ID,
     EVT_ORIG_FIELD_METRIC,
+    EVT_ORIG_FIELD_PID,
+    EVT_ORIG_FIELD_COMM,
+    EVT_ORIG_FIELD_IP,
+    EVT_ORIG_FIELD_CONTAINER_ID,
+    EVT_ORIG_FIELD_POD,
+    EVT_ORIG_FIELD_DEVICE,
     EVT_ORIG_FIELD_SEVER_TXT,
     EVT_ORIG_FIELD_SEVER_NO,
     EVT_ORIG_FIELD_BODY,
@@ -73,7 +82,7 @@ static char gEvtField[EVT_FIELD_MAX][MAX_FIELD_NAME] = {
 
 // opentelemetry log
 
-static inline void error_log2json_buffer_no_enough_space()
+static inline void error_log2json_buffer_no_enough_space(void)
 {
     ERROR("[INGRESS] the log2json buffer has not enough space.\n");
 }
@@ -82,8 +91,8 @@ static inline void error_log2json_buffer_no_enough_space()
 // if `fillQuote` is true, fill format: "<field_name>":"<field_val>"
 static int fill_log_field_simple(strbuf_t *dest, strbuf_t *fieldVal, const char *fieldName, int fillQuote)
 {
-    int fieldNameSize = strlen(fieldName);
-    int requiredSize = fieldNameSize + fieldVal->len + 3;
+    size_t fieldNameSize = strlen(fieldName);
+    size_t requiredSize = fieldNameSize + fieldVal->len + 3;
 
     if (fillQuote) { requiredSize += 2; }
 
@@ -111,8 +120,8 @@ static int enrich_resource_with_host_info(IngressMgr *mgr, strbuf_t *dest)
     int copySize;
     IMDB_NodeInfo nodeInfo = mgr->imdbMgr->nodeInfo;
 
-    copySize = snprintf(dest->buf, dest->size, ",\"host.id\":\"%s\",\"host.name\":\"%s\"",
-                        nodeInfo.systemUuid, nodeInfo.hostName);
+    copySize = snprintf(dest->buf, dest->size, ",\"host.id\":\"%s\",\"host.name\":\"%s\",\"host.ip\":\"%s\"",
+                        nodeInfo.systemUuid, nodeInfo.hostName, nodeInfo.hostIP);
     if (copySize < 0 || copySize >= dest->size) {
         error_log2json_buffer_no_enough_space();
         return -1;
@@ -127,7 +136,7 @@ static int fill_log_field_resource(IngressMgr *mgr, strbuf_t *dest, strbuf_t *fi
     int ret;
 
     // simply validate resource json format
-    if (field->len < 2 || field->buf[0] != '{' || field->buf[field->len-1] != '}') {
+    if (field->len < 2 || field->buf[0] != '{' || field->buf[field->len - 1] != '}') {
         ERROR("[INGRESS] the resource json format of log validate failed.\n");
         return -1;
     }
@@ -248,7 +257,7 @@ int LogData2Json(IngressMgr *mgr, const char *logData, char *jsonFmt, int jsonSi
 
 // gopher event
 
-static inline void error_evt2json_buffer_no_enough_space()
+static inline void error_evt2json_buffer_no_enough_space(void)
 {
     ERROR("[INGRESS] the event2json buffer has not enough space.\n");
 }
@@ -293,7 +302,7 @@ static void transfer_entityId(char *entityId)
 {
     int i, j;
     char specialSymbols[] = {'/'};     // 不支持的符号集合，可以新增
-    int symSize = sizeof(specialSymbols) / sizeof(specialSymbols[0]);
+    size_t symSize = sizeof(specialSymbols) / sizeof(specialSymbols[0]);
 
     for (i = 0; entityId[i] != '\0'; i++) {
         for (j = 0; j < symSize; j++) {
@@ -314,15 +323,20 @@ static void get_curr_timestamp_ms(time_t *timestamp)
 }
 
 // format: <machine_id>_<entity_name>_<orig_entity_id>
-static int get_entityId(char *entityId, int size, const char *machineId, strbuf_t *entityName, strbuf_t *origEntityId)
+static int get_entityId(char *entityId, int size, IMDB_NodeInfo *nodeInfo, strbuf_t *entityName, strbuf_t *origEntityId)
 {
     int requiredSize;
-    int machineIdLen;
+#define __MAX_MACHINE_ID_LEN (MAX_IMDB_SYSTEM_UUID_LEN + MAX_IMDB_HOSTIP_LEN)
+    char machineId[__MAX_MACHINE_ID_LEN];
+    size_t machineIdLen;
     char *entityIdPos = NULL;
     strbuf_t sbuf = {
         .buf = entityId,
         .size = size
     };
+
+    machineId[0] = 0;
+    (void)snprintf(machineId, sizeof(machineId), "%s-%s", nodeInfo->systemUuid, nodeInfo->hostIP);
 
     machineIdLen = strlen(machineId);
     requiredSize = machineIdLen + entityName->len + origEntityId->len + 3;
@@ -371,7 +385,7 @@ static int get_metricId(char *metricId, int size, strbuf_t *entityName, strbuf_t
 {
     int requiredSize;
     const char *prefix = "gala_gopher";
-    int prefixLen = strlen(prefix);
+    size_t prefixLen = strlen(prefix);
     strbuf_t sbuf = {
         .buf = metricId,
         .size = size
@@ -430,18 +444,90 @@ static int fill_evt_field_attrs(strbuf_t *dest, const char *entityId, const char
     return 0;
 }
 
-static int fill_evt_field_resource(strbuf_t *dest, const char *metricId)
+#define __EVT_LABEL_HOST "Host"
+#define __EVT_LABEL_PID "PID"
+#define __EVT_LABEL_COMM "COMM"
+#define __EVT_LABEL_IP "IP"
+#define __EVT_LABEL_CONTAINER_ID "ContainerID"
+#define __EVT_LABEL_POD "POD"
+#define __EVT_LABEL_DEVICE "Device"
+
+// output like: `"labels": {"Host": "", "PID":""}`
+static int fill_evt_field_labels(strbuf_t *dest, strbuf_t evtFields[EVT_ORIG_FIELD_MAX], IngressMgr *mgr)
+{
+    int ret;
+    char *str;
+    strbuf_t valBuf;
+    char hostVal[LINE_BUF_LEN];
+    int labelIdx[] = {EVT_ORIG_FIELD_PID, EVT_ORIG_FIELD_COMM, EVT_ORIG_FIELD_IP,
+                      EVT_ORIG_FIELD_CONTAINER_ID, EVT_ORIG_FIELD_POD, EVT_ORIG_FIELD_DEVICE};
+    char *labelName[] = {__EVT_LABEL_PID, __EVT_LABEL_COMM, __EVT_LABEL_IP,
+                         __EVT_LABEL_CONTAINER_ID, __EVT_LABEL_POD, __EVT_LABEL_DEVICE};
+    int i;
+
+    hostVal[0] = 0;
+    (void)snprintf(hostVal, LINE_BUF_LEN, "%s-%s", mgr->imdbMgr->nodeInfo.systemUuid, mgr->imdbMgr->nodeInfo.hostIP);
+
+    str = "\"labels\":{";
+    ret = strbuf_append_str_with_check(dest, str, strlen(str));
+    if (ret) {
+        goto err;
+    }
+
+    valBuf.buf = hostVal;
+    valBuf.len = strlen(hostVal);
+    ret = fill_log_field_simple(dest, &valBuf, __EVT_LABEL_HOST, VAL_WITH_QUOTE);
+    if (ret) {
+        goto err;
+    }
+
+    for (i = 0; i < sizeof(labelIdx) / sizeof(labelIdx[0]); i++) {
+        ret = strbuf_append_chr_with_check(dest, ',');
+        if (ret) {
+            goto err;
+        }
+        ret = fill_log_field_simple(dest, &evtFields[labelIdx[i]], labelName[i], VAL_WITH_QUOTE);
+        if (ret) {
+            goto err;
+        }
+    }
+
+    ret = strbuf_append_chr_with_check(dest, '}');
+    if (ret) {
+        goto err;
+    }
+
+    return 0;
+err:
+    error_evt2json_buffer_no_enough_space();
+    return -1;
+}
+
+// output like `"Resource": {"metric":"","labels":{}}`
+static int fill_evt_field_resource(strbuf_t *dest, const char *metricId, strbuf_t evtFields[EVT_ORIG_FIELD_MAX],
+                                   IngressMgr *mgr)
 {
     char *fmt;
     int ret;
 
-    fmt = "\"%s\":{\"metric\":\"%s\"}";
+    fmt = "\"%s\":{\"metric\":\"%s\",";
     ret = snprintf(dest->buf, dest->size, fmt, gEvtField[EVT_FIELD_RESOURCE], metricId);
     if (ret < 0 || ret >= dest->size) {
         error_evt2json_buffer_no_enough_space();
         return -1;
     }
     strbuf_update_offset(dest, ret);
+
+    ret = fill_evt_field_labels(dest, evtFields, mgr);
+    if (ret) {
+        return -1;
+    }
+
+    ret = strbuf_append_chr_with_check(dest, '}');
+    if (ret) {
+        error_evt2json_buffer_no_enough_space();
+        return -1;
+    }
 
     return 0;
 }
@@ -459,6 +545,15 @@ static int fill_evt_field_resource(strbuf_t *dest, const char *metricId)
  *   },
  *   "Resource": {
  *     "metric": "gala_gopher_tcp_link_health_rx_bytes",
+ *     "labels": {
+ *       "Host": "2c1c455d-24a5-897c-ea11-bc08f2d510da-192.168.128.123",
+ *       "PID": "1123",
+ *       "COMM": "ceph2-10.xxx.xxx.xxx",
+ *       "IP": "sip 187.10.1.123, dip 192.136.123.1",
+ *       "ContainerID": "2c1c455d-24a5-897c-ea11-bc08f2d510da",
+ *       "POD": "",
+ *       "Device": ""
+ *     }
  *   },
  *   "SeverityText": "WARN",
  *   "SeverityNumber": 13,
@@ -485,7 +580,7 @@ int EventData2Json(IngressMgr *mgr, const char *evtData, char *jsonFmt, int json
     }
 
     get_curr_timestamp_ms(&timestamp);
-    if (get_entityId(entityId, sizeof(entityId), mgr->imdbMgr->nodeInfo.systemUuid,
+    if (get_entityId(entityId, sizeof(entityId), &mgr->imdbMgr->nodeInfo,
                      &evtFields[EVT_ORIG_FIELD_ENTITY_NAME], &evtFields[EVT_ORIG_FIELD_ENTITY_ID])) {
         return -1;
     }
@@ -514,7 +609,7 @@ int EventData2Json(IngressMgr *mgr, const char *evtData, char *jsonFmt, int json
                 ret = fill_evt_field_attrs(&jsonFmtRemain, entityId, eventId);
                 break;
             case EVT_FIELD_RESOURCE:
-                ret = fill_evt_field_resource(&jsonFmtRemain, metricId);
+                ret = fill_evt_field_resource(&jsonFmtRemain, metricId, evtFields, mgr);
                 break;
             case EVT_FIELD_SEVER_TXT:
                 ret = fill_log_field_simple(&jsonFmtRemain, &evtFields[EVT_ORIG_FIELD_SEVER_TXT],

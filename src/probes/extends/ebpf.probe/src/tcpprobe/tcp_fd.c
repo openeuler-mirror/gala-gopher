@@ -35,15 +35,11 @@
 
 #include "bpf.h"
 #include "tcp.h"
-#include "args.h"
+#include "ipc.h"
 #include "hash.h"
-#include "object.h"
 #include "container.h"
 #include "tcpprobe.h"
 
-#ifndef __NR_pidfd_open
-#define __NR_pidfd_open 434     // System call # on most architectures
-#endif
 
 #define MAX_TRY_LOAD    (120)   // 2 min
 
@@ -56,9 +52,16 @@ struct estab_tcp_fd {
     int role;                   // 1: client; 0: server
 };
 
+enum estab_tcp_flag_t {
+    ESTAB_TCP_FLAG_INIT = 0,
+    ESTAB_TCP_FLAG_RESET,
+    ESTAB_TCP_FLAG_FINISHED
+};
+
 struct estab_tcp_val {
     int num;
     u32 try_load_cnt;           // Maximum number of loading attempts
+    enum estab_tcp_flag_t flag;
     struct estab_tcp_fd fds[TCP_ESTAB_MAX];
 };
 
@@ -82,6 +85,7 @@ static struct estab_tcp_hash_t* create_estab_tcp(const struct estab_tcp_key *k, 
     (void)memset(item, 0, malloc_size);
 
     (void)memcpy(&item->k, k, sizeof(struct estab_tcp_key));
+    item->v.flag = ESTAB_TCP_FLAG_INIT;
 
     H_ADD_KEYPTR(*pphead, &item->k, sizeof(struct estab_tcp_key), item);
     return item;
@@ -116,65 +120,38 @@ static int add_estab_tcp_fd(const struct estab_tcp_key *k,
     item->v.fds[item->v.num].fd = fd;
     item->v.fds[item->v.num].role = role;
     item->v.num++;
-    INFO("[TCPPROBE]: Load established tcp(proc = %u, fd = %d)\n", k->proc_id, fd);
     return 0;
 }
 
+static void set_estab_tcps_reset_flag(struct estab_tcp_hash_t **pphead)
+{
+    struct estab_tcp_hash_t *estab_tcp, *tmp;
+
+    if (*pphead == NULL) {
+        return;
+    }
+
+    H_ITER(*pphead, estab_tcp, tmp) {
+        estab_tcp->v.flag = ESTAB_TCP_FLAG_RESET;
+    }
+}
+
+static void set_estab_tcps_finished_flag(struct estab_tcp_hash_t **pphead)
+{
+    struct estab_tcp_hash_t *estab_tcp, *tmp;
+
+    if (*pphead == NULL) {
+        return;
+    }
+
+    H_ITER(*pphead, estab_tcp, tmp) {
+        if (estab_tcp->v.flag == ESTAB_TCP_FLAG_INIT) {
+            estab_tcp->v.flag = ESTAB_TCP_FLAG_FINISHED;
+        }
+    }
+}
+
 #if 1
-
-static int get_netns_fd(pid_t pid)
-{
-    const char *fmt = "/proc/%u/ns/net";
-    char path[PATH_LEN];
-
-    path[0] = 0;
-    (void)snprintf(path, PATH_LEN, fmt, pid);
-    return open(path, O_RDONLY);
-}
-
-static __maybe_unused int pidfd_open(pid_t pid, unsigned int flags)
-{
-    return syscall(__NR_pidfd_open, pid, flags);
-}
-
-static int set_netns_by_pid(pid_t pid)
-{
-    int fd = -1;
-#if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(5, 3, 0))
-    fd = get_netns_fd(pid);
-#else
-    fd = pidfd_open(pid, 0);
-#endif
-    if (fd == -1) {
-        ERROR("[TCPPROBE] Get tgid(%d)'s pidfd failed.\n", pid);
-        return -1;
-    }
-    return setns(fd, CLONE_NEWNET);
-}
-
-static int set_netns_by_fd(int fd)
-{
-    return setns(fd, CLONE_NEWNET);
-}
-
-static int enter_container_netns(const char *container_id)
-{
-    int ret;
-    u32 pid;
-
-    ret = get_container_pid(container_id, &pid);
-    if (ret) {
-        ERROR("[TCPPROBE]: Get container pid failed.(%s, ret = %d)\n", container_id, ret);
-        return ret;
-    }
-
-    return set_netns_by_pid((pid_t)pid);
-}
-
-static int exit_container_netns(int current_netns)
-{
-    return set_netns_by_fd(current_netns);
-}
 
 static void do_lkup_established_tcp_info(void)
 {
@@ -183,6 +160,7 @@ static void do_lkup_established_tcp_info(void)
     struct tcp_listen_ports* tlps;
     struct tcp_estabs* tes = NULL;
     struct estab_tcp_key k;
+    struct estab_tcp_hash_t *item;
 
     tlps = get_listen_ports();
     if (tlps == NULL) {
@@ -199,10 +177,24 @@ static void do_lkup_established_tcp_info(void)
         role = tes->te[i]->is_client == 1 ? LINK_ROLE_CLIENT : LINK_ROLE_SERVER;
         for (j = 0; j < tes->te[i]->te_comm_num; j++) {
             k.proc_id = (u32)tes->te[i]->te_comm[j]->pid;
+
+            item = find_estab_tcp(&k, &head);
+            if (item && item->v.flag == ESTAB_TCP_FLAG_RESET) {
+                item->v.num = 0;
+                item->v.flag = ESTAB_TCP_FLAG_INIT;
+            }
+            if (item && item->v.flag == ESTAB_TCP_FLAG_FINISHED) {
+                continue;
+            }
+
             (void)add_estab_tcp_fd((const struct estab_tcp_key *)&k,
                 (int)tes->te[i]->te_comm[j]->fd, (int)role, &head);
         }
     }
+    /* Ensure that container processes with the same netns(eg. in k8s scenario)
+     * do not repeatly set established tcp connections. 
+     */
+    set_estab_tcps_finished_flag(&head);
 
 err:
     if (tlps) {
@@ -216,31 +208,38 @@ err:
     return;
 }
 
-static int do_lkup_established_tcp(const char *container_id, int current_netns)
+static int get_netns_fd(pid_t pid)
 {
-    int ret;
+    const char *fmt = "/proc/%u/ns/net";
+    char path[PATH_LEN];
 
-    if (container_id) {
-        ret = enter_container_netns(container_id);
-        if (ret) {
-            ERROR("[TCPPROBE]: Enter container netns failed.(%s, ret = %d)\n",
-                container_id, ret);
-            return ret;
-        }
-    }
-
-    do_lkup_established_tcp_info();
-
-    if (container_id) {
-        (void)exit_container_netns(current_netns);
-    }
-    return 0;
+    path[0] = 0;
+    (void)snprintf(path, PATH_LEN, fmt, pid);
+    return open(path, O_RDONLY);
 }
 
-void lkup_established_tcp(void)
+/*
+ * 查询tcp探针启动前系统中已创建的tcp连接信息
+ *   1. 全局只获取一次主机netns下的tcp连接信息
+ *   2. 只对新增的容器进程查询对应容器netns下的tcp连接信息
+ */
+void lkup_established_tcp(int proc_map_fd, struct ipc_body_s *ipc_body)
 {
-    int i;
     int netns_fd = 0;
+    struct proc_s key = {0};
+    struct obj_ref_s val = {0};
+    static char host_netns_flag = 0;   // 全局只获取一次主机netns下的tcp连接信息
+    int ret;
+    int i;
+
+    /* Ensure that newly added TCP connections of the process overwrites the existing TCP connections. */
+    set_estab_tcps_reset_flag(&head);
+
+    if (!host_netns_flag) {
+        INFO("[TCPPROBE]: Lookup established tcp for host netns...\n");
+        do_lkup_established_tcp_info();
+        host_netns_flag = 1;
+    }
 
     netns_fd = get_netns_fd(getpid());
     if (netns_fd <= 0) {
@@ -248,35 +247,44 @@ void lkup_established_tcp(void)
         return;
     }
 
-    container_tbl* cstbl = get_all_container();
-    if (cstbl != NULL) {
-        container_info *p = cstbl->cs;
-        for (i = 0; i < cstbl->num; i++) {
-            (void)do_lkup_established_tcp((const char *)p->abbrContainerId, netns_fd);
-            p++;
+    for (i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_body->snooper_objs[i].type != SNOOPER_OBJ_PROC) {
+            continue;
         }
-        free_container_tbl(&cstbl);
+
+        key.proc_id = ipc_body->snooper_objs[i].obj.proc.proc_id;
+        if (bpf_map_lookup_elem(proc_map_fd, &key, &val) == 0) {
+            continue;
+        }
+
+        if (is_container_proc(key.proc_id)) {
+            ret = enter_proc_netns(key.proc_id);
+            if (ret) {
+                ERROR("[TCPPROBE]: Enter container netns failed.(%u, ret = %d)\n", key.proc_id, ret);
+                continue;
+            }
+            INFO("[TCPPROBE]: Lookup established tcp for container netns of proc:%u ...\n", key.proc_id);
+            do_lkup_established_tcp_info();
+            (void)exit_container_netns(netns_fd);
+        }
     }
 
-    (void)do_lkup_established_tcp(NULL, netns_fd);
     (void)close(netns_fd);
 }
 
 #endif
 #if 1
-static int is_need_load_established_tcp(struct probe_params *args, struct estab_tcp_hash_t *item)
+static int is_need_load_established_tcp(int proc_obj_map_fd, struct estab_tcp_hash_t *item)
 {
-    if (args->filter_task_probe) {
-        struct proc_s obj = {.proc_id = item->k.proc_id};
-        return is_proc_exist(&obj);
-    }
+    struct proc_s key = {0};
+    struct obj_ref_s val = {0};
 
-    if (args->filter_pid != 0) {
-        return (item->k.proc_id == args->filter_pid);
+    key.proc_id = item->k.proc_id;
+    if (bpf_map_lookup_elem(proc_obj_map_fd, &key, &val) == 0) {
+        return 1;
     }
-    return 1;
+    return 0;
 }
-
 
 static char is_invalid_established_tcp(struct estab_tcp_hash_t *item)
 {
@@ -317,27 +325,30 @@ static int do_load_established_tcp(int map_fd, struct estab_tcp_hash_t *item, in
 #define LOAD_ESTAB_TCP_SUCCEED  0
 #define LOAD_ESTAB_TCP_NO_NEED  (-1)
 #define LOAD_ESTAB_TCP_LIMIT    (-2)
-static int load_established_tcp(struct probe_params *args, int map_fd, struct estab_tcp_hash_t *item)
+static int load_established_tcp(int proc_obj_map_fd, int map_fd, struct estab_tcp_hash_t *item, int *loaded)
 {
-    int ret, loaded;
-    if (!is_need_load_established_tcp(args, item)) {
+    int ret;
+    if (!is_need_load_established_tcp(proc_obj_map_fd, item)) {
         item->v.try_load_cnt++;
         return LOAD_ESTAB_TCP_NO_NEED;
     }
 
-    ret = do_load_established_tcp(map_fd, item, &loaded);
-    item->v.num -= loaded;
+    ret = do_load_established_tcp(map_fd, item, loaded);
+    item->v.num -= *loaded;
     if (ret) {
         return LOAD_ESTAB_TCP_LIMIT;
     }
     return LOAD_ESTAB_TCP_SUCCEED;
 }
 
-void load_established_tcps(struct probe_params *args, int map_fd)
+int load_established_tcps(int proc_obj_map_fd, int map_fd)
 {
     struct estab_tcp_hash_t *item, *tmp;
+    int total_loaded = 0;
+    int loaded = 0;
+
     if (head == NULL) {
-        return;
+        return 0;
     }
 
     H_ITER(head, item, tmp) {
@@ -347,11 +358,15 @@ void load_established_tcps(struct probe_params *args, int map_fd)
             continue;
         }
 
-        if (load_established_tcp(args, map_fd, item) == LOAD_ESTAB_TCP_SUCCEED) {
+        loaded = 0;
+        if (load_established_tcp(proc_obj_map_fd, map_fd, item, &loaded) == LOAD_ESTAB_TCP_SUCCEED) {
             H_DEL(head, item);
             (void)free(item);
         }
+        total_loaded += loaded;
     }
+
+    return total_loaded;
 }
 
 #endif

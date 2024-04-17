@@ -18,7 +18,7 @@
 #include <dirent.h>
 #include <sys/types.h>
 #include <CUnit/Basic.h>
-#include "probe.h"
+#include "probe_mng.h"
 #include "../../probes/system_infos.probe/system_cpu.h"
 
 
@@ -51,7 +51,7 @@ void TestSystemMeminfoProbe(void)
     char *substr = NULL;
     uint32_t ret = system_meminfo_init();
     CU_ASSERT_FATAL(ret == 0);
-    
+
     struct probe_params params = {.period = DEFAULT_PERIOD};
 
     // sample test for nprobe_fprintf
@@ -145,7 +145,7 @@ void TestSystemDiskIOStatProbe(void)
     if (g_probe != NULL) {
         CU_ASSERT(g_probe->fifo != NULL);
         (void)snprintf(g_probe->name, MAX_PROBE_NAME_LEN - 1, "test_disk_iostats_probe");
-    
+
         // logs = 1, 上报
         params.logs = 1;
         ret = system_iostat_probe(&params);
@@ -320,7 +320,7 @@ void TestSystemProcProbe(void)
     uint32_t *elemP = NULL;
     FILE *f = NULL;
     char cmd[COMMAND_LEN];
-    struct probe_params params = {.period = DEFAULT_PERIOD, .task_whitelist="/tmp/gala-gopher-app.conf"};
+    struct probe_params params = {.period = DEFAULT_PERIOD};
 
     /* prepare create proc_map */
     ret = mkdir("/sys/fs/bpf/gala-gopher", 0775);
@@ -344,8 +344,7 @@ void TestSystemProcProbe(void)
     CU_ASSERT(f != NULL);
     (void)pclose(f);
 
-    system_proc_init(&params.task_whitelist);
-    CU_ASSERT(&params.task_whitelist != NULL);
+    system_proc_init();
 
     g_probe = ProbeCreate();
     CU_ASSERT(g_probe != NULL);
@@ -393,7 +392,7 @@ void TestEventProbe(void)
     snprintf(cmd, COMMAND_LEN - 1, "echo \"%s\" >> /var/log/messages", EVENT_ERR_CODE);
     f = popen(cmd, "r");
     CU_ASSERT(f != NULL);
-    pclose(f);
+    (void)pclose(f);
 
     g_probe = ProbeCreate();
     CU_ASSERT(g_probe != NULL);

@@ -1,0 +1,88 @@
+version = "1.0.0"
+measurements:
+(
+    {
+        table_name: "nic_failure",
+        entity_name: "hw",
+        fields:
+        (
+            {
+                description: "The instance name of the hardware",
+                type: "key",
+                name: "name",
+            },
+            {
+                description: "The name of the interface",
+                type: "label",
+                name: "dev_name",
+            },
+            {
+                description: "Network driver for the devices",
+                type: "label",
+                name: "driver",
+            },
+            {
+                description: "The index of TX queue",
+                type: "label",
+                name: "queue_index",
+            },
+            {
+                description: "interface xmit timeout",
+                type: "gauge",
+                name: "xmit_timeout_count",
+            },
+            {
+                description: "Number of times the carrier has been up",
+                type: "counter",
+                name: "carrier_up_count",
+            },
+            {
+                description: "Number of times the carrier has been down",
+                type: "counter",
+                name: "carrier_down_count",
+            },
+        )
+    },
+    {
+        table_name: "mem_mc_event",
+        entity_name: "hw",
+        fields:
+        (
+            {
+                description: "The instance name of the hardware",
+                type: "key",
+                name: "name",
+            },
+            {
+                description: "severity of the error (CE/UE/Fatal)",
+                type: "label",
+                name: "err_type",
+            },
+            {
+                description: "label of the affected DIMM(s)",
+                type: "label",
+                name: "label",
+            },
+            {
+                description: "The index of mc event",
+                type: "label",
+                name: "mc_index",
+            },
+            {
+                description: "top layer of the error (layer[0])",
+                type: "label",
+                name: "top_layer",
+            },
+            {
+                description: "middle layer of the error (layer[1])",
+                type: "label",
+                name: "mid_layer",
+            },
+            {
+                description: "number of errors of the same type",
+                type: "gauge",
+                name: "error_count",
+            },
+        )
+    },
+)

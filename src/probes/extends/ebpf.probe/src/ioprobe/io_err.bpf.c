@@ -34,10 +34,8 @@ struct {
 } io_err_map SEC(".maps");
 
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, __PERF_OUT_MAX);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } io_err_channel_map SEC(".maps");
 
 struct block_rq_complete_args {
@@ -52,7 +50,7 @@ struct block_rq_complete_args {
 
 static __always_inline void report_io_err(void *ctx, struct io_err_s* io_err)
 {
-    (void)bpf_perf_event_output(ctx, &io_err_channel_map, BPF_F_ALL_CPU, io_err, sizeof(struct io_err_s));
+    (void)bpfbuf_output(ctx, &io_err_channel_map, io_err, sizeof(struct io_err_s));
 }
 
 static __always_inline int get_io_devt(struct request* req, int *major, int *minor)
@@ -63,7 +61,13 @@ static __always_inline int get_io_devt(struct request* req, int *major, int *min
         return -1;
     }
 
-    disk = _(req->rq_disk);
+    if (bpf_core_field_exists(((struct request *)0)->rq_disk)) {
+        disk = _(req->rq_disk);
+    } else {
+        struct request_queue *q = _(req->q);
+        disk = _(q->disk);
+    }
+
     if (disk == NULL) {
         return -1;
     }
@@ -71,6 +75,20 @@ static __always_inline int get_io_devt(struct request* req, int *major, int *min
     *major = _(disk->major);
     *minor = _(disk->first_minor);
     return 0;
+}
+
+static __always_inline struct request *scsi_cmd_to_request(struct scsi_cmnd *sc)
+{
+    struct request *req;
+
+    if (bpf_core_field_exists(((struct scsi_cmnd *)0)->request)) {
+        req = _(sc->request);
+    } else {
+        // same with scsi_cmd_to_rq() in kernel
+        req = (struct request *)(sc - bpf_core_type_size(struct request));
+    }
+
+    return req;
 }
 
 static __always_inline struct io_err_s* get_io_err(int major, int minor)
@@ -135,13 +153,31 @@ int tracepoint_block_rq_complete(struct block_rq_complete_args *ctx)
     return 0;
 }
 
-#if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(4, 13, 0))
 /*
  * Raw tracepoint defined in modules is not supported in this version, so use kprobe as hook instead.
  *    scsi_dispatch_cmd_timeout --> scsi_times_out()
  *    scsi_dispatch_cmd_error --> the error path of scsi_dispatch_cmd()
  */
 KPROBE(scsi_times_out, pt_regs)
+{
+    int major, minor;
+    struct io_err_s *io_err = NULL;
+    struct request* req = (struct request *)PT_REGS_PARM1(ctx);
+
+    if (get_io_devt(req, &major, &minor)) {
+        return 0;
+    }
+
+    io_err = get_io_err(major, minor);
+    if (io_err == NULL) {
+        return 0;
+    }
+
+    io_err->scsi_err = SCSI_ERR_TIMEOUT;
+    return 0;
+}
+
+KPROBE(scsi_timeout, pt_regs)
 {
     int major, minor;
     struct io_err_s *io_err = NULL;
@@ -204,34 +240,6 @@ KPROBE_RET(scsi_dispatch_cmd, pt_regs, CTX_KERNEL)
     io_err->scsi_err = ret;
     return 0;
 }
-#else
-KRAWTRACE(scsi_dispatch_cmd_timeout, bpf_raw_tracepoint_args)
-{
-    int major, minor;
-    struct io_err_s *io_err = NULL;
-    struct scsi_cmnd *sc = (struct scsi_cmnd *)ctx->args[0];
-    if (sc == NULL) {
-        return 0;
-    }
-
-    struct request* req = _(sc->request);
-
-    if (get_io_devt(req, &major, &minor)) {
-        return 0;
-    }
-
-    io_err = get_io_err(major, minor);
-    if (io_err == NULL) {
-        return 0;
-    }
-
-    if (io_err->timestamp == 0) {
-        io_err->timestamp = bpf_ktime_get_ns() >> 3;
-    }
-
-    io_err->scsi_err = SCSI_ERR_TIMEOUT;
-    return 0;
-}
 
 KRAWTRACE(scsi_dispatch_cmd_error, bpf_raw_tracepoint_args)
 {
@@ -243,7 +251,7 @@ KRAWTRACE(scsi_dispatch_cmd_error, bpf_raw_tracepoint_args)
         return 0;
     }
 
-    struct request* req = _(sc->request);
+    struct request* req = scsi_cmd_to_request(sc);
 
     if (get_io_devt(req, &major, &minor)) {
         return 0;
@@ -261,4 +269,3 @@ KRAWTRACE(scsi_dispatch_cmd_error, bpf_raw_tracepoint_args)
     io_err->scsi_err = scsi_err;
     return 0;
 }
-#endif

@@ -15,6 +15,7 @@
 #ifndef __GOPHER_OBJ_H__
 #define __GOPHER_OBJ_H__
 
+#define GOPHER_MAP_DIR              "/sys/fs/bpf/gala-gopher"
 #define CGRP_MAP_PATH               "/sys/fs/bpf/gala-gopher/cgroup_map"
 #define NM_MAP_PATH                 "/sys/fs/bpf/gala-gopher/nm_map"
 #define PROC_MAP_PATH               "/sys/fs/bpf/gala-gopher/proc_map"
@@ -74,13 +75,12 @@ char is_proc_exist(struct proc_s *obj);
 char is_nm_exist(struct nm_s *obj);
 char is_cgrp_exist(struct cgroup_s *obj);
 
-char obj_module_init_ok(void);
 void obj_module_set_maps_fd(void);
 void obj_module_init(void);
 void obj_module_exit(void);
-int obj_get_cgrp_obj_map_fd();
-int obj_get_nm_obj_map_fd();
-int obj_get_proc_obj_map_fd();
+int obj_get_cgrp_obj_map_fd(void);
+int obj_get_nm_obj_map_fd(void);
+int obj_get_proc_obj_map_fd(void);
 int obj_module_create_map(char *name);
 #endif
 

@@ -22,8 +22,42 @@
 #include <stdarg.h>
 #include "common.h"
 
+#define CHROOT_CMD          "/usr/sbin/chroot %s %s"
+#define PROC_COMM           "/proc/%u/comm"
+#define PROC_COMM_CMD       "/usr/bin/cat /proc/%u/comm 2> /dev/null"
+#define PROC_CMDLINE_CMD    "/proc/%u/cmdline"
+#define PROC_STAT           "/proc/%u/stat"
+#define PROC_START_TIME_CMD "/usr/bin/cat /proc/%u/stat | awk '{print $22}'"
+#define SYS_UUID_CMD        "/usr/bin/cat /sys/class/dmi/id/product_uuid"
+#define SYS_HOSTNAME_CMD    "/usr/bin/uname -n"
+
+static char *g_host_path_prefix;
+
 const char* command_injection_characters[] = {"|", ";", "&", "$", ">", "<", "(", ")", "./", "/.", "?", "*",
                                     "\'", "`", "[", "]", "\\", "!", "\n"};
+
+static char *get_host_path_prefix(void)
+{
+    static char running_in_container = 1;
+
+    /* gala-gopher running on host */
+    if (running_in_container == 0) {
+        return NULL;
+    }
+
+    if (g_host_path_prefix) {
+        return g_host_path_prefix;
+    }
+
+    /* env HOST_PATH_PREFIX_ENV is set means gala-gopher is running in container */
+    g_host_path_prefix = getenv(HOST_PATH_PREFIX_ENV);
+    if (g_host_path_prefix) {
+        return g_host_path_prefix;
+    }
+
+    running_in_container = 0;
+    return NULL;
+}
 
 char *get_cur_date(void)
 {
@@ -66,7 +100,7 @@ char *get_cur_time(void)
     return tm;
 }
 
-void ip6_str(unsigned char *ip6, unsigned char *ip_str, unsigned int ip_str_size)
+static void ip6_str(unsigned char *ip6, unsigned char *ip_str, unsigned int ip_str_size)
 {
     unsigned short *addr = (unsigned short *)ip6;
     int i, j;
@@ -88,7 +122,7 @@ void ip6_str(unsigned char *ip6, unsigned char *ip_str, unsigned int ip_str_size
         if (str[j] == '0' && (j == 0 || ip_str[i - 1] == ':')) {  // the first 0
             if (str[j + 1] != '0') {        // 0XXX
                 j = j + 1;
-            } else if (str[j + 2]!='0') {   // 00XX
+            } else if (str[j + 2] != '0') {   // 00XX
                 j = j + 2;
             } else {                        // 000X 0000
                 j = j + 3;
@@ -116,7 +150,7 @@ void ip_str(unsigned int family, unsigned char *ip, unsigned char *ip_str, unsig
 
 void split_newline_symbol(char *s)
 {
-    int len = strlen(s);
+    size_t len = strlen(s);
     if (len > 0 && s[len - 1] == '\n') {
         s[len - 1] = 0;
     }
@@ -144,6 +178,49 @@ char is_exist_mod(const char *mod)
     pclose(fp);
 
     return (char)(cnt > 0);
+}
+
+const char *get_cmd_chroot(const char *orig_cmd, char *chroot_cmd, unsigned int buf_len)
+{
+    char *host_path = get_host_path_prefix();
+    if (orig_cmd == NULL || host_path == NULL) {
+        return orig_cmd;
+    }
+
+    chroot_cmd[0] = 0;
+    (void)snprintf(chroot_cmd, buf_len, CHROOT_CMD, host_path, orig_cmd);
+    return chroot_cmd;
+}
+
+void *popen_chroot(const char *command, const char *modes) {
+    char *host_path = get_host_path_prefix();
+    char chroot_cmd[CHROOT_COMMAND_LEN];
+
+    if (host_path) {
+        chroot_cmd[0] = 0;
+        (void)snprintf(chroot_cmd, CHROOT_COMMAND_LEN, CHROOT_CMD, host_path, command);
+        command = chroot_cmd;
+    }
+
+    return popen(command, modes);
+}
+
+int exec_cmd_chroot(const char *cmd, char *buf, unsigned int buf_len)
+{
+    FILE *f = NULL;
+
+    f = popen_chroot(cmd, "r");
+    if (f == NULL)
+        return -1;
+
+    if (fgets(buf, buf_len, f) == NULL) {
+        (void)pclose(f);
+        return -1;
+    }
+    (void)pclose(f);
+
+    SPLIT_NEWLINE_SYMBOL(buf);
+    return 0;
 }
 
 int exec_cmd(const char *cmd, char *buf, unsigned int buf_len)
@@ -203,72 +280,17 @@ int get_system_ip(char ip_str[], unsigned int size)
 {
     const char *cmd = "/sbin/ip a | grep inet | grep -v \"127.0.0.1\" | grep -v inet6 | awk 'NR==1 {print $2}' |  awk -F '/' '{print $1}'";
 
-    return exec_cmd(cmd, ip_str, size);
-}
-
-int get_comm(int pid, char comm_str[], unsigned int size)
-{
-    char proc_comm[PATH_LEN];
-    char cat_proc_comm[PATH_LEN];
-    const char *fmt1 = "/proc/%d/comm";
-    const char *fmt2 = "/usr/bin/cat /proc/%d/comm";
-
-    proc_comm[0] = 0;
-    (void)snprintf(proc_comm, PATH_LEN, fmt1, pid);
-    if (access((const char *)proc_comm, 0) != 0) {
-        return -1;
-    }
-
-    cat_proc_comm[0] = 0;
-    (void)snprintf(cat_proc_comm, PATH_LEN, fmt2, pid);
-    return exec_cmd(cat_proc_comm, comm_str, size);
-}
-
-int get_proc_startup_ts(int pid)
-{
-    int ret;
-    char proc_stat[PATH_LEN];
-    char cat_proc_stat[PATH_LEN];
-    char startup_ts[INT_LEN];
-    const char *fmt1 = "/proc/%d/stat";
-    const char *fmt2 = "/usr/bin/cat /proc/%d/stat | awk '{print $22}'";
-
-    proc_stat[0] = 0;
-    (void)snprintf(proc_stat, PATH_LEN, fmt1, pid);
-    if (access((const char *)proc_stat, 0) != 0) {
-        return -1;
-    }
-
-    cat_proc_stat[0] = 0;
-    startup_ts[0] = 0;
-    (void)snprintf(cat_proc_stat, PATH_LEN, fmt2, pid);
-    ret = exec_cmd(cat_proc_stat, startup_ts, INT_LEN);
-    if (ret) {
-        return -1;
-    }
-
-    return atoi(startup_ts);
+    return exec_cmd_chroot(cmd, ip_str, size);
 }
 
 int get_system_uuid(char *buffer, unsigned int size)
 {
-    FILE *fp = NULL;
+    return exec_cmd_chroot(SYS_UUID_CMD, buffer, size);
+}
 
-    fp = popen("dmidecode -s system-uuid | tr 'A-Z' 'a-z'", "r");
-    if (fp == NULL) {
-        return -1;
-    }
-
-    if (fgets(buffer, (int)size, fp) == NULL) {
-        pclose(fp);
-        return -1;
-    }
-    if (strlen(buffer) > 0 && buffer[strlen(buffer) - 1] == '\n') {
-        buffer[strlen(buffer) - 1] = '\0';
-    }
-
-    pclose(fp);
-    return 0;
+int get_system_hostname(char *buf, unsigned int size)
+{
+    return exec_cmd_chroot(SYS_HOSTNAME_CMD, buf, size);
 }
 
 int copy_file(const char *dst_file, const char *src_file) {
@@ -283,18 +305,216 @@ int copy_file(const char *dst_file, const char *src_file) {
     }
 
     void *buffer = (void *)malloc(2);
+    if (buffer == NULL) {
+        fclose(fp1);
+        fclose(fp2);
+        return -1;
+    }
+
     while (1) {
         int op = fread(buffer, 1, 1, fp2);
-        if(!op) {
+        if(op == 0) {
             break;
         }
-        fwrite(buffer, 1, 1, fp1);
+        (void)fwrite(buffer, 1, 1, fp1);
     }
 
     free(buffer);
     fclose(fp1);
     fclose(fp2);
     return 0;
+}
+
+int access_check_read_line(u32 pid, const char *command, const char *fname, char *buf, u32 buf_len)
+{
+    char fname_cmd[LINE_BUF_LEN];
+    char cmd[LINE_BUF_LEN];
+    char line[LINE_BUF_LEN];
+
+    fname_cmd[0] = 0;
+    (void)snprintf(fname_cmd, LINE_BUF_LEN, fname, pid);
+    if (access((const char *)fname_cmd, 0) != 0) {
+        return -1;
+    }
+
+    cmd[0] = 0;
+    line[0] = 0;
+    (void)snprintf(cmd, LINE_BUF_LEN, command, pid);
+    if (exec_cmd(cmd, line, LINE_BUF_LEN) != 0) {
+        ERROR("[SYSTEM_PROBE] proc get_info fail, line is null.\n");
+        return -1;
+    }
+
+    (void)snprintf(buf, buf_len, "%s", line);
+    return 0;
+}
+
+static int read_starttime_from_procstat(char *line, char *buf, int buf_len) {
+    int ret;
+    char *pos, *space_pos;
+    const char *space_chrs = " \t";
+    int idx = 1;
+
+#define __PROC_STAT_STARTTIME_IDX 22
+    pos = line + strspn(line, space_chrs);
+    while ((space_pos = strpbrk(pos, space_chrs)) != NULL) {
+        if (idx == __PROC_STAT_STARTTIME_IDX) {
+            *space_pos = '\0';
+            ret = snprintf(buf, buf_len, "%s", pos);
+            if (ret < 0 || ret >= buf_len) {
+                return -1;
+            }
+            return 0;
+        }
+        idx++;
+        pos = space_pos + strspn(space_pos, space_chrs);
+    }
+    return -1;
+}
+
+int get_proc_start_time(u32 pid, char *buf, int buf_len)
+{
+    FILE *f = NULL;
+    char fname[PATH_LEN];
+    char line[LINE_BUF_LEN];
+
+    fname[0] = 0;
+    (void)snprintf(fname, sizeof(fname), PROC_STAT, pid);
+    f = fopen(fname, "r");
+    if (!f) {
+        return -1;
+    }
+    line[0] = 0;
+    if (fgets(line, sizeof(line), f) == NULL) {
+        (void)fclose(f);
+        return -1;
+    }
+    (void)fclose(f);
+
+    return read_starttime_from_procstat(line, buf, buf_len);
+}
+
+u64 get_proc_startup_ts(int pid)
+{
+    int ret;
+    char startup_ts[INT_LEN];
+
+    startup_ts[0] = 0;
+    ret = get_proc_start_time(pid, startup_ts, INT_LEN);
+    if (ret) {
+        return 0;
+    }
+
+    return strtoull(startup_ts, NULL, 10);
+}
+
+int get_proc_comm(u32 pid, char *buf, int buf_len)
+{
+    return access_check_read_line(pid, PROC_COMM_CMD, PROC_COMM, buf, buf_len);
+}
+
+int get_proc_cmdline(u32 pid, char *buf, u32 buf_len)
+{
+    FILE *f = NULL;
+    char path[LINE_BUF_LEN];
+    int index = 0;
+
+    (void)memset(buf, 0, buf_len);
+
+    path[0] = 0;
+    (void)snprintf(path, LINE_BUF_LEN, PROC_CMDLINE_CMD, pid);
+    f = fopen(path, "r");
+    if (f == NULL) {
+        return -1;
+    }
+    /* parse line */
+    while (feof(f) == 0) {
+        if (index >= buf_len - 1) {
+            buf[index] = '\0';
+            break;
+        }
+        buf[index] = fgetc(f);
+        if (buf[index] == '\"') {
+            if (index > buf_len - 2) {
+                buf[index] = '\0';
+                break;
+            } else {
+                buf[index] = '\\';
+                buf[index + 1] =  '\"';
+                index++;
+            }
+        } else if (buf[index] == '\0') {
+            buf[index] = ' ';
+        } else if ((unsigned char)buf[index] == (unsigned char)EOF) {
+            buf[index] = '\0';
+        }
+        index++;
+    }
+
+    (void)fclose(f);
+    return 0;
+}
+
+int get_kern_version(u32 *kern_version)
+{
+    char major, minor, patch = 0;
+
+    char version[INT_LEN];
+    const char *major_cmd = "uname -r | awk -F '.' '{print $1}' 2>/dev/null";
+    const char *minor_cmd = "uname -r | awk -F '.' '{print $2}' 2>/dev/null";
+
+    version[0] = 0;
+    if (exec_cmd(major_cmd, version, INT_LEN)) {
+        return -1;
+    }
+    major = (char)atoi(version);
+
+    version[0] = 0;
+    if (exec_cmd(minor_cmd, version, INT_LEN)) {
+        return -1;
+    }
+    minor = (char)atoi(version);
+
+    *kern_version = (u32)KERNEL_VERSION(major, minor, patch);
+    return 0;
+}
+
+int is_valid_proc(int pid)
+{
+    char fname[LINE_BUF_LEN];
+    fname[0] = 0;
+
+    (void)snprintf(fname, LINE_BUF_LEN, "/proc/%d", pid);
+    if (access((const char *)fname, 0) == 0) {
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * Convert path to the relative host path mounted in the container by adding
+ * a prefix dir(env "HOST_PATH_PREFIX_ENV").
+ * @host_path: converted output which stored in
+ * @path: original abs path
+ * @path_len: len of host_path
+ */
+void convert_to_host_path(char *host_path, const char *path, int path_len)
+{
+    char *host_prefix;
+
+    if (path == NULL || strlen(path) == 0) {
+        return;
+    }
+
+    host_path[0] = 0;
+    host_prefix = get_host_path_prefix();
+    if (host_prefix) {
+        (void)snprintf(host_path, path_len, "%s%s", host_prefix, path);
+    } else {
+        (void)snprintf(host_path, path_len, "%s", path);
+    }
+
+    DEBUG("convert path[%s] to host_path[%s]\n", path, host_path);
 }
 
 /*
@@ -307,7 +527,8 @@ int check_path_for_security(const char *path)
         return 0;
     }
 
-    int command_injection_characters_len = sizeof(command_injection_characters) / sizeof(command_injection_characters[0]);
+    size_t command_injection_characters_len = sizeof(command_injection_characters) /
+        sizeof(command_injection_characters[0]);
 
     for (int i = 0; i < command_injection_characters_len; ++i) {
         if (strstr(path, command_injection_characters[i])) {

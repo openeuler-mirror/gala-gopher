@@ -1,0 +1,28 @@
+version = "1.0.0"
+
+measurements:
+(
+    {
+        table_name: "system_con_io",
+        entity_name: "container",
+        fields:
+        (
+            {
+                description: "container id",
+                type: "key",
+                name: "container_id",
+            },
+            {
+                description: "The specified directory.",
+                type: "label",
+                name: "dir",
+            },
+            {
+                description: "The write rate of the process to the directory(unit:byte/sec)",
+                type: "gauge",
+                name: "write_rate",
+            }
+        )
+    }
+)
+

@@ -26,23 +26,6 @@
 #define ETH_P_8021Q    0x8100          /* 802.1Q VLAN Extended Header  */
 #define ETH_P_IP    0x0800        /* Internet Protocol packet    */
 
-#ifdef KER_VER_MAJOR
-
-#if KER_VER_MAJOR < 5
-
-struct xdp_md {
-    __u32 data;
-    __u32 data_end;
-    __u32 data_meta;
-    __u32 ingress_ifindex;
-    __u32 rx_queue_index;
-    __u32 egress_ifindex;
-};
-
-#endif
-
-#endif
-
 struct {
     __uint(type, BPF_MAP_TYPE_ARRAY);
     __uint(key_size, sizeof(__u32));
@@ -188,7 +171,7 @@ static __always_inline int get_empty_data(int **ctrl, struct KafkaData **rec)
 {
     __u32 i,j;
     j = 0;
-    
+
     #pragma unroll
     for (i=0;i<MAP_MAX_ITEM;i++) {
         *ctrl = bpf_map_lookup_elem(&xdp_ctrl_map, &j);
@@ -196,7 +179,7 @@ static __always_inline int get_empty_data(int **ctrl, struct KafkaData **rec)
             j+=1;
             continue;
         }
-            
+
         if(**ctrl == 0){
             *rec = bpf_map_lookup_elem(&xdp_data_map, &j);
             if (!rec)
@@ -215,19 +198,18 @@ static __always_inline int copy_data(__u8 *dst, int len, __u8 *src, void *data_e
     __u32 i,j;
     j = 0;
 
-    #pragma unroll
-    for (i = 0; i < SMALL_BUF_SIZE; i++) {        
+    for (i = 0; i < SMALL_BUF_SIZE; i++) {
         dst[j] = *src;
-        
+
         j += 1;
         if (j >= len) {
             return 1;
-        }        
+        }
 
         src += 1;
         if (src + 1 > data_end) {
             return 0;
-        }        
+        }
     }
 
     return 0;
@@ -245,7 +227,7 @@ static __always_inline int parse_consumer(struct hdr_cursor *nh, void *data_end,
     part_data = nh->pos + off;
     if(part_data + 1 > data_end)
         return 1;
-    
+
     off += part_data->len + 28;
     topic_data = nh->pos + off;
     if(topic_data + 1 > data_end)
@@ -260,9 +242,9 @@ static __always_inline int parse_consumer(struct hdr_cursor *nh, void *data_end,
 
     if(!get_empty_data(&ctrl, &rec)){
         bpf_printk("array is full!");
-        return 5; 
+        return 5;
     }
-        
+
     if(!rec)
         return 6;
 
@@ -280,11 +262,11 @@ static __always_inline int parse_consumer(struct hdr_cursor *nh, void *data_end,
     // bpf_skb_load_bytes
     *ctrl = 2;
 
-    return 0;    
+    return 0;
 }
 
 static __always_inline int parse_producer(struct hdr_cursor *nh, void *data_end, __u32 *src_ip, __u16* src_port, __u16* dst_port)
-{    
+{
     int *ctrl;
     struct KafkaData *rec = 0;
 
@@ -308,9 +290,9 @@ static __always_inline int parse_producer(struct hdr_cursor *nh, void *data_end,
 
     if(!get_empty_data(&ctrl, &rec)){
         bpf_printk("array is full!");
-        return 5; 
+        return 5;
     }
-        
+
     if(!rec)
         return 6;
 
@@ -345,11 +327,11 @@ static __always_inline __u32 parse_record(struct hdr_cursor *nh, void *data_end,
             bpf_printk("Error: parse producer fail, ret: %d", ret);
         }
     }else if(ph->param2 == 0x0c000100)
-    {        
+    {
         ret = parse_consumer(nh, data_end, src_ip, src_port, dst_port);
         if(ret > 4){
             bpf_printk("Error: parse consumer fail, ret: %d", ret);
-        }        
+        }
     }
 
     return XDP_PASS;
@@ -371,12 +353,12 @@ int  xdp_parser_func(struct xdp_md *ctx)
     if(ret){
         return XDP_PASS;
     }
-    
+
     ret = parse_iphdr(&nh, data_end, &src_ip);
     if(ret){
         return XDP_PASS;
     }
-    
+
     ret = parse_tcphdr(&nh, data_end, &src_port, &dst_port);
     if(ret){
         return XDP_PASS;

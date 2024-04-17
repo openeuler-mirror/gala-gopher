@@ -24,40 +24,83 @@
 #define METRICS_IOSTAT_NAME     "system_iostat"
 #define ENTITY_FS_NAME          "fs"
 #define ENTITY_DISK_NAME        "disk"
-#define SYSTEM_INODE_COMMAND    "/usr/bin/df -T -i | /usr/bin/awk 'NR>1 {print $0}'"
-#define SYSTEM_BLOCK_CMD        "/usr/bin/df -T | /usr/bin/awk '{if($7==\"%s\"){print $0}}'"
+#define SYSTEM_INODE_COMMAND    "/usr/bin/df -T -i"
+#define SYSTEM_BLOCK_CMD        "/usr/bin/df -T"
+#define SYSTEM_MOUNT_STAT_CMD   "cat /proc/mounts"
+#define SYSTEM_DISKSTATS        "/proc/diskstats"
 #define SYSTEM_DISKSTATS_CMD    "/usr/bin/cat /proc/diskstats"
 #define SYSTEM_DISK_DEV_NUM     "/usr/bin/cat /proc/diskstats | wc -l"
 
-#define DF_FIELD_NUM            7
-static int get_df_fields(char *line, df_stats *stats)
+static df_stats *g_df_tbl = NULL;
+
+#define DF_INODE_FIELD_NUM 7
+static int get_df_inode_fields(char *line, df_stats *stats)
 {
     int ret;
 
     ret = sscanf(line, "%s %s %ld %ld %ld %ld%*s %s",
-        &stats->fsname, &stats->fstype, &stats->inode_or_blk_sum, &stats->inode_or_blk_used,
-        &stats->inode_or_blk_free, &stats->inode_or_blk_used_per, &stats->mount_on);
-    if (ret < DF_FIELD_NUM) {
+        &stats->fsname, &stats->fstype, &stats->inode_sum, &stats->inode_used,
+        &stats->inode_free, &stats->inode_used_per, &stats->mount_on);
+    if (ret < DF_INODE_FIELD_NUM) {
         DEBUG("[SYSTEM_DISK] get df stats fields fail.\n");
         return -1;
     }
     return 0;
 }
 
-static void report_disk_status(df_stats inode_stats, df_stats blk_stats, struct probe_params *params)
+#define DF_BLOCK_FIELD_NUM 5
+static int get_df_block_fields(char *line, df_stats *stats)
+{
+    int ret;
+
+    ret = sscanf(line, "%*s %*s %ld %ld %ld %ld%*s %s",
+        &stats->blk_sum, &stats->blk_used,
+        &stats->blk_free, &stats->blk_used_per, &stats->mount_on);
+    if (ret < DF_BLOCK_FIELD_NUM) {
+        DEBUG("[SYSTEM_DISK] get df stats fields fail.\n");
+        return -1;
+    }
+    return 0;
+}
+
+#define MNT_FIELD_NUM 2
+static int get_fs_mount_status(char *line, char mountOn[MOUNTON_LEN], char mountStatus[MOUNTSTATUS_LEN])
+{
+    int ret;
+    char buf[LINE_BUF_LEN];
+    char *firstComma;
+
+    buf[0] = 0;
+    ret = sscanf(line, "%*s %s %*s %s", mountOn, buf);
+    if (ret < MNT_FIELD_NUM) {
+        DEBUG("[SYSTEM_DISK] get fs mount status fail.\n");
+        return -1;
+    }
+
+    firstComma = strchr(buf, ',');
+    if (!firstComma) {
+        DEBUG("[SYSTEM_DISK] get fs mount status fail.\n");
+        return -1;
+    }
+    *firstComma = '\0';
+    (void)snprintf(mountStatus, MOUNTSTATUS_LEN, "%s", buf);
+    return 0;
+}
+
+static void report_disk_status(df_stats *fsItem, struct ipc_body_s *ipc_body)
 {
     char entityid[LINE_BUF_LEN];
     struct event_info_s evt = {0};
 
-    if (params->logs == 0) {
+    if (ipc_body->probe_param.logs == 0) {
         return;
     }
 
     entityid[0] = 0;
 
-    if (params->res_percent_upper > 0 && inode_stats.inode_or_blk_used_per > params->res_percent_upper) {
-        (void)strncpy(entityid, inode_stats.mount_on, LINE_BUF_LEN - 1);
-
+    if (ipc_body->probe_param.res_percent_upper > 0 &&
+        fsItem->inode_used_per > ipc_body->probe_param.res_percent_upper) {
+        (void)snprintf(entityid, sizeof(entityid), "%s", fsItem->mount_on);
         evt.entityName = ENTITY_FS_NAME;
         evt.entityId = entityid;
         evt.metrics = "IUsePer";
@@ -65,11 +108,12 @@ static void report_disk_status(df_stats inode_stats, df_stats blk_stats, struct 
         report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "Too many Inodes consumed(%d%%).",
-                    inode_stats.inode_or_blk_used_per);
+                    fsItem->inode_used_per);
     }
-    if (params->res_percent_upper > 0 && blk_stats.inode_or_blk_used_per > params->res_percent_upper) {
+    if (ipc_body->probe_param.res_percent_upper > 0 &&
+        fsItem->blk_used_per > ipc_body->probe_param.res_percent_upper) {
         if (entityid[0] == 0) {
-            (void)strncpy(entityid, blk_stats.mount_on, LINE_BUF_LEN - 1);
+            (void)snprintf(entityid, sizeof(entityid), "%s", fsItem->mount_on);
         }
         evt.entityName = ENTITY_FS_NAME;
         evt.entityId = entityid;
@@ -77,87 +121,196 @@ static void report_disk_status(df_stats inode_stats, df_stats blk_stats, struct 
         report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "Too many Blocks used(%d%%).",
-                    blk_stats.inode_or_blk_used_per);
+                    fsItem->blk_used_per);
     }
 }
 
-static int get_mnt_block_info(const char *mounted_on, df_stats *blk_stats)
+static int init_fs_inode_info(void)
 {
     FILE *f = NULL;
-    char cmd[LINE_BUF_LEN];
     char line[LINE_BUF_LEN];
+    int is_first_line = 1;
+    df_stats *fsItem;
+    df_stats stats;
 
-    cmd[0] = 0;
-    (void)snprintf(cmd, LINE_BUF_LEN, SYSTEM_BLOCK_CMD, mounted_on);
-    f = popen(cmd, "r");
+    f = popen_chroot(SYSTEM_INODE_COMMAND, "r");
     if (f == NULL) {
         return -1;
     }
-    line[0] = 0;
-    if (fgets(line, LINE_BUF_LEN, f) == NULL) {
-        pclose(f);
-        return -1;
-    }
-    SPLIT_NEWLINE_SYMBOL(line);
-    if (get_df_fields(line, blk_stats) < 0) {
-        pclose(f);
-        return -1;
+
+    while (!feof(f)) {
+        line[0] = 0;
+        if (fgets(line, LINE_BUF_LEN, f) == NULL) {
+            break;
+        }
+        if (is_first_line) {
+            is_first_line = 0;
+            continue;
+        }
+        SPLIT_NEWLINE_SYMBOL(line);
+
+        if (get_df_inode_fields(line, &stats)) {
+            continue;
+        }
+
+        fsItem = NULL;
+        HASH_FIND_STR(g_df_tbl, stats.mount_on, fsItem);
+        if (!fsItem) {
+            fsItem = (df_stats *)calloc(1, sizeof(df_stats));
+            if (!fsItem) {
+                DEBUG("[SYSTEM_DISK] failed to malloc memory.\n");
+                (void)pclose(f);
+                return -1;
+            }
+            strcpy(fsItem->mount_on, stats.mount_on);
+            HASH_ADD_STR(g_df_tbl, mount_on, fsItem);
+        }
+        fsItem->valid = 1;
+        strcpy(fsItem->fsname, stats.fsname);
+        strcpy(fsItem->fstype, stats.fstype);
+        fsItem->inode_sum = stats.inode_sum;
+        fsItem->inode_used = stats.inode_used;
+        fsItem->inode_free = stats.inode_free;
+        fsItem->inode_used_per = stats.inode_used_per;
+        fsItem->blk_sum = 0;
+        fsItem->blk_used = 0;
+        fsItem->blk_free = 0;
+        fsItem->blk_used_per = 0;
+        fsItem->mount_status[0] = 0;
     }
 
-    pclose(f);
+    (void)pclose(f);
     return 0;
 }
 
-/*
- [root@localhost ~]# df -i | awk 'NR>1 {print $1"%"$2"%"$3"%"$4"%"$5"%"$6}'
- devtmpfs%949375%377%948998%1%%/dev
- tmpfs%952869%1%952868%1%%/dev/shm
- tmpfs%952869%631%952238%1%%/run
- [root@localhost ~]# df | awk '{if($6==/dev){print $1"%"$2"%"$3"%"$4"%"$5"%"$6}}'
- devtmpfs%3797500%0%3797500%0%%/dev
- */
-int system_disk_probe(struct probe_params *params)
+static int init_fs_block_info(void)
 {
     FILE *f = NULL;
     char line[LINE_BUF_LEN];
-    df_stats inode_stats;
-    df_stats block_stats;
+    int is_first_line = 1;
+    df_stats *fsItem;
+    df_stats stats;
 
-    /* get every disk filesystem's inode infos */
-    f = popen(SYSTEM_INODE_COMMAND, "r");
+    f = popen_chroot(SYSTEM_BLOCK_CMD, "r");
     if (f == NULL) {
         return -1;
     }
+
+    while (!feof(f)) {
+        line[0] = 0;
+        if (fgets(line, LINE_BUF_LEN, f) == NULL) {
+            break;
+        }
+        if (is_first_line) {
+            is_first_line = 0;
+            continue;
+        }
+        SPLIT_NEWLINE_SYMBOL(line);
+
+        if (get_df_block_fields(line, &stats)) {
+            continue;
+        }
+
+        fsItem = NULL;
+        HASH_FIND_STR(g_df_tbl, stats.mount_on, fsItem);
+        if (!fsItem || !fsItem->valid) {
+            continue;
+        }
+        fsItem->blk_sum = stats.blk_sum;
+        fsItem->blk_used = stats.blk_used;
+        fsItem->blk_free = stats.blk_free;
+        fsItem->blk_used_per = stats.blk_used_per;
+    }
+
+    (void)pclose(f);
+    return 0;
+
+}
+
+static int init_fs_status(void)
+{
+    FILE *f = NULL;
+    df_stats *fsItem;
+    char line[LINE_BUF_LEN];
+    char mountOn[MOUNTON_LEN];
+    char mountStatus[MOUNTSTATUS_LEN];
+
+    f = popen(SYSTEM_MOUNT_STAT_CMD, "r");
+    if (f == NULL) {
+        return -1;
+    }
+
     while (!feof(f)) {
         line[0] = 0;
         if (fgets(line, LINE_BUF_LEN, f) == NULL) {
             break;
         }
         SPLIT_NEWLINE_SYMBOL(line);
-        if (get_df_fields(line, &inode_stats) < 0) {
+
+        mountOn[0] = 0;
+        mountStatus[0] = 0;
+        if (get_fs_mount_status(line, mountOn, mountStatus)) {
             continue;
         }
-        if (get_mnt_block_info(inode_stats.mount_on, &block_stats) < 0) {
+
+        fsItem = NULL;
+        HASH_FIND_STR(g_df_tbl, mountOn, fsItem);
+        if (!fsItem || !fsItem->valid) {
             continue;
         }
-        /* output */
-        (void)nprobe_fprintf(stdout, "|%s|%s|%s|%s|%ld|%ld|%ld|%ld|%ld|%ld|%ld|%ld|\n",
-            METRICS_DF_NAME,
-            inode_stats.mount_on,
-            inode_stats.fsname,
-            inode_stats.fstype,
-            inode_stats.inode_or_blk_sum,
-            inode_stats.inode_or_blk_used,
-            inode_stats.inode_or_blk_free,
-            inode_stats.inode_or_blk_used_per,
-            block_stats.inode_or_blk_sum,
-            block_stats.inode_or_blk_used,
-            block_stats.inode_or_blk_free,
-            block_stats.inode_or_blk_used_per);
-        /* output event */
-        report_disk_status(inode_stats, block_stats, params);
+        (void)strcpy(fsItem->mount_status, mountStatus);
     }
+
     (void)pclose(f);
+    return 0;
+
+}
+
+int system_disk_probe(struct ipc_body_s *ipc_body)
+{
+    df_stats *fsItem, *tmp;
+    int ret;
+
+    ret = init_fs_inode_info();
+    if (ret) {
+        return -1;
+    }
+    ret = init_fs_block_info();
+    if (ret) {
+        return -1;
+    }
+    ret = init_fs_status();
+    if (ret) {
+        return -1;
+    }
+
+    HASH_ITER(hh, g_df_tbl, fsItem, tmp) {
+        if (!fsItem->valid) {
+            HASH_DEL(g_df_tbl, fsItem);
+            free(fsItem);
+            continue;
+        }
+
+        /* output metric */
+        (void)nprobe_fprintf(stdout, "|%s|%s|%s|%s|%s|%ld|%ld|%ld|%ld|%ld|%ld|%ld|%ld|\n",
+            METRICS_DF_NAME,
+            fsItem->mount_on,
+            fsItem->mount_status,
+            fsItem->fsname,
+            fsItem->fstype,
+            fsItem->inode_sum,
+            fsItem->inode_used,
+            fsItem->inode_free,
+            fsItem->inode_used_per,
+            fsItem->blk_sum,
+            fsItem->blk_used,
+            fsItem->blk_free,
+            fsItem->blk_used_per);
+        /* output event */
+        report_disk_status(fsItem, ipc_body);
+        fsItem->valid = 0;
+    }
+
     return 0;
 }
 
@@ -207,20 +360,19 @@ static void cal_disk_io_stats(disk_stats *last, disk_stats *cur, disk_io_stats *
     return;
 }
 
-static void report_disk_iostat(const char *disk_name, disk_io_stats *io_info, struct probe_params *params)
+static void report_disk_iostat(const char *disk_name, disk_io_stats *io_info, struct ipc_body_s *ipc_body)
 {
     char entityid[LINE_BUF_LEN];
     struct event_info_s evt = {0};
 
-    if (params->logs == 0) {
+    if (ipc_body->probe_param.logs == 0) {
         return;
     }
 
     entityid[0] = 0;
 
-    if (params->res_percent_upper > 0 && io_info->util > params->res_percent_upper) {
-        (void)strncpy(entityid, disk_name, LINE_BUF_LEN - 1);
-
+    if (ipc_body->probe_param.res_percent_upper > 0 && io_info->util > ipc_body->probe_param.res_percent_upper) {
+        (void)snprintf(entityid, sizeof(entityid), "%s", disk_name);
         evt.entityName = ENTITY_DISK_NAME;
         evt.entityId = entityid;
         evt.metrics = "util";
@@ -246,7 +398,7 @@ static disk_stats *g_disk_stats = NULL;
 static int g_disk_dev_num;
 static int g_first_flag;
 
-int system_iostat_probe(struct probe_params *params)
+int system_iostat_probe(struct ipc_body_s *ipc_body)
 {
     FILE *f = NULL;
     char line[LINE_BUF_LEN];
@@ -274,7 +426,7 @@ int system_iostat_probe(struct probe_params *params)
         if (g_first_flag == 1) {
             (void)memset(&io_datas, 0, sizeof(disk_io_stats));
         } else {
-            cal_disk_io_stats(&temp, &g_disk_stats[index], &io_datas, params->period);
+            cal_disk_io_stats(&temp, &g_disk_stats[index], &io_datas, ipc_body->probe_param.period);
         }
 
         (void)nprobe_fprintf(stdout,
@@ -292,7 +444,7 @@ int system_iostat_probe(struct probe_params *params)
             io_datas.aqu_sz,
             io_datas.util);
         /* event_output */
-        report_disk_iostat(g_disk_stats[index].disk_name, &io_datas, params);
+        report_disk_iostat(g_disk_stats[index].disk_name, &io_datas, ipc_body);
 
         index++;
     }
@@ -338,11 +490,24 @@ int system_iostat_init(void)
     return 0;
 }
 
+void system_disk_destroy(void)
+{
+    df_stats *item, *tmp;
+
+    if (g_df_tbl != NULL) {
+        HASH_ITER(hh, g_df_tbl, item, tmp) {
+            HASH_DEL(g_df_tbl, item);
+            free(item);
+        }
+    }
+
+    return;
+}
+
 void system_iostat_destroy(void)
 {
-    while (g_disk_stats != NULL) {
+    if (g_disk_stats != NULL) {
         (void)free(g_disk_stats);
         g_disk_stats = NULL;
     }
-    return;
 }

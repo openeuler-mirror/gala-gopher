@@ -6,7 +6,12 @@ PROJECT_FOLDER=$(dirname "$PWD")
 PROBES_FOLDER=${PROJECT_FOLDER}/src/probes
 PROBES_PATH_LIST=`find ${PROJECT_FOLDER}/src/probes -maxdepth 1 | grep ".probe\>"`
 EXT_PROBE_FOLDER=${PROJECT_FOLDER}/src/probes/extends
+PROBE_MNG_FOLDER=${PROJECT_FOLDER}/src/lib/probe
+JVM_FOLDER=${PROJECT_FOLDER}/src/lib/jvm
+VMLINUX_DIR=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/src/include
 EXT_PROBE_BUILD_LIST=`find ${EXT_PROBE_FOLDER} -maxdepth 2 | grep "\<build.sh\>"`
+DEP_LIST=(cmake git librdkafka-devel libconfig-devel uthash-devel libbpf-devel clang bpftool
+          llvm java-1.8.0-openjdk-devel jsoncpp-devel libcurl-devel openssl-devel libevent-devel)
 PROBES_LIST=""
 PROBES_C_LIST=""
 PROBES_META_LIST=""
@@ -17,10 +22,12 @@ DAEMON_FOLDER=${PROJECT_FOLDER}/src/daemon
 TAILOR_PATH=${PROJECT_FOLDER}/tailor.conf
 TAILOR_PATH_TMP=${TAILOR_PATH}.tmp
 
-export VMLINUX_VER="${2:-$(uname -r)}"
+# libbpf version
 LIBBPF_VER=$(rpm -q libbpf | awk -F'-' '{print $2}')
 LIBBPF_VER_MAJOR=$(echo ${LIBBPF_VER} | awk -F'.' '{print $1}')
 LIBBPF_VER_MINOR=$(echo ${LIBBPF_VER} | awk -F'.' '{print $2}')
+
+DEFAULT_BUILD_OPTS="-DFLAMEGRAPH_SVG=1"
 
 function load_tailor()
 {
@@ -34,6 +41,8 @@ function load_tailor()
 
         rm -rf ${TAILOR_PATH_TMP}
     fi
+    # disable some probes that work not very well
+    export EXTEND_PROBES="$EXTEND_PROBES cgprobe lvsprobe schedprobe nsprobe rabbitmq.probe redis_client.probe redis.probe"
 }
 
 function __get_probes_source_files()
@@ -50,8 +59,33 @@ function __get_probes_source_files()
     done
 }
 
+function __build_bpf()
+{
+    cd ${PROBE_MNG_FOLDER}
+    make
+}
+
+function __rm_bpf()
+{
+    cd ${PROBE_MNG_FOLDER}
+    make clean
+}
+
+function __build_jvm_attach()
+{
+    cd ${JVM_FOLDER}
+    make
+}
+
+function __rm_jvm_attach()
+{
+    cd ${JVM_FOLDER}
+    make clean
+}
+
 function prepare_probes()
 {
+	__build_bpf
     if [ ${PROBES} ]; then
         # check tailor env
         PROBES_PATH_LIST=$(echo "$PROBES_PATH_LIST" | grep -Ev "$PROBES")
@@ -92,11 +126,14 @@ function prepare_probes()
     echo ${PROBES_C_LIST}
     echo "PROBES_META_LIST:"
     echo ${PROBES_META_LIST}
+    echo "LIBBPF_VER:"
+    echo ${LIBBPF_VER}
     cd -
 }
 
 function compile_lib()
 {
+    __build_jvm_attach
     cd ${COMMON_FOLDER}
     rm -rf *.so
     make
@@ -104,6 +141,7 @@ function compile_lib()
 
 function compile_lib_clean()
 {
+    __rm_jvm_attach
     cd ${COMMON_FOLDER}
     rm -rf *.so
 }
@@ -115,12 +153,8 @@ function compile_daemon_release()
     mkdir build
     cd build
 
-    cmake -DGOPHER_DEBUG="0" \
-          -DPROBES_C_LIST="${PROBES_C_LIST}" \
-          -DPROBES_LIST="${PROBES_LIST}" \
-          -DPROBES_META_LIST="${PROBES_META_LIST}" \
-          -DLIBBPF_VER_MAJOR="${LIBBPF_VER_MAJOR}" \
-          -DLIBBPF_VER_MINOR="${LIBBPF_VER_MINOR}" ..
+    cmake "$@" -DGOPHER_DEBUG="0" -DPROBES_C_LIST="${PROBES_C_LIST}" -DPROBES_LIST="${PROBES_LIST}" -DPROBES_META_LIST="${PROBES_META_LIST}" \
+        -DLIBBPF_VER_MAJOR="${LIBBPF_VER_MAJOR}" -DLIBBPF_VER_MINOR="${LIBBPF_VER_MINOR}" ..
     make
 }
 
@@ -131,12 +165,8 @@ function compile_daemon_debug()
     mkdir build
     cd build
 
-    cmake -DGOPHER_DEBUG="1" \
-          -DPROBES_C_LIST="${PROBES_C_LIST}" \
-          -DPROBES_LIST="${PROBES_LIST}" \
-          -DPROBES_META_LIST="${PROBES_META_LIST}" \
-          -DLIBBPF_VER_MAJOR="${LIBBPF_VER_MAJOR}" \
-          -DLIBBPF_VER_MINOR="${LIBBPF_VER_MINOR}" ..
+    cmake "$@" -DGOPHER_DEBUG="1" -DPROBES_C_LIST="${PROBES_C_LIST}" -DPROBES_LIST="${PROBES_LIST}" -DPROBES_META_LIST="${PROBES_META_LIST}" \
+        -DLIBBPF_VER_MAJOR="${LIBBPF_VER_MAJOR}" -DLIBBPF_VER_MINOR="${LIBBPF_VER_MINOR}" ..
     make
 }
 
@@ -144,7 +174,6 @@ function compile_daemon_debug()
 function compile_daemon_clean()
 {
     rm -rf ${PROJECT_FOLDER}/gala-gopher
-    rm -rf ${PROJECT_FOLDER}/gopher-ctl
 }
 
 
@@ -162,13 +191,14 @@ function clean_env()
 
 function compile_extend_probes_clean()
 {
+	__rm_bpf
     # Search for build.sh in probe directory
     echo "==== Begin to clean extend probes ===="
     cd ${EXT_PROBE_FOLDER}
     for BUILD_PATH in ${EXT_PROBE_BUILD_LIST}
     do
         echo "==== BUILD_PATH: " ${BUILD_PATH}
-        ${BUILD_PATH} --clean
+        sh ${BUILD_PATH} --clean
     done
 }
 
@@ -176,11 +206,13 @@ function compile_extend_probes_debug()
 {
     # Search for build.sh in probe directory
     echo "==== Begin to compile debug extend probes ===="
+    export BUILD_OPTS="${@:-"$DEFAULT_BUILD_OPTS"}"
+    echo "BUILD_OPTS is $BUILD_OPTS"
     cd ${EXT_PROBE_FOLDER}
     for BUILD_PATH in ${EXT_PROBE_BUILD_LIST}
     do
         echo "==== BUILD_PATH: " ${BUILD_PATH}
-        ${BUILD_PATH} --build --debug
+        sh ${BUILD_PATH} --build --debug || return 1
     done
 }
 
@@ -188,11 +220,13 @@ function compile_extend_probes_release()
 {
     # Search for build.sh in probe directory
     echo "==== Begin to compile release extend probes ===="
+    export BUILD_OPTS="${@:-"$DEFAULT_BUILD_OPTS"}"
+    echo "BUILD_OPTS is $BUILD_OPTS"
     cd ${EXT_PROBE_FOLDER}
     for BUILD_PATH in ${EXT_PROBE_BUILD_LIST}
     do
         echo "==== BUILD_PATH: " ${BUILD_PATH}
-        ${BUILD_PATH} --build || return 1
+        sh ${BUILD_PATH} --build || return 1
     done
 }
 
@@ -200,70 +234,13 @@ function compile_extend_probes_release()
 # Check dependent packages and install automatically
 function prepare_dependence()
 {
-
-    # for build framework
-    yum install -y cmake
-    if [ $? -ne 0 ];then
-        echo "Error: Failed to install cmake."
-        return 1
-    fi
-
-    # for gala-gopher framework sending message to kafka
-    yum install -y librdkafka-devel
-    if [ $? -ne 0 ];then
-        echo "Error: Failed to install librdkafka-devel."
-        return 1
-    fi
-
-    # for gala-gopher framework http server
-    yum install -y libmicrohttpd-devel
-    if [ $? -ne 0 ];then
-        echo "Error: Failed to install libmicrohttpd-devel."
-        return 1
-    fi
-
-    # for gala-gopher configrations
-    yum install -y libconfig-devel
-    if [ $? -ne 0 ];then
-        echo "Error: Failed to install libconfig-devel."
-        return 1
-    fi
-
-    yum install -y uthash-devel
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to install uthash-devel."
-        return 1
-    fi
-
-    yum install -y log4cplus-devel
-    if [ $? -ne 0 ];then
-        echo "Error: Failed to install log4cplus-devel."
-        return 1
-    fi
-
-    yum install -y libbpf-devel
-    if [ $? -ne 0 ];then
-        echo "Error: Failed to install libbpf-devel."
-        return 1
-    fi
-
-    yum install -y clang
-    if [ $? -ne 0 ];then
-        echo "Error: Failed to install clang."
-        return 1
-    fi
-
-    yum install -y llvm
-    if [ $? -ne 0 ];then
-        echo "Error: Failed to install llvm."
-        return 1
-    fi
-
-    yum install -y java-1.8.0-openjdk-devel
-    if [ $? -ne 0 ];then
-        echo "Error: Failed to install java-1.8.0-openjdk-devel"
-        return 1
-    fi
+    for dep in "${DEP_LIST[@]}" ; do
+        yum install -y $dep
+        if [ $? -ne 0 ];then
+            echo "Error: Failed to install $dep"
+            return 1
+        fi
+    done
 
     return 0
 }
@@ -290,23 +267,24 @@ if [ "$1" == "--check" ]; then
     fi
 fi
 
-
 if [ "$1" = "--release" ];then
+    shift;
     load_tailor
     prepare_probes
     compile_lib || exit 1
-    compile_daemon_release || exit 1
-    compile_extend_probes_release || exit 1
+    compile_daemon_release "$@" || exit 1
+    compile_extend_probes_release "$@" || exit 1
     clean_env
     exit
 fi
 
 if [ "$1" = "--debug" ];then
+    shift;
     load_tailor
     prepare_probes
-    compile_lib
-    compile_daemon_debug
-    compile_extend_probes_debug
+    compile_lib || exit 1
+    compile_daemon_debug "$@"|| exit 1
+    compile_extend_probes_debug "$@" || exit 1
     clean_env
     exit
 fi

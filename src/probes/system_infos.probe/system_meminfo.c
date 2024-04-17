@@ -23,7 +23,13 @@
 
 #define METRICS_MEMINFO_NAME "system_meminfo"
 #define METRICS_MEMINFO_PATH "/proc/meminfo"
+#define METRTCS_DENTRY_NAME  "system_dentry"
+#define METRICS_DENTRY_ORIGIN  "fs.dentry-state"
+#define SYSTEM_FS_DENTRY_STATE "cat /proc/sys/fs/dentry-state"
+/* VmallocUsed in /proc/meminfo is inaccurate because it include VM_MALLOC VM_IOREMAP VM_MAP */
+#define METRICS_VMALLOC_SIZE  "grep vmalloc /proc/vmallocinfo | awk '{total+=$2}; END {print total}'"
 static struct system_meminfo_field* meminfo_fields = NULL;
+static struct dentry_stat dentry_state = {0};
 
 int system_meminfo_init(void)
 {
@@ -34,7 +40,9 @@ int system_meminfo_init(void)
     (void)memset(meminfo_fields, 0, TOTAL_DATA_INDEX * sizeof(struct system_meminfo_field));
     // assign key to indicators.
     char key_[TOTAL_DATA_INDEX][KEY_BUF_LEN] = {"MemTotal", "MemFree", "MemAvailable", "Buffers", "Cached",
-        "Active", "Inactive", "SwapTotal", "SwapFree"};
+        "Active", "Inactive", "Active(anon)", "Inactive(anon)", "Active(file)", "Inactive(file)", "Mlocked",
+        "SwapTotal", "SwapFree", "Shmem", "Slab", "SReclaimable", "SUnreclaim", "KernelStack", "PageTables",
+        "VmallocUsed", "HugePages_Total", "Hugepagesize"};
     for (int i = MEM_TOTAL; i < TOTAL_DATA_INDEX; i++) {
         strcpy(meminfo_fields[i].key, key_[i]);
         meminfo_fields[i].value = 0;
@@ -64,7 +72,7 @@ static int set_meminfosp_fileds(const char* line, const int cur_index)
     *colon = '\0';
 
     if (strcmp(line, meminfo_fields[cur_index].key) == 0) {
-        // atoll() turns digit chars to longlong ignoring the letter chars.  
+        // atoll() turns digit chars to longlong ignoring the letter chars.
         meminfo_fields[cur_index].value = atoll(colon + 1);
         return 0;
     }
@@ -72,12 +80,28 @@ static int set_meminfosp_fileds(const char* line, const int cur_index)
     return -1;
 }
 
-static void report_meminfo_status(struct probe_params *params, double mem_util, double swap_util)
+static int update_total_vmalloc(unsigned long long *value)
+{
+    char cmd[LINE_BUF_LEN];
+    char line[LINE_BUF_LEN];
+    cmd[0] = 0;
+    line[0] = 0;
+    (void)snprintf(cmd, LINE_BUF_LEN, METRICS_VMALLOC_SIZE);
+    if (exec_cmd(cmd, line, LINE_BUF_LEN) != 0) {
+        DEBUG("[SYSTEM_PROBE] cat /proc/vmallocinfo failed.\n");
+        return -1;
+    }
+    unsigned long long total_b = atoll(line);
+    *value = total_b / 1024;    // KB
+    return 0;
+}
+
+static void report_meminfo_status(struct ipc_body_s *ipc_body, double mem_util, double swap_util)
 {
     char entityId[INT_LEN];
     char entityName[INT_LEN];
     struct event_info_s evt = {0};
-    if (params->logs == 0) {
+    if (ipc_body->probe_param.logs == 0) {
         return;
     }
 
@@ -89,7 +113,7 @@ static void report_meminfo_status(struct probe_params *params, double mem_util, 
     evt.entityName = entityName;
     evt.entityId = entityId;
     // mem util
-    if (params->res_percent_upper > 0 && mem_util > params->res_percent_upper) {
+    if (ipc_body->probe_param.res_percent_upper > 0 && mem_util > ipc_body->probe_param.res_percent_upper) {
         evt.metrics = "util";
         report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
@@ -97,7 +121,7 @@ static void report_meminfo_status(struct probe_params *params, double mem_util, 
                     mem_util);
     }
     // swap util
-    if (params->res_percent_upper > 0 && swap_util > params->res_percent_upper) {
+    if (ipc_body->probe_param.res_percent_upper > 0 && swap_util > ipc_body->probe_param.res_percent_upper) {
         evt.metrics = "swap_util";
         report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
@@ -106,7 +130,7 @@ static void report_meminfo_status(struct probe_params *params, double mem_util, 
     }
 }
 
-static void output_info(struct probe_params *params)
+static void output_meminfo(struct ipc_body_s *ipc_body)
 {
     //  v3.2.8 used = total - free; v3.3.10 used = total - free - cache - buffers; cur_ver=v5.10
     // alculate memusage
@@ -121,9 +145,10 @@ static void output_info(struct probe_params *params)
         swap_usage = (double)((meminfo_fields[SWAP_TOTAL].value - \
 				meminfo_fields[SWAP_FREE].value)) / meminfo_fields[SWAP_TOTAL].value * 100.0;
     }
-    report_meminfo_status(params, mem_usage, swap_usage);
+    report_meminfo_status(ipc_body, mem_usage, swap_usage);
     // report data
-    (void)nprobe_fprintf(stdout, "|%s|%s|%llu|%llu|%llu|%.2f|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|\n",
+    (void)nprobe_fprintf(stdout, "|%s|%s|%llu|%llu|%llu|%.2f|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|\
+        %llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|\n",
         METRICS_MEMINFO_NAME,
         METRICS_MEMINFO_PATH,
         meminfo_fields[MEM_TOTAL].value,
@@ -136,11 +161,24 @@ static void output_info(struct probe_params *params)
         meminfo_fields[INACTIVE].value,
         meminfo_fields[SWAP_TOTAL].value,
         meminfo_fields[SWAP_FREE].value,
-        swap_usage);
+        swap_usage,
+        meminfo_fields[SLAB].value,
+        meminfo_fields[S_RECLAIMABLE].value,
+        meminfo_fields[S_UNRECLAIM].value,
+        meminfo_fields[PAGE_TABLES].value,
+        meminfo_fields[VMALLOC_USED].value,
+        meminfo_fields[KERNEL_STACK].value,
+        meminfo_fields[ACTIVE_ANON].value,
+        meminfo_fields[INACTIVE_ANON].value,
+        meminfo_fields[ACTIVE_FILE].value,
+        meminfo_fields[INACTIVE_FILE].value,
+        meminfo_fields[MLOCKED].value,
+        meminfo_fields[HUGEPAGES_TOTAL].value * meminfo_fields[HUGEPAGE_SIZE].value,
+        meminfo_fields[SHMEM].value);
 }
 
-// probes
-int system_meminfo_probe(struct probe_params *params)
+// /proc/meminfo
+static int get_meminfo(struct ipc_body_s *ipc_body)
 {
     FILE* f = NULL;
     char line[LINE_BUF_LEN];
@@ -166,9 +204,62 @@ int system_meminfo_probe(struct probe_params *params)
             break;
         }
     }
-	
+    ret = update_total_vmalloc(&meminfo_fields[VMALLOC_USED].value);
+    if (ret < 0) {
+        (void)fclose(f);
+        return -1;
+    }
+    output_meminfo(ipc_body);
+
     (void)fclose(f);
-    
-    output_info(params);
     return 0;
+}
+
+// fs.dentry-state
+#define DENTRY_STATE_VALID_FIELD_NUM    3
+static int get_dentry_state(void)
+{
+    FILE *f = NULL;
+    char line[LINE_BUF_LEN];
+
+    f = popen(SYSTEM_FS_DENTRY_STATE, "r");
+    if (f == NULL) {
+        return -1;
+    }
+    line[0] = 0;
+    if (fgets(line, LINE_BUF_LEN, f) == NULL) {
+        pclose(f);
+        return -1;
+    }
+    SPLIT_NEWLINE_SYMBOL(line);
+    int ret = sscanf(line, "%d %d %d %*d %*d %*d",
+        &dentry_state.dentry, &dentry_state.unused, &dentry_state.age_limit);
+    if (ret < DENTRY_STATE_VALID_FIELD_NUM) {
+        DEBUG("[SYSTEM_PROBE] get dentry_state fields fail.\n");
+        pclose(f);
+        return -1;
+    }
+    // report data
+    (void)nprobe_fprintf(stdout, "|%s|%s|%d|%d|%d|\n",
+        METRTCS_DENTRY_NAME,
+        METRICS_DENTRY_ORIGIN,
+        dentry_state.dentry,
+        dentry_state.unused,
+        dentry_state.age_limit);
+
+    pclose(f);
+    return 0;
+}
+
+// probes
+int system_meminfo_probe(struct ipc_body_s *ipc_body)
+{
+    if (get_meminfo(ipc_body) < 0) {
+        ERROR("[SYSTEM_PROBE] failed to collect proc meminfo.\n");
+        return -1;
+    }
+    if (get_dentry_state() < 0) {
+        ERROR("[SYSTEM_PROBE] failed to collect fs dentry_state.\n");
+        return -1;
+    }
 }

@@ -19,6 +19,7 @@
 
 #include <uthash.h>
 #include "common.h"
+#include "ipc.h"
 
 #define PROC_NAME_MAX       64
 #define PROC_MAX_RANGE      64
@@ -39,12 +40,20 @@ enum proc_io_e {
 };
 
 enum proc_stat_e {
-    PROC_STAT_MIN_FLT = 0,
-    PROC_STAT_MAJ_FLT,
-    PROC_STAT_UTIME,
+    PROC_STAT_MIN_FLT = 10,
+    PROC_STAT_MAJ_FLT = 12,
+    PROC_STAT_UTIME = 14,
     PROC_STAT_STIME,
+    PROC_STAT_CUTIME,
+    PROC_STAT_CSTIME,
+    PROC_STAT_PRIORITY,
+    PROC_STAT_NICE,
+    PROC_STAT_NUM_THREADS,
+    PROC_STAT_STARTTIME = 22,
     PROC_STAT_VSIZE,
     PROC_STAT_RSS,
+    PROC_STAT_CPU = 39,
+    PROC_STAT_GUEST_TIME = 43,
 
     PROC_STAT_MAX
 };
@@ -70,31 +79,38 @@ typedef struct {
     char comm[PROC_NAME_MAX];
     int pgid;
     int ppid;
-    char cmdline[PROC_CMDLINE_LEN];
-    u32 fd_count;              // FROM '/usr/bin/ls -l /proc/[PID]/fd | wc -l'
-    u32 max_fd_limit;          // FROM 'cat /proc/[PID]/limits | grep -w "MAX open files"'
-    u32 proc_syscr_count;      // FROM same as 'task_rchar_bytes'
-    u32 proc_syscw_count;      // FROM same as 'task_rchar_bytes'
-    u64 proc_rchar_bytes;    // FROM '/proc/[PID]/io'
-    u64 proc_wchar_bytes;    // FROM same as 'task_rchar_bytes'
-    u64 proc_read_bytes;     // FROM same as 'task_rchar_bytes'
-    u64 proc_write_bytes;    // FROM same as 'task_rchar_bytes'
-    u64 proc_cancelled_write_bytes;  // FROM same as 'task_rchar_bytes'
-    u32 proc_oom_score_adj;    // FROM tracepoint 'oom_score_adj_update'
-    u32 proc_shared_dirty;    // FROM '/usr/bin/cat /proc/%s/smaps_rollup'
-    u32 proc_shared_clean;    // FROM same as proc_shared_dirty
-    u32 proc_private_dirty;   // FROM same as proc_shared_dirty
-    u32 proc_private_clean;   // FROM same as proc_shared_dirty
-    u32 proc_referenced;      // FROM same as proc_shared_dirty
-    u32 proc_lazyfree;        // FROM same as proc_shared_dirty
-    u32 proc_swap;            // FROM same as proc_shared_dirty
-    u32 proc_swappss;         // FROM same as proc_shared_dirty
-    u64 proc_stat_min_flt;   // FROME '/usr/bin/cat /proc/%s/stat'
-    u64 proc_stat_maj_flt;   // FROM same as proc_stat_min_flt
-    u64 proc_stat_utime;     // FROM same as proc_stat_min_flt
-    u64 proc_stat_stime;     // FROM same as proc_stat_min_flt
-    u64 proc_stat_vsize;     // FROM same as proc_stat_min_flt
-    u64 proc_stat_rss;       // FROM same as proc_stat_min_flt
+    u64 proc_start_time;                // FROM same as proc_stat_min_flt
+    u32 fd_count;                       // FROM '/usr/bin/ls -l /proc/[PID]/fd | wc -l'
+    u32 max_fd_limit;                   // FROM 'cat /proc/[PID]/limits | grep -w "MAX open files"'
+    u32 proc_syscr_count;               // FROM same as 'task_rchar_bytes'
+    u32 proc_syscw_count;               // FROM same as 'task_rchar_bytes'
+    u64 proc_rchar_bytes;               // FROM '/proc/[PID]/io'
+    u64 proc_wchar_bytes;               // FROM same as 'task_rchar_bytes'
+    u64 proc_read_bytes;                // FROM same as 'task_rchar_bytes'
+    u64 proc_write_bytes;               // FROM same as 'task_rchar_bytes'
+    u64 proc_cancelled_write_bytes;     // FROM same as 'task_rchar_bytes'
+    u32 proc_oom_score_adj;             // FROM tracepoint 'oom_score_adj_update'
+    u32 proc_shared_dirty;              // FROM '/usr/bin/cat /proc/%s/smaps_rollup'
+    u32 proc_shared_clean;              // FROM same as proc_shared_dirty
+    u32 proc_private_dirty;             // FROM same as proc_shared_dirty
+    u32 proc_private_clean;             // FROM same as proc_shared_dirty
+    u32 proc_referenced;                // FROM same as proc_shared_dirty
+    u32 proc_lazyfree;                  // FROM same as proc_shared_dirty
+    u32 proc_swap;                      // FROM same as proc_shared_dirty
+    u32 proc_swappss;                   // FROM same as proc_shared_dirty
+    u64 proc_stat_min_flt;              // FROME '/usr/bin/cat /proc/%s/stat'
+    u64 proc_stat_maj_flt;              // FROM same as proc_stat_min_flt
+    u64 proc_stat_utime;                // FROM same as proc_stat_min_flt
+    u64 proc_stat_stime;                // FROM same as proc_stat_min_flt
+    u64 proc_stat_cutime;               // FROM same as proc_stat_min_flt
+    u64 proc_stat_cstime;               // FROM same as proc_stat_min_flt
+    u64 proc_stat_priority;             // FROM same as proc_stat_min_flt
+    u64 proc_stat_nice;                 // FROM same as proc_stat_min_flt
+    u64 proc_stat_num_threads;          // FROM same as proc_stat_min_flt
+    u64 proc_stat_vsize;                // FROM same as proc_stat_min_flt
+    u64 proc_stat_rss;                  // FROM same as proc_stat_min_flt
+    u64 proc_stat_cpu;                  // FROM same as proc_stat_min_flt
+    u64 proc_stat_guest_time;           // FROM same as proc_stat_min_flt
 } proc_info_t;
 
 typedef struct {
@@ -104,8 +120,7 @@ typedef struct {
     UT_hash_handle hh;
 } proc_hash_t;
 
-int system_proc_probe(void);
-void system_proc_init(char *task_whitelist);
-void system_proc_destroy(void);
+int system_proc_probe(struct ipc_body_s *ipc_body);
+int refresh_proc_filter_map(struct ipc_body_s *ipc_body);
 
 #endif

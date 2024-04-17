@@ -161,8 +161,8 @@ static void TestIMDB_TableAddRecord(void)
 
     ret = IMDB_TableAddRecord(table, record);
     CU_ASSERT(ret == 0);
-    CU_ASSERT(HASH_recordCount(table->records) == 1);
-    CU_ASSERT(HASH_findRecord(table->records, record) == record);
+    CU_ASSERT(HASH_recordCount((const IMDB_Record **)table->records) == 1);
+    CU_ASSERT(HASH_findRecord((const IMDB_Record **)table->records, record) == record);
 
     IMDB_TableDestroy(table);
 }
@@ -306,7 +306,7 @@ static void TestIMDB_DataBaseMgrData2String(void)
     ret = IMDB_DataBase2Prometheus(mgr, buffer, 2048, &buf_len);
     CU_ASSERT(ret >= 0);
     printf("DatabaseMgr2String: \n");
-    printf(buffer);
+    printf("%s", buffer);
 
     IMDB_DataBaseMgrDestroy(mgr);
 }
@@ -350,8 +350,8 @@ static void TestHASH_addRecord(void)
     CU_ASSERT(ret == 0);
 
     HASH_addRecord(records, record);
-    CU_ASSERT(HASH_recordCount(records) == 1);
-    CU_ASSERT(HASH_findRecord(records, another_record) == record);
+    CU_ASSERT(HASH_recordCount((const IMDB_Record **)records) == 1);
+    CU_ASSERT(HASH_findRecord((const IMDB_Record **)records, another_record) == record);
 
     IMDB_RecordDestroy(another_record);
     HASH_deleteAndFreeRecords(records);
@@ -376,16 +376,16 @@ static void TestHASH_deleteRecord(void)
     CU_ASSERT(ret == 0);
 
     HASH_addRecord(records, record);
-    CU_ASSERT(HASH_recordCount(records) == 1);
+    CU_ASSERT(HASH_recordCount((const IMDB_Record **)records) == 1);
 
     HASH_addRecord(records, another_record);
-    CU_ASSERT(HASH_recordCount(records) == 2);
+    CU_ASSERT(HASH_recordCount((const IMDB_Record **)records) == 2);
 
     HASH_deleteRecord(records, record);
-    CU_ASSERT(HASH_recordCount(records) == 1);
+    CU_ASSERT(HASH_recordCount((const IMDB_Record **)records) == 1);
 
     HASH_deleteRecord(records, another_record);
-    CU_ASSERT(HASH_recordCount(records) == 0);
+    CU_ASSERT(HASH_recordCount((const IMDB_Record **)records) == 0);
 
     IMDB_RecordDestroy(record);
     IMDB_RecordDestroy(another_record);

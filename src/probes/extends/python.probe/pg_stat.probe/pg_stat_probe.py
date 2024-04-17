@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import sys
 import time
 import signal
@@ -13,24 +14,47 @@ SELECT_PG_STAT_DATABASE = "select * from pg_stat_database where datname NOT IN (
 g_metric = dict()
 g_servers = []
 g_period = 5
+g_chroot = ""
+
+
+def set_chroot():
+    global g_chroot
+    host_path = os.getenv('GOPHER_HOST_PATH')
+    if  host_path is not None:
+        g_chroot = "/usr/sbin/chroot " + host_path
 
 
 def get_tgid(port):
+    global g_chroot
+    tgid_num = 0
+
     # for host process
     command = "netstat -natp | grep LISTEN | grep gaussdb | grep %s | \
         awk -F ' ' 'NR ==1{print $7}' | awk -F '/' '{print $1}'" % (port)
     p = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
     (rawout, serr) = p.communicate(timeout=5)
     if len(rawout) != 0:
-        return rawout.rstrip().decode()
+        tgid_num = int(rawout.rstrip().decode())
+        if tgid_num != 0:
+            return tgid_num
 
     # for docker process
-    command = "docker ps -q | xargs  docker inspect --format='{{.State.Pid}}, {{range $p, $conf := \
-        .HostConfig.PortBindings}}{{$p}}{{end}}' | grep -w %s | awk -F ', ' 'NR ==1{print $1}'" % port
+    command = "%s docker ps -q | xargs %s docker inspect --format='{{.State.Pid}}, {{range $p, $conf := \
+        .HostConfig.PortBindings}}{{$p}}{{end}}' | grep -w %s | awk -F ', ' 'NR ==1{print $1}'" \
+         % (g_chroot, g_chroot, port)
     p = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
     (rawout, serr) = p.communicate(timeout=5)
     if len(rawout) != 0:
-        return rawout.rstrip().decode()
+        tgid_num = int(rawout.rstrip().decode())
+
+    if tgid_num == 0:
+        command = "%s docker ps -q | xargs %s docker inspect --format='{{.State.Pid}}, {{range $p, $conf := \
+            .Config.ExposedPorts}}{{$p}}{{end}}' | grep -w %s | awk -F ', ' 'NR ==1{print $1}'" \
+            % (g_chroot, g_chroot, port)
+        p = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
+        (rawout, serr) = p.communicate(timeout=5)
+        tgid_num = int(rawout.rstrip().decode())
+        return tgid_num
     return 0
 
 
@@ -56,7 +80,6 @@ def init_conns():
                 % (ip, port))
             cursor = conn.cursor()
             tgid = get_tgid(port)
-            tgid_num = int(tgid)
             g_servers.append(Connection(ip, port, tgid, conn, cursor))
 
 
@@ -73,7 +96,7 @@ def get_metrics():
             numbackends
             xact_commit
             '''
-            metric_key = server.tgid + '|' + str(line[0])
+            metric_key = str(server.tgid) + '|' + str(line[0])
             metric_new_value = int(line[3])
             if metric_key in g_metric:
                 metric_str = "|pg_tps|%s|POSTGRE|0|%s|%s|%s|" % (metric_key, server.ip, server.port, line[1])
@@ -107,6 +130,8 @@ class Connection(object):
 
 def init_param():
     global g_period
+    global g_chroot
+    set_chroot()
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "-d:")
     for opt, arg in opts:

@@ -1,3 +1,7 @@
+# force BPF programs to use CO-RE helpers regardless of whether kernel BTF is
+# present in the build environment
+BTF_ENABLE_OVERRIDE := ON
+
 include ../mk/var.mk
 
 APP := kafkaprobe
@@ -27,7 +31,7 @@ $(APP): $(SRC_C) $(OBJ_CPLUS)
 	$(CC) $(CFLAGS) $(BASE_INC) $(LDFLAGS) $(LINK_TARGET) -o $@ $^
 
 $(OBJ_KERN): $(BPF_C) 
-	$(CLANG) $(CFLAGS) $(BPF_CFLAGS) $(BASE_INC) -c $(filter %.c,$^) -o $@
+	$(CLANG) $(CLANGFLAGS) $(BPF_CFLAGS) $(BASE_INC) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@
 
 clean:

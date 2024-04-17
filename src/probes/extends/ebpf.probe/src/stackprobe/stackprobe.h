@@ -22,13 +22,16 @@
 #include "svg.h"
 #include "stack.h"
 
-#define STACKPROBE_CONF_PATH_DEFAULT "/etc/gala-gopher/extend_probes/stackprobe.conf"
 #define BPF_FUNC_NAME_LEN 32
 #define APP_SUFFIX_LEN 64
+#define MEM_SEC_NUM 5
+#define JSTACK_AGENT_FILE       "JstackProbeAgent.jar"
 
 struct stack_symbs_s {
     struct addr_symb_s user_stack_symbs[PERF_MAX_STACK_DEPTH];
     struct addr_symb_s kern_stack_symbs[PERF_MAX_STACK_DEPTH];
+    u32 py_stack_len;
+    struct py_symbol py_stack_symbols[MAX_PYTHON_STACK_DEPTH_MAX];
     struct stack_pid_s pid;
 };
 
@@ -38,12 +41,26 @@ struct raw_stack_trace_s {
     struct raw_trace_s raw_traces[];
 };
 
+struct py_stack_trace_s {
+    u32 size;
+    u32 len;
+    struct py_stack py_traces[];
+};
+
 #define __FUNC_NAME_LEN     64
 #define STACK_SYMBS_LEN     (2 * (PERF_MAX_STACK_DEPTH * __FUNC_NAME_LEN))  // KERN + USER
+
 struct stack_trace_histo_s {
     H_HANDLE;
     char stack_symbs_str[STACK_SYMBS_LEN];
     u64 count;
+};
+
+struct proc_stack_trace_histo_s {
+    H_HANDLE;
+    int proc_id;
+    enum proc_stack_type_e proc_stack_type;
+    struct stack_trace_histo_s *histo_tbl;
 };
 
 struct proc_cache_s {
@@ -91,35 +108,47 @@ struct stack_param_s {
 struct svg_stack_trace_s {
     int bpf_prog_fd;
     struct bpf_object *obj;
+    struct bpf_link *links[MEM_SEC_NUM];
+    const char *custom_btf_path;
+    pthread_t wr_flame_thd;
 
-    int stackmap_perf_a_fd;
-    int stackmap_perf_b_fd;
-    struct perf_buffer* pb_a;
-    struct perf_buffer* pb_b;
+    struct bpf_buffer *perf_buff_a;
+    struct bpf_buffer *perf_buff_b;
+
     struct raw_stack_trace_s *raw_stack_trace_a;
     struct raw_stack_trace_s *raw_stack_trace_b;
+    struct py_stack_trace_s *py_stack_trace_a;
+    struct py_stack_trace_s *py_stack_trace_b;
 
     struct stack_svg_mng_s *svg_mng;
-    struct stack_trace_histo_s *histo_tbl;
+    struct proc_stack_trace_histo_s *proc_histo_tbl;
 };
 
 struct post_server_s {
     char post_enable;
+    char multi_instance_flag;
+    u32 perf_sample_period; // ms
     long timeout; // sec
     char host[PATH_LEN];
     char app_suffix[APP_SUFFIX_LEN];
-    time_t last_post_ts;
 };
 
 struct stack_trace_s {
     char pad[3];
     char is_stackmap_a;
+    char multi_instance_flag;
+    char native_stack_flag;
     int cpus_num;
     u32 whitelist_enable;
     int convert_map_fd;
     int proc_obj_map_fd;
     int stackmap_a_fd;
     int stackmap_b_fd;
+    int py_proc_map_fd;
+    int py_symbols_map_fd;
+    int py_symbol_ids_map_fd;
+    int py_sample_heap_map_fd;
+    int offcpu_start_fd;
     u64 convert_stack_count;
     time_t running_times;
     struct post_server_s post_server;
@@ -141,6 +170,7 @@ struct stack_trace_s {
     int pmu_fd[];   // It must be put to the last.
 };
 
-void iter_histo_tbl(struct stack_svg_mng_s *svg_mng, int en_type, int *first_flag, struct post_info_s *post_info);
+void iter_histo_tbl(struct proc_stack_trace_histo_s *proc_histo, struct post_server_s *post_server,
+    struct stack_svg_mng_s *svg_mng, int en_type);
 
 #endif

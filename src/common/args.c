@@ -26,9 +26,10 @@
 #define MAX_PORT_NUM            65535
 #define FILTER_BY_TASKPROBE    "task"
 
-static void __set_default_params(struct probe_params *params)
+
+static void __set_default_params(struct probe_params_deprecated *params)
 {
-    (void)memset(params, 0, sizeof(struct probe_params));
+    (void)memset(params, 0, sizeof(struct probe_params_deprecated));
     params->period = DEFAULT_PERIOD;
     params->sample_period = DEFAULT_SAMPLE_PERIOD;
     params->load_probe = DEFAULT_LOAD_PROBE;
@@ -37,7 +38,7 @@ static void __set_default_params(struct probe_params *params)
     params->env_flags = SUPPORT_NODE_ENV;    // Support for node environment(include guest/host os)
 }
 
-static void __parse_host_ip_fields(char *ip_str, struct probe_params *params)
+static void __parse_host_ip_fields(char *ip_str, struct probe_params_deprecated *params)
 {
     char *p = NULL;
     int index = 0;
@@ -51,7 +52,7 @@ static void __parse_host_ip_fields(char *ip_str, struct probe_params *params)
         if (index >= MAX_IP_NUM) {
             break;
         }
-        (void)strncpy((char *)params->host_ip_list[index++], p, MAX_IP_LEN - 1);
+        (void)snprintf((char *)params->host_ip_list[index++], MAX_IP_LEN, "%s", p);
         p = strtok(NULL, ",");
     }
     return;
@@ -68,7 +69,7 @@ static char __is_digit_str(const char *s)
     return 1;
 }
 
-static void __filter_arg_parse(char *arg, struct probe_params *params)
+static void __filter_arg_parse(char *arg, struct probe_params_deprecated *params)
 {
     if (strcmp(arg, FILTER_BY_TASKPROBE) == 0) {
         params->filter_task_probe = 1;
@@ -86,9 +87,10 @@ static void __filter_arg_parse(char *arg, struct probe_params *params)
 }
 
 // gala-gopher.conf only support one arg, used set out put period
-static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
+static int __period_arg_parse(char opt, char *arg, struct probe_params_deprecated *params)
 {
-    unsigned int interval, cport_flag, param_val;
+    unsigned int interval;
+    unsigned int param_val;
 
     switch (opt) {
         case 't':
@@ -113,14 +115,6 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
                 (void)snprintf((void *)params->task_whitelist, MAX_PATH_LEN, "%s", arg);
             }
             break;
-        case 'c':
-            cport_flag = (unsigned int)atoi(arg);
-            if (cport_flag != 0 && cport_flag != 1) {
-                ERROR("Please check arg(t), val shold be 1:cport_valid 0:cport_invalid.\n");
-                return -1;
-            }
-            params->cport_flag = (unsigned char)cport_flag;
-            break;
         case 'T':
             params->latency_thr = (unsigned int)atoi(arg);
             break;
@@ -135,11 +129,13 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
             break;
         case 'U':
             params->res_percent_upper = (char)atoi(arg);
+            break;
         case 'e':
             params->env_flags = (char)atoi(arg);
             if (params->env_flags == 0) {
                 params->env_flags = SUPPORT_NODE_ENV;
             }
+            break;
         case 'm':
             params->metrics_flags = (char)atoi(arg);
             if (params->metrics_flags == 0) {
@@ -189,6 +185,9 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
                 (void)snprintf(params->tgids, sizeof(params->tgids), "%s", arg);
             }
             break;
+        case 'A':
+            params->enable_all_thrds = 1;
+            break;
         default:
             return -1;
     }
@@ -196,7 +195,7 @@ static int __period_arg_parse(char opt, char *arg, struct probe_params *params)
     return 0;
 }
 
-static int __args_parse(int argc, char **argv, char *opt_str, struct probe_params *params)
+static int __args_parse(int argc, char **argv, char *opt_str, struct probe_params_deprecated *params)
 {
     int ch = -1;
 
@@ -212,7 +211,7 @@ static int __args_parse(int argc, char **argv, char *opt_str, struct probe_param
     return 0;
 }
 
-int args_parse(int argc, char **argv, struct probe_params *params)
+int args_parse(int argc, char **argv, struct probe_params_deprecated *params)
 {
     __set_default_params(params);
 
@@ -237,13 +236,13 @@ static void __params_val_parse(char *p, char params_val[], size_t params_len)
   -p val -c val2
 */
 #define ARGS_SPILT_STRING   " -"
-int params_parse(char *s, struct probe_params *params)
+int params_parse(char *s, struct probe_params_deprecated *params)
 {
     char opt;
     char params_val[MAX_PARAM_LEN];
     char temp[MAX_PARAM_LEN];
-    int slen = strlen(s);
-    int split_len = strlen(ARGS_SPILT_STRING);
+    size_t slen = strlen(s);
+    size_t split_len = strlen(ARGS_SPILT_STRING);
     int i, j, start;
 
     __set_default_params(params);
@@ -258,7 +257,7 @@ int params_parse(char *s, struct probe_params *params)
     for (j = start; j <= slen; j++) {
         if ((strncmp(s + j, ARGS_SPILT_STRING, split_len) == 0) || (s[j] == '\0')) {
             (void)memset(temp, 0, MAX_PARAM_LEN);
-            (void)strncpy(temp, s + start, j - start);
+            (void)snprintf(temp, j - start, "%s", s + start);
             start = j + split_len;
 
             opt = temp[0];
@@ -271,4 +270,3 @@ int params_parse(char *s, struct probe_params *params)
     }
     return 0;
 }
-

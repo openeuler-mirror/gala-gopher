@@ -25,6 +25,8 @@
 
 #include "tcpprobe.h"
 
+#define HIST_SAMPLE_PERIOD NS(1)
+
 #define __TCP_LINK_MAX (10 * 1024)
 // Used to identifies the TCP link(including multiple establish tcp connection)
 // and save TCP statistics.
@@ -55,14 +57,22 @@ struct {
 } args_map SEC(".maps");
 
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 64);
 } tcp_output SEC(".maps");
 
+#define __TCP_FD_MAX (50)
+// Used to identifies the TCP pid and fd.
+// Temporary MAP. Data exists only in the startup phase.
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(u32)); // tgid
+    __uint(value_size, sizeof(struct tcp_fd_info));
+    __uint(max_entries, __TCP_FD_MAX);
+} tcp_fd_map SEC(".maps");
+
 #define __PERIOD    NS(30)
-static __always_inline __maybe_unused u64 get_period()
+static __always_inline __maybe_unused u64 get_period(void)
 {
     u32 key = 0;
     u64 period = __PERIOD;
@@ -70,7 +80,7 @@ static __always_inline __maybe_unused u64 get_period()
 
     args = (struct tcp_args_s *)bpf_map_lookup_elem(&args_map, &key);
     if (args) {
-        period = args->period;
+        period = args->sample_period;
     }
     return period; // units from second to nanosecond
 }
@@ -81,48 +91,20 @@ static __always_inline __maybe_unused int is_gopher_comm(void)
 
     (void)bpf_get_current_comm(&comm, sizeof(comm));
 
+    // TODO: need to modify when we drop libmicrohttpd
     if (comm[0] == 'M' && comm[1] == 'H' && comm[2] == 'D' && comm[3] == '-') {
         return 1;
     }
     return 0;
 }
 
-static __always_inline __maybe_unused u16 get_cport_flag()
-{
-    u32 key = 0;
-    u16 cport_flag = 0; // default: invalid
-    struct tcp_args_s *args;
-
-    args = (struct tcp_args_s *)bpf_map_lookup_elem(&args_map, &key);
-    if (args)
-        cport_flag = (u16)args->cport_flag;
-
-    return cport_flag;
-}
-
 static __always_inline __maybe_unused char is_valid_tgid(u32 tgid)
 {
-    u32 key = 0;
-    struct tcp_args_s *args;
+    struct proc_s obj = {.proc_id = tgid};
 
-    args = (struct tcp_args_s *)bpf_map_lookup_elem(&args_map, &key);
-    if (args && args->filter_by_task) {
-        struct proc_s obj = {.proc_id = tgid};
-        return is_proc_exist(&obj);
-    }
-
-    if (args && args->filter_by_tgid) {
-        return (args->filter_by_tgid == tgid);
-    }
-
-    return 1;
+    return is_proc_exist(&obj);
 }
 
-#define REPORT_START_DELAY_2    2
-#define REPORT_START_DELAY_4    4
-#define REPORT_START_DELAY_6    6
-#define REPORT_START_DELAY_8    8
-#define REPORT_START_DELAY_10   10
 static __always_inline __maybe_unused int create_tcp_link(struct sock *sk, struct tcp_link_s *link, u32 syn_srtt)
 {
     struct sock_stats_s sock_stats = {0};
@@ -131,11 +113,11 @@ static __always_inline __maybe_unused int create_tcp_link(struct sock *sk, struc
     __builtin_memcpy(&(sock_stats.metrics.link), link, sizeof(struct tcp_link_s));
     u64 ts = bpf_ktime_get_ns();
     sock_stats.ts_stats.abn_ts = ts;
-    sock_stats.ts_stats.win_ts = ts + NS(REPORT_START_DELAY_2);
-    sock_stats.ts_stats.rtt_ts = ts + NS(REPORT_START_DELAY_4);
-    sock_stats.ts_stats.txrx_ts = ts + NS(REPORT_START_DELAY_6);
-    sock_stats.ts_stats.sockbuf_ts = ts + NS(REPORT_START_DELAY_8);
-    sock_stats.ts_stats.rate_ts = ts + NS(REPORT_START_DELAY_10);
+    sock_stats.ts_stats.win_ts = ts;
+    sock_stats.ts_stats.rtt_ts = ts;
+    sock_stats.ts_stats.txrx_ts = ts;
+    sock_stats.ts_stats.sockbuf_ts = ts;
+    sock_stats.ts_stats.rate_ts = ts;
 
     return bpf_map_update_elem(&tcp_link_map, &sk, &sock_stats, BPF_ANY);
 }
@@ -145,7 +127,7 @@ static __always_inline __maybe_unused int delete_tcp_link(struct sock *sk)
     return bpf_map_delete_elem(&tcp_link_map, &sk);
 }
 
-static __always_inline __maybe_unused struct tcp_metrics_s *get_tcp_metrics(struct sock *sk) 
+static __always_inline __maybe_unused struct tcp_metrics_s *get_tcp_metrics(struct sock *sk)
 {
     struct sock_stats_s *sock_stats;
 

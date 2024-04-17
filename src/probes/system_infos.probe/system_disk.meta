@@ -75,6 +75,11 @@ measurements:
                 name: "MountOn",
             },
             {
+                description: "Mount status",
+                type: "label",
+                name: "MountStatus",
+            },
+            {
                 description: "File System Name",
                 type: "label",
                 name: "Fsname",

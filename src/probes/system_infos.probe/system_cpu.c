@@ -27,6 +27,7 @@
 #define ENTITY_NAME                 "cpu"
 #define SYSTEM_PROCESSOR_INFO       "cat /proc/softirqs | grep -E '\\sRCU:\\s|\\sTIMER:\\s|\\sSCHED:\\s|\\sNET_RX:\\s'"
 #define SYSTEM_PROC_STAT_PATH       "/proc/stat"
+#define SYSTEM_CPU_MHZ_INFO         "cat /proc/cpuinfo | grep MHz"
 #define SOFTNET_STAT_PATH           "/proc/net/softnet_stat"
 #define PROC_STAT_FILEDS_NUM        6
 #define PROC_STAT_COL_NUM           8
@@ -75,12 +76,11 @@ static void get_cpu_time_in_jiff(char *cpu_total_line, u64 *time_total, u64 *tim
     }
 }
 
-static void report_cpu_status(struct probe_params *params)
+static void report_cpu_status(struct ipc_body_s *ipc_body)
 {
     char entityId[INT_LEN];
     struct event_info_s evt = {0};
-
-    if (params->logs == 0) {
+    if (ipc_body->probe_param.logs == 0) {
         return;
     }
 
@@ -91,7 +91,7 @@ static void report_cpu_status(struct probe_params *params)
     evt.entityId = entityId;
     evt.metrics = "total_used_per";
 
-    if (params->res_percent_upper > 0 && util_per > params->res_percent_upper) {
+    if (ipc_body->probe_param.res_percent_upper > 0 && util_per > ipc_body->probe_param.res_percent_upper) {
         report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
                     "Too high cpu utilization(%.2f%%).",
@@ -99,21 +99,10 @@ static void report_cpu_status(struct probe_params *params)
     }
 }
 
-static void get_cpu_time(char *src, u64 *last_total, u64 *last_used, u64 *cur_total, u64 *cur_used)
-{
-    if (is_first_get == true) {
-        get_cpu_time_in_jiff(src, cur_total, cur_used);
-    } else {
-        *last_total = *cur_total;
-        *last_used = *cur_used;
-        get_cpu_time_in_jiff(src, cur_total, cur_used);
-    }
-}
-
 static float get_cpu_util(char *src, u64 *last_total, u64 *last_used, u64 *cur_total, u64 *cur_used)
 {
     float util;
-    get_cpu_time(src, last_total, last_used, cur_total, cur_used);
+    get_cpu_time_in_jiff(src, cur_total, cur_used);
 
     util = (*cur_used - *last_used) * FULL_PER * 1.0 / (*cur_total - *last_total);
 
@@ -140,10 +129,12 @@ static int get_proc_stat_info(void)
             fclose(f);
             return 0;
         }
-        strncpy(dst_line, line, strlen(line) + 1);
+        strncpy(dst_line, line, LINE_BUF_LEN - 1);
         if (is_first_line) {
-             util_per = get_cpu_util(dst_line, &last_time_total, &last_time_used,
-                                     &cur_time_total, &cur_time_used);
+            util_per = get_cpu_util(dst_line, &last_time_total, &last_time_used,
+                                    &cur_time_total, &cur_time_used);
+            last_time_total = cur_time_total;
+            last_time_used = cur_time_used;
             is_first_line = false;
             continue;
         }
@@ -238,8 +229,37 @@ static int get_softnet_stat_info(void)
         line[0] = 0;
         i++;
     }
-    
+
     (void)fclose(f);
+    return 0;
+}
+
+static int get_cpu_mhz_info(void)
+{
+    FILE *f = NULL;
+    char line[LINE_BUF_LEN];
+    char *token, *last_token;
+
+    f = popen(SYSTEM_CPU_MHZ_INFO, "r");
+    if (f == NULL) {
+        return -1;
+    }
+    int index = 0;
+    line[0] = 0;
+    while (fgets(line, LINE_BUF_LEN, f) != NULL) {
+        last_token = NULL;
+        token = strtok(line, ":");
+        while (token != NULL) {
+            last_token = token;
+            token = strtok(NULL, ":");
+        }
+        if (last_token != NULL && index < cpus_num) {
+            cur_cpus[index]->mhz = atof(last_token);
+            index++;
+        }
+    }
+
+    pclose(f);
     return 0;
 }
 
@@ -257,13 +277,17 @@ static int get_cpu_info(void)
         ERROR("[SYSTEM_PROBE] fail to collect softnet stat info\n");
         return -1;
     }
+    if (get_cpu_mhz_info() < 0) {
+        ERROR("[SYSTEM_PROBE] fail to collect cpu mhz info\n");
+        return -1;
+    }
     return 0;
 }
 
 static struct cpu_stat **alloc_memory(void)
 {
     struct cpu_stat **cpus = NULL;
-    
+
     cpus = (struct cpu_stat **)malloc(cpus_num * sizeof(struct cpu_stat *));
     if (cpus == NULL) {
         return NULL;
@@ -334,7 +358,7 @@ void system_cpu_destroy(void)
     old_cpus = NULL;
 }
 
-int system_cpu_probe(struct probe_params *params)
+int system_cpu_probe(struct ipc_body_s *ipc_body)
 {
     struct cpu_stat **tmp_pptr;
     struct cpu_stat *tmp_ptr;
@@ -350,9 +374,9 @@ int system_cpu_probe(struct probe_params *params)
         is_first_get = false;
         return 0;
     }
-    report_cpu_status(params);
+    report_cpu_status(ipc_body);
     for (size_t i = 0; i < cpus_num; i++) {
-        ret = nprobe_fprintf(stdout, "|%s|%d|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|\n",
+        ret = nprobe_fprintf(stdout, "|%s|%d|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|%.3f|\n",
             METRICS_CPU_NAME,
             cur_cpus[i]->cpu_num,
             cur_cpus[i]->rcu - old_cpus[i]->rcu,
@@ -377,7 +401,8 @@ int system_cpu_probe(struct probe_params *params)
                 jiffies_to_msecs(cur_cpus[i]->cpu_steal_total_second - old_cpus[i]->cpu_steal_total_second) : 0,
             cur_cpus[i]->backlog_drops - old_cpus[i]->backlog_drops,
             cur_cpus[i]->rps_count - old_cpus[i]->rps_count,
-            cur_cpus[i]->cpu_util_per);
+            cur_cpus[i]->cpu_util_per,
+            cur_cpus[i]->mhz);
         tmp_ptr = old_cpus[i];
         old_cpus[i] = cur_cpus[i];
         cur_cpus[i] = tmp_ptr;

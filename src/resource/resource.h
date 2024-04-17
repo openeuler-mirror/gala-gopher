@@ -25,17 +25,20 @@
 #include "config.h"
 #include "imdb.h"
 
-#include "probe.h"
-#include "extend_probe.h"
+#include "probe_mng.h"
 #include "meta.h"
 #include "fifo.h"
 
+#ifdef KAFKA_CHANNEL
 #include "kafka.h"
+#endif
 
 #include "ingress.h"
 #include "egress.h"
 
 #include "web_server.h"
+#include "rest_server.h"
+#include "http_server.h"
 
 #include "logs.h"
 
@@ -49,25 +52,29 @@ typedef struct {
     IMDB_DataBaseMgr *imdbMgr;
 
     // inner component
-    ProbeMgr *probeMgr;
-    ExtendProbeMgr *extendProbeMgr;
+    struct probe_mng_s *probe_mng;
 
     MeasurementMgr *mmMgr;
     FifoMgr *fifoMgr;
 
+#ifdef KAFKA_CHANNEL
     // outer component
     KafkaMgr *metric_kafkaMgr;  // output metric's data
 
     KafkaMgr *meta_kafkaMgr;    // output metadata
 
     KafkaMgr *event_kafkaMgr;   // output abnormal event
+#endif
 
     // thread handler
     IngressMgr *ingressMgr;
     EgressMgr *egressMgr;
 
-    // web server
-    WebServer *webServer;
+    // web server(libevent)
+    http_server_mgr_s *web_server_mgr;
+
+    // rest api server(libevent)
+    http_server_mgr_s *rest_server_mgr;
 
     // logs
     LogsMgr *logsMgr;

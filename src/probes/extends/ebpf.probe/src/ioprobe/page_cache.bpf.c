@@ -25,14 +25,9 @@
 
 char g_linsence[] SEC("license") = "GPL";
 
-#ifndef __PERF_OUT_MAX
-#define __PERF_OUT_MAX (64)
-#endif
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(u32));
-    __uint(value_size, sizeof(u32));
-    __uint(max_entries, __PERF_OUT_MAX);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 64);
 } page_cache_channel_map SEC(".maps");
 
 #define __PAGECACHE_ENTRIES_MAX (100)
@@ -105,11 +100,10 @@ static __always_inline struct pagecache_stats_s *get_page_cache(struct pagecache
 static __always_inline void report_page_cache(void *ctx, struct pagecache_stats_s* page_cache)
 {
     if (is_report_tmout(&(page_cache->page_cache_ts))) {
-        (void)bpf_perf_event_output(ctx,
-                                    &page_cache_channel_map,
-                                    BPF_F_ALL_CPU,
-                                    page_cache,
-                                    sizeof(struct pagecache_stats_s));
+        (void)bpfbuf_output(ctx,
+                            &page_cache_channel_map,
+                            page_cache,
+                            sizeof(struct pagecache_stats_s));
         page_cache->access_pagecache = 0;
         page_cache->mark_buffer_dirty = 0;
         page_cache->load_page_cache = 0;
@@ -117,6 +111,26 @@ static __always_inline void report_page_cache(void *ctx, struct pagecache_stats_
         page_cache->page_cache_ts.ts = 0;
     }
 }
+
+static __always_inline void report_page_dirty(void *ctx, struct page *page)
+{
+    struct pagecache_entity_s pagecache_entity;
+    struct pagecache_stats_s *page_cache_stats;
+
+    if (buffer_head_to_blk(page_to_buffer_head(page), &pagecache_entity.major, &pagecache_entity.first_minor)) {
+        return;
+    }
+
+    page_cache_stats = get_page_cache(&pagecache_entity);
+    if (!page_cache_stats) {
+        return;
+    }
+
+    __sync_fetch_and_add(&(page_cache_stats->mark_page_dirty), 1);
+    report_page_cache(ctx, page_cache_stats);
+    return;
+}
+
 
 KPROBE(mark_page_accessed, pt_regs)
 {
@@ -181,22 +195,19 @@ KPROBE(add_to_page_cache_lru, pt_regs)
     return 0;
 }
 
+KPROBE(folio_account_dirtied, pt_regs)
+{
+    struct folio *folio = (struct folio *)PT_REGS_PARM1(ctx);
+    struct page *page = &folio->page;
+
+    report_page_dirty(ctx, page);
+    return 0;
+}
+
 KPROBE(account_page_dirtied, pt_regs)
 {
-    struct pagecache_entity_s pagecache_entity;
-    struct pagecache_stats_s *page_cache_stats;
     struct page *page = (struct page *)PT_REGS_PARM1(ctx);
 
-    if (buffer_head_to_blk(page_to_buffer_head(page), &pagecache_entity.major, &pagecache_entity.first_minor)) {
-        return 0;
-    }
-
-    page_cache_stats = get_page_cache(&pagecache_entity);
-    if (!page_cache_stats) {
-        return 0;
-    }
-
-    __sync_fetch_and_add(&(page_cache_stats->mark_page_dirty), 1);
-    report_page_cache(ctx, page_cache_stats);
+    report_page_dirty(ctx, page);
     return 0;
 }

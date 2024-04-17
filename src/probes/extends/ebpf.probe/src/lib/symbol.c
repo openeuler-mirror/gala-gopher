@@ -31,8 +31,8 @@
 #include "debug_elf_reader.h"
 #include "elf_symb.h"
 #include "container.h"
-#include "symbol.h"
 #include "java_support.h"
+#include "symbol.h"
 
 #ifdef symbs
 #undef symbs
@@ -62,7 +62,7 @@ enum symbol_err_e {
 };
 #define __UNKNOW_NAME     "Unknow"
 
-#ifdef GOPHER_DEBUG
+#ifdef PRINT_DETAILS
 
 #define __RANGE_COL_NUM       3
 static void __print_range_header(void)
@@ -787,7 +787,7 @@ err:
                                         || IS_STARTED_STR(name, "//anon") || IS_STARTED_STR(name, "/dev/zero") \
                                         || IS_STARTED_STR(name, "[stack") || IS_STARTED_STR(name, "[heap]") \
                                         || IS_STARTED_STR(name, "/anon_hugepage") || IS_STARTED_STR(name, "[uprobes]")
-static int get_mod_name(struct mod_info_s* mod_info, char *maps_line, struct proc_symbs_s* proc_symbs)
+static int get_mod_name(struct mod_info_s* mod_info, char *maps_line, struct proc_symbs_s* proc_symbs, char native_stack_flag)
 {
     char *end, *name, *target;
 
@@ -806,7 +806,7 @@ static int get_mod_name(struct mod_info_s* mod_info, char *maps_line, struct pro
         return GET_MOD_NAME;
     }
 
-    if (strstr(name, "libjvm.so")) {
+    if (!native_stack_flag && strstr(name, "libjvm.so")) {
         return GET_MOD_NAME;
     }
 
@@ -833,7 +833,7 @@ static int get_mod_name(struct mod_info_s* mod_info, char *maps_line, struct pro
         mod_info->type = MODULE_JVM; // TODO: Is it necessary to check maps_perm or else?
         (void)memset(mod_info->name, 0, PATH_LEN);
          // It's okay if we can't get java_sym_file now. We'll check it periodically.
-		(void)get_host_java_tmp_file(proc_symbs->proc_id, "java-symbols.bin", mod_info->name, PATH_LEN);
+		(void)get_host_java_tmp_file(proc_symbs->proc_id, JAVA_SYM_FILE, mod_info->name, PATH_LEN);
     }
 
     return 0;
@@ -857,7 +857,7 @@ static struct mod_s* proc_get_mod_by_name(struct proc_symbs_s* proc_symbs, const
 #define MAPS_PERM_MAX    5
 #define MAPS_IS_EXEC_PERM(perm) (perm[2] == 'x')
 
-static int proc_iter_maps(void *elf_reader, struct proc_symbs_s* proc_symbs, FILE *fp)
+static int proc_iter_maps(void *elf_reader, struct proc_symbs_s* proc_symbs, FILE *fp, char native_stack_flag)
 {
     int ret = 0, is_over = 0;
     u64 dev_major __maybe_unused;
@@ -882,7 +882,7 @@ static int proc_iter_maps(void *elf_reader, struct proc_symbs_s* proc_symbs, FIL
         if (!MAPS_IS_EXEC_PERM(maps_perm)) {
             goto next;
         }
-        ret = get_mod_name(&mod_info, line, proc_symbs);
+        ret = get_mod_name(&mod_info, line, proc_symbs, native_stack_flag);
         if (ret != 0) {
             goto next;
         }
@@ -920,6 +920,7 @@ next:
     return is_over ? ret : 0;
 }
 
+#if 0
 #define __GET_CONTAINER_ID_CMD  "/usr/bin/cat /proc/%d/cpuset 2>/dev/null | awk -F '/' '{print $NF}'"
 static int __get_container_id_by_pid(int pid, char container_id[], size_t len)
 {
@@ -946,21 +947,24 @@ static int __get_container_id_by_pid(int pid, char container_id[], size_t len)
         return -1;
     }
 
-    (void)strncpy(container_id, buf, CONTAINER_ABBR_ID_LEN);
-    container_id[CONTAINER_ABBR_ID_LEN] = 0;
+    (void)snprintf(container_id, CONTAINER_ABBR_ID_LEN + 1, "%s", buf);
     return 0;
 }
+#endif
 
 void __get_proc_info(struct proc_symbs_s* proc_symbs, int proc_id)
 {
     int ret = 0;
-    proc_symbs->proc_id = proc_id;
+    char pid_str[INT_LEN];
 
-    if (proc_id == 0) {
+    if (proc_id <= 0) {
         return;
     }
 
-    if (__get_container_id_by_pid(proc_id, proc_symbs->container_id, CONTAINER_ABBR_ID_LEN + 1) >= 0 &&
+    proc_symbs->proc_id = proc_id;
+    pid_str[0] = 0;
+    (void)snprintf(pid_str, sizeof(pid_str), "%d", proc_id);
+    if (get_container_id_by_pid_cpuset(pid_str, proc_symbs->container_id, CONTAINER_ABBR_ID_LEN + 1) == 0 &&
         proc_symbs->container_id[0] != 0 &&
         get_container_name(proc_symbs->container_id, proc_symbs->container_name, CONTAINER_NAME_LEN) >= 0) {
         ret = get_container_pod(proc_symbs->container_id, proc_symbs->pod, POD_NAME_LEN);
@@ -978,19 +982,28 @@ void __get_proc_info(struct proc_symbs_s* proc_symbs, int proc_id)
     }
 }
 
-struct proc_symbs_s* proc_load_all_symbs(void *elf_reader, int proc_id)
+struct proc_symbs_s *new_proc_symbs(int proc_id)
 {
-    int ret;
-    FILE* fp = NULL;
-    char maps_file[PATH_LEN];
     struct proc_symbs_s* proc_symbs;
-
     proc_symbs = (struct proc_symbs_s *)malloc(sizeof(struct proc_symbs_s));
     if (!proc_symbs) {
         return NULL;
     }
     (void)memset(proc_symbs, 0, sizeof(struct proc_symbs_s));
     __get_proc_info(proc_symbs, proc_id);
+
+    return proc_symbs;
+}
+
+int proc_load_all_symbs(struct proc_symbs_s* proc_symbs, void *elf_reader, int proc_id, char native_stack_flag)
+{
+    int ret;
+    FILE* fp = NULL;
+    char maps_file[PATH_LEN];
+
+    if (!proc_symbs) {
+        return -1;
+    }
 
     maps_file[0] = 0;
     (void)snprintf(maps_file, PATH_LEN, "/proc/%d/maps", proc_id);
@@ -1003,24 +1016,24 @@ struct proc_symbs_s* proc_load_all_symbs(void *elf_reader, int proc_id)
         goto err;
     }
 
-    ret = proc_iter_maps(elf_reader, proc_symbs, fp);
+    ret = proc_iter_maps(elf_reader, proc_symbs, fp, native_stack_flag);
     if (ret != 0) {
         ERROR("[SYMBOL]: Iter proc maps failed[proc = %d, ret = %d].\n", proc_id, ret);
         goto err;
     }
 
     fclose(fp);
-#ifdef GOPHER_DEBUG
+#ifdef PRINT_DETAILS
     __print_proc(proc_symbs);
 #endif
-    return proc_symbs;
+    return 0;
 err:
     proc_symbs_destroy(proc_symbs);
     (void)free(proc_symbs);
     if (fp) {
         fclose(fp);
     }
-    return NULL;
+    return -1;
 }
 
 void proc_delete_all_symbs(struct proc_symbs_s *proc_symbs)
@@ -1067,7 +1080,7 @@ int proc_search_addr_symb(struct proc_symbs_s *proc_symbs,
                 ret = search_elf_symb(proc_symbs->mods[i]->mod_symbs,
                         addr, target_addr, comm, addr_symb);
                 if (ret != 0) {
-#ifdef GOPHER_DEBUG
+#ifdef PRINT_DETAILS
                     __print_mod_symbs(proc_symbs->mods[i]);
 #endif
                 } else {
@@ -1078,7 +1091,7 @@ int proc_search_addr_symb(struct proc_symbs_s *proc_symbs,
     }
 
     if (!is_contain_range) {
-#ifdef GOPHER_DEBUG
+#ifdef PRINT_DETAILS
         __print_proc_ranges(proc_symbs);
 #endif
     }
