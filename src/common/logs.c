@@ -621,7 +621,7 @@ static void reappend_raw_logger(struct log_mgr_s * mgr)
 
 #define __DEBUG_LEN    (2048)
 
-#define __FMT_LOGS(buf, size) \
+#define __FMT_LOGS(buf, size, format) \
     do { \
         va_list args; \
         buf[0] = 0; \
@@ -723,19 +723,25 @@ static void write_log(const char *msg, struct logger *logger)
     (void)pthread_rwlock_unlock(&logger->rwlock);
 }
 
-#define MAX_RAW_BUFFER_LEN (1024 * 1024) // 1 MB
 static void log_without_date(struct logger *logger, const char *detail)
 {
     if ((detail == NULL) || (!logger) || (!logger->pattern) || (strlen(logger->pattern) == 0)) {
         return;
     }
-    char msg[MAX_RAW_BUFFER_LEN] = {0};
 
-    int ret = snprintf(msg, MAX_RAW_BUFFER_LEN, logger->pattern, detail);
-    if (ret == -1) {
+    size_t len = strlen(detail) + 2;    // metric logger pattern contains extra "\n"
+    char *msg = (char *)calloc(1, len);
+    if (msg == NULL) {
+        return;
+    }
+
+    int ret = snprintf(msg, len, logger->pattern, detail);
+    if (ret < 0) {
+        free(msg);
         return;
     }
     write_log(msg, logger);
+    free(msg);
 }
 
 int wr_metrics_logs(const char* logs, size_t logs_len)
@@ -785,7 +791,7 @@ void wr_raw_logs(const char* format, ...)
 {
     char buf[__DEBUG_LEN];
 
-    __FMT_LOGS(buf, __DEBUG_LEN);
+    __FMT_LOGS(buf, __DEBUG_LEN, format);
     if (local) {
         reappend_raw_logger(local);
         if (g_raw_logger.level <= LOGGER_DEBUG) {
@@ -895,7 +901,7 @@ void debug_logs(const char* format, ...)
 {
     char buf[__DEBUG_LEN];
 
-    __FMT_LOGS(buf, __DEBUG_LEN);
+    __FMT_LOGS(buf, __DEBUG_LEN, format);
     if (!local) {
         printf("%s: %s", DEBUG_STR, buf);
         (void)fflush(stdout);
@@ -912,7 +918,7 @@ void info_logs(const char* format, ...)
 {
     char buf[__DEBUG_LEN];
 
-    __FMT_LOGS(buf, __DEBUG_LEN);
+    __FMT_LOGS(buf, __DEBUG_LEN, format);
     if (!local) {
         printf("%s: %s", INFO_STR, buf);
         (void)fflush(stdout);
@@ -928,7 +934,7 @@ void warn_logs(const char* format, ...)
 {
     char buf[__DEBUG_LEN];
 
-    __FMT_LOGS(buf, __DEBUG_LEN);
+    __FMT_LOGS(buf, __DEBUG_LEN, format);
     if (!local) {
         printf("%s: %s", WARN_STR, buf);
         (void)fflush(stdout);
@@ -943,7 +949,7 @@ void warn_logs(const char* format, ...)
 void error_logs(const char *format, ...) {
     char buf[__DEBUG_LEN];
 
-    __FMT_LOGS(buf, __DEBUG_LEN);
+    __FMT_LOGS(buf, __DEBUG_LEN, format);
     if (!local) {
         printf("%s: %s", ERROR_STR, buf);
         (void)fflush(stdout);

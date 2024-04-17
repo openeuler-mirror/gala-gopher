@@ -281,16 +281,16 @@ static int _do_attach(u32 pid, const struct jvm_process_info *v)
     } else if (strstr(jvm_agent_file, ".jar")) {
         // jvm_attach <pid> <nspid> load instrument false "/tmp/xxxxx.jar=<pid>,/tmp/java-data-<pid>,start"
         if (strlen(attach_type) > 0) {
-            (void)snprintf(args, LINE_BUF_LEN, "%d,%s,%s",
+            (void)snprintf(args, LINE_BUF_LEN, "%u,%s,%s",
                 pid,
                 v->ns_java_data_path,
                 attach_type);
         } else {
-            (void)snprintf(args, LINE_BUF_LEN, "%d,%s",
+            (void)snprintf(args, LINE_BUF_LEN, "%u,%s",
                 pid,
                 v->ns_java_data_path);
         }
-        (void)snprintf(cmd, LINE_BUF_LEN, "%s %d %d load instrument false \"%s=%s\"",
+        (void)snprintf(cmd, LINE_BUF_LEN, "%s %u %d load instrument false \"%s=%s\"",
             ATTACH_BIN_PATH,
             pid,
             v->nspid,

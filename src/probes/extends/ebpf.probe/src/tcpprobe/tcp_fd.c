@@ -192,7 +192,7 @@ static void do_lkup_established_tcp_info(void)
         }
     }
     /* Ensure that container processes with the same netns(eg. in k8s scenario)
-     * do not repeatly set established tcp connections. 
+     * do not repeatly set established tcp connections.
      */
     set_estab_tcps_finished_flag(&head);
 
@@ -210,7 +210,7 @@ err:
 
 static int get_netns_fd(pid_t pid)
 {
-    const char *fmt = "/proc/%u/ns/net";
+    const char *fmt = "/proc/%d/ns/net";
     char path[PATH_LEN];
 
     path[0] = 0;

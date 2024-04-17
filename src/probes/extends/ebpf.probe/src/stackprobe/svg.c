@@ -251,6 +251,8 @@ int create_svg_file(struct stack_svg_mng_s* svg_mng, const char *flame_graph, in
 #endif
 struct stack_svg_mng_s* create_svg_mng(u32 default_period)
 {
+    u32 svg_period = default_period;
+
     struct stack_svg_mng_s* svg_mng = malloc(sizeof(struct stack_svg_mng_s));
     if (!svg_mng) {
         return NULL;
@@ -259,13 +261,13 @@ struct stack_svg_mng_s* create_svg_mng(u32 default_period)
     (void)memset(svg_mng, 0, sizeof(struct stack_svg_mng_s));
 
     if (default_period == 0) {
-        default_period = 180;
+        svg_period = 180;
     }
 
     svg_mng->svg.last_create_time = (time_t)time(NULL);
-    svg_mng->svg.period = default_period;
+    svg_mng->svg.period = svg_period;
 #ifdef FLAMEGRAPH_SVG
-    (void)__create_svg_files(&svg_mng->svg.svg_files, default_period);
+    (void)__create_svg_files(&svg_mng->svg.svg_files, svg_period);
 #endif
     return svg_mng;
 }
@@ -301,7 +303,7 @@ static void __mkdir_svg_dir(struct stack_svgs_s *svg)
     char commad[LINE_BUF_LEN];
 
     commad[0] = 0;
-    
+
     (void)snprintf(commad, LINE_BUF_LEN, "/usr/bin/mkdir -p %s", svg->svg_dir ?: "/");
     fp = popen(commad, "r");
     if (fp != NULL) {

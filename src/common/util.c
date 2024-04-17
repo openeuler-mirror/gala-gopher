@@ -20,6 +20,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdarg.h>
+#include <limits.h>
 #include "common.h"
 
 #define CHROOT_CMD          "/usr/sbin/chroot %s %s"
@@ -32,9 +33,6 @@
 #define SYS_HOSTNAME_CMD    "/usr/bin/uname -n"
 
 static char *g_host_path_prefix;
-
-const char* command_injection_characters[] = {"|", ";", "&", "$", ">", "<", "(", ")", "./", "/.", "?", "*",
-                                    "\'", "`", "[", "]", "\\", "!", "\n"};
 
 static char *get_host_path_prefix(void)
 {
@@ -293,12 +291,19 @@ int get_system_hostname(char *buf, unsigned int size)
     return exec_cmd_chroot(SYS_HOSTNAME_CMD, buf, size);
 }
 
-int copy_file(const char *dst_file, const char *src_file) {
-    FILE *fp1 = fopen(dst_file, "w");
+int copy_file(const char *dst_file, const char *src_file)
+{
+    char dst_path[PATH_MAX];
+    char src_path[PATH_MAX];
+    if (realpath(dst_file, dst_path) == NULL || realpath(src_file, src_path) == NULL) {
+        return -1;
+    }
+
+    FILE *fp1 = fopen(dst_path, "w");
     if (fp1 == NULL) {
         return -1;
     }
-    FILE *fp2 = fopen(src_file, "r");
+    FILE *fp2 = fopen(src_path, "r");
     if(fp2 == NULL) {
         fclose(fp1);
         return -1;
@@ -523,6 +528,9 @@ void convert_to_host_path(char *host_path, const char *path, int path_len)
  */
 int check_path_for_security(const char *path)
 {
+    char *command_injection_characters[] = {"|", ";", "&", "$", ">", "<", "(", ")", "./", "/.", "?", "*",
+                                    "\'", "`", "[", "]", "\\", "!", "\n"};
+
     if (path == NULL || strlen(path) == 0) {
         return 0;
     }

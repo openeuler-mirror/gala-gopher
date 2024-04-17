@@ -323,7 +323,7 @@ static int parser_pyscope_server(struct probe_s *probe, const struct param_key_s
     }
 
     if (strlen(value) >= sizeof(probe->probe_param.pyroscope_server)) {
-        PARSE_ERR("params.%s value is too long, len must be less than %d",
+        PARSE_ERR("params.%s value is too long, len must be less than %lu",
                   param_key->key, sizeof(probe->probe_param.pyroscope_server));
         return -1;
     }

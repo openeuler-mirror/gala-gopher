@@ -320,7 +320,7 @@ static void output_tcp_socket(struct tcp_socket_s* tcp_sock)
     }
 
     (void)fprintf(stdout,
-        "|%s|%u|%s|%s|%s|%u|%u|%d"
+        "|%s|%d|%s|%s|%s|%u|%u|%d"
         "|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu"
         "|%s|\n",
         OO_TCP_SOCK,
@@ -354,7 +354,7 @@ static void output_tcp_socket(struct tcp_socket_s* tcp_sock)
 static void output_udp_socket(struct udp_socket_s* udp_sock)
 {
     (void)fprintf(stdout,
-        "|%s|%u|%s|%s|%u"
+        "|%s|%d|%s|%s|%u"
         "|%llu|%llu|%llu|\n",
         OO_UDP_SOCK,
         udp_sock->id.tgid,
@@ -568,7 +568,7 @@ static void sig_int(int signo)
 
 static int get_netns_fd(pid_t pid)
 {
-    const char *fmt = "/proc/%u/ns/net";
+    const char *fmt = "/proc/%d/ns/net";
     char path[PATH_LEN];
 
     path[0] = 0;
