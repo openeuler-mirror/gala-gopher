@@ -20,7 +20,7 @@
 
 static struct log_mgr_s *local = NULL;
 
-int mkdirp(const char *path, mode_t mode)
+static int mkdirp(const char *path, mode_t mode)
 {
     if (NULL == path) {
         return -1;
@@ -581,7 +581,7 @@ int init_log_mgr(struct log_mgr_s* mgr, int is_meta_out_log, char *logLevel)
     return 0;
 }
 
-void destroy_logger_instance(struct logger *logger)
+static void destroy_logger_instance(struct logger *logger)
 {
     if (logger == NULL) {
         return;
@@ -847,7 +847,7 @@ static int get_log_time(struct tm *t)
 #define MAX_PATTERN_STR 200
 #define TM_YEAR_BEGIN 1900
 #define TM_YEAR_SHOW_OFFSET 2000
-void log_with_date(struct logger *logger, const char *detail)
+static void log_with_date(struct logger *logger, const char *detail)
 {
     if ((detail == NULL) || (!logger) || (!logger->pattern) || (strlen(logger->pattern) == 0)) {
         return;

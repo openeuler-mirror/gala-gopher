@@ -100,7 +100,7 @@ char *get_cur_time(void)
     return tm;
 }
 
-void ip6_str(unsigned char *ip6, unsigned char *ip_str, unsigned int ip_str_size)
+static void ip6_str(unsigned char *ip6, unsigned char *ip_str, unsigned int ip_str_size)
 {
     unsigned short *addr = (unsigned short *)ip6;
     int i, j;

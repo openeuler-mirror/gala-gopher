@@ -33,7 +33,7 @@
 #define ARGS_NUM 4
 char tmp_path[PATH_LEN];
 
-int get_tmp_path_r(int cur_pid, char* buf, size_t bufsize)
+static int get_tmp_path_r(int cur_pid, char* buf, size_t bufsize)
 {
     int ret = snprintf(buf, bufsize, "/proc/%d/root/tmp", cur_pid);
     if (ret < 0 || ret >= bufsize) {
@@ -211,7 +211,7 @@ static int __connect_jvm(int nspid)
     return fd;
 }
 
-int __jattach(int pid, int nspid, int argc, char **argv)
+static int __jattach(int pid, int nspid, int argc, char **argv)
 {
     struct timeval timeout;
 
@@ -248,7 +248,7 @@ int __jattach(int pid, int nspid, int argc, char **argv)
     return ret;
 }
 
-void __get_euid_egid(int pid, uid_t *targetUid, gid_t *targetGid)
+static void __get_euid_egid(int pid, uid_t *targetUid, gid_t *targetGid)
 {
     uid_t eUid = geteuid();
     gid_t eGid = getegid();

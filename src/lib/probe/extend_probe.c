@@ -25,7 +25,7 @@
 #define PROBE_LKUP_PID_RETRY_MAX    2
 #define PROBE_LKUP_PID_DELAY        2
 
-FILE* __DoRunExtProbe(const struct probe_s *probe)
+static FILE* __DoRunExtProbe(const struct probe_s *probe)
 {
     char command[MAX_COMMAND_LEN];
     FILE *f = NULL;
@@ -166,7 +166,7 @@ static void parseExtendProbeOutput(struct probe_s *probe, FILE *f)
     return;
 }
 
-int RunExtendProbe(struct probe_s *probe)
+static int RunExtendProbe(struct probe_s *probe)
 {
     int ret = 0, retry = 0;
     FILE *f = NULL;
