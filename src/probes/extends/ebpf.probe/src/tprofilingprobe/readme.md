@@ -207,7 +207,7 @@ curl -X PUT http://<gopher-node-ip>:9999/tprofiling -d json='{"cmd": {"probe": [
 
 - `<gopher-node-ip>`：部署 gala-gopher 的节点 IP
 - `probe`：`cmd` 下的 `probe` 配置项指定了 tprofiling 探针观测的系统事件范围。其中，oncpu、syscall_file、syscall_net、syscall_sched、syscall_lock 分别对应 oncpu 事件、以及 file、net、sched、lock 四类系统调用事件。用户可根据需要只开启部分 tprofiling 事件类型的观测。
-- `proc_name`：`snoopers` 下的 `proc_name` 配置项用于过滤要观测的进程名。另外也可以通过 `proc_id` 配置项来过滤要观测的进程ID，详情参考：[动态配置接口使用文档](https://gitee.com/openeuler/gala-gopher/blob/dev/config/gala-gopher%E6%94%AF%E6%8C%81%E5%8A%A8%E6%80%81%E9%85%8D%E7%BD%AE%E6%8E%A5%E5%8F%A3%E8%AE%BE%E8%AE%A1_v0.3.md)。
+- `proc_name`：`snoopers` 下的 `proc_name` 配置项用于过滤要观测的进程名。另外也可以通过 `proc_id` 配置项来过滤要观测的进程ID，详情参考：[动态配置接口使用文档](https://gitee.com/openeuler/gala-gopher/blob/master/config/gala-gopher%E6%94%AF%E6%8C%81%E5%8A%A8%E6%80%81%E9%85%8D%E7%BD%AE%E6%8E%A5%E5%8F%A3%E8%AE%BE%E8%AE%A1_v0.3.md)。
 
 要关闭 tprofiling 探针，执行如下命令：
 

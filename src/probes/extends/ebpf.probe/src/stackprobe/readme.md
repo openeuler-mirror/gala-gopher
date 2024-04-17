@@ -34,7 +34,7 @@
 curl -X PUT http://localhost:9999/flamegraph -d json='{ "cmd": {"probe": ["oncpu"] }, "snoopers": {"proc_name": [{ "comm": "cadvisor"}] }, "state": "running"}'
 ```
 
-启动命令示例（进阶）：使用自定义参数启动性能火焰图。完整可配置参数列表参见[探针运行参数](https://gitee.com/openeuler/gala-gopher/blob/dev/config/gala-gopher%E6%94%AF%E6%8C%81%E5%8A%A8%E6%80%81%E9%85%8D%E7%BD%AE%E6%8E%A5%E5%8F%A3%E8%AE%BE%E8%AE%A1_v0.3.md#%E6%8E%A2%E9%92%88%E8%BF%90%E8%A1%8C%E5%8F%82%E6%95%B0)。
+启动命令示例（进阶）：使用自定义参数启动性能火焰图。完整可配置参数列表参见[探针运行参数](https://gitee.com/openeuler/gala-gopher/blob/master/config/gala-gopher%E6%94%AF%E6%8C%81%E5%8A%A8%E6%80%81%E9%85%8D%E7%BD%AE%E6%8E%A5%E5%8F%A3%E8%AE%BE%E8%AE%A1_v0.3.md#%E6%8E%A2%E9%92%88%E8%BF%90%E8%A1%8C%E5%8F%82%E6%95%B0)。
 
 ```shell
 curl -X PUT http://localhost:9999/flamegraph -d json='{ "cmd": {"probe": ["oncpu", "offcpu", "mem"] }, "snoopers": {  "proc_name": [{   "comm": "cadvisor",   "cmdline": "",   "debugging_dir": ""  }, {   "comm": "java",   "cmdline": "",   "debugging_dir": ""  }] }, "params": {  "perf_sample_period": 100,  "svg_period": 300,  "svg_dir": "/var/log/gala-gopher/stacktrace",  "flame_dir": "/var/log/gala-gopher/flamegraph",  "pyroscope_server": "localhost:4040",  "multi_instance": 1,  "native_stack": 0 }, "state": "running"}'

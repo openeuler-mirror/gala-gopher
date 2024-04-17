@@ -2,7 +2,7 @@
 ## 1 日志文件约束
 gala-gopher 日志文件配置主要涉及日志路径配置，打印等级设置，日志默认大小等
 ### 1.1 日志等级配置
-#### 配置文件在 [config](https://gitee.com/openeuler/gala-gopher/blob/dev/config/gala-gopher.conf)  
+#### 配置文件在 [config](../config/gala-gopher.conf)  
 log_level 配置当前日志打印等级， 一共有4 个日志等级， 分别为 DEBUG < INFO < WARN < ERROR  
 备注： 日志等级只有高于当前设置的 log_level 才会触发打印。
 ```
