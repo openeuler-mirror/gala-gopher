@@ -69,7 +69,6 @@ SET(SOURCES main.c daemon.c
     ${IMDB_DIR}/metrics.c
     ${IMDB_DIR}/container_cache.c
 
-    ${COMMON_DIR}/kern_config.c
     ${COMMON_DIR}/args.c
     ${COMMON_DIR}/container.c
     ${COMMON_DIR}/util.c
@@ -78,7 +77,6 @@ SET(SOURCES main.c daemon.c
     ${COMMON_DIR}/logs.c
     ${COMMON_DIR}/json_tool.cpp
     ${COMMON_DIR}/gopher_elf.c
-    ${COMMON_DIR}/event_config.c
     ${COMMON_DIR}/kern_symb.c
     ${COMMON_DIR}/ipc.c
     ${COMMON_DIR}/strbuf.c

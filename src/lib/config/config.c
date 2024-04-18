@@ -170,47 +170,6 @@ static int ConfigMgrLoadGlobalConfig(void *config, config_setting_t *settings)
     return 0;
 }
 
-#if 0
-static int ConfigMgrLoadIngressConfig(void *config, config_setting_t *settings)
-{
-    IngressConfig *ingressConfig = (IngressConfig *)config;
-    uint32_t ret = 0;
-
-    uint32_t intVal = 0;
-    ret = config_setting_lookup_int(settings, "interval", &intVal);
-    if (ret == 0) {
-        ERROR("[CONFIG] load config for ingress interval failed.\n");
-        return -1;
-    }
-    ingressConfig->interval = intVal;
-
-    return 0;
-}
-
-static int ConfigMgrLoadEgressConfig(void *config, config_setting_t *settings)
-{
-    EgressConfig *egressConfig = (EgressConfig *)config;
-    uint32_t ret = 0;
-
-    uint32_t intVal = 0;
-    ret = config_setting_lookup_int(settings, "interval", &intVal);
-    if (ret == 0) {
-        ERROR("[CONFIG] load config for egress interval failed.\n");
-        return -1;
-    }
-    egressConfig->interval = intVal;
-
-    ret = config_setting_lookup_int(settings, "time_range", &intVal);
-    if (ret == 0) {
-        ERROR("[CONFIG] load config for egress time_range failed.\n");
-        return -1;
-    }
-    egressConfig->timeRange = intVal;
-
-    return 0;
-}
-#endif
-
 static int ConfigMgrLoadKafkaConfig(void *config, config_setting_t *settings)
 {
     KafkaConfig *kafkaConfig = (KafkaConfig *)config;
@@ -491,12 +450,6 @@ static int ConfigMgrLoadOutConfig(void *config, config_setting_t *settings)
         outConfig->timeout = (uint32_t)timeout;
     }
 
-#if 0
-    ret = config_setting_lookup_string(settings, "desc_language", &strVal);
-    if (ret > 0) {
-        (void)snprintf(outConfig->lang_type, sizeof(outConfig->lang_type), "%s", strVal);
-    }
-#endif
     return 0;
 }
 
@@ -512,10 +465,6 @@ int ConfigMgrLoad(const ConfigMgr *mgr, const char *confPath)
 {
     ConfigLoadHandle configLoadHandles[] = {
         { (void *)mgr->globalConfig, "global", ConfigMgrLoadGlobalConfig },
-#if 0
-        { (void *)mgr->ingressConfig, "ingress", ConfigMgrLoadIngressConfig },
-        { (void *)mgr->egressConfig, "egress", ConfigMgrLoadEgressConfig },
-#endif
         { (void *)mgr->kafkaConfig, "kafka", ConfigMgrLoadKafkaConfig },
         { (void *)mgr->imdbConfig, "imdb", ConfigMgrLoadIMDBConfig },
         { (void *)mgr->webServerConfig, "web_server", ConfigMgrLoadWebServerConfig },

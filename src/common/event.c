@@ -21,7 +21,6 @@
 #include <stdarg.h>
 #include "common.h"
 #include "container.h"
-// #include "event_config.h"
 #include "event.h"
 #ifdef NATIVE_PROBE_FPRINTF
 #include "nprobe_fprintf.h"
@@ -48,31 +47,6 @@ static void __get_local_time(char *buf, int buf_len, time_t *cur_time)
     (void)snprintf(buf, (const int)buf_len, "%s", time_str);
     *cur_time = rawtime;
 }
-
-#if 0
-static void __replace_desc_fmt(const char* entityName, const char* metrics, const char *fmt, char *new_fmt)
-{
-    if (new_fmt == NULL) {
-        return;
-    }
-    (void)snprintf(new_fmt, MAX_EVT_BODY_LEN, "%s", fmt);
-
-    if (g_lang_type[0] == 0) {
-        return;
-    }
-    if (g_evt_conf == NULL) {
-        if (events_config_init(&g_evt_conf, g_lang_type) < 0) {
-            ERROR("event report failed, bacause language type(%s) but config_init failed.\n", g_lang_type);
-            return;
-        }
-    }
-    if (get_event_field(g_evt_conf, entityName, metrics, new_fmt) == 0) {
-        ERROR("get evt entity[%s] metric[%s] field failed.\n", entityName, metrics);
-        return;
-    }
-    return;
-}
-#endif
 
 #define __SEC_TXT_LEN  32
 struct evt_sec_s {
@@ -266,11 +240,5 @@ static int is_evt_need_report(const char *entityId, time_t cur_time)
 void init_event_mgr(unsigned int time_out)
 {
     g_evt_period = time_out;
-#if 0
-    g_lang_type[0] = 0;
-    if (lang_type != NULL && strlen(lang_type) > 0) {
-        (void)snprintf(g_lang_type, sizeof(g_lang_type), "%s", lang_type);
-    }
-#endif
     return;
 }

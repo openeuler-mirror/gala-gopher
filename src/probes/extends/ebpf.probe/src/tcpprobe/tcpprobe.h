@@ -83,16 +83,6 @@ struct tcp_tx_rx {
 };
 
 struct tcp_sockbuf {
-#if 0
-    __u32   tcpi_sk_err_que_size;   // FROM sock.sk_error_queue.qlen
-    __u32   tcpi_sk_rcv_que_size;   // FROM sock.sk_receive_queue.qlen
-    __u32   tcpi_sk_wri_que_size;   // FROM sock.sk_write_queue.qlen
-    __u32   tcpi_sk_backlog_size;   // FROM sock.sk_backlog.len
-
-    __u32   tcpi_sk_omem_size;      // FROM sock.sk_omem_alloc
-    __u32   tcpi_sk_forward_size;   // FROM sock.sk_forward_alloc
-    __u32   tcpi_sk_wmem_size;      // FROM sock.sk_wmem_alloc
-#endif
     int   sk_rcvbuf;                    // FROM sock.sk_rcvbuf
     int   sk_sndbuf;                // FROM sock.sk_sndbuf
 };
@@ -100,21 +90,6 @@ struct tcp_sockbuf {
 struct tcp_rate {
     __u32   tcpi_rto;           // Retransmission timeOut(us)
     __u32   tcpi_ato;           // Estimated value of delayed ACK(us)
-#if 0
-    __u32   tcpi_snd_ssthresh;  // Slow start threshold for congestion control.
-    __u32   tcpi_rcv_ssthresh;  // Current receive window size.
-    __u32   tcpi_advmss;        // Local MSS upper limit.
-
-    __u64   tcpi_delivery_rate; // Current transmit rate (multiple different from the actual value).
-    __u32   tcpi_rcv_space;     // Current receive buffer size.
-
-    __u32   tcpi_busy_time;      // Time (jiffies) busy sending data.
-    __u32   tcpi_rwnd_limited;   // Time (jiffies) limited by receive window.
-    __u32   tcpi_sndbuf_limited; // Time (jiffies) limited by send buffer.
-
-    __u32   tcpi_pacing_rate;    // bytes per second
-    __u32   tcpi_max_pacing_rate;   // bytes per second
-#endif
 };
 
 struct tcp_windows {

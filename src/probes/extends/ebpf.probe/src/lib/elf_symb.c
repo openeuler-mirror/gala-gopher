@@ -356,12 +356,6 @@ static int __load_symbol_from_file(struct elf_symbo_s* elf_symbo, enum sym_file_
         return -1;
     }
 
-#if 0
-    if (!access(elf_symbo->elf, 0)) {
-        return -1;
-    }
-#endif
-
     if (sym_file_type == ELF_SYM) {
         ret = gopher_iter_elf_file_symb((const char *)(elf_symbo->elf), __add_symbs, elf_symbo);
     } else if (sym_file_type == JAVA_SYM){

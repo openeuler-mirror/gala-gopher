@@ -73,34 +73,6 @@ static bool is_python_proc(const char *exe_path)
     return false;
 }
 
-#if 0
-static int get_libpy_debug_so_path(int pid, char *debug_so_path, int size, const char *so_path, const char *debug_dir)
-{
-    struct proc_symbs_s *proc_symbs;
-    struct elf_reader_s elf_reader;
-    int ret;
-
-    proc_symbs = new_proc_symbs(pid);
-    if (proc_symbs == NULL) {
-        WARN("Failed to create proc_symbs(pid=%d)\n", pid);
-        return -1;
-    }
-
-    elf_reader.global_dbg_dir[0] = 0;
-    (void)snprintf(elf_reader.global_dbg_dir, sizeof(elf_reader.global_dbg_dir), "%s", debug_dir);
-    ret = get_elf_debug_file(&elf_reader, proc_symbs, so_path, so_path, debug_so_path, size);
-    if (ret) {
-        WARN("Failed to get libpython debug file(pid=%d, so_path=%s), "
-            "please install python debuginfo rpm package\n", pid, so_path);
-        free(proc_symbs);
-        return -1;
-    }
-    DEBUG("Debug file path of (pid=%d, so_path=%s) is: %s\n", pid, so_path, debug_so_path);
-    free(proc_symbs);
-    return 0;
-}
-#endif
-
 static int get_proc_container_id(int pid, char *container_id, int size)
 {
     char pid_str[INT_LEN];

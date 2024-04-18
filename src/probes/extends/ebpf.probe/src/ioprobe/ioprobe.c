@@ -269,44 +269,6 @@ static void get_diskname(const char* dev_name, char *disk_name, size_t size)
     return;
 }
 
-#if 0
-static int get_devt(char *dev_name, int *major, int *minor)
-{
-    char sys_file[PATH_LEN];
-    char cmd[COMMAND_LEN];
-    char dev[16];
-    FILE *fp;
-
-    sys_file[0] = 0;
-    (void)snprintf(sys_file, PATH_LEN, "/sys/block/%s/dev", dev_name);
-    if (access(sys_file, 0)) {
-        sys_file[0] = 0;
-        (void)snprintf(sys_file, PATH_LEN, "/sys/block/*/%s/../dev", dev_name);
-    }
-    if (access(sys_file, 0)) {
-        fprintf(stderr, "dev \'%s\' not exist.\n", dev_name);
-        return -1;
-    }
-
-    cmd[0] = 0;
-    (void)sprintf(cmd, "cat %s 2>/dev/null", sys_file);
-    if ((fp = popen(cmd, "r")) == NULL) {
-        fprintf(stderr, "exec \'%s\' fail\n", cmd);
-        return -1;
-    }
-
-    dev[0] = 0;
-    while (fgets(dev, sizeof(dev) - 1, fp)) {
-        if (sscanf(dev, "%d:%d", major, minor) != 2) {
-            pclose(fp);
-            return -1;
-        }
-    }
-    pclose(fp);
-    return 0;
-}
-#endif
-
 static void free_blk_cache(struct blk_cache_s *cache)
 {
     if (cache->dev_name) {
@@ -652,14 +614,6 @@ static int load_io_args(int fd, struct ipc_body_s* ipc_body)
     }
 
     // TODO: Support for 'dev' snooper
-#if 0
-    int major;
-    int minor;
-    if ((args->target_dev[0] != 0) && (!get_devt(args->target_dev, &major, &minor))) {
-        io_args.target_major = major;
-        io_args.target_first_minor = minor;
-    }
-#endif
     io_args.report_period = NS(ipc_body->probe_param.period);
     io_args.sample_interval = (u64)((u64)ipc_body->probe_param.sample_period * 1000 * 1000);
 

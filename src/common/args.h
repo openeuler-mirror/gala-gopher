@@ -119,10 +119,6 @@ struct probe_params {
     char cluster_ip_backend;           // [-n <>] Indicates whether transform cluster IP address to backend, default is 0 (no transform)
     char target_dev[DEV_NAME];         //  Device name, default is null
     char elf_path[MAX_PATH_LEN];       //  Set ELF file path of the monitored software, default is null
-#if 0
-    char host_ip_list[MAX_IP_NUM][MAX_IP_LEN]; // Host ip fields list, default is null
-    char sys_debuging_dir[MAX_PATH_LEN];
-#endif
     /*
         [-P <>]
         L7 probe monitoring protocol flags, Refer to the below definitions(default is 0):

@@ -51,14 +51,12 @@ SET(SOURCES main.c
     ${IMDB_DIR}/container_cache.c
 
     ${PROBE_DIR}/ext_label.c
-    ${COMMON_DIR}/kern_config.c
     ${COMMON_DIR}/args.c
     ${COMMON_DIR}/container.c
     ${COMMON_DIR}/util.c
     ${COMMON_DIR}/event.c
     ${COMMON_DIR}/logs.c
     ${COMMON_DIR}/json_tool.cpp
-    ${COMMON_DIR}/event_config.c
     ${COMMON_DIR}/strbuf.c
     ${COMMON_DIR}/histogram.c
 

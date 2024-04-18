@@ -456,43 +456,9 @@ end:
     return 0;
 }
 
-#if 0
-static __always_inline __maybe_unused u64 get_cur_cpuacct_cgrp_id(void)
-{
-    u64 cgroup_id;
-    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
-    struct css_set *cgroups = _(task->cgroups);
-    struct cgroup_subsys_state *css = _(cgroups->subsys[cpuacct_cgrp_id]);
-    struct kernfs_node *kn = BPF_CORE_READ(css, cgroup, kn);
-
-#if (CURRENT_KERNEL_VERSION < KERNEL_VERSION(5, 5, 0))
-    cgroup_id = _(kn->id.id);
-#else
-    cgroup_id = _(kn->id);
-#endif
-    return cgroup_id;
-}
-#endif
-
 static __always_inline char is_tracing(int tgid)
 {
     return is_filter_id(FILTER_TGID, tgid);
-#if 0
-    if (is_filter_by_cgrp()) {
-        u64 cgrp_id = get_cur_cpuacct_cgrp_id();
-        if (is_filter_id(FILTER_CGRPID, cgrp_id)) {
-            return 1;
-        } else {
-            return 0;
-        }
-    } else {
-        if (is_filter_id(FILTER_TGID, tgid)) {
-            return 1;
-        } else {
-            return 0;
-        }
-    }
-#endif
 }
 
 
