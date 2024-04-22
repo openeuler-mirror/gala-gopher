@@ -30,7 +30,6 @@
 #include "bpf.h"
 #include "args.h"
 #include "hash.h"
-#include "object.h"
 #include "container.h"
 #include "bps.h"
 #include "containerd_probe.h"

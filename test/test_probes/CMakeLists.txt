@@ -31,7 +31,6 @@ SET(CMAKE_C_FLAGS "-rdynamic -g -DNATIVE_PROBE_FPRINTF \
 SET(CMAKE_CXX_FLAGS "-rdynamic -g -DNATIVE_PROBE_FPRINTF")
 
 SET(SOURCES main.c test_probes.c
-    ${COMMON_DIR}/args.c
     ${CONFIG_DIR}/config.c
     ${EGRESS_DIR}/egress.c
     ${INGRESS_DIR}/ingress.c
@@ -47,7 +46,6 @@ SET(SOURCES main.c test_probes.c
     ${WEBSERVER_DIR}/web_server.c
 
     ${COMMON_DIR}/util.c
-    ${COMMON_DIR}/object.c
     ${COMMON_DIR}/event.c
 )
 

@@ -39,8 +39,8 @@ static int set_probe_bin(struct probe_s *probe, const char *bin);
 static void init_probe_bin(struct probe_s *probe, enum probe_type_e probe_type);
 
 struct probe_define_s probe_define[] = {
-    {"baseinfo",            "system_infos",                         PROBE_BASEINFO},
-    {"virt",                "virtualized_infos",                    PROBE_VIRT},
+    {"baseinfo",            "system_infos",                                       PROBE_BASEINFO},
+    {"virt",                "virtualized_infos",                                  PROBE_VIRT},
     {"flamegraph",          "/opt/gala-gopher/extend_probes/stackprobe",          PROBE_FG},
     {"l7",                  "/opt/gala-gopher/extend_probes/l7probe",             PROBE_L7},
     {"tcp",                 "/opt/gala-gopher/extend_probes/tcpprobe",            PROBE_TCP},
@@ -48,13 +48,9 @@ struct probe_define_s probe_define[] = {
     {"io",                  "/opt/gala-gopher/extend_probes/ioprobe",             PROBE_IO},
     {"proc",                "/opt/gala-gopher/extend_probes/taskprobe",           PROBE_PROC},
     {"jvm",                 "/opt/gala-gopher/extend_probes/jvmprobe",            PROBE_JVM},
-    {"redis_sli",           "/opt/gala-gopher/extend_probes/redissli",            PROBE_REDIS_SLI},
     {"postgre_sli",         "/opt/gala-gopher/extend_probes/pgsliprobe",          PROBE_POSTGRE_SLI},
     {"opengauss_sli",       "/opt/gala-gopher/extend_probes/pg_stat_probe.py",    PROBE_GAUSS_SLI},
-    {"dnsmasq",             "/opt/gala-gopher/extend_probes/trace_dnsmasq",       PROBE_DNSMASQ},
     {"nginx",               "/opt/gala-gopher/extend_probes/nginx_probe",         PROBE_NGINX},
-    {"haproxy",             "/opt/gala-gopher/extend_probes/trace_haproxy",       PROBE_HAPROXY},
-    {"kafka",               "/opt/gala-gopher/extend_probes/kafkaprobe",          PROBE_KAFKA},
     {"tprofiling",          "/opt/gala-gopher/extend_probes/tprofiling",          PROBE_TP},
     {"hw",                  "/opt/gala-gopher/extend_probes/hwprobe",             PROBE_HW},
     {"ksli",                "/opt/gala-gopher/extend_probes/ksliprobe",           PROBE_KSLI},

@@ -26,7 +26,6 @@
 #define EVENT_LOGS_FILESIZE         (100 * 1024 * 1024)
 #define DEBUG_LOGS_FILESIZE         (200 * 1024 * 1024)
 #define META_LOGS_FILESIZE          (100 * 1024 * 1024)
-#define RAW_LOGS_FILESIZE           (100 * 1024 * 1024)
 
 #define METRICS_LOGS_MAXNUM         (100)
 #define EVENT_LOGS_MAXNUM           (100)
@@ -39,7 +38,6 @@
 #define EVENT_LOGS_FILESIZE         LOGS_FILE_SIZE
 #define DEBUG_LOGS_FILESIZE         LOGS_FILE_SIZE
 #define META_LOGS_FILESIZE          LOGS_FILE_SIZE
-#define RAW_LOGS_FILESIZE           LOGS_FILE_SIZE
 
 #define METRICS_LOGS_MAXNUM         (5)
 #define EVENT_LOGS_MAXNUM           (5)
@@ -47,7 +45,6 @@
 
 #define LOGS_SWITCH_ON  1
 #define PATTERN_META_LOGGER_STR "%s\n" // "%m%n"
-#define PATTERN_RAW_LOGGER_STR "%s" // "%m"
 #define PATTERN_DEBUG_LOGGER_STR "%02d/%02d/%02d %02d:%02d:%02d  - %s" // "%D{%m/%d/%y %H:%M:%S}  - %m"
 #define PATTERN_METRICS_LOGGER_STR "%s" // "%m"
 #define PATTERN_EVENT_LOGGER_STR "%s\n" // "%m%n"
@@ -76,7 +73,6 @@ typedef struct log_mgr_s {
     char event_path[PATH_LEN];
     char metrics_path[PATH_LEN];
     char meta_path[PATH_LEN];
-    char raw_path[PATH_LEN];
     char is_debug_log;
     char is_metric_out_log;
     char is_event_out_log;
@@ -105,8 +101,6 @@ struct logger {
     int max_backup_index; // for save max back up  fname.log.1, fname.log.2, fname.log.3
     int curr_backup_index; // record current back up index.
 };
-
-void wr_raw_logs(const char* format, ...);
 
 int read_metrics_logs(char logs_file_name[], size_t size);
 

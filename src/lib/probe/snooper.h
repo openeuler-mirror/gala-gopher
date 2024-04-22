@@ -18,7 +18,6 @@
 #pragma once
 
 #include "base.h"
-#include "object.h"
 #include "ipc.h"
 #include "probe_mng.h"
 

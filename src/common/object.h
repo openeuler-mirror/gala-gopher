@@ -16,17 +16,10 @@
 #define __GOPHER_OBJ_H__
 
 #define GOPHER_MAP_DIR              "/sys/fs/bpf/gala-gopher"
-#define CGRP_MAP_PATH               "/sys/fs/bpf/gala-gopher/cgroup_map"
-#define NM_MAP_PATH                 "/sys/fs/bpf/gala-gopher/nm_map"
-#define PROC_MAP_PATH               "/sys/fs/bpf/gala-gopher/proc_map"
 
 #define CGRP_MAP_MAX_ENTRIES        100
 #define NM_MAP_MAX_ENTRIES          100
 #define PROC_MAP_MAX_ENTRIES        1000
-
-#define CGRP_MAP_INIT_OK            (u32)(1)
-#define NM_MAP_INIT_OK              (u32)(1 << 1)
-#define PROC_MAP_INIT_OK            (u32)(1 << 2)
 
 enum cgp_type_e {
     CGP_TYPE_CPUACCT = 0,
@@ -63,25 +56,5 @@ struct nm_s {
 struct obj_ref_s {
     unsigned int count;             // References of object
 };
-
-#if !defined( BPF_PROG_KERN ) && !defined( BPF_PROG_USER )
-int proc_put(struct proc_s *obj);
-int proc_add(struct proc_s *obj);
-int cgrp_put(struct cgroup_s *obj);
-int cgrp_add(struct cgroup_s *obj);
-int nm_put(struct nm_s *obj);
-int nm_add(struct nm_s *obj);
-char is_proc_exist(struct proc_s *obj);
-char is_nm_exist(struct nm_s *obj);
-char is_cgrp_exist(struct cgroup_s *obj);
-
-void obj_module_set_maps_fd(void);
-void obj_module_init(void);
-void obj_module_exit(void);
-int obj_get_cgrp_obj_map_fd(void);
-int obj_get_nm_obj_map_fd(void);
-int obj_get_proc_obj_map_fd(void);
-int obj_module_create_map(char *name);
-#endif
 
 #endif

@@ -312,7 +312,6 @@ struct logger g_metrics_logger;
 struct logger g_event_logger;
 struct logger g_debug_logger;
 struct logger g_meta_logger;
-struct logger g_raw_logger;
 
 static void init_logger(struct logger *logger, char *name, const int max_backup_index, const size_t max_file_size)
 {
@@ -365,7 +364,6 @@ static void init_all_logger(void)
     init_logger(&g_event_logger, "event", 1, EVENT_LOGS_FILESIZE);
     init_logger(&g_debug_logger, "debug", 1, DEBUG_LOGS_FILESIZE);
     init_logger(&g_meta_logger, "meta", 1, META_LOGS_FILESIZE);
-    init_logger(&g_raw_logger, "raw", 1, RAW_LOGS_FILESIZE);
 }
 
 #define FULL_PATH_LEN (PATH_LEN * 2)
@@ -389,24 +387,6 @@ static int append_meta_logger(struct log_mgr_s * mgr)
     (void)pthread_rwlock_wrlock(&g_meta_logger.rwlock);
     g_meta_logger.pattern = PATTERN_META_LOGGER_STR; // "%m%n"
     (void)pthread_rwlock_unlock(&g_meta_logger.rwlock);
-    return 0;
-}
-
-static int append_raw_logger(struct log_mgr_s * mgr)
-{
-    size_t path_len = strlen(mgr->raw_path);
-    if (path_len == 0) {
-        ERROR("Raw path is null.\n");
-        return -1;
-    }
-    prep_init_logger(&g_raw_logger, RAW_LOGS_FILESIZE);
-    (void)pthread_rwlock_wrlock(&g_raw_logger.rwlock);
-    g_raw_logger.pattern = PATTERN_RAW_LOGGER_STR; // "%m"
-    (void)pthread_rwlock_unlock(&g_raw_logger.rwlock);
-    int path_state = init_logger_path(&g_raw_logger, mgr->raw_path);
-    if (path_state < 0) {
-        return -1;
-    }
     return 0;
 }
 
@@ -571,11 +551,6 @@ int init_log_mgr(struct log_mgr_s* mgr, int is_meta_out_log, char *logLevel)
         }
     }
 
-    if ((mgr->raw_path[0] != 0) && (append_raw_logger(mgr) != 0)) {
-        (void)fprintf(stderr, "Append raw logger failed.\n");
-        return -1;
-    }
-
     set_debug_log_level(logLevel);
     local = mgr;
     return 0;
@@ -607,16 +582,8 @@ void destroy_log_mgr(struct log_mgr_s* mgr)
     destroy_logger_instance(&g_event_logger);
     destroy_logger_instance(&g_debug_logger);
     destroy_logger_instance(&g_meta_logger);
-    destroy_logger_instance(&g_raw_logger);
 
     local = NULL;
-}
-
-static void reappend_raw_logger(struct log_mgr_s * mgr)
-{
-    if (access(mgr->raw_path, 0)) {
-        (void)append_raw_logger(mgr);
-    }
 }
 
 #define __DEBUG_LEN    (2048)
@@ -785,21 +752,6 @@ int read_metrics_logs(char logs_file_name[], size_t size)
     g_metrics_logger.buf_len = 0; // if delete file by curl, should reset it buf_len
     (void)pthread_rwlock_unlock(&(g_metrics_logger.rwlock));
     return 0;
-}
-
-void wr_raw_logs(const char* format, ...)
-{
-    char buf[__DEBUG_LEN];
-
-    __FMT_LOGS(buf, __DEBUG_LEN, format);
-    if (local) {
-        reappend_raw_logger(local);
-        if (g_raw_logger.level <= LOGGER_DEBUG) {
-            log_without_date(&g_raw_logger, buf);
-        }
-    } else {
-        printf("%s", buf);
-    }
 }
 
 int wr_event_logs(const char* logs, size_t logs_len)
