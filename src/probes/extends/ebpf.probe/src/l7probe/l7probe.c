@@ -114,7 +114,7 @@ static int do_l7_load_tcp_fd(int fd, int proc_id, int netns_fd)
 
 static int get_netns_fd(pid_t pid)
 {
-    const char *fmt = "/proc/%u/ns/net";
+    const char *fmt = "/proc/%d/ns/net";
     char path[PATH_LEN];
 
     path[0] = 0;

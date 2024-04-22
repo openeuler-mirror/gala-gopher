@@ -53,7 +53,12 @@ static int open_elf_fd(int fd, Elf **elf_bin)
 
 static int open_elf(const char *elf_file, Elf **elf_bin, int *elf_fd)
 {
-    *elf_fd = open(elf_file, O_RDONLY);
+    char elf_path[PATH_MAX];
+    if (realpath(elf_file, elf_path) == NULL) {
+        goto err;
+    }
+
+    *elf_fd = open(elf_path, O_RDONLY);
     if (*elf_fd < 0) {
         goto err;
     }

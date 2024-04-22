@@ -103,7 +103,7 @@ static void report_proc_metrics(struct proc_data_s *proc)
     }
 
     entityId[0] = 0;
-    (void)snprintf(entityId, INT_LEN, "%d", proc->proc_id);
+    (void)snprintf(entityId, INT_LEN, "%u", proc->proc_id);
 
     evt.entityName = OO_NAME;
     evt.entityId = entityId;

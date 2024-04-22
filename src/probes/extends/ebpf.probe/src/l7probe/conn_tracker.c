@@ -268,7 +268,7 @@ static void __init_l7_link_info(struct l7_mng_s *l7_mng, struct l7_link_s* link,
     char pid_str[INT_LEN + 1];
 
     pid_str[0] = 0;
-    (void)snprintf(pid_str, INT_LEN + 1, "%u", link->id.tgid);
+    (void)snprintf(pid_str, INT_LEN + 1, "%d", link->id.tgid);
 
     (void)get_proc_comm(link->id.tgid, l7_info->comm, TASK_COMM_LEN);
     (void)get_container_id_by_pid_cpuset((const char *)pid_str, l7_info->container_id, CONTAINER_ABBR_ID_LEN + 1);
@@ -763,7 +763,7 @@ static void calc_l7_stats(struct l7_mng_s *l7_mng)
 
 static void report_l7_link(struct l7_link_s *link)
 {
-    (void)fprintf(stdout, "|%s|%u|%s|%s|%u"
+    (void)fprintf(stdout, "|%s|%d|%s|%s|%u"
         "|%s|%s|%s|%s"
         "|%llu|%llu|%llu|%llu|\n",
 
@@ -800,7 +800,7 @@ static void report_l7_rpc_api(struct l7_link_s *link, struct l7_api_statistic_s 
         return;
     }
 
-    (void)fprintf(stdout, "|%s|%u|%s|%s|%u"
+    (void)fprintf(stdout, "|%s|%d|%s|%s|%u"
                           "|%s|%s|%s|%s|%s"
                           "|%.2f|%.2f|%llu|%llu"
                           "|%.2f|%s|%llu"
@@ -852,7 +852,7 @@ static void report_l7_rpc(struct l7_link_s *link)
         return;
     }
 
-    (void)fprintf(stdout, "|%s|%u|%s|%s|%u"
+    (void)fprintf(stdout, "|%s|%d|%s|%s|%u"
         "|%s|%s|%s|%s"
         "|%.2f|%.2f|%llu|%llu"
         "|%.2f|%s|%llu"

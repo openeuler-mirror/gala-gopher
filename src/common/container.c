@@ -1330,7 +1330,7 @@ container_tbl* list_containers_by_pod_id(const char *pod_id)
 
 static int __get_netns_fd(pid_t pid)
 {
-    const char *fmt = "/proc/%u/ns/net";
+    const char *fmt = "/proc/%d/ns/net";
     char path[PATH_LEN];
 
     path[0] = 0;

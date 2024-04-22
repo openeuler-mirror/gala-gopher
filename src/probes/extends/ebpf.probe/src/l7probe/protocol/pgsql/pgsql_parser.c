@@ -20,8 +20,6 @@
 #include "../common/protocol_common.h"
 #include "pgsql_parser.h"
 
-#define CHECK_RAW_DATA_LEN (raw_data->data_len == 0 || raw_data->current_pos == raw_data->data_len)
-
 parse_state_t pgsql_parse_regular_msg(struct raw_data_s *raw_data, struct pgsql_regular_msg_s *msg)
 {
     parse_state_t extract_tag_state;
@@ -31,7 +29,7 @@ parse_state_t pgsql_parse_regular_msg(struct raw_data_s *raw_data, struct pgsql_
     size_t old_pos = raw_data->current_pos;
 
     // 校验raw_data缓存长度是否合法
-    if (CHECK_RAW_DATA_LEN) {
+    if (raw_data->data_len == 0 || raw_data->current_pos == raw_data->data_len) {
         DEBUG("[Pgsql parser] The raw_data length is insufficient.\n");
         goto more_data;
     }
@@ -117,7 +115,7 @@ parse_state_t pgsql_parse_startup_msg(struct raw_data_s *raw_data, struct pgsql_
     parse_state_t parse_state;
 
     // 校验raw_data缓存长度是否合法
-    if (CHECK_RAW_DATA_LEN) {
+    if (raw_data->data_len == 0 || raw_data->current_pos == raw_data->data_len) {
         DEBUG("[Pgsql parser] The raw_data length is insufficient.\n");
         return STATE_NEEDS_MORE_DATA;
     }
@@ -508,7 +506,7 @@ parse_state_t pgsql_parse_frame(struct raw_data_s *raw_data, struct frame_data_s
     parse_state_t parse_msg_state;
 
     // 校验raw_data缓存长度是否合法
-    if (CHECK_RAW_DATA_LEN) {
+    if (raw_data->data_len == 0 || raw_data->current_pos == raw_data->data_len) {
         DEBUG("[Pgsql parser] The raw_data length is insufficient.\n");
         return STATE_NEEDS_MORE_DATA;
     }
