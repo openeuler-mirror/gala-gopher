@@ -32,7 +32,6 @@
 #include "qdisc.skel.h"
 #include "qdisc.h"
 #include "containerd_probe.h"
-#include "object.h"
 #include "bps.h"
 #include "tc_loader.h"
 #include "nsprobe.h"

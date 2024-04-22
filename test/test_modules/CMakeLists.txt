@@ -51,7 +51,6 @@ SET(SOURCES main.c
     ${IMDB_DIR}/container_cache.c
 
     ${PROBE_DIR}/ext_label.c
-    ${COMMON_DIR}/args.c
     ${COMMON_DIR}/container.c
     ${COMMON_DIR}/util.c
     ${COMMON_DIR}/event.c

@@ -42,7 +42,7 @@ function load_tailor()
         rm -rf ${TAILOR_PATH_TMP}
     fi
     # disable some probes that work not very well
-    export EXTEND_PROBES="$EXTEND_PROBES cgprobe lvsprobe schedprobe nsprobe rabbitmq.probe redis_client.probe redis.probe"
+    export EXTEND_PROBES="$EXTEND_PROBES cgprobe lvsprobe schedprobe nsprobe rabbitmq.probe redis_client.probe redis.probe sliprobe httpprobe"
 }
 
 function __get_probes_source_files()

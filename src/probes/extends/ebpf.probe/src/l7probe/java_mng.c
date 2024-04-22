@@ -158,7 +158,7 @@ static int parse_java_msg_line(char *buf, struct session_data_args_s *args)
                 args->session_conn_id.tgid = (int)atoi(token);
                 break;
             case JAVA_MSG_SESSIONID_SEG:
-                args->session_conn_id.session_id = (s64)atoll(token + sizeof(SESSION_MSG) - 1); 
+                args->session_conn_id.session_id = (s64)atoll(token + sizeof(SESSION_MSG) - 1);
                 break;
             case JAVA_MSG_RWTYPE_SEG:
                 if (strncmp(token, "Read", 4) == 0) {
@@ -271,7 +271,7 @@ static void set_pids_noexit(void)
     if (file_conn_head == NULL) {
         return;
     }
-    
+
     H_ITER(file_conn_head, item, tmp) {
         item->pid_exits = 0;
     }
@@ -283,7 +283,7 @@ static void clear_pids_noexit(void)
     if (file_conn_head == NULL) {
         return;
     }
-    
+
     H_ITER(file_conn_head, item, tmp) {
         if (item->pid_exits == 0) {
             H_DEL(file_conn_head, item);
