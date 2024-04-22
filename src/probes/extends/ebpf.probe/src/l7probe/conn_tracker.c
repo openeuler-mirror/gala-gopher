@@ -262,18 +262,9 @@ static struct l7_link_s* lkup_l7_link(struct l7_mng_s *l7_mng, const struct l7_l
     return link;
 }
 
-static void __init_l7_link_info(struct l7_mng_s *l7_mng, struct l7_link_s* link, const struct conn_tracker_s* tracker)
+static void __init_l7_link_info(struct l7_link_s* link, const struct conn_tracker_s* tracker)
 {
     struct l7_info_s *l7_info = &(link->l7_info);
-    char pid_str[INT_LEN + 1];
-
-    pid_str[0] = 0;
-    (void)snprintf(pid_str, INT_LEN + 1, "%d", link->id.tgid);
-
-    (void)get_proc_comm(link->id.tgid, l7_info->comm, TASK_COMM_LEN);
-    (void)get_container_id_by_pid_cpuset((const char *)pid_str, l7_info->container_id, CONTAINER_ABBR_ID_LEN + 1);
-    (void)get_container_pod_id((const char *)l7_info->container_id, l7_info->pod_id, POD_ID_LEN + 1);
-
     l7_info->is_ssl = tracker->is_ssl;
     return;
 }
@@ -307,7 +298,7 @@ static struct l7_link_s* add_l7_link(struct l7_mng_s *l7_mng, const struct conn_
     }
 
     new_link->stats[OPEN_EVT] = 1;
-    __init_l7_link_info(l7_mng, new_link, tracker);
+    __init_l7_link_info(new_link, tracker);
     new_link->last_rcv_data = time(NULL);
 
     H_ADD_KEYPTR(l7_mng->l7_links, &new_link->id, sizeof(struct l7_link_id_s), new_link);

@@ -129,9 +129,6 @@ struct conn_tracker_s {
 };
 
 struct l7_info_s {
-    char comm[TASK_COMM_LEN];
-    char container_id[CONTAINER_ABBR_ID_LEN + 1];
-    char pod_id[POD_ID_LEN + 1];
     char is_ssl;
     char pad[3];
 };
