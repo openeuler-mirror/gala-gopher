@@ -28,7 +28,7 @@ struct {
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(key_size, sizeof(u32));
+    __uint(key_size, sizeof(pid_t));
     __uint(value_size, sizeof(trace_event_data_t));
     __uint(max_entries, MAX_SIZE_OF_THREAD);
 } oncpu_stash_map SEC(".maps");
@@ -117,7 +117,7 @@ static __always_inline void process_oncpu_event(oncpu_m_enter_t *oncpu_enter, st
                                                 void *ctx)
 {
     trace_event_data_t *evt_data;
-    u32 pid;
+    pid_t pid;
 
     pid = BPF_CORE_READ(task, pid);
     evt_data = (trace_event_data_t *)bpf_map_lookup_elem(&oncpu_stash_map, &pid);
@@ -147,7 +147,7 @@ static __always_inline void process_oncpu_event(oncpu_m_enter_t *oncpu_enter, st
 
 static __always_inline void process_oncpu(struct task_struct *task)
 {
-    u32 pid, tgid;
+    pid_t pid, tgid;
     oncpu_m_enter_t oncpu_enter;
 
     pid = BPF_CORE_READ(task, pid);
@@ -164,7 +164,7 @@ static __always_inline void process_oncpu(struct task_struct *task)
 
 static __always_inline void process_offcpu(struct task_struct *task, void *ctx)
 {
-    u32 pid = BPF_CORE_READ(task, pid);
+    pid_t pid = BPF_CORE_READ(task, pid);
     oncpu_m_enter_t *oncpu_enter;
 
     oncpu_enter = (oncpu_m_enter_t *)bpf_map_lookup_elem(&oncpu_enter_map, &pid);

@@ -246,7 +246,7 @@ void destroy_dns_entrys(struct task_probe_s *task_probe)
 int load_glibc_bpf_prog(struct task_probe_s *task_probe, const char *glibc_path, struct bpf_prog_s **new_prog)
 {
     int ret, succeed;
-    int link_num = 0;
+    size_t link_num = 0;
     struct bpf_prog_s *prog;
     struct bpf_buffer *buffer = NULL;
 

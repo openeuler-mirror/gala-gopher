@@ -68,7 +68,7 @@ static parse_state_t parse_chunked(struct raw_data_s *raw_data, size_t *offset, 
             *ext = 0;
         }
 
-        chunked_len = simple_hex_atoi(chunked_len_str);
+        chunked_len = (size_t)simple_hex_atoi(chunked_len_str);
         free(chunked_len_str);
         if (data - raw_data->data == raw_data->data_len) {
             return STATE_NEEDS_MORE_DATA;
@@ -136,7 +136,8 @@ static parse_state_t parse_request_body(struct raw_data_s *raw_data, struct http
     content_len_str[0] = 0;
     ret = get_http_header_value_by_key(headers, num_headers, KEY_CONTENT_LENGTH, content_len_str, CONTENT_VALUE_LEN);
     if (ret == 0 && content_len_str[0] != 0) {
-        size_t content_len = atoi(content_len_str);
+        size_t content_len = strtoul(content_len_str, NULL, 10);
+
         // Content-Length can be 0, for example, in DELETE request, judgement here is to prevent errors
         // in some extreme cases that Content-Length is not a valid num.
         if (content_len == 0 && strcmp(content_len_str, "0") != 0) {
@@ -205,7 +206,8 @@ static parse_state_t parse_response_body(struct raw_data_s *raw_data, struct htt
     content_len_str[0] = 0;
     ret = get_http_header_value_by_key(headers, num_headers, KEY_CONTENT_LENGTH, content_len_str, CONTENT_VALUE_LEN);
     if (ret == 0 && content_len_str[0] != 0) {
-        size_t content_len = atoi(content_len_str);
+        size_t content_len = strtoul(content_len_str, NULL, 10);
+
         // If Content-Length is not 0, it returns invalid while parsing failed.
         if (content_len == 0) {
             WARN("[HTTP1.x PARSER] Failed to parse Content-Length of response.\n");

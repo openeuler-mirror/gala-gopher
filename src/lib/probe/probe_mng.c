@@ -231,7 +231,7 @@ static void detach_probe_fd(struct probe_mng_s *probe_mng, struct probe_s *probe
 
 static void destroy_probe(struct probe_s *probe)
 {
-    int i;
+    u32 i;
 
     if (probe == NULL) {
         return;

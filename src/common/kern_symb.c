@@ -150,9 +150,8 @@ static char __kern_unknow_symb[] = "[kernel]";
 
 int search_kern_addr_symb(struct ksymb_tbl_s *ksymbs, u64 addr, struct addr_symb_s *addr_symb)
 {
-    int start, end;
+    u32 start, mid, end;
     int result;
-    size_t mid;
 
     if (!ksymbs) {
         return -1;

@@ -30,7 +30,6 @@ static void TestIMDB_TableAddRecord(void);
 static void TestIMDB_DataBaseMgrCreate(void);
 static void TestIMDB_TableAddRecord(void);
 static void TestIMDB_DataBaseMgrFindTable(void);
-static void TestIMDB_DataBaseMgrAddRecord(void);
 static void TestIMDB_DataBaseMgrData2String(void);
 static void TestIMDB_RecordAppendKey(void);
 static void TestHASH_addRecord(void);
@@ -213,61 +212,6 @@ static void TestIMDB_DataBaseMgrFindTable(void)
     IMDB_DataBaseMgrDestroy(mgr);
 }
 
-static void TestIMDB_DataBaseMgrAddRecord(void)
-{
-    int ret = 0;
-    IMDB_DataBaseMgr *mgr = IMDB_DataBaseMgrCreate(1024);
-    CU_ASSERT(mgr != NULL);
-
-    IMDB_Table *table = IMDB_TableCreate("table1", 1024);
-    CU_ASSERT(table != NULL);
-
-    IMDB_Record *meta = IMDB_RecordCreate(1024);
-    CU_ASSERT(meta != NULL);
-    IMDB_Metric *metric1 = IMDB_MetricCreate("metric1", "desc1", "key");
-    CU_ASSERT(metric1 != NULL);
-    ret = IMDB_RecordAddMetric(meta, metric1);
-    CU_ASSERT(ret == 0);
-    IMDB_Metric *metric2 = IMDB_MetricCreate("metric2", "desc2", "key");
-    CU_ASSERT(metric2 != NULL);
-    ret = IMDB_RecordAddMetric(meta, metric2);
-    CU_ASSERT(ret == 0);
-    IMDB_Metric *metric3 = IMDB_MetricCreate("metric3", "desc3", "type3");
-    CU_ASSERT(metric3 != NULL);
-    ret = IMDB_RecordAddMetric(meta, metric3);
-    CU_ASSERT(ret == 0);
-
-    ret = IMDB_TableSetMeta(table, meta);
-    CU_ASSERT(ret == 0);
-
-    ret = IMDB_TableSetRecordKeySize(table, 2);
-    CU_ASSERT(ret == 0);
-
-    ret = IMDB_DataBaseMgrAddTable(mgr, table);
-    CU_ASSERT(ret == 0);
-
-    char recordStr[] = "|table1|value1|value2|value3|";
-    ret = IMDB_DataBaseMgrAddRecord(mgr, recordStr);
-    CU_ASSERT(ret == 0);
-    CU_ASSERT(table->records[0]->metricsNum == 3);
-    CU_ASSERT(strcmp(table->records[0]->metrics[0]->name, "metric1") == 0);
-    CU_ASSERT(strcmp(table->records[0]->metrics[0]->description, "desc1") == 0);
-    CU_ASSERT(strcmp(table->records[0]->metrics[0]->type, "key") == 0);
-    CU_ASSERT(strcmp(table->records[0]->metrics[0]->val, "value1") == 0);
-
-    CU_ASSERT(strcmp(table->records[0]->metrics[1]->name, "metric2") == 0);
-    CU_ASSERT(strcmp(table->records[0]->metrics[1]->description, "desc2") == 0);
-    CU_ASSERT(strcmp(table->records[0]->metrics[1]->type, "key") == 0);
-    CU_ASSERT(strcmp(table->records[0]->metrics[1]->val, "value2") == 0);
-
-    CU_ASSERT(strcmp(table->records[0]->metrics[2]->name, "metric3") == 0);
-    CU_ASSERT(strcmp(table->records[0]->metrics[2]->description, "desc3") == 0);
-    CU_ASSERT(strcmp(table->records[0]->metrics[2]->type, "type3") == 0);
-    CU_ASSERT(strcmp(table->records[0]->metrics[2]->val, "value3") == 0);
-
-    IMDB_DataBaseMgrDestroy(mgr);
-}
-
 static void TestIMDB_DataBaseMgrData2String(void)
 {
     int ret = 0;
@@ -298,7 +242,7 @@ static void TestIMDB_DataBaseMgrData2String(void)
     CU_ASSERT(ret == 0);
 
     char recordStr[] = "|table1|value1|value2|\n";
-    ret = IMDB_DataBaseMgrAddRecord(mgr, recordStr);
+    ret = IMDB_DataBaseMgrCreateRec(mgr, table, recordStr);
     CU_ASSERT(ret == 0);
 
     char buffer[2048] = {0};
@@ -418,7 +362,6 @@ void TestIMDBMain(CU_pSuite suite)
     CU_ADD_TEST(suite, TestIMDB_DataBaseMgrCreate);
     CU_ADD_TEST(suite, TestIMDB_DataBaseMgrAddTable);
     CU_ADD_TEST(suite, TestIMDB_DataBaseMgrFindTable);
-    CU_ADD_TEST(suite, TestIMDB_DataBaseMgrAddRecord);
     CU_ADD_TEST(suite, TestIMDB_DataBaseMgrData2String);
     CU_ADD_TEST(suite, TestIMDB_RecordAppendKey);
     CU_ADD_TEST(suite, TestHASH_addRecord);

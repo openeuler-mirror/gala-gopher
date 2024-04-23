@@ -155,10 +155,10 @@ static int parse_java_msg_line(char *buf, struct session_data_args_s *args)
                 }
                 break;
             case JAVA_MSG_PID_SEG:
-                args->session_conn_id.tgid = (int)atoi(token);
+                args->session_conn_id.tgid = strtol(token, NULL, 10);
                 break;
             case JAVA_MSG_SESSIONID_SEG:
-                args->session_conn_id.session_id = (s64)atoll(token + sizeof(SESSION_MSG) - 1);
+                args->session_conn_id.session_id = strtoll(token + sizeof(SESSION_MSG) - 1, NULL, 10);
                 break;
             case JAVA_MSG_RWTYPE_SEG:
                 if (strncmp(token, "Read", 4) == 0) {
@@ -182,7 +182,8 @@ static int parse_java_msg_line(char *buf, struct session_data_args_s *args)
                 (void)snprintf(args->ip, IP6_LEN, "%s", token);
                 break;
             case JAVA_MSG_REMOTE_PORT_SEG:
-                args->port = (int)atoi(token);
+                args->port = strtol(token, NULL, 10);
+
                 ret = snprintf(args->buf, CONN_DATA_MAX_SIZE, "%s", buffer);
                 if (ret < 1 || ret >= CONN_DATA_MAX_SIZE) {
                     return -1;
@@ -271,7 +272,7 @@ static void set_pids_noexit(void)
     if (file_conn_head == NULL) {
         return;
     }
-
+    
     H_ITER(file_conn_head, item, tmp) {
         item->pid_exits = 0;
     }
@@ -283,7 +284,7 @@ static void clear_pids_noexit(void)
     if (file_conn_head == NULL) {
         return;
     }
-
+    
     H_ITER(file_conn_head, item, tmp) {
         if (item->pid_exits == 0) {
             H_DEL(file_conn_head, item);

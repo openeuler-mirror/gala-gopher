@@ -171,7 +171,7 @@ char is_exist_mod(const char *mod)
     line[0] = 0;
     if (fgets(line, LINE_BUF_LEN, fp) != NULL) {
         SPLIT_NEWLINE_SYMBOL(line);
-        cnt = atoi(line);
+        cnt = strtol(line, NULL, 10);
     }
     pclose(fp);
 
@@ -317,7 +317,7 @@ int copy_file(const char *dst_file, const char *src_file)
     }
 
     while (1) {
-        int op = fread(buffer, 1, 1, fp2);
+        size_t op = fread(buffer, 1, 1, fp2);
         if(op == 0) {
             break;
         }
@@ -422,7 +422,7 @@ int get_proc_cmdline(u32 pid, char *buf, u32 buf_len)
 {
     FILE *f = NULL;
     char path[LINE_BUF_LEN];
-    int index = 0;
+    u32 index = 0;
 
     (void)memset(buf, 0, buf_len);
 
@@ -472,13 +472,14 @@ int get_kern_version(u32 *kern_version)
     if (exec_cmd(major_cmd, version, INT_LEN)) {
         return -1;
     }
-    major = (char)atoi(version);
+    major = (char)strtol(version, NULL, 10);
 
     version[0] = 0;
     if (exec_cmd(minor_cmd, version, INT_LEN)) {
         return -1;
     }
-    minor = (char)atoi(version);
+
+    minor = (char)strtol(version, NULL, 10);
 
     *kern_version = (u32)KERNEL_VERSION(major, minor, patch);
     return 0;

@@ -53,7 +53,7 @@
 int l7_load_probe_libssl(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog, const char *libssl_path)
 {
     int succeed;
-    int link_num = 0;
+    size_t link_num = 0;
     struct bpf_buffer *buffer = NULL;
 
     __LOAD_PROBE(libssl, err, 1, buffer);
