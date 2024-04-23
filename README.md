@@ -4,8 +4,8 @@
 
 ## 什么是gala-gopher
 
-gala-gopher是gala项目内负责数据采集的组件，其为gala项目提供Metrics、Event、Perf等数据，便于gala项目完成系统拓扑的绘制和故障根因的定位。   
-gala-gopher是一款结合eBPF、java agent等非侵入可观测技术的观测平台，探针是gala-gopher用于观测和采集数据的主要工具，通过探针式架构gala-gopher可以轻松实现增加、减少探针。    
+gala-gopher是gala项目内负责数据采集的组件，其为gala项目提供Metrics、Event、Perf等数据，便于gala项目完成系统拓扑的绘制和故障根因的定位。
+gala-gopher是一款结合eBPF、java agent等非侵入可观测技术的观测平台，探针是gala-gopher用于观测和采集数据的主要工具，通过探针式架构gala-gopher可以轻松实现增加、减少探针。
 
 ## 观测范围
 
@@ -140,7 +140,7 @@ gala-gopher集成了常用的native探针以及知名中间件探针；gala-goph
    ```
    # x86_64架构
    docker pull hub.oepkgs.net/a-ops/gala-gopher-x86_64
-   
+
    # aarch64架构
    docker pull hub.oepkgs.net/a-ops/gala-gopher-aarch64
    ```
@@ -233,8 +233,8 @@ gala-gopher启动时框架的行为由配置文件控制，具体见[配置文�
 为了防止重启gala-gopher服务或者容器时用户需要重新配置与启动探针，gala-gopher提供默认探针配置文件供用户固化探针配置。该文件安装在/etc/gala-gopher/probes.init，配置格式为：**[采集特性] [配置的json语句]**，每个探针一行，例如：
 
 ```
-tcp {"cmd":{"bin":"/opt/gala-gopher/extend_probes/tcpprobe","probe":["tcp_rtt","tcp_windows","tcp_abnormal"]},"snoopers":{"proc_name":[{"comm":"java","cmdline":""}]},"params":{"report_event":1},"state":"running"}
-baseinfo {"cmd":{"bin":"system_infos","probe":["cpu","fs","host"]},"state":"running"}
+tcp {"cmd":{"probe":["tcp_rtt","tcp_windows","tcp_abnormal"]},"snoopers":{"proc_name":[{"comm":"java","cmdline":""}]},"params":{"report_event":1},"state":"running"}
+baseinfo {"cmd":{"probe":["cpu","fs","host"]},"state":"running"}
 ```
 
 在容器/k8s场景下，用户可在部署gala-gopher通过GOPHER_PROBES_INIT参数来实现该功能（不指定该参数时则保持默认不运行任何探针），例如：
@@ -281,7 +281,7 @@ hub.oepkgs.net/a-ops/gala-gopher-x86_64
 
    ```
    # sh build.sh --clean
-   
+
    # sh build.sh --release     # RELEASE模式
    # 或者
    # sh build.sh --debug       # DEBUG模式

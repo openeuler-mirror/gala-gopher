@@ -130,17 +130,8 @@ enum probe_type_e {
 enum snooper_obj_e {
     SNOOPER_OBJ_PROC = 0,
     SNOOPER_OBJ_CON,
-    SNOOPER_OBJ_GAUSSDB,
 
     SNOOPER_OBJ_MAX
-};
-
-struct snooper_gaussdb_s {
-    u32 port;
-    char *ip;
-    char *dbname;
-    char *usr;
-    char *pass;
 };
 
 struct snooper_con_info_s {
@@ -160,7 +151,6 @@ struct snooper_obj_s {
     union {
         struct proc_s proc;
         struct snooper_con_info_s con_info;
-        struct snooper_gaussdb_s gaussdb;
     } obj;
 };
 

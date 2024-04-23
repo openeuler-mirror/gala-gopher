@@ -32,12 +32,7 @@ enum ipct_type_e {
 };
 
 enum ipct_subtype_e {
-    IPCT_GAUSSDB_IP = 1000,
-    IPCT_GAUSSDB_DBNAME,
-    IPCT_GAUSSDB_USR,
-    IPCT_GAUSSDB_PASS,
-
-    IPCT_CONTAINER_ID,
+    IPCT_CONTAINER_ID=1000,
     IPCT_CONTAINER_NAME,
     IPCT_LIBC_PATH,
     IPCT_LIBSSL_PATH,
@@ -128,27 +123,6 @@ static void __free_container_obj(struct snooper_con_info_s *container)
     return;
 }
 
-static void __free_gaussdb_obj(struct snooper_gaussdb_s *gaussdb)
-{
-    if (gaussdb->ip) {
-        (void)free(gaussdb->ip);
-        gaussdb->ip = NULL;
-    }
-    if (gaussdb->dbname) {
-        (void)free(gaussdb->dbname);
-        gaussdb->dbname = NULL;
-    }
-    if (gaussdb->usr) {
-        (void)free(gaussdb->usr);
-        gaussdb->usr = NULL;
-    }
-    if (gaussdb->pass) {
-        (void)free(gaussdb->pass);
-        gaussdb->pass = NULL;
-    }
-    return;
-}
-
 static u32 get_tlv_len_proc(struct snooper_obj_s *obj)
 {
     if (obj->type != SNOOPER_OBJ_PROC) {
@@ -191,33 +165,6 @@ static u32 get_tlv_len_container(struct snooper_obj_s *obj)
     return tlv_len;
 }
 
-static u32 get_tlv_len_gaussdb(struct snooper_obj_s *obj)
-{
-    struct snooper_gaussdb_s *gaussdb;
-    u32 tlv_len = sizeof(struct ipc_tlv_s);
-
-    if (obj->type != SNOOPER_OBJ_GAUSSDB) {
-        return 0;
-    }
-
-    tlv_len += sizeof(u32); // port
-
-    gaussdb = &(obj->obj.gaussdb);
-    if (gaussdb->ip) {
-        tlv_len += sizeof(struct ipc_tlv_s) + strlen(gaussdb->ip) + 1;
-    }
-    if (gaussdb->dbname) {
-        tlv_len += sizeof(struct ipc_tlv_s) + strlen(gaussdb->dbname) + 1;
-    }
-    if (gaussdb->usr) {
-        tlv_len += sizeof(struct ipc_tlv_s) + strlen(gaussdb->usr) + 1;
-    }
-    if (gaussdb->pass) {
-        tlv_len += sizeof(struct ipc_tlv_s) + strlen(gaussdb->pass) + 1;
-    }
-
-    return tlv_len;
-}
 
 static int build_tlv_proc(char *buf, size_t size, struct snooper_obj_s *obj)
 {
@@ -351,92 +298,6 @@ static int build_tlv_container(char *buf, size_t size, struct snooper_obj_s *obj
         tlv_2nd->type = IPCT_POD_IP;
         tlv_2nd->len = tlv_len_2nd - sizeof(struct ipc_tlv_s);
         (void)memcpy(tlv_2nd->value, container->pod_ip_str, tlv_2nd->len);
-
-        tlv_len_1st += tlv_len_2nd;
-    }
-
-    tlv_1st->len = tlv_len_1st;
-    return tlv_1st->len + sizeof(struct ipc_tlv_s);
-}
-
-static int build_tlv_gaussdb(char *buf, size_t size, struct snooper_obj_s *obj)
-{
-    int max_len = (int)size;
-    u32 tlv_len_1st = 0, tlv_len_2nd = 0;
-    char *p, *start;
-    struct snooper_gaussdb_s *gaussdb;
-    struct ipc_tlv_s *tlv_1st, *tlv_2nd;
-    if (obj->type != SNOOPER_OBJ_GAUSSDB) {
-        return -1;
-    }
-
-    tlv_1st = (struct ipc_tlv_s *)buf;
-    tlv_1st->type = SNOOPER_OBJ_GAUSSDB;
-    gaussdb = &(obj->obj.gaussdb);
-    start = (char *)(tlv_1st->value);
-
-    p = start + tlv_len_1st;
-    *(u32 *)p = gaussdb->port;
-    tlv_len_1st += sizeof(u32);
-    max_len -= tlv_len_1st;
-
-    if (gaussdb->ip) {
-        tlv_len_2nd = strlen(gaussdb->ip) + 1 + sizeof(struct ipc_tlv_s);
-        max_len -= tlv_len_2nd;
-        if (max_len < 0) {
-            return -1;
-        }
-        p = start + tlv_len_1st;
-        tlv_2nd = (struct ipc_tlv_s *)p;
-        tlv_2nd->type = IPCT_GAUSSDB_IP;
-        tlv_2nd->len = tlv_len_2nd - sizeof(struct ipc_tlv_s);
-        (void)memcpy(tlv_2nd->value, gaussdb->ip, tlv_2nd->len);
-
-        tlv_len_1st += tlv_len_2nd;
-    }
-
-    if (gaussdb->dbname) {
-        tlv_len_2nd = strlen(gaussdb->dbname) + 1 + sizeof(struct ipc_tlv_s);
-        max_len -= tlv_len_2nd;
-        if (max_len < 0) {
-            return -1;
-        }
-        p = start + tlv_len_1st;
-        tlv_2nd = (struct ipc_tlv_s *)p;
-        tlv_2nd->type = IPCT_GAUSSDB_DBNAME;
-        tlv_2nd->len = tlv_len_2nd - sizeof(struct ipc_tlv_s);
-        (void)memcpy(tlv_2nd->value, gaussdb->dbname, tlv_2nd->len);
-
-        tlv_len_1st += tlv_len_2nd;
-    }
-
-    if (gaussdb->usr) {
-        tlv_len_2nd = strlen(gaussdb->usr) + 1 + sizeof(struct ipc_tlv_s);
-        max_len -= tlv_len_2nd;
-        if (max_len < 0) {
-            return -1;
-        }
-        p = start + tlv_len_1st;
-        tlv_2nd = (struct ipc_tlv_s *)p;
-        tlv_2nd->type = IPCT_GAUSSDB_USR;
-        tlv_2nd->len = tlv_len_2nd - sizeof(struct ipc_tlv_s);
-        (void)memcpy(tlv_2nd->value, gaussdb->usr, tlv_2nd->len);
-
-        tlv_len_1st += tlv_len_2nd;
-    }
-
-    if (gaussdb->pass) {
-        tlv_len_2nd = strlen(gaussdb->pass) + 1 + sizeof(struct ipc_tlv_s);
-        max_len -= tlv_len_2nd;
-        if (max_len < 0) {
-            return -1;
-        }
-
-        p = start + tlv_len_1st;
-        tlv_2nd = (struct ipc_tlv_s *)p;
-        tlv_2nd->type = IPCT_GAUSSDB_PASS;
-        tlv_2nd->len = tlv_len_2nd - sizeof(struct ipc_tlv_s);
-        (void)memcpy(tlv_2nd->value, gaussdb->pass, tlv_2nd->len);
 
         tlv_len_1st += tlv_len_2nd;
     }
@@ -587,103 +448,6 @@ end:
     return (err != 0) ? -1 : (int)(offset + sizeof(struct ipc_tlv_s));
 }
 
-static int deserialize_tlv_gaussdb(char *buf, size_t size, struct snooper_obj_s *obj)
-{
-    int err = 0;
-    size_t offset = 0;
-    struct ipc_tlv_s *tlv_1st, *tlv_2nd;
-    char *p, *start;
-    struct snooper_gaussdb_s *gaussdb;
-
-    tlv_1st = (struct ipc_tlv_s *)buf;
-    if (tlv_1st->type != SNOOPER_OBJ_GAUSSDB) {
-        return -1;
-    }
-
-    if (tlv_1st->len < sizeof(u32)) {
-        return -1;
-    }
-
-    obj->type = SNOOPER_OBJ_GAUSSDB;
-    gaussdb = &(obj->obj.gaussdb);
-    start = (char *)(tlv_1st->value);
-
-    p = start + offset;
-    gaussdb->port = *(u32 *)p;
-    offset += sizeof(u32);
-
-    if (offset >= size) {
-        goto end;
-    }
-
-    do {
-        p = start + offset;
-        tlv_2nd = (struct ipc_tlv_s *)p;
-        switch (tlv_2nd->type) {
-            case IPCT_GAUSSDB_IP:
-            {
-                gaussdb->ip = (char *)malloc(tlv_2nd->len);
-                if (gaussdb->ip == NULL) {
-                    err = 1;
-                    goto end;
-                }
-
-                (void)memcpy(gaussdb->ip, tlv_2nd->value, tlv_2nd->len);
-                offset += tlv_2nd->len + sizeof(struct ipc_tlv_s);
-                break;
-            }
-            case IPCT_GAUSSDB_DBNAME:
-            {
-                gaussdb->dbname = (char *)malloc(tlv_2nd->len);
-                if (gaussdb->dbname == NULL) {
-                    err = 1;
-                    goto end;
-                }
-
-                (void)memcpy(gaussdb->dbname, tlv_2nd->value, tlv_2nd->len);
-                offset += tlv_2nd->len + sizeof(struct ipc_tlv_s);
-                break;
-            }
-            case IPCT_GAUSSDB_USR:
-            {
-                gaussdb->usr = (char *)malloc(tlv_2nd->len);
-                if (gaussdb->usr == NULL) {
-                    err = 1;
-                    goto end;
-                }
-
-                (void)memcpy(gaussdb->usr, tlv_2nd->value, tlv_2nd->len);
-                offset += tlv_2nd->len + sizeof(struct ipc_tlv_s);
-                break;
-            }
-            case IPCT_GAUSSDB_PASS:
-            {
-                gaussdb->pass = (char *)malloc(tlv_2nd->len);
-                if (gaussdb->pass == NULL) {
-                    err = 1;
-                    goto end;
-                }
-
-                (void)memcpy(gaussdb->pass, tlv_2nd->value, tlv_2nd->len);
-                offset += tlv_2nd->len + sizeof(struct ipc_tlv_s);
-                break;
-            }
-            default:
-            {
-                err = 1;
-                break;
-            }
-        }
-    } while (offset < tlv_1st->len);
-
-end:
-    if (err) {
-        __free_gaussdb_obj(gaussdb);
-        obj->type = SNOOPER_OBJ_MAX;
-    }
-    return (err != 0) ? -1 : (int)(offset + sizeof(struct ipc_tlv_s));
-}
-
 typedef u32 (*GetTlvLen)(struct snooper_obj_s *);
 typedef int (*BuildTlv)(char *, size_t, struct snooper_obj_s *);
 typedef int (*DeserializeTlv)(char *, size_t, struct snooper_obj_s *);
@@ -697,8 +461,7 @@ struct ipc_operator_s {
 
 static struct ipc_operator_s ipc_operators[SNOOPER_OBJ_MAX] = {
     {SNOOPER_OBJ_PROC,      get_tlv_len_proc,       build_tlv_proc,         deserialize_tlv_proc},
-    {SNOOPER_OBJ_CON,       get_tlv_len_container,  build_tlv_container,    deserialize_tlv_container},
-    {SNOOPER_OBJ_GAUSSDB,   get_tlv_len_gaussdb,    build_tlv_gaussdb,      deserialize_tlv_gaussdb}
+    {SNOOPER_OBJ_CON,       get_tlv_len_container,  build_tlv_container,    deserialize_tlv_container}
 };
 
 static u32 __calc_ipc_msg_len(struct ipc_body_s* ipc_body)
@@ -1141,7 +904,6 @@ void clear_ipc_msg(long msg_type)
 void destroy_ipc_body(struct ipc_body_s *ipc_body)
 {
     struct snooper_con_info_s *container;
-    struct snooper_gaussdb_s *gaussdb;
 
     if (ipc_body == NULL) {
         return;
@@ -1153,12 +915,6 @@ void destroy_ipc_body(struct ipc_body_s *ipc_body)
             {
                 container = &(ipc_body->snooper_objs[i].obj.con_info);
                 __free_container_obj(container);
-                break;
-            }
-            case SNOOPER_OBJ_GAUSSDB:
-            {
-                gaussdb = &(ipc_body->snooper_objs[i].obj.gaussdb);
-                __free_gaussdb_obj(gaussdb);
                 break;
             }
             default:

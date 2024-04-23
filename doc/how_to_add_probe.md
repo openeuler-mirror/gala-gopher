@@ -4,14 +4,14 @@
 
 gala-gopher主要包括探针框架和探针程序两部分，探针由Native probe、Extend probe两类，前者只能使用C语言实现，后者不限定编程语言。
 
-目前gala-gopher支持探针上报两类数据至框架：Metrics、Event. 
+目前gala-gopher支持探针上报两类数据至框架：Metrics、Event.
 
 ![logic_frm](pic/logic_frm.png)
 
 其中探针框架包括：
 
 - API：提供REST接口管理gala-gopher。
-- probe-mng：负责探针生命周期管理，包括启动、停止、保活等能力。 
+- probe-mng：负责探针生命周期管理，包括启动、停止、保活等能力。
 - ipc：负责给探针下发配置参数。
 
 - ingress：负责接收探针上报的数据，将数据结构化后录入IMDB。
@@ -52,8 +52,8 @@ gala-gopher
 	│   ├── api							# API 模块
 	│   ├── cmd							# gala-gopher ctl模块
 	│   ├── common						# gala-gopher框架与probe之间的公共模块
-	│   ├── daemon						
-	│   ├── egress						
+	│   ├── daemon
+	│   ├── egress
 	│   ├── ingress
 	│   ├── lib
 	│   │   ├── config
@@ -302,7 +302,7 @@ msg_len |   |                                                                   
 
 ### 探针参数
 
-探针参数由数据结构  `struct ipc_body_s` 描述，其中包括四部分信息： 
+探针参数由数据结构  `struct ipc_body_s` 描述，其中包括四部分信息：
 
 - 探针子功能：由成员 `probe_range_flags`表达，不同的探针有其自身的定义，具体可以参考`probe_range_define`。
 - 变更内容标记：由成员 `probe_flags`表达IPC内容，范围变更`IPC_FLAGS_SNOOPER_CHG`、监控参数变更`IPC_FLAGS_PARAMS_CHG`。
@@ -359,7 +359,7 @@ enum probe_type_e {
     PROBE_L7,
     ...
     PROBE_SCHED,
-    
+
     // If you want to add a probe, add the probe type.
 
     PROBE_TYPE_MAX
@@ -418,7 +418,6 @@ REST API可以使用如下方式配置：
 curl -X PUT http://localhost:9999/l7 --data-urlencode json='
 {
     "cmd": {
-        "bin": "/opt/gala-gopher/extend_probes/l7probe",
         "probe": [
             "l7_bytes_metrics",
             "l7_rpc_metrics"

@@ -41,7 +41,6 @@
 #define SNOOPER_OBJNAME_PROCNAME    "proc_name"
 #define SNOOPER_OBJNAME_PODID       "pod_id"
 #define SNOOPER_OBJNAME_CONTAINERID "container_id"
-#define SNOOPER_OBJNAME_GAUSSDB     "gaussdb"
 #define SNOOPER_OBJNAME_CUSTOM_LABELS "custom_labels"
 #define SNOOPER_OBJNAME_POD_LABELS  "pod_labels"
 
@@ -64,30 +63,6 @@
 #define SNOOPER_OBJNAME_CMDLINE     "cmdline"
 #define SNOOPER_OBJNAME_DBGDIR      "debugging_dir"
 
-// 'gaussdb' snooper subobj name define
-/*
-"gaussdb": [
-                {
-                    "dbip": "192.168.1.1",
-                    "dbport": 8080,
-                    "dbname": "",
-                    "dbuser": "",
-                    "dbpass": ""
-                },
-                {
-                    "dbip": "192.168.1.1",
-                    "dbport": 8081,
-                    "dbname": "",
-                    "dbuser": "",
-                    "dbpass": ""
-                }
-            ],
-*/
-#define SNOOPER_OBJNAME_DBIP        "dbip"
-#define SNOOPER_OBJNAME_DBPORT      "dbport"
-#define SNOOPER_OBJNAME_DBNAME      "dbname"
-#define SNOOPER_OBJNAME_DBUSER      "dbuser"
-#define SNOOPER_OBJNAME_DBPASS      "dbpass"
 
 static struct probe_mng_s *__probe_mng_snooper = NULL;
 
@@ -109,21 +84,6 @@ void free_snooper_conf(struct snooper_conf_s* snooper_conf)
         }
         if (snooper_conf->conf.app.debuging_dir) {
             (void)free(snooper_conf->conf.app.debuging_dir);
-        }
-    }
-
-    if (snooper_conf->type == SNOOPER_CONF_GAUSSDB) {
-        if (snooper_conf->conf.gaussdb.dbname) {
-            (void)free(snooper_conf->conf.gaussdb.dbname);
-        }
-        if (snooper_conf->conf.gaussdb.usr) {
-            (void)free(snooper_conf->conf.gaussdb.usr);
-        }
-        if (snooper_conf->conf.gaussdb.pass) {
-            (void)free(snooper_conf->conf.gaussdb.pass);
-        }
-        if (snooper_conf->conf.gaussdb.ip) {
-            (void)free(snooper_conf->conf.gaussdb.ip);
         }
     }
 
@@ -257,42 +217,6 @@ static int add_snooper_conf_container(struct probe_s *probe, const char* contain
     return 0;
 }
 
-static int add_snooper_conf_gaussdb(struct probe_s *probe, char *ip, char *dbname,
-                                                char *usr, char *pass, u32 port)
-{
-    if (probe->snooper_conf_num >= SNOOPER_MAX) {
-        return -1;
-    }
-
-    struct snooper_conf_s* snooper_conf = new_snooper_conf();
-    if (snooper_conf == NULL) {
-        return -1;
-    }
-
-    if (ip && !(ip[0] != 0)) {
-        snooper_conf->conf.gaussdb.ip = strdup(ip);
-    }
-    if (dbname && !(dbname[0] != 0)) {
-        snooper_conf->conf.gaussdb.dbname = strdup(dbname);
-    }
-    if (usr && !(usr[0] != 0)) {
-        snooper_conf->conf.gaussdb.usr = strdup(usr);
-    }
-    if (pass && !(pass[0] != 0)) {
-        snooper_conf->conf.gaussdb.pass = strdup(pass);
-    }
-    snooper_conf->conf.gaussdb.port = port;
-    snooper_conf->type = SNOOPER_CONF_GAUSSDB;
-
-    if (probe->snooper_confs[probe->snooper_conf_num] != NULL) {
-        free_snooper_conf(probe->snooper_confs[probe->snooper_conf_num]);
-        probe->snooper_confs[probe->snooper_conf_num] = NULL;
-    }
-
-    probe->snooper_confs[probe->snooper_conf_num] = snooper_conf;
-    probe->snooper_conf_num++;
-    return 0;
-}
 
 static void print_snooper_procid(struct probe_s *probe, void *json)
 {
@@ -602,94 +526,12 @@ static int parse_snooper_pod_container(struct probe_s *probe, const void *json, 
     return 0;
 }
 
-static void print_snooper_gaussdb(struct probe_s *probe, void *json)
-{
-    void *gaussdb_item, *object;
-    struct snooper_conf_s *snooper_conf;
-
-    gaussdb_item = Json_CreateArray();
-    for (int i = 0; i < probe->snooper_conf_num; i++) {
-        snooper_conf = probe->snooper_confs[i];
-        if (snooper_conf->type != SNOOPER_CONF_GAUSSDB) {
-            continue;
-        }
-
-        object = Json_CreateObject();
-        Json_AddStringToObject(object, SNOOPER_OBJNAME_DBIP, snooper_conf->conf.gaussdb.ip?:"");
-        Json_AddUIntItemToObject(object, SNOOPER_OBJNAME_DBPORT, snooper_conf->conf.gaussdb.port);
-        Json_AddStringToObject(object, SNOOPER_OBJNAME_DBNAME, snooper_conf->conf.gaussdb.dbname?:"");
-        Json_AddStringToObject(object, SNOOPER_OBJNAME_DBUSER, snooper_conf->conf.gaussdb.usr?:"");
-        Json_AddStringToObject(object, SNOOPER_OBJNAME_DBPASS, snooper_conf->conf.gaussdb.pass?:"");
-        Json_AddItemToArray(gaussdb_item, object);
-        Json_Delete(object);
-    }
-    Json_AddItemToObject(json, SNOOPER_OBJNAME_GAUSSDB, gaussdb_item);
-    Json_Delete(gaussdb_item);
-}
-
-static int parse_snooper_gaussdb(struct probe_s *probe, const void *json)
-{
-    int ret;
-    void *gaussdb_item, *ip_item, *dbname_item, *usr_item, *pass_item, *port_item, *object;
-    char *ip, *dbname, *usr, *pass;
-
-    gaussdb_item = Json_GetObjectItem(json, SNOOPER_OBJNAME_GAUSSDB);
-    if (gaussdb_item == NULL) {
-        return 0;
-    }
-
-    size_t size = Json_GetArraySize(gaussdb_item);
-    for (int i = 0; i < size; i++) {
-        object = Json_GetArrayItem(gaussdb_item, i);
-        if (!Json_IsObject(object)) {
-            return -1;
-        }
-
-        ip_item = Json_GetObjectItem(object, SNOOPER_OBJNAME_DBIP);
-        dbname_item = Json_GetObjectItem(object, SNOOPER_OBJNAME_DBNAME);
-        usr_item = Json_GetObjectItem(object, SNOOPER_OBJNAME_DBUSER);
-        pass_item = Json_GetObjectItem(object, SNOOPER_OBJNAME_DBPASS);
-        port_item = Json_GetObjectItem(object, SNOOPER_OBJNAME_DBPORT);
-
-        if ((ip_item == NULL) || (!Json_IsString(ip_item))) {
-            return -1;
-        }
-        if ((dbname_item == NULL) || (!Json_IsString(dbname_item))) {
-            return -1;
-        }
-        if ((usr_item == NULL) || (!Json_IsString(usr_item))) {
-            return -1;
-        }
-        if ((pass_item == NULL) || (!Json_IsString(pass_item))) {
-            return -1;
-        }
-        if ((port_item == NULL) || (!Json_IsNumeric(port_item))) {
-            return -1;
-        }
-
-        ip = (char *)Json_GetValueString(ip_item);
-        dbname = (char *)Json_GetValueString(dbname_item);
-        usr = (char *)Json_GetValueString(usr_item);
-        pass = (char *)Json_GetValueString(pass_item);
-	int valueInt = Json_GetValueInt(port_item);
-	if (valueInt == INVALID_INT_NUM) {
-	    return -1;
-	}
-        ret = add_snooper_conf_gaussdb(probe, ip, dbname, usr, pass, (u32)valueInt);
-        if (ret != 0) {
-            return -1;
-        }
-    }
-
-    return 0;
-}
 
 void print_snooper(struct probe_s *probe, void *json)
 {
     print_snooper_procid(probe, json);
     print_snooper_procname(probe, json);
     print_snooper_pod_container(probe, json);
-    print_snooper_gaussdb(probe, json);
 }
 
 static void __build_ipc_body(struct probe_s *probe, struct ipc_body_s* ipc_body)
@@ -764,11 +606,6 @@ int parse_snooper(struct probe_s *probe, const void *json)
         return -1;
     }
 
-    if (parse_snooper_gaussdb(probe, json)) {
-        PARSE_ERR("Error occurs when parsing snooper %s", SNOOPER_OBJNAME_GAUSSDB);
-        return -1;
-    }
-
     if (parse_snooper_custom_labels(probe, json)) {
         PARSE_ERR("Error occurs when parsing snooper %s", SNOOPER_OBJNAME_CUSTOM_LABELS);
         return -1;
@@ -787,21 +624,6 @@ void free_snooper_obj(struct snooper_obj_s* snooper_obj)
 {
     if (snooper_obj == NULL) {
         return;
-    }
-
-    if (snooper_obj->type == SNOOPER_OBJ_GAUSSDB) {
-        if (snooper_obj->obj.gaussdb.dbname) {
-            (void)free(snooper_obj->obj.gaussdb.dbname);
-        }
-        if (snooper_obj->obj.gaussdb.usr) {
-            (void)free(snooper_obj->obj.gaussdb.usr);
-        }
-        if (snooper_obj->obj.gaussdb.pass) {
-            (void)free(snooper_obj->obj.gaussdb.pass);
-        }
-        if (snooper_obj->obj.gaussdb.ip) {
-            (void)free(snooper_obj->obj.gaussdb.ip);
-        }
     }
 
     if (snooper_obj->type == SNOOPER_OBJ_CON) {
@@ -1085,37 +907,6 @@ static int add_snooper_obj_con_info(struct probe_s *probe, struct con_info_s *co
     return 0;
 }
 
-static int add_snooper_obj_gaussdb(struct probe_s *probe, struct snooper_gaussdb_s *db_param)
-{
-    int pos = __get_snooper_obj_idle(probe, SNOOPER_MAX);
-    if (pos < 0) {
-        return -1;
-    }
-
-    struct snooper_obj_s* snooper_obj = new_snooper_obj();
-    if (snooper_obj == NULL) {
-        return -1;
-    }
-
-    snooper_obj->type = SNOOPER_OBJ_GAUSSDB;
-    if (db_param->ip) {
-        snooper_obj->obj.gaussdb.ip = strdup(db_param->ip);
-    }
-    if (db_param->dbname) {
-        snooper_obj->obj.gaussdb.dbname = strdup(db_param->dbname);
-    }
-    if (db_param->usr) {
-        snooper_obj->obj.gaussdb.usr = strdup(db_param->usr);
-    }
-    if (db_param->pass) {
-        snooper_obj->obj.gaussdb.pass = strdup(db_param->pass);
-    }
-    snooper_obj->obj.gaussdb.port = db_param->port;
-
-    probe->snooper_objs[pos] = snooper_obj;
-    return 0;
-}
-
 static int gen_snooper_by_procname(struct probe_s *probe)
 {
     int ret;
@@ -1316,24 +1107,6 @@ static int gen_snooper_by_pod(struct probe_s *probe)
     return 0;
 }
 
-static int gen_snooper_by_gaussdb(struct probe_s *probe)
-{
-    struct snooper_conf_s * snooper_conf;
-
-    for (int i = 0; i < probe->snooper_conf_num; i++) {
-        snooper_conf = probe->snooper_confs[i];
-        if (snooper_conf->type != SNOOPER_CONF_GAUSSDB) {
-            continue;
-        }
-
-        if (add_snooper_obj_gaussdb(probe, &(snooper_conf->conf.gaussdb))) {
-            return -1;
-        }
-    }
-
-    return 0;
-}
-
 typedef int (*probe_snooper_generator)(struct probe_s *);
 struct snooper_generator_s {
     enum snooper_conf_e type;
@@ -1341,7 +1114,6 @@ struct snooper_generator_s {
 };
 struct snooper_generator_s snooper_generators[] = {
     {SNOOPER_CONF_APP,           gen_snooper_by_procname   },
-    {SNOOPER_CONF_GAUSSDB,       gen_snooper_by_gaussdb    },
     {SNOOPER_CONF_PROC_ID,       gen_snooper_by_procid     },
     {SNOOPER_CONF_POD_ID,        gen_snooper_by_pod        },
     {SNOOPER_CONF_CONTAINER_ID,  gen_snooper_by_container  }
