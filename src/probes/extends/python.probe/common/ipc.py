@@ -16,7 +16,7 @@ ProbeType = IntEnum('ProbeType', ('PROBE_BASEINFO', 'PROBE_VIRT', 'PROBE_FG', 'P
     'PROBE_SOCKET', 'PROBE_IO', 'PROBE_PROC', 'PROBE_JVM', 'PROBE_POSTGRE_SLI', 'PROBE_GAUSS_SLI', \
     'PROBE_NGINX', 'PROBE_KAFKA', 'PROBE_TP', 'PROBE_HW', 'PROBE_KSLI', 'PROBE_CONTAINER', 'PROBE_SERMANT', \
     'PROBE_TYPE_MAX'))
-SnooperObjEnum = IntEnum('SnooperObjEnum', ('SNOOPER_OBJ_PROC', 'SNOOPER_OBJ_CON', 'SNOOPER_OBJ_GAUSSDB', 'SNOOPER_OBJ_MAX'), start = 0)
+SnooperObjEnum = IntEnum('SnooperObjEnum', ('SNOOPER_OBJ_PROC', 'SNOOPER_OBJ_CON', 'SNOOPER_OBJ_MAX'), start = 0)
 
 class ProbeParams(Structure):
     _fields_ = [

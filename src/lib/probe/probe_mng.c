@@ -671,16 +671,7 @@ static int probe_parser_range(struct probe_s *probe, void *probe_item)
 static int probe_parser_cmd(struct probe_s *probe, const void *item)
 {
     int ret = 0;
-    void *bin_object, *chkcmd_object, *probe_object;
-    const char *bin_string = NULL;
-
-    bin_object = Json_GetObjectItem(item, "bin");
-    if ((bin_object != NULL) && Json_IsString(bin_object) && (!Json_IsEmptyString(bin_object))) {
-        bin_string = (const char*)Json_GetValueString(bin_object);
-        if (set_probe_bin(probe, bin_string)) {
-            return -1;
-        }
-    }
+    void *probe_object;
 
     probe_object = Json_GetObjectItem(item, "probe");
     if (probe_object != NULL) {
@@ -852,35 +843,7 @@ static char __snooper_app_is_modify(struct snooper_conf_s* conf, struct snooper_
     return 0;
 
 }
-static char __snooper_gaussdb_is_modify(struct snooper_conf_s* conf, struct snooper_conf_s *backup_conf)
-{
-    char is_modify = 0;
 
-    if (conf->conf.gaussdb.port != backup_conf->conf.gaussdb.port) {
-        return 1;
-    }
-
-    __COMP_STR_P(conf->conf.gaussdb.ip, backup_conf->conf.gaussdb.ip, is_modify);
-    if (is_modify) {
-        return 1;
-    }
-
-    __COMP_STR_P(conf->conf.gaussdb.dbname, backup_conf->conf.gaussdb.dbname, is_modify);
-    if (is_modify) {
-        return 1;
-    }
-
-    __COMP_STR_P(conf->conf.gaussdb.usr, backup_conf->conf.gaussdb.usr, is_modify);
-    if (is_modify) {
-        return 1;
-    }
-
-    __COMP_STR_P(conf->conf.gaussdb.pass, backup_conf->conf.gaussdb.pass, is_modify);
-    if (is_modify) {
-        return 1;
-    }
-    return 0;
-}
 static char __snooper_proc_is_modify(struct snooper_conf_s* conf, struct snooper_conf_s *backup_conf)
 {
     if (conf->conf.proc_id != backup_conf->conf.proc_id) {
@@ -911,7 +874,6 @@ struct snooper_modify_s {
 
 struct snooper_modify_s snooper_modifys[] = {
     {SNOOPER_CONF_APP, __snooper_app_is_modify},
-    {SNOOPER_CONF_GAUSSDB, __snooper_gaussdb_is_modify},
     {SNOOPER_CONF_PROC_ID, __snooper_proc_is_modify},
     {SNOOPER_CONF_POD_ID, __snooper_pod_is_modify},
     {SNOOPER_CONF_CONTAINER_ID, __snooper_container_is_modify}
