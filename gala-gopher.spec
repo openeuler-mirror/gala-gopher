@@ -1,19 +1,26 @@
 %define __os_install_post %{nil}
 
-%define without_flamegraph    0
-%define without_cadvisor      0
-%define without_jvm           0
-%define without_tcp           0
-%define without_systeminfo    0
+%define without_baseinfo      0
 %define without_virt          0
-%define without_opengauss_sli 0
+%define without_flamegraph    0
 %define without_l7            0
-%define without_postgre_sli   0
-%define without_redis_sli     0
+%define without_tcp           0
+%define without_socket        0
+%define without_io            0
 %define without_proc          0
+%define without_jvm           0
+%define without_postgre_sli   0
+%define without_opengauss_sli 0
+%define without_nginx         0
 %define without_tprofiling    0
+%define without_kafka         0
+%define without_hw            0
+%define without_ksli          0
+%define without_container     0
+%define without_sermant       0
 
-%define disable_kafka_channel 0
+%define disable_report_event   0
+%define disable_kafka_channel  0
 %define disable_flamegraph_svg 0
 
 # example for tailoring probes
@@ -59,9 +66,10 @@ Requires:      libconfig libevent iproute jsoncpp libstdc++
 Requires:      librdkafka
 %endif
 
-%if !0%{?without_systeminfo}
+%if !0%{?without_baseinfo}
 Requires:      ethtool systemd iproute
 %endif
+
 %if !0%{?without_virt}
 Requires:      systemd
 %endif
@@ -80,13 +88,10 @@ Requires:      libcurl
 %if !0%{?without_opengauss_sli}
 Requires:      python3-psycopg2 python3-yaml net-tools
 %endif
-%if !0%{?without_cadvisor}
+%if !0%{?without_container}
 Requires:      cadvisor python3-libconf python3-requests net-tools util-linux
 %endif
 %if !0%{?without_postgre_sli}
-Requires:      iproute
-%endif
-%if !0%{?without_redis_sli}
 Requires:      iproute
 %endif
 %if !0%{?without_l7}
@@ -105,20 +110,30 @@ gala-gopher is a low-overhead eBPF-based probes framework
 
 
 %build
-cat << EOF > tailor.conf
-EXTEND_PROBES="%{extend_tailor_probes}"
-EOF
-
 BUILD_OPTS=(
-%if !0%{?disable_kafka_channel}
-    -DKAFKA_CHANNEL=1
-%else
-    -DKAFKA_CHANNEL=0
-%endif
+  -DENABLE_BASEINFO=%[0%{?without_baseinfo}?0:1]
+  -DENABLE_VIRT=%[0%{?without_virt}?0:1]
 
-%if !0%{?disable_flamegraph_svg}
-    -DFLAMEGRAPH_SVG=1
-%endif
+  -DENABLE_FLAMEGRAPH=%[0%{?without_flamegraph}?0:1]
+  -DENABLE_L7=%[0%{?without_l7}?0:1]
+  -DENABLE_TCP=%[0%{?without_tcp}?0:1]
+  -DENABLE_SOCKET=%[0%{?without_tcp}?0:1]
+  -DENABLE_IO=%[0%{?without_io}?0:1]
+  -DENABLE_PROC=%[0%{?without_proc}?0:1]
+  -DENABLE_JVM=%[0%{?without_jvm}?0:1]
+  -DENABLE_POSTGRE_SLI=%[0%{?without_postgre_sli}?0:1]
+  -DENABLE_OPENGAUSS_SLI=%[0%{?without_opengauss_sli}?0:1]
+  -DENABLE_NGINX=%[0%{?without_nginx}?0:1]
+  -DENABLE_TPROFILING=%[0%{?without_tprofiling}?0:1]
+  -DENABLE_KAFKA=%[0%{?without_kafka}?0:1]
+  -DENABLE_HW=%[0%{?without_hw}?0:1]
+  -DENABLE_KSLI=%[0%{?without_ksli}?0:1]
+  -DENABLE_CONTAINER=%[0%{?without_cadvisor}?0:1]
+  -DENABLE_SERMANT=%[0%{?without_sermant}?0:1]
+
+  -DENABLE_REPORT_EVENT=%[0%{?disable_report_event}?0:1]
+  -DKAFKA_CHANNEL=%[0%{?disable_kafka_channel}?0:1]
+  -DFLAMEGRAPH_SVG=%[0%{?disable_flamegraph_svg}?0:1]
 )
 
 pushd build
@@ -173,7 +188,6 @@ fi
 %attr(0640,root,root) /opt/gala-gopher/meta/*
 #%attr(0640,root,root) /opt/gala-gopher/btf/*
 %attr(0550,root,root) /opt/gala-gopher/lib/*
-%attr(0640,root,root) /etc/gala-gopher/res/event_multy_language.rc
 %attr(0640,root,root) %config(noreplace) /etc/gala-gopher/probes.init
 %attr(0640,root,root) %config(noreplace) /etc/gala-gopher/*.conf
 %attr(0640,root,root) %config(noreplace) /etc/gala-gopher/extend_probes/*.conf

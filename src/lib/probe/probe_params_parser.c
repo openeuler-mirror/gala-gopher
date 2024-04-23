@@ -504,8 +504,6 @@ SET_DEFAULT_PARAMS_INTER(perf_sample_period);
 SET_DEFAULT_PARAMS_INTER(cadvisor_port);
 
 SET_DEFAULT_PARAMS_CAHR(logs);
-SET_DEFAULT_PARAMS_CAHR(metrics_flags);
-SET_DEFAULT_PARAMS_CAHR(env_flags);
 SET_DEFAULT_PARAMS_CAHR(support_ssl);
 SET_DEFAULT_PARAMS_CAHR(res_percent_upper);
 SET_DEFAULT_PARAMS_CAHR(res_percent_lower);
@@ -526,8 +524,6 @@ SET_DEFAULT_PARAMS_STR(flame_dir);
 #define RES_LOWER_THR       "res_lower_thr"
 #define RES_UPPER_THR       "res_upper_thr"
 #define REPORT_EVENT        "report_event"
-#define METRICS_TYPE        "metrics_type"
-#define ENV                 "env"
 #define L7_PROTOCOL         "l7_protocol"
 #define SUPPORT_SSL         "support_ssl"
 #define PYROSCOPE_SERVER    "pyroscope_server"
@@ -547,24 +543,25 @@ SET_DEFAULT_PARAMS_STR(flame_dir);
 struct param_key_s param_keys[] = {
     {SAMPLE_PERIOD,       {DEFAULT_SAMPLE_PERIOD, 100, 10000, ""},   parser_sample_peirod,           set_default_params_inter_sample_period, JSON_NUMBER},
     {REPORT_PERIOD,       {DEFAULT_PERIOD, 5, 600, ""},              parser_report_peirod,           set_default_params_inter_period, JSON_NUMBER},
+#ifdef ENABLE_REPORT_EVENT
     {LATENCY_THR,         {0, 10, 100000, ""},                       parser_latency_thr,             set_default_params_inter_latency_thr, JSON_NUMBER},
     {OFFLINE_THR,         {0, 10, 100000, ""},                       parser_offline_thr,             set_default_params_inter_offline_thr, JSON_NUMBER},
     {DROPS_THR,           {0, 10, 100000, ""},                       parser_drops_thr,               set_default_params_inter_drops_count_thr, JSON_NUMBER},
     {RES_LOWER_THR,       {0, 0, 100, ""},                           parser_res_lower_thr,           set_default_params_char_res_percent_lower, JSON_NUMBER},
     {RES_UPPER_THR,       {0, 0, 100, ""},                           parser_res_upper_thr,           set_default_params_char_res_percent_upper, JSON_NUMBER},
     {REPORT_EVENT,        {0, 0, 1, ""},                             parser_report_event,            set_default_params_char_logs, JSON_NUMBER},
-    {METRICS_TYPE,        {SUPPORT_METRICS_RAW | SUPPORT_METRICS_TELEM, 0, 0, "raw"}, parser_metrics_type,   set_default_params_char_metrics_flags, JSON_ARRAY},
-    {ENV,                 {SUPPORT_NODE_ENV, 0, 0, "node"},          parser_work_env,                set_default_params_char_env_flags, JSON_ARRAY},
+#endif
     {L7_PROTOCOL,         {0, 0, 0, ""},                             parser_l7pro,                   set_default_params_inter_l7_probe_proto_flags, JSON_ARRAY},
     {SUPPORT_SSL,         {0, 0, 1, ""},                             parser_support_ssl,             set_default_params_char_support_ssl, JSON_NUMBER},
+
     {PYROSCOPE_SERVER,    {0, 0, 0, "localhost:4040"},               parser_pyscope_server,          set_default_params_str_pyroscope_server, JSON_STRING},
     {SVG_PERIOD,          {180, 30, 600, ""},                        parser_svg_period,              set_default_params_inter_svg_period, JSON_NUMBER},
     {PERF_SAMPLE_PERIOD,  {10, 10, 1000, ""},                        parser_perf_sample_period,      set_default_params_inter_perf_sample_period, JSON_NUMBER},
     {MULTI_INSTANCE,      {0, 0, 1, ""},                             parser_multi_instance,          set_default_params_char_multi_instance_flag, JSON_NUMBER},
     {NATIVE_STACK,        {0, 0, 1, ""},                             parser_native_stack,            set_default_params_char_native_stack_flag, JSON_NUMBER},
-    {CLUSTER_IP_BACKEND,  {0, 0, 1, ""},                             parser_cluster_ip_backend_flag, set_default_params_char_cluster_ip_backend, JSON_NUMBER},
     {SVG_DIR,             {0, 0, 0, "/var/log/gala-gopher/stacktrace"},  parser_svg_dir,             set_default_params_str_svg_dir, JSON_STRING},
     {FLAME_DIR,           {0, 0, 0, "/var/log/gala-gopher/flamegraph"},  parser_flame_dir,           set_default_params_str_flame_dir, JSON_STRING},
+    {CLUSTER_IP_BACKEND,  {0, 0, 1, ""},                             parser_cluster_ip_backend_flag, set_default_params_char_cluster_ip_backend, JSON_NUMBER},
     {DEV_NAME_KEY,        {0, 0, 0, ""},                             parser_dev_name,                NULL, JSON_STRING},
     {CONTINUOUS_SAMPLING, {0, 0, 1, ""},                             parser_continuous_sampling,     set_default_params_char_continuous_sampling_flag, JSON_NUMBER},
     {ELF_PATH,            {0, 0, 0, ""},                             parser_elf_path,                NULL, JSON_STRING},
@@ -637,6 +634,7 @@ void probe_params_to_json(struct probe_s *probe, void *params)
     void *flags_arr;
     size_t flags_size;
 
+#ifdef ENABLE_REPORT_EVENT
     Json_AddUIntItemToObject(params, SAMPLE_PERIOD, probe_param->sample_period);
     Json_AddUIntItemToObject(params, REPORT_PERIOD, probe_param->period);
     Json_AddCharItemToObject(params, RES_LOWER_THR, probe_param->res_percent_lower);
@@ -654,16 +652,7 @@ void probe_params_to_json(struct probe_s *probe, void *params)
     if (probe_param->drops_count_thr != 0) {
         Json_AddUIntItemToObject(params, DROPS_THR, probe_param->drops_count_thr);
     }
-
-    flags_size = sizeof(param_metrics_flags) / sizeof(param_metrics_flags[0]);
-    flags_arr = param_flags_to_json(probe_param->metrics_flags, param_metrics_flags, flags_size);
-    Json_AddItemToObject(params, METRICS_TYPE, flags_arr);
-    Json_Delete(flags_arr);
-
-    flags_size = sizeof(param_env_flags) / sizeof(param_env_flags[0]);
-    flags_arr = param_flags_to_json(probe_param->env_flags, param_env_flags, flags_size);
-    Json_AddItemToObject(params, ENV, flags_arr);
-    Json_Delete(flags_arr);
+#endif
 
     if (probe_type == PROBE_L7) {
         flags_size = sizeof(param_l7pro_flags) / sizeof(param_l7pro_flags[0]);
@@ -694,7 +683,7 @@ void probe_params_to_json(struct probe_s *probe, void *params)
     if (probe_type == PROBE_KSLI) {
         Json_AddCharItemToObject(params, CONTINUOUS_SAMPLING, probe_param->continuous_sampling_flag);
     }
-    if (probe_type == PROBE_NGINX || probe_type == PROBE_HAPROXY || probe_type == PROBE_DNSMASQ) {
+    if (probe_type == PROBE_NGINX) {
         Json_AddStringToObject(params, ELF_PATH, probe_param->elf_path);
     }
     if (probe_type == PROBE_KAFKA) {

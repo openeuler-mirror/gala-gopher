@@ -39,23 +39,60 @@ static int set_probe_bin(struct probe_s *probe, const char *bin);
 static void init_probe_bin(struct probe_s *probe, enum probe_type_e probe_type);
 
 struct probe_define_s probe_define[] = {
+#ifdef ENABLE_BASEINFO
     {"baseinfo",            "system_infos",                                       PROBE_BASEINFO},
+#endif
+#ifdef ENABLE_VIRT
     {"virt",                "virtualized_infos",                                  PROBE_VIRT},
+#endif
+#ifdef ENABLE_FLAMEGRAPH
     {"flamegraph",          "/opt/gala-gopher/extend_probes/stackprobe",          PROBE_FG},
+#endif
+#ifdef ENABLE_L7
     {"l7",                  "/opt/gala-gopher/extend_probes/l7probe",             PROBE_L7},
+#endif
+#ifdef ENABLE_TCP
     {"tcp",                 "/opt/gala-gopher/extend_probes/tcpprobe",            PROBE_TCP},
+#endif
+#ifdef ENABLE_SOCKET
     {"socket",              "/opt/gala-gopher/extend_probes/endpoint",            PROBE_SOCKET},
+#endif
+#ifdef ENABLE_IO
     {"io",                  "/opt/gala-gopher/extend_probes/ioprobe",             PROBE_IO},
+#endif
+#ifdef ENABLE_PROC
     {"proc",                "/opt/gala-gopher/extend_probes/taskprobe",           PROBE_PROC},
+#endif
+#ifdef ENABLE_JVM
     {"jvm",                 "/opt/gala-gopher/extend_probes/jvmprobe",            PROBE_JVM},
+#endif
+#ifdef ENABLE_POSTGRE_SLI
     {"postgre_sli",         "/opt/gala-gopher/extend_probes/pgsliprobe",          PROBE_POSTGRE_SLI},
+#endif
+#ifdef ENABLE_OPENGAUSS_SLI
     {"opengauss_sli",       "/opt/gala-gopher/extend_probes/pg_stat_probe.py",    PROBE_GAUSS_SLI},
+#endif
+#ifdef ENABLE_NGINX
     {"nginx",               "/opt/gala-gopher/extend_probes/nginx_probe",         PROBE_NGINX},
+#endif
+#ifdef ENABLE_KAFKA
+    {"kafka",               "/opt/gala-gopher/extend_probes/kafkaprobe",          PROBE_KAFKA},
+#endif
+#ifdef ENABLE_TPROFILING
     {"tprofiling",          "/opt/gala-gopher/extend_probes/tprofiling",          PROBE_TP},
+#endif
+#ifdef ENABLE_HW
     {"hw",                  "/opt/gala-gopher/extend_probes/hwprobe",             PROBE_HW},
+#endif
+#ifdef ENABLE_KSLI
     {"ksli",                "/opt/gala-gopher/extend_probes/ksliprobe",           PROBE_KSLI},
+#endif
+#ifdef ENABLE_CONTAINER
     {"container",           "/opt/gala-gopher/extend_probes/cadvisor_probe.py",   PROBE_CONTAINER},
+#endif
+#ifdef ENABLE_SERMANT
     {"sermant",             "/opt/gala-gopher/extend_probes/sermant_probe.py",    PROBE_SERMANT}
+#endif
 
     // If you want to add a probe, add the probe define.
 };

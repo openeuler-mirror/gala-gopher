@@ -4,6 +4,7 @@ PROGRAM=$0
 PROJECT_FOLDER=$(dirname "$PWD")
 EXT_PROBE_FOLDER=${PROJECT_FOLDER}/src/probes/extends
 SHARED_LIB_FOLDER=${PROJECT_FOLDER}/src/common
+PROBES_PATH_LIST=`find ${PROJECT_FOLDER}/src/probes -maxdepth 1 | grep ".probe\>"`
 EXT_PROBE_INSTALL_LIST=`find ${EXT_PROBE_FOLDER} -maxdepth 2 | grep "\<install.sh\>"`
 SHARED_LIB_LIST=`find ${SHARED_LIB_FOLDER} -name "*.so"`
 JVM_ATTACH_BIN=${PROJECT_FOLDER}/src/lib/jvm/jvm_attach
@@ -16,8 +17,11 @@ function __create_btf_cache()
 {
     rm -rf ${BTF_CACHE}
     mkdir -p ${BTF_CACHE}
+    mkdir -p ${BTF_DIR}
     ARCH=$(uname -m)
-    find ${BTF_DIR} -name "*"${ARCH}"*.btf.tar.xz" | xargs -n1 tar -xf
+    for file in $(find ${BTF_DIR} -name "*"${ARCH}"*.btf.tar.xz") ; do
+        tar -xf $file
+    done
     find ./ -name "*.btf" | xargs mv -t ${BTF_CACHE}
 }
 
@@ -37,8 +41,6 @@ function load_tailor()
         eval `cat ${TAILOR_PATH_TMP}`
         rm -rf ${TAILOR_PATH_TMP}
     fi
-
-    export EXTEND_PROBES="$EXTEND_PROBES cgprobe lvsprobe schedprobe nsprobe rabbitmq.probe redis_client.probe redis.probe sliprobe httpprobe"
 }
 
 function install_daemon_bin()
@@ -93,29 +95,6 @@ function install_conf()
     echo "install ${GOPHER_PROBES_INIT_FILE} success."
 }
 
-function install_res()
-{
-    GOPHER_EVENT_RC_FILE=${PROJECT_FOLDER}/res/event_multy_language.rc
-    GOPHER_RES_TARGET_DIR=/etc/gala-gopher/res
-
-    if [ $# -eq 1 ]; then
-        GOPHER_RES_TARGET_DIR=$1/res
-    fi
-
-    cd ${PROJECT_FOLDER}
-    if [ ! -f ${GOPHER_EVENT_RC_FILE} ]; then
-        echo "${GOPHER_EVENT_RC_FILE} not exist. please check ./res dir."
-        exit 1
-    fi
-
-    if [ ! -d ${GOPHER_RES_TARGET_DIR} ]; then
-        mkdir -p ${GOPHER_RES_TARGET_DIR}
-    fi
-    cp -f ${GOPHER_EVENT_RC_FILE} ${GOPHER_RES_TARGET_DIR}
-    echo "install ${GOPHER_EVENT_RC_FILE} success."
-
-}
-
 function install_meta()
 {
     GOPHER_META_DIR=/opt/gala-gopher/meta
@@ -132,13 +111,17 @@ function install_meta()
     if [ ! -d ${GOPHER_META_DIR} ]; then
         mkdir -p ${GOPHER_META_DIR}
     fi
-    META_FILES=`find ${PROJECT_FOLDER}/src -name "*.meta"`
-    for file in ${META_FILES}
-    do
-        cp ${file} ${GOPHER_META_DIR}
-    done
 
-    echo "install meta file success."
+    if [ -n ${PROBES} ]; then
+        # check tailor env
+        PROBES_PATH_LIST=$(echo "$PROBES_PATH_LIST" | grep -Ev "$PROBES")
+    fi
+
+    for PROBE_PATH in ${PROBES_PATH_LIST}
+    do
+        cp ${PROBE_PATH}/*.meta ${GOPHER_META_DIR}
+    done
+    echo "install meta file of native probes success."
 }
 
 function install_btf()
@@ -194,6 +177,7 @@ function install_extend_probes()
 {
     GOPHER_EXTEND_PROBE_DIR=${1:-/opt/gala-gopher}/extend_probes
     GOPHER_EXTEND_PROBE_CONF_DIR=${2:-/etc/gala-gopher}/extend_probes
+    GOPHER_EXTEND_PROBE_META_DIR=${1:-/opt/gala-gopher}/meta
 
     if [ ! -d ${GOPHER_EXTEND_PROBE_DIR} ]; then
         mkdir -p ${GOPHER_EXTEND_PROBE_DIR}
@@ -203,6 +187,9 @@ function install_extend_probes()
         mkdir -p ${GOPHER_EXTEND_PROBE_CONF_DIR}
     fi
 
+    if [ ! -d ${GOPHER_EXTEND_PROBE_META_DIR} ]; then
+        mkdir -p ${GOPHER_EXTEND_PROBE_META_DIR}
+    fi
     cd ${PROJECT_FOLDER}
 
     # Search for install.sh in extend probe directory
@@ -210,7 +197,7 @@ function install_extend_probes()
     for INSTALL_PATH in ${EXT_PROBE_INSTALL_LIST}
     do
         echo "install path:" ${INSTALL_PATH}
-        sh ${INSTALL_PATH} -b ${GOPHER_EXTEND_PROBE_DIR} -c ${GOPHER_EXTEND_PROBE_CONF_DIR}
+        sh ${INSTALL_PATH} -b ${GOPHER_EXTEND_PROBE_DIR} -c ${GOPHER_EXTEND_PROBE_CONF_DIR} -m ${GOPHER_EXTEND_PROBE_META_DIR}
     done
 }
 
@@ -241,7 +228,6 @@ function install_script()
 load_tailor
 install_daemon_bin $1
 install_conf $3
-install_res $3
 install_meta $2
 install_shared_lib $2
 install_extend_probes $2 $3
