@@ -8,6 +8,7 @@ INCLUDES = $(BASE_INC)
 #CFLAGS += -DREDIS_VERSION=$(REDIS_VERSION)
 
 APP := ksliprobe
+META := $(wildcard *.meta)
 TC_BPF := tc_tstamp.bpf.o
 SRC_CPLUS := $(wildcard *.cpp)
 SRC_CPLUS += $(CPLUSFILES)
@@ -50,3 +51,4 @@ install:
 	mkdir -p $(INSTALL_DIR)
 	cp $(APP) $(INSTALL_DIR)
 	cp $(TC_BPF) $(INSTALL_DIR)
+	cp $(META) $(META_INSTALL_DIR)

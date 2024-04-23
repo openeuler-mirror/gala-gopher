@@ -7,6 +7,8 @@ INCLUDES = $(BASE_INC)
 INCLUDES += -I$(ROOT_DIR)/../l7probe
 INSTALL_DIR=/opt/gala-gopher/extend_probes
 APP := l7probe
+META := $(wildcard *.meta)
+
 SRC_CPLUS := $(wildcard *.cpp)
 SRC_CPLUS += $(CPLUSFILES)
 
@@ -52,3 +54,4 @@ install:
 	mkdir -p $(INSTALL_DIR)/l7_bpf
 	cp $(APP) $(INSTALL_DIR)
 	cp $(BPF_PROG) $(INSTALL_DIR)/l7_bpf
+	cp $(META) $(META_INSTALL_DIR)

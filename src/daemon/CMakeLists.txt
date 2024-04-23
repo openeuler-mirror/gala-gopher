@@ -34,7 +34,6 @@ SET(LIBELF_DIR /usr/include/libelf)
 
 SET(CMAKE_C_FLAGS "-rdynamic -std=gnu11 -g -Wl,-z,relro,-z,now -DNATIVE_PROBE_FPRINTF \
     -DPROBES_LIST=\"${PROBES_LIST}\" \
-    -DPROBES_META_LIST=\"${PROBES_META_LIST}\" \
     -DLIBBPF_VER_MAJOR=\"${LIBBPF_VER_MAJOR}\" -DLIBBPF_VER_MINOR=\"${LIBBPF_VER_MINOR}\" "
 )
 SET(CMAKE_CXX_FLAGS "-rdynamic -std=c++11 -g -Wl,-z,relro,-z,now -DNATIVE_PROBE_FPRINTF")
@@ -128,12 +127,9 @@ SET(INC_DIRECTORIES
 
 SET(LINK_LIBRARIES config pthread rt dl bpf elf jsoncpp_lib ssl event event_openssl crypto)
 
-if(NOT DEFINED KAFKA_CHANNEL)
-    SET(KAFKA_CHANNEL 1)
-endif()
+add_definitions(${BUILD_OPTS})
 
-if("${KAFKA_CHANNEL}" EQUAL 1)
-    add_definitions(-DKAFKA_CHANNEL)
+if(${BUILD_OPTS} MATCHES "-DKAFKA_CHANNEL")
     SET(KAFKA_DIR ${SRC_DIR}/lib/kafka)
     SET(SOURCES ${SOURCES} ${KAFKA_DIR}/kafka.c)
     SET(INC_DIRECTORIES ${INC_DIRECTORIES}  ${KAFKA_DIR})

@@ -6,6 +6,7 @@ include ../mk/var.mk
 INCLUDES = $(BASE_INC)
 
 APP := tcpprobe
+META := $(wildcard *.meta)
 TC_BPF := tc_tstamp.bpf.o
 
 SRC_CPLUS := $(wildcard *.cpp)
@@ -50,4 +51,5 @@ install:
 	cp $(APP) $(INSTALL_DIR)
 	mkdir -p $(INSTALL_DIR)/tcp_bpf
 	cp $(TC_BPF) $(INSTALL_DIR)/tcp_bpf
+	cp $(META) $(META_INSTALL_DIR)
 

@@ -5,6 +5,7 @@ BTF_ENABLE_OVERRIDE := ON
 include ../mk/var.mk
 
 APP := kafkaprobe
+META := $(wildcard *.meta)
 
 BPF_C := $(wildcard *.bpf.c)
 SRC_C := $(filter-out $(BPF_C), $(wildcard *.c))
@@ -30,7 +31,7 @@ $(OBJ_CPLUS): %.o: %.cpp
 $(APP): $(SRC_C) $(OBJ_CPLUS)
 	$(CC) $(CFLAGS) $(BASE_INC) $(LDFLAGS) $(LINK_TARGET) -o $@ $^
 
-$(OBJ_KERN): $(BPF_C) 
+$(OBJ_KERN): $(BPF_C)
 	$(CLANG) $(CLANGFLAGS) $(BPF_CFLAGS) $(BASE_INC) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@
 
@@ -41,3 +42,4 @@ install:
 	mkdir -p $(INSTALL_DIR)
 	cp $(APP) $(INSTALL_DIR)
 	cp $(OBJ_KERN) $(INSTALL_DIR)
+	cp $(META) $(META_INSTALL_DIR)

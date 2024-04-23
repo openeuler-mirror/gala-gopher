@@ -5,12 +5,14 @@ PY_TAILOR_PROBES=$EXTEND_PROBES
 
 INSTALL_FILES=""
 CONF_FILES=""
+META_FILES=""
 
-while getopts ":b:c:" opt
+while getopts ":b:c:m:" opt
 do
     case $opt in
         b) INSTALL_PATH=$OPTARG;;
         c) CONF_PATH=$OPTARG;;
+        m) META_PATH=$OPTARG;;
         ?) echo "unknow param"; exit 1;;
     esac
 done
@@ -22,6 +24,9 @@ for probe_dir in $(ls $PRJ_DIR | grep ".probe$") ; do
         INSTALL_FILES+=" $probe_dir/*.py"
         if [ -f $probe_dir/*.conf ] ; then
             CONF_FILES+=" $probe_dir/*.conf"
+        fi
+        if [ -f $probe_dir/*.meta ] ; then
+            META_FILES+=" $probe_dir/*.meta"
         fi
     fi
 done
@@ -38,4 +43,9 @@ done
 mkdir -p ${CONF_PATH}
 for file in ${CONF_FILES}; do
     cp ${file} ${CONF_PATH}
+done
+
+mkdir -p ${META_PATH}
+for file in ${META_FILES}; do
+    cp ${file} ${META_PATH}
 done

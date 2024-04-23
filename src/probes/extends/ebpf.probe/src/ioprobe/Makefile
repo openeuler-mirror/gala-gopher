@@ -6,6 +6,7 @@ include ../mk/var.mk
 INCLUDES = $(BASE_INC)
 
 APP := ioprobe
+META := $(wildcard *.meta)
 
 SRC_CPLUS := $(wildcard *.cpp)
 SRC_CPLUS += $(CPLUSFILES)
@@ -47,4 +48,5 @@ clean:
 install:
 	mkdir -p $(INSTALL_DIR)
 	cp $(APP) $(INSTALL_DIR)
+	cp $(META) $(META_INSTALL_DIR)
 

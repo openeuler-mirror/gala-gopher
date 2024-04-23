@@ -61,6 +61,7 @@ static struct evt_sec_s secs[EVT_SEC_MAX] = {
     {21,              "FATAL"}
 };
 
+#ifdef ENABLE_REPORT_EVENT
 #define __EVT_BODY_LEN  512 // same as MAX_IMDB_METRIC_VAL_LEN
 void report_logs(const struct event_info_s* evt, enum evt_sec_e sec, const char * fmt, ...)
 {
@@ -142,6 +143,12 @@ void report_logs(const struct event_info_s* evt, enum evt_sec_e sec, const char 
 #endif
     return;
 }
+#else
+void report_logs(const struct event_info_s* evt, enum evt_sec_e sec, const char * fmt, ...)
+{
+    return;
+}
+#endif
 
 void emit_otel_log(struct otel_log *ol)
 {
