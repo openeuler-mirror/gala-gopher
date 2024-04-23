@@ -45,6 +45,11 @@ struct tcp_check_req_args_s {
     struct sock *sk;
 };
 
+struct tcp_connect_args_s {
+    char neigh_failed;
+    struct sock *sk;
+};
+
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(key_size, sizeof(struct tcp_listen_key_s));
@@ -55,7 +60,7 @@ struct {
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(key_size, sizeof(conn_ctx_t));
-    __uint(value_size, sizeof(struct sock_args_s));
+    __uint(value_size, sizeof(struct tcp_connect_args_s));
     __uint(max_entries, __MAX_CONCURRENCY);
 } tcp_connect_args SEC(".maps");
 
@@ -353,7 +358,7 @@ KPROBE(tcp_connect, pt_regs)
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     conn_ctx_t id = bpf_get_current_pid_tgid();
 
-    struct sock_args_s args = {0};
+    struct tcp_connect_args_s args = {0};
     args.sk = sk;
     bpf_map_update_elem(&tcp_connect_args, &id, &args, BPF_ANY);
 
@@ -369,7 +374,7 @@ KRETPROBE(tcp_connect, pt_regs)
         goto end;
     }
 
-    struct sock_args_s* args = bpf_map_lookup_elem(&tcp_connect_args, &id);
+    struct tcp_connect_args_s* args = bpf_map_lookup_elem(&tcp_connect_args, &id);
     if (args == NULL) {
         goto end;
     }
@@ -383,7 +388,7 @@ KRETPROBE(tcp_connect, pt_regs)
 
     struct tcp_socket_event_s evt = {0};
     get_connect_sockaddr(&evt, (const struct sock *)sk);
-    evt.evt = EP_STATS_SYN_SENT;
+    evt.evt = args->neigh_failed ? EP_STATS_SYN_DROP : EP_STATS_SYN_SENT;
     evt.tgid = (int)(id >> INT_LEN);
     evt.is_multi = 0;
 
@@ -393,6 +398,25 @@ KRETPROBE(tcp_connect, pt_regs)
 
 end:
     bpf_map_delete_elem(&tcp_connect_args, &id);
+    return 0;
+}
+
+KRETPROBE(__neigh_event_send, pt_regs)
+{
+    int ret = (int)PT_REGS_RC(ctx);
+    conn_ctx_t id = bpf_get_current_pid_tgid();
+
+    struct tcp_connect_args_s* args = bpf_map_lookup_elem(&tcp_connect_args, &id);
+    if (args == NULL) {
+        return 0;
+    }
+
+    struct sock *sk = args->sk;
+    if (sk == NULL) {
+        return 0;
+    }
+
+    args->neigh_failed = ret;
     return 0;
 }
 
