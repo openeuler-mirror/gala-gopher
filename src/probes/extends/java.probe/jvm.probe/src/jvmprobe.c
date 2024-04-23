@@ -124,7 +124,7 @@ static void clear_proc_hash_t(void)
     }
 }
 
-static int add_to_hash_t(int pid, u64 stime)
+static int add_to_hash_t(pid_t pid, u64 stime)
 {
     struct proc_hash_t *item, *p;
 
@@ -148,7 +148,7 @@ static int add_to_hash_t(int pid, u64 stime)
 static int refresh_proc_hash_t(struct ipc_body_s *ipc_body)
 {
     int ret;
-    int pid;
+    pid_t pid;
     char stime[TIME_STRING_LEN];
     char comm[TASK_COMM_LEN];
 
@@ -174,7 +174,7 @@ static int refresh_proc_hash_t(struct ipc_body_s *ipc_body)
             continue;
         }
 
-        ret = add_to_hash_t(pid, (u64)atoll(stime));
+        ret = add_to_hash_t(pid, strtoull(stime, NULL, 10));
         if (ret != 0) {
             return -1;
         }
@@ -193,8 +193,8 @@ static void load_jvm_probe_data(struct java_attach_args *args)
 
     int i = 0;
     int accumulated_sec = 0;
-    int num_batches = loop_period / JVMPROBE_SLEEP_SEC;
-    int batch_size = (num_procs - 1) / num_batches + 1;
+    unsigned int num_batches = loop_period / JVMPROBE_SLEEP_SEC;
+    unsigned int batch_size = (num_procs - 1) / num_batches + 1;
 
     struct proc_hash_t *r, *tmp;
     HASH_ITER(hh, g_procmap, r, tmp) {

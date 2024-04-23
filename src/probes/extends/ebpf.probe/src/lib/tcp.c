@@ -113,7 +113,7 @@ static int __get_sub_str(const char *s, const char* start, const char *end,
 static int __erase_square_brackets(const char* s, char *buf, unsigned int buf_len)
 {
     char *p1, *p2;
-    int len;
+    unsigned int len;
     char tmp[LINE_BUF_LEN];
 
     p1 = strchr(s, '[');
@@ -127,7 +127,7 @@ static int __erase_square_brackets(const char* s, char *buf, unsigned int buf_le
     if (__get_sub_str(s, "[", "]", tmp, LINE_BUF_LEN) < 0)
         return -1;
 
-    len = (int)strlen(tmp);
+    len = strlen(tmp);
     if (len >= buf_len)
         return -1;
 
@@ -174,7 +174,8 @@ static int __get_estab_addr(const char *s, struct ip_addr* ip_addr,
     if (__is_digit_str((const char *)port_str) == 0)
         goto err;
 
-    ip_addr->port = (unsigned int)atoi(port_str);
+    ip_addr->port = strtoul(port_str, NULL, 10);
+
     return 0;
 err:
     return -1;
@@ -210,8 +211,10 @@ static struct tcp_estab_comm* __get_estab_comm(const char *start, unsigned int l
     }
     te_comm->comm[0] = 0;
     (void)strcpy(te_comm->comm, comm);
-    te_comm->pid = (unsigned int)atoi(pid_s);
-    te_comm->fd = (unsigned int)atoi(fd_s);
+
+    te_comm->pid = strtoul(pid_s, NULL, 10);
+    te_comm->fd = strtoul(fd_s, NULL, 10);
+
     return te_comm;
 }
 
@@ -415,7 +418,8 @@ static int __get_listen_port(const char *s, unsigned int *port)
     if (__is_digit_str((const char *)port_str) == 0)
         return -1;
 
-    port_num = (unsigned int)atoi(port_str);
+    port_num = strtoul(port_str, NULL, 10);
+
     if (port_num >= PORT_MAX_NUM)
         return -1;
 
@@ -450,7 +454,8 @@ static int __get_listen_pid(const char *s, unsigned int *pid)
     if (__is_digit_str((const char *)pid_str) == 0)
         return -1;
 
-    *pid = (unsigned int)atoi(pid_str);
+    *pid = strtoul(pid_str, NULL, 10);
+
     return 0;
 }
 
@@ -469,7 +474,8 @@ static int __get_listen_fd(const char *s, int *fd)
     if (__is_digit_str((const char *)fd_str) == 0)
         return -1;
 
-    *fd = atoi(fd_str);
+    *fd = strtol(fd_str, NULL, 10);
+
     return 0;
 }
 

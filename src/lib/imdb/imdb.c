@@ -353,7 +353,8 @@ TGID_Record* IMDB_TgidLkupRecord(const IMDB_DataBaseMgr *mgr, const char* tgid)
     TGID_RecordKey key = {0};
 
     strncpy(key.tgid, tgid, INT_LEN);
-    key.startup_ts = get_proc_startup_ts(atoi(tgid));
+    key.startup_ts = get_proc_startup_ts(strtol(tgid, NULL, 10));
+
     if (key.startup_ts == 0) {
         return NULL;
     }
@@ -416,7 +417,8 @@ static TGID_Record* IMDB_TgidCreateRecord(IMDB_DataBaseMgr *mgr, const char* tgi
     struct container_cache *container_cache;
 
     comm[0] = 0;
-    pid = atoi(tgid);
+    pid = strtol(tgid, NULL, 10);
+
     ret = get_proc_comm(pid, comm, TASK_COMM_LEN + 1);
     if (ret) {
         return NULL;
@@ -637,128 +639,6 @@ ERR:
     }
 
     return NULL;
-}
-
-int IMDB_DataBaseMgrAddRecord(IMDB_DataBaseMgr *mgr, char *recordStr)
-{
-    pthread_rwlock_wrlock(&mgr->rwlock);
-
-    int ret = 0;
-    IMDB_Table *table = NULL;
-    IMDB_Record *record = NULL;
-    IMDB_Metric *metric = NULL;
-
-    int index = -1;
-    char *token = NULL;
-    char delim[] = "|";
-    char *buffer = NULL;
-    char *buffer_head = NULL;
-
-    uint32_t keyIdx = 0;
-
-    buffer = strdup(recordStr);
-    if (buffer == NULL) {
-        goto ERR;
-    }
-    buffer_head = buffer;
-
-    // start analyse record string
-    for (token = strsep(&buffer, delim); token != NULL; token = strsep(&buffer, delim)) {
-        if (strcmp(token, "") == 0) {
-            if (index == -1) {
-                continue;
-            } else {
-                token = INVALID_METRIC_VALUE;
-            }
-        }
-
-        if (strcmp(token, "\n") == 0) {
-            continue;
-        }
-        // mark table name as the -1 substring so that metrics start at 0
-        // find table by the first substring
-        if (index == -1) {
-            table = IMDB_DataBaseMgrFindTable(mgr, token);
-            if (table == NULL) {
-                ERROR("[IMDB] Can not find table named %s.\n", token);
-                free(buffer_head);
-                goto ERR;
-            }
-
-            if (table->recordKeySize == 0) {
-                ERROR("[IMDB] Can not add record to table %s: no key type of metric set.\n", token);
-                free(buffer_head);
-                goto ERR;
-            }
-
-            record = IMDB_RecordCreateWithKey(table->meta->metricsCapacity, table->recordKeySize);
-            if (record == NULL) {
-                ERROR("[IMDB] Can not create record.\n");
-                free(buffer_head);
-                goto ERR;
-            }
-
-            index += 1;
-            continue;
-        }
-
-        // if index > metricNum, it's invalid
-        if (index >= table->meta->metricsNum) {
-            break;
-        }
-        // fill record by the rest substrings
-        metric = IMDB_MetricCreate(table->meta->metrics[index]->name,
-                                   table->meta->metrics[index]->description,
-                                   table->meta->metrics[index]->type);
-        if (metric == NULL) {
-            ERROR("[IMDB] Can't create metrics.\n");
-            free(buffer_head);
-            goto ERR;
-        }
-
-        ret = IMDB_MetricSetValue(metric, token);
-        if (ret != 0) {
-            free(buffer_head);
-            IMDB_MetricDestroy(metric);
-            goto ERR;
-        }
-
-        ret = IMDB_RecordAddMetric(record, metric);
-        if (ret != 0) {
-            free(buffer_head);
-            IMDB_MetricDestroy(metric);
-            goto ERR;
-        }
-
-        if (strcmp(METRIC_TYPE_KEY, table->meta->metrics[index]->type) == 0) {
-            ret = IMDB_RecordAppendKey(record, keyIdx, token);
-            if (ret < 0) {
-                ERROR("[IMDB] Can not set record key.\n");
-                free(buffer_head);
-                goto ERR;
-            }
-            keyIdx++;
-        }
-
-        index += 1;
-    }
-
-    ret = IMDB_TableAddRecord(table, record);
-    if (ret != 0) {
-        free(buffer_head);
-        goto ERR;
-    }
-
-    free(buffer_head);
-
-    pthread_rwlock_unlock(&mgr->rwlock);
-    return 0;
-ERR:
-    pthread_rwlock_unlock(&mgr->rwlock);
-    if (record != NULL) {
-        IMDB_RecordDestroy(record);
-    }
-    return -1;
 }
 
 // return 0 if satisfy, return -1 if not
@@ -1048,7 +928,7 @@ static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
 {
     char *p = buffer;
     int ret;
-    int size = maxLen;
+    uint32_t size = maxLen;
     char first_flag = 1;
     int tgid_idx = -1;
     char *tgid_str = NULL;

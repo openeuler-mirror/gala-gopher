@@ -72,8 +72,8 @@ static int set_meminfosp_fileds(const char* line, const int cur_index)
     *colon = '\0';
 
     if (strcmp(line, meminfo_fields[cur_index].key) == 0) {
-        // atoll() turns digit chars to longlong ignoring the letter chars.
-        meminfo_fields[cur_index].value = atoll(colon + 1);
+        // strtoull() turns digit chars to longlong ignoring the letter chars.
+        meminfo_fields[cur_index].value = strtoull(colon + 1, NULL, 10);
         return 0;
     }
 
@@ -91,7 +91,9 @@ static int update_total_vmalloc(unsigned long long *value)
         DEBUG("[SYSTEM_PROBE] cat /proc/vmallocinfo failed.\n");
         return -1;
     }
-    unsigned long long total_b = atoll(line);
+
+    unsigned long long total_b = strtoull(line, NULL, 10);
+
     *value = total_b / 1024;    // KB
     return 0;
 }

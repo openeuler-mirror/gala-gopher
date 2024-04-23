@@ -104,7 +104,7 @@ static int __poll_pb(struct bpf_prog_s* prog)
 }
 static int init_py_sample_heap(int map_fd)
 {
-    int nr_cpus = NR_CPUS;
+    u32 nr_cpus = NR_CPUS;
     struct py_sample *samples;
     u32 zero = 0;
     int i;
@@ -406,7 +406,7 @@ static void refresh_proc_filter_map(struct ipc_body_s *ipc_body)
     struct proc_s next_key = {0};
     struct obj_ref_s val = {.count = 0};
     struct py_proc_data py_proc_data;
-    int i;
+    u32 i;
 
     while (bpf_map_get_next_key(tprofiler.procFilterMapFd, &key, &next_key) == 0) {
         (void)bpf_map_delete_elem(tprofiler.procFilterMapFd, &next_key);

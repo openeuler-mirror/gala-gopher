@@ -102,6 +102,7 @@ static void report_cpu_status(struct ipc_body_s *ipc_body)
 static float get_cpu_util(char *src, u64 *last_total, u64 *last_used, u64 *cur_total, u64 *cur_used)
 {
     float util;
+
     get_cpu_time_in_jiff(src, cur_total, cur_used);
 
     util = (*cur_used - *last_used) * FULL_PER * 1.0 / (*cur_total - *last_total);
@@ -178,23 +179,24 @@ static int get_softirq_info(void)
         field = __strtok_r(softirq_line, " ", &save);
         if (strcmp(field, "RCU:") == 0) {
             for (size_t i = 0; i < cpus_num; i++) {
-                cur_cpus[i]->rcu = atoll(__strtok_r(NULL, " ", &save));
+                cur_cpus[i]->rcu = strtoll(__strtok_r(NULL, " ", &save), NULL, 10);
             }
         } else if (strcmp(field, "TIMER:") == 0) {
             for (size_t i = 0; i < cpus_num; i++) {
-                cur_cpus[i]->timer = atoll(__strtok_r(NULL, " ", &save));
+                cur_cpus[i]->timer = strtoll(__strtok_r(NULL, " ", &save), NULL, 10);
             }
         } else if (strcmp(field, "SCHED:") == 0) {
             for (size_t i = 0; i < cpus_num; i++) {
-                cur_cpus[i]->sched = atoll(__strtok_r(NULL, " ", &save));
+                cur_cpus[i]->sched = strtoll(__strtok_r(NULL, " ", &save), NULL, 10);
             }
         } else if (strcmp(field, "NET_RX:") == 0) {
             for (size_t i = 0; i < cpus_num; i++) {
-                cur_cpus[i]->net_rx = atoll(__strtok_r(NULL, " ", &save));
+                cur_cpus[i]->net_rx = strtoll(__strtok_r(NULL, " ", &save), NULL, 10);
             }
         }
         softirq_line[0] = 0;
     }
+
     pclose(f);
     return 0;
 }
@@ -203,7 +205,7 @@ static int get_softnet_stat_info(void)
 {
     FILE *f = fopen(SOFTNET_STAT_PATH, "r");
     char line[LINE_BUF_LEN];
-    char *val, *save, *endptr;
+    char *val, *save;
     int ret;
 
     if (f == NULL) {
@@ -218,10 +220,10 @@ static int get_softnet_stat_info(void)
         while (val != NULL) {
             val = __strtok_r(NULL, " ", &save);
             if (t == SOFTNET_DROP_COL) {
-                cur_cpus[i]->backlog_drops = strtoll(val, &endptr, BASE_HEX);
+                cur_cpus[i]->backlog_drops = strtoll(val, NULL, BASE_HEX);
             }
             if (t == SOFTNET_RPS_COL) {
-                cur_cpus[i]->rps_count = strtoll(val, &endptr, BASE_HEX);
+                cur_cpus[i]->rps_count = strtoll(val, NULL, BASE_HEX);
                 break;
             }
             t++;

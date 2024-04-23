@@ -74,8 +74,8 @@ KRAWTRACE(sched_switch, bpf_raw_tracepoint_args)
         return 0;
     }
 
-    u32 prev_pid = _(prev->pid);
-    u32 next_pid = _(next->pid);
+    pid_t prev_pid = _(prev->pid);
+    pid_t next_pid = _(next->pid);
     if (next_pid <= 1 || prev_pid <= 1) {
         return 0;
     }
@@ -86,7 +86,7 @@ KRAWTRACE(sched_switch, bpf_raw_tracepoint_args)
         return -1;
     }
 
-    u32 prev_tgid = _(prev->tgid);
+    pid_t prev_tgid = _(prev->tgid);
 
     int filter = 0;
     struct proc_s obj = {.proc_id = prev_tgid};

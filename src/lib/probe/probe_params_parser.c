@@ -48,7 +48,7 @@ struct param_flags_s param_env_flags[] = {
     {"kubenet",     SUPPORT_K8S_ENV}
 };
 
-static int __get_params_flags(struct param_flags_s param_flags[], size_t size, const char *target)
+static unsigned int __get_params_flags(struct param_flags_s param_flags[], size_t size, const char *target)
 {
     for (int i = 0; i < size; i++) {
         if (strcasecmp(param_flags[i].desc, target) == 0) {

@@ -85,7 +85,7 @@ static int gopher_iter_section_symb(Elf *e, Elf_Scn *sec,
                 Elf32_Word another_sec, size_t entry_size, elf_sym_cb cb, void *ctx)
 {
     ELF_CB_RET ret;
-    int sym_count;
+    size_t sym_count;
     char *name;
     GElf_Sym sym;
     Elf_Data *data = NULL;

@@ -134,7 +134,7 @@ size_t kafka_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s
 {
     size_t ori_pos = raw_data->current_pos;
     size_t raw_data_len = strlen(raw_data->data);
-    int min_frame_len = msg_type == MESSAGE_REQUEST ? KAFKA_MIN_REQ_FRAME_LENGTH : KAFKA_MIN_RESP_FRAME_LENGTH;
+    size_t min_frame_len = (size_t)(msg_type == MESSAGE_REQUEST ? KAFKA_MIN_REQ_FRAME_LENGTH : KAFKA_MIN_RESP_FRAME_LENGTH);
 
     if (raw_data_len < min_frame_len) {
         return -1;
