@@ -321,7 +321,7 @@ static void output_tcp_socket(struct tcp_socket_s* tcp_sock)
 
     (void)fprintf(stdout,
         "|%s|%d|%s|%s|%s|%u|%u|%d"
-        "|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu"
+        "|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu"
         "|%s|\n",
         OO_TCP_SOCK,
         tcp_sock->id.tgid,
@@ -343,6 +343,7 @@ static void output_tcp_socket(struct tcp_socket_s* tcp_sock)
         tcp_sock->stats[EP_STATS_ACTIVE_OPENS],
         tcp_sock->stats[EP_STATS_ACTIVE_FAILS],
         tcp_sock->stats[EP_STATS_SYN_SENT],
+        tcp_sock->stats[EP_STATS_SYN_DROP],
         tcp_sock->stats[EP_STATS_SYNACK_SENT],
         tcp_sock->stats[EP_STATS_RST_SENT],
         tcp_sock->stats[EP_STATS_RST_RCVS],

@@ -21,6 +21,7 @@ enum socket_evt_e {
     EP_STATS_ACTIVE_FAILS,
 
     EP_STATS_SYN_SENT,
+    EP_STATS_SYN_DROP,
     EP_STATS_SYNACK_SENT,
 
     EP_STATS_RST_SENT,

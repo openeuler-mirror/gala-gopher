@@ -97,7 +97,12 @@ measurements:
                 type: "gauge",
                 name: "syn_sent",
             },
-	        {
+            {
+                description: "syn dropped by the stack of client(arp failed)",
+                type: "gauge",
+                name: "syn_drop",
+            },
+            {
                 description: "synack sent of the tcp socket.",
                 type: "gauge",
                 name: "synack_sent",
