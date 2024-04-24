@@ -23,24 +23,16 @@
 %define disable_kafka_channel  0
 %define disable_flamegraph_svg 0
 
-# example for tailoring probes
-%global extend_tailor_probes %{nil}
-%if 0%{?without_flamegraph}
-%global extend_tailor_probes %{extend_tailor_probes}stackprobe|
-%endif
-%if 0%{?without_jvm}
-%global extend_tailor_probes %{extend_tailor_probes}jvm.probe
-%endif
 
 Summary:       Intelligent ops toolkit for openEuler
 Name:          gala-gopher
-Version:       2.0.0
+Version:       2.0.1
 Release:       1
 License:       Mulan PSL v2
 URL:           https://gitee.com/openeuler/gala-gopher
 Source:        %{name}-%{version}.tar.gz
 BuildRoot:     %{_builddir}/%{name}-%{version}
-BuildRequires: systemd cmake gcc-c++ elfutils-devel (clang >= 10.0.1 or clang12) llvm bpftool >= 6.8
+BuildRequires: systemd cmake gcc-c++ elfutils-devel clang llvm bpftool >= 6.8
 BuildRequires: libconfig-devel libevent-devel openssl-devel libbpf-devel >= 2:0.8 uthash-devel
 BuildRequires: jsoncpp-devel git libstdc++-devel
 # for DT
