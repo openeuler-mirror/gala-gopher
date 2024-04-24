@@ -7,7 +7,8 @@ import subprocess
 import os
 import io
 import requests
-import libconf
+import json
+import re
 import ipc
 
 CONTAINER_ID_LEN = 64
@@ -49,13 +50,13 @@ def convert_meta():
     global g_meta
     meta_path = os.path.join("/etc/gala-gopher/extend_probes/cadvisor_probe.conf")
     with io.open(meta_path, encoding='utf-8') as f:
-        meta = libconf.load(f)
+        meta = json.load(f)
         g_meta = dict()
-        for measure in meta.measurements:
-            g_meta[measure.table_name] = dict()
-            for field in measure.fields:
+        for measure in meta.get("measurements"):
+            g_meta[measure.get("table_name")] = dict()
+            for field in measure.get("fields"):
                 try:
-                    g_meta[measure.table_name][field.name] = field.type
+                    g_meta[measure.get("table_name")][field.get("name")] = field.get("type")
                 except KeyError:
                     # main will catch the exception
                     raise
@@ -164,20 +165,21 @@ class CadvisorProbe():
                 if table_name not in g_metric:
                     g_metric[table_name] = dict()
 
-                metric_str = libconf.loads(line[(line.index("{") + 1):line.index("} ")])
+                metric_str = line[line.index("{"):line.index("} ")+1]
+                metric_dict = json.loads(re.sub(r'(\w+)=', r'"\1":', metric_str))
                 # cadvisor metric id is cgroup path of container
-                if metric_str.id not in self.cgroup_path_map.keys():
-                    continue;
+                if metric_dict.get("id") not in self.cgroup_path_map.keys():
+                    continue
                 
                 label_key= ''
                 for field_name, field_type in g_meta[table_name].items():
-                    if field_type == LABEL and field_name in metric_str:
-                        label_key += "_" + metric_str[field_name]
+                    if field_type == LABEL and field_name in metric_dict:
+                        label_key += "_" + metric_dict[field_name]
 
                 if label_key == '':
                     label_key = LABEL
 
-                container_id = self.cgroup_path_map[metric_str.id]
+                container_id = self.cgroup_path_map[metric_dict.get("id")]
                 if container_id not in g_metric[table_name]:
                     g_metric[table_name][container_id] = dict()
 
