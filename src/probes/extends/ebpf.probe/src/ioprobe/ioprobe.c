@@ -599,7 +599,7 @@ static char is_load_probe(char *probe_name)
         return 0;
     }
 
-    count = atoi((const char *)count_str);
+    count = strtol(count_str, NULL, 10);
 
     return (count > 0) ? 1 : 0;
 }

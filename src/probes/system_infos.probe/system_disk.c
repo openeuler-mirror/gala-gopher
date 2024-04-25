@@ -468,7 +468,7 @@ static int get_diskdev_num(int *num)
         return -1;
     }
     SPLIT_NEWLINE_SYMBOL(line);
-    *num = atoi(line);
+    *num = strtol(line, NULL, 10);
     (void)pclose(f);
     return 0;
 }

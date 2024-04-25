@@ -110,7 +110,7 @@ static int get_qemu_proc_tgid(struct proc_infos *one_proc)
         ERROR("[VIRT_PROC] get uuid(%s)'s tgid failed.\n", one_proc->uuid);
         return -1;
     }
-    one_proc->tgid = atoi(line);
+    one_proc->tgid = strtol(line, NULL, 10);
 
     output_proc_infos(one_proc);
 
@@ -147,7 +147,7 @@ static int get_vhost_proc_tgid(struct proc_infos *one_proc)
             return -1;
         }
         SPLIT_NEWLINE_SYMBOL(line);
-        tmp.tgid = atoi(line);
+        tmp.tgid = strtol(line, NULL, 10);
         output_proc_infos(&tmp);
     }
 

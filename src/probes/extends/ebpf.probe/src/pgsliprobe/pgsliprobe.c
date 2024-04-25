@@ -299,7 +299,7 @@ static int add_bpf_link_by_search_pids()
         if (fgets(line, LINE_BUF_LEN, f) == NULL) {
             continue;
         }
-        pid = (unsigned int)atoi(line);
+        pid = strtoul(line, NULL, 10);
         if (pid <= 0) {
             continue;
         }

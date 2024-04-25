@@ -60,7 +60,7 @@ static int lkup_and_set_probe_pid(struct probe_s *probe)
     if (exec_cmd((const char *)cmd, pid_str, INT_LEN) < 0) {
         return -1;
     }
-    pid = atoi(pid_str);
+    pid = strtol(pid_str, NULL, 10);
     (void)pthread_rwlock_wrlock(&probe->rwlock);
     probe->pid = pid;
     (void)pthread_rwlock_unlock(&probe->rwlock);

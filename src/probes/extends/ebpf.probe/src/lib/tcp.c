@@ -652,7 +652,7 @@ int get_listen_sock_inode(struct tcp_listen_port *tlp, unsigned long *ino)
         return -1;
     }
     SPLIT_NEWLINE_SYMBOL(line);
-    *ino = atoi(line);
+    *ino = strtol(line, NULL, 10);
 
     (void)pclose(f);
     return 0;

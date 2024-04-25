@@ -134,7 +134,7 @@ static struct tcp_conntrack_s *parse_conntrack_tcp(const char *s)
     if (__get_sub_str((const char *)p, "sport=", " ", sub_str, INET6_ADDRSTRLEN)) {
         goto err;
     }
-    conn_tcp->sport = atoi(sub_str);
+    conn_tcp->sport = strtol(sub_str, NULL, 10);
 
     // parse conntrack tcp dst port
     p = strstr((const char *)p, "dport=");
@@ -145,7 +145,7 @@ static struct tcp_conntrack_s *parse_conntrack_tcp(const char *s)
     if (__get_sub_str((const char *)p, "dport=", " ", sub_str, INET6_ADDRSTRLEN)) {
         goto err;
     }
-    conn_tcp->dport = atoi(sub_str);
+    conn_tcp->dport = strtol(sub_str, NULL, 10);
 
     // parse conntrack tcp reply src ip address
     p = strstr((const char *)p, "src=");
@@ -178,7 +178,7 @@ static struct tcp_conntrack_s *parse_conntrack_tcp(const char *s)
     if (__get_sub_str((const char *)p, "sport=", " ", sub_str, INET6_ADDRSTRLEN)) {
         goto err;
     }
-    conn_tcp->reply_sport = atoi(sub_str);
+    conn_tcp->reply_sport = strtol(sub_str, NULL, 10);
 
     // parse conntrack tcp reply dst port
     p = strstr((const char *)p, "dport=");
@@ -189,7 +189,7 @@ static struct tcp_conntrack_s *parse_conntrack_tcp(const char *s)
     if (__get_sub_str((const char *)p, "dport=", " ", sub_str, INET6_ADDRSTRLEN)) {
         goto err;
     }
-    conn_tcp->reply_dport = atoi(sub_str);
+    conn_tcp->reply_dport = strtol(sub_str, NULL, 10);
 
     return conn_tcp;
 
