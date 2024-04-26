@@ -39,60 +39,24 @@ static int set_probe_bin(struct probe_s *probe, const char *bin);
 static void init_probe_bin(struct probe_s *probe, enum probe_type_e probe_type);
 
 struct probe_define_s probe_define[] = {
-#ifdef ENABLE_BASEINFO
-    {"baseinfo",            "system_infos",                                       PROBE_BASEINFO},
-#endif
-#ifdef ENABLE_VIRT
-    {"virt",                "virtualized_infos",                                  PROBE_VIRT},
-#endif
-#ifdef ENABLE_FLAMEGRAPH
-    {"flamegraph",          "/opt/gala-gopher/extend_probes/stackprobe",          PROBE_FG},
-#endif
-#ifdef ENABLE_L7
-    {"l7",                  "/opt/gala-gopher/extend_probes/l7probe",             PROBE_L7},
-#endif
-#ifdef ENABLE_TCP
-    {"tcp",                 "/opt/gala-gopher/extend_probes/tcpprobe",            PROBE_TCP},
-#endif
-#ifdef ENABLE_SOCKET
-    {"socket",              "/opt/gala-gopher/extend_probes/endpoint",            PROBE_SOCKET},
-#endif
-#ifdef ENABLE_IO
-    {"io",                  "/opt/gala-gopher/extend_probes/ioprobe",             PROBE_IO},
-#endif
-#ifdef ENABLE_PROC
-    {"proc",                "/opt/gala-gopher/extend_probes/taskprobe",           PROBE_PROC},
-#endif
-#ifdef ENABLE_JVM
-    {"jvm",                 "/opt/gala-gopher/extend_probes/jvmprobe",            PROBE_JVM},
-#endif
-#ifdef ENABLE_POSTGRE_SLI
-    {"postgre_sli",         "/opt/gala-gopher/extend_probes/pgsliprobe",          PROBE_POSTGRE_SLI},
-#endif
-#ifdef ENABLE_OPENGAUSS_SLI
-    {"opengauss_sli",       "/opt/gala-gopher/extend_probes/pg_stat_probe.py",    PROBE_GAUSS_SLI},
-#endif
-#ifdef ENABLE_NGINX
-    {"nginx",               "/opt/gala-gopher/extend_probes/nginx_probe",         PROBE_NGINX},
-#endif
-#ifdef ENABLE_KAFKA
-    {"kafka",               "/opt/gala-gopher/extend_probes/kafkaprobe",          PROBE_KAFKA},
-#endif
-#ifdef ENABLE_TPROFILING
-    {"tprofiling",          "/opt/gala-gopher/extend_probes/tprofiling",          PROBE_TP},
-#endif
-#ifdef ENABLE_HW
-    {"hw",                  "/opt/gala-gopher/extend_probes/hwprobe",             PROBE_HW},
-#endif
-#ifdef ENABLE_KSLI
-    {"ksli",                "/opt/gala-gopher/extend_probes/ksliprobe",           PROBE_KSLI},
-#endif
-#ifdef ENABLE_CONTAINER
-    {"container",           "/opt/gala-gopher/extend_probes/cadvisor_probe.py",   PROBE_CONTAINER},
-#endif
-#ifdef ENABLE_SERMANT
-    {"sermant",             "/opt/gala-gopher/extend_probes/sermant_probe.py",    PROBE_SERMANT}
-#endif
+    {"baseinfo",            "system_infos",                                       PROBE_BASEINFO,       ENABLE_BASEINFO},
+    {"virt",                "virtualized_infos",                                  PROBE_VIRT,           ENABLE_VIRT},
+    {"flamegraph",          "/opt/gala-gopher/extend_probes/stackprobe",          PROBE_FG,             ENABLE_FLAMEGRAPH},
+    {"l7",                  "/opt/gala-gopher/extend_probes/l7probe",             PROBE_L7,             ENABLE_L7},
+    {"tcp",                 "/opt/gala-gopher/extend_probes/tcpprobe",            PROBE_TCP,            ENABLE_TCP},
+    {"socket",              "/opt/gala-gopher/extend_probes/endpoint",            PROBE_SOCKET,         ENABLE_SOCKET},
+    {"io",                  "/opt/gala-gopher/extend_probes/ioprobe",             PROBE_IO,             ENABLE_IO},
+    {"proc",                "/opt/gala-gopher/extend_probes/taskprobe",           PROBE_PROC,           ENABLE_PROC},
+    {"jvm",                 "/opt/gala-gopher/extend_probes/jvmprobe",            PROBE_JVM,            ENABLE_JVM},
+    {"postgre_sli",         "/opt/gala-gopher/extend_probes/pgsliprobe",          PROBE_POSTGRE_SLI,    ENABLE_POSTGRE_SLI},
+    {"opengauss_sli",       "/opt/gala-gopher/extend_probes/pg_stat_probe.py",    PROBE_GAUSS_SLI,      ENABLE_OPENGAUSS_SLI},
+    {"nginx",               "/opt/gala-gopher/extend_probes/nginx_probe",         PROBE_NGINX,          ENABLE_NGINX},
+    {"kafka",               "/opt/gala-gopher/extend_probes/kafkaprobe",          PROBE_KAFKA,          ENABLE_KAFKA},
+    {"tprofiling",          "/opt/gala-gopher/extend_probes/tprofiling",          PROBE_TP,             ENABLE_TPROFILING},
+    {"hw",                  "/opt/gala-gopher/extend_probes/hwprobe",             PROBE_HW,             ENABLE_HW},
+    {"ksli",                "/opt/gala-gopher/extend_probes/ksliprobe",           PROBE_KSLI,           ENABLE_KSLI},
+    {"container",           "/opt/gala-gopher/extend_probes/cadvisor_probe.py",   PROBE_CONTAINER,      ENABLE_CONTAINER},
+    {"sermant",             "/opt/gala-gopher/extend_probes/sermant_probe.py",    PROBE_SERMANT,        ENABLE_SERMANT},
 
     // If you want to add a probe, add the probe define.
 };
@@ -595,15 +559,20 @@ static enum probe_type_e get_probe_type_by_name(const char *probe_name)
     size_t size = sizeof(probe_define) / sizeof(struct probe_define_s);
 
     if (probe_name == NULL) {
+        PARSE_ERR("invalid probe name");
         return PROBE_TYPE_MAX;
     }
 
     for (int i = 0; i < size; i++) {
         if (!strcasecmp(probe_define[i].desc, probe_name)) {
+            if (probe_define[i].enable == 0) {
+                PARSE_ERR("not supported in the current version");
+                return PROBE_TYPE_MAX;
+            }
             return probe_define[i].type;
         }
     }
-
+    PARSE_ERR("invalid probe name");
     return PROBE_TYPE_MAX;
 }
 
@@ -611,7 +580,6 @@ static struct probe_s *get_probe_by_name(const char *probe_name)
 {
     enum probe_type_e probe_type = get_probe_type_by_name(probe_name);
     if (probe_type >= PROBE_TYPE_MAX) {
-        PARSE_ERR("invalid probe name");
         return NULL;
     }
 

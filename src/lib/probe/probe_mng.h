@@ -41,6 +41,7 @@ struct probe_define_s {
     char *desc;
     char *bin;
     enum probe_type_e type;
+    char enable;
 };
 
 typedef int (*ParseParam)(const char*, struct probe_params *);
