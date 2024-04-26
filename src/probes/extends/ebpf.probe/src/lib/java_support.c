@@ -76,13 +76,13 @@ static int _set_effective_id(int pid, struct jvm_process_info *v)
     size_t size;
     while (getline(&line, &size, status_file) != -1) {
         if (strncmp(line, "Uid:", 4) == 0 && strtok(line + 4, "\t ") != NULL) {
-            eUid = (uid_t)atoi(strtok(NULL, "\t "));
+            eUid = strtoul(strtok(NULL, "\t "), NULL, 10);
         } else if (strncmp(line, "Gid:", 4) == 0 && strtok(line + 4, "\t ") != NULL) {
-            eGid = (gid_t)atoi(strtok(NULL, "\t "));
+            eGid = strtoul(strtok(NULL, "\t "), NULL, 10);
         } else if (strncmp(line, "NStgid:", 7) == 0) {
             char* s;
             for (s = strtok(line + 7, "\t "); s != NULL; s = strtok(NULL, "\t ")) {
-                nspid = atoi(s);
+                nspid = strtol(s, NULL, 10);
             }
             nspid_found = 1;
         }
@@ -247,7 +247,7 @@ static int _exe_attach_cmd(char *cmd)
     while(fgets(result_buf, sizeof(result_buf), f) != NULL) {
         DEBUG("%s\n", result_buf);
         /* 判断load指令执行返回结果，非0表示失败 */
-        if (isdigit(result_buf[0]) && atoi(result_buf) != 0) {
+        if (isdigit(result_buf[0]) && strtol(result_buf, NULL, 10) != 0) {
             ERROR("[JAVA_SUPPORT]: attach failed, cmd: %s, ret code: %s\n", cmd, result_buf);
             (void)pclose(f);
             return -1;

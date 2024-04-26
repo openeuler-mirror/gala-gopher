@@ -209,7 +209,7 @@ static int resolve_bucket_size(char *buf, char **new_buf)
     }
     *pos = '\0';
 
-    ret = atoi(buf);
+    ret = strtol(buf, NULL, 10);
     if (ret <= 0) {
         return -1;
     }

@@ -50,7 +50,7 @@ static proc_hash_t *hash_find_proc(u32 pid, const char *stime)
     proc_hash_t temp = {0};
 
     temp.key.pid = pid;
-    temp.key.start_time = (u64)atoll(stime);
+    temp.key.start_time = strtoull(stime, NULL, 10);
     HASH_FIND(hh, g_procmap, &temp.key, sizeof(proc_key_t), p);
 
     return p;
@@ -236,7 +236,7 @@ static int get_proc_fdcnt(u32 pid, proc_info_t *proc_info)
 
 static void do_set_proc_stat(proc_info_t *proc_info, char *buf, int index)
 {
-    u64 value = (u64)atoll(buf);
+    u64 value = strtoull(buf, NULL, 10);
     switch (index)
     {
         case PROC_STAT_MIN_FLT:
@@ -557,7 +557,7 @@ static proc_hash_t* init_one_proc(u32 pid, char *stime, char *comm)
     (void)memset(item, 0, sizeof(proc_hash_t));
 
     item->key.pid = pid;
-    item->key.start_time = (u64)atoll(stime);
+    item->key.start_time = strtoull(stime, NULL, 10);
 
     (void)snprintf(item->info.comm, sizeof(item->info.comm), "%s", comm);
     item->flag = PROC_IN_PROBE_RANGE;

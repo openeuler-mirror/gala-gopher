@@ -139,7 +139,7 @@ static int parse_netmask(char *ip_addr)
     if (colon == NULL) {
         return 32;
     }
-    return (atoi(colon + 1) > 32) ? 0 : atoi(colon + 1);
+    return (strtol(colon + 1, NULL, 10) > 32) ? 0 : strtol(colon + 1, NULL, 10);
 }
 
 /* 检查IP是否在某网段内 */
@@ -281,7 +281,7 @@ static int get_resource_info(struct node_infos *infos)
     infos->clock_ticks = (u64)sysconf(_SC_CLK_TCK);
     sys_btime[0] = 0;
     (void)get_system_btime(sys_btime);
-    infos->os_btime = (u64)atoll(sys_btime);
+    infos->os_btime = strtoull(sys_btime, NULL, 10);
     return 0;
 }
 

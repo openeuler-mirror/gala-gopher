@@ -967,7 +967,7 @@ static int gen_snooper_by_procname(struct probe_s *probe)
                 }
             }
             // Well matched
-            (void)add_snooper_obj_procid(probe, (u32)atoi(entry->d_name));
+            (void)add_snooper_obj_procid(probe, strtoul(entry->d_name, NULL, 10));
             break;
         }
         cmdline_obtained = 0;
@@ -1024,7 +1024,7 @@ static int __gen_snooper_by_container(struct probe_s *probe, con_id_element *con
         LL_FOREACH_SAFE(con_id_list, con_info_elem, tmp) {
             if (strcmp((const char *)container_id, con_info_elem->con_id) == 0) {
                 // Well matched
-                (void)add_snooper_obj_procid(probe, (u32)atoi(entry->d_name));
+                (void)add_snooper_obj_procid(probe, strtoul(entry->d_name, NULL, 10));
                 break;
             }
         }

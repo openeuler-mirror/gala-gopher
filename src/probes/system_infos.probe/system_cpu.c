@@ -66,7 +66,7 @@ static void get_cpu_time_in_jiff(char *cpu_total_line, u64 *time_total, u64 *tim
 
     while (i++ < PROC_STAT_COL_NUM) {
         retrieved_time = __strtok_r(NULL, " ", &save);
-        time = atoll(retrieved_time);
+        time = strtoll(retrieved_time, NULL, 10);
 
         *time_total += time;
 
@@ -256,7 +256,7 @@ static int get_cpu_mhz_info(void)
             token = strtok(NULL, ":");
         }
         if (last_token != NULL && index < cpus_num) {
-            cur_cpus[index]->mhz = atof(last_token);
+            cur_cpus[index]->mhz = strtod(last_token, NULL);
             index++;
         }
     }
