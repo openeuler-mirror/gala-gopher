@@ -109,7 +109,7 @@ BUILD_OPTS=(
   -DENABLE_FLAMEGRAPH=%[0%{?without_flamegraph}?0:1]
   -DENABLE_L7=%[0%{?without_l7}?0:1]
   -DENABLE_TCP=%[0%{?without_tcp}?0:1]
-  -DENABLE_SOCKET=%[0%{?without_tcp}?0:1]
+  -DENABLE_SOCKET=%[0%{?without_socket}?0:1]
   -DENABLE_IO=%[0%{?without_io}?0:1]
   -DENABLE_PROC=%[0%{?without_proc}?0:1]
   -DENABLE_JVM=%[0%{?without_jvm}?0:1]
@@ -155,8 +155,12 @@ if [ -d /var/log/gala-gopher ]; then
   othermode=$(expr $(stat -L -c "%a" /var/log/gala-gopher) % 10)
   if [ $othermode -ne 0 ]; then
     chmod 750 /var/log/gala-gopher
-    chmod 750 /var/log/gala-gopher/debug
-    chmod 640 /var/log/gala-gopher/debug/gopher.log
+    if [ -d /var/log/gala-gopher ]; then
+      chmod 750 /var/log/gala-gopher/debug
+    fi
+    if [ -e /var/log/gala-gopher/debug/gopher.log ]; then
+      chmod 640 /var/log/gala-gopher/debug/gopher.log
+    fi
   fi
 fi
 

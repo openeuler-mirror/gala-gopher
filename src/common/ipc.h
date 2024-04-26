@@ -21,6 +21,64 @@
 #include "args.h"
 #include "object.h"
 
+#ifndef ENABLE_BASEINFO
+#define ENABLE_BASEINFO 0
+#endif
+#ifndef ENABLE_VIRT
+#define ENABLE_VIRT 0
+#endif
+#ifndef ENABLE_FLAMEGRAPH
+#define ENABLE_FLAMEGRAPH 0
+#endif
+#ifndef ENABLE_L7
+#define ENABLE_L7 0
+#endif
+#ifndef ENABLE_TCP
+#define ENABLE_TCP 0
+#endif
+#ifndef ENABLE_SOCKET
+#define ENABLE_SOCKET 0
+#endif
+#ifndef ENABLE_IO
+#define ENABLE_IO 0
+#endif
+#ifndef ENABLE_PROC
+#define ENABLE_PROC 0
+#endif
+#ifndef ENABLE_JVM
+#define ENABLE_JVM 0
+#endif
+#ifndef ENABLE_POSTGRE_SLI
+#define ENABLE_POSTGRE_SLI 0
+#endif
+#ifndef ENABLE_OPENGAUSS_SLI
+#define ENABLE_OPENGAUSS_SLI 0
+#endif
+#ifndef ENABLE_NGINX
+#define ENABLE_NGINX 0
+#endif
+#ifndef ENABLE_KAFKA
+#define ENABLE_KAFKA 0
+#endif
+#ifndef ENABLE_TPROFILING
+#define ENABLE_TPROFILING 0
+#endif
+#ifndef ENABLE_HW
+#define ENABLE_HW 0
+#endif
+#ifndef ENABLE_NGINX
+#define ENABLE_NGINX 0
+#endif
+#ifndef ENABLE_KSLI
+#define ENABLE_KSLI 0
+#endif
+#ifndef ENABLE_CONTAINER
+#define ENABLE_CONTAINER 0
+#endif
+#ifndef ENABLE_SERMANT
+#define ENABLE_SERMANT 0
+#endif
+
 #define SNOOPER_MAX    100
 
 /* FlameGraph subprobe define */
