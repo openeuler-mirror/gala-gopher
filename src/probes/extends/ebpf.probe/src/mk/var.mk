@@ -50,13 +50,14 @@ LDFLAGS += -Wl,--copy-dt-needed-entries -Wl,-z,relro,-z,now
 CXXFLAGS += -std=c++11 -g -O2 -Wall -fPIC
 C++ = g++
 CC = gcc
+VENDOR = $(shell rpm --eval "%{_vendor}")
 
 CLANGFLAGS := $(CFLAGS)
 CFLAGS += -Wno-format-truncation
 
 CXX_VERSION = $(shell $(C++) -dumpversion)
 CXX_STDLIB_DIR = /usr/include/c++/$(CXX_VERSION)
-CXXABI_INCLUDE_DIR = -I$(CXX_STDLIB_DIR) -I$(CXX_STDLIB_DIR)/$(ARCH)-linux-gnu -I$(CXX_STDLIB_DIR)/$(ARCH)-openEuler-linux
+CXXABI_INCLUDE_DIR = -I$(CXX_STDLIB_DIR) -I$(CXX_STDLIB_DIR)/$(ARCH)-linux-gnu -I$(CXX_STDLIB_DIR)/$(ARCH)-$(VENDOR)-linux
 
 BASE_INC := -I/usr/include \
             -I$(ROOT_DIR)../include \
