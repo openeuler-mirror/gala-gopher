@@ -363,7 +363,7 @@ static void init_all_logger(void)
     init_logger(&g_metrics_logger, "metrics", 0, METRICS_LOGS_FILESIZE);
     init_logger(&g_event_logger, "event", 1, EVENT_LOGS_FILESIZE);
     init_logger(&g_debug_logger, "debug", 1, DEBUG_LOGS_FILESIZE);
-    init_logger(&g_meta_logger, "meta", 1, META_LOGS_FILESIZE);
+    init_logger(&g_meta_logger, "meta", 0, META_LOGS_FILESIZE);
 }
 
 #define FULL_PATH_LEN (PATH_LEN * 2)
@@ -777,9 +777,8 @@ void wr_meta_logs(const char* logs)
     if (access(g_meta_abs_path, F_OK) == -1) {
         (void)append_meta_logger(local);
     }
-    if (g_meta_logger.level <= LOGGER_DEBUG) {  // using debug level
-        log_without_date(&g_meta_logger, logs);
-    }
+
+    log_without_date(&g_meta_logger, logs);
 }
 
 static void reappend_debug_logger(struct log_mgr_s *mgr)
