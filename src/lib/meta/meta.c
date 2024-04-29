@@ -591,6 +591,10 @@ static int report_one_metadata(const MeasurementMgr *mgr, const Measurement *mm)
     int ret;
     char *json_str = NULL;
 
+    if (mgr->meta_out_channel != OUT_CHNL_KAFKA && mgr->meta_out_channel != OUT_CHNL_LOGS) {
+        return 0;
+    }
+
     json_str = (char *)malloc(MAX_DATA_STR_LEN);
     if (json_str == NULL) {
         return -1;
@@ -628,7 +632,7 @@ static int report_one_metadata(const MeasurementMgr *mgr, const Measurement *mm)
     return 0;
 }
 
-static int ReportMeteData(const MeasurementMgr *mgr)
+static int ReportMetaData(const MeasurementMgr *mgr)
 {
     Measurement *mm = NULL;
     int i, meta_num;
@@ -670,7 +674,7 @@ int ReportMetaDataMain(const MeasurementMgr *mgr)
 #endif
 
     for (;;) {
-        ret = ReportMeteData(mgr);
+        ret = ReportMetaData(mgr);
         if (ret < 0) {
             return -1;
         }
