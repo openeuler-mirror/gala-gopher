@@ -127,12 +127,16 @@ int DaemonRun(ResourceMgr *mgr)
     INFO("[DAEMON] create egress thread success.\n");
 
     // 3. start web_server thread
-    ret = pthread_create(&mgr->web_server_mgr->tid, NULL, DaemonRunWebServer, mgr->web_server_mgr);
-    if (ret != 0) {
-        ERROR("[DAEMON] create web_server thread failed.(errno:%d, %s)\n", errno, strerror(errno));
-        return -1;
+    if (mgr->web_server_mgr == NULL) {
+        INFO("[DAEMON] skip create web_server thread.\n");
+    } else {
+        ret = pthread_create(&mgr->web_server_mgr->tid, NULL, DaemonRunWebServer, mgr->web_server_mgr);
+        if (ret != 0) {
+            ERROR("[DAEMON] create web_server thread failed.(errno:%d, %s)\n", errno, strerror(errno));
+            return -1;
+        }
+        INFO("[DAEMON] create web_server thread success.\n");
     }
-    INFO("[DAEMON] create web_server thread success.\n");
 
     // 4. start metadata_report thread
     ret = pthread_create(&mgr->mmMgr->tid, NULL, DaemonRunMetadataReport, mgr->mmMgr);
