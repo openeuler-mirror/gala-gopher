@@ -118,7 +118,7 @@ class CadvisorProbe():
             else:
                 raise Exception('[cadvisor_probe]cAdvisor running but get info failed')
         whitelist_label = "-whitelisted_container_labels=" + get_meta_label_list()
-        interval = "--housekeeping_interval="+ period + "s" 
+        interval = "--housekeeping_interval="+ str(period) + "s"
         ps = subprocess.Popen(["/usr/bin/cadvisor", "-port", str(self.port),\
             "--store_container_labels=false", interval, whitelist_label,\
             DISABLE_METRICS_OPTION],\
