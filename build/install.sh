@@ -22,7 +22,10 @@ function __create_btf_cache()
     for file in $(find ${BTF_DIR} -name "*"${ARCH}"*.btf.tar.xz") ; do
         tar -xf $file
     done
-    find ./ -name "*.btf" | xargs mv -t ${BTF_CACHE}
+
+    for file in $(find ./ -name "*.btf") ; do
+        mv $file -t  ${BTF_CACHE}
+    done
 }
 
 function __delete_btf_cache()
@@ -169,8 +172,10 @@ function install_shared_lib()
         cp ${SHARED_LIB} ${GOPHER_SHARED_LIB_DIR}
     done
 
-    echo "install lib:" ${JVM_ATTACH_BIN}
-    cp ${JVM_ATTACH_BIN} ${GOPHER_SHARED_LIB_DIR}
+    if ! [[ $EXTEND_PROBES =~ "l7probe" ]] || ! [[ $EXTEND_PROBES =~ "stackprobe" ]] || ! [[ $EXTEND_PROBES =~ "jvm.probe" ]] ; then
+        echo "install lib:" ${JVM_ATTACH_BIN}
+        cp ${JVM_ATTACH_BIN} ${GOPHER_SHARED_LIB_DIR}
+    fi
 }
 
 function install_extend_probes()

@@ -26,10 +26,14 @@
 #include "nprobe_fprintf.h"
 #endif
 
-static struct evt_ts_hash_t *g_evt_head = NULL;
+
 static unsigned int g_evt_period = 600;
 // static EventsConfig *g_evt_conf;
 // static char g_lang_type[MAX_EVT_GRP_NAME_LEN] = "zh_CN";
+
+
+#ifdef ENABLE_REPORT_EVENT
+static struct evt_ts_hash_t *g_evt_head = NULL;
 
 static void hash_clear_older_evt(time_t cur_time);
 static unsigned int hash_count_evt(void);
@@ -61,7 +65,6 @@ static struct evt_sec_s secs[EVT_SEC_MAX] = {
     {21,              "FATAL"}
 };
 
-#ifdef ENABLE_REPORT_EVENT
 #define __EVT_BODY_LEN  512 // same as MAX_IMDB_METRIC_VAL_LEN
 void report_logs(const struct event_info_s* evt, enum evt_sec_e sec, const char * fmt, ...)
 {
@@ -143,12 +146,6 @@ void report_logs(const struct event_info_s* evt, enum evt_sec_e sec, const char 
 #endif
     return;
 }
-#else
-void report_logs(const struct event_info_s* evt, enum evt_sec_e sec, const char * fmt, ...)
-{
-    return;
-}
-#endif
 
 void emit_otel_log(struct otel_log *ol)
 {
@@ -243,6 +240,12 @@ static int is_evt_need_report(const char *entityId, time_t cur_time)
     }
     return 0;
 }
+#else
+void report_logs(const struct event_info_s* evt, enum evt_sec_e sec, const char * fmt, ...)
+{
+    return;
+}
+#endif
 
 void init_event_mgr(unsigned int time_out)
 {
