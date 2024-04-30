@@ -21,6 +21,7 @@
 #include <sys/epoll.h>
 
 #include "base.h"
+#include "common.h"
 #include "egress.h"
 
 EgressMgr *EgressMgrCreate(void)
