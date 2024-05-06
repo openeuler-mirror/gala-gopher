@@ -172,10 +172,8 @@ function install_shared_lib()
         cp ${SHARED_LIB} ${GOPHER_SHARED_LIB_DIR}
     done
 
-    if ! [[ $EXTEND_PROBES =~ "l7probe" ]] || ! [[ $EXTEND_PROBES =~ "stackprobe" ]] || ! [[ $EXTEND_PROBES =~ "jvm.probe" ]] ; then
-        echo "install lib:" ${JVM_ATTACH_BIN}
-        cp ${JVM_ATTACH_BIN} ${GOPHER_SHARED_LIB_DIR}
-    fi
+    echo "install lib:" ${JVM_ATTACH_BIN}
+    cp ${JVM_ATTACH_BIN} ${GOPHER_SHARED_LIB_DIR}
 }
 
 function install_extend_probes()

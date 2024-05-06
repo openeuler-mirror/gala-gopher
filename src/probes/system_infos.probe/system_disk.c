@@ -162,12 +162,12 @@ static int init_fs_inode_info(void)
                 (void)pclose(f);
                 return -1;
             }
-            strcpy(fsItem->mount_on, stats.mount_on);
+            snprintf(fsItem->mount_on, sizeof(fsItem->mount_on), "%s", stats.mount_on);
             HASH_ADD_STR(g_df_tbl, mount_on, fsItem);
         }
         fsItem->valid = 1;
-        strcpy(fsItem->fsname, stats.fsname);
-        strcpy(fsItem->fstype, stats.fstype);
+        snprintf(fsItem->fsname, sizeof(fsItem->fsname), "%s", stats.fsname);
+        snprintf(fsItem->fstype, sizeof(fsItem->fstype), "%s", stats.fstype);
         fsItem->inode_sum = stats.inode_sum;
         fsItem->inode_used = stats.inode_used;
         fsItem->inode_free = stats.inode_free;
@@ -258,7 +258,7 @@ static int init_fs_status(void)
         if (!fsItem || !fsItem->valid) {
             continue;
         }
-        (void)strcpy(fsItem->mount_status, mountStatus);
+        (void)snprintf(fsItem->mount_status, sizeof(fsItem->mount_status), "%s", mountStatus);
     }
 
     (void)pclose(f);

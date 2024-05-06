@@ -85,7 +85,7 @@ static void report_cpu_status(struct ipc_body_s *ipc_body)
     }
 
     entityId[0] = 0;
-    (void)strcpy(entityId, "cpu");
+    (void)snprintf(entityId, sizeof(entityId), "%s", "cpu");
 
     evt.entityName = ENTITY_NAME;
     evt.entityId = entityId;

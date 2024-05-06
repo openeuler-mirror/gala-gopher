@@ -24,11 +24,12 @@
 /* the interval of time (@p) is given in second */
 #define S_VALUE(m,n,p)      (((double) ((n) - (m))) / (p))
 
-#define FSTYPE_LEN  64
+#define FSNAME_LEN  128
+#define FSTYPE_LEN  32
 #define MOUNTON_LEN 128
 #define MOUNTSTATUS_LEN 8
 typedef struct {
-    char fsname[FSTYPE_LEN];
+    char fsname[FSNAME_LEN];
     char fstype[FSTYPE_LEN];
     char mount_on[MOUNTON_LEN];
     char mount_status[MOUNTSTATUS_LEN];
