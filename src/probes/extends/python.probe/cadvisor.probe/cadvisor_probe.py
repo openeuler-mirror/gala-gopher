@@ -231,32 +231,31 @@ def print_metrics():
             continue
         for key, record in records.items():
             s = "|" + table + "|"
-            if table in g_meta:
-                for field_name, field_type in g_meta[table].items():
-                    value = 0
-                    if field_type == LABEL:
-                        continue
+            for field_name, field_type in g_meta[table].items():
+                value = 0
+                if field_type == LABEL:
+                    continue
 
-                    if field_type == KEY:
-                        value = key
-                        s += value + "|"
-                        continue
+                if field_type == KEY:
+                    value = key
+                    s += value + "|"
+                    continue
 
-                    if field_name not in record:
-                        value = ""
-                    else:
-                        for item in record[field_name].values():
-                            if field_type == COUNTER:
-                                if item[1] > item[0]:
-                                    value += item[1] - item[0]
-                                else:
-                                    value += 0
-                                item[0] = item[1]
+                if field_name not in record:
+                    value = ""
+                else:
+                    for item in record[field_name].values():
+                        if field_type == COUNTER:
+                            if item[1] > item[0]:
+                                value += item[1] - item[0]
                             else:
-                                value += item
-                    s = s + str(value) + "|"
-                print(s)
-                sys.stdout.flush()
+                                value += 0
+                            item[0] = item[1]
+                        else:
+                            value += item
+                s = s + str(value) + "|"
+            print(s)
+            sys.stdout.flush()
 
 
 def clean_metrics():
