@@ -237,7 +237,7 @@ static void get_diskname(const char* dev_name, char *disk_name, size_t size)
     char *p;
     char last_disk_name[DISK_NAME_LEN];
 
-    strcpy(cmd, LSBLK_TREE_CMD);
+    snprintf(cmd, sizeof(cmd), "%s", LSBLK_TREE_CMD);
     f = popen_chroot(cmd, "r");
     if (f == NULL) {
         return;

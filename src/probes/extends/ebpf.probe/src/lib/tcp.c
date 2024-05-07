@@ -210,7 +210,7 @@ static struct tcp_estab_comm* __get_estab_comm(const char *start, unsigned int l
         return NULL;
     }
     te_comm->comm[0] = 0;
-    (void)strcpy(te_comm->comm, comm);
+    (void)snprintf(te_comm->comm, sizeof(te_comm->comm), "%s", comm);
 
     te_comm->pid = strtoul(pid_s, NULL, 10);
     te_comm->fd = strtoul(fd_s, NULL, 10);

@@ -44,7 +44,7 @@ int system_meminfo_init(void)
         "SwapTotal", "SwapFree", "Shmem", "Slab", "SReclaimable", "SUnreclaim", "KernelStack", "PageTables",
         "VmallocUsed", "HugePages_Total", "Hugepagesize"};
     for (int i = MEM_TOTAL; i < TOTAL_DATA_INDEX; i++) {
-        strcpy(meminfo_fields[i].key, key_[i]);
+        snprintf(meminfo_fields[i].key, sizeof(meminfo_fields[i].key), "%s", key_[i]);
         meminfo_fields[i].value = 0;
     }
     return 0;
@@ -109,8 +109,8 @@ static void report_meminfo_status(struct ipc_body_s *ipc_body, double mem_util, 
 
     entityId[0] = 0;
     entityName[0] = 0;
-    (void)strcpy(entityId, "/proc/meminfo");
-    (void)strcpy(entityName, "mem");
+    (void)snprintf(entityId, sizeof(entityId), "%s", "/proc/meminfo");
+    (void)snprintf(entityName, sizeof(entityName), "%s", "mem");
 
     evt.entityName = entityName;
     evt.entityId = entityId;
@@ -192,7 +192,7 @@ static int get_meminfo(struct ipc_body_s *ipc_body)
     }
     int cur_index = 0;
     while (!feof(f)) {
-        line[0] = 0; 
+        line[0] = 0;
         if (fgets(line, LINE_BUF_LEN, f) == NULL) {
             break;
         }
