@@ -13,7 +13,7 @@ import ipc
 
 CONTAINER_ID_LEN = 64
 CGROUP_PATH_LEN = 256
-DEFAULT_CADVISOR_PORT = 8080
+DEFAULT_CADVISOR_PORT = 8083
 DEFAULT_REPORT_PERIOD = 60
 DISABLE_METRICS_OPTION = "-disable_metrics=udp,cpu_topology,resctrl,tcp,advtcp,sched,hugetlb,referenced_memory"
 PROJECT_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # /opt/gala-gopher/
@@ -24,13 +24,25 @@ CPUSET = "cpuset"
 g_meta = None
 g_metric = dict()
 
+def debug_log(msg: str):
+    print("[DEBUG]: [CADVISOR_PROBE]:" + msg)
+    sys.stdout.flush()
+
+def info_log(msg: str):
+    print("[INFO]: [CADVISOR_PROBE]:" + msg)
+    sys.stdout.flush()
+
+def error_log(msg: str):
+    print("[ERROR]: [CADVISOR_PROBE]:" + msg)
+    sys.stdout.flush()
+
 class ParamException(Exception):
     pass
 
 def init_so():
     container_lib_path = os.path.join(PROJECT_PATH, "lib/container.so")
     container_lib = cdll.LoadLibrary(container_lib_path)
-    print("[cadvisor_probe]load container.so.")
+    info_log("load container.so.")
     return container_lib
 
 def signal_handler(signum, frame):
@@ -106,28 +118,34 @@ class CadvisorProbe():
         p = subprocess.Popen("which cadvisor", stdout=subprocess.PIPE, shell=True)
         p.communicate(timeout=5)
         if p.returncode != 0:
-            raise Exception('[cadvisor_probe] cAdvisor not installed')
+            raise Exception('cAdvisor not installed')
         p = subprocess.Popen("/usr/bin/ps -ef | /usr/bin/grep /usr/bin/cadvisor | /usr/bin/grep -v grep | \
                             /usr/bin/awk '{print $2}'", stdout=subprocess.PIPE, shell=True)
         (rawout, serr) = p.communicate(timeout=5)
         if len(rawout) != 0:
             self.pid = rawout.rstrip().decode()
             if self.get_cadvisor_port():
-                print("[cadvisor_probe]cAdvisor has already been running at port %s." % self.port)
+                info_log("cAdvisor has already been running at port %s." % self.port)
                 return
             else:
-                raise Exception('[cadvisor_probe]cAdvisor running but get info failed')
+                raise Exception('cAdvisor running but get info failed')
         whitelist_label = "-whitelisted_container_labels=" + get_meta_label_list()
         interval = "--housekeeping_interval="+ str(period) + "s"
         ps = subprocess.Popen(["/usr/bin/cadvisor", "-port", str(self.port),\
             "--store_container_labels=false", interval, whitelist_label,\
             DISABLE_METRICS_OPTION],\
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=False)
+        try:
+            ps.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            info_log("cAdvisor started at port %s." % self.port)
+        else:
+            error_log("cAdvisor started at port %s failed. retcode: %d" % (self.port, ps.returncode))
+            sys.exit(0)
         self.pid = ps.pid
-        print("[cadvisor_probe]cAdvisor started at port %s." % self.port)
 
     def stop_cadvisor(self):
-        print("[cadvisor_probe]stop cAdvisor before exit.")
+        info_log("stop cAdvisor before exit.")
         if self.pid != 0:
             subprocess.Popen(["/usr/bin/kill", "-9", str(self.pid)], stdout=subprocess.PIPE, shell=False)
 
@@ -215,7 +233,7 @@ class CadvisorProbe():
         try:
             cadvisor_probe.start_cadvisor(period)
         except Exception as e:
-            print(e)
+            error_log("start cadvisor failed. Err: %s" % repr(e))
             return False
         return True
 
@@ -270,7 +288,7 @@ def reset_g_metric():
 if __name__ == "__main__":
     cadvisor_port = DEFAULT_CADVISOR_PORT
     period = DEFAULT_REPORT_PERIOD
-    cadvisor_running_flag = True
+    cadvisor_running_flag = False
 
     convert_meta()
     container_lib = init_so()
@@ -281,20 +299,15 @@ if __name__ == "__main__":
 
     msq_id = ipc.create_ipc_msg_queue(ipc.IPC_EXCL)
     if msq_id < 0:
-        print("[cadvisor_probe] create ipc msg queue failed")
+        error_log("create ipc msg queue failed")
         sys.exit(-1)
 
     cadvisor_probe = CadvisorProbe(cadvisor_port)
-    try:
-        cadvisor_probe.start_cadvisor(period)
-    except Exception as e:
-        print(e)
-        cadvisor_running_flag = False
 
     while True:
         ret = ipc.recv_ipc_msg(msq_id, ipc.ProbeType.PROBE_CONTAINER, ipc_body)
         if ret == 0:
-            if ipc_body.probe_flags & ipc.IPC_FLAGS_PARAMS_CHG or ipc_body.probe_flags == 0:
+            if ipc_body.probe_flags & ipc.IPC_FLAGS_PARAMS_CHG or ipc_body.probe_flags == 0 or not cadvisor_running_flag:
                 period = ipc_body.probe_param.period
                 if cadvisor_probe.change_cadvisor_port(ipc_body.probe_param.cadvisor_port, period):
                     cadvisor_running_flag = True
@@ -317,7 +330,7 @@ if __name__ == "__main__":
             try:
                 cadvisor_probe.get_metrics(s, cadvisor_port)
             except Exception as e:
-                print("[cadvisor_probe]get metrics failed. Err: %s" % repr(e))
+                debug_log("get metrics failed. Err: %s" % repr(e))
                 s = requests.Session()
         print_metrics()
         clean_metrics()
