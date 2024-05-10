@@ -152,7 +152,7 @@ static __always_inline void add_sock(const struct sock *sk, enum socket_role_e r
         new_info.syn_start_ts = bpf_ktime_get_ns();
     }
 
-    bpf_map_update_elem(&tcp_socks, &sk, &info, BPF_ANY);
+    bpf_map_update_elem(&tcp_socks, &sk, &new_info, BPF_ANY);
     return;
 }
 
