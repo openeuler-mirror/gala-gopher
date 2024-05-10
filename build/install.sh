@@ -4,50 +4,46 @@ PROGRAM=$0
 PROJECT_FOLDER=$(dirname "$PWD")
 EXT_PROBE_FOLDER=${PROJECT_FOLDER}/src/probes/extends
 SHARED_LIB_FOLDER=${PROJECT_FOLDER}/src/common
-PROBES_PATH_LIST=`find ${PROJECT_FOLDER}/src/probes -maxdepth 1 | grep ".probe\>"`
-EXT_PROBE_INSTALL_LIST=`find ${EXT_PROBE_FOLDER} -maxdepth 2 | grep "\<install.sh\>"`
-SHARED_LIB_LIST=`find ${SHARED_LIB_FOLDER} -name "*.so"`
+PROBES_PATH_LIST=$(find ${PROJECT_FOLDER}/src/probes -maxdepth 1 | grep ".probe\>")
+EXT_PROBE_INSTALL_LIST=$(find ${EXT_PROBE_FOLDER} -maxdepth 2 | grep "\<install.sh\>")
+SHARED_LIB_LIST=$(find ${SHARED_LIB_FOLDER} -name "*.so")
 JVM_ATTACH_BIN=${PROJECT_FOLDER}/src/lib/jvm/jvm_attach
 TAILOR_PATH=${PROJECT_FOLDER}/tailor.conf
 TAILOR_PATH_TMP=${TAILOR_PATH}.tmp
 BTF_CACHE=${PROJECT_FOLDER}/.cache
 BTF_DIR=${PROJECT_FOLDER}/btf
 
-function __create_btf_cache()
-{
+function __create_btf_cache() {
     rm -rf ${BTF_CACHE}
     mkdir -p ${BTF_CACHE}
     mkdir -p ${BTF_DIR}
     ARCH=$(uname -m)
-    for file in $(find ${BTF_DIR} -name "*"${ARCH}"*.btf.tar.xz") ; do
+    for file in $(find ${BTF_DIR} -name "*"${ARCH}"*.btf.tar.xz"); do
         tar -xf $file
     done
 
-    for file in $(find ./ -name "*.btf") ; do
-        mv $file -t  ${BTF_CACHE}
+    for file in $(find ./ -name "*.btf"); do
+        mv $file -t ${BTF_CACHE}
     done
 }
 
-function __delete_btf_cache()
-{
+function __delete_btf_cache() {
     rm -rf ${BTF_CACHE}
 }
 
-function load_tailor()
-{
-    if [ -f ${TAILOR_PATH} ];then
+function load_tailor() {
+    if [ -f ${TAILOR_PATH} ]; then
         cp ${TAILOR_PATH} ${TAILOR_PATH_TMP}
 
         sed -i '/^$/d' ${TAILOR_PATH_TMP}
         sed -i 's/ //g' ${TAILOR_PATH_TMP}
         sed -i 's/^/export /' ${TAILOR_PATH_TMP}
-        eval `cat ${TAILOR_PATH_TMP}`
+        eval $(cat ${TAILOR_PATH_TMP})
         rm -rf ${TAILOR_PATH_TMP}
     fi
 }
 
-function install_daemon_bin()
-{
+function install_daemon_bin() {
     GOPHER_BIN_FILE=${PROJECT_FOLDER}/gala-gopher
     GOPHER_BIN_TARGET_DIR=/usr/bin
 
@@ -69,8 +65,7 @@ function install_daemon_bin()
 
 }
 
-function install_conf()
-{
+function install_conf() {
     GOPHER_CONF_FILE=${PROJECT_FOLDER}/config/gala-gopher.conf
     GOPHER_PROBES_INIT_FILE=${PROJECT_FOLDER}/config/probes.init
     GOPHER_CONF_TARGET_DIR=/etc/gala-gopher
@@ -98,8 +93,7 @@ function install_conf()
     echo "install ${GOPHER_PROBES_INIT_FILE} success."
 }
 
-function install_meta()
-{
+function install_meta() {
     GOPHER_META_DIR=/opt/gala-gopher/meta
 
     if [ $# -eq 1 ]; then
@@ -120,15 +114,13 @@ function install_meta()
         PROBES_PATH_LIST=$(echo "$PROBES_PATH_LIST" | grep -Ev "$PROBES")
     fi
 
-    for PROBE_PATH in ${PROBES_PATH_LIST}
-    do
+    for PROBE_PATH in ${PROBES_PATH_LIST}; do
         cp ${PROBE_PATH}/*.meta ${GOPHER_META_DIR}
     done
     echo "install meta file of native probes success."
 }
 
-function install_btf()
-{
+function install_btf() {
     GOPHER_BTF_DIR=/opt/gala-gopher/btf
 
     __create_btf_cache
@@ -145,17 +137,15 @@ function install_btf()
     if [ ! -d ${GOPHER_BTF_DIR} ]; then
         mkdir -p ${GOPHER_BTF_DIR}
     fi
-    BTF_FILES=`find ${BTF_CACHE} -name "*.btf"`
-    for file in ${BTF_FILES}
-    do
+    BTF_FILES=$(find ${BTF_CACHE} -name "*.btf")
+    for file in ${BTF_FILES}; do
         cp ${file} ${GOPHER_BTF_DIR}
     done
     __delete_btf_cache
     echo "install btf files success."
 }
 
-function install_shared_lib()
-{
+function install_shared_lib() {
     GOPHER_SHARED_LIB_DIR=/opt/gala-gopher/lib
 
     if [ $# -eq 1 ]; then
@@ -166,8 +156,7 @@ function install_shared_lib()
         mkdir -p ${GOPHER_SHARED_LIB_DIR}
     fi
 
-    for SHARED_LIB in ${SHARED_LIB_LIST}
-    do
+    for SHARED_LIB in ${SHARED_LIB_LIST}; do
         echo "install lib:" ${SHARED_LIB}
         cp ${SHARED_LIB} ${GOPHER_SHARED_LIB_DIR}
     done
@@ -176,8 +165,7 @@ function install_shared_lib()
     cp ${JVM_ATTACH_BIN} ${GOPHER_SHARED_LIB_DIR}
 }
 
-function install_extend_probes()
-{
+function install_extend_probes() {
     GOPHER_EXTEND_PROBE_DIR=${1:-/opt/gala-gopher}/extend_probes
     GOPHER_EXTEND_PROBE_CONF_DIR=${2:-/etc/gala-gopher}/extend_probes
     GOPHER_EXTEND_PROBE_META_DIR=${1:-/opt/gala-gopher}/meta
@@ -197,15 +185,13 @@ function install_extend_probes()
 
     # Search for install.sh in extend probe directory
     cd ${EXT_PROBE_FOLDER}
-    for INSTALL_PATH in ${EXT_PROBE_INSTALL_LIST}
-    do
+    for INSTALL_PATH in ${EXT_PROBE_INSTALL_LIST}; do
         echo "install path:" ${INSTALL_PATH}
         sh ${INSTALL_PATH} -b ${GOPHER_EXTEND_PROBE_DIR} -c ${GOPHER_EXTEND_PROBE_CONF_DIR} -m ${GOPHER_EXTEND_PROBE_META_DIR}
     done
 }
 
-function install_script()
-{
+function install_script() {
     INIT_PROBES_SCRIPT=${PROJECT_FOLDER}/script/init_probes.sh
     SCRIPT_TARGET_DIR=/usr/libexec/gala-gopher
 
