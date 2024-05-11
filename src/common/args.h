@@ -27,7 +27,7 @@
 #define MAX_IP_LEN          20	// xxx.xxx.xxx.xxx/xx
 #define MAX_IP_NUM          8
 #define MAX_TGIDS_LEN       64
-#define DEFAULT_CADVISOR_PORT    8080
+#define DEFAULT_CADVISOR_PORT    8083
 
 #define PYSCOPE_SERVER_URL_LEN  64  // compat for [domainName]:4040 for most of domains and xxx.xxx.xxx.xxx:4040
 #ifndef PATH_LEN
