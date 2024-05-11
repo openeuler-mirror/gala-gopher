@@ -853,7 +853,7 @@ static int append_proc_level_labels(const char *tgid_str, char **buffer_ptr, int
     }
     if (tgidRecord == NULL) {
         DEBUG("[IMDB] Failed to create tgid cache(tgid=%s)\n", tgid_str);
-        return 0;
+        return -1;
     }
 
     ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
@@ -1164,7 +1164,7 @@ static int IMDB_Rec2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Record *record, IMDB_
     ret = IMDB_BuildPrometheusLabel(mgr, record, table, labels, MAX_LABELS_BUFFER_SIZE);
     if (ret < 0) {
         DEBUG("[IMDB] table of (%s) build label fail, ret: %d\n", table->entity_name, ret);
-        goto ERR;
+        return -1;
     }
     labels_buf.buf = labels;
     labels_buf.len = strlen(labels);
@@ -1196,7 +1196,6 @@ static int IMDB_Rec2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Record *record, IMDB_
         total += ret;
     }
 
-ERR:
     return total;
 }
 
@@ -1234,8 +1233,10 @@ static int IMDB_Tbl2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Table *table, char *b
 
         ret = IMDB_Rec2Prometheus(mgr, record, table, curBuffer, curMaxLen);
         if (ret < 0) {
-            ERROR("[IMDB] table(%s) record to string fail.\n", table->name);
-            return -1;
+            // if build label fail, we just delete record 
+            HASH_deleteRecord(table->records, record);
+            IMDB_RecordDestroy(record);
+            continue;
         }
         if (ret == 0) {
             curBuffer[0] = 0;
