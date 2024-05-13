@@ -4,13 +4,13 @@ PROGRAM=$0
 PROJECT_FOLDER=$(dirname "$PWD")
 
 PROBES_FOLDER=${PROJECT_FOLDER}/src/probes
-PROBES_PATH_LIST=`find ${PROJECT_FOLDER}/src/probes -maxdepth 1 | grep ".probe\>"`
+PROBES_PATH_LIST=$(find ${PROJECT_FOLDER}/src/probes -maxdepth 1 | grep ".probe\>")
 EXT_PROBE_FOLDER=${PROJECT_FOLDER}/src/probes/extends
 PROBE_MNG_FOLDER=${PROJECT_FOLDER}/src/lib/probe
 JVM_FOLDER=${PROJECT_FOLDER}/src/lib/jvm
 TAILOR_PATH=${PROJECT_FOLDER}/tailor.conf
 VMLINUX_DIR=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/src/include
-EXT_PROBE_BUILD_LIST=`find ${EXT_PROBE_FOLDER} -maxdepth 2 | grep "\<build.sh\>"`
+EXT_PROBE_BUILD_LIST=$(find ${EXT_PROBE_FOLDER} -maxdepth 2 | grep "\<build.sh\>")
 DEP_LIST=(cmake git librdkafka-devel libconfig-devel uthash-devel libbpf-devel clang bpftool
           llvm java-1.8.0-openjdk-devel jsoncpp-devel libcurl-devel openssl-devel libevent-devel)
 PROBES_LIST=""
@@ -104,7 +104,7 @@ function load_tailor()
 
 function __get_probes_source_files()
 {
-    one_probe_src_list=`find $1 -name "*.c"`
+    one_probe_src_list=$(find $1 -name "*.c")
     for one_file in ${one_probe_src_list}
     do
         file_name=${one_file#*$1/}
