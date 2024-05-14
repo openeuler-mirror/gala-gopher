@@ -331,7 +331,7 @@ static __always_inline void get_request_sockaddr(struct tcp_socket_event_s* evt,
     return;
 }
 
-static __always_inline void report_synack_sent_evt(void *ctx, const struct sock* sk, const struct request_sock *req)
+static __always_inline void report_synack_sent_evt(void *ctx, const struct sock* sk, const struct request_sock *req, bool retran)
 {
     if (sk == NULL || req == NULL) {
         return;
@@ -344,7 +344,7 @@ static __always_inline void report_synack_sent_evt(void *ctx, const struct sock*
 
     struct tcp_socket_event_s evt = {0};
     get_request_sockaddr(&evt, req);
-    evt.evt = EP_STATS_SYNACK_SENT;
+    evt.evt = retran ? EP_STATS_RETRANS_SYNACK : EP_STATS_SYNACK_SENT;
     evt.tgid = info->tgid;
     evt.is_multi = info->is_multi;
 
@@ -575,7 +575,7 @@ KRETPROBE(tcp_v4_send_synack, pt_regs)
         goto end;
     }
 
-    report_synack_sent_evt(ctx, (const struct sock *)(args->sk), (const struct request_sock *)(args->req));
+    report_synack_sent_evt(ctx, (const struct sock *)(args->sk), (const struct request_sock *)(args->req), false);
 
 end:
     bpf_map_delete_elem(&tcp_v4_send_synack_args, &id);
@@ -617,7 +617,7 @@ KRETPROBE(tcp_v6_send_synack, pt_regs)
         goto end;
     }
 
-    report_synack_sent_evt(ctx, (const struct sock *)(args->sk), (const struct request_sock *)(args->req));
+    report_synack_sent_evt(ctx, (const struct sock *)(args->sk), (const struct request_sock *)(args->req), false);
 
 end:
     bpf_map_delete_elem(&tcp_v6_send_synack_args, &id);
@@ -828,21 +828,9 @@ end:
 KRAWTRACE(tcp_retransmit_synack, bpf_raw_tracepoint_args)
 {
     struct sock *sk = (struct sock *)ctx->args[0];
-    struct tcp_socket_event_s evt = {0};
+    struct request_sock *req = (struct request_sock *)ctx->args[1];
 
-    struct sock_info_s* info = lkup_sock((const struct sock *)sk);
-    if (info == NULL) {
-        return 0;
-    }
-
-    get_accept_sockaddr(&evt, (const struct sock *)sk);
-    evt.evt = EP_STATS_RETRANS_SYNACK;
-    evt.tgid = info->tgid;
-    evt.is_multi = info->is_multi;
-
-    // report;
-    evt.role = TCP_SERVER;
-    (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
+    report_synack_sent_evt(ctx, sk, req, true);
     return 0;
 }
 
@@ -850,21 +838,9 @@ SEC("tracepoint/tcp/tcp_retransmit_synack")
 int bpf_trace_tcp_retransmit_synack_func(struct trace_event_raw_tcp_retransmit_synack *ctx)
 {
     struct sock *sk = (struct sock *)ctx->skaddr;
-    struct tcp_socket_event_s evt = {0};
+    struct request_sock *req = (struct request_sock *)ctx->req;
 
-    struct sock_info_s* info = lkup_sock((const struct sock *)sk);
-    if (info == NULL) {
-        return 0;
-    }
-
-    get_accept_sockaddr(&evt, (const struct sock *)sk);
-    evt.evt = EP_STATS_RETRANS_SYNACK;
-    evt.tgid = info->tgid;
-    evt.is_multi = info->is_multi;
-
-    // report;
-    evt.role = TCP_SERVER;
-    (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
+    report_synack_sent_evt(ctx, sk, req, true);
 
     return 0;
 }
