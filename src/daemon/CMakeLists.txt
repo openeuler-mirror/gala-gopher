@@ -13,6 +13,7 @@ MESSAGE("ENV LIBBPF_VER_MINOR:\n"  ${LIBBPF_VER_MINOR})
 
 SET(EXECUTABLE_OUTPUT_PATH ../../../)
 SET(EXECUTABLE_TARGET gala-gopher)
+SET(EXECUTABLE_TARGET_CMD gopher-ctl)
 
 SET(SRC_DIR         ../../src)
 SET(BASE_DIR        ${SRC_DIR}/lib)
@@ -29,6 +30,7 @@ SET(COMMON_DIR      ${SRC_DIR}/common)
 SET(RESTAPI_DIR     ${SRC_DIR}/api)
 SET(HTTPSERVER_DIR  ${SRC_DIR}/lib/http_server)
 SET(EBPF_PROBE_DIR  ${SRC_DIR}/probes/extends/ebpf.probe)
+SET(CMD_DIR         ${SRC_DIR}/cmd)
 
 SET(LIBELF_DIR /usr/include/libelf)
 
@@ -83,6 +85,15 @@ SET(SOURCES main.c daemon.c
     ${WEB_SERVER_DIR}/web_server.c
     ${RESTAPI_DIR}/rest_server.c
     ${EBPF_PROBE_DIR}/src/lib/java_support.c
+
+    ${CMD_DIR}/cmd_common.c
+    ${CMD_DIR}/cmd_server.c
+)
+
+SET(SOURCES_CMD
+    ${COMMON_DIR}/logs.c
+    ${CMD_DIR}/cmd_common.c
+    ${CMD_DIR}/cmd_client.c
 )
 
 FOREACH(FILE ${PROBES_C_LIST})
@@ -123,6 +134,8 @@ SET(INC_DIRECTORIES
     ${JSON_INC_PATH}
     ${HTTPSERVER_DIR}
     ${EBPF_PROBE_DIR}/src/include
+
+    ${CMD_DIR}
 )
 
 SET(LINK_LIBRARIES config pthread rt dl bpf elf jsoncpp_lib ssl event event_openssl crypto)
@@ -140,3 +153,6 @@ MESSAGE("SOURCES:\n" ${SOURCES})
 ADD_EXECUTABLE(${EXECUTABLE_TARGET} ${SOURCES})
 TARGET_INCLUDE_DIRECTORIES(${EXECUTABLE_TARGET} PRIVATE ${INC_DIRECTORIES})
 TARGET_LINK_LIBRARIES(${EXECUTABLE_TARGET} PRIVATE ${LINK_LIBRARIES})
+
+ADD_EXECUTABLE(${EXECUTABLE_TARGET_CMD} ${SOURCES_CMD})
+TARGET_INCLUDE_DIRECTORIES(${EXECUTABLE_TARGET_CMD} PRIVATE ${INC_DIRECTORIES})

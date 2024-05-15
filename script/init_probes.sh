@@ -15,12 +15,14 @@
 
 GOPHER_CONF="/etc/gala-gopher/gala-gopher.conf"
 GOPHER_INITIAL_CONF="/etc/gala-gopher/probes.init"
+GOPHER_CMD_SOCK_PATH="/var/run/gala_gopher/gala_gopher_cmd.sock"
 RETRY_COUNT=5
 ssl_auth_on="on"
 rest_server_port=""
 rest_server_ssl_auth=""
 rest_server_private_key=""
 rest_server_cert_file=""
+listen_on=""
 
 function load_gopher_conf()
 {
@@ -45,6 +47,9 @@ function load_gopher_conf()
     rest_server_cert_file=$(echo $rest_server_cert_file_line | awk -F ' = ' '{print $2}')
     rest_server_cert_file=$(echo ${rest_server_cert_file%;} |  sed 's/"//g')
 
+    listen_on=$(cat $GOPHER_CONF | grep "listen_on" | awk -F ' = ' '{print $2}')
+    listen_on=$(echo ${listen_on%;})
+
     if [ -z "${rest_server_port}" ] ; then
         exit 1;
     fi
@@ -55,6 +60,18 @@ function check_rest_server()
     i=0
     while ! netstat -tunpl | grep gala-gopher | \
             grep LISTEN | awk -F ' ' '{print $4}' | grep -q $rest_server_port ; do
+        sleep 1
+        let i+=1
+        if [ $i -ge ${RETRY_COUNT} ] ; then
+            exit 1
+        fi
+    done
+}
+
+function check_cmd_server()
+{
+    i=0
+    while [ ! -e $GOPHER_CMD_SOCK_PATH ] ; do
         sleep 1
         let i+=1
         if [ $i -ge ${RETRY_COUNT} ] ; then
@@ -79,14 +96,22 @@ function init_probes_json()
             exit 1
         fi
 
-        if test $rest_server_ssl_auth = $ssl_auth_on ; then
-            curl --cert $rest_server_cert_file --key $rest_server_private_key -k -s -X PUT https://localhost:${rest_server_port}/$url -d json=${put_data} -o /dev/null
+        if test $listen_on = "false"; then
+            gopher-ctl probe set "$url" "$put_data"
         else
-            curl -s -X PUT http://localhost:${rest_server_port}/$url -d json=${put_data} -o /dev/null
+            if test $rest_server_ssl_auth = $ssl_auth_on ; then
+                curl --cert $rest_server_cert_file --key $rest_server_private_key -k -s -X PUT https://localhost:${rest_server_port}/$url -d json=${put_data} -o /dev/null
+            else
+                curl -s -X PUT http://localhost:${rest_server_port}/$url -d json=${put_data} -o /dev/null
+            fi
         fi
     done < ${GOPHER_INITIAL_CONF}
 }
 
 load_gopher_conf
-check_rest_server
+if test $listen_on != "false"; then
+    check_rest_server
+else
+    check_cmd_server
+fi
 init_probes_json
