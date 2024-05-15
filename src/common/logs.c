@@ -83,7 +83,7 @@ static int open_file_without_dir(const char *filename)
     }
     u_char dir_exist = (access(base_dir, F_OK) == 0);
     if (dir_exist == 0) {
-        int status = mkdirp(base_dir, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+        int status = mkdirp(base_dir, S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP);
         if (status != 0) {
             ERROR("popen mkdir %s failed, errno %d\n", base_dir, errno);
             return -1;

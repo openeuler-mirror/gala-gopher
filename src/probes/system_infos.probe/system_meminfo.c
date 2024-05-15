@@ -27,6 +27,7 @@
 #define METRICS_DENTRY_ORIGIN  "fs.dentry-state"
 #define SYSTEM_FS_DENTRY_STATE "cat /proc/sys/fs/dentry-state"
 /* VmallocUsed in /proc/meminfo is inaccurate because it include VM_MALLOC VM_IOREMAP VM_MAP */
+#define METRICS_VMLLLOC_PATH  "/proc/vmallocinfo"
 #define METRICS_VMALLOC_SIZE  "grep vmalloc /proc/vmallocinfo | awk '{total+=$2}; END {print total}'"
 static struct system_meminfo_field* meminfo_fields = NULL;
 static struct dentry_stat dentry_state = {0};
@@ -86,9 +87,14 @@ static int update_total_vmalloc(unsigned long long *value)
     char line[LINE_BUF_LEN];
     cmd[0] = 0;
     line[0] = 0;
+
+    if (access(METRICS_VMLLLOC_PATH, R_OK) != 0) {
+        return 0;
+    }
+
     (void)snprintf(cmd, LINE_BUF_LEN, METRICS_VMALLOC_SIZE);
     if (exec_cmd(cmd, line, LINE_BUF_LEN) != 0) {
-        DEBUG("[SYSTEM_PROBE] cat /proc/vmallocinfo failed.\n");
+        ERROR("[SYSTEM_PROBE] get vmallocinfo failed.\n");
         return -1;
     }
 
