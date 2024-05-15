@@ -437,6 +437,8 @@ static int ConfigMgrLoadOutConfig(void *config, config_setting_t *settings)
         outConfig->outChnl = OUT_CHNL_KAFKA;
     } else if (!strcmp(strVal, "web_server")) {
         outConfig->outChnl = OUT_CHNL_WEB_SERVER;
+    } else if (!strcmp(strVal, "json")) {
+        outConfig->outChnl = OUT_CHNL_JSON;
     } else if (!strlen(strVal)) {
         outConfig->outChnl = OUT_CHNL_NULL;
     } else {

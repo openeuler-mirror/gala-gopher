@@ -27,6 +27,8 @@
 #include "imdb.h"
 
 static uint32_t g_recordTimeout = 60;       // default timeout: 60 seconds
+#define IMDB_BUILD_ERR           (-1)
+#define IMDB_BUFFER_FULL         (-2)
 
 IMDB_Metric *IMDB_MetricCreate(char *name, char *description, char *type)
 {
@@ -735,13 +737,15 @@ static int IMDB_BuildPrometheusMetrics(const IMDB_Metric *metric, char *buffer, 
 }
 
 static int append_pod_level_labels(struct container_cache *con_cache, char **buffer_ptr, int *size_ptr,
-    IMDB_DataBaseMgr *mgr, IMDB_Table *table)
+                                   IMDB_DataBaseMgr *mgr, IMDB_Table *table, char type_json)
 {
     int ret = 0;
     struct pod_cache *pod_cache = NULL;
     struct pod_label_cache *pod_label_cache = NULL;
     struct pod_label_elem *pod_label;
     int i;
+    const char *fmt = type_json ? ",\"%s\":\"%s\"" : ",%s=\"%s\"";
+    const char *podname_fmt = type_json ? ",\"%s\":\"%s/%s\"" : ",%s=\"%s/%s\"";
 
     if (con_cache->pod_id[0] == 0) {
         return 0;
@@ -755,20 +759,20 @@ static int append_pod_level_labels(struct container_cache *con_cache, char **buf
         }
     }
 
-    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
+    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, fmt,
         META_COMMON_LABEL_POD_ID, pod_cache->pod_id);
     if (ret < 0) {
-        return ret;
+        return IMDB_BUFFER_FULL;
     }
-    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s/%s\"",
+    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, podname_fmt,
         META_COMMON_LABEL_POD_NAME, pod_cache->pod_namespace, pod_cache->pod_name);
     if (ret < 0) {
-        return ret;
+        return IMDB_BUFFER_FULL;
     }
-    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
+    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, fmt,
         META_COMMON_LABEL_POD_NAMESPACE, pod_cache->pod_namespace);
     if (ret < 0) {
-        return ret;
+        return IMDB_BUFFER_FULL;
     }
 
     // append user-defined pod labels
@@ -779,15 +783,15 @@ static int append_pod_level_labels(struct container_cache *con_cache, char **buf
         pod_label_cache = lkup_pod_label_cache(pod_cache->pod_labels, pod_label->key);
 
         if (pod_label_cache) {
-            ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
+            ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, fmt,
                 pod_label->key, pod_label_cache->val);
         } else {
-            ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
+            ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, fmt,
                 pod_label->key, __POD_LABEL_DEFAULT_VAL);
         }
         if (ret < 0) {
             (void)pthread_rwlock_unlock(&table->ext_label_conf.rwlock);
-            return ret;
+            return IMDB_BUFFER_FULL;
         }
     }
     (void)pthread_rwlock_unlock(&table->ext_label_conf.rwlock);
@@ -796,10 +800,11 @@ static int append_pod_level_labels(struct container_cache *con_cache, char **buf
 }
 
 static int append_container_level_labels(const char *container_id, char **buffer_ptr, int *size_ptr,
-    IMDB_DataBaseMgr *mgr, IMDB_Table *table, char is_con_id_appended)
+    IMDB_DataBaseMgr *mgr, IMDB_Table *table, char is_con_id_appended, char type_json)
 {
     int ret = 0;
     struct container_cache *con_cache = NULL;
+    const char *fmt = type_json ? ",\"%s\":\"%s\"" : ",%s=\"%s\"";
 
     if (!container_id || container_id[0] == 0) {
         return 0;
@@ -814,25 +819,25 @@ static int append_container_level_labels(const char *container_id, char **buffer
     }
 
     if (!is_con_id_appended) {
-        ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
+        ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, fmt,
             META_COMMON_LABEL_CONTAINER_ID, con_cache->container_id);
         if (ret < 0) {
-            return ret;
+            return IMDB_BUFFER_FULL;
         }
     }
-    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
+    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, fmt,
         META_COMMON_LABEL_CONTAINER_NAME, con_cache->container_name);
     if (ret < 0) {
-        return ret;
+        return IMDB_BUFFER_FULL;
     }
 
-    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
+    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, fmt,
         META_COMMON_LABEL_CONTAINER_IMAGE, con_cache->container_image);
     if (ret < 0) {
-        return ret;
+        return IMDB_BUFFER_FULL;
     }
 
-    ret = append_pod_level_labels(con_cache, buffer_ptr, size_ptr, mgr, table);
+    ret = append_pod_level_labels(con_cache, buffer_ptr, size_ptr, mgr, table, type_json);
     if (ret < 0) {
         DEBUG("[IMDB] Failed to append pod-level labels(pod_id=%s)\n", con_cache->pod_id);
         return ret;
@@ -842,10 +847,12 @@ static int append_container_level_labels(const char *container_id, char **buffer
 }
 
 static int append_proc_level_labels(const char *tgid_str, char **buffer_ptr, int *size_ptr,
-    IMDB_DataBaseMgr *mgr, IMDB_Table *table)
+                                    IMDB_DataBaseMgr *mgr, IMDB_Table *table, char type_json)
 {
     TGID_Record *tgidRecord;
     int ret = 0;
+    const char *cmd_fmt = type_json ? ",\"%s\":\"%s\"" : ",%s=\"%s\"";
+    const char *stime_fmt = type_json ? ",\"%s\":%llu" : ",%s=\"%llu\"";
 
     tgidRecord = IMDB_TgidLkupRecord(mgr, tgid_str);
     if (tgidRecord == NULL) {
@@ -853,29 +860,29 @@ static int append_proc_level_labels(const char *tgid_str, char **buffer_ptr, int
     }
     if (tgidRecord == NULL) {
         DEBUG("[IMDB] Failed to create tgid cache(tgid=%s)\n", tgid_str);
-        return -1;
+        return IMDB_BUILD_ERR;
     }
 
-    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
+    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, cmd_fmt,
         META_COMMON_LABEL_PROC_COMM, tgidRecord->comm);
     if (ret < 0) {
-        return ret;
+        return IMDB_BUFFER_FULL;
     }
 
     if (is_entity_proc(table->entity_name)) {
-        ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"",
+        ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, cmd_fmt,
             META_PROC_LABEL_CMDLINE, tgidRecord->cmdline);
         if (ret < 0) {
-            return ret;
+            return IMDB_BUFFER_FULL;
         }
-        ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%llu\"",
+        ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, stime_fmt,
             META_PROC_LABEL_START_TIME, tgidRecord->key.startup_ts);
         if (ret < 0) {
-            return ret;
+            return IMDB_BUFFER_FULL;
         }
     }
 
-    ret = append_container_level_labels(tgidRecord->container_id, buffer_ptr, size_ptr, mgr, table, 0);
+    ret = append_container_level_labels(tgidRecord->container_id, buffer_ptr, size_ptr, mgr, table, 0, type_json);
     if (ret < 0) {
         ERROR("[IMDB] Failed to append container-level labels(container_id=%s)\n", tgidRecord->container_id);
         return ret;
@@ -884,47 +891,53 @@ static int append_proc_level_labels(const char *tgid_str, char **buffer_ptr, int
     return 0;
 }
 
-static int append_custom_labels(IMDB_Table *table, char **buffer_ptr, int *size_ptr)
+static int append_custom_labels(IMDB_Table *table, char **buffer_ptr, int *size_ptr, char type_json)
 {
     struct custom_label_elem *custom_label;
     int ret;
     int i;
+    const char *fmt = type_json ? ",\"%s\":\"%s\"" : ",%s=\"%s\"";
 
     (void)pthread_rwlock_rdlock(&table->ext_label_conf.rwlock);
     for (i = 0; i < table->ext_label_conf.custom_label_num; i++) {
         custom_label = &table->ext_label_conf.custom_labels[i];
-        ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s\"", custom_label->key, custom_label->val);
+        ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, fmt, custom_label->key, custom_label->val);
         if (ret < 0) {
             (void)pthread_rwlock_unlock(&table->ext_label_conf.rwlock);
-            return ret;
+            return IMDB_BUFFER_FULL;
         }
     }
     (void)pthread_rwlock_unlock(&table->ext_label_conf.rwlock);
     return 0;
 }
 
-static int append_machine_id_label(IMDB_DataBaseMgr *mgr, char **buffer_ptr, int *size_ptr)
+static int append_machine_id_label(IMDB_DataBaseMgr *mgr, char **buffer_ptr, int *size_ptr, char type_json)
 {
     int ret;
+    const char *fmt = type_json ? ",\"%s\":\"%s-%s\"" : ",%s=\"%s-%s\"";
 
     if (mgr->nodeInfo.hostIP[0] == 0) {
         ret = get_system_ip(mgr->nodeInfo.hostIP, MAX_IMDB_HOSTIP_LEN);
         if (ret) {
             ERROR("[IMDB] Can not get system ip\n");
-            return -1;
+            return IMDB_BUILD_ERR;
         }
     }
 
-    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, ",%s=\"%s-%s\"",
+    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, fmt,
                      META_COMMON_KEY_HOST_ID, mgr->nodeInfo.systemUuid, mgr->nodeInfo.hostIP);
-    return ret;
+    if (ret) {
+        return IMDB_BUFFER_FULL;
+    }
+    return 0;
 }
 
-static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
-                                     IMDB_Record *record,
-                                     IMDB_Table *table,
-                                     char *buffer,
-                                     uint32_t maxLen)
+static int IMDB_BuildLabels(IMDB_DataBaseMgr *mgr,
+                            IMDB_Record *record,
+                            IMDB_Table *table,
+                            char *buffer,
+                            uint32_t maxLen,
+                            char type_json)
 {
     char *p = buffer;
     int ret;
@@ -935,6 +948,8 @@ static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
     int con_id_idx = -1;
     char *con_id = NULL;
     int i;
+    const char *first_fmt = type_json ? "\"%s\":\"%s\"" : "%s=\"%s\"";
+    const char *fmt = type_json ? ",\"%s\":\"%s\"" : ",%s=\"%s\"";
 
     for (i = 0; i < record->metricsNum; i++) {
         if (MetricNameIsTgid(record->metrics[i]) == 1) {
@@ -954,56 +969,55 @@ static int IMDB_BuildPrometheusLabel(IMDB_DataBaseMgr *mgr,
         }
 
         if (first_flag) {
-            ret = __snprintf(&p, size, &size, "%s=\"%s\"",
+            ret = __snprintf(&p, size, &size, first_fmt,
                             record->metrics[i]->name, record->metrics[i]->val);
         } else {
-            ret = __snprintf(&p, size, &size, ",%s=\"%s\"",
+            ret = __snprintf(&p, size, &size, fmt,
                             record->metrics[i]->name, record->metrics[i]->val);
         }
         if (ret < 0) {
-            goto err;
+            return IMDB_BUFFER_FULL;
         }
         first_flag = 0;
     }
 
     // At least one key label needs to be filled.
     if (first_flag) {
-        return -1;
+        return IMDB_BUILD_ERR;
     }
 
     // Append 'COMM, Container and POD' label for ALL process-level metrics.
     if (tgid_idx >= 0) {
         tgid_str = (char *)(record->metrics[tgid_idx]->val);
-        ret = append_proc_level_labels(tgid_str, &p, &size, mgr, table);
+        ret = append_proc_level_labels(tgid_str, &p, &size, mgr, table, type_json);
         if (ret < 0) {
             DEBUG("[IMDB] Failed to append process-level labels(tgid=%s, ret=%d)\n", tgid_str, ret);
-            goto err;
+            return ret;
         }
     }
 
     if (con_id_idx >= 0) {
         con_id = (char *)(record->metrics[con_id_idx]->val);
-        ret = append_container_level_labels(con_id, &p, &size, mgr, table, 1);
+        ret = append_container_level_labels(con_id, &p, &size, mgr, table, 1, type_json);
         if (ret < 0) {
             DEBUG("[IMDB] Failed to append container-level labels(container_id=%s, ret=%d)\n", con_id, ret);
-            goto err;
+            return ret;
         }
     }
 
-    ret = append_custom_labels(table, &p, &size);
+    ret = append_custom_labels(table, &p, &size, type_json);
     if (ret < 0) {
         ERROR("[IMDB] Failed to append custom labels(ret=%d)\n", ret);
-        goto err;
+        return ret;
     }
-    ret = append_machine_id_label(mgr, &p, &size);
+
+    ret = append_machine_id_label(mgr, &p, &size, type_json);
     if (ret < 0) {
         ERROR("[IMDB] Failed to append machine_id label(ret=%d)\n", ret);
-        goto err;
+        return ret;
     }
 
     return 0;
-err:
-    return ret;
 }
 
 #endif
@@ -1161,7 +1175,7 @@ static int IMDB_Rec2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Record *record, IMDB_
     strbuf_t labels_buf;
 
     char labels[MAX_LABELS_BUFFER_SIZE] = {0};
-    ret = IMDB_BuildPrometheusLabel(mgr, record, table, labels, MAX_LABELS_BUFFER_SIZE);
+    ret = IMDB_BuildLabels(mgr, record, table, labels, MAX_LABELS_BUFFER_SIZE, 0);
     if (ret < 0) {
         DEBUG("[IMDB] table of (%s) build label fail, ret: %d\n", table->entity_name, ret);
         return -1;
@@ -1199,7 +1213,220 @@ static int IMDB_Rec2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Record *record, IMDB_
     return total;
 }
 
-static int IMDB_Tbl2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Table *table, char *buffer, uint32_t maxLen)
+static int IMDB_BuildJsonHistosBkt(const IMDB_Metric *metric, char **buffer, int *maxLen)
+{
+    int ret;
+    char buf[INT_LEN];
+    struct histo_bucket_s *bkt = NULL;
+    size_t bkt_sz = 0;
+    u64 sum = 0;
+    int i;
+    char first_flag = 1;
+
+    ret = deserialize_histo(metric->val, &bkt, &bkt_sz);
+    if (ret) {
+        ERROR("[IMDB] Failed to deserialize histogram metric %s\n", metric->name);
+        return IMDB_BUILD_ERR;
+    }
+
+    for (i = 0; i < bkt_sz; i++) {
+        buf[0] = 0;
+        (void)snprintf(buf, sizeof(buf), "%llu", bkt[i].max);
+        sum += bkt[i].count;
+        if (first_flag) {
+            ret = __snprintf(buffer, *maxLen, maxLen, "\"%s\":%llu", buf, sum);
+        } else {
+            ret = __snprintf(buffer, *maxLen, maxLen, ",\"%s\":%llu", buf, sum);
+        }
+        if (ret < 0) {
+            free(bkt);
+            return IMDB_BUFFER_FULL;
+        }
+        first_flag = 0;
+    }
+
+    free(bkt);
+    ret = __snprintf(buffer, *maxLen, maxLen, "}");
+    if (ret < 0) {
+        return IMDB_BUFFER_FULL;
+    }
+    return 0;
+}
+
+static int IMDB_BuildJsonHistos(IMDB_DataBaseMgr *mgr, IMDB_Record *record, IMDB_Table *table,
+                                char **buffer, int *maxLen)
+{
+    int ret = 0;
+    int total = 0;
+    char first_flag = 1;
+
+    ret = __snprintf(buffer, *maxLen, maxLen, "%s", "\"histos\":{");
+    if (ret) {
+        return IMDB_BUFFER_FULL;
+    }
+
+    for (int i = 0; i < record->metricsNum; i++) {
+        ret = MetricTypeSatisfyPrometheus(record->metrics[i]);
+        if (ret != 0) {
+            continue;
+        }
+
+        if (!strcmp(record->metrics[i]->val, INVALID_METRIC_VALUE)) {
+            // Do not report metric whose value is (null)
+            continue;
+        }
+
+        if (strcmp(record->metrics[i]->type, "histogram") != 0) {
+            continue;
+        }
+
+        if (first_flag) {
+            ret = __snprintf(buffer, *maxLen, maxLen, "\"%s\":{",
+                            record->metrics[i]->name);
+        } else {
+            ret = __snprintf(buffer, *maxLen, maxLen, ",\"%s\":{",
+                            record->metrics[i]->name);
+        }
+        if (ret < 0) {
+            return IMDB_BUFFER_FULL;
+        }
+        ret = IMDB_BuildJsonHistosBkt(record->metrics[i], buffer, maxLen);
+        if (ret < 0) {
+            return ret;
+        }
+        first_flag = 0;
+    }
+
+    // histos is the last item, no need to add ","
+    ret = __snprintf(buffer, *maxLen, maxLen, "%s", "}");
+    if (ret) {
+        return IMDB_BUFFER_FULL;
+    }
+
+    return 0;
+}
+
+static int IMDB_BuildJsonMetrics(IMDB_DataBaseMgr *mgr, IMDB_Record *record, IMDB_Table *table,
+                                 char **buffer, int *maxLen)
+{
+    int ret = 0;
+    char first_flag = 1;
+
+    ret = __snprintf(buffer, *maxLen, maxLen, "%s", "\"metrics\":{");
+    if (ret) {
+        return IMDB_BUFFER_FULL;
+    }
+
+    for (int i = 0; i < record->metricsNum; i++) {
+        ret = MetricTypeSatisfyPrometheus(record->metrics[i]);
+        if (ret != 0) {
+            continue;
+        }
+
+        if (!strcmp(record->metrics[i]->val, INVALID_METRIC_VALUE)) {
+            // Do not report metric whose value is (null)
+            continue;
+        }
+
+        if (strcmp(record->metrics[i]->type, "histogram") == 0) {
+            // skip histogram type metrics
+            continue;
+        }
+
+        if (first_flag) {
+            ret = __snprintf(buffer, *maxLen, maxLen, "\"%s\":\"%s\"",
+                            record->metrics[i]->name, record->metrics[i]->val);
+        } else {
+            ret = __snprintf(buffer, *maxLen, maxLen, ",\"%s\":\"%s\"",
+                            record->metrics[i]->name, record->metrics[i]->val);
+        }
+        if (ret < 0) {
+            return IMDB_BUFFER_FULL;
+        }
+        first_flag = 0;
+    }
+
+    ret = __snprintf(buffer, *maxLen, maxLen, "%s", "},");
+    if (ret) {
+        return IMDB_BUFFER_FULL;
+    }
+
+    return 0;
+}
+
+/*
+ * output format like:
+ *  {
+ *    "timestamp": 15869605860,
+ *    "entity_name": "tcp_link",
+ *    "table_name": "tcp_tx_rx",
+ *    "labels": {
+ *        "machine_id":"2c1c455d-24a5-897c-ea11-bc08f2d510da-192.168.128.123",
+ *        "tgid":1123,
+ *        "role":"server",
+ *        "server_ip": "192.136.123.1",
+ *        "container_id": "2c1c455d-24a5-897c-ea11-bc08f2d510da",
+ *        "pod_id": "xxxxx"
+ *    },
+ *    "metrics": {
+ *      "rx_bytes":1,
+ *      "tx_bytes":2
+ *   },
+ *   "histos": {
+ *      "srtt": {
+ *          "50":1,
+ *          "100":1
+ *      }
+ *   }
+ *  }
+*/
+static int IMDB_Rec2Json(IMDB_DataBaseMgr *mgr, IMDB_Record *record, IMDB_Table *table,
+                         char *buffer, uint32_t maxLen)
+{
+    int ret = 0;
+    char *curBuffer = buffer;
+    int curMaxLen = (int)maxLen;
+    const char *fmt = "{\"timestamp\":%lld,\"entity_name\":\"%s\",\"table_name\":\"%s\",\"labels\":{";
+
+    time_t now;
+    (void)time(&now);
+    ret = __snprintf(&curBuffer, curMaxLen, &curMaxLen, fmt, now * THOUSAND, table->entity_name, table->name);
+    if (ret < 0)  {
+        return 0;
+    }
+
+    ret = IMDB_BuildLabels(mgr, record, table, curBuffer, curMaxLen, 1);
+    if (ret < 0)  {
+        return (ret == IMDB_BUFFER_FULL) ? 0 : IMDB_BUILD_ERR;
+    }
+    curMaxLen -= strlen(curBuffer);
+    curBuffer += strlen(curBuffer);
+
+    ret = __snprintf(&curBuffer, curMaxLen, &curMaxLen, "%s", "},");
+    if (ret < 0)  {
+        return 0;
+    }
+
+    ret = IMDB_BuildJsonMetrics(mgr, record, table, &curBuffer, &curMaxLen);
+    if (ret < 0)  {
+        return (ret == IMDB_BUFFER_FULL) ? 0 : IMDB_BUILD_ERR;
+    }
+
+    ret = IMDB_BuildJsonHistos(mgr, record, table, &curBuffer, &curMaxLen);
+    if (ret < 0)  {
+        return (ret == IMDB_BUFFER_FULL) ? 0 : IMDB_BUILD_ERR;
+    }
+
+    // last "}" and LF
+    ret = __snprintf(&curBuffer, curMaxLen, &curMaxLen, "%s", "}\n");
+    if (ret < 0)  {
+        return 0;
+    }
+
+    return (int)(maxLen - curMaxLen);
+}
+
+static int IMDB_Tbl2Metrics(IMDB_DataBaseMgr *mgr, IMDB_Table *table, char *buffer, uint32_t maxLen)
 {
     int ret = 0;
     int total = 0;
@@ -1231,9 +1458,14 @@ static int IMDB_Tbl2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Table *table, char *b
             continue;
         }
 
-        ret = IMDB_Rec2Prometheus(mgr, record, table, curBuffer, curMaxLen);
+        if (mgr->writeLogsType == METRIC_LOG_JSON) {
+            ret = IMDB_Rec2Json(mgr, record, table, curBuffer, curMaxLen);
+        } else {
+            ret = IMDB_Rec2Prometheus(mgr, record, table, curBuffer, curMaxLen);
+        }
+
         if (ret < 0) {
-            // if build label fail, we just delete record 
+            // if build label fail, we just delete record
             HASH_deleteRecord(table->records, record);
             IMDB_RecordDestroy(record);
             continue;
@@ -1257,6 +1489,11 @@ static int IMDB_Tbl2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Table *table, char *b
     if (total == 0) {   // no record written
         return 0;
     }
+
+    if (mgr->writeLogsType == METRIC_LOG_JSON) {
+        return total;
+    }
+
     curMaxLen += __RESERVED_BUF_SIZE;
     ret = snprintf(curBuffer, curMaxLen, "\n");
     if (ret < 0 || ret >= curMaxLen) {
@@ -1270,7 +1507,7 @@ static int IMDB_Tbl2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Table *table, char *b
     return total;
 }
 
-int IMDB_DataBase2Prometheus(IMDB_DataBaseMgr *mgr, char *buffer, uint32_t maxLen, uint32_t *buf_len)
+int IMDB_DataBase2Metrics(IMDB_DataBaseMgr *mgr, char *buffer, uint32_t maxLen, uint32_t *buf_len)
 {
     pthread_rwlock_wrlock(&mgr->rwlock);
 
@@ -1279,7 +1516,7 @@ int IMDB_DataBase2Prometheus(IMDB_DataBaseMgr *mgr, char *buffer, uint32_t maxLe
     uint32_t curMaxLen = maxLen;
 
     for (int i = 0; i < mgr->tablesNum; i++) {
-        ret = IMDB_Tbl2Prometheus(mgr, mgr->tables[i], cursor, curMaxLen);
+        ret = IMDB_Tbl2Metrics(mgr, mgr->tables[i], cursor, curMaxLen);
         if (ret < 0 || ret >= curMaxLen) {
             ERROR("[IMDB] Failed to transfer tables to prometheus, ret=%d.\n", ret);
             goto ERR;

@@ -81,10 +81,11 @@ typedef enum {
 
 // out_channel
 typedef enum {
-    OUT_CHNL_LOGS = 0,
+    OUT_CHNL_NULL = 0,
+    OUT_CHNL_LOGS,
     OUT_CHNL_KAFKA,
     OUT_CHNL_WEB_SERVER,
-    OUT_CHNL_NULL,
+    OUT_CHNL_JSON,
 
     OUT_CHNL_MAX
 } OutChannelType;
