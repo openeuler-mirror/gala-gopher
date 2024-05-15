@@ -80,6 +80,14 @@ static __always_inline int add_tcp_link(struct sock *sk, struct sock_info_s *inf
     return create_tcp_link(sk, &link, info->syn_srtt);
 }
 
+static __always_inline void get_tcp_tx_rx_segs(struct sock *sk, struct tcp_tx_rx* stats)
+{
+    struct tcp_sock *tcp_sk = (struct tcp_sock *)sk;
+
+    stats->segs_in = _(tcp_sk->segs_in);
+    stats->segs_out = _(tcp_sk->segs_out) + 2; // 2 means FIN and ACK
+}
+
 KPROBE(tcp_set_state, pt_regs)
 {
     struct sock_info_s tcp_sock_data = {0};
@@ -107,6 +115,7 @@ KPROBE(tcp_set_state, pt_regs)
         if (metrics) {
             // for short connections, we expect to only report abnormal/rtt/txrx/delay metrics
             metrics->report_flags |= (TCP_PROBE_ABN | TCP_PROBE_RTT | TCP_PROBE_TXRX | TCP_PROBE_DELAY);
+            get_tcp_tx_rx_segs(sk, &metrics->tx_rx_stats);
             (void)bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
         }
 
