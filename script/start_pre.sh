@@ -18,7 +18,6 @@ function gen_sys_uuid_file()
 {
     if [ -f /sys/class/dmi/id/product_uuid ] ; then
         cat /sys/class/dmi/id/product_uuid > $SYS_UUID_FILE
-        chown gala-gopher:gala-gopher $SYS_UUID_FILE || exit 1
         chmod 440 $SYS_UUID_FILE || exit 1
     fi
 }
