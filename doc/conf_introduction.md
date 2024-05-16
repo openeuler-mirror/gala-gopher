@@ -41,14 +41,14 @@ extend探针配置文件归档在探针同级目录下。目前有配置文件�
   - ssl_auth：设置web server开启https加密以及鉴权，on为开启，off为不开启，建议用户在实际生产环境开启
   - private_key：用于web server https加密的服务端私钥文件绝对路径，当ssl_auth为“on”必配
   - cert_file：用于web server https加密的服务端证书绝对路径，当ssl_auth为“on”必配
-  - ca_file：用于web server对客户端进行鉴权的CA中心证书绝对路径，当ssl_auth为“on”必配
+  - ca_file：用于web server对客户端进行鉴权的CA中心证书绝对路径，选配
 - rest_api_server
   - bind_addr: 监听地址，默认监听127.0.0.1。
   - port：RestFul API监听端口
   - ssl_auth：设置RestFul API开启https加密以及鉴权，on为开启，off为不开启，建议用户在实际生产环境开启
   - private_key：用于RestFul API https加密的服务端私钥文件绝对路径，当ssl_auth为“on”必配
   - cert_file：用于RestFul API https加密的服务端证书绝对路径，当ssl_auth为“on”必配
-  - ca_file：用于RestFul API对客户端进行鉴权的CA中心证书绝对路径，当ssl_auth为“on”必配
+  - ca_file：用于RestFul API对客户端进行鉴权的CA中心证书绝对路径，选配
 - kafka：输出通道kafka配置
   - kafka_broker：kafka服务器的IP和port
   - batch_num_messages：每个批次发送的消息数量
