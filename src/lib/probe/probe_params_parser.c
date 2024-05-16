@@ -634,9 +634,11 @@ void probe_params_to_json(struct probe_s *probe, void *params)
     void *flags_arr;
     size_t flags_size;
 
-#ifdef ENABLE_REPORT_EVENT
-    Json_AddUIntItemToObject(params, SAMPLE_PERIOD, probe_param->sample_period);
     Json_AddUIntItemToObject(params, REPORT_PERIOD, probe_param->period);
+    if (probe_type == PROBE_IO || probe_type == PROBE_TCP) {
+        Json_AddUIntItemToObject(params, SAMPLE_PERIOD, probe_param->sample_period);
+    }
+#ifdef ENABLE_REPORT_EVENT
     Json_AddCharItemToObject(params, RES_LOWER_THR, probe_param->res_percent_lower);
     Json_AddCharItemToObject(params, RES_UPPER_THR, probe_param->res_percent_upper);
     Json_AddCharItemToObject(params, REPORT_EVENT, probe_param->logs);
