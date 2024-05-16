@@ -344,6 +344,7 @@ int system_net_probe(struct ipc_body_s *ipc_body)
 
     f = fopen(SYSTEM_NET_DEV_PATH, "r");
     if (f == NULL) {
+        ERROR("[SYSTEM_NET] failed to get net device info\n");
         return -1;
     }
     while (!feof(f)) {

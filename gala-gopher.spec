@@ -1,4 +1,5 @@
 %define __os_install_post %{nil}
+%define gopher_state_dir %{_rundir}/gala-gopher
 
 %define without_baseinfo      0
 %define without_virt          0
@@ -145,24 +146,16 @@ install -d %{buildroot}%{_bindir}
 install -d %{buildroot}/usr/libexec/gala-gopher/
 mkdir -p  %{buildroot}/usr/lib/systemd/system
 install -m 0600 service/gala-gopher.service %{buildroot}/usr/lib/systemd/system/gala-gopher.service
+install -d %{buildroot}/%{gopher_state_dir}
+install -d %{buildroot}/var/log/gala-gopher
 pushd build
 sh install.sh %{buildroot}%{_bindir} %{buildroot}/opt/gala-gopher %{buildroot}/etc/gala-gopher %{buildroot}/usr/libexec/gala-gopher/ %{buildroot}/opt/gala-gopher
 popd
 
+%pre
+
 %post
 %systemd_post gala-gopher.service
-if [ -d /var/log/gala-gopher ]; then
-  othermode=$(expr $(stat -L -c "%a" /var/log/gala-gopher) % 10)
-  if [ $othermode -ne 0 ]; then
-    chmod 750 /var/log/gala-gopher
-    if [ -d /var/log/gala-gopher ]; then
-      chmod 750 /var/log/gala-gopher/debug
-    fi
-    if [ -e /var/log/gala-gopher/debug/gopher.log ]; then
-      chmod 640 /var/log/gala-gopher/debug/gopher.log
-    fi
-  fi
-fi
 
 %preun
 %systemd_preun gala-gopher.service
@@ -170,10 +163,13 @@ fi
 %postun
 if [ $1 -eq 0 ]; then
   rm -rf /sys/fs/bpf/gala-gopher > /dev/null
+  rm -rf /opt/gala-gopher > /dev/null
 fi
 %systemd_postun_with_restart gala-gopher.service
 
 %files
+%attr(0750,root,root) %dir /var/log/gala-gopher
+%attr(0750,root,root) %dir %{gopher_state_dir}
 %attr(0750,root,root) %dir /opt/gala-gopher
 %attr(0550,root,root) %dir /opt/gala-gopher/extend_probes
 %attr(0750,root,root) %dir /opt/gala-gopher/meta
@@ -189,6 +185,7 @@ fi
 %attr(0640,root,root) %config(noreplace) /etc/gala-gopher/extend_probes/*.conf
 %attr(0600,root,root) /usr/lib/systemd/system/gala-gopher.service
 %attr(0550,root,root) /usr/libexec/gala-gopher/init_probes.sh
+%attr(0550,root,root) /usr/libexec/gala-gopher/start_pre.sh
 
 %changelog
 

@@ -193,6 +193,7 @@ function install_extend_probes() {
 
 function install_script() {
     INIT_PROBES_SCRIPT=${PROJECT_FOLDER}/script/init_probes.sh
+    START_PRE_SCRIPT=${PROJECT_FOLDER}/script/start_pre.sh
     SCRIPT_TARGET_DIR=/usr/libexec/gala-gopher
 
     if [ $# -eq 1 ]; then
@@ -209,8 +210,8 @@ function install_script() {
         exit 1
     fi
 
-    cp -f ${INIT_PROBES_SCRIPT} ${SCRIPT_TARGET_DIR}
-    echo "install ${INIT_PROBES_SCRIPT} success."
+    cp -f ${INIT_PROBES_SCRIPT} ${START_PRE_SCRIPT} ${SCRIPT_TARGET_DIR}
+    echo "install ${INIT_PROBES_SCRIPT} and ${START_PRE_SCRIPT} success."
 }
 
 # main process
