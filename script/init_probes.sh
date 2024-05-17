@@ -41,8 +41,8 @@ PROBES=(
 function check_cmd_server()
 {
     i=0
-    while [ ! -e $GOPHER_CMD_SOCK_PATH ] ; do
-        sleep 1
+    while ! ss -xl src ${GOPHER_CMD_SOCK_PATH} | grep -q ${GOPHER_CMD_SOCK_PATH} ; do
+        sleep 0.5
         let i+=1
         if [ $i -ge ${RETRY_COUNT} ] ; then
             exit 1
@@ -66,7 +66,7 @@ function init_probes_json()
             exit 1
         fi
 
-        gopher-ctl probe set "$url" "$put_data"
+        gopher-ctl probe set "$url" "$put_data" >/dev/null
     done < ${GOPHER_INITIAL_CONF}
 }
 
@@ -77,7 +77,7 @@ function save_probes_json()
     else
         exit 1
     fi
-    
+
     for url in "${PROBES[@]}"; do
         response=$(gopher-ctl probe get "$url")
         if [ -z "${response}" ] || echo "${response}" | grep -qi "failed" || [ "${response}" = "{}" ]; then

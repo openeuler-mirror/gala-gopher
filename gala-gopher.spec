@@ -1,5 +1,5 @@
 %define __os_install_post %{nil}
-%define gopher_state_dir %{_rundir}/gala-gopher
+%define gopher_state_dir %{_rundir}/gala_gopher
 
 %define without_baseinfo      0
 %define without_virt          0
