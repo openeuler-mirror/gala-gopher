@@ -246,6 +246,7 @@ static void sig_setup(void)
 
     (void)sigaction(SIGINT, &quit_action, NULL);
     (void)sigaction(SIGTERM, &quit_action, NULL);
+    (void)signal(SIGHUP, SIG_IGN);
 }
 
 int main(int argc, char *argv[])
