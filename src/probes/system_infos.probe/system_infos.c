@@ -116,6 +116,7 @@ int main(void)
 
     int msq_id = create_ipc_msg_queue(IPC_EXCL);
     if (msq_id < 0) {
+        ERROR("[SYSTEM_PROBE] Get ipc msg queue failed.\n");
         return -1;
     }
 

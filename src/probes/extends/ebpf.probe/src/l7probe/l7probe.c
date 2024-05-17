@@ -382,7 +382,7 @@ int main(int argc, char **argv)
 
     int msq_id = create_ipc_msg_queue(IPC_EXCL);
     if (msq_id < 0) {
-        ERROR("[L7PROBE]: Create ipc msg que failed.\n");
+        ERROR("[L7PROBE]: Get ipc msg que failed.\n");
         goto err;
     }
 

@@ -52,7 +52,7 @@ static void quit_handler(int sig){
     stop = 1;
 }
 
-static int set_kafka_config(struct KafkaConfig* cfg, struct probe_params* params) 
+static int set_kafka_config(struct KafkaConfig* cfg, struct probe_params* params)
 {
     // 设置需要绑定的网卡名与index
     snprintf(cfg->ifname, MIDDLE_BUF_SIZE, "%s", params->target_dev);
@@ -70,7 +70,7 @@ static int set_kafka_config(struct KafkaConfig* cfg, struct probe_params* params
     set_native_mode(&cfg->xdp_flag);
 
     // 设定map在文件系统的挂载点。挂载后可以通过文件操作可以访问map。
-    sprintf(cfg->pin_path, "%s", GOPHER_MAP_DIR);    
+    sprintf(cfg->pin_path, "%s", GOPHER_MAP_DIR);
     return 0;
 }
 
@@ -144,7 +144,7 @@ static int refresh_port_map(void)
     ret = bpf_map_update_elem(g_kfk_probe.port_map_fd, &i, &kafka_port, BPF_ANY);
     if(ret){
         KFK_ERROR("write kafka port into xdp_port_map fail, exit\n");
-        return -1;                
+        return -1;
     }
 
     return 0;
@@ -224,6 +224,7 @@ int main(int argn, char** argv){
 
     msq_id = create_ipc_msg_queue(IPC_EXCL);
     if (msq_id < 0) {
+        ERROR("[KAFKAPROBE] Get ipc msg queue failed.\n");
         return -1;
     }
 
