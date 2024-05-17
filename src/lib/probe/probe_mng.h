@@ -51,11 +51,11 @@ struct param_define_s {
 };
 
 struct probe_status_s {
-    u64 last_starting_timestamp;
     u32 status_flags;                                   // Refer to flags defined [PROBE_FLAGS_XXX]
 };
 
-typedef int (*ProbeMain)(struct probe_params *);
+struct probe_s;
+typedef int (*ProbeMain)(struct probe_s *);
 typedef void *(*ProbeCB)(void *);
 struct probe_s {
     char *name;                                         // Name for probe
