@@ -2,6 +2,13 @@
 
 # 探针动态配置接口说明
 
+gala-gopher支持通过两种方式来实现探针的动态配置：
+
+1. 通过 Restful API 接口。当 gala-gopher 配置文件中 "global" 部分的 ”listen_on“ 项的值为 true 时，则使用该方式。
+2. 通过命令行工具 gopher-ctl。当 ”listen_on“ 项的值为 false 时，则使用该方式。
+
+使用命令行工具的方式参见章节：[使用命令行工具进行探针动态配置](##使用命令行工具进行探针动态配置) 。这里首先介绍通过 Restful API 接口的配置方式。
+
 gala-gopher启动后会提供Restful API配置接口，其URL格式为：**http://[API监听IP]:[API监听端口]/[采集特性名]**。其中：
 
 - API监听IP：可在gala-gopher配置文件中"rest_server"部分的”bind_addr“项进行配置，详情见[配置文件说明](../doc/conf_introduction.md#gala-gopherconf)。由于默认为全0监听，因此可使用gala-gopher所在节点的任意IP（后文均使用localhost为例）；
@@ -1342,3 +1349,26 @@ curl -X PUT http://localhost:9999/container -d json='
        report_period是控制着采集的数据上报的周期，值为60的含义是每个60s上报一次采集到的数据
        采集周期无需配置，其值与 report_period 数据相同。
 6. state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
+
+
+
+## 使用命令行工具进行探针动态配置
+
+gala-gopher 支持通过命令行工具 gopher-ctl 进行探针的动态配置。当 gala-gopher 配置文件中 "global" 部分的 ”listen_on“ 项的值为 false 时，则使用该方式进行配置。
+
+gopher-ctl 命令行的语法格式如下：
+
+```shell
+gopher-ctl probe get <probe_name>
+gopher-ctl probe set <probe_name> <probe_config>
+```
+
+操作说明：
+
+- `get`：获取探针的动态配置信息
+- `set`：设置探针的动态配置信息
+
+参数说明：
+
+- `<probe_name>`：指定探针名，范围参见 [配置探针接口说明](##配置探针接口说明) 。
+- `<probe_config>`：指定探针的配置信息，json 格式，内容与 Restful API 的方式一致，详情参见  [配置探针接口说明](##配置探针接口说明) 。

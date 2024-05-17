@@ -88,6 +88,16 @@ gala_gopher
  {"timestamp": 165606384400, "machine_id": "xxxxx", "hostname": "localhost.master", "entity_name": "thread", "pid": "2494", "tgid": "2494", "comm": "hello", "major": "8", "minor": "0", "fd_count": "2", "task_io_wait_time_us": "1", "task_io_count": "2", "task_io_time_us": "3", "task_hang_count": "4"}
 ```
 
+### 1.3 命令行方式
+
+gala-gopher 支持通过命令行工具 gopher-ctl 来获取指标数据。当 gala-gopher 配置文件中 "global" 部分的 ”listen_on“ 项的值为 false 时，则使用该方式进行配置。
+
+gopher-ctl 命令行的语法格式如下：
+
+```shell
+gopher-ctl metric
+```
+
 
 
 ## 2. 元数据获取接口

@@ -167,6 +167,12 @@ static int ConfigMgrLoadGlobalConfig(void *config, config_setting_t *settings)
     }
     (void)snprintf(globalConfig->logLevel, sizeof(globalConfig->logLevel), "%s", strVal);
 
+    ret = config_setting_lookup_bool(settings, "listen_on", &globalConfig->listenOn);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for listen_on failed.\n");
+        return -1;
+    }
+
     return 0;
 }
 

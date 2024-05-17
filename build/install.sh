@@ -214,6 +214,27 @@ function install_script() {
     echo "install ${INIT_PROBES_SCRIPT} and ${START_PRE_SCRIPT} success."
 }
 
+function install_client_bin()
+{
+    CLI_BIN_FILE=${PROJECT_FOLDER}/gopher-ctl
+    CLI_BIN_TARGET_DIR=/usr/bin
+
+    if [ $# -eq 1 ]; then
+        CLI_BIN_TARGET_DIR=$1
+    fi
+
+    cd ${PROJECT_FOLDER}
+    if [ ! -f ${CLI_BIN_FILE} ]; then
+        echo "${CLI_BIN_FILE} does not exist. Please check if build success."
+        exit 1
+    fi
+
+    # install gopher-cli bin
+    cp -f ${CLI_BIN_FILE} ${CLI_BIN_TARGET_DIR}
+    echo "install ${CLI_BIN_FILE} success."
+
+}
+
 # main process
 load_tailor
 install_daemon_bin $1
@@ -223,3 +244,4 @@ install_shared_lib $2
 install_extend_probes $2 $3
 install_script $4
 install_btf $5
+install_client_bin $1
