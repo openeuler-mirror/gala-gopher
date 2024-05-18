@@ -233,12 +233,12 @@ measurements:
                 name: "protocol",
             },
             {
-                description: "Retransmission timeOut(us)",
+                description: "Retransmission timeOut(ms)",
                 type: "histogram",
                 name: "rto",
             },
             {
-                description: "Estimated value of delayed ACK(us)",
+                description: "Estimated value of delayed ACK(ms)",
                 type: "histogram",
                 name: "ato",
             }

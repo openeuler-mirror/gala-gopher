@@ -88,8 +88,8 @@ struct tcp_sockbuf {
 };
 
 struct tcp_rate {
-    __u32   tcpi_rto;           // Retransmission timeOut(us)
-    __u32   tcpi_ato;           // Estimated value of delayed ACK(us)
+    __u32   tcpi_rto;           // Retransmission timeOut(ms)
+    __u32   tcpi_ato;           // Estimated value of delayed ACK(ms)
 };
 
 struct tcp_windows {

@@ -568,8 +568,8 @@ static void proc_tcp_srtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *track
 
 static void proc_tcp_rate(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker, const struct tcp_rate *data)
 {
-    (void)histo_bucket_add_value(tracker->rto_buckets, __MAX_RTO_SIZE, data->tcpi_rto >> 3);
-    (void)histo_bucket_add_value(tracker->ato_buckets, __MAX_RTO_SIZE, data->tcpi_ato >> 3);
+    (void)histo_bucket_add_value(tracker->rto_buckets, __MAX_RTO_SIZE, data->tcpi_rto);
+    (void)histo_bucket_add_value(tracker->ato_buckets, __MAX_RTO_SIZE, data->tcpi_ato);
     tracker->report_flags |= TCP_PROBE_RATE;
     return;
 }
