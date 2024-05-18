@@ -712,16 +712,16 @@ KPROBE(tcp_conn_request, pt_regs)
     u16 protocol = BPF_CORE_READ(skb, protocol);
 
     if (protocol == bpf_htons(ETH_P_IP)) {
-        u32 ipaddr = 0;
         struct iphdr *iph = NULL;
         iph = ip_hdr((const struct sk_buff *)skb);
         if (iph == NULL) {
             goto end;
         }
-        bpf_core_read(&ipaddr, sizeof(ipaddr), &(iph->daddr));
-        evt.server_ipaddr.ip = bpf_ntohl(ipaddr);
-        bpf_core_read(&ipaddr, sizeof(ipaddr), &(iph->saddr));
-        evt.client_ipaddr.ip = bpf_ntohl(ipaddr);
+        evt.server_ipaddr.ip = BPF_CORE_READ(iph, daddr);
+        evt.server_ipaddr.family = AF_INET;
+        evt.client_ipaddr.ip = BPF_CORE_READ(iph, saddr);
+        evt.client_ipaddr.family = AF_INET;
+
         tcp_head = tcp_hdr((const struct sk_buff *)skb);
         if (tcp_head == NULL) {
             goto end;
@@ -745,8 +745,10 @@ KPROBE(tcp_conn_request, pt_regs)
         }
         bpf_core_read(&port, sizeof(port), &(tcp_head->source));
         evt.client_ipaddr.port = bpf_ntohs(port);
+        evt.client_ipaddr.family = AF_INET6;
         bpf_core_read(&port, sizeof(port), &(tcp_head->dest));
         evt.server_ipaddr.port = bpf_ntohs(port);
+        evt.server_ipaddr.family = AF_INET6;
     }
 
     evt.tgid = tgid;
