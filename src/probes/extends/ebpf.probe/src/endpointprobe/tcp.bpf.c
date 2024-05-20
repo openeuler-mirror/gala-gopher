@@ -535,7 +535,6 @@ KPROBE(tcp_set_state, pt_regs)
         evt.is_multi = info->is_multi;
         evt.role = info->role;
         (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
-        del_sock((const struct sock *)sk);
     }
 
     return 0;
@@ -788,45 +787,6 @@ end:
     return 0;
 }
 
-KPROBE(tcp_done, pt_regs)
-{
-    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
-    struct tcp_socket_event_s evt = {0};
-
-    if (sk == NULL) {
-        goto end;
-    }
-
-    struct sock_info_s* info = lkup_sock((const struct sock *)sk);
-    if (info == NULL) {
-        goto end;
-    }
-
-    unsigned char state = _(sk->sk_state);
-    if (state == TCP_SYN_SENT) {
-        evt.role = TCP_CLIENT;
-        evt.evt = EP_STATS_ACTIVE_FAILS;
-        get_connect_sockaddr(&evt, (const struct sock *)sk);
-        evt.tgid = info->tgid;
-        evt.is_multi = info->is_multi;
-
-        // report;
-        (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
-    } else if (state == TCP_SYN_RECV) {
-        evt.role = TCP_SERVER;
-        evt.evt = EP_STATS_PASSIVE_FAILS;
-        get_accept_sockaddr(&evt, (const struct sock *)sk);
-        evt.tgid = info->tgid;
-        evt.is_multi = info->is_multi;
-
-        // report;
-        (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
-    }
-
-end:
-    return 0;
-}
-
 KRAWTRACE(tcp_retransmit_synack, bpf_raw_tracepoint_args)
 {
     struct sock *sk = (struct sock *)ctx->args[0];
@@ -1010,3 +970,10 @@ KPROBE(tcp_retransmit_skb, pt_regs)
     return 0;
 }
 
+KPROBE(inet_csk_destroy_sock, pt_regs)
+{
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+
+    del_sock((const struct sock *)sk);
+    return 0;
+}
