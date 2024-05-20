@@ -991,6 +991,7 @@ int main(int argc, char **argv)
 
     int msq_id = create_ipc_msg_queue(IPC_EXCL);
     if (msq_id < 0) {
+        ERROR("[IOPROBE] Get ipc msg queue failed.\n");
         goto err;
     }
 

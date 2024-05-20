@@ -222,19 +222,19 @@ int main(int argc, char **argv)
         fp = NULL;
     }
     if (signal(SIGINT, sig_int) == SIG_ERR) {
-        fprintf(stderr, "can't set signal handler: %d\n", errno);
+        ERROR("[TCPPROBE] Can't set signal handler: %d\n", errno);
         return errno;
     }
     (void)memset(tcp_mng, 0, sizeof(struct tcp_mng_s));
 
     int msq_id = create_ipc_msg_queue(IPC_EXCL);
     if (msq_id < 0) {
-        fprintf(stderr, "Create ipc msg que failed.\n");
+        ERROR("[TCPPROBE] Get ipc msg queue failed.\n");
         goto err;
     }
 
     if (init_tcp_historm(tcp_mng)) {
-        fprintf(stderr, "Init tcp historm failed.\n");
+        ERROR("[TCPPROBE] Init tcp historm failed.\n");
         goto err;
     }
 
@@ -247,7 +247,7 @@ int main(int argc, char **argv)
 
     ret = tcp_load_fd_probe();
     if (ret) {
-        fprintf(stderr, "Load tcp fd ebpf prog failed.\n");
+        ERROR("[TCPPROBE] Load tcp fd ebpf prog failed.\n");
         goto err;
     }
 

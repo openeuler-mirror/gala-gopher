@@ -791,8 +791,11 @@ int create_ipc_msg_queue(unsigned int ipc_flag)
         return msqid;
     }
 
+    /*
+     * Leave callers to log err because msg queue maybe destroyed when clear ipc msg,
+     * which may happen when updating gala-gopher or something else.
+     */
     if (msqid < 0) {
-        ERROR("[IPC] Get IPC message queue(ipc_flags = %d) failed.\n", ipc_flag);
         return -1;
     }
 

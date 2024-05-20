@@ -220,6 +220,7 @@ int main(int argc, char **argv)
     (void)memset(&g_ipc_body, 0, sizeof(g_ipc_body));
     int msq_id = create_ipc_msg_queue(IPC_EXCL);
     if (msq_id < 0) {
+        ERROR("[JVMPROBE] Get ipc msg queue failed.\n");
         goto err;
     }
 

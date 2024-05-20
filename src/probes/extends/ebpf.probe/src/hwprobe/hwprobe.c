@@ -315,11 +315,12 @@ int main(int argc, char **argv)
 
     int msq_id = create_ipc_msg_queue(IPC_EXCL);
     if (msq_id < 0) {
+        ERROR("[HWPROBE] Get ipc msg queue failed.\n");
         goto err;
     }
 
     if (signal(SIGINT, sig_int) == SIG_ERR) {
-        fprintf(stderr, "can't set signal handler: %s\n", strerror(errno));
+        ERROR("[HWPROBE] Can't set signal handler: %s\n", strerror(errno));
         goto err;
     }
 
