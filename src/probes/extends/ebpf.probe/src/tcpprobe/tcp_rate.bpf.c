@@ -46,21 +46,15 @@ static __always_inline void report_rate(void *ctx, struct tcp_metrics_s *metrics
     //__builtin_memset(&(metrics->rate_stats), 0x0, sizeof(metrics->rate_stats));
 }
 
-static __always_inline unsigned int jiffies_to_usecs(unsigned long j)
-{
-    return (USEC_PER_SEC / HZ) * j;
-}
-
+// when CONFIG_HZ is 1000
 static void get_tcp_rate(struct sock *sk, struct tcp_rate* stats)
 {
     u32 tmp;
     struct inet_connection_sock *icsk = (struct inet_connection_sock *)sk;
-
-    tmp = jiffies_to_usecs(_(icsk->icsk_rto));
-    stats->tcpi_rto = tmp;
-
-    tmp = jiffies_to_usecs(_(icsk->icsk_ack.ato));
-    stats->tcpi_ato = tmp;
+    // For the conversion method of jiffies to ms, please refer to: 
+    // jiffies_to_clock_t(in kernel) and get_user_hz(in iproute2)
+    stats->tcpi_rto = _(icsk->icsk_rto); // ms
+    stats->tcpi_ato = _(icsk->icsk_ack.ato); // ms
 }
 
 static void tcp_rate_probe_func(void *ctx, struct sock *sk)

@@ -105,7 +105,7 @@ KPROBE(tcp_set_state, pt_regs)
     if (old_state == TCP_SYN_RECV && new_state == TCP_ESTABLISHED) {
         /* create sock object */
         tcp_sock_data.role = LINK_ROLE_SERVER;
-        tcp_sock_data.syn_srtt = _(tcp_sock->srtt_us) >> 3; // microseconds to milliseconds
+        tcp_sock_data.syn_srtt = _(tcp_sock->srtt_us) >> 3; // srtt_us is averaged rtt << 3 in usecs
         (void)create_sock_obj(0, sk, &tcp_sock_data);
     }
 

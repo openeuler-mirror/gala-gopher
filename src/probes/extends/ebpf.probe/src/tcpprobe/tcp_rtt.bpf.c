@@ -53,11 +53,11 @@ static void get_tcp_rtt(struct sock *sk, struct tcp_rtt* stats)
     u32 tmp;
     struct tcp_sock *tcp_sk = (struct tcp_sock *)sk;
 
-    tmp = _(tcp_sk->srtt_us) >> 3;  // microseconds to milliseconds
+    tmp = _(tcp_sk->srtt_us) >> 3; // srtt_us is averaged rtt << 3 in usecs
     stats->tcpi_srtt = tmp;
 
     tmp = _(tcp_sk->rcv_rtt_est.rtt_us);
-    tmp = tmp >> 3; // microseconds to milliseconds
+    tmp = tmp >> 3; // likewise
     stats->tcpi_rcv_rtt = tmp;
     return;
 }
