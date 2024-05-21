@@ -90,7 +90,7 @@ gala_gopher
 
 ### 1.3 命令行方式
 
-gala-gopher 支持通过命令行工具 gopher-ctl 来获取指标数据。当 gala-gopher 配置文件中 "global" 部分的 ”listen_on“ 项的值为 false 时，则使用该方式进行配置。
+gala-gopher 支持通过命令行工具 gopher-ctl 来获取指标数据。
 
 gopher-ctl 命令行的语法格式如下：
 

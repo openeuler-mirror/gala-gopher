@@ -20,7 +20,7 @@ extend探针配置文件归档在探针同级目录下。目前有配置文件�
 - global：gala-gopher全局配置信息
   - log_file_name：gala-gopher日志文件名
   - log_level：gala-gopher日志级别
-  - listen_on: 是否启动监听端口。若是，则使用 web_server 和 rest_api_server 配置的监听端口来获取指标信息和配置探针；若否，则使用本地命令行工具 gopher-ctl 来获取指标信息和配置探针。
+  - listen_on: 是否启动监听端口。若是，则可使用 web_server 和 rest_api_server 配置的监听端口来获取指标信息和配置探针；若否，则只能使用本地命令行工具 gopher-ctl 来获取指标信息和配置探针。
 - metric：指标数据metrics输出方式配置
   - out_channel：metrics输出通道，支持配置web_server|logs|kafka，配置为空则输出通道关闭
   - kafka_topic：若输出通道为kafka，此为topic配置信息
