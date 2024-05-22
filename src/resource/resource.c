@@ -492,7 +492,7 @@ static int WebServerInit(ResourceMgr *resourceMgr)
     }
 
     if (resourceMgr->imdbMgr) {
-        resourceMgr->imdbMgr->writeLogsOn = 1;
+        resourceMgr->imdbMgr->writeLogsType = METRIC_LOG_PROM;
     }
 
     return 0;
@@ -538,9 +538,11 @@ static int LogsMgrInit(ResourceMgr *resourceMgr)
     ConfigMgr *configMgr = resourceMgr->configMgr;
     LogsMgr *logsMgr = NULL;
     int is_metric_out_log, is_meta_out_log, is_event_out_log;
+    OutChannelType metric_out_chnl = configMgr->metricOutConfig->outChnl;
 
-    is_metric_out_log = (configMgr->metricOutConfig->outChnl == OUT_CHNL_WEB_SERVER ||
-                         configMgr->metricOutConfig->outChnl == OUT_CHNL_LOGS) ? 1 : 0;
+    is_metric_out_log = (metric_out_chnl == OUT_CHNL_WEB_SERVER ||
+                         metric_out_chnl == OUT_CHNL_LOGS ||
+                         metric_out_chnl == OUT_CHNL_JSON) ? 1 : 0;
     is_event_out_log = (configMgr->eventOutConfig->outChnl == OUT_CHNL_LOGS) ? 1 : 0;
     is_meta_out_log = (configMgr->metaOutConfig->outChnl == OUT_CHNL_LOGS) ? 1 : 0;
 
@@ -565,7 +567,13 @@ static int LogsMgrInit(ResourceMgr *resourceMgr)
     resourceMgr->logsMgr = logsMgr;
     if (is_metric_out_log == 1) {
         if (resourceMgr->imdbMgr) {
-            resourceMgr->imdbMgr->writeLogsOn = 1;
+            if (metric_out_chnl == OUT_CHNL_WEB_SERVER || metric_out_chnl == OUT_CHNL_LOGS) {
+                resourceMgr->imdbMgr->writeLogsType = METRIC_LOG_PROM;
+            }
+
+            if (metric_out_chnl == OUT_CHNL_JSON) {
+                resourceMgr->imdbMgr->writeLogsType = METRIC_LOG_JSON;
+            }
         }
     }
     umask(old_mask);

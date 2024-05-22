@@ -247,7 +247,7 @@ static void TestIMDB_DataBaseMgrData2String(void)
 
     char buffer[2048] = {0};
     int buf_len;
-    ret = IMDB_DataBase2Prometheus(mgr, buffer, 2048, &buf_len);
+    ret = IMDB_DataBase2Metrics(mgr, buffer, 2048, &buf_len);
     CU_ASSERT(ret >= 0);
     printf("DatabaseMgr2String: \n");
     printf("%s", buffer);

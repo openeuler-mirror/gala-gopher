@@ -55,6 +55,14 @@
 // NUMS OF RECORD TO STRING EVERY PERIOD
 #define DEFAULT_PERIOD_RECORD_NUM       100
 
+typedef enum {
+    METRIC_LOG_NULL = 0,
+    METRIC_LOG_PROM,
+    METRIC_LOG_JSON,
+
+    METRIC_LOG_MAX
+} MetricLogType;
+
 typedef struct {
     char systemUuid[MAX_IMDB_SYSTEM_UUID_LEN];
     char hostName[MAX_IMDB_HOSTNAME_LEN];
@@ -111,7 +119,7 @@ typedef struct {
     IMDB_Table **tables;
     IMDB_NodeInfo nodeInfo;
     pthread_rwlock_t rwlock;
-    uint32_t writeLogsOn;
+    MetricLogType writeLogsType;
 
     TGID_Record **tgids;
     struct container_cache *container_caches;
@@ -153,7 +161,7 @@ int IMDB_DataBaseMgrAddTable(IMDB_DataBaseMgr *mgr, IMDB_Table* table);
 IMDB_Table *IMDB_DataBaseMgrFindTable(IMDB_DataBaseMgr *mgr, const char *tableName);
 
 IMDB_Record* IMDB_DataBaseMgrCreateRec(IMDB_DataBaseMgr *mgr, IMDB_Table *table, const char *content);
-int IMDB_DataBase2Prometheus(IMDB_DataBaseMgr *mgr, char *buffer, uint32_t maxLen, uint32_t *buf_len);
+int IMDB_DataBase2Metrics(IMDB_DataBaseMgr *mgr, char *buffer, uint32_t maxLen, uint32_t *buf_len);
 int IMDB_DataStr2Json(IMDB_DataBaseMgr *mgr, const char *recordStr, char *jsonStr, uint32_t jsonStrLen);
 int IMDB_Record2Json(const IMDB_DataBaseMgr *mgr, const IMDB_Table *table, const IMDB_Record *record,
                      char *jsonStr, uint32_t jsonStrLen);

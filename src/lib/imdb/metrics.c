@@ -40,7 +40,7 @@ static int WriteMetricsLogs(IMDB_DataBaseMgr *imdbMgr)
     int buffer_len = 0;
     g_buffer[0] = 0;
 
-    ret = IMDB_DataBase2Prometheus(imdbMgr, g_buffer, LEN_1M, &buffer_len);
+    ret = IMDB_DataBase2Metrics(imdbMgr, g_buffer, LEN_1M, &buffer_len);
     if (ret < 0) {
         ERROR("[METRICLOG] IMDB database to promethous fail, ret: %d\n", ret);
         return -1;
@@ -69,8 +69,8 @@ void WriteMetricsLogsMain(IMDB_DataBaseMgr *mgr)
 {
     int ret;
 
-    if (mgr->writeLogsOn == 0) {
-        ERROR("[METRICLOG] metric outchannel isn't web_server or logs, break.\n");
+    if (mgr->writeLogsType != METRIC_LOG_PROM && mgr->writeLogsType != METRIC_LOG_JSON) {
+        ERROR("[METRICLOG] metric outchannel isn't web_server, logs or json, break.\n");
         return;
     }
 
