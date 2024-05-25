@@ -10,7 +10,6 @@ ExecStartPost= +/bin/bash /usr/libexec/gala-gopher/init_probes.sh --init
 ExecStop= +/bin/bash /usr/libexec/gala-gopher/init_probes.sh --save
 Restart=on-abnormal
 RestartSec=1
-RemainAfterExit=yes
 
 [Install]
 WantedBy=multi-user.target
