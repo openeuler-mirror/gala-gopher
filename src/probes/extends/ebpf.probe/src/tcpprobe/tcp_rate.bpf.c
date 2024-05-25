@@ -49,7 +49,6 @@ static __always_inline void report_rate(void *ctx, struct tcp_metrics_s *metrics
 // when CONFIG_HZ is 1000
 static void get_tcp_rate(struct sock *sk, struct tcp_rate* stats)
 {
-    u32 tmp;
     struct inet_connection_sock *icsk = (struct inet_connection_sock *)sk;
     // For the conversion method of jiffies to ms, please refer to: 
     // jiffies_to_clock_t(in kernel) and get_user_hz(in iproute2)
