@@ -534,10 +534,6 @@ static int stop_probe(struct probe_s *probe)
     UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_STARTED);
 
     if (IS_NATIVE_PROBE(probe)) {
-        if (pthread_cancel(probe->tid) != 0) {
-            PARSE_ERR("failed to cancel native probe");
-            return -1;
-        }
         SET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPED);
         UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_RUNNING);
         clear_ipc_msg((long)probe->probe_type);

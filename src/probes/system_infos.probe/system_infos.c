@@ -20,6 +20,7 @@
 #include <time.h>
 
 #include "ipc.h"
+#include "probe_mng.h"
 #include "system_disk.h"
 #include "system_net.h"
 #include "system_procs.h"
@@ -104,7 +105,7 @@ static char is_report_tmout()
     return 0;
 }
 
-int main(void)
+int main(struct probe_s *probe)
 {
     int ret;
     struct ipc_body_s ipc_body;
@@ -125,7 +126,7 @@ int main(void)
         goto err;
     }
 
-    while(1) {
+    while(IS_RUNNING_PROBE(probe)) {
         ret = recv_ipc_msg(msq_id, (long)PROBE_BASEINFO, &ipc_body);
         if (ret == 0) {
             destroy_ipc_body(&g_ipc_body);

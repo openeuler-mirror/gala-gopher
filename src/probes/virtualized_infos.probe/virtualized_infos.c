@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include "ipc.h"
+#include "probe_mng.h"
 #include "virt_proc.h"
 
 static struct ipc_body_s g_ipc_body;
@@ -35,7 +36,7 @@ static void virt_probe_destroy(void)
     return;
 }
 
-int main(struct probe_params * params)
+int main(struct probe_s * probe)
 {
     int ret;
     struct ipc_body_s ipc_body;
@@ -49,11 +50,11 @@ int main(struct probe_params * params)
     }
 
     /* system probes init */
-    if (virt_probe_init(params) < 0) {
+    if (virt_probe_init(&(probe->probe_param)) < 0) {
         goto err;
     }
 
-    while(1) {
+    while(IS_RUNNING_PROBE(probe)) {
         ret = recv_ipc_msg(msq_id, (long)PROBE_VIRT, &ipc_body);
         if (ret == 0) {
             destroy_ipc_body(&g_ipc_body);

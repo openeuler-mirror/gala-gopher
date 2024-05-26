@@ -51,7 +51,7 @@ void *native_probe_thread_cb(void *arg)
     SET_PROBE_FLAGS(g_probe, PROBE_FLAGS_RUNNING);
     UNSET_PROBE_FLAGS(g_probe, PROBE_FLAGS_STOPPED);
 
-    g_probe->probe_entry(&(g_probe->probe_param));
+    g_probe->probe_entry(g_probe);
     SET_PROBE_FLAGS(g_probe, PROBE_FLAGS_STOPPED);
     UNSET_PROBE_FLAGS(g_probe, PROBE_FLAGS_RUNNING);
     clear_ipc_msg((long)g_probe->probe_type);
