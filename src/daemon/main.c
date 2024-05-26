@@ -30,7 +30,7 @@
 #define GOPHER_CMD_MIN                    1
 #define MAX_TEMPSTR                       200
 #define PIDFILE_MODE                      0640
-#define PIDFILE                           "/var/run/gala-gopher/gala-gopher.pid"
+#define PIDFILE                           "/var/run/gala_gopher/gala-gopher.pid"
 
 #ifndef GOPHER_COMMIT_SHA1
 #define GOPHER_COMMIT_SHA1             "unknown"
