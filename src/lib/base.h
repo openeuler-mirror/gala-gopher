@@ -90,8 +90,10 @@ typedef enum {
     OUT_CHNL_MAX
 } OutChannelType;
 
-#define GALA_META_DIR_PATH "/opt/gala-gopher/meta"
-#define GALA_CONF_PATH_DEFAULT "/etc/gala-gopher/gala-gopher.conf"
+#define GALA_META_DIR_PATH            "/opt/gala-gopher/meta"
+#define GALA_CONF_PATH_DEFAULT        "/etc/gala-gopher/gala-gopher.conf"
+#define GALA_GOPHER_RUN_DIR           "/var/run/gala_gopher/"
+#define GALA_GOPHER_RUN_DIR_MODE      0750
 
 #endif
 

@@ -193,6 +193,14 @@ static int acquire_daemonlock(const char *pidfile, pid_t pid)
     int ret = 0;
     int fd = -1;
 
+    if (access(GALA_GOPHER_RUN_DIR, F_OK) != 0) {
+        ret = mkdir(GALA_GOPHER_RUN_DIR, GALA_GOPHER_RUN_DIR_MODE);
+        if (ret != 0) {
+            ERROR("Failed to create gopher running dir, err=%s\n", strerror(errno));
+            return 1;
+        }
+    }
+
     // Initial mode is 0600 to prevent flock() race/DoS.
     fd = open(pidfile, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
     if (fd == -1) {

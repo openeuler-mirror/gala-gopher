@@ -35,7 +35,7 @@ static int setRunDir(void)
     int ret;
 
     if (access(GALA_GOPHER_RUN_DIR, F_OK) != 0) {
-        ret = mkdir(GALA_GOPHER_RUN_DIR, GALA_GOPHER_FILE_PERMISSION);
+        ret = mkdir(GALA_GOPHER_RUN_DIR, GALA_GOPHER_RUN_DIR_MODE);
         if (ret != 0) {
             ERROR("Failed to set gopher running dir, err=%s\n", strerror(errno));
             return GOPHER_ERR;
@@ -241,7 +241,7 @@ void *CmdServer(void *arg)
     int ret = 0;
     int server_fd;
     int client_fd;
-    
+
     struct sockaddr_un client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
     ssize_t receive_num;
