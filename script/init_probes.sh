@@ -16,6 +16,7 @@
 GOPHER_INITIAL_CONF="/etc/gala-gopher/probes.init"
 GOPHER_CMD_SOCK_PATH="/var/run/gala_gopher/gala_gopher_cmd.sock"
 RETRY_COUNT=5
+MAX_INIT_NUM=20
 
 PROBES=(
     "baseinfo"
@@ -52,6 +53,7 @@ function check_cmd_server()
 
 function init_probes_json()
 {
+    i=0
     while read line; do
         if [ -z "$line" ] || [[ $line =~ ^#.* ]]; then
             continue
@@ -67,6 +69,11 @@ function init_probes_json()
         fi
 
         gopher-ctl probe set "$url" "$put_data" >/dev/null
+        let i++;
+        if [ $i -gt $MAX_INIT_NUM ] ; then
+            echo "[PROBE_INIT] Num of inited probes exceeds ${MAX_INIT_NUM}, config in excess will be ignored."
+            break;
+        fi
     done < ${GOPHER_INITIAL_CONF}
 }
 
