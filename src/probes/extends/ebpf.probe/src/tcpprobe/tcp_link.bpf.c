@@ -118,8 +118,6 @@ KPROBE(tcp_set_state, pt_regs)
             get_tcp_tx_rx_segs(sk, &metrics->tx_rx_stats);
             (void)bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
         }
-
-        (void)delete_tcp_link(sk);
     }
     return 0;
 }
@@ -127,6 +125,7 @@ KPROBE(tcp_set_state, pt_regs)
 KRAWTRACE(tcp_destroy_sock, bpf_raw_tracepoint_args)
 {
     struct sock *sk = (struct sock *)ctx->args[0];
+    (void)delete_tcp_link(sk);
     delete_sock_obj(sk);
     return 0;
 }
@@ -134,6 +133,7 @@ KRAWTRACE(tcp_destroy_sock, bpf_raw_tracepoint_args)
 KPROBE(tcp_v4_destroy_sock, pt_regs)
 {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    (void)delete_tcp_link(sk);
     delete_sock_obj(sk);
     return 0;
 }
@@ -142,6 +142,7 @@ SEC("tracepoint/tcp/tcp_destroy_sock")
 void bpf_trace_tcp_destroy_sock_func(struct trace_event_raw_tcp_event_sk *ctx)
 {
     struct sock *sk = (struct sock *)ctx->skaddr;
+    (void)delete_tcp_link(sk);
     delete_sock_obj(sk);
 }
 
