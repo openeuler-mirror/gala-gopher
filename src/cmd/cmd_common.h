@@ -20,9 +20,7 @@
 #define GOPHER_ERR      (-1)
 
 #define GALA_GOPHER_LISTEN_LEN      5
-#define GALA_GOPHER_RUN_DIR         "/var/run/gala_gopher/"
 #define GALA_GOPHER_CMD_SOCK_PATH   "/var/run/gala_gopher/gala_gopher_cmd.sock"
-#define GALA_GOPHER_FILE_PERMISSION 0700
 
 #define MAX_PROBE_CONF_SIZE (1024 * 1024)
 
