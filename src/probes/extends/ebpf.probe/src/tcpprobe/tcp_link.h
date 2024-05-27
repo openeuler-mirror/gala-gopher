@@ -132,9 +132,14 @@ static __always_inline __maybe_unused struct tcp_metrics_s *get_tcp_metrics(stru
     struct sock_stats_s *sock_stats;
 
     sock_stats = (struct sock_stats_s *)bpf_map_lookup_elem(&tcp_link_map, &sk);
-    if (sock_stats) {
+    if (sock_stats == NULL) {
+        return NULL;
+    }
+
+    if (is_valid_tgid(sock_stats->metrics.link.tgid)) {
         return &(sock_stats->metrics);
     }
+    (void)delete_tcp_link(sk);
     return NULL;
 }
 
