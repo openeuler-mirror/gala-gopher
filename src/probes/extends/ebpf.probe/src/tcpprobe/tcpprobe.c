@@ -200,17 +200,9 @@ static int load_established_tcps_mngt(int proc_obj_map_fd, int tcp_fd_map_fd)
     return 0;
 }
 
-int main(int argc, char **argv)
+static void clean_tcp_pin_map()
 {
-    int err = -1, ret;
-    int tcp_fd_map_fd = -1, proc_obj_map_fd = -1;
-    struct tcp_mng_s *tcp_mng = &g_tcp_mng;
     FILE *fp = NULL;
-    struct ipc_body_s ipc_body;
-    bool supports_tstamp;
-
-    supports_tstamp = probe_tstamp();
-
     fp = popen(RM_MAP_PATH, "r");
     if (fp != NULL) {
         (void)pclose(fp);
@@ -221,6 +213,21 @@ int main(int argc, char **argv)
         (void)pclose(fp);
         fp = NULL;
     }
+}
+
+int main(int argc, char **argv)
+{
+    int err = -1, ret;
+    int tcp_fd_map_fd = -1, proc_obj_map_fd = -1;
+    struct tcp_mng_s *tcp_mng = &g_tcp_mng;
+
+    struct ipc_body_s ipc_body;
+    bool supports_tstamp;
+
+    supports_tstamp = probe_tstamp();
+
+    clean_tcp_pin_map();
+
     if (signal(SIGINT, sig_int) == SIG_ERR) {
         ERROR("[TCPPROBE] Can't set signal handler: %d\n", errno);
         return errno;
@@ -323,5 +330,7 @@ err:
     deinit_tcp_historm(tcp_mng);
     tcp_unload_fd_probe();
     destroy_established_tcps();
+
+    clean_tcp_pin_map();
     return -err;
 }

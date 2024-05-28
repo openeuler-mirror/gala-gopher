@@ -132,12 +132,23 @@ static int CmdProcessing(int argc, char *argv[])
 static int g_probe_mng_ipc_msgid = -1;
 static ResourceMgr *g_resourceMgr;
 
+#define RM_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/* 2>/dev/null"
+static void clean_pin_map()
+{
+    FILE *fp = popen(RM_MAP_PATH, "r");
+    if (fp != NULL) {
+        (void)pclose(fp);
+        fp = NULL;
+    }
+}
+
 static void quit_handler(int signo)
 {
     destroy_probe_threads();
     destroy_daemon_threads(g_resourceMgr);
     // probe_mng创建的ipc消息队列是跟随内核的，进程结束消息队列还会存在，需要显示调用函数销毁
     destroy_ipc_msg_queue(g_probe_mng_ipc_msgid);
+    clean_pin_map();
     (void)unlink(PIDFILE);
 
     exit(EXIT_SUCCESS);

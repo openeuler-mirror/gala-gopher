@@ -45,6 +45,7 @@
 #include "endpoint.h"
 
 #define EP_ENTITY_ID_LEN 64
+#define RM_ENDPOINT_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__endpoint*"
 
 #define OO_TCP_SOCK     "endpoint_tcp"
 #define OO_UDP_SOCK     "endpoint_udp"
@@ -998,12 +999,23 @@ static void report_endpoint(struct endpoint_probe_s *probe)
     return;
 }
 
+static void clean_endpoint_pin_map()
+{
+    FILE *fp = popen(RM_ENDPOINT_MAP_PATH, "r");
+    if (fp != NULL) {
+        (void)pclose(fp);
+        fp = NULL;
+    }
+}
+
 int main(int argc, char **argv)
 {
     int ret = -1, msq_id;
     struct ipc_body_s ipc_body;
 
     memset(&g_ep_probe, 0, sizeof(g_ep_probe));
+
+    clean_endpoint_pin_map();
 
     if (signal(SIGINT, sig_int) == SIG_ERR) {
         ERROR("[ENDPOINTPROBE] Can't set signal handler: %d\n", errno);
@@ -1055,5 +1067,6 @@ int main(int argc, char **argv)
     unload_bpf_prog(&(g_ep_probe.prog));
     destroy_ipc_body(&(g_ep_probe.ipc_body));
 
+    clean_endpoint_pin_map();
     return ret;
 }
