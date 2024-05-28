@@ -321,7 +321,7 @@ static void output_tcp_socket(struct tcp_socket_s* tcp_sock)
 
     (void)fprintf(stdout,
         "|%s|%d|%s|%s|%s|%u|%u|%d"
-        "|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu"
+        "|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu"
         "|%s|\n",
         OO_TCP_SOCK,
         tcp_sock->id.tgid,
@@ -345,8 +345,6 @@ static void output_tcp_socket(struct tcp_socket_s* tcp_sock)
         tcp_sock->stats[EP_STATS_SYN_SENT],
         tcp_sock->stats[EP_STATS_SYN_DROP],
         tcp_sock->stats[EP_STATS_SYNACK_SENT],
-        tcp_sock->stats[EP_STATS_RST_SENT],
-        tcp_sock->stats[EP_STATS_RST_RCVS],
 
         estab_latency_histogram);
     (void)fflush(stdout);
@@ -826,11 +824,6 @@ static int endpoint_load_probe_tcp(struct endpoint_probe_s *probe, struct bpf_pr
         int kernel_version = probe_kernel_version();
         PROG_ENABLE_ONLY_IF(tcp, bpf_raw_trace_tcp_retransmit_synack, kernel_version > KERNEL_VERSION(4, 18, 0));
         PROG_ENABLE_ONLY_IF(tcp, bpf_trace_tcp_retransmit_synack_func, kernel_version <= KERNEL_VERSION(4, 18, 0));
-
-        PROG_ENABLE_ONLY_IF(tcp, bpf_raw_trace_tcp_send_reset, kernel_version > KERNEL_VERSION(4, 18, 0));
-        PROG_ENABLE_ONLY_IF(tcp, bpf_raw_trace_tcp_receive_reset, kernel_version > KERNEL_VERSION(4, 18, 0));
-        PROG_ENABLE_ONLY_IF(tcp, bpf_trace_tcp_send_reset_func, kernel_version <= KERNEL_VERSION(4, 18, 0));
-        PROG_ENABLE_ONLY_IF(tcp, bpf_trace_tcp_receive_reset_func, kernel_version <= KERNEL_VERSION(4, 18, 0));
 
         LOAD_ATTACH(endpoint, tcp, err, is_load);
 

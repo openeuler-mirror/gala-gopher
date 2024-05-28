@@ -107,16 +107,6 @@ measurements:
                 type: "gauge",
                 name: "synack_sent",
             },
-	        {
-                description: "reset sent of the tcp socket.",
-                type: "gauge",
-                name: "rst_sent",
-            },
-	        {
-                description: "reset received of the tcp socket.",
-                type: "gauge",
-                name: "rst_recv",
-            },
             {
                 description: "latency of establishing tcp connections",
                 type: "histogram",
