@@ -586,6 +586,7 @@ int parse_snooper(struct probe_s *probe, const void *json)
         probe->snooper_confs[i] = NULL;
     }
     probe->snooper_conf_num = 0;
+
     if (parse_snooper_procid(probe, json)) {
         PARSE_ERR("Error occurs when parsing snooper %s", SNOOPER_OBJNAME_PROCID);
         return -1;
@@ -603,6 +604,12 @@ int parse_snooper(struct probe_s *probe, const void *json)
 
     if (parse_snooper_pod_container(probe, json, SNOOPER_OBJNAME_CONTAINERID)) {
         PARSE_ERR("Error occurs when parsing snooper %s", SNOOPER_OBJNAME_CONTAINERID);
+        return -1;
+    }
+
+    if (probe->snooper_conf_num == 0 && (!strcmp(probe->name, "tcp") ||
+        !strcmp(probe->name, "socket") || !strcmp(probe->name, "container"))) {
+        PARSE_ERR("the snooper for %s cannot be empty", probe->name);
         return -1;
     }
 
