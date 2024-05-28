@@ -24,9 +24,6 @@ enum socket_evt_e {
     EP_STATS_SYN_DROP,
     EP_STATS_SYNACK_SENT,
 
-    EP_STATS_RST_SENT,
-    EP_STATS_RST_RCVS,
-
     EP_STATS_CONN_CLOSE,
 
     // udp event
