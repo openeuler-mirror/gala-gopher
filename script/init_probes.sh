@@ -104,5 +104,7 @@ fi
 
 if [ "$1" = "--save" ];then
     save_probes_json
+    #clean_bpf_map
+    /usr/bin/rm -rf /sys/fs/bpf/gala-gopher/*
     exit
 fi

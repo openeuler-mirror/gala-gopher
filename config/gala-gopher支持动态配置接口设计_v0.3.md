@@ -231,7 +231,7 @@ curl -X PUT http://localhost:9999/tcp -d json='
 | continuous_sampling |            是否持续采样            |                          0, [0, 1]                           |         |                    ksli                     |     Y      |
 |      elf_path       |      要观测的可执行文件的路径      |                              ""                              |         |      baseinfo, nginx, haproxy, dnsmasq      |     Y      |
 |     kafka_port      |        要观测的kafka端口号         |                       9092, [1, 65535]                       |         |                    kafka                    |     Y      |
-|    cadvisor_port    |        启动的cadvisor端口号        |                       8080, [1, 65535]                       |         |                  container                  |     Y      |
+|    cadvisor_port    |        启动的cadvisor端口号        |                       8083, [1, 65535]                       |         |                  container                  |     Y      |
 
 注：探针参数只能配置在支持的监控范围中的探针才能生效，例如，参数sample_period对应的支持的监控范围为io和tcp，则表明参数sample_period只能配置在io探针和tcp探针，参数report_period对应的支持的监控范围为ALL，则表明参数report_period可以配置在gala-gopher支持的所有参数的参数中。
 
