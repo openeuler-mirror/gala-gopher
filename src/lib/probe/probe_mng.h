@@ -111,16 +111,15 @@ struct probe_mng_s *create_probe_mng(void);
 void destroy_probe_mng(void);
 void destroy_probe_threads(void);
 u32 get_probe_status_flags(struct probe_s* probe);
-void set_probe_status_flags(struct probe_s* probe, u32 flags);
-void unset_probe_status_flags(struct probe_s* probe, u32 flags);
+void set_probe_status_started(struct probe_s* probe);
+void set_probe_status_running(struct probe_s* probe);
+void set_probe_status_stopped(struct probe_s* probe);
+void set_probe_status_stopping(struct probe_s* probe);
 
 #define IS_STOPPED_PROBE(probe)      (get_probe_status_flags(probe) & PROBE_FLAGS_STOPPED)
 #define IS_STARTED_PROBE(probe)      (get_probe_status_flags(probe) & PROBE_FLAGS_STARTED)
 #define IS_STOPPING_PROBE(probe)     (get_probe_status_flags(probe) & PROBE_FLAGS_STOPPING)
 #define IS_RUNNING_PROBE(probe)      (get_probe_status_flags(probe) & PROBE_FLAGS_RUNNING)
-
-#define SET_PROBE_FLAGS(probe, flags)       set_probe_status_flags(probe, flags)
-#define UNSET_PROBE_FLAGS(probe, flags)     unset_probe_status_flags(probe, flags)
 
 #define PARSE_ERR(fmt, ...) \
     (void)snprintf(g_parse_json_err, sizeof(g_parse_json_err), (fmt), ##__VA_ARGS__)
