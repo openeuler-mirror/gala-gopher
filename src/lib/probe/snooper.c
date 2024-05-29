@@ -561,14 +561,24 @@ static void __build_ipc_body(struct probe_s *probe, struct ipc_body_s* ipc_body)
     return;
 }
 
+
+// To prevent ipc queue full, we only send ipc msg to running probes.
+// However, the "RUNNING" flag may not be set by probe->cb thread when we get here in starting,
+// so take probe->resnd_snooper_for_restart into consideration as well.
+static inline int need_send_snooper_obj(struct probe_s *probe)
+{
+    if (!probe || (!IS_RUNNING_PROBE(probe) && !probe->resnd_snooper_for_restart)) {
+        return 0;
+    }
+
+    return 1;
+}
+
 int send_snooper_obj(struct probe_s *probe)
 {
     struct ipc_body_s ipc_body; // Initialized at '__build_ipc_body' function
 
-    // To prevent ipc queue full, we only send ipc msg to running probes.
-    // However, the "RUNNING" flag may not be set by probe->cb thread when we get here in starting,
-    // so take probe->resnd_snooper_for_restart into consideration as well.
-    if (!probe || (!IS_RUNNING_PROBE(probe) && !probe->resnd_snooper_for_restart)) {
+    if (need_send_snooper_obj(probe) == 0) {
         return 0;
     }
 
@@ -1189,6 +1199,7 @@ static void __rcv_snooper_proc_exec(struct probe_mng_s *probe_mng, const char* c
     char pod_id_ready = 0;
     char snooper_obj_added;
     struct probe_s *probe;
+    struct ipc_body_s ipc_body;
     char container_id[CONTAINER_ABBR_ID_LEN + 1];
     char pod_id[POD_ID_LEN + 1];
     char pid_str[INT_LEN + 1];
@@ -1199,8 +1210,10 @@ static void __rcv_snooper_proc_exec(struct probe_mng_s *probe_mng, const char* c
     container_id[0] = 0;
     pod_id[0] = 0;
     for (i = 0; i < PROBE_TYPE_MAX; i++) {
+        get_probemng_lock();
         probe = probe_mng->probes[i];
         if (!probe) {
+            put_probemng_lock();
             continue;
         }
 
@@ -1217,8 +1230,14 @@ static void __rcv_snooper_proc_exec(struct probe_mng_s *probe_mng, const char* c
         if (snooper_obj_added) {
             probe->is_params_chg = 0;
             probe->is_snooper_chg = 1;
-            (void)send_snooper_obj(probe);
+            if (need_send_snooper_obj(probe)) {
+                __build_ipc_body(probe, &ipc_body);
+                put_probemng_lock();
+                (void)send_ipc_msg(__probe_mng_snooper->msq_id, (long)probe->probe_type, &ipc_body);
+                continue;
+            }
         }
+        put_probemng_lock();
     }
 }
 
@@ -1228,10 +1247,13 @@ static void __rcv_snooper_proc_exit(struct probe_mng_s *probe_mng, u32 proc_id)
     int i, j;
     struct probe_s *probe;
     struct snooper_obj_s *snooper_obj;
+    struct ipc_body_s ipc_body;
 
     for (i = 0; i < PROBE_TYPE_MAX; i++) {
+        get_probemng_lock();
         probe = probe_mng->probes[i];
         if (!probe) {
+            put_probemng_lock();
             continue;
         }
 
@@ -1253,8 +1275,14 @@ static void __rcv_snooper_proc_exit(struct probe_mng_s *probe_mng, u32 proc_id)
         if (snooper_obj_removed) {
             probe->is_params_chg = 0;
             probe->is_snooper_chg = 1;
-            (void)send_snooper_obj(probe);
+            if (need_send_snooper_obj(probe)) {
+                __build_ipc_body(probe, &ipc_body);
+                put_probemng_lock();
+                (void)send_ipc_msg(__probe_mng_snooper->msq_id, (long)probe->probe_type, &ipc_body);
+                continue;
+            }
         }
+        put_probemng_lock();
     }
 }
 
@@ -1271,14 +1299,11 @@ static int rcv_snooper_proc_evt(void *ctx, void *data, __u32 size)
         (void)snprintf(comm, sizeof(comm), "%s", evt->filename);
     }
 
-    get_probemng_lock();
-
     if (evt->proc_event == PROC_EXEC) {
         __rcv_snooper_proc_exec(__probe_mng_snooper, (const char *)comm, (u32)evt->pid);
     } else {
         __rcv_snooper_proc_exit(__probe_mng_snooper, (u32)evt->pid);
     }
-    put_probemng_lock();
     return 0;
 }
 
@@ -1314,14 +1339,20 @@ static void __rcv_snooper_cgrp_exec(struct probe_mng_s *probe_mng, char *pod_id,
     int i, j;
     struct probe_s *probe;
     struct snooper_conf_s *snooper_conf;
+    struct ipc_body_s ipc_body;
+    get_probemng_lock();
     struct con_info_s *con_info = get_con_info(pod_id, con_id);
     if (con_info == NULL || con_info->pod_info_ptr == NULL) {
+        put_probemng_lock();
         return;
     }
+    put_probemng_lock();
 
     for (i = 0; i < PROBE_TYPE_MAX; i++) {
+        get_probemng_lock();
         probe = probe_mng->probes[i];
         if (!probe) {
+            put_probemng_lock();
             continue;
         }
 
@@ -1330,8 +1361,14 @@ static void __rcv_snooper_cgrp_exec(struct probe_mng_s *probe_mng, char *pod_id,
         if (snooper_obj_added) {
             probe->is_params_chg = 0;
             probe->is_snooper_chg = 1;
-            (void)send_snooper_obj(probe);
+            if (need_send_snooper_obj(probe)) {
+                __build_ipc_body(probe, &ipc_body);
+                put_probemng_lock();
+                (void)send_ipc_msg(__probe_mng_snooper->msq_id, (long)probe->probe_type, &ipc_body);
+                continue;
+            }
         }
+        put_probemng_lock();
     }
 }
 
@@ -1341,10 +1378,13 @@ static void __rcv_snooper_cgrp_exit(struct probe_mng_s *probe_mng, char *pod_id,
     int i, j;
     struct probe_s *probe;
     struct snooper_obj_s *snooper_obj;
+    struct ipc_body_s ipc_body;
 
     for (i = 0; i < PROBE_TYPE_MAX; i++) {
+        get_probemng_lock();
         probe = probe_mng->probes[i];
         if (!probe) {
+            put_probemng_lock();
             continue;
         }
 
@@ -1366,8 +1406,14 @@ static void __rcv_snooper_cgrp_exit(struct probe_mng_s *probe_mng, char *pod_id,
         if (snooper_obj_removed) {
             probe->is_params_chg = 0;
             probe->is_snooper_chg = 1;
-            (void)send_snooper_obj(probe);
+            if (need_send_snooper_obj(probe)) {
+                __build_ipc_body(probe, &ipc_body);
+                put_probemng_lock();
+                (void)send_ipc_msg(__probe_mng_snooper->msq_id, (long)probe->probe_type, &ipc_body);
+                continue;
+            }
         }
+        put_probemng_lock();
     }
 }
 
@@ -1386,16 +1432,12 @@ static int rcv_snooper_cgrp_evt(void *ctx, void *data, __u32 size)
     if (msg_data->cgrp_event == CGRP_MK) {
         add_pod_con_map(pod_id, con_id, id_ret);
         if (id_ret == ID_CON_POD || id_ret == ID_CON_ONLY) {
-            get_probemng_lock();
             __rcv_snooper_cgrp_exec(__probe_mng_snooper, pod_id, con_id, id_ret);
-            put_probemng_lock();
         }
     } else {
         del_pod_con_map(pod_id, con_id, id_ret);
         if (id_ret == ID_CON_POD || id_ret == ID_CON_ONLY) {
-            get_probemng_lock();
             __rcv_snooper_cgrp_exit(__probe_mng_snooper, pod_id, con_id, id_ret);
-            put_probemng_lock();
         }
     }
 
