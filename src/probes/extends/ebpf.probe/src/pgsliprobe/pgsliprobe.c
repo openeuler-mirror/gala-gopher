@@ -436,6 +436,7 @@ static int load_pgsli_libssl_prog(void)
 
     return 0;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(pgsli_uprobe);
     CLEANUP_CUSTOM_BTF(pgsli_uprobe);
     if (prog) {
@@ -477,10 +478,8 @@ static int load_pgsli_kern_prog(void)
     ret = bpf_buffer__open(buffer, msg_event_handler, NULL, NULL);
     if (ret) {
         ERROR("[PGSLIPROBE] Open 'PGSLI' bpf_buffer failed.\n");
-        bpf_buffer__free(buffer);
         goto err;
     }
-    prog->buffer = buffer;
 
     args_map_fd = GET_MAP_FD(pgsli_kprobe, args_map);
     if (args_map_fd <= 0) {
@@ -488,12 +487,14 @@ static int load_pgsli_kern_prog(void)
         goto err;
     }
 
+    prog->buffer = buffer;
     prog->num++;
     g_pgsli_probe.kern_prog = prog;
     g_pgsli_probe.args_map_fd = args_map_fd;
 
     return 0;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(pgsli_kprobe);
     CLEANUP_CUSTOM_BTF(pgsli_kprobe);
     if (prog) {

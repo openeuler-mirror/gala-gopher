@@ -644,7 +644,6 @@ static int load_io_count_probe(struct bpf_prog_s *prog, char is_load_count)
     ret = bpf_buffer__open(buffer, rcv_io_count, NULL, NULL);
     if (ret) {
         ERROR("[IOPROBE] Open 'io_count' bpf_buffer failed.\n");
-        bpf_buffer__free(buffer);
         goto err;
     }
 
@@ -657,6 +656,7 @@ static int load_io_count_probe(struct bpf_prog_s *prog, char is_load_count)
 
     return 0;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(io_count);
     CLEANUP_CUSTOM_BTF(io_count);
     return -1;
@@ -697,7 +697,6 @@ static int load_io_err_probe(struct bpf_prog_s *prog, char is_load_err)
     ret = bpf_buffer__open(buffer, rcv_io_err, NULL, NULL);
     if (ret) {
         ERROR("[IOPROBE] Open 'io_err' bpf_buffer failed.\n");
-        bpf_buffer__free(buffer);
         goto err;
     }
 
@@ -710,6 +709,7 @@ static int load_io_err_probe(struct bpf_prog_s *prog, char is_load_err)
 
     return 0;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(io_err);
     CLEANUP_CUSTOM_BTF(io_err);
     return -1;
@@ -743,7 +743,6 @@ static int load_io_pagecache_probe(struct bpf_prog_s *prog, char is_load_pagecac
     ret = bpf_buffer__open(buffer, rcv_pagecache_stats, NULL, NULL);
     if (ret) {
         ERROR("[IOPROBE] Open 'page_cache' bpf_buffer failed.\n");
-        bpf_buffer__free(buffer);
         goto err;
     }
     prog->buffers[prog->num] = buffer;
@@ -755,6 +754,7 @@ static int load_io_pagecache_probe(struct bpf_prog_s *prog, char is_load_pagecac
 
     return 0;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(page_cache);
     CLEANUP_CUSTOM_BTF(page_cache);
     return -1;
@@ -798,7 +798,6 @@ static int load_io_scsi_probe(struct bpf_prog_s *prog, char scsi_probe)
     ret = bpf_buffer__open(buffer, rcv_io_latency, NULL, NULL);
     if (ret) {
         ERROR("[IOPROBE] Open 'io_trace_scsi' bpf_buffer failed.\n");
-        bpf_buffer__free(buffer);
         goto err;
     }
     prog->buffers[prog->num] = buffer;
@@ -810,6 +809,7 @@ static int load_io_scsi_probe(struct bpf_prog_s *prog, char scsi_probe)
 
     return 0;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(io_trace_scsi);
     CLEANUP_CUSTOM_BTF(io_trace_scsi);
     return -1;
@@ -847,7 +847,6 @@ static int load_io_nvme_probe(struct bpf_prog_s *prog, char nvme_probe)
     ret = bpf_buffer__open(buffer, rcv_io_latency, NULL, NULL);
     if (ret) {
         ERROR("[IOPROBE] Open 'io_trace_nvme' bpf_buffer failed.\n");
-        bpf_buffer__free(buffer);
         goto err;
     }
     prog->buffers[prog->num] = buffer;
@@ -859,6 +858,7 @@ static int load_io_nvme_probe(struct bpf_prog_s *prog, char nvme_probe)
 
     return 0;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(io_trace_nvme);
     CLEANUP_CUSTOM_BTF(io_trace_nvme);
     return -1;
@@ -894,7 +894,6 @@ static int load_io_virtblk_probe(struct bpf_prog_s *prog, char virtblk_probe)
     ret = bpf_buffer__open(buffer, rcv_io_latency, NULL, NULL);
     if (ret) {
         ERROR("[IOPROBE] Open 'io_trace_virtblk' bpf_buffer failed.\n");
-        bpf_buffer__free(buffer);
         goto err;
     }
     prog->buffers[prog->num] = buffer;
@@ -906,6 +905,7 @@ static int load_io_virtblk_probe(struct bpf_prog_s *prog, char virtblk_probe)
 
     return 0;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(io_trace_virtblk);
     CLEANUP_CUSTOM_BTF(io_trace_virtblk);
     return -1;

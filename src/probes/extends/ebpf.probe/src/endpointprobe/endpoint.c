@@ -835,7 +835,6 @@ static int endpoint_load_probe_tcp(struct endpoint_probe_s *probe, struct bpf_pr
         int ret = bpf_buffer__open(buffer, proc_tcp_sock_evt, NULL, probe);
         if (ret) {
             ERROR("[ENDPOINT] Open 'tcp_evt_map' bpf_buffer failed.\n");
-            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -845,6 +844,7 @@ static int endpoint_load_probe_tcp(struct endpoint_probe_s *probe, struct bpf_pr
 
     return 0;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(tcp);
     CLEANUP_CUSTOM_BTF(tcp);
     return -1;
@@ -866,7 +866,6 @@ static int endpoint_load_probe_udp(struct endpoint_probe_s *probe, struct bpf_pr
         int ret = bpf_buffer__open(buffer, proc_udp_sock_evt, NULL, probe);
         if (ret) {
             ERROR("[ENDPOINT] Open 'udp_evt_map' bpf_buffer failed.\n");
-            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -875,6 +874,7 @@ static int endpoint_load_probe_udp(struct endpoint_probe_s *probe, struct bpf_pr
 
     return 0;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(udp);
     CLEANUP_CUSTOM_BTF(udp);
     return -1;

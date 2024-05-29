@@ -308,7 +308,6 @@ int load_glibc_bpf_prog(struct task_probe_s *task_probe, const char *glibc_path,
     ret = bpf_buffer__open(buffer, rcv_dns_cache, NULL, task_probe);
     if (ret) {
         ERROR("[TASKPROBE] Open 'glibc' bpf_buffer failed.\n");
-        bpf_buffer__free(buffer);
         goto err;
     }
     prog->buffer = buffer;
@@ -319,6 +318,7 @@ int load_glibc_bpf_prog(struct task_probe_s *task_probe, const char *glibc_path,
     return 0;
 
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(glibc);
     CLEANUP_CUSTOM_BTF(glibc);
 

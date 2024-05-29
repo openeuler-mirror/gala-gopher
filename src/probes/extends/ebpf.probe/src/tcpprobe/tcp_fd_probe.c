@@ -55,6 +55,7 @@ int tcp_load_fd_probe(void)
     fd_probe = prog;
     return 0;
 err:
+    bpf_buffer__free(buffer);
     __UNLOAD_PROBE(tcp_fd);
     return -1;
 }
