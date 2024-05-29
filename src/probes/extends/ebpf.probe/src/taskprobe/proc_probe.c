@@ -405,7 +405,6 @@ static int load_proc_syscall_prog(struct task_probe_s *task_probe, struct bpf_pr
         ret = bpf_buffer__open(buffer, output_proc_metrics, NULL, NULL);
         if (ret) {
             ERROR("[TASKPROBE] Open 'syscall' bpf_buffer failed.\n");
-            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -416,6 +415,7 @@ static int load_proc_syscall_prog(struct task_probe_s *task_probe, struct bpf_pr
 
     return ret;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(syscall);
     CLEANUP_CUSTOM_BTF(syscall);
     return -1;
@@ -435,7 +435,6 @@ static int load_proc_syscall_io_prog(struct task_probe_s *task_probe, struct bpf
         ret = bpf_buffer__open(buffer, output_proc_metrics, NULL, NULL);
         if (ret) {
             ERROR("[TASKPROBE] Open 'syscall_io' bpf_buffer failed.\n");
-            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -446,6 +445,7 @@ static int load_proc_syscall_io_prog(struct task_probe_s *task_probe, struct bpf
 
     return ret;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(syscall_io);
     CLEANUP_CUSTOM_BTF(syscall_io);
     return -1;
@@ -465,7 +465,6 @@ static int load_proc_syscall_net_prog(struct task_probe_s *task_probe, struct bp
         ret = bpf_buffer__open(buffer, output_proc_metrics, NULL, NULL);
         if (ret) {
             ERROR("[TASKPROBE] Open 'syscall_net' bpf_buffer failed.\n");
-            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -476,6 +475,7 @@ static int load_proc_syscall_net_prog(struct task_probe_s *task_probe, struct bp
 
     return ret;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(syscall_net);
     CLEANUP_CUSTOM_BTF(syscall_net);
     return -1;
@@ -495,7 +495,6 @@ static int load_proc_syscall_fork_prog(struct task_probe_s *task_probe, struct b
         ret = bpf_buffer__open(buffer, output_proc_metrics, NULL, NULL);
         if (ret) {
             ERROR("[TASKPROBE] Open 'syscall_fork' bpf_buffer failed.\n");
-            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -506,6 +505,7 @@ static int load_proc_syscall_fork_prog(struct task_probe_s *task_probe, struct b
 
     return ret;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(syscall_fork);
     CLEANUP_CUSTOM_BTF(syscall_fork);
     return -1;
@@ -525,7 +525,6 @@ static int load_proc_syscall_sched_prog(struct task_probe_s *task_probe, struct 
         ret = bpf_buffer__open(buffer, output_proc_metrics, NULL, NULL);
         if (ret) {
             ERROR("[TASKPROBE] Open 'syscall_sched' bpf_buffer failed.\n");
-            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -537,6 +536,7 @@ static int load_proc_syscall_sched_prog(struct task_probe_s *task_probe, struct 
 
     return ret;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(syscall_sched);
     CLEANUP_CUSTOM_BTF(syscall_sched);
     return -1;
@@ -556,7 +556,6 @@ static int load_proc_ext4_prog(struct task_probe_s *task_probe, struct bpf_prog_
         ret = bpf_buffer__open(buffer, output_proc_metrics, NULL, NULL);
         if (ret) {
             ERROR("[TASKPROBE] Open 'ex4' bpf_buffer failed.\n");
-            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -567,6 +566,7 @@ static int load_proc_ext4_prog(struct task_probe_s *task_probe, struct bpf_prog_
 
     return ret;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(ex4);
     CLEANUP_CUSTOM_BTF(ex4);
     return -1;
@@ -586,7 +586,6 @@ static int load_proc_overlay_prog(struct task_probe_s *task_probe, struct bpf_pr
         ret = bpf_buffer__open(buffer, output_proc_metrics, NULL, NULL);
         if (ret) {
             ERROR("[TASKPROBE] Open 'overlay' bpf_buffer failed.\n");
-            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -597,6 +596,7 @@ static int load_proc_overlay_prog(struct task_probe_s *task_probe, struct bpf_pr
 
     return ret;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(overlay);
     CLEANUP_CUSTOM_BTF(overlay);
     return -1;
@@ -616,7 +616,6 @@ static int load_proc_tmpfs_prog(struct task_probe_s *task_probe, struct bpf_prog
         ret = bpf_buffer__open(buffer, output_proc_metrics, NULL, NULL);
         if (ret) {
             ERROR("[TASKPROBE] Open 'tmpfs' bpf_buffer failed.\n");
-            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -627,6 +626,7 @@ static int load_proc_tmpfs_prog(struct task_probe_s *task_probe, struct bpf_prog
 
     return ret;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(tmpfs);
     CLEANUP_CUSTOM_BTF(tmpfs);
     return -1;
@@ -659,7 +659,6 @@ static int load_proc_page_prog(struct task_probe_s *task_probe, struct bpf_prog_
         ret = bpf_buffer__open(buffer, output_proc_metrics, NULL, NULL);
         if (ret) {
             ERROR("[TASKPROBE] Open 'page' bpf_buffer failed.\n");
-            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -671,6 +670,7 @@ static int load_proc_page_prog(struct task_probe_s *task_probe, struct bpf_prog_
 
     return ret;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(page);
     CLEANUP_CUSTOM_BTF(page);
     return -1;
@@ -705,7 +705,6 @@ static int load_proc_io_prog(struct task_probe_s *task_probe, struct bpf_prog_s 
         ret = bpf_buffer__open(buffer, output_proc_metrics, NULL, NULL);
         if (ret) {
             ERROR("[TASKPROBE] Open 'proc_io' bpf_buffer failed.\n");
-            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -717,6 +716,7 @@ static int load_proc_io_prog(struct task_probe_s *task_probe, struct bpf_prog_s 
 
     return ret;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(proc_io);
     CLEANUP_CUSTOM_BTF(proc_io);
     return -1;
@@ -743,7 +743,6 @@ static int load_proc_cpu_prog(struct task_probe_s *task_probe, struct bpf_prog_s
         ret = bpf_buffer__open(buffer, output_proc_metrics, NULL, NULL);
         if (ret) {
             ERROR("[TASKPROBE] Open 'cpu' bpf_buffer failed.\n");
-            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -756,6 +755,7 @@ static int load_proc_cpu_prog(struct task_probe_s *task_probe, struct bpf_prog_s
 
     return ret;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(cpu);
     CLEANUP_CUSTOM_BTF(cpu);
     return -1;
@@ -775,7 +775,6 @@ static int load_proc_syscall_ioctl_prog(struct task_probe_s *task_probe, struct 
         ret = bpf_buffer__open(buffer, output_proc_metrics, NULL, NULL);
         if (ret) {
             ERROR("[TASKPROBE] Open 'ioctl' bpf_buffer failed.\n");
-            bpf_buffer__free(buffer);
             goto err;
         }
         prog->buffers[prog->num] = buffer;
@@ -788,6 +787,7 @@ static int load_proc_syscall_ioctl_prog(struct task_probe_s *task_probe, struct 
 
     return ret;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(syscall_ioctl);
     CLEANUP_CUSTOM_BTF(syscall_ioctl);
     return -1;

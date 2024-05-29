@@ -176,7 +176,6 @@ static int load_nic_probe(struct bpf_prog_s *prog, char nic_prob)
     ret = bpf_buffer__open(buffer, rcv_nic_failure, NULL, NULL);
     if (ret) {
         ERROR("[HWPROBE] Open 'nic_failure_channel_map' bpf_buffer failed.\n");
-        bpf_buffer__free(buffer);
         goto err;
     }
     prog->buffers[prog->num] = buffer;
@@ -192,6 +191,7 @@ static int load_nic_probe(struct bpf_prog_s *prog, char nic_prob)
     return 0;
 
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(nic);
     CLEANUP_CUSTOM_BTF(nic);
     return -1;
@@ -218,7 +218,6 @@ static int load_mem_probe(struct bpf_prog_s *prog, char mem_probe)
     ret = bpf_buffer__open(buffer, rcv_mem_mc_event, NULL, NULL);
     if (ret) {
         ERROR("[HWPROBE] Open 'mc_event_channel_map' bpf_buffer failed.\n");
-        bpf_buffer__free(buffer);
         goto err;
     }
     prog->buffers[prog->num] = buffer;
@@ -235,6 +234,7 @@ static int load_mem_probe(struct bpf_prog_s *prog, char mem_probe)
     return 0;
 
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(mem);
     CLEANUP_CUSTOM_BTF(mem);
     return -1;

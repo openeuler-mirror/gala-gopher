@@ -242,7 +242,6 @@ static int load_ksli_bpf_prog()
     ret = bpf_buffer__open(buffer, msg_event_handler, NULL, NULL);
     if (ret) {
         ERROR("[KSLIPROBE] Open 'ksliprobe' bpf_buffer failed.\n");
-        bpf_buffer__free(buffer);
         goto err;
     }
     prog->buffer = buffer;
@@ -252,6 +251,7 @@ static int load_ksli_bpf_prog()
 
     return 0;
 err:
+    bpf_buffer__free(buffer);
     UNLOAD(ksliprobe);
     CLEANUP_CUSTOM_BTF(ksliprobe);
     if (prog) {

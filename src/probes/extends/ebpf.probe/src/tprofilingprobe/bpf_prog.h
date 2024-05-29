@@ -92,7 +92,6 @@
             ret = bpf_buffer__open(buffer, perf_event_handler, NULL, NULL); \
             if (ret) { \
                 TP_ERROR("Open bpf_buffer failed in syscall_"#type".\n"); \
-                bpf_buffer__free(buffer); \
                 goto err; \
             } \
             prog->buffers[prog->num] = buffer; \
@@ -101,6 +100,7 @@
         \
         return ret; \
     err: \
+        bpf_buffer__free(buffer); \
         UNLOAD(syscall_##type); \
         CLEANUP_CUSTOM_BTF(syscall_##type); \
         return -1; \
