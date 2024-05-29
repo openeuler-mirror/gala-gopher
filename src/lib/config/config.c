@@ -110,6 +110,14 @@ void ConfigMgrDestroy(ConfigMgr *mgr)
         free(mgr->globalConfig);
     }
 
+    if (mgr->ingressConfig != NULL) {
+        free(mgr->ingressConfig);
+    }
+
+    if (mgr->egressConfig != NULL) {
+        free(mgr->egressConfig);
+    }
+
     if (mgr->kafkaConfig != NULL) {
         free(mgr->kafkaConfig);
     }
