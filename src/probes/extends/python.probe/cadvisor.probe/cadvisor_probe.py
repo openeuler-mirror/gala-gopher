@@ -320,13 +320,15 @@ if __name__ == "__main__":
                 proc_list = ipc.get_snooper_proc_list(ipc_body)
                 for pid in proc_list:
                     container_id = containerUtils.get_container_id_by_pid(pid)
+                    if container_id == '':
+                        continue
                     cgroup_path = containerUtils.get_container_cgroup_path_by_pid(pid)
                     cgroup_path_map[cgroup_path] = container_id
                 cadvisor_probe.set_cgroup_path_map(cgroup_path_map)
                 reset_g_metric()
             ipc.destroy_ipc_body(ipc_body)
 
-        if cadvisor_running_flag:
+        if cadvisor_running_flag and cadvisor_probe.cgroup_path_map:
             try:
                 cadvisor_probe.get_metrics(s, cadvisor_port)
             except Exception as e:

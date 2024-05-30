@@ -546,13 +546,15 @@ static int IMDB_DataBaseMgrParseContent(IMDB_DataBaseMgr *mgr, IMDB_Table *table
     buffer_head = buffer;
 
     // start analyse record string
+    strsep(&buffer, delim);
     for (token = strsep(&buffer, delim); token != NULL; token = strsep(&buffer, delim)) {
         if (strcmp(token, "\n") == 0)
             break;
 
         if (strcmp(token, "") == 0) {
             if (index == 0) {
-                continue;   // first metrics
+                ERROR("[IMDB] Key can't be null(%s).\n", buffer);
+                goto ERR;
             } else {
                 token = INVALID_METRIC_VALUE;
             }
