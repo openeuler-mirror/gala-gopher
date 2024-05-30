@@ -182,14 +182,46 @@ u32 get_probe_status_flags(struct probe_s* probe)
     return probe_status_flags;
 }
 
-void set_probe_status_flags(struct probe_s* probe, u32 flags)
+void set_probe_status_started(struct probe_s* probe)
+{
+    (void)pthread_rwlock_wrlock(&probe->rwlock);
+    probe->probe_status.status_flags |= PROBE_FLAGS_STARTED;
+    probe->probe_status.status_flags &= ~(PROBE_FLAGS_STOPPING);
+    (void)pthread_rwlock_unlock(&probe->rwlock);
+}
+
+void set_probe_status_running(struct probe_s* probe)
+{
+    (void)pthread_rwlock_wrlock(&probe->rwlock);
+    probe->probe_status.status_flags |= PROBE_FLAGS_RUNNING;
+    probe->probe_status.status_flags &= ~(PROBE_FLAGS_STOPPED);
+    (void)pthread_rwlock_unlock(&probe->rwlock);
+}
+
+void set_probe_status_stopped(struct probe_s* probe)
+{
+    (void)pthread_rwlock_wrlock(&probe->rwlock);
+    probe->probe_status.status_flags |= PROBE_FLAGS_STOPPED;
+    probe->probe_status.status_flags &= ~(PROBE_FLAGS_RUNNING);
+    (void)pthread_rwlock_unlock(&probe->rwlock);
+}
+
+void set_probe_status_stopping(struct probe_s* probe)
+{
+    (void)pthread_rwlock_wrlock(&probe->rwlock);
+    probe->probe_status.status_flags |= PROBE_FLAGS_STOPPING;
+    probe->probe_status.status_flags &= ~(PROBE_FLAGS_STARTED);
+    (void)pthread_rwlock_unlock(&probe->rwlock);
+}
+
+static void set_probe_status_flags(struct probe_s* probe, u32 flags)
 {
     (void)pthread_rwlock_wrlock(&probe->rwlock);
     probe->probe_status.status_flags |= flags;
     (void)pthread_rwlock_unlock(&probe->rwlock);
 }
 
-void unset_probe_status_flags(struct probe_s* probe, u32 flags)
+static void unset_probe_status_flags(struct probe_s* probe, u32 flags)
 {
     (void)pthread_rwlock_wrlock(&probe->rwlock);
     probe->probe_status.status_flags &= ~(flags);
@@ -310,7 +342,7 @@ static struct probe_s* new_probe(const char* name, enum probe_type_e probe_type)
         goto err;
     }
 
-    SET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPED);
+    set_probe_status_flags(probe, PROBE_FLAGS_STOPPED);
     probe->pid = -1;
 
     return probe;
@@ -498,28 +530,12 @@ static int start_probe(struct probe_s *probe)
         return 0;
     }
 
-    SET_PROBE_FLAGS(probe, PROBE_FLAGS_STARTED);
-    UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPING);
-
+    set_probe_status_started(probe);
     if (try_start_probe(probe)) {
         PARSE_ERR("failed to start probe");
         return -1;
     }
 
-    return 0;
-}
-
-static int delete_probe(struct probe_s *probe)
-{
-    if (!IS_STOPPED_PROBE(probe)) {
-        ERROR("[PROBEMNG] Fail to delete probe(name:%s) which has not been stopped\n", probe->name);
-        return -1;
-    }
-
-    UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_STARTED);
-
-    g_probe_mng->probes[probe->probe_type] = NULL;
-    destroy_probe(probe);
     return 0;
 }
 
@@ -530,12 +546,10 @@ static int stop_probe(struct probe_s *probe)
         return 0;
     }
 
-    SET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPING);
-    UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_STARTED);
+    set_probe_status_stopping(probe);
 
     if (IS_NATIVE_PROBE(probe)) {
-        SET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPED);
-        UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_RUNNING);
+        set_probe_status_stopped(probe);
         clear_ipc_msg((long)probe->probe_type);
     } else {
         pid = get_probe_pid(probe);

@@ -40,6 +40,7 @@ void *native_probe_thread_cb(void *arg)
 {
     g_probe = (struct probe_s *)arg;
 
+    set_probe_status_running(g_probe);
     char thread_name[MAX_THREAD_NAME_LEN];
     snprintf(thread_name, MAX_THREAD_NAME_LEN - 1, "[PROBE]%s", g_probe->name);
     prctl(PR_SET_NAME, thread_name);
@@ -48,13 +49,9 @@ void *native_probe_thread_cb(void *arg)
     g_probe->pid = (int)gettid();
     (void)pthread_rwlock_unlock(&g_probe->rwlock);
 
-    SET_PROBE_FLAGS(g_probe, PROBE_FLAGS_RUNNING);
-    UNSET_PROBE_FLAGS(g_probe, PROBE_FLAGS_STOPPED);
-
     g_probe->probe_entry(g_probe);
-    SET_PROBE_FLAGS(g_probe, PROBE_FLAGS_STOPPED);
-    UNSET_PROBE_FLAGS(g_probe, PROBE_FLAGS_RUNNING);
     clear_ipc_msg((long)g_probe->probe_type);
+    set_probe_status_stopped(g_probe);
 }
 
 int nprobe_fprintf(FILE *stream, const char *curFormat, ...)

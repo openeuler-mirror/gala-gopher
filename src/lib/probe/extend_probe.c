@@ -171,9 +171,8 @@ static int RunExtendProbe(struct probe_s *probe)
     int ret = 0, retry = 0;
     FILE *f = NULL;
 
+    set_probe_status_running(probe);
     f = __DoRunExtProbe(probe);
-    SET_PROBE_FLAGS(probe, PROBE_FLAGS_RUNNING);
-    UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPED);
 
 retry:
     if ((lkup_and_set_probe_pid(probe) != 0) && retry <= PROBE_LKUP_PID_RETRY_MAX) {
@@ -185,11 +184,9 @@ retry:
 
     parseExtendProbeOutput(probe, f);
 
-    SET_PROBE_FLAGS(probe, PROBE_FLAGS_STOPPED);
-    UNSET_PROBE_FLAGS(probe, PROBE_FLAGS_RUNNING);
-
     clear_ipc_msg((long)probe->probe_type);
     pclose(f);
+    set_probe_status_stopped(probe);
     return 0;
 }
 
