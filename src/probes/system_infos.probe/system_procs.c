@@ -462,25 +462,25 @@ static int update_proc_infos(u32 pid, proc_info_t *proc_info)
 
     ret = get_proc_stat(pid, proc_info);
     if (ret < 0) {
-        ERROR("[SYSTEM_PROC] failed to get process stat\n");
+        DEBUG("[SYSTEM_PROC] failed to get process stat\n");
         return -1;
     }
 
     ret = get_proc_fdcnt(pid, proc_info);
     if (ret < 0) {
-        ERROR("[SYSTEM_PROC] failed to get process fd info\n");
+        DEBUG("[SYSTEM_PROC] failed to get process fd info\n");
         return -1;
     }
 
     ret = get_proc_io(pid, proc_info);
     if (ret < 0) {
-        ERROR("[SYSTEM_PROC] failed to get process io info\n");
+        DEBUG("[SYSTEM_PROC] failed to get process io info\n");
         return -1;
     }
 
     ret = get_proc_mss(pid, proc_info);
     if (ret < 0) {
-        ERROR("[SYSTEM_PROC] failed to get process mss info\n");
+        DEBUG("[SYSTEM_PROC] failed to get process mss info\n");
         return -1;
     }
 
