@@ -165,7 +165,7 @@ int refresh_con_filter_map(struct ipc_body_s *ipc_body)
         if (p == NULL) {
             item = init_one_con((const char *)container->con_id, ipc_body->probe_param.elf_path);
             if (item == NULL) {
-                ERROR("[SYSTEM_PROBE] init container(%s) failed\n", container->con_id);
+                DEBUG("[SYSTEM_PROBE] init container(%s) failed\n", container->con_id);
                 continue;
             }
             hash_add_con(item);
