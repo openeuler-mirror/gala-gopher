@@ -22,10 +22,10 @@
 
 enum wind_size_t {
     WIND_SIZE_1 = 0,         // (0 ~ 1000]
-    WIND_SIZE_2,             // (1000 ~ 5000]
-    WIND_SIZE_3,             // (5000 ~ 10000]
-    WIND_SIZE_4,             // (10000 ~ 20000]
-    WIND_SIZE_5,             // (20000 ~ 65535]
+    WIND_SIZE_2,             // (1000 ~ 10000]
+    WIND_SIZE_3,             // (10000 ~ 100000]
+    WIND_SIZE_4,             // (100000 ~ 1000000]
+    WIND_SIZE_5,             // (1000000 ~ 10000000]
     __MAX_WIND_SIZE
 };
 
