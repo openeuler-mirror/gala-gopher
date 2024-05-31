@@ -282,7 +282,10 @@ def print_metrics():
                             value += item
                 s = s + str(value) + "|"
             print(s)
-            sys.stdout.flush()
+            try:
+                sys.stdout.flush()
+            except Exception:
+                pass
 
 
 def clean_metrics():
