@@ -46,6 +46,7 @@
 #define LS_SOCK_INODE_CMD \
     "/usr/bin/ls -l /proc/%d/fd/%d | /usr/bin/awk -F '[' '{print $2}' | /usr/bin/awk -F ']' '{print $1}'"
 
+#define LISTEN_PORTS_LEN  2048
 #define PORT_LEN 11
 #define PID_LEN 32
 #define FID_LEN 32
@@ -582,7 +583,7 @@ static int __parse_tlp_line(struct tcp_listen_ports* tlps, const char *s)
 
 static int __get_tlps(struct tcp_listen_ports* tlps)
 {
-    char line[LINE_BUF_LEN];
+    char line[LISTEN_PORTS_LEN];
     FILE *f;
     const char *command = SS_LISTEN_PORTS_COMMAND;
 
@@ -591,8 +592,8 @@ static int __get_tlps(struct tcp_listen_ports* tlps)
         return -1;
 
     while (feof(f) == 0) {
-        (void)memset(line, 0, LINE_BUF_LEN);
-        if (fgets(line, LINE_BUF_LEN, f) == NULL)
+        (void)memset(line, 0, LISTEN_PORTS_LEN);
+        if (fgets(line, LISTEN_PORTS_LEN, f) == NULL)
             break;
 
         if (__parse_tlp_line(tlps, line) < 0) {
