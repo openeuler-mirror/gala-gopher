@@ -110,7 +110,7 @@ void rm_log_file(const char full_path[])
     }
 }
 
-static void clear_log_dir(const char full_path[])
+void clear_log_dir(const char full_path[])
 {
     FILE *fp = NULL;
     char command[COMMAND_LEN];
@@ -575,8 +575,9 @@ void destroy_log_mgr(struct log_mgr_s* mgr)
 
     destroy_queue(mgr->metrics_files);
     destroy_queue(mgr->event_files);
-
+    clear_log_dir(mgr->metrics_path);
     (void)free(mgr);
+    mgr = NULL;
 
     destroy_logger_instance(&g_metrics_logger);
     destroy_logger_instance(&g_event_logger);

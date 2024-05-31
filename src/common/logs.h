@@ -113,7 +113,7 @@ int wr_event_logs(const char* logs, size_t logs_len);
 void rm_log_file(const char full_path[]);
 
 void destroy_log_mgr(struct log_mgr_s* mgr);
-
+void clear_log_dir(const char full_path[]);
 int init_log_mgr(struct log_mgr_s* mgr, int is_meta_out_log, char *logLevel);
 
 struct log_mgr_s* create_log_mgr(const char *app_name, int is_metric_out_log, int is_event_out_log);

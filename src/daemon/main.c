@@ -149,6 +149,10 @@ static void quit_handler(int signo)
     // probe_mng创建的ipc消息队列是跟随内核的，进程结束消息队列还会存在，需要显示调用函数销毁
     destroy_ipc_msg_queue(g_probe_mng_ipc_msgid);
     clean_pin_map();
+    if (g_resourceMgr && g_resourceMgr->logsMgr) {
+        clear_log_dir(g_resourceMgr->logsMgr->metrics_path);
+    }
+
     (void)unlink(PIDFILE);
 
     exit(EXIT_SUCCESS);
