@@ -160,6 +160,7 @@ static int init_http_ssl_ctx(http_server_mgr_s *server_mgr, const char *key_file
         SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER, NULL);
         if (SSL_CTX_load_verify_locations(ssl_ctx, ca_file, NULL) != 1) {
             ERROR("[%s] could not load ca file.\n", server_mgr->name);
+            goto err;
         }
     }
 
@@ -169,11 +170,7 @@ static int init_http_ssl_ctx(http_server_mgr_s *server_mgr, const char *key_file
 err:
     if (ssl_ctx) {
         // clear private key from memory
-        EVP_PKEY *pkey = SSL_CTX_get0_privatekey(ssl_ctx);
-        if (pkey != NULL) {
-            EVP_PKEY_free(pkey);
-            pkey = NULL;
-        }
+        SSL_CTX_use_PrivateKey(ssl_ctx, NULL);
 
         SSL_CTX_free(ssl_ctx);
     }
@@ -198,7 +195,7 @@ int init_http_server_mgr(http_server_mgr_s *server_mgr, HttpServerConfig *config
     }
 
     if (config->sslAuth) {
-        if (init_http_ssl_ctx(server_mgr, config->privateKey, config->certFile, config->caFile)) {
+        if (init_http_ssl_ctx(server_mgr, config->privateKey, config->certFile, config->caFile) == -1) {
             return -1;
         }
     }
@@ -226,13 +223,10 @@ void destroy_http_server_mgr(http_server_mgr_s *server_mgr)
 
     if (server_mgr->ssl_ctx) {
         // clear private key from memory
-        EVP_PKEY *pkey = SSL_CTX_get0_privatekey(server_mgr->ssl_ctx);
-        if (pkey != NULL) {
-            EVP_PKEY_free(pkey);
-            pkey = NULL;
-        }
+        SSL_CTX_use_PrivateKey(server_mgr->ssl_ctx, NULL);
 
         SSL_CTX_free(server_mgr->ssl_ctx);
+        server_mgr->ssl_ctx = NULL;
     }
 
     if (server_mgr->evhttp) {
