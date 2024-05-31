@@ -78,6 +78,7 @@ static void get_cpu_time_in_jiff(char *cpu_total_line, u64 *time_total, u64 *tim
 
 static void report_cpu_status(struct ipc_body_s *ipc_body)
 {
+#ifdef ENABLE_REPORT_EVENT
     char entityId[INT_LEN];
     struct event_info_s evt = {0};
     if (ipc_body->probe_param.logs == 0) {
@@ -97,6 +98,8 @@ static void report_cpu_status(struct ipc_body_s *ipc_body)
                     "Too high cpu utilization(%.2f%%).",
                     util_per);
     }
+#endif
+    return;
 }
 
 static float get_cpu_util(char *src, u64 *last_total, u64 *last_used, u64 *cur_total, u64 *cur_used)

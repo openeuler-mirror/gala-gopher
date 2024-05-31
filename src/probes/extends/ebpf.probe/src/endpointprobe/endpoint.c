@@ -701,6 +701,7 @@ static void reload_listen_map(struct endpoint_probe_s *probe)
     return;
 }
 
+#ifdef ENABLE_REPORT_EVENT
 static void build_tcp_id(struct tcp_socket_s *tcp_sock, char *buf, int buf_len)
 {
     (void)snprintf(buf, buf_len, "%d_%s_%s_%u_%u",
@@ -814,6 +815,12 @@ static void report_tcp_socks(struct endpoint_probe_s * probe)
     }
     return;
 }
+#else
+static void report_tcp_socks(struct endpoint_probe_s * probe)
+{
+    return;
+}
+#endif
 
 static int endpoint_load_probe_tcp(struct endpoint_probe_s *probe, struct bpf_prog_s *prog, char is_load)
 {

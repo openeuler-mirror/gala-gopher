@@ -89,6 +89,7 @@ static int get_fs_mount_status(char *line, char mountOn[MOUNTON_LEN], char mount
 
 static void report_disk_status(df_stats *fsItem, struct ipc_body_s *ipc_body)
 {
+#ifdef ENABLE_REPORT_EVENT
     char entityid[LINE_BUF_LEN];
     struct event_info_s evt = {0};
 
@@ -123,6 +124,8 @@ static void report_disk_status(df_stats *fsItem, struct ipc_body_s *ipc_body)
                     "Too many Blocks used(%d%%).",
                     fsItem->blk_used_per);
     }
+#endif
+    return;
 }
 
 static int init_fs_inode_info(void)
@@ -362,6 +365,7 @@ static void cal_disk_io_stats(disk_stats *last, disk_stats *cur, disk_io_stats *
 
 static void report_disk_iostat(const char *disk_name, disk_io_stats *io_info, struct ipc_body_s *ipc_body)
 {
+#ifdef ENABLE_REPORT_EVENT
     char entityid[LINE_BUF_LEN];
     struct event_info_s evt = {0};
 
@@ -383,6 +387,8 @@ static void report_disk_iostat(const char *disk_name, disk_io_stats *io_info, st
                     "Disk device saturated(%.2f%%).",
                     io_info->util);
     }
+#endif
+    return;
 }
 
 /*

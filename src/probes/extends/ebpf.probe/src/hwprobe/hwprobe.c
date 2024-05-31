@@ -97,6 +97,7 @@ static const char* mc_event_error_type(unsigned int err_type)
     }
 }
 
+#ifdef ENABLE_REPORT_EVENT
 #define __ENTITY_ID_LEN 32
 static void __build_entity_id(char *dev, char *deriver, char *buf, int buf_len)
 {
@@ -136,8 +137,16 @@ static int rcv_nic_failure(void *ctx, void *data, __u32 size)
 
         (void)fflush(stdout);
     }
+
     return 0;
 }
+#else
+static int rcv_nic_failure(void *ctx, void *data, __u32 size)
+{
+    return 0;
+}
+
+#endif
 
 static int rcv_mem_mc_event(void *ctx, void *data, __u32 size)
 {

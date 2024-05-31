@@ -94,6 +94,7 @@ static struct ipc_body_s *__ipc_body = NULL;
 
 static void report_proc_metrics(struct proc_data_s *proc)
 {
+#ifdef ENABLE_RERORT_EVENT
     char entityId[INT_LEN];
     u64 latency_thr_us = US(__ipc_body->probe_param.latency_thr);
     struct event_info_s evt = {0};
@@ -150,6 +151,8 @@ static void report_proc_metrics(struct proc_data_s *proc)
                     proc->proc_id,
                     proc->proc_io.bio_err_count);
     }
+#endif
+    return;
 }
 
 static void output_proc_metrics_syscall(struct proc_data_s *proc)

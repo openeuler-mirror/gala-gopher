@@ -154,6 +154,7 @@ static void reset_dns_entry(struct dns_entry_s *entry)
 
 static void report_dns_event(struct task_probe_s *task_probe, struct dns_entry_s *entry)
 {
+#ifdef ENABLE_REPORT_EVENT
 #define __ENTITY_ID_LEN 128
 
     char entityId[__ENTITY_ID_LEN];
@@ -180,6 +181,7 @@ static void report_dns_event(struct task_probe_s *task_probe, struct dns_entry_s
                 "Process(PID:%u) DNS error ratio(%.3f %).",
                 entry->id.proc_id,
                 entry->err_ratio);
+#endif
     return;
 }
 

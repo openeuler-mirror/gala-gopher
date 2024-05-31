@@ -106,6 +106,7 @@ static int update_total_vmalloc(unsigned long long *value)
 
 static void report_meminfo_status(struct ipc_body_s *ipc_body, double mem_util, double swap_util)
 {
+#ifdef ENABLE_REPORT_EVENT
     char entityId[INT_LEN];
     char entityName[INT_LEN];
     struct event_info_s evt = {0};
@@ -136,6 +137,8 @@ static void report_meminfo_status(struct ipc_body_s *ipc_body, double mem_util, 
                     "Too high swap utilization(%.2f%%).",
                     swap_util);
     }
+#endif
+    return;
 }
 
 static void output_meminfo(struct ipc_body_s *ipc_body)
