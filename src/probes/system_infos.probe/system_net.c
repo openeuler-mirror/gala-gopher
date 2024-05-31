@@ -261,6 +261,7 @@ static int is_physical_netdev(char *dev_name, int dev_num)
 
 static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct ipc_body_s *ipc_body)
 {
+#ifdef ENABLE_REPORT_EVENT
     char entityid[LINE_BUF_LEN];
     u64 tx_drops;
     u64 rx_drops;
@@ -322,6 +323,8 @@ static void report_netdev(net_dev_stat *new_info, net_dev_stat *old_info, struct
                     "net device rx queue errors(%llu).",
                     rx_errs);
     }
+#endif
+    return;
 }
 
 /*

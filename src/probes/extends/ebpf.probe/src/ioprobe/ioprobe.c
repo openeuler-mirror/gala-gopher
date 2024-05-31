@@ -99,16 +99,6 @@ struct scsi_err_desc_s  scsi_err_desc[] = {
     {SCSI_ERR_FAST_IO_FAIL,         "FAST_TO_FAIL"}
 };
 
-static const char* get_scis_err_desc(int scsi_err)
-{
-    for (int i = 0; i < sizeof(scsi_err_desc) / sizeof(struct scsi_err_desc_s); i++) {
-        if (scsi_err_desc[i].scsi_ret_code == scsi_err)
-            return scsi_err_desc[i].desc;
-    }
-
-    return "UNKNOW";
-}
-
 struct blk_err_desc_s {
     int ret_code;
     int blk_err_code;
@@ -171,18 +161,6 @@ struct blk_err_desc_s  blk_err_desc[] = {
     {-EOVERFLOW,    BLK_STS_ZONE_ACTIVE_RESOURCE,   "active zones exceeded"},
     {-EIO,          BLK_STS_IOERR,                  "I/O error"}
 };
-
-static const char* get_blk_err_desc(int ret_err, int *blk_err)
-{
-    for (int i = 0; i < sizeof(blk_err_desc) / sizeof(struct blk_err_desc_s); i++) {
-        if (blk_err_desc[i].ret_code == ret_err) {
-            *blk_err = blk_err_desc[i].blk_err_code;
-            return blk_err_desc[i].desc;
-        }
-    }
-
-    return "UNKNOW";
-}
 
 static void sig_int(int signo)
 {
@@ -399,6 +377,29 @@ static void aging_blk_tbl(struct blk_tbl_s *tbl)
     }
 }
 
+#ifdef ENABLE_REPORT_EVENT
+static const char* get_scis_err_desc(int scsi_err)
+{
+    for (int i = 0; i < sizeof(scsi_err_desc) / sizeof(struct scsi_err_desc_s); i++) {
+        if (scsi_err_desc[i].scsi_ret_code == scsi_err)
+            return scsi_err_desc[i].desc;
+    }
+
+    return "UNKNOW";
+}
+
+static const char* get_blk_err_desc(int ret_err, int *blk_err)
+{
+    for (int i = 0; i < sizeof(blk_err_desc) / sizeof(struct blk_err_desc_s); i++) {
+        if (blk_err_desc[i].ret_code == ret_err) {
+            *blk_err = blk_err_desc[i].blk_err_code;
+            return blk_err_desc[i].desc;
+        }
+    }
+
+    return "UNKNOW";
+}
+
 #define __ENTITY_ID_LEN 32
 static void __build_entity_id(int major, int minor, char *buf, int buf_len)
 {
@@ -442,8 +443,60 @@ static void rcv_io_latency_thr(struct io_latency_s *io_latency)
                     io_latency->latency[IO_STAGE_DRIVER].max,
                     io_latency->latency[IO_STAGE_DEVICE].max);
     }
+}
+
+static int rcv_io_err(void *ctx, void *data, __u32 size)
+{
+
+    int blk_err = 0;
+    char entityId[__ENTITY_ID_LEN];
+    struct io_err_s *io_err = data;
+    struct event_info_s evt = {0};
+    struct blk_cache_s *cache = NULL;
+
+    if (g_ipc_body.probe_param.logs == 0) {
+        return 0;
+    }
+
+    cache = get_blk_cache(&g_blk_tbl, io_err->major, io_err->first_minor);
+    if (cache == NULL) {
+        return -1;
+    }
+
+    entityId[0] = 0;
+    __build_entity_id(io_err->major, io_err->first_minor, entityId, __ENTITY_ID_LEN);
+
+    evt.entityName = OO_NAME;
+    evt.entityId = entityId;
+    evt.metrics = "err_code";
+    evt.dev = cache->disk_name;
+
+    const char *blk_err_desc = get_blk_err_desc(io_err->err_code, &blk_err);
+    report_logs((const struct event_info_s *)&evt,
+                EVT_SEC_WARN,
+                "IO errors occured."
+                "(Disk %s(%d:%d), COMM %s, PID %u, op: %s, datalen %u, "
+                "blk_err(%d) '%s', scsi_err(%d) '%s', timestamp %f)",
+                cache->disk_name ? cache->disk_name : "", io_err->major, io_err->first_minor,
+                io_err->comm, io_err->proc_id, io_err->rwbs, io_err->data_len,
+                blk_err, blk_err_desc, io_err->scsi_err, get_scis_err_desc(io_err->scsi_err),
+                io_err->timestamp / 1000000.0);
+
+    (void)fflush(stdout);
+
+    return 0;
+}
+#else
+static void rcv_io_latency_thr(struct io_latency_s *io_latency)
+{
     return;
 }
+
+static int rcv_io_err(void *ctx, void *data, __u32 size)
+{
+    return 0;
+}
+#endif
 
 static int rcv_pagecache_stats(void *ctx, void *data, __u32 size)
 {
@@ -541,45 +594,6 @@ static int rcv_io_latency(void *ctx, void *data, __u32 size)
     return 0;
 }
 
-static int rcv_io_err(void *ctx, void *data, __u32 size)
-{
-    int blk_err = 0;
-    char entityId[__ENTITY_ID_LEN];
-    struct io_err_s *io_err = data;
-    struct event_info_s evt = {0};
-    struct blk_cache_s *cache = NULL;
-
-    if (g_ipc_body.probe_param.logs == 0) {
-        return 0;
-    }
-
-    cache = get_blk_cache(&g_blk_tbl, io_err->major, io_err->first_minor);
-    if (cache == NULL) {
-        return -1;
-    }
-
-    entityId[0] = 0;
-    __build_entity_id(io_err->major, io_err->first_minor, entityId, __ENTITY_ID_LEN);
-
-    evt.entityName = OO_NAME;
-    evt.entityId = entityId;
-    evt.metrics = "err_code";
-    evt.dev = cache->disk_name;
-
-    const char *blk_err_desc = get_blk_err_desc(io_err->err_code, &blk_err);
-    report_logs((const struct event_info_s *)&evt,
-                EVT_SEC_WARN,
-                "IO errors occured."
-                "(Disk %s(%d:%d), COMM %s, PID %u, op: %s, datalen %u, "
-                "blk_err(%d) '%s', scsi_err(%d) '%s', timestamp %f)",
-                cache->disk_name ? cache->disk_name : "", io_err->major, io_err->first_minor,
-                io_err->comm, io_err->proc_id, io_err->rwbs, io_err->data_len,
-                blk_err, blk_err_desc, io_err->scsi_err, get_scis_err_desc(io_err->scsi_err),
-                io_err->timestamp / 1000000.0);
-
-    (void)fflush(stdout);
-    return 0;
-}
 
 #define VIRTBLK_PROBE   "virtio"
 #define NVME_PROBE      "nvme"

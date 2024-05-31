@@ -26,11 +26,22 @@
 #include "nprobe_fprintf.h"
 #endif
 
-
 static unsigned int g_evt_period = 600;
 // static EventsConfig *g_evt_conf;
 // static char g_lang_type[MAX_EVT_GRP_NAME_LEN] = "zh_CN";
 
+#define __SEC_TXT_LEN  32
+struct evt_sec_s {
+    int sec_number;
+    char sec_text[__SEC_TXT_LEN];
+};
+
+static struct evt_sec_s secs[EVT_SEC_MAX] = {
+    {9,              "INFO"},
+    {13,              "WARN"},
+    {17,              "ERROR"},
+    {21,              "FATAL"}
+};
 
 #ifdef ENABLE_REPORT_EVENT
 static struct evt_ts_hash_t *g_evt_head = NULL;
@@ -52,18 +63,6 @@ static void __get_local_time(char *buf, int buf_len, time_t *cur_time)
     *cur_time = rawtime;
 }
 
-#define __SEC_TXT_LEN  32
-struct evt_sec_s {
-    int sec_number;
-    char sec_text[__SEC_TXT_LEN];
-};
-
-static struct evt_sec_s secs[EVT_SEC_MAX] = {
-    {9,              "INFO"},
-    {13,              "WARN"},
-    {17,              "ERROR"},
-    {21,              "FATAL"}
-};
 
 #define __EVT_BODY_LEN  512 // same as MAX_IMDB_METRIC_VAL_LEN
 void report_logs(const struct event_info_s* evt, enum evt_sec_e sec, const char * fmt, ...)
@@ -145,19 +144,6 @@ void report_logs(const struct event_info_s* evt, enum evt_sec_e sec, const char 
                   body);
 #endif
     return;
-}
-
-void emit_otel_log(struct otel_log *ol)
-{
-    // output format: |log|<Timestamp>|<SeverityText>|<SeverityNumber>|<Resource>|<Attributes>|<Body>|
-    fprintf(stdout, "|%s|%llu|\"%s\"|%d|%s|%s|\"%s\"|\n",
-        "log",
-        ol->timestamp,
-        secs[ol->sec].sec_text,
-        secs[ol->sec].sec_number,
-        ol->resource,
-        ol->attrs,
-        ol->body);
 }
 
 static void hash_add_evt(const char *entityId, time_t cur_time)
@@ -246,6 +232,19 @@ void report_logs(const struct event_info_s* evt, enum evt_sec_e sec, const char 
     return;
 }
 #endif
+
+void emit_otel_log(struct otel_log *ol)
+{
+    // output format: |log|<Timestamp>|<SeverityText>|<SeverityNumber>|<Resource>|<Attributes>|<Body>|
+    fprintf(stdout, "|%s|%llu|\"%s\"|%d|%s|%s|\"%s\"|\n",
+        "log",
+        ol->timestamp,
+        secs[ol->sec].sec_text,
+        secs[ol->sec].sec_number,
+        ol->resource,
+        ol->attrs,
+        ol->body);
+}
 
 void init_event_mgr(unsigned int time_out)
 {

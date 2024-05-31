@@ -104,6 +104,7 @@ static void sig_int(int signo)
 
 static void report_sli_event(struct msg_event_data_t *msg_evt_data)
 {
+#ifdef ENABLE_REPORT_EVENT
     char entityId[__ENTITY_ID_LEN];
     u64 latency_thr_ns = MS2NS(g_pgsli_probe.ipc_body.probe_param.latency_thr);
     unsigned char ser_ip_str[INET6_ADDRSTRLEN];
@@ -142,6 +143,8 @@ static void report_sli_event(struct msg_event_data_t *msg_evt_data)
                     msg_evt_data->latency.req_cmd,
                     msg_evt_data->latency.rtt_nsec);
     }
+#endif
+    return;
 }
 
 static int msg_event_handler(void *ctx, void *data, unsigned int size)

@@ -33,6 +33,7 @@
 #include "event.h"
 #include "tcp_event.h"
 
+#ifdef ENABLE_REPORT_EVENT
 #define OO_NAME "tcp_link"
 
 static void build_event_label(struct tcp_tracker_s *tracker, struct event_info_s *evt)
@@ -204,4 +205,21 @@ void report_tcp_syn_rtt_evt(struct probe_params *args, struct tcp_tracker_s *tra
                     tracker->stats[SYN_SRTT_MAX]);
     }
 }
+
+#else
+void report_tcp_win_evt(struct probe_params *args, struct tcp_tracker_s *tracker)
+{
+    return;
+}
+
+void report_tcp_abn_evt(struct probe_params *args, struct tcp_tracker_s *tracker)
+{
+    return;
+}
+
+void report_tcp_syn_rtt_evt(struct probe_params *args, struct tcp_tracker_s *tracker)
+{
+    return;
+}
+#endif
 
