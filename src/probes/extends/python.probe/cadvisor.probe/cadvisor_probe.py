@@ -26,15 +26,24 @@ g_metric = dict()
 
 def debug_log(msg: str):
     print("[DEBUG]: [CADVISOR_PROBE]:" + msg)
-    sys.stdout.flush()
+    try:
+        sys.stdout.flush()
+    except Exception:
+        pass
 
 def info_log(msg: str):
     print("[INFO]: [CADVISOR_PROBE]:" + msg)
-    sys.stdout.flush()
+    try:
+        sys.stdout.flush()
+    except Exception:
+        pass
 
 def error_log(msg: str):
     print("[ERROR]: [CADVISOR_PROBE]:" + msg)
-    sys.stdout.flush()
+    try:
+        sys.stdout.flush()
+    except Exception:
+        pass
 
 class ParamException(Exception):
     pass
@@ -101,7 +110,7 @@ class CadvisorProbe():
         self.port = port_c
         self.pid = 0
         self.cgroup_path_map = dict()
-    
+
     def set_cgroup_path_map(self, map):
         self.cgroup_path_map = map
 
@@ -188,7 +197,7 @@ class CadvisorProbe():
                 # cadvisor metric id is cgroup path of container
                 if metric_dict.get("id") not in self.cgroup_path_map.keys():
                     continue
-                
+
                 label_key= ''
                 for field_name, field_type in g_meta[table_name].items():
                     if field_type == LABEL and field_name in metric_dict:
