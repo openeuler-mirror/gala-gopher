@@ -68,7 +68,7 @@ static inline int __probe_ubuntu_kernel_version(void)
         goto out;
     }
 
-    if (fscanf(file, "%*s %*s %d.%d.%d", &major, &minor, &patch) != 3) {
+    if (fscanf(file, "%*s %*s %u.%u.%u", &major, &minor, &patch) != 3) {
         goto out_close_file;
     }
     retval = KERNEL_VERSION(major, minor, patch);
@@ -89,7 +89,7 @@ static inline int __parse_debian_kernel_version(struct utsname *uts)
         return 0;
     }
 
-    if (sscanf(p, "Debian %d.%d.%d", &major, &minor, &patch) != 3) {
+    if (sscanf(p, "Debian %u.%u.%u", &major, &minor, &patch) != 3) {
         return 0;
     }
 
@@ -100,7 +100,7 @@ static inline int __parse_normal_kernel_version(struct utsname *uts)
 {
     u32 major, minor, patch;
 
-    if (sscanf(uts->release, "%d.%d.%d", &major, &minor, &patch) != 3) {
+    if (sscanf(uts->release, "%u.%u.%u", &major, &minor, &patch) != 3) {
         return 0;
     }
 

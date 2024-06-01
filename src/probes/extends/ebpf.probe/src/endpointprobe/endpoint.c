@@ -379,7 +379,7 @@ static void process_tcp_establish_latency(struct tcp_socket_s *tcp, struct tcp_s
 
 static void init_tcp_sock_latency_buckets(struct histo_bucket_s latency_buckets[], size_t size)
 {
-    for (int i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         (void)init_histo_bucket(&(latency_buckets[i]), estab_latency_histios[i].min, estab_latency_histios[i].max);
     }
 }

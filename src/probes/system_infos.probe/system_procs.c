@@ -450,7 +450,7 @@ static int get_proc_mss(u32 pid, proc_info_t *proc_info)
         smap_index++;
     }
 out:
-    (void)pclose(f);
+    (void)fclose(f);
     return 0;
 }
 

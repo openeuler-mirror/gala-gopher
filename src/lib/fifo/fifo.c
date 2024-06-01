@@ -86,7 +86,7 @@ int FifoFull(const Fifo *fifo)
     return ((fifo->size - fifo->in + fifo->out) <= 1) ? 1 : 0;
 }
 
-uint32_t FifoPut(Fifo *fifo, void *element)
+int FifoPut(Fifo *fifo, void *element)
 {
     uint32_t len = 1;
     uint32_t len2 = 0;
@@ -105,7 +105,7 @@ uint32_t FifoPut(Fifo *fifo, void *element)
     return len == 0 ? -1 : 0;
 }
 
-uint32_t FifoGet(Fifo *fifo, void **elements)
+int FifoGet(Fifo *fifo, void **elements)
 {
     uint32_t len = 1;
     uint32_t len2 = 0;

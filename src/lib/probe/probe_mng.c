@@ -135,7 +135,7 @@ static int get_probe_range(enum probe_type_e probe_type, const char *range)
 
     size_t size = sizeof(probe_range_define) / sizeof(struct probe_range_define_s);
 
-    for (int i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         if (probe_range_define[i].probe_type == probe_type && !strcasecmp(probe_range_define[i].desc, range)) {
             return probe_range_define[i].flags;
         }
@@ -148,7 +148,7 @@ static int check_probe_range(struct probe_s *probe)
 {
     if (probe->probe_range_flags == 0) {
         size_t size = sizeof(probe_range_define) / sizeof(struct probe_range_define_s);
-        for (int i = 0; i < size; i++) {
+        for (size_t i = 0; i < size; i++) {
             if (probe_range_define[i].probe_type == probe->probe_type) {
                 PARSE_ERR("invalid probe ranges: at least one must be set");
                 return -1;
@@ -573,7 +573,7 @@ static enum probe_type_e get_probe_type_by_name(const char *probe_name)
         return PROBE_TYPE_MAX;
     }
 
-    for (int i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         if (!strcasecmp(probe_define[i].desc, probe_name)) {
             if (probe_define[i].enable == 0) {
                 PARSE_ERR("not supported in the current version");
@@ -609,7 +609,7 @@ static void probe_printer_cmd(struct probe_s *probe, void *json)
     size_t size = sizeof(probe_range_define) / sizeof(struct probe_range_define_s);
 
     range = Json_CreateArray();
-    for (int i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         if (probe->probe_type == probe_range_define[i].probe_type) {
             if (probe->probe_range_flags & probe_range_define[i].flags) {
                 Json_AddStringItemToArray(range, probe_range_define[i].desc);
@@ -628,7 +628,7 @@ static int probe_parser_range(struct probe_s *probe, void *probe_item)
 
     probe->probe_range_flags = 0;
     size_t size = Json_GetArraySize(probe_item);
-    for (int i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         object = Json_GetArrayItem(probe_item, i);
         if (!Json_IsString(object)) {
             PARSE_ERR("invalid probe range: must be string");
@@ -774,7 +774,7 @@ static void rollback_probe(struct probe_s *probe, struct probe_s *probe_backup, 
     }
 
     size_t size = sizeof(probe_parsers) / sizeof(struct probe_parser_s);
-    for (int i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         if ((flag >> i) & 0x1) {
             parser = &(probe_parsers[i]);
 
@@ -946,7 +946,7 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
     (void)memset(probe_backup, 0, sizeof(struct probe_s));
 
     size_t size = sizeof(probe_parsers) / sizeof(struct probe_parser_s);
-    for (int i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         parser = &(probe_parsers[i]);
 
         itemObj = Json_GetObjectItem(jsonObj, parser->item);
@@ -1010,7 +1010,7 @@ char *get_probe_json(const char *probe_name)
     }
 
     size_t size = sizeof(probe_parsers) / sizeof(struct probe_parser_s);
-    for (int i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         parser = &(probe_parsers[i]);
         if (parser->printer) {
             if (strcmp(parser->item, "state") == 0) {

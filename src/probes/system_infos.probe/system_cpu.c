@@ -182,19 +182,19 @@ static int get_softirq_info(void)
         field = __strtok_r(softirq_line, " ", &save);
         if (strcmp(field, "RCU:") == 0) {
             for (size_t i = 0; i < cpus_num; i++) {
-                cur_cpus[i]->rcu = strtoll(__strtok_r(NULL, " ", &save), NULL, 10);
+                cur_cpus[i]->rcu = strtoul(__strtok_r(NULL, " ", &save), NULL, 10);
             }
         } else if (strcmp(field, "TIMER:") == 0) {
             for (size_t i = 0; i < cpus_num; i++) {
-                cur_cpus[i]->timer = strtoll(__strtok_r(NULL, " ", &save), NULL, 10);
+                cur_cpus[i]->timer = strtoul(__strtok_r(NULL, " ", &save), NULL, 10);
             }
         } else if (strcmp(field, "SCHED:") == 0) {
             for (size_t i = 0; i < cpus_num; i++) {
-                cur_cpus[i]->sched = strtoll(__strtok_r(NULL, " ", &save), NULL, 10);
+                cur_cpus[i]->sched = strtoul(__strtok_r(NULL, " ", &save), NULL, 10);
             }
         } else if (strcmp(field, "NET_RX:") == 0) {
             for (size_t i = 0; i < cpus_num; i++) {
-                cur_cpus[i]->net_rx = strtoll(__strtok_r(NULL, " ", &save), NULL, 10);
+                cur_cpus[i]->net_rx = strtoul(__strtok_r(NULL, " ", &save), NULL, 10);
             }
         }
         softirq_line[0] = 0;

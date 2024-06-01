@@ -163,15 +163,21 @@ static int get_netdev_status(net_dev_stat *stats)
     FILE *f = NULL;
     char fname[PATH_LEN];
     char line[LINE_BUF_LEN];
+    char netdev_path[PATH_MAX];
 
     // default is DOWN
     stats->net_status = 0;
 
     fname[0] = 0;
     (void)snprintf(fname, PATH_LEN, SYSTEM_NET_DEV_STATUS, stats->dev_name);
-    f = fopen(fname, "r");
+    if (realpath(fname, netdev_path) == NULL) {
+        ERROR("[SYSTEM_NET] failed to get real path of %s\n", fname);
+        return -1;
+    }
+
+    f = fopen(netdev_path, "r");
     if (f == NULL) {
-        ERROR("[SYSTEM_NET] failed to open %s\n", fname);
+        ERROR("[SYSTEM_NET] failed to open %s\n", netdev_path);
         return -1;
     }
     line[0] = 0;

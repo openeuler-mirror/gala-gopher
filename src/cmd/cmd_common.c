@@ -104,7 +104,7 @@ int RecvSizeHeader(int fd, char *buf, int len, int *data_sz, int *buf_sz)
 
     if (end_pos != NULL) {
         *end_pos = '\0';
-        *data_sz = atoi(header_buf);
+        *data_sz = strtol(header_buf, NULL, 10);
         if (*data_sz == 0 && strcmp(header_buf, "0") != 0) {
             WARN("Failed to read data size: invalid format %s\n", header_buf);
             return GOPHER_ERR;

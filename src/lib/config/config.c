@@ -157,7 +157,7 @@ void ConfigMgrDestroy(ConfigMgr *mgr)
 static int ConfigMgrLoadGlobalConfig(void *config, config_setting_t *settings)
 {
     GlobalConfig *globalConfig = (GlobalConfig *)config;
-    uint32_t ret = 0;
+    int ret = 0;
 
     const char *strVal;
     ret = config_setting_lookup_string(settings, "log_file_name", &strVal);
@@ -187,7 +187,7 @@ static int ConfigMgrLoadGlobalConfig(void *config, config_setting_t *settings)
 static int ConfigMgrLoadKafkaConfig(void *config, config_setting_t *settings)
 {
     KafkaConfig *kafkaConfig = (KafkaConfig *)config;
-    uint32_t ret = 0;
+    int ret = 0;
     const char *strVal = NULL;
     int intVal = 0;
 
@@ -239,7 +239,7 @@ static int ConfigMgrLoadKafkaConfig(void *config, config_setting_t *settings)
 static int ConfigMgrLoadIMDBConfig(void *config, config_setting_t *settings)
 {
     IMDBConfig *imdbConfig = (IMDBConfig *)config;
-    uint32_t ret = 0;
+    int ret = 0;
     int intVal = 0;
 
     ret = config_setting_lookup_int(settings, "max_tables_num", &intVal);
@@ -276,7 +276,7 @@ static int ConfigMgrLoadIMDBConfig(void *config, config_setting_t *settings)
 static int ConfigMgrLoadWebServerConfig(void *config, config_setting_t *settings)
 {
     HttpServerConfig *webServerConfig = (HttpServerConfig *)config;
-    uint32_t ret = 0;
+    int ret = 0;
     const char *strVal = NULL;
     int intVal = 0;
 
@@ -331,9 +331,9 @@ static int ConfigMgrLoadWebServerConfig(void *config, config_setting_t *settings
 static int ConfigMgrLoadRestServerConfig(void *config, config_setting_t *settings)
 {
     HttpServerConfig *restServerConfig = (HttpServerConfig *)config;
-    uint32_t ret = 0;
+    int ret = 0;
     const char *strVal = NULL;
-    uint32_t intVal = 0;
+    int intVal = 0;
 
     ret = config_setting_lookup_string(settings, "bind_addr", &strVal);
     if (ret == 0) {
@@ -385,7 +385,7 @@ static int ConfigMgrLoadRestServerConfig(void *config, config_setting_t *setting
 static int ConfigMgrLoadLogsConfig(void *config, config_setting_t *settings)
 {
     LogsConfig *logsConfig = (LogsConfig *)config;
-    uint32_t ret = 0;
+    int ret = 0;
     const char *strVal = NULL;
     int intVal = 0;
 
@@ -430,7 +430,7 @@ static int ConfigMgrLoadLogsConfig(void *config, config_setting_t *settings)
 static int ConfigMgrLoadOutConfig(void *config, config_setting_t *settings)
 {
     OutConfig *outConfig = (OutConfig  *)config;
-    uint32_t ret = 0;
+    int ret = 0;
     const char *strVal = NULL;
     int timeout = 0;
 
