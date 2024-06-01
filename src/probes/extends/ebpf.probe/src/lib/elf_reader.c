@@ -197,6 +197,9 @@ static int __do_get_path_from_container(const char *binary_file, const char *con
                 break;
             }
             res_buf[r_len] = (char *)malloc(PATH_LEN * sizeof(char));
+            if (res_buf[r_len] == NULL) {
+                return r_len;
+            }
             (void)snprintf(res_buf[r_len], PATH_LEN, "%s", abs_path);
             r_len++;
         }

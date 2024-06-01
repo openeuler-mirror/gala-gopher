@@ -37,8 +37,8 @@ Fifo *FifoCreate(uint32_t size);
 void FifoDestroy(Fifo *fifo);
 
 int FifoFull(const Fifo *fifo);
-uint32_t FifoPut(Fifo *fifo, void *element);
-uint32_t FifoGet(Fifo *fifo, void **elements);
+int FifoPut(Fifo *fifo, void *element);
+int FifoGet(Fifo *fifo, void **elements);
 
 FifoMgr *FifoMgrCreate(uint32_t size);
 void FifoMgrDestroy(FifoMgr *mgr);

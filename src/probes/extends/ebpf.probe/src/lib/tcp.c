@@ -44,7 +44,7 @@
 #define SS_ESTAB_COMMAND "ss -anpt | grep ESTAB |  awk '{print $4 \"|\" $5 \"@\" $6}'"
 
 #define LS_SOCK_INODE_CMD \
-    "/usr/bin/ls -l /proc/%d/fd/%d | /usr/bin/awk -F '[' '{print $2}' | /usr/bin/awk -F ']' '{print $1}'"
+    "/usr/bin/ls -l /proc/%u/fd/%u | /usr/bin/awk -F '[' '{print $2}' | /usr/bin/awk -F ']' '{print $1}'"
 
 #define LISTEN_PORTS_LEN  2048
 #define PORT_LEN 11
@@ -463,7 +463,7 @@ static int __get_listen_pid(const char *s, unsigned int *pid)
 /*
    s example: 127.0.0.1:38338users:(("lubanagent",pid=1709,fd=4))
 */
-static int __get_listen_fd(const char *s, int *fd)
+static int __get_listen_fd(const char *s, unsigned int *fd)
 {
     int ret;
     char fd_str[FID_LEN];
@@ -475,7 +475,7 @@ static int __get_listen_fd(const char *s, int *fd)
     if (__is_digit_str((const char *)fd_str) == 0)
         return -1;
 
-    *fd = strtol(fd_str, NULL, 10);
+    *fd = strtoul(fd_str, NULL, 10);
 
     return 0;
 }
@@ -484,7 +484,7 @@ static struct tcp_listen_port* __new_tlp(const char *s, unsigned int port)
 {
     int ret;
     unsigned pid;
-    int fd;
+    unsigned int fd;
     char comm[TASK_COMM_LEN];
     struct tcp_listen_port* tlp;
 

@@ -75,7 +75,7 @@ int cmdServerCreate(const char *path, int *fd)
 
     ret = bind(server_fd, (const struct sockaddr *)&addr, sizeof(struct sockaddr_un));
     if (ret < 0) {
-        ERROR("Failed to bind unix socket on %s, err=%d\n", path, strerror(errno));
+        ERROR("Failed to bind unix socket on %s, err=%s\n", path, strerror(errno));
         goto err;
     }
 
@@ -246,8 +246,6 @@ void *CmdServer(void *arg)
     socklen_t client_addr_len = sizeof(client_addr);
     ssize_t receive_num;
 
-    GopherCmdRequest rcvRequest;
-
     ret = setRunDir();
     if (ret != GOPHER_OK) {
         ERROR("dir not exist and create fail. ret=%d.\n", ret);
@@ -260,6 +258,11 @@ void *CmdServer(void *arg)
         return NULL;
     }
 
+    GopherCmdRequest *rcvRequest = calloc(1, sizeof(GopherCmdRequest));
+    if (rcvRequest == NULL) {
+        return NULL;
+    }
+
     while(1) {
         client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_addr_len);
         if (client_fd < 0) {
@@ -267,16 +270,17 @@ void *CmdServer(void *arg)
             continue;
         }
 
-        ret = RecvAll(client_fd, (char *)(&rcvRequest), sizeof(GopherCmdRequest));
+        ret = RecvAll(client_fd, (char *)rcvRequest, sizeof(GopherCmdRequest));
         if (ret < 0) {
             WARN("Failed to get request\n");
             close(client_fd);
             continue;
         }
-        (void)processRequest(&rcvRequest, client_fd);
+        (void)processRequest(rcvRequest, client_fd);
         close(client_fd);
     }
 
     close(server_fd);
+    free(rcvRequest);
     return NULL;
 }

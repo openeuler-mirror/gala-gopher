@@ -106,7 +106,7 @@ int cmdRequestParse(int argc, char *argv[], GopherCmdRequest *cmdRequest)
         (void)printf("Unknown request type: %s\n", argv[1]);
         return GOPHER_ERR;
     }
-    if (cmdRequest->cmdType == GOPHER_CMD_TYPE_PROBE) { 
+    if (cmdRequest->cmdType == GOPHER_CMD_TYPE_PROBE) {
         return cmdRequestParseProbe(argc - 2, argv + 2, cmdRequest);
     }
 
@@ -182,9 +182,12 @@ int main(int argc, char *argv[])
 {
     int ret = 0;
     int client_fd;
-    GopherCmdRequest cmdRequest = {0};
+    GopherCmdRequest *cmdRequest = calloc(1, sizeof(GopherCmdRequest));
+    if (cmdRequest == NULL) {
+        return GOPHER_ERR;
+    }
 
-    ret = cmdRequestParse(argc, argv, &cmdRequest);
+    ret = cmdRequestParse(argc, argv, cmdRequest);
     if (ret != GOPHER_OK) {
         showUsage();
         goto err;
@@ -195,7 +198,7 @@ int main(int argc, char *argv[])
         goto err;
     }
 
-    ret = SendAll(client_fd, (char *)&cmdRequest, sizeof(GopherCmdRequest));
+    ret = SendAll(client_fd, (char *)cmdRequest, sizeof(GopherCmdRequest));
     if (ret != GOPHER_OK) {
         close(client_fd);
         goto err;
@@ -209,8 +212,10 @@ int main(int argc, char *argv[])
 
     close(client_fd);
     (void)fflush(stdout);
+    free(cmdRequest);
     return GOPHER_OK;
 err:
     (void)fflush(stdout);
+    free(cmdRequest);
     return GOPHER_ERR;
 }

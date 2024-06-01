@@ -50,7 +50,7 @@ struct param_flags_s param_env_flags[] = {
 
 static unsigned int __get_params_flags(struct param_flags_s param_flags[], size_t size, const char *target)
 {
-    for (int i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         if (strcasecmp(param_flags[i].desc, target) == 0) {
             return param_flags[i].flags;
         }
@@ -187,7 +187,7 @@ static int parser_metrics_type(struct probe_s *probe, const struct param_key_s *
 
     probe->probe_param.metrics_flags = 0;
     size_t size = Json_GetArraySize(key_item);
-    for (int i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         object = Json_GetArrayItem(key_item, i);
         if (Json_IsString(object) == 0) {
             return -1;
@@ -215,7 +215,7 @@ static int parser_work_env(struct probe_s *probe, const struct param_key_s *para
 
     probe->probe_param.env_flags = 0;
     size_t size = Json_GetArraySize(key_item);
-    for (int i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         object = Json_GetArrayItem(key_item, i);
         if (Json_IsString(object) == 0) {
             return -1;
@@ -243,7 +243,7 @@ static int parser_l7pro(struct probe_s *probe, const struct param_key_s *param_k
 
     probe->probe_param.l7_probe_proto_flags = 0;
     size_t size = Json_GetArraySize(key_item);
-    for (int i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         object = Json_GetArrayItem(key_item, i);
         if (Json_IsString(object) == 0) {
             return -1;
@@ -577,7 +577,7 @@ void set_default_params(struct probe_s *probe)
     (void)memset(params, 0, sizeof(struct probe_params));
 
     size_t size = sizeof(param_keys) / sizeof(struct param_key_s);
-    for (int i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         param_key = &(param_keys[i]);
         if (param_key->defaulter) {
             param_key->defaulter(params, &(param_key->v));
@@ -592,7 +592,7 @@ int parse_params(struct probe_s *probe, const void *params_json)
     struct param_key_s *param_key;
     size_t size = sizeof(param_keys) / sizeof(struct param_key_s);
 
-    for (int i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         param_key = &(param_keys[i]);
         key_item = Json_GetObjectItem(params_json, param_key->key);
         if (key_item == NULL) {
@@ -616,7 +616,7 @@ int parse_params(struct probe_s *probe, const void *params_json)
 static void *param_flags_to_json(unsigned int flags, struct param_flags_s param_flags[], size_t size)
 {
     void *arr = Json_CreateArray();
-    int i;
+    size_t i;
 
     for (i = 0; i < size; i++) {
         if (flags & param_flags[i].flags) {

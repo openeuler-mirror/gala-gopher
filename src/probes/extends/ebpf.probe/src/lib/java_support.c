@@ -272,7 +272,7 @@ static int _do_attach(u32 pid, const struct jvm_process_info *v)
             (void)snprintf(args, LINE_BUF_LEN, "%s",
                 v->ns_java_data_path);
         }
-        (void)snprintf(cmd, LINE_BUF_LEN, "%s %d %d load %s true %s",
+        (void)snprintf(cmd, LINE_BUF_LEN, "%s %u %d load %s true %s",
             ATTACH_BIN_PATH,
             pid,
             v->nspid,

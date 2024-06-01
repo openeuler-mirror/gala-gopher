@@ -44,6 +44,8 @@
 #define SNOOPER_OBJNAME_CUSTOM_LABELS "custom_labels"
 #define SNOOPER_OBJNAME_POD_LABELS  "pod_labels"
 
+#define CUSTOM_LABELS_MAX_NUM        10
+#define POD_LABELS_MAX_NUM           10
 // 'proc_name' snooper subobj name define'
 /*
 "proc_name": [
@@ -247,7 +249,7 @@ static int parse_snooper_procid(struct probe_s *probe, const void *json)
     }
 
     size_t size = Json_GetArraySize(procid_item);
-    for (int i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         object = Json_GetArrayItem(procid_item, i);
         if (!Json_IsNumeric(object)) {
             return -1;
@@ -325,6 +327,10 @@ static int parse_snooper_custom_labels(struct probe_s *probe, const void *json)
     if (custom_label_num == 0) {
         return 0;
     }
+    if (custom_label_num > CUSTOM_LABELS_MAX_NUM) {
+        return -1;
+    }
+
     custom_labels = dup_custom_labels_from_json(labelItems, custom_label_num);
     if (!custom_labels) {
         return -1;
@@ -389,6 +395,10 @@ static int parse_snooper_pod_labels(struct probe_s *probe, const void *json)
     if (pod_label_num == 0) {
         return 0;
     }
+    if (pod_label_num > POD_LABELS_MAX_NUM) {
+        return -1;
+    }
+
     pod_labels = dup_pod_labels_from_json(labelItems, pod_label_num);
     if (!pod_labels) {
         return -1;
@@ -433,7 +443,7 @@ static int parse_snooper_procname(struct probe_s *probe, const void *json)
     }
 
     size_t size = Json_GetArraySize(procname_item);
-    for (int i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         object = Json_GetArrayItem(procname_item, i);
         if (!Json_IsObject(object)) {
             return -1;
@@ -508,7 +518,7 @@ static int parse_snooper_pod_container(struct probe_s *probe, const void *json, 
     }
 
     size_t size = Json_GetArraySize(item);
-    for (int i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         object = Json_GetArrayItem(item, i);
         if (!Json_IsString(object)) {
             return -1;
@@ -853,7 +863,7 @@ static int __chk_cmdline_matched(const char *cmdline, const char *pid)
 static int __get_snooper_obj_idle(struct probe_s *probe, size_t size)
 {
     int pos = -1;
-    for (int i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         if (probe->snooper_objs[i] == NULL) {
             pos = i;
             break;

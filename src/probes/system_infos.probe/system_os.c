@@ -142,31 +142,6 @@ static int parse_netmask(char *ip_addr)
     return (strtol(colon + 1, NULL, 10) > 32) ? 0 : strtol(colon + 1, NULL, 10);
 }
 
-/* 检查IP是否在某网段内 */
-static int check_ip_in_net_segment(char *ip_str, char *net_str)
-{
-    unsigned int ips[4];
-    unsigned int nets[4];
-    if (sscanf(ip_str, "%d.%d.%d.%d", &ips[0], &ips[1], &ips[2], &ips[3]) < 4) {
-        ERROR("[SYSTEM_OS] sscanf ip_addr_str:%s faield.\n", ip_str);
-        return false;
-    }
-    if (sscanf(net_str, "%d.%d.%d.%d", &nets[0], &nets[1], &nets[2], &nets[3]) < 4) {
-        ERROR("[SYSTEM_OS] sscanf net_str:%s faield.\n", net_str);
-        return false;
-    }
-
-    int mask = parse_netmask(net_str);
-    for (int i = 0; i < 4; i++) {
-        unsigned int temp = (mask - 8 > 0) ? 8 : (mask > 0) ? mask : 0;
-        if ((ips[i] & temp) != (nets[i] & temp)) {
-            return false;
-        }
-        mask -= 8;
-    }
-    return true;
-}
-
 static int check_skip_ifa(struct ifaddrs *ifa, struct ipc_body_s * ipc_body)
 {
     int family;
