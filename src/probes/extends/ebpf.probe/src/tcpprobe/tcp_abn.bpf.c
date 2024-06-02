@@ -48,28 +48,30 @@ static __always_inline void report_abn(void *ctx, struct tcp_metrics_s *metrics,
     metrics->report_flags |= TCP_PROBE_ABN;
     u32 last_time_sk_drops = metrics->abn_stats.sk_drops;
     u32 last_time_lost_out = metrics->abn_stats.lost_out;
-    u32 last_time_sacked_out = metrics->abn_stats.sacked_out;
 
     (void)bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
 
     __builtin_memset(&(metrics->abn_stats), 0x0, sizeof(metrics->abn_stats));
     metrics->abn_stats.last_time_sk_drops = last_time_sk_drops;
     metrics->abn_stats.last_time_lost_out = last_time_lost_out;
-    metrics->abn_stats.last_time_sacked_out = last_time_sacked_out;
     metrics->report_flags &= ~TCP_PROBE_ABN;
 }
 
 static int get_tcp_abn_stats(struct sock *sk, struct tcp_abn* stats)
 {
     struct tcp_sock *tcp_sk = (struct tcp_sock *)sk;
+    u32 sacked_out;
 
     stats->sk_drops = (__u32)(_(sk->sk_drops.counter));
     stats->lost_out = _(tcp_sk->lost_out);
-    stats->sacked_out = _(tcp_sk->sacked_out);
+    sacked_out = _(tcp_sk->sacked_out);
+    if (sacked_out > stats->sacked_out) {
+        stats->sacked_out = sacked_out;
+    }
 
     if ((stats->sk_drops > stats->last_time_sk_drops) ||
         (stats->lost_out > stats->last_time_lost_out) ||
-        (stats->sacked_out > stats->last_time_sacked_out)) {
+        (stats->sacked_out > 0)) {
         return 1;
     }
 

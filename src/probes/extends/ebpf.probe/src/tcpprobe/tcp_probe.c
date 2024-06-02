@@ -501,7 +501,7 @@ static void proc_tcp_txrx(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *track
 
 static void proc_tcp_abnormal(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker, const struct tcp_abn *data)
 {
-    u32 sk_drops_delta, lost_out_delta, sacked_out_delta;
+    u32 sk_drops_delta, lost_out_delta;
 
     sk_drops_delta = (data->sk_drops >= data->last_time_sk_drops) ?
         (data->sk_drops - data->last_time_sk_drops) : data->sk_drops;
@@ -509,15 +509,14 @@ static void proc_tcp_abnormal(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *t
     lost_out_delta = (data->lost_out >= data->last_time_lost_out) ?
         (data->lost_out - data->last_time_lost_out) : data->lost_out;
 
-    sacked_out_delta = (data->sacked_out >= data->last_time_sacked_out) ?
-        (data->sacked_out - data->last_time_sacked_out) : data->sacked_out;
-
     tracker->stats[RETRANS] += data->total_retrans;
     tracker->stats[BACKLOG_DROPS] += data->backlog_drops;
     tracker->stats[FILTER_DROPS] += data->filter_drops;
     tracker->stats[SK_DROPS] += sk_drops_delta;
     tracker->stats[LOST_OUT] += lost_out_delta;
-    tracker->stats[SACKED_OUT] += sacked_out_delta;
+    if (data->sacked_out > tracker->stats[SACKED_OUT]) {
+        tracker->stats[SACKED_OUT] = data->sacked_out;
+    }
     tracker->stats[TIME_OUT] += data->tmout;
     tracker->stats[SNDBUF_LIMIT] += data->sndbuf_limit;
     tracker->stats[RMEM_SCHEDULES] += data->rmem_scheduls;
