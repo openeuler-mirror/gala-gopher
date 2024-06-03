@@ -15,12 +15,19 @@
 #ifndef __CMD_COMMON_H__
 #define __CMD_COMMON_H__
 #include "base.h"
+#ifdef IS_GOPHER_CMD_CLIENT
+#define DEBUG (void)printf
+#else
+#include "common.h"
+#endif
 
 #define GOPHER_OK       0
 #define GOPHER_ERR      (-1)
 
 #define GALA_GOPHER_LISTEN_LEN      5
 #define GALA_GOPHER_CMD_SOCK_PATH   "/var/run/gala_gopher/gala_gopher_cmd.sock"
+
+#define SOCK_TIMEOUT_SEC 60
 
 #define MAX_PROBE_CONF_SIZE (1024 * 1024)
 
@@ -53,5 +60,6 @@ int SendAll(int fd, char *buf, int len);
 int RecvAll(int fd, char *buf, int len);
 int SendSizeHeader(int fd, int data_sz);
 int RecvSizeHeader(int fd, char *buf, int len, int *data_sz, int *buf_sz);
+int SetSockTimeout(int sockfd);
 
 #endif

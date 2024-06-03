@@ -16,11 +16,13 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <signal.h>
 #include <errno.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
 
+#define IS_GOPHER_CMD_CLIENT
 #include "cmd_common.h"
 
 #define OUTPUT_BUF_SIZE 4096
@@ -125,6 +127,13 @@ int connectToGopherServer(const char *path, int *fd)
         return GOPHER_ERR;
     }
 
+    ret = SetSockTimeout(client_fd);
+    if (ret < 0) {
+        (void)printf("Failed to set socket timeout, err=%s\n", strerror(errno));
+        close(client_fd);
+        return GOPHER_ERR;
+    }
+
     (void)memset(&addr, 0, sizeof(struct sockaddr_un));
     addr.sun_family = AF_UNIX;
     ret = snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", path);
@@ -169,6 +178,9 @@ int outputResult(int fd)
         if (recv_cnt < 0) {
             (void)printf("Failed to read response data, err=%s\n", strerror(errno));
             return GOPHER_ERR;
+        } else if (recv_cnt == 0) {
+            (void)printf("No data can be read\n");
+            return GOPHER_ERR;
         }
         buf[recv_cnt] = '\0';
         (void)printf("%s", buf);
@@ -186,6 +198,8 @@ int main(int argc, char *argv[])
     if (cmdRequest == NULL) {
         return GOPHER_ERR;
     }
+
+    (void)signal(SIGPIPE, SIG_IGN);
 
     ret = cmdRequestParse(argc, argv, cmdRequest);
     if (ret != GOPHER_OK) {

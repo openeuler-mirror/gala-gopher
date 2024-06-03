@@ -13,16 +13,15 @@
  * Description: provide gala-gopher cmd
  ******************************************************************************/
 #include <stdio.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/un.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <getopt.h>
 #include <errno.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/un.h>
 
-#include "common.h"
 #include "cmd_common.h"
 
 #define MAX_HEADER_SIZE 32
@@ -36,7 +35,10 @@ int SendAll(int fd, char *buf, int len)
     while (left_sz > 0) {
         send_sz = write(fd, pos, left_sz);
         if (send_sz < 0) {
-            WARN("Failed to send data: %s\n", strerror(errno));
+            DEBUG("Failed to send data: %s\n", strerror(errno));
+            return GOPHER_ERR;
+        } else if (send_sz == 0) {
+            DEBUG("No data can be sent\n");
             return GOPHER_ERR;
         }
         left_sz -= send_sz;
@@ -55,7 +57,10 @@ int RecvAll(int fd, char *buf, int len)
     while (left_sz > 0) {
         recv_sz = read(fd, pos, left_sz);
         if (recv_sz < 0) {
-            WARN("Failed to receive data: %s\n", strerror(errno));
+            DEBUG("Failed to receive data: %s\n", strerror(errno));
+            return GOPHER_ERR;
+        } else if (recv_sz == 0) {
+            DEBUG("No data can be read\n");
             return GOPHER_ERR;
         }
         left_sz -= recv_sz;
@@ -84,7 +89,7 @@ int RecvSizeHeader(int fd, char *buf, int len, int *data_sz, int *buf_sz)
     ssize_t left_sz = sizeof(header_buf) - 1;
 
     if (sizeof(header_buf) - 1 > len) {
-        WARN("Failed to read data size: no enough buffer\n");
+        DEBUG("Failed to read data size: no enough buffer\n");
         return GOPHER_OK;
     }
 
@@ -94,7 +99,10 @@ int RecvSizeHeader(int fd, char *buf, int len, int *data_sz, int *buf_sz)
         }
         recv_cnt = read(fd, cur_pos, left_sz);
         if (recv_cnt < 0) {
-            WARN("Failed to read data size: %s\n", strerror(errno));
+            DEBUG("Failed to read data size: %s\n", strerror(errno));
+            return GOPHER_ERR;
+        } else if (recv_cnt == 0) {
+            DEBUG("No data can be read\n");
             return GOPHER_ERR;
         }
         recv_sz += recv_cnt;
@@ -106,7 +114,7 @@ int RecvSizeHeader(int fd, char *buf, int len, int *data_sz, int *buf_sz)
         *end_pos = '\0';
         *data_sz = strtol(header_buf, NULL, 10);
         if (*data_sz == 0 && strcmp(header_buf, "0") != 0) {
-            WARN("Failed to read data size: invalid format %s\n", header_buf);
+            DEBUG("Failed to read data size: invalid format %s\n", header_buf);
             return GOPHER_ERR;
         }
         *buf_sz = recv_sz - (int)(end_pos - header_buf + 1);
@@ -115,4 +123,23 @@ int RecvSizeHeader(int fd, char *buf, int len, int *data_sz, int *buf_sz)
     }
 
     return GOPHER_ERR;
+}
+
+int SetSockTimeout(int sockfd)
+{
+    struct timeval tv;
+    int ret;
+
+    tv.tv_sec = SOCK_TIMEOUT_SEC;
+    tv.tv_usec = 0;
+    ret = setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, (const void *)&tv, sizeof(tv));
+    if (ret < 0) {
+        return -1;
+    }
+    ret = setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const void *)&tv, sizeof(tv));
+    if (ret < 0) {
+        return -1;
+    }
+
+    return 0;
 }
