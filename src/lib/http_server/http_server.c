@@ -157,7 +157,7 @@ static int init_http_ssl_ctx(http_server_mgr_s *server_mgr, const char *key_file
     }
 
     if (strlen(ca_file)) {
-        SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER, NULL);
+        SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
         if (SSL_CTX_load_verify_locations(ssl_ctx, ca_file, NULL) != 1) {
             ERROR("[%s] could not load ca file.\n", server_mgr->name);
             goto err;
