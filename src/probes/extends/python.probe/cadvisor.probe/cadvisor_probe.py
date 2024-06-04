@@ -28,22 +28,25 @@ def debug_log(msg: str):
     print("[DEBUG]: [CADVISOR_PROBE]:" + msg)
     try:
         sys.stdout.flush()
-    except Exception:
-        pass
+    except BrokenPipeError:
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
 
 def info_log(msg: str):
     print("[INFO]: [CADVISOR_PROBE]:" + msg)
     try:
         sys.stdout.flush()
-    except Exception:
-        pass
+    except BrokenPipeError:
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
 
 def error_log(msg: str):
     print("[ERROR]: [CADVISOR_PROBE]:" + msg)
     try:
         sys.stdout.flush()
-    except Exception:
-        pass
+    except BrokenPipeError:
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
 
 class ParamException(Exception):
     pass
@@ -115,9 +118,13 @@ class CadvisorProbe():
         self.cgroup_path_map = map
 
     def get_cadvisor_port(self):
-        p = subprocess.Popen("/usr/bin/netstat -natp | /usr/bin/grep cadvisor | /usr/bin/grep LISTEN | \
+        p = subprocess.Popen("/usr/bin/netstat -nltp | /usr/bin/grep cadvisor | \
                             /usr/bin/awk  -F \":::\" '{print $2}'", stdout=subprocess.PIPE, shell=True)
-        (rawout, serr) = p.communicate(timeout=5)
+        try:
+            (rawout, serr) = p.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            return False
+
         if len(rawout) != 0:
             self.port = rawout.rstrip().decode()
             return True
@@ -130,7 +137,12 @@ class CadvisorProbe():
             raise Exception('cAdvisor not installed')
         p = subprocess.Popen("/usr/bin/ps -ef | /usr/bin/grep /usr/bin/cadvisor | /usr/bin/grep -v grep | \
                             /usr/bin/awk '{print $2}'", stdout=subprocess.PIPE, shell=True)
-        (rawout, serr) = p.communicate(timeout=5)
+        try:
+            (rawout, serr) = p.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            error_log("Failed to get cAdvisor running state")
+            sys.exit(0)
+
         if len(rawout) != 0:
             self.pid = rawout.rstrip().decode()
             if self.get_cadvisor_port():
@@ -284,8 +296,9 @@ def print_metrics():
             print(s)
             try:
                 sys.stdout.flush()
-            except Exception:
-                pass
+            except BrokenPipeError:
+                devnull = os.open(os.devnull, os.O_WRONLY)
+                os.dup2(devnull, sys.stdout.fileno())
 
 
 def clean_metrics():
