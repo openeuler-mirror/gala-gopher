@@ -239,6 +239,7 @@ function compile_daemon_debug()
 function compile_daemon_clean()
 {
     rm -rf ${PROJECT_FOLDER}/gala-gopher
+    rm -rf ${PROJECT_FOLDER}/gopher-ctl
 }
 
 

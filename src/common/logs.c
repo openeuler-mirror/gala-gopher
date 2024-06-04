@@ -738,6 +738,10 @@ int read_metrics_logs(char logs_file_name[], size_t size)
         ERROR("Read metrics_logs failed, mgr is null.\n");
         return -1;
     }
+    if (mgr->metrics_files == NULL) {
+        DEBUG("Read metrics_logs failed, metrics_files is null.\n");
+        return -1;
+    }
 
     file_id = que_pop_file(mgr->metrics_files);
     if (!IS_VALID_FILE_ID(file_id)) {

@@ -213,7 +213,7 @@ int processMetricRequest(GopherCmdRequest *rcvRequest, int client_fd)
 
     ret = sendMetricResult(client_fd, fd, buf.st_size);
     if (ret != GOPHER_OK) {
-        ERROR("Failed to send metrics\n");
+        DEBUG("Failed to send metrics\n");
         (void)close(fd);
         return GOPHER_ERR;
     }
@@ -266,13 +266,20 @@ void *CmdServer(void *arg)
     while(1) {
         client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_addr_len);
         if (client_fd < 0) {
-            WARN("Failed to accept socket\n");
+            DEBUG("Failed to accept socket\n");
+            continue;
+        }
+
+        ret = SetSockTimeout(client_fd);
+        if (ret < 0) {
+            DEBUG("Failed to set socket timeout, err=%s\n", strerror(errno));
+            close(client_fd);
             continue;
         }
 
         ret = RecvAll(client_fd, (char *)rcvRequest, sizeof(GopherCmdRequest));
         if (ret < 0) {
-            WARN("Failed to get request\n");
+            DEBUG("Failed to get request\n");
             close(client_fd);
             continue;
         }
