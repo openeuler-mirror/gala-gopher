@@ -439,7 +439,7 @@ static int get_proc_mss(u32 pid, proc_info_t *proc_info)
             continue;
         }
         value = 0;
-        int ret = sscanf(line, "%s %lu %*s", key, &value);
+        int ret = sscanf(line, "%s %u %*s", key, &value);
         if (ret < 1) {
             goto out;
         }
