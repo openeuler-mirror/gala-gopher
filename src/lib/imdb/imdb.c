@@ -40,19 +40,19 @@ IMDB_Metric *IMDB_MetricCreate(char *name, char *description, char *type)
     }
 
     memset(metric, 0, sizeof(IMDB_Metric));
-    ret = snprintf(metric->name, MAX_IMDB_METRIC_NAME_LEN, name);
+    ret = snprintf(metric->name, MAX_IMDB_METRIC_NAME_LEN, "%s", name);
     if (ret < 0) {
         free(metric);
         return NULL;
     }
 
-    ret = snprintf(metric->description, MAX_IMDB_METRIC_DESC_LEN, description);
+    ret = snprintf(metric->description, MAX_IMDB_METRIC_DESC_LEN, "%s", description);
     if (ret < 0) {
         free(metric);
         return NULL;
     }
 
-    ret = snprintf(metric->type, MAX_IMDB_METRIC_TYPE_LEN, type);
+    ret = snprintf(metric->type, MAX_IMDB_METRIC_TYPE_LEN, "%s", type);
     if (ret < 0) {
         free(metric);
         return NULL;
@@ -64,7 +64,7 @@ IMDB_Metric *IMDB_MetricCreate(char *name, char *description, char *type)
 int IMDB_MetricSetValue(IMDB_Metric *metric, char *val)
 {
     int ret = 0;
-    ret = snprintf(metric->val, MAX_IMDB_METRIC_VAL_LEN, val);
+    ret = snprintf(metric->val, MAX_IMDB_METRIC_VAL_LEN, "%s", val);
     if (ret < 0) {
         return -1;
     }
@@ -146,7 +146,7 @@ int IMDB_RecordAppendKey(IMDB_Record *record, uint32_t keyIdx, char *val)
         return -1;
     }
 
-    ret = snprintf(record->key + offset, MAX_IMDB_METRIC_VAL_LEN, val);
+    ret = snprintf(record->key + offset, MAX_IMDB_METRIC_VAL_LEN, "%s", val);
     if (ret < 0) {
         return -1;
     }
@@ -1595,7 +1595,7 @@ int IMDB_Record2Json(const IMDB_DataBaseMgr *mgr, const IMDB_Table *table, const
         }
     }
 
-    ret = snprintf(json_cursor, maxLen, "}");
+    ret = snprintf(json_cursor, maxLen, "%s", "}");
     if (ret < 0) {
         return -1;
     }
