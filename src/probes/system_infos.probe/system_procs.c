@@ -448,6 +448,9 @@ static int get_proc_mss(u32 pid, proc_info_t *proc_info)
         }
         do_set_proc_mss(proc_info, value, smap_index);
         smap_index++;
+        if (smap_index >= PROC_MSS_MAX) {
+            break;
+        }
     }
 out:
     (void)fclose(f);
