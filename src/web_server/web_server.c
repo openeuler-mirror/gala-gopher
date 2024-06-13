@@ -44,12 +44,30 @@ static int is_request_uri_invalid(struct evhttp_request *req)
     return 0;
 }
 
+static int evbuffer_add_file_content(struct evbuffer *buf, int fd, ev_off_t offset, ev_off_t length)
+{
+    struct evbuffer_file_segment *seg;
+    unsigned flags = EVBUF_FS_CLOSE_ON_FREE;
+    int r;
+
+    seg = evbuffer_file_segment_new(fd, offset, length, flags);
+    if (!seg) {
+        return 1;
+    }
+
+    r = evbuffer_add_file_segment(buf, seg, 0, length);
+    if (r == 0) {
+        evbuffer_file_segment_free(seg);
+    }
+    return r;
+}
+
 static void web_server_request_handler(struct evhttp_request *req, void *arg)
 {
     char log_file_name[256];
     struct evbuffer *evbuffer = NULL;
     struct stat buf;
-    int fd;
+    int fd, ret;
 
     // Disallow any input data and any method except GET
     if (evhttp_request_get_command(req) != EVHTTP_REQ_GET) {
@@ -83,8 +101,12 @@ static void web_server_request_handler(struct evhttp_request *req, void *arg)
         return http_server_reply_code(req, HTTP_INTERNAL);
     }
 
-    // evbuffer_add_file() is responsible for closing the fd
-    if (evbuffer_add_file(evbuffer, fd, 0, buf.st_size)) {
+    ret = evbuffer_add_file_content(evbuffer, fd, 0, buf.st_size);
+    if (ret == 1) {
+        (void)close(fd);
+    }
+
+    if(ret != 0) {
         evbuffer_free(evbuffer);
         ERROR("[WEBSERVER] Error occurs when accessing metrics\n");
         return http_server_reply_code(req, HTTP_INTERNAL);
