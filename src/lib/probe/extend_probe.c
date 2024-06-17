@@ -43,7 +43,7 @@ repeat:
     return f;
 }
 
-#define EXTEND_PROBE_PROCID_CMD  "ps -ef | grep -w %s | grep -v grep | awk '{print $2}'"
+#define EXTEND_PROBE_PROCID_CMD  "pgrep -g %d -af \"%s$\" | awk '{print $1}'"
 static int lkup_and_set_probe_pid(struct probe_s *probe)
 {
     int pid;
@@ -56,7 +56,7 @@ static int lkup_and_set_probe_pid(struct probe_s *probe)
     }
 
     cmd[0] = 0;
-    (void)snprintf(cmd, COMMAND_LEN, EXTEND_PROBE_PROCID_CMD, probe->bin);
+    (void)snprintf(cmd, COMMAND_LEN, EXTEND_PROBE_PROCID_CMD, getpid(), probe->bin);
     if (exec_cmd((const char *)cmd, pid_str, INT_LEN) < 0) {
         return -1;
     }
