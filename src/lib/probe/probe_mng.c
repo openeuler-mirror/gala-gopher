@@ -158,6 +158,16 @@ static int check_probe_range(struct probe_s *probe)
     return 0;
 }
 
+static int check_probe_snooper_conf_num(struct probe_s *probe)
+{
+    if (probe->snooper_conf_num == 0 && (!strcmp(probe->name, "tcp") ||
+        !strcmp(probe->name, "socket") || !strcmp(probe->name, "container"))) {
+        PARSE_ERR("the snooper for %s cannot be empty", probe->name);
+        return -1;
+    }
+    return 0;
+}
+
 static struct probe_mng_s *g_probe_mng;
 
 char g_parse_json_err[PARSE_JSON_ERR_STR_LEN];
@@ -693,7 +703,7 @@ static int probe_parser_state(struct probe_s *probe, const void *item)
     }
 
     if (!strcasecmp(PROBE_STATE_RUNNING, (const char *)Json_GetValueString(item))) {
-        if (check_probe_range(probe)) {
+        if (check_probe_range(probe) || check_probe_snooper_conf_num(probe)) {
             return -1;
         }
         return start_probe(probe);
