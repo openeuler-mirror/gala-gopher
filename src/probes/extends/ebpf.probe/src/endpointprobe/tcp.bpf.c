@@ -825,7 +825,7 @@ KPROBE(inet_csk_reqsk_queue_drop_and_put, pt_regs)
 
     if (num_timeout >= max_retries) {
         struct tcp_socket_event_s evt = {0};
-        get_accept_sockaddr(&evt, (const struct sock *)sk);
+        get_request_sockaddr(&evt, req);
         evt.evt = EP_STATS_REQ_DROP;
         evt.tgid = info->tgid;
         evt.is_multi = info->is_multi;
