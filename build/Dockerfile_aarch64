@@ -1,0 +1,33 @@
+#
+# Dockerfile for building A-Ops gala-gopher docker image
+# Usage:
+# docker build -f Dockerfile_aarch64 -t gala-gopher:2.0.0 .
+#
+
+# base image
+FROM hub.oepkgs.net/openeuler/openeuler_aarch64:22.03-lts-sp1
+
+MAINTAINER GALA
+
+# container work directory
+WORKDIR /gala-gopher
+
+# copy current directory files to container work directory
+ADD . /gala-gopher
+
+# agent configuration is needed for intranet users
+# ENV http_proxy=http://user:pass@proxy.com:8080
+# ENV https_proxy=http://user:pass@proxy.com:8080
+
+COPY ./entrypoint.sh /
+RUN chmod +x /entrypoint.sh
+
+# install gala-gopher
+RUN yum install -y gala-gopher-2.0.1-1.aarch64.rpm \
+    && yum clean all \
+    && rm -rf /var/cache/yum/*
+
+# start gala-gopher
+ENTRYPOINT [ "/entrypoint.sh" ]
+
+CMD [ "/usr/bin/gala-gopher" ]
