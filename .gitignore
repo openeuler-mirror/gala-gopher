@@ -56,9 +56,10 @@ dkms.conf
 
 # gala-gopher bin
 gala-gopher
+gopher-ctl
 
 # build tmp dir
-*build/
+src/daemon/build/
 
 # gala-gopher test bin
 probes_test
@@ -66,3 +67,6 @@ submodule_test
 
 # idea files
 *.idea
+
+# BPF skeletons
+*.skel.*
