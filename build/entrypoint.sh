@@ -65,7 +65,7 @@ else
 fi
 
 if [[ "$@" =~ "/usr/bin/gala-gopher" ]] && [[ -f "$INIT_PROBES_SCRIPT" ]] ; then
-    /bin/bash $INIT_PROBES_SCRIPT &
+    /bin/bash $INIT_PROBES_SCRIPT --init &
 fi
 
 exec "$@"
