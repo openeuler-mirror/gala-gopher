@@ -397,28 +397,28 @@ static int ConfigMgrLoadLogsConfig(void *config, config_setting_t *settings)
     logsConfig->metricTotalSize = intVal;
 
     ret = config_setting_lookup_string(settings, "metric_dir", &strVal);
-    if (ret == 0 || check_path_for_security(strVal)) {
+    if (ret == 0 || strlen(strVal) == 0 || check_path_for_security(strVal)) {
         ERROR("[CONFIG] load config for metric_dir failed.\n");
         return -1;
     }
     (void)snprintf(logsConfig->metricDir, sizeof(logsConfig->metricDir), "%s", strVal);
 
     ret = config_setting_lookup_string(settings, "event_dir", &strVal);
-    if (ret == 0 || check_path_for_security(strVal)) {
+    if (ret == 0 || strlen(strVal) == 0 || check_path_for_security(strVal)) {
         ERROR("[CONFIG] load config for event_dir failed.\n");
         return -1;
     }
     (void)snprintf(logsConfig->eventDir, sizeof(logsConfig->eventDir), "%s", strVal);
 
     ret = config_setting_lookup_string(settings, "meta_dir", &strVal);
-    if (ret == 0) {
+    if (ret == 0 || strlen(strVal) == 0) {
         ERROR("[CONFIG] load config for meta_dir failed.\n");
         return -1;
     }
     (void)snprintf(logsConfig->metaDir, sizeof(logsConfig->metaDir), "%s", strVal);
 
     ret = config_setting_lookup_string(settings, "debug_dir", &strVal);
-    if (ret == 0) {
+    if (ret == 0 || strlen(strVal) == 0) {
         ERROR("[CONFIG] load config for debug_dir failed.\n");
         return -1;
     }
