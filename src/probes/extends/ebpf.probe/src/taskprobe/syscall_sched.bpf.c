@@ -25,7 +25,7 @@ char g_linsence[] SEC("license") = "GPL";
 
 TP_SYSCALL(sched_yield, sched_yield, TASK_PROBE_SCHED_SYSCALL)
 TP_SYSCALL(futex, futex, TASK_PROBE_SCHED_SYSCALL)
-#if defined(__TARGET_ARCH_x86)
+#if defined(__TARGET_ARCH_x86) || defined(__TARGET_ARCH_riscv)
 TP_SYSCALL(epoll_wait, epoll_wait, TASK_PROBE_SCHED_SYSCALL)
 #elif defined(__TARGET_ARCH_arm64)
 KPROBE_SYSCALL(__arm64_sys_, epoll_wait, epoll_wait, TASK_PROBE_SCHED_SYSCALL)

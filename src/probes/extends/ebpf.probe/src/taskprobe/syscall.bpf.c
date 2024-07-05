@@ -61,6 +61,8 @@ static __always_inline long get_syscall_id(void *ctx)
     id = _(regs->orig_ax);
 #elif defined(__TARGET_ARCH_arm64)
     id = _(regs->syscallno);
+#elif defined(__TARGET_ARCH_riscv)
+    id = _(regs->a7);
 #else
     id = 0;
 #endif
