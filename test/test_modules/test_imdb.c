@@ -242,8 +242,8 @@ static void TestIMDB_DataBaseMgrData2String(void)
     CU_ASSERT(ret == 0);
 
     char recordStr[] = "|table1|value1|value2|\n";
-    ret = IMDB_DataBaseMgrCreateRec(mgr, table, recordStr);
-    CU_ASSERT(ret == 0);
+    void *retptr = IMDB_DataBaseMgrCreateRec(mgr, table, recordStr);
+    CU_ASSERT(retptr != NULL);
 
     char buffer[2048] = {0};
     int buf_len;
