@@ -1032,7 +1032,7 @@ int tcp_load_probe(struct tcp_mng_s *tcp_mng, struct ipc_body_s *ipc_body, struc
 {
     char is_load = 0;
     struct bpf_prog_s *prog;
-    char is_load_txrx, is_load_abn, is_load_win, is_load_rate, is_load_rtt, is_load_sockbuf, is_load_delay;
+    char is_load_txrx, is_load_abn, is_load_win, is_load_rate, is_load_rtt, is_load_sockbuf, is_load_delay, is_load_srtt;
 
     is_load_txrx = ipc_body->probe_range_flags & PROBE_RANGE_TCP_STATS;
     is_load_abn = ipc_body->probe_range_flags & PROBE_RANGE_TCP_ABNORMAL;
@@ -1041,8 +1041,9 @@ int tcp_load_probe(struct tcp_mng_s *tcp_mng, struct ipc_body_s *ipc_body, struc
     is_load_rtt = ipc_body->probe_range_flags & PROBE_RANGE_TCP_RTT;
     is_load_sockbuf = ipc_body->probe_range_flags & PROBE_RANGE_TCP_SOCKBUF;
     is_load_delay = ipc_body->probe_range_flags & PROBE_RANGE_TCP_DELAY;
+    is_load_srtt = ipc_body->probe_range_flags & PROBE_RANGE_TCP_SRTT;
 
-    is_load = is_load_txrx | is_load_abn | is_load_rate | is_load_win | is_load_rtt | is_load_sockbuf | is_load_delay;
+    is_load = is_load_txrx | is_load_abn | is_load_rate | is_load_win | is_load_rtt | is_load_sockbuf | is_load_delay | is_load_srtt;
     if (!is_load) {
         return 0;
     }
