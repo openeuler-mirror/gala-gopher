@@ -388,8 +388,10 @@ static int __get_estabs(struct tcp_estabs* tes)
         }
 
         ret = __add_estab(tes, te);
-        if (ret < 0)
+        if (ret < 0) {
             __free_estab(&te);
+            break;
+        }
     }
     (void)pclose(f);
     return 0;
@@ -554,14 +556,15 @@ static int __parse_tlp_line(struct tcp_listen_ports* tlps, const char *s)
     int ret;
     unsigned int port;
 
+    // skip parsing unrecognizable out of ss listen port, not return err
     ret = __get_listen_port(s, &port);
     if (ret < 0) {
-        return -1;
+        return 0;
     }
 
     char *user_begin = strstr(s, "((");
     if (user_begin == NULL) {
-        return -1;
+        return 0;
     }
 
     struct tcp_listen_port* tlp;
@@ -573,6 +576,7 @@ static int __parse_tlp_line(struct tcp_listen_ports* tlps, const char *s)
             ret = __add_tlp(tlps, tlp);
             if (ret < 0) {
                 (void)free(tlp);
+                break;
             }
         }
         sub_line = __strtok_r(NULL, ")", &save);
@@ -597,8 +601,7 @@ static int __get_tlps(struct tcp_listen_ports* tlps)
             break;
 
         if (__parse_tlp_line(tlps, line) < 0) {
-            (void)pclose(f);
-            return -1;
+            break;
         }
     }
     (void)pclose(f);
