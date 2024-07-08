@@ -79,6 +79,11 @@ int cmdServerCreate(const char *path, int *fd)
         goto err;
     }
 
+    if (chmod(path, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP) < 0) {
+        ERROR("Failed to chmod unix socket on %s\n", path);
+        goto err;
+    }
+
     ret = listen(server_fd, GALA_GOPHER_LISTEN_LEN);
     if (ret < 0) {
         ERROR("Failed to listen the unix socket, err=%s\n", strerror(errno));
