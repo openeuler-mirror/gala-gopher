@@ -523,6 +523,11 @@ static int try_start_probe(struct probe_s *probe)
         return -1;
     }
 
+    // In case that probe exited abnormally, we can clean up thread resources here
+    if (probe->tid != 0) {
+        pthread_join(probe->tid, NULL);
+    }
+
     ret = pthread_create(&probe->tid, NULL, probe->cb, probe);
     if (ret != 0) {
         ERROR("[PROBEMNG] Failed to create thread for probe(name: %s errno: %d).\n",
