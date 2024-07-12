@@ -30,7 +30,7 @@ NATIVE_PROBES_DIR_LIST=(system_infos.probe virtualized_infos.probe)
 
 EXTEND_PROBES_OPT_LIST=(-DENABLE_FLAMEGRAPH -DENABLE_L7 -DENABLE_TCP -DENABLE_SOCKET -DENABLE_IO -DENABLE_PROC -DENABLE_JVM
         -DENABLE_POSTGRE_SLI -DENABLE_OPENGAUSS_SLI -DENABLE_NGINX -DENABLE_KAFKA -DENABLE_TPROFILING -DENABLE_HW
-        -DENABLE_KSLI -DENABLE_CONTAINER -DENABLE_SERMANT)
+        -DENABLE_KSLI -DENABLE_CONTAINER -DENABLE_SERMANT -DENABLE_SLI)
 EXTEND_PROBES_DIR_LIST=(stackprobe l7probe tcpprobe endpoint ioprobe taskprobe jvm.probe
         pgsliprobe pg_stat.probe nginxprobe kafkaprobe tprofilingprobe  hwprobe
         ksliprobe cadvisor.probe sermant.probe)
