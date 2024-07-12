@@ -78,7 +78,9 @@
 #ifndef ENABLE_SERMANT
 #define ENABLE_SERMANT 0
 #endif
-
+#ifndef ENABLE_SLI
+#define ENABLE_SLI 0
+#endif
 #define SNOOPER_MAX    100
 
 /* FlameGraph subprobe define */
@@ -179,6 +181,7 @@ enum probe_type_e {
     PROBE_KSLI,
     PROBE_CONTAINER,
     PROBE_SERMANT,
+    PROBE_SLI,
 
     // If you want to add a probe, add the probe type.
 
