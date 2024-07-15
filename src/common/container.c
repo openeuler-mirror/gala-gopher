@@ -970,14 +970,14 @@ int get_cgp_dir_by_pid(unsigned int pid, const char *kind, char dir[], unsigned 
 static int __get_container_cgpdir(const char *abbr_container_id, const char *kind, char dir[], unsigned int dir_len)
 {
     unsigned int pid;
-    char kind_dir[PATH_LEN];
+    char kind_dir[CG_PATH_LEN];
 
     if (__get_container_pid(abbr_container_id, &pid) < 0) {
         return -1;
     }
 
     kind_dir[0] = 0;
-    if (get_cgp_dir_by_pid(pid, kind, kind_dir, PATH_LEN) < 0) {
+    if (get_cgp_dir_by_pid(pid, kind, kind_dir, CG_PATH_LEN) < 0) {
         return -1;
     }
 
@@ -989,18 +989,20 @@ static int __get_container_cgpdir(const char *abbr_container_id, const char *kin
 #define __STAT_INODE "/usr/bin/stat --format=%%i %s"
 static int __get_fullpath_inode(const char *full_path, unsigned int *inode)
 {
-    char command[COMMAND_LEN];
-    char inode_s[LINE_BUF_LEN];
+    char command[CG_PATH_LEN];
+    char inode_s[CG_PATH_LEN];
 
     if (access(full_path, 0) != 0) {
+        fprintf(stderr, "access path failed %s\n", full_path);
         return -1;
     }
 
     command[0] = 0;
     inode_s[0] = 0;
-    (void)snprintf(command, COMMAND_LEN, __STAT_INODE, full_path);
+    (void)snprintf(command, CG_PATH_LEN, __STAT_INODE, full_path);
 
-    if (exec_cmd_chroot((const char *)command, inode_s, LINE_BUF_LEN) < 0) {
+    if (exec_cmd_chroot((const char *)command, inode_s, CG_PATH_LEN) < 0) {
+        fprintf(stderr, "get inode failed %s\n", full_path);
         return -1;
     }
 
@@ -1046,14 +1048,14 @@ int get_container_netcg_dir(const char *abbr_container_id, char dir[], unsigned 
 
 int get_container_cpucg_inode(const char *abbr_container_id, unsigned int *inode)
 {
-    char cpucg_dir[PATH_LEN];
+    char cpucg_dir[CG_PATH_LEN];
 
     if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
         return -1;
     }
 
     cpucg_dir[0] = 0;
-    if (get_container_cpucg_dir(abbr_container_id, cpucg_dir, PATH_LEN) < 0) {
+    if (get_container_cpucg_dir(abbr_container_id, cpucg_dir, CG_PATH_LEN) < 0) {
         return -1;
     }
 
@@ -1062,14 +1064,14 @@ int get_container_cpucg_inode(const char *abbr_container_id, unsigned int *inode
 
 int get_container_memcg_inode(const char *abbr_container_id, unsigned int *inode)
 {
-    char memcg_dir[PATH_LEN];
+    char memcg_dir[CG_PATH_LEN];
 
     if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
         return -1;
     }
 
     memcg_dir[0] = 0;
-    if (get_container_memcg_dir(abbr_container_id, memcg_dir, PATH_LEN) < 0) {
+    if (get_container_memcg_dir(abbr_container_id, memcg_dir, CG_PATH_LEN) < 0) {
         return -1;
     }
 
@@ -1078,14 +1080,14 @@ int get_container_memcg_inode(const char *abbr_container_id, unsigned int *inode
 
 int get_container_pidcg_inode(const char *abbr_container_id, unsigned int *inode)
 {
-    char pidcg_dir[PATH_LEN];
+    char pidcg_dir[CG_PATH_LEN];
 
     if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
         return -1;
     }
 
     pidcg_dir[0] = 0;
-    if (get_container_pidcg_dir(abbr_container_id, pidcg_dir, PATH_LEN) < 0) {
+    if (get_container_pidcg_dir(abbr_container_id, pidcg_dir, CG_PATH_LEN) < 0) {
         return -1;
     }
 
