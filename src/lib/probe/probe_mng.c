@@ -1129,35 +1129,13 @@ err:
     return NULL;
 }
 
-static char is_valid_pid(int pid)
-{
-    const char *fmt = "/proc/%d/comm";
-    char proc_comm[PATH_LEN];
-
-    proc_comm[0] = 0;
-    (void)snprintf(proc_comm, PATH_LEN, fmt, pid);
-    if (access(proc_comm, 0) != 0) {
-        return 0;
-    }
-    return 1;
-}
-
 static void keeplive_probes(struct probe_mng_s *probe_mng)
 {
-    int pid;
     struct probe_s *probe;
 
     for (int i = 0; i < PROBE_TYPE_MAX; i++) {
         probe = probe_mng->probes[i];
         if (probe == NULL) {
-            continue;
-        }
-
-        pid = get_probe_pid(probe);
-        if (pid < 0) {
-            continue;
-        }
-        if (is_valid_pid(pid)) {
             continue;
         }
 
