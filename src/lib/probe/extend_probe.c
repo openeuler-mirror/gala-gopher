@@ -22,8 +22,8 @@
 #include "probe_mng.h"
 
 #define PROBE_START_DELAY           5
-#define PROBE_LKUP_PID_RETRY_MAX    2
-#define PROBE_LKUP_PID_DELAY        2
+#define PROBE_LKUP_PID_RETRY_MAX    4
+#define PROBE_LKUP_PID_DELAY        1
 
 static FILE* __DoRunExtProbe(const struct probe_s *probe)
 {

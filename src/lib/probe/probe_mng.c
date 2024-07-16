@@ -526,6 +526,7 @@ static int try_start_probe(struct probe_s *probe)
     // In case that probe exited abnormally, we can clean up thread resources here
     if (probe->tid != 0) {
         pthread_join(probe->tid, NULL);
+        probe->tid = 0;
     }
 
     ret = pthread_create(&probe->tid, NULL, probe->cb, probe);
@@ -575,6 +576,7 @@ static int stop_probe(struct probe_s *probe)
         kill(pid, SIGINT);
     }
     pthread_join(probe->tid, NULL);
+    probe->tid = 0;
     set_probe_pid(probe, -1);
     return 0;
 }
