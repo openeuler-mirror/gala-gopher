@@ -128,8 +128,16 @@ SEC("tracepoint/sched/sched_process_exit")
 int bpf_trace_sched_process_exit_func(struct trace_event_raw_sched_process_template *ctx)
 {
     struct snooper_proc_evt_s event = {0};
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    pid_t tgid = pid_tgid >> 32;   // process id
+    pid_t pid = (u32)pid_tgid;    // thread id
 
-    event.pid = bpf_get_current_pid_tgid() >> 32;
+    /* ignore thread exit */
+    if (pid != tgid) {
+        return 0;
+    }
+
+    event.pid = tgid;
     event.proc_event = PROC_EXIT;
 
     bpfbuf_output(ctx, &snooper_proc_channel, &event, sizeof(event));
