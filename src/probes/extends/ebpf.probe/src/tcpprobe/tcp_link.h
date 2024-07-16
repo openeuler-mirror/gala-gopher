@@ -56,10 +56,12 @@ struct {
     __uint(max_entries, 1);
 } args_map SEC(".maps");
 
+#ifndef TCP_FD_BPF
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 64);
 } tcp_output SEC(".maps");
+#endif
 
 #define __TCP_FD_MAX (50)
 // Used to identifies the TCP pid and fd.

@@ -16,6 +16,7 @@
 #undef BPF_PROG_USER
 #endif
 #define BPF_PROG_KERN
+#define TCP_FD_BPF
 #include <bpf/bpf_endian.h>
 #include "bpf.h"
 #include "tcp_link.h"
