@@ -140,24 +140,25 @@ KRETPROBE(__skb_recv_udp, pt_regs)
     u16 protocol = BPF_CORE_READ(skb, protocol);
 
     if (protocol == bpf_htons(ETH_P_IP)) {
-        u32 ipaddr = 0;
         struct iphdr *iph = NULL;
         iph = ip_hdr((const struct sk_buff *)skb);
         if (iph == NULL) {
             goto end;
         }
-        bpf_core_read(&ipaddr, sizeof(ipaddr), &(iph->daddr));
-        evt.local_ipaddr.ip = bpf_ntohl(ipaddr);
-        bpf_core_read(&ipaddr, sizeof(ipaddr), &(iph->saddr));
-        evt.remote_ipaddr.ip = bpf_ntohl(ipaddr);
+        evt.local_ipaddr.ip = BPF_CORE_READ(iph, daddr);
+        evt.local_ipaddr.family = AF_INET;
+        evt.remote_ipaddr.ip = BPF_CORE_READ(iph, saddr);
+        evt.remote_ipaddr.family = AF_INET;
     } else {
         struct ipv6hdr *ip6_hdr = NULL;
         ip6_hdr = ipv6_hdr((const struct sk_buff *)skb);
         if (ip6_hdr == NULL) {
             goto end;
         }
-        BPF_CORE_READ_INTO(&(evt.remote_ipaddr.ip6), ip6_hdr, saddr);
         BPF_CORE_READ_INTO(&(evt.local_ipaddr.ip6), ip6_hdr, daddr);
+        BPF_CORE_READ_INTO(&(evt.remote_ipaddr.ip6), ip6_hdr, saddr);
+        evt.local_ipaddr.family = AF_INET6;
+        evt.remote_ipaddr.family = AF_INET6;
     }
 
     unsigned int len = _(skb->len);
@@ -223,24 +224,25 @@ KRETPROBE(__udp_enqueue_schedule_skb, pt_regs)
     u16 protocol = BPF_CORE_READ(skb, protocol);
 
     if (protocol == bpf_htons(ETH_P_IP)) {
-        u32 ipaddr = 0;
         struct iphdr *iph = NULL;
         iph = ip_hdr((const struct sk_buff *)skb);
         if (iph == NULL) {
             goto end;
         }
-        bpf_core_read(&ipaddr, sizeof(ipaddr), &(iph->daddr));
-        evt.local_ipaddr.ip = bpf_ntohl(ipaddr);
-        bpf_core_read(&ipaddr, sizeof(ipaddr), &(iph->saddr));
-        evt.remote_ipaddr.ip = bpf_ntohl(ipaddr);
+        evt.local_ipaddr.ip = BPF_CORE_READ(iph, daddr);
+        evt.local_ipaddr.family = AF_INET;
+        evt.remote_ipaddr.ip = BPF_CORE_READ(iph, saddr);
+        evt.remote_ipaddr.family = AF_INET;
     } else {
         struct ipv6hdr *ip6_hdr = NULL;
         ip6_hdr = ipv6_hdr((const struct sk_buff *)skb);
         if (ip6_hdr == NULL) {
             goto end;
         }
-        BPF_CORE_READ_INTO(&(evt.remote_ipaddr.ip6), ip6_hdr, saddr);
         BPF_CORE_READ_INTO(&(evt.local_ipaddr.ip6), ip6_hdr, daddr);
+        BPF_CORE_READ_INTO(&(evt.remote_ipaddr.ip6), ip6_hdr, saddr);
+        evt.local_ipaddr.family = AF_INET6;
+        evt.remote_ipaddr.family = AF_INET6;
     }
 
     unsigned int len = _(skb->len);
