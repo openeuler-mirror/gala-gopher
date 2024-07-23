@@ -619,7 +619,7 @@ static struct ipc_msg_s* __create_ipc_msg(struct ipc_body_s* ipc_body, long msg_
     return ipc_msg;
 }
 
-#define __GOPHER_IPC_MSG_LEN  (4 * 1024)
+#define __GOPHER_IPC_MSG_LEN  (4 * 1024 * 1024)
 static char g_rcv_ipc_msg_buffer[__GOPHER_IPC_MSG_LEN + sizeof(struct ipc_msg_s)];
 static struct ipc_msg_s* __get_raw_ipc_msg(long msg_type)
 {
