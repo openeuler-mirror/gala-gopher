@@ -1,40 +1,40 @@
 %define __os_install_post %{nil}
 %define gopher_state_dir %{_rundir}/gala_gopher
 
-%define without_baseinfo      0
-%define without_virt          0
-%define without_flamegraph    0
-%define without_l7            0
-%define without_tcp           0
-%define without_socket        0
-%define without_io            0
-%define without_proc          0
-%define without_jvm           0
-%define without_postgre_sli   0
-%define without_opengauss_sli 0
-%define without_nginx         0
-%define without_tprofiling    0
-%define without_kafka         0
-%define without_hw            0
-%define without_ksli          0
-%define without_container     0
-%define without_sermant       0
-%define without_sli       0
+%define without_baseinfo      1
+%define without_virt          1
+%define without_flamegraph    1
+%define without_l7            1
+%define without_tcp           1
+%define without_socket        1
+%define without_io            1
+%define without_proc          1
+%define without_jvm           1
+%define without_postgre_sli   1
+%define without_opengauss_sli 1
+%define without_nginx         1
+%define without_tprofiling    1
+%define without_kafka         1
+%define without_hw            1
+%define without_ksli          1
+%define without_container     1
+%define without_sermant       1
+%define without_sli           0
 
 %define disable_report_event   0
 %define disable_kafka_channel  0
-%define disable_flamegraph_svg 0
+%define disable_flamegraph_svg 1
 
 
 Summary:       Intelligent ops toolkit for openEuler
 Name:          gala-gopher
-Version:       2.0.1
+Version:       2.0.2
 Release:       1
 License:       Mulan PSL v2
 URL:           https://gitee.com/openeuler/gala-gopher
 Source:        %{name}-%{version}.tar.gz
 BuildRoot:     %{_builddir}/%{name}-%{version}
-BuildRequires: systemd cmake gcc-c++ elfutils-devel clang llvm bpftool >= 6.8
+BuildRequires: systemd cmake gcc-c++ elfutils-devel clang llvm bpftool
 BuildRequires: libconfig-devel libevent-devel openssl-devel libbpf-devel >= 2:0.8 uthash-devel
 BuildRequires: jsoncpp-devel git libstdc++-devel
 # for DT

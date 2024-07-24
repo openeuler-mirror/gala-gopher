@@ -853,9 +853,18 @@ static char __snooper_pod_is_modify(struct snooper_conf_s* conf, struct snooper_
     }
     return 0;
 }
+
 static char __snooper_container_is_modify(struct snooper_conf_s* conf, struct snooper_conf_s *backup_conf)
 {
     if (strcmp(conf->conf.container_id, backup_conf->conf.container_id)) {
+        return 1;
+    }
+    return 0;
+}
+
+static char __snooper_container_name_is_modify(struct snooper_conf_s* conf, struct snooper_conf_s *backup_conf)
+{
+    if (strcmp(conf->conf.container_name, backup_conf->conf.container_name)) {
         return 1;
     }
     return 0;
@@ -871,7 +880,8 @@ struct snooper_modify_s snooper_modifys[] = {
     {SNOOPER_CONF_APP, __snooper_app_is_modify},
     {SNOOPER_CONF_PROC_ID, __snooper_proc_is_modify},
     {SNOOPER_CONF_POD_ID, __snooper_pod_is_modify},
-    {SNOOPER_CONF_CONTAINER_ID, __snooper_container_is_modify}
+    {SNOOPER_CONF_CONTAINER_ID, __snooper_container_is_modify},
+    {SNOOPER_CONF_CONTAINER_NAME, __snooper_container_name_is_modify}
 };
 
 

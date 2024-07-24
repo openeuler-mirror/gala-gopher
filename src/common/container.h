@@ -85,5 +85,6 @@ int exit_container_netns(int netns_fd);
 int enter_proc_netns(u32 pid);
 int is_container_proc(u32 pid);
 int get_container_image(const char *abbr_container_id, char image[], unsigned int image_len);
+int get_container_hostname(const char *abbr_container_id, char hostname[], unsigned int hostname_len);
 
 #endif
