@@ -37,6 +37,17 @@ enum sli_mem_t {
     SLI_MEM_MAX
 };
 
+enum sli_io_lat_t {
+    SLI_IO_LAT_0_1 = 0,
+    SLI_IO_LAT_1_5,
+    SLI_IO_LAT_5_10,
+    SLI_IO_LAT_10_100,
+    SLI_IO_LAT_100_500,
+    SLI_IO_LAT_500_1000,
+    SLI_IO_LAT_1000_INTF,
+    SLI_IO_LAT_NR
+};
+
 enum sli_mem_lat_t {
     SLI_MEM_LAT_0_1 = 0,
     SLI_MEM_LAT_1_5,
@@ -105,6 +116,28 @@ static __always_inline __maybe_unused enum sli_mem_lat_t get_sli_mem_lat_type(u6
     return idx;
 }
 
+static __always_inline __maybe_unused enum sli_io_lat_t get_sli_io_lat_type(u64 delay_ns)
+{
+    u64 delay_ms = delay_ns >> 6; // ms
+    enum sli_io_lat_t idx;
+
+    if (delay_ms < 1)
+        idx = SLI_IO_LAT_0_1;
+    else if (delay_ms < 5)
+        idx = SLI_IO_LAT_1_5;
+    else if (delay_ms < 10)
+        idx = SLI_IO_LAT_5_10;
+    else if (delay_ms < 100)
+        idx = SLI_IO_LAT_10_100;
+    else if (delay_ms < 500)
+        idx = SLI_IO_LAT_100_500;
+    else if (delay_ms < 1000)
+        idx = SLI_IO_LAT_500_1000;
+    else
+        idx = SLI_IO_LAT_1000_INTF;
+    
+    return idx;
+}
 
 struct sli_cpu_lat_s {
     u32 cnt[SLI_CPU_LAT_NR];
@@ -112,6 +145,10 @@ struct sli_cpu_lat_s {
 
 struct sli_mem_lat_s {
     u32 cnt[SLI_MEM_LAT_NR];
+};
+
+struct sli_io_lat_s {
+    u32 cnt[SLI_IO_LAT_NR];
 };
 
 struct sli_cpu_s {
@@ -122,6 +159,11 @@ struct sli_cpu_s {
 struct sli_mem_s {
     struct sli_mem_lat_s mem_lats[SLI_MEM_MAX];
     u64 lat_ns[SLI_MEM_MAX];
+};
+
+struct sli_io_s {
+    struct sli_io_lat_s io_lats;
+    u64 lat_ns;
 };
 
 struct sli_cpu_obj_s {
@@ -135,6 +177,13 @@ struct sli_mem_obj_s {
     u32 cpu_cgroup_inode;
     struct sli_mem_s sli;
 };
+
+struct sli_io_obj_s {
+    u64 last_report;
+    u32 cpu_cgroup_inode;
+    struct sli_io_s sli;
+};
+
 
 struct sli_args_s {
     u64 report_period;

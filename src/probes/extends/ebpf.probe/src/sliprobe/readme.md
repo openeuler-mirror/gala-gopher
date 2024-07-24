@@ -6,6 +6,7 @@
 
 - 采集周期内Memory分配事件的时延总计和统计直方图，关注的事件包括：内存回收，换页，内存规整等
 
+- 采集周期内BIO层IO操作的时延总计和统计直方图
 
 ## 代码逻辑
 #### 总体思路
@@ -39,7 +40,7 @@
 
 ​	在sched_switch观测点，通过第三个参数next获取将被调度进程的run_delay值：next->sched_info.run_delay，记录在task_sched_map中。计算同一进程两次被调度时run_delay的差值
 
-5. **cpu_longsys**
+6. **cpu_longsys**
 
 ​	在sched_switch观测点，通过第三个参数next获取将被调度进程的task结构体，从task结构体中获取上下文切换次数（nvcsw+nivcsw）和用户态执行时间utime。如果同一进程两次被调度时的上下文切换次数和用户态执行时间都不变，则说明在该进程在执行一个较长的系统调用，累积该进程处在内核态的时间
 
@@ -51,10 +52,18 @@
 
 ​	计算mm_vmscan_memcg_reclaim_end观测点和mm_vmscan_memcg_reclaim_begin观测点时间戳的差值
 
-3. **mem_swapin**
+2. **mem_swapin**
 
 ​	计算do_swap_page函数返回时间戳和进入时间戳的差值
 
-4. **mem_compact**
+3. **mem_compact**
 
 ​	计算try_to_compact_pages函数返回时间戳和进入时间戳的差值
+
+##### IO SLI
+
+1. **bio_latency**
+
+​	计算进入bio_endio函数和触发block_bio_queue观测点的时间戳差值
+
+​	计算进入bio_endio函数和退出generic_make_request_checks函数的时间戳差值

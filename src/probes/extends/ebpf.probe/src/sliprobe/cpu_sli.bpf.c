@@ -34,6 +34,13 @@ struct task_sched_s {
 };
 
 struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(cpu_cgrp_inode_t));
+    __uint(value_size, sizeof(struct sli_cpu_obj_s));
+    __uint(max_entries, 1000);
+} sli_cpu_map SEC(".maps");
+
+struct {
     __uint(type, BPF_MAP_TYPE_LRU_HASH);
     __uint(key_size, sizeof(struct task_struct *));
     __uint(value_size, sizeof(struct task_sched_s));
@@ -44,6 +51,21 @@ struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 64);
 } sli_cpu_channel_map SEC(".maps");
+
+static __always_inline struct sli_cpu_obj_s* lkup_sli_cpu(cpu_cgrp_inode_t ino)
+{
+    return (struct sli_cpu_obj_s *)bpf_map_lookup_elem(&sli_cpu_map, &ino);
+}
+
+static __always_inline struct sli_cpu_obj_s* get_sli_cpu(struct task_struct *task)
+{
+    cpu_cgrp_inode_t ino;
+    if (get_current_cpuacct_ino(&ino, task)) {
+        return NULL;
+    }
+
+    return lkup_sli_cpu(ino);
+}
 
 static __always_inline void report_sli_cpu(void *ctx, struct sli_cpu_obj_s* sli_cpu)
 {
