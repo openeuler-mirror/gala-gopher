@@ -228,5 +228,49 @@ measurements:
                 name: "mem_swapin",
             }
         )
+    },
+    {
+        table_name: "sli_io_node",
+        entity_name: "sli_node",
+        fields:
+        (
+            {
+                description: "Key of sli node table",
+                type: "key",
+                name: "sli_node_key",
+            },
+            {
+                description: "I/O operation delay at the BIO layer (unit: ns)",
+                type: "histogram",
+                name: "bio_latency_histo",
+            },
+            {
+                description: "I/O operation delay at the BIO layer (unit: ns)",
+                type: "gauge",
+                name: "bio_latency",
+            }
+        )
+    },
+    {
+        table_name: "sli_io_container",
+        entity_name: "sli_container",
+        fields:
+        (
+            {
+                description: "container id",
+                type: "key",
+                name: "container_id",
+            },
+            {
+                description: "I/O operation delay at the BIO layer (unit: ns)",
+                type: "histogram",
+                name: "bio_latency_histo",
+            },
+            {
+                description: "I/O operation delay at the BIO layer (unit: ns)",
+                type: "gauge",
+                name: "bio_latency",
+            }
+        )
     }
 )
