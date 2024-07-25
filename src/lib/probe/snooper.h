@@ -26,6 +26,7 @@ enum snooper_conf_e {
     SNOOPER_CONF_PROC_ID,
     SNOOPER_CONF_POD_ID,
     SNOOPER_CONF_CONTAINER_ID,
+    SNOOPER_CONF_CONTAINER_NAME,
     SNOOPER_CONF_FIXED_LABEL,
     SNOOPER_CONF_POD_LABELS,
 
@@ -45,6 +46,7 @@ struct snooper_conf_s {
         u32 proc_id;
         char pod_id[POD_ID_LEN + 1];
         char container_id[CONTAINER_ABBR_ID_LEN + 1];
+        char container_name[CONTAINER_NAME_LEN];
     } conf;
 };
 

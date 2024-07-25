@@ -74,6 +74,13 @@ static void fill_container_info(struct container_cache *con_cache)
         con_cache->container_image[0] = 0;
     }
 
+    con_cache->container_hostname[0] = 0;
+    ret = get_container_hostname(con_cache->container_id, con_cache->container_hostname, sizeof(con_cache->container_hostname));
+    if (ret) {
+        DEBUG("[IMDB] Failed to get container hostname(container_id=%s)\n", con_cache->container_id);
+        con_cache->container_hostname[0] = 0;
+    }
+
     con_cache->pod_id[0] = 0;
     ret = get_container_pod_id(con_cache->container_id, con_cache->pod_id, sizeof(con_cache->pod_id));
     if (ret) {

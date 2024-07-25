@@ -106,3 +106,10 @@ def get_snooper_proc_list(ipc_body):
         if ipc_body.snooper_objs[i].type == SnooperObjEnum.SNOOPER_OBJ_PROC and ipc_body.snooper_objs[i].obj.proc.proc_id != 0:
             proc_list.append(ipc_body.snooper_objs[i].obj.proc.proc_id)
     return proc_list
+
+def get_snooper_container_list(ipc_body):
+    con_list = []
+    for i in range(ipc_body.snooper_obj_num):
+        if ipc_body.snooper_objs[i].type == SnooperObjEnum.SNOOPER_OBJ_CON and ipc_body.snooper_objs[i].obj.con_info.con_id != 0:
+            con_list.append(ipc_body.snooper_objs[i].obj.con_info.con_id)
+    return con_list

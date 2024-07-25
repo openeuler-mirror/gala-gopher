@@ -98,15 +98,16 @@ class ContainerUtils():
     def __init__(self, container_lib):
         self.container_lib = container_lib
 
-    def get_container_id_by_pid(self, pid):
-        container_id = create_string_buffer(CONTAINER_ID_LEN)
-        self.container_lib.get_container_id_by_pid_cpuset(str(pid).encode(), container_id, CONTAINER_ID_LEN)
-        return str(container_id.value, encoding='utf-8')
-
-    def get_container_cgroup_path_by_pid(self, pid):
-        cgroup_path = create_string_buffer(CGROUP_PATH_LEN)
-        self.container_lib.get_cgp_dir_by_pid(pid, str.encode(CPUSET), cgroup_path, CGROUP_PATH_LEN)
-        return str(cgroup_path.value, encoding='utf-8')
+    def get_container_cgroup_path(self, conid):
+        pid_ptr = pointer(c_uint(0))
+        result = self.container_lib.get_container_pid(conid, pid_ptr)
+        if result < 0:
+            return ''
+        else:
+            pid = pid_ptr.contents.value
+            cgroup_path = create_string_buffer(CGROUP_PATH_LEN)
+            self.container_lib.get_cgp_dir_by_pid(pid, str.encode(CPUSET), cgroup_path, CGROUP_PATH_LEN)
+            return str(cgroup_path.value, encoding='utf-8')
 
 class CadvisorProbe():
     def __init__(self, port_c):
@@ -342,13 +343,10 @@ if __name__ == "__main__":
 
             if ipc_body.probe_flags & ipc.IPC_FLAGS_SNOOPER_CHG or ipc_body.probe_flags == 0:
                 cgroup_path_map = {}
-                proc_list = ipc.get_snooper_proc_list(ipc_body)
-                for pid in proc_list:
-                    container_id = containerUtils.get_container_id_by_pid(pid)
-                    if container_id == '':
-                        continue
-                    cgroup_path = containerUtils.get_container_cgroup_path_by_pid(pid)
-                    cgroup_path_map[cgroup_path] = container_id
+                con_list = ipc.get_snooper_container_list(ipc_body)
+                for conid in con_list:
+                    cgroup_path = containerUtils.get_container_cgroup_path(conid)
+                    cgroup_path_map[cgroup_path] = conid.decode()
                 cadvisor_probe.set_cgroup_path_map(cgroup_path_map)
                 reset_g_metric()
             ipc.destroy_ipc_body(ipc_body)

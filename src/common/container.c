@@ -69,6 +69,7 @@
 #define DOCKER_LIST_COUNT_COMMAND "%s ps -q | xargs  %s inspect --format "\
         "'{{.Id}}, {{index .Config.Labels \"io.kubernetes.pod.uid\"}}' | /usr/bin/grep %s |  /usr/bin/awk -F ', ' '{print $1}' | wc -l"
 #define DOCKER_IMAGE_COMMAD "--format {{.Config.Image}}"
+#define DOCKER_HOSTNAME_COMMAND "cat $(%s inspect -f '{{.HostsPath}}' %s) | grep \"set-\" | awk '{print $2}'"
 
 #define DOCKER_COUNT_COMMAND "ps | /usr/bin/awk 'NR > 1 {print $1}' | /usr/bin/wc -l"
 #define DOCKER_PS_COMMAND "ps | /usr/bin/awk 'NR > 1 {print $1}'"
@@ -1471,6 +1472,34 @@ int get_container_image(const char *abbr_container_id, char image[], unsigned in
     // format: <IMAGE_NAME>
     snprintf(image, image_len, "%s", orig_image);
     return 0;
+}
+
+int get_container_hostname(const char *abbr_container_id, char hostname[], unsigned int hostname_len)
+{
+    if (!get_current_command()) {
+        return -1;
+    }
+
+    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+        return -1;
+    }
+
+    char command[CHROOT_COMMAND_LEN];
+    command[0] = 0;
+    if (__is_containerd()) {
+        ERROR("get containerd hostname failed.\n");
+        return -1;
+    } else {
+        (void)snprintf(command, sizeof(command), DOCKER_HOSTNAME_COMMAND,
+            get_current_command_chroot(), abbr_container_id);
+    }
+
+    int ret = exec_cmd((const char *)command, hostname, hostname_len);
+    if (ret) {
+        hostname[0] = 0;
+    }
+
+    return ret;
 }
 
 
