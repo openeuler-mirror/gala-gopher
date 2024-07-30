@@ -40,7 +40,6 @@ void *native_probe_thread_cb(void *arg)
 {
     g_probe = (struct probe_s *)arg;
 
-    set_probe_status_running(g_probe);
     char thread_name[MAX_THREAD_NAME_LEN];
     snprintf(thread_name, MAX_THREAD_NAME_LEN - 1, "[PROBE]%s", g_probe->name);
     prctl(PR_SET_NAME, thread_name);

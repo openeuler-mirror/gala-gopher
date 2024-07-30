@@ -111,10 +111,7 @@ struct probe_mng_s *create_probe_mng(void);
 void destroy_probe_mng(void);
 void destroy_probe_threads(void);
 u32 get_probe_status_flags(struct probe_s* probe);
-void set_probe_status_started(struct probe_s* probe);
-void set_probe_status_running(struct probe_s* probe);
 void set_probe_status_stopped(struct probe_s* probe);
-void set_probe_status_stopping(struct probe_s* probe);
 
 #define IS_STOPPED_PROBE(probe)      (get_probe_status_flags(probe) & PROBE_FLAGS_STOPPED)
 #define IS_STARTED_PROBE(probe)      (get_probe_status_flags(probe) & PROBE_FLAGS_STARTED)

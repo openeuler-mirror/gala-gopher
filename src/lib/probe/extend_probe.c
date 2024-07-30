@@ -171,7 +171,6 @@ static int RunExtendProbe(struct probe_s *probe)
     int ret = 0, retry = 0;
     FILE *f = NULL;
 
-    set_probe_status_running(probe);
     f = __DoRunExtProbe(probe);
 
 retry:
