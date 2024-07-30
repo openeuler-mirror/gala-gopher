@@ -64,6 +64,9 @@
 #define MAX_PARAM_LEN 128
 #define MAX_COMMAND_LEN 1024
 
+#define GOPHER_MIN_PORT 1024
+#define GOPHER_MAX_PORT 65535
+
 // kafka switch
 typedef enum {
     KAFKA_SWITCH_ON = 0,

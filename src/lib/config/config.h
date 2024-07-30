@@ -32,7 +32,7 @@ typedef enum {
 typedef struct {
     char logFileName[PATH_LEN];
     char logLevel[PATH_LEN];
-    int listenOn;
+    int restApiOn;
 } GlobalConfig;
 
 typedef struct {

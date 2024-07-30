@@ -915,7 +915,6 @@ void error_logs(const char *format, ...) {
             log_with_date(&g_debug_logger, buf);
         }
     }
-    fprintf(stderr, "%s", buf);
 }
 
 
