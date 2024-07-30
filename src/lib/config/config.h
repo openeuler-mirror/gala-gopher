@@ -61,7 +61,7 @@ typedef struct  {
 } IMDBConfig;
 
 typedef struct {
-    uint16_t port;
+    int port;
     char bindAddr[IP_STR_LEN];
     char sslAuth;              // enable https and client authentication
     char privateKey[PATH_LEN];
