@@ -129,10 +129,22 @@ static void init_tcp_buckets(struct tcp_tracker_s* tracker)
     HISTO_BUCKET_INIT(tracker->rcv_buf_buckets, __MAX_SOCKBUF_SIZE, tcp_sockbuf_histios);
 }
 
+struct toa_socket_s *create_toa_sock(const struct toa_sock_id_s *id)
+{
+    struct toa_socket_s *toa_sock = (struct toa_socket_s *) malloc(sizeof(struct toa_socket_s));
+    if (toa_sock == NULL) {
+        return NULL;
+    }
+    memset(toa_sock, 0, sizeof(struct toa_socket_s));
+    memcpy(&(toa_sock->id), id, sizeof(struct toa_sock_id_s));
+    return toa_sock;
+}
+
 static struct tcp_tracker_s* create_tcp_tracker(struct tcp_mng_s *tcp_mng, const struct tcp_tracker_id_s *id)
 {
     unsigned char src_ip_str[INET6_ADDRSTRLEN];
     unsigned char dst_ip_str[INET6_ADDRSTRLEN];
+    unsigned char toa_src_ip_str[INET6_ADDRSTRLEN];
 
 #define __TCP_TRACKER_MAX (4 * 1024)
     if (tcp_mng->tcp_tracker_count >= __TCP_TRACKER_MAX) {
@@ -152,6 +164,10 @@ static struct tcp_tracker_s* create_tcp_tracker(struct tcp_mng_s *tcp_mng, const
     ip_str(tracker->id.family, (unsigned char *)&(tracker->id.s_ip), dst_ip_str, INET6_ADDRSTRLEN);
     tracker->src_ip = strdup((const char *)src_ip_str);
     tracker->dst_ip = strdup((const char *)dst_ip_str);
+    if (tracker->id.toa_famlily == AF_INET || tracker->id.toa_famlily == AF_INET6) {
+        ip_str(tracker->id.toa_famlily, (unsigned char *)&(tracker->id.toa_c_ip), toa_src_ip_str, INET6_ADDRSTRLEN);
+        tracker->toa_src_ip = strdup((const char *)toa_src_ip_str);
+    }
 
     if (tracker->src_ip == NULL || tracker->dst_ip == NULL) {
         goto err;
@@ -167,6 +183,13 @@ err:
         destroy_tcp_tracker(tracker);
     }
     return NULL;
+}
+
+struct toa_socket_s *lkup_toa_sock(struct tcp_mng_s *tcp_mng, const struct toa_sock_id_s *id)
+{
+    struct toa_socket_s *sock = NULL;
+    H_FIND(tcp_mng->toa_socks, id, sizeof(struct toa_sock_id_s), sock);
+    return sock;
 }
 
 static struct tcp_tracker_s* lkup_tcp_tracker(struct tcp_mng_s *tcp_mng, const struct tcp_tracker_id_s *id)
@@ -230,7 +253,25 @@ static void __transform_cluster_ip(struct tcp_mng_s *tcp_mng, const struct tcp_l
     return;
 }
 
-static void __init_tracker_id(struct tcp_tracker_id_s *tracker_id, const struct tcp_link_s *tcp_link)
+void __init_toa_sock_id(struct toa_sock_id_s *toa_sock_id, const struct tcp_link_s *tcp_link)
+{
+    toa_sock_id->family = tcp_link->family;
+    toa_sock_id->role = tcp_link->role;
+    toa_sock_id->c_port = tcp_link->c_port;
+    toa_sock_id->s_port = tcp_link->s_port;
+
+    if (tcp_link->family == AF_INET) {
+        toa_sock_id->c_ip = tcp_link->c_ip;
+        toa_sock_id->s_ip = tcp_link->s_ip;
+    } else {
+        memcpy(toa_sock_id->c_ip6, tcp_link->c_ip6, IP6_LEN);
+        memcpy(toa_sock_id->s_ip6, tcp_link->s_ip6, IP6_LEN);
+    }
+    return;
+}
+
+static void __init_tracker_id(struct tcp_tracker_id_s *tracker_id, const struct tcp_link_s *tcp_link,
+                              const struct toa_socket_s *toa_sock)
 {
     tracker_id->tgid = tcp_link->tgid;
     tracker_id->family = tcp_link->family;
@@ -245,6 +286,18 @@ static void __init_tracker_id(struct tcp_tracker_id_s *tracker_id, const struct 
         memcpy(tracker_id->c_ip6, tcp_link->c_ip6, IP6_LEN);
         memcpy(tracker_id->s_ip6, tcp_link->s_ip6, IP6_LEN);
     }
+
+    if (toa_sock == NULL) {
+        return;
+    }
+
+    tracker_id->toa_famlily = toa_sock->opt_family;
+    if (tcp_link->opt_family == AF_INET) {
+        tracker_id->toa_c_ip = toa_sock->opt_c_ip;
+    } else {
+        memcpy(tracker_id->toa_c_ip6, toa_sock->opt_c_ip6, IP6_LEN);
+    }
+
     return;
 }
 
@@ -304,13 +357,13 @@ static void __init_flow_tracker_id(struct tcp_flow_tracker_id_s *tracker_id, con
 
 #endif
 
-struct tcp_tracker_s* get_tcp_tracker(struct tcp_mng_s *tcp_mng, const void *link)
+struct tcp_tracker_s *get_tcp_tracker(struct tcp_mng_s *tcp_mng, const void *link, const struct toa_socket_s *toa_sock)
 {
     struct backend_ip_s backend_ip = {0};
     struct tcp_tracker_id_s tracker_id = {0};
     const struct tcp_link_s *tcp_link = link;
 
-    __init_tracker_id(&tracker_id, tcp_link);
+    __init_tracker_id(&tracker_id, tcp_link, toa_sock);
 
     __transform_cluster_ip(tcp_mng, tcp_link, &backend_ip);
     if (backend_ip.family != 0 && backend_ip.port != 0) {
@@ -346,6 +399,9 @@ void destroy_tcp_tracker(struct tcp_tracker_s* tracker)
         free(tracker->dst_ip);
     }
 
+    if (tracker->toa_src_ip) {
+        free(tracker->toa_src_ip);
+    }
     free(tracker);
     return;
 }
@@ -358,6 +414,16 @@ void destroy_tcp_trackers(struct tcp_mng_s *tcp_mng)
         H_DEL(tcp_mng->trackers, tracker);
         destroy_tcp_tracker(tracker);
     }
+}
+
+void destroy_toa_sockets(struct tcp_mng_s *tcp_mng)
+{
+    struct toa_socket_s *sock, *tmp;
+    H_ITER(tcp_mng->toa_socks, sock, tmp) {
+        H_DEL(tcp_mng->toa_socks, sock);
+        free(sock);
+    }
+    tcp_mng->toa_socks = NULL;
 }
 
 struct tcp_flow_tracker_s* get_tcp_flow_tracker(struct tcp_mng_s *tcp_mng, const void *link)

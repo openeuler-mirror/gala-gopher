@@ -71,12 +71,13 @@ static void output_tcp_abn(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
     }
 
     (void)fprintf(stdout,
-        "|%s|%u|%s|%s|%s|%u|%u"
+        "|%s|%u|%s|%s|%s|%s|%u|%u"
         "|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|\n",
         TCP_TBL_ABN,
         tracker->id.tgid,
         (tracker->id.role == 0) ? "server" : "client",
         tracker->src_ip,
+        tracker->toa_src_ip ? : "",
         tracker->dst_ip,
         tracker->id.port,
         tracker->id.family,
@@ -110,12 +111,13 @@ static void output_tcp_syn_rtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *
     report_tcp_syn_rtt_evt(&(tcp_mng->ipc_body.probe_param), tracker);
 
     (void)fprintf(stdout,
-        "|%s|%u|%s|%s|%s|%u|%u"
+        "|%s|%u|%s|%s|%s|%s|%u|%u"
         "|%s|%llu|\n",
         TCP_TBL_SYNRTT,
         tracker->id.tgid,
         (tracker->id.role == 0) ? "server" : "client",
         tracker->src_ip,
+        tracker->toa_src_ip ? : "",
         tracker->dst_ip,
         tracker->id.port,
         tracker->id.family,
@@ -141,12 +143,13 @@ static void output_tcp_rtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
     }
 
     (void)fprintf(stdout,
-        "|%s|%u|%s|%s|%s|%u|%u"
+        "|%s|%u|%s|%s|%s|%s|%u|%u"
         "|%s|%s|\n",
         TCP_TBL_RTT,
         tracker->id.tgid,
         (tracker->id.role == 0) ? "server" : "client",
         tracker->src_ip,
+        tracker->toa_src_ip ? : "",
         tracker->dst_ip,
         tracker->id.port,
         tracker->id.family,
@@ -159,12 +162,13 @@ static void output_tcp_rtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
 static void output_tcp_txrx(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
 {
     (void)fprintf(stdout,
-        "|%s|%u|%s|%s|%s|%u|%u"
+        "|%s|%u|%s|%s|%s|%s|%u|%u"
         "|%llu|%llu|%llu|%llu|\n",
         TCP_TBL_TXRX,
         tracker->id.tgid,
         (tracker->id.role == 0) ? "server" : "client",
         tracker->src_ip,
+        tracker->toa_src_ip ? : "",
         tracker->dst_ip,
         tracker->id.port,
         tracker->id.family,
@@ -229,7 +233,7 @@ static void output_tcp_win(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
     report_tcp_win_evt(&(tcp_mng->ipc_body.probe_param), tracker);
 
     (void)fprintf(stdout,
-        "|%s|%u|%s|%s|%s|%u|%u"
+        "|%s|%u|%s|%s|%s|%s|%u|%u"
         "|%s|%s|%s|%s|%s|%s|%s"
 
         "|%llu|%llu"
@@ -239,6 +243,7 @@ static void output_tcp_win(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
         tracker->id.tgid,
         (tracker->id.role == 0) ? "server" : "client",
         tracker->src_ip,
+        tracker->toa_src_ip ? : "",
         tracker->dst_ip,
         tracker->id.port,
         tracker->id.family,
@@ -274,12 +279,13 @@ static void output_tcp_rate(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tra
     }
 
     (void)fprintf(stdout,
-        "|%s|%u|%s|%s|%s|%u|%u"
+        "|%s|%u|%s|%s|%s|%s|%u|%u"
         "|%s|%s|\n",
         TCP_TBL_RATE,
         tracker->id.tgid,
         (tracker->id.role == 0) ? "server" : "client",
         tracker->src_ip,
+        tracker->toa_src_ip ? : "",
         tracker->dst_ip,
         tracker->id.port,
         tracker->id.family,
@@ -304,12 +310,13 @@ static void output_tcp_sockbuf(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *
     }
 
     (void)fprintf(stdout,
-        "|%s|%u|%s|%s|%s|%u|%u"
+        "|%s|%u|%s|%s|%s|%s|%u|%u"
         "|%s|%s|\n",
         TCP_TBL_SOCKBUF,
         tracker->id.tgid,
         (tracker->id.role == 0) ? "server" : "client",
         tracker->src_ip,
+        tracker->toa_src_ip ? : "",
         tracker->dst_ip,
         tracker->id.port,
         tracker->id.family,
@@ -666,12 +673,55 @@ static char is_flow_track_tmout(struct tcp_mng_s *tcp_mng, struct tcp_flow_track
     return 0;
 }
 
+// 从toa_socks中获取toa map元素，仅根据五元组，不依据tgid。如果没有则创建并添加到tcp_mng->toa_socks中
+static void get_toa_sock(struct tcp_mng_s *tcp_mng, const struct tcp_metrics_s *metrics)
+{
+    struct toa_sock_id_s toa_sock_id = {0};
+    const struct tcp_link_s *tcp_link = &(metrics->link);
+
+    __init_toa_sock_id(&toa_sock_id, tcp_link);
+
+    struct toa_socket_s *toa_sock = lkup_toa_sock(tcp_mng, (const struct toa_sock_id_s *)&toa_sock_id);
+    if (toa_sock) {
+        toa_sock->opt_family = metrics->link.opt_family;
+        if (metrics->link.opt_family == AF_INET) {
+            toa_sock->opt_c_ip = metrics->link.opt_c_ip;
+        } else {
+            memcpy(toa_sock->opt_c_ip6, tcp_link->opt_c_ip6, IP6_LEN);
+        }
+        return;
+    }
+
+    struct toa_socket_s *new_toa_sock = create_toa_sock(&toa_sock_id);
+    if (new_toa_sock == NULL) {
+        return;
+    }
+    new_toa_sock->opt_family = metrics->link.opt_family;
+    if (metrics->link.opt_family == AF_INET) {
+        new_toa_sock->opt_c_ip = metrics->link.opt_c_ip;
+    } else {
+        memcpy(new_toa_sock->opt_c_ip6, tcp_link->opt_c_ip6, IP6_LEN);
+    }
+    H_ADD(tcp_mng->toa_socks, id, sizeof(struct toa_sock_id_s), new_toa_sock);
+    return;
+}
+
 static void process_tcp_tracker_metrics(struct tcp_mng_s *tcp_mng, struct tcp_metrics_s *metrics)
 {
     struct tcp_tracker_s* tracker = NULL;
     u32 metrics_flags = metrics->report_flags & TCP_PROBE_ALL;
 
-    tracker = get_tcp_tracker(tcp_mng, (const void *)(&(metrics->link)));
+    // 优先处理toa的metrics
+    struct toa_sock_id_s toa_sock_id = {0};
+    struct toa_socket_s *toa_sock = NULL;
+    if (metrics_flags & TCP_PROBE_TOA) {
+        get_toa_sock(tcp_mng, (const struct tcp_metrics_s *)metrics);
+        return;
+    }
+
+    __init_toa_sock_id(&toa_sock_id, &(metrics->link));
+    toa_sock = lkup_toa_sock(tcp_mng, &toa_sock_id);
+    tracker = get_tcp_tracker(tcp_mng, (const void *)(&(metrics->link)), toa_sock);
     if (tracker == NULL) {
         return;
     }
@@ -705,6 +755,14 @@ static void process_tcp_tracker_metrics(struct tcp_mng_s *tcp_mng, struct tcp_me
     if (metrics_flags & TCP_PROBE_RATE) {
         proc_tcp_rate(tcp_mng, tracker, (const struct tcp_rate *)(&(metrics->rate_stats)));
     }
+
+    if (metrics_flags & TCP_PROBE_TCP_CLOSE) {
+        if (toa_sock) {
+            H_DEL(tcp_mng->toa_socks, toa_sock);
+            free(toa_sock);
+        }
+    }
+
     return;
 }
 

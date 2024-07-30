@@ -18,9 +18,17 @@
 #define BPF_PROG_KERN
 #include <bpf/bpf_endian.h>
 #include "bpf.h"
+#include "toa.h"
 #include "tcp_link.h"
 
 char g_linsence[] SEC("license") = "GPL";
+
+static __always_inline void report_toa(void *ctx, struct tcp_metrics_s *metrics)
+{
+    metrics->report_flags |= TCP_PROBE_TOA;
+    (void) bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
+    metrics->report_flags &= ~TCP_PROBE_TOA;
+}
 
 static __always_inline void report_srtt(void *ctx, struct tcp_metrics_s *metrics)
 {
@@ -114,7 +122,7 @@ KPROBE(tcp_set_state, pt_regs)
         metrics = get_tcp_metrics(sk);
         if (metrics) {
             // for short connections, we expect to only report abnormal/rtt/txrx/delay metrics
-            metrics->report_flags |= (TCP_PROBE_ABN | TCP_PROBE_RTT | TCP_PROBE_TXRX | TCP_PROBE_DELAY);
+            metrics->report_flags |= (TCP_PROBE_TCP_CLOSE | TCP_PROBE_ABN | TCP_PROBE_RTT | TCP_PROBE_TXRX | TCP_PROBE_DELAY);
             get_tcp_tx_rx_segs(sk, &metrics->tx_rx_stats);
             (void)bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
         }
@@ -192,3 +200,237 @@ KPROBE(tcp_recvmsg, pt_regs)
     return 0;
 }
 
+static __always_inline unsigned char *skb_network_header(const struct sk_buff *skb)
+{
+    unsigned char *skb_hdr = _(skb->head);
+    u16 network_header_offset = _(skb->network_header);
+
+    return (skb_hdr + network_header_offset);
+}
+
+static __always_inline struct iphdr *ip_hdr(const struct sk_buff *skb)
+{
+    return (struct iphdr *) skb_network_header(skb);
+}
+
+static __always_inline struct ipv6hdr *ipv6_hdr(const struct sk_buff *skb)
+{
+    return (struct ipv6hdr *) skb_network_header(skb);
+}
+
+static __always_inline unsigned char *skb_transport_header(const struct sk_buff *skb)
+{
+    return _(skb->head) + _(skb->transport_header);
+}
+
+static __always_inline struct tcphdr *tcp_hdr(const struct sk_buff *skb)
+{
+    return (struct tcphdr *)skb_transport_header(skb);
+}
+
+/* Parse TCP options in skb, try to get client ip, port
+ * @param skb [in] received skb, it should be a ack/get-ack packet.
+ * @return NULL if we don't get client ip/port;
+ *         value of toa_data in ret_ptr if we get client ip/port.
+ */
+static void *get_toa_data(struct sk_buff *skb, int af, enum toa_type *type, struct toa_v6_entry *v6_toa_data)
+{
+    const struct tcphdr *th = NULL;
+    int length;
+    const unsigned char *ptr = NULL;
+    void *ret_ptr = NULL;
+
+    th = tcp_hdr((const struct sk_buff *) skb);
+
+    u16 _doff = BPF_CORE_READ_BITFIELD_PROBED(th, doff);
+    length = _doff * 4 - sizeof(struct tcphdr);
+    if (length <= 0) {
+        return NULL;
+    }
+
+    ptr = (const unsigned char *) (th + 1);
+    if (ptr == NULL) {
+        return NULL;
+    }
+
+    // todo: 流程可优化为：先解套opcode&偏移opsize，再解出toa_opt或toa_opt_v6
+    // todo: 避免在低版本OS内核中因ebpf对循环的限制而导致不可用
+    while (length > 0) {
+        int opcode = _(*ptr);
+        ptr++;
+        int opsize;
+        switch (opcode) {
+            case TCPOPT_EOL: {
+                *type = TOA_NOT;
+                return NULL;
+            }
+            case TCPOPT_NOP:    /* Ref: RFC 793 section 3.1 */
+                length--;
+                continue;
+            default:
+                opsize = _(*ptr);
+                ptr++;
+                if (opsize < 2) {
+                    /* "silly options" */
+                    *type = TOA_NOT;
+                    return NULL;
+                }
+                if (opsize > length) {
+                    /* don't parse partial options */
+                    *type = TOA_NOT;
+                    return NULL;
+                }
+
+                if (af == AF_INET && opcode == TCPOPT_TOA && opsize == TCPOLEN_TOA) {
+                    bpf_core_read(&ret_ptr, sizeof(struct toa_opt), ptr - 2);
+                    *type = TOA_IPV4;
+                    return ret_ptr;
+                } else if (af == AF_INET6 && opcode == TCPOPT_TOA_V6 && opsize == TCPOLEN_TOA_V6) {
+                    bpf_core_read(&v6_toa_data->toa_data, sizeof(struct toa_opt_v6), ptr - 2);
+                    *type = TOA_IPV6;
+                    return v6_toa_data;
+                } else if (af == AF_INET6 && opcode == TCPOPT_TOA && opsize == TCPOLEN_TOA) {
+                    bpf_core_read(&ret_ptr, sizeof(struct toa_opt), ptr - 2);
+                    *type = TOA_IPV4;
+                    return ret_ptr;
+                }
+                ptr += opsize - 2;
+                length -= opsize;
+        }
+    }
+
+    *type = TOA_NOT;
+    return NULL;
+}
+
+/**
+ * Modify s_ip of link from TCP Option
+ *
+ * @param link tcp link
+ * @param info sock_info
+ * @param skb sk_buff
+ */
+static bool get_toa_from_opt(struct sk_buff *skb, struct tcp_link_s *link)
+{
+    // 1. Specify af according to IP-Protocol
+    int af = -1;
+    u16 protocol = BPF_CORE_READ(skb, protocol);
+    if (protocol == bpf_htons(ETH_P_IP)) {
+        af = AF_INET;
+    } else if (protocol == bpf_htons(ETH_P_IPV6)) {
+        af = AF_INET6;
+    } else {
+        return false;
+    }
+
+    // 2. Get toa_data from skb, and set is_toa flag
+    void *toa_data_ptr = NULL;
+    struct toa_v6_entry v6_toa_data = {0};
+    enum toa_type type = TOA_NOT;
+    toa_data_ptr = get_toa_data(skb, af, &type, &v6_toa_data);
+    if (toa_data_ptr == NULL || type == TOA_NOT) {
+        return false;
+    }
+
+    // 3. Transfer Returned data into toa_opt or toa_v6_entry, and then extract ip and port
+    switch (type) {
+        case TOA_IPV4: {
+            struct toa_opt opt = {0};
+            bpf_core_read(&opt, sizeof(struct toa_opt), &toa_data_ptr);
+            link->opt_c_ip = opt.ip;
+            link->family = af;
+            link->opt_family = AF_INET;
+            break;
+        }
+        case TOA_IPV6: {
+            __builtin_memcpy(link->opt_c_ip6, v6_toa_data.toa_data.ip6, IP6_LEN);
+            link->family = af;
+            link->opt_family = AF_INET6;
+            break;
+        }
+        default:
+            return false;
+    }
+    return true;
+}
+
+static __always_inline int init_link_from_skb(struct sk_buff *skb, struct tcp_link_s *link)
+{
+    struct tcphdr *tcp_head = NULL;
+    u16 port = 0;
+    u16 protocol = BPF_CORE_READ(skb, protocol);
+
+    // IPv4
+    if (protocol == bpf_htons(ETH_P_IP)) {
+        struct iphdr *iph = NULL;
+        iph = ip_hdr((const struct sk_buff *) skb);
+        if (iph == NULL) {
+            return 0;
+        }
+        link->s_ip = BPF_CORE_READ(iph, daddr);
+        link->c_ip = BPF_CORE_READ(iph, saddr);
+
+        tcp_head = tcp_hdr((const struct sk_buff *) skb);
+        if (tcp_head == NULL) {
+            return 0;
+        }
+        bpf_core_read(&port, sizeof(port), &(tcp_head->source));
+        link->c_port = bpf_ntohs(port);
+        bpf_core_read(&port, sizeof(port), &(tcp_head->dest));
+        link->s_port = bpf_ntohs(port);
+        link->family = AF_INET;
+    } else { // IPv6
+        struct ipv6hdr *ip6_hdr = NULL;
+        ip6_hdr = ipv6_hdr((const struct sk_buff *) skb);
+        if (ip6_hdr == NULL) {
+            return 0;
+        }
+        BPF_CORE_READ_INTO(&(link->c_ip6), ip6_hdr, saddr);
+        BPF_CORE_READ_INTO(&(link->s_ip6), ip6_hdr, daddr);
+
+        tcp_head = tcp_hdr((const struct sk_buff *) skb);
+        if (tcp_head == NULL) {
+            return 0;
+        }
+        bpf_core_read(&port, sizeof(port), &(tcp_head->source));
+        link->c_port = bpf_ntohs(port);
+        bpf_core_read(&port, sizeof(port), &(tcp_head->dest));
+        link->s_port = bpf_ntohs(port);
+        link->family = AF_INET6;
+    }
+
+    // when conn_request, just receive syn, must be server
+    link->role = LINK_ROLE_SERVER;
+    return 1;
+}
+
+static struct tcp_metrics_s *create_tcp_link_4_toa(struct sk_buff *skb, struct sock_stats_s *sock_stats)
+{
+    bool is_toa = get_toa_from_opt(skb, &(sock_stats->metrics.link));
+    if (is_toa == false) {
+        // This hook is only for TOA packet(syn) on ELB-Nginx received from ELB-CVS
+        return NULL;
+    }
+    int ret = init_link_from_skb(skb, &(sock_stats->metrics.link));
+    if (ret == 0) {
+        return NULL;
+    }
+    return &(sock_stats->metrics);
+}
+
+/**
+ * TCP_CONN_REQUEST means the moment just received syn packet on TCP Server.
+ * At this time, Server received the 1st packet(SYN) of 3-times HandShake, that means a TCP HandShake Request.
+ * The TCP link has not been set up, so we can not get the link Context(Process info as well).
+ * so, we can not get the process info(pid)
+ */
+KPROBE(tcp_conn_request, pt_regs)
+{
+    struct sk_buff *skb = (struct sk_buff *) PT_REGS_PARM4(ctx);
+    struct sock_stats_s sock_stats = {0};
+    struct tcp_metrics_s *metrics = create_tcp_link_4_toa(skb, &sock_stats);
+    if (metrics) {
+        report_toa(ctx, metrics);
+    }
+    return 0;
+}
