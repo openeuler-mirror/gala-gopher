@@ -101,6 +101,7 @@ struct tcp_socket_id_s {
     enum socket_role_e role;
     struct conn_addr_s client_ipaddr;
     struct conn_addr_s server_ipaddr;
+    struct conn_addr_s toa_client_ipaddr;
 };
 
 struct tcp_socket_s {
@@ -109,6 +110,7 @@ struct tcp_socket_s {
     int inactive;
     char *client_ip;
     char *server_ip;
+    char *toa_client_ip;
     u64 stats[EP_STATS_MAX];
     time_t last_rcv_data;
 
@@ -130,12 +132,20 @@ struct udp_socket_s {
     time_t last_rcv_data;
 };
 
+// 缓存toa映射，仅接收syn包时(conn_request事件)会触发
+struct toa_socket_s {
+    H_HANDLE;
+    struct tcp_socket_id_s id;
+    struct conn_addr_s toa_client_ipaddr;
+};
+
 struct endpoint_probe_s {
     struct ipc_body_s ipc_body;
     struct bpf_prog_s* prog;
     int listen_port_fd;
     struct udp_socket_s *udps;
     struct tcp_socket_s *tcps;
+    struct toa_socket_s *toas;
     struct tcp_listen_s *listens;
     int tcp_socks_num;
     int udp_socks_num;
@@ -172,7 +182,21 @@ static void free_tcp_sock(struct tcp_socket_s *tcp_sock)
     if (tcp_sock->server_ip != NULL) {
         free(tcp_sock->server_ip);
     }
+
+    if (tcp_sock->toa_client_ip != NULL) {
+        free(tcp_sock->toa_client_ip);
+    }
+
     free(tcp_sock);
+    return;
+}
+
+static void free_toa_sock(struct toa_socket_s *toa_sock)
+{
+    if (toa_sock == NULL) {
+        return;
+    }
+    free(toa_sock);
     return;
 }
 
@@ -202,6 +226,18 @@ static void destroy_tcp_socks(struct endpoint_probe_s *probe)
         free_tcp_sock(tcp);
     }
     probe->tcps = NULL;
+    return;
+}
+
+static void destroy_toa_socks(struct endpoint_probe_s *probe)
+{
+    struct toa_socket_s *toa, *tmp;
+
+    H_ITER(probe->toas, toa, tmp) {
+        H_DEL(probe->toas, toa);
+        free_toa_sock(toa);
+    }
+    probe->toas = NULL;
     return;
 }
 
@@ -311,6 +347,13 @@ static struct udp_socket_s* lkup_udp_socket(struct endpoint_probe_s *probe, cons
     return udp;
 }
 
+static struct toa_socket_s *lkup_toa_socket(struct endpoint_probe_s *probe, const struct tcp_socket_id_s *id)
+{
+    struct toa_socket_s *toa = NULL;
+    H_FIND(probe->toas, id, sizeof(struct tcp_socket_id_s), toa);
+    return toa;
+}
+
 static void output_tcp_socket(struct tcp_socket_s* tcp_sock)
 {
     char estab_latency_histogram[MAX_HISTO_SERIALIZE_SIZE];
@@ -321,13 +364,14 @@ static void output_tcp_socket(struct tcp_socket_s* tcp_sock)
     }
 
     (void)fprintf(stdout,
-        "|%s|%d|%s|%s|%s|%u|%u|%d"
+        "|%s|%d|%s|%s|%s|%s|%u|%u|%d"
         "|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu"
         "|%s|\n",
         OO_TCP_SOCK,
         tcp_sock->id.tgid,
         (tcp_sock->id.role == TCP_SERVER) ? "server" : "client",
         tcp_sock->client_ip,
+        tcp_sock->toa_client_ip ? : "",
         tcp_sock->server_ip,
         tcp_sock->id.server_ipaddr.port,
         tcp_sock->id.server_ipaddr.family,
@@ -396,25 +440,70 @@ static int process_tcp_conn_close(struct tcp_socket_s *tcp, struct tcp_socket_ev
     return 0;
 }
 
+static void get_toa_socket(struct endpoint_probe_s *probe, const struct tcp_socket_event_s *evt,
+                           const struct tcp_socket_id_s *id)
+{
+    struct toa_socket_s *new_toa;
+
+    new_toa = lkup_toa_socket(probe, id);
+    if (new_toa) {
+        memcpy(&(new_toa->toa_client_ipaddr), &(evt->toa_client_ipaddr), sizeof(new_toa->toa_client_ipaddr));
+    } else {
+        new_toa = (struct toa_socket_s *)calloc(1, sizeof(struct toa_socket_s));
+        if (new_toa == NULL) {
+            return;
+        }
+        memcpy(&(new_toa->id), id, sizeof(struct tcp_socket_id_s));
+        memcpy(&(new_toa->toa_client_ipaddr), &(evt->toa_client_ipaddr), sizeof(new_toa->toa_client_ipaddr));
+        H_ADD_KEYPTR(probe->toas, &new_toa->id, sizeof(struct tcp_socket_id_s), new_toa);
+    }
+    return;
+}
+
+void __init_tcp_socket_id(struct tcp_socket_id_s *id, const struct tcp_socket_event_s *evt)
+{
+    memcpy(&(id->client_ipaddr), &(evt->client_ipaddr), sizeof(id->client_ipaddr));
+    memcpy(&(id->server_ipaddr), &(evt->server_ipaddr), sizeof(id->server_ipaddr));
+    id->is_multi = evt->is_multi;
+    id->tgid = (id->is_multi == 1) ? getpgid(evt->tgid) : (evt->tgid);
+    id->role = evt->role;
+}
+
 #define MAX_ENDPOINT_ENTITES    (5 * 1024)
 static int add_tcp_sock_evt(struct endpoint_probe_s * probe, struct tcp_socket_event_s* evt)
 {
-    struct tcp_socket_id_s id;
+    struct tcp_socket_id_s id = {0};
     struct tcp_socket_s *tcp, *new_tcp;
+    struct toa_socket_s *toa;
     unsigned char client_ip_str[INET6_ADDRSTRLEN];
     unsigned char server_ip_str[INET6_ADDRSTRLEN];
+    unsigned char toa_client_ip_str[INET6_ADDRSTRLEN];
 
     if (!is_snooper(probe, evt->tgid)) {
         return 0;
     }
 
-    memcpy(&(id.client_ipaddr), &(evt->client_ipaddr), sizeof(id.client_ipaddr));
-    memcpy(&(id.server_ipaddr), &(evt->server_ipaddr), sizeof(id.server_ipaddr));
-    id.is_multi = evt->is_multi;
-    id.tgid = (id.is_multi == 1) ? getpgid(evt->tgid) : (evt->tgid);
-    id.client_ipaddr.port = 0;
-    id.role = evt->role;
+    __init_tcp_socket_id(&id, evt);
+    // syn_toa_recv事件到达，刷入toa表，处理toa表时仍需要client_port
+    if (evt->evt == EP_STATS_SYN_TOA_RECV) {
+        get_toa_socket(probe, evt, (const struct tcp_socket_id_s *)&id);
+        return 0;
+    }
 
+    // 非syn_toa_recv事件，先查找一遍toa表，替换id中的c_ip和c_family
+    toa = lkup_toa_socket(probe, (const struct tcp_socket_id_s *)&id);
+    if (toa) {
+        // 连接关闭事件，清理掉toa_socket表中元素
+        if (evt->evt == EP_STATS_CONN_CLOSE) {
+            H_DEL(probe->toas, toa);
+            free(toa);
+        } else {
+            memcpy(&(id.toa_client_ipaddr), &(toa->toa_client_ipaddr), sizeof(id.toa_client_ipaddr));
+        }
+    }
+
+    // 处理tcp_socket表时忽略client_port
+    id.client_ipaddr.port = 0;
     tcp = lkup_tcp_socket(probe, (const struct tcp_socket_id_s *)&id);
     if (process_tcp_conn_close(tcp, evt) == 0) {
         return 0;
@@ -429,6 +518,7 @@ static int add_tcp_sock_evt(struct endpoint_probe_s * probe, struct tcp_socket_e
     }
 
     if (probe->tcp_socks_num >= MAX_ENDPOINT_ENTITES) {
+        ERROR("[ENDPOINTPROBE]: Create tcp sockets failed(upper to limited).\n");
         return -1;
     }
 
@@ -448,6 +538,10 @@ static int add_tcp_sock_evt(struct endpoint_probe_s * probe, struct tcp_socket_e
     ip_str(new_tcp->id.server_ipaddr.family, (unsigned char *)&(new_tcp->id.server_ipaddr.ip), server_ip_str, INET6_ADDRSTRLEN);
     new_tcp->client_ip = strdup((const char *)client_ip_str);
     new_tcp->server_ip = strdup((const char *)server_ip_str);
+    if (new_tcp->id.toa_client_ipaddr.family == AF_INET || new_tcp->id.toa_client_ipaddr.family == AF_INET6) {
+        ip_str(new_tcp->id.toa_client_ipaddr.family, (unsigned char *)&(new_tcp->id.toa_client_ipaddr.ip), toa_client_ip_str, INET6_ADDRSTRLEN);
+        new_tcp->toa_client_ip = strdup((const char *)toa_client_ip_str);
+    }
 
     if (new_tcp->client_ip == NULL || new_tcp->server_ip == NULL) {
         goto err;
@@ -1068,6 +1162,7 @@ int main(int argc, char **argv)
     }
 
     destroy_tcp_socks(&g_ep_probe);
+    destroy_toa_socks(&g_ep_probe);
     destroy_udp_socks(&g_ep_probe);
     destroy_tcp_listens(&g_ep_probe);
 

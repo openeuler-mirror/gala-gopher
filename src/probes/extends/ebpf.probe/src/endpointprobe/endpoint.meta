@@ -23,6 +23,11 @@ measurements:
                 name: "client_ip",
             },
             {
+                description: "client ip before toa",
+                type: "key",
+                name: "toa_client_ip",
+            },
+            {
                 description: "server ip",
                 type: "key",
                 name: "server_ip",

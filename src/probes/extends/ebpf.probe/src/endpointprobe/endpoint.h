@@ -23,6 +23,7 @@ enum socket_evt_e {
     EP_STATS_SYN_SENT,
     EP_STATS_SYN_DROP,
     EP_STATS_SYNACK_SENT,
+    EP_STATS_SYN_TOA_RECV,
 
     EP_STATS_CONN_CLOSE,
 
@@ -62,6 +63,9 @@ struct tcp_socket_event_s {
     struct conn_addr_s server_ipaddr;
     enum socket_evt_e evt;
     enum socket_role_e role;
+
+    // following is for TOA
+    struct conn_addr_s toa_client_ipaddr;
 };
 
 struct udp_socket_event_s {

@@ -326,6 +326,7 @@ err:
     }
     destroy_ipc_body(&(tcp_mng->ipc_body));
     destroy_tcp_trackers(tcp_mng);
+    destroy_toa_sockets(tcp_mng);
     destroy_tcp_flow_trackers(tcp_mng);
     deinit_tcp_historm(tcp_mng);
     tcp_unload_fd_probe();

@@ -19,6 +19,7 @@
 #include "histogram.h"
 #include "ipc.h"
 #include "hash.h"
+#include "tcpprobe.h"
 
 enum wind_size_t {
     WIND_SIZE_1 = 0,         // (0 ~ 1000]
@@ -100,6 +101,22 @@ enum tcp_stats_t {
     __MAX_STATS
 };
 
+// 用于记录toa map元素的id
+struct toa_sock_id_s {
+    union {
+        u32 c_ip;
+        unsigned char c_ip6[IP6_LEN];
+    };
+    union {
+        u32 s_ip;
+        unsigned char s_ip6[IP6_LEN];
+    };
+    u16 c_port;
+    u16 s_port;
+    u16 family;
+    u32 role;     // role: client:1/server:0
+};
+
 struct tcp_tracker_id_s {
     u32 tgid;     // process id
     char comm[TASK_COMM_LEN];
@@ -111,8 +128,13 @@ struct tcp_tracker_id_s {
         u32 s_ip;
         unsigned char s_ip6[IP6_LEN];
     };
+    union {
+        u32 toa_c_ip;
+        unsigned char toa_c_ip6[IP6_LEN];
+    };
     u16 port;
     u16 family;
+    u16 toa_famlily;
     u32 role;     // role: client:1/server:0
 };
 
@@ -141,12 +163,24 @@ enum tcp_historm_e {
     TCP_HISTORM_MAX
 };
 
+struct toa_socket_s {
+    H_HANDLE;
+    struct toa_sock_id_s id;
+
+    union {
+        u32 opt_c_ip;
+        unsigned char opt_c_ip6[IP6_LEN];
+    };
+    u16 opt_family;
+};
+
 struct tcp_tracker_s {
     H_HANDLE;
     struct tcp_tracker_id_s id;
     u32 report_flags;
     char *src_ip;
     char *dst_ip;
+    char *toa_src_ip;
     time_t last_report;
     time_t last_rcv_data;
     struct histo_bucket_s snd_cwnd_buckets[__MAX_WIND_SIZE];
@@ -169,7 +203,7 @@ struct tcp_tracker_s {
     struct histo_bucket_s snd_buf_buckets[__MAX_SOCKBUF_SIZE];
 
     u64 stats[__MAX_STATS];
-    
+
     float zero_win_rx_ratio;
     float zero_win_tx_ratio;
 };
@@ -198,18 +232,25 @@ struct tcp_mng_s {
     time_t last_aging;
     struct ipc_body_s ipc_body;
     struct bpf_prog_s *tcp_progs;
+    struct toa_socket_s *toa_socks;
     struct tcp_tracker_s *trackers;
     struct tcp_flow_tracker_s *flow_trackers;
 
     char *historms[TCP_HISTORM_MAX];
 };
 
-struct tcp_tracker_s* get_tcp_tracker(struct tcp_mng_s *tcp_mng, const void *link);
-void destroy_tcp_tracker(struct tcp_tracker_s* tracker);
-void destroy_tcp_trackers(struct tcp_mng_s *tcp_mng);
+void __init_toa_sock_id(struct toa_sock_id_s *toa_sock_id, const struct tcp_link_s *tcp_link);
 
-struct tcp_flow_tracker_s* get_tcp_flow_tracker(struct tcp_mng_s *tcp_mng, const void *link);
-void destroy_tcp_flow_tracker(struct tcp_flow_tracker_s* tracker);
+struct toa_socket_s *create_toa_sock(const struct toa_sock_id_s *id);
+struct toa_socket_s *lkup_toa_sock(struct tcp_mng_s *tcp_mng, const struct toa_sock_id_s *id);
+struct tcp_tracker_s *get_tcp_tracker(struct tcp_mng_s *tcp_mng, const void *link, const struct toa_socket_s *toa_sock);
+
+void destroy_tcp_tracker(struct tcp_tracker_s *tracker);
+void destroy_tcp_trackers(struct tcp_mng_s *tcp_mng);
+void destroy_toa_sockets(struct tcp_mng_s *tcp_mng);
+
+struct tcp_flow_tracker_s *get_tcp_flow_tracker(struct tcp_mng_s *tcp_mng, const void *link);
+void destroy_tcp_flow_tracker(struct tcp_flow_tracker_s *tracker);
 void destroy_tcp_flow_trackers(struct tcp_mng_s *tcp_mng);
 
 #endif

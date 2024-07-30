@@ -25,6 +25,7 @@
 #include <bpf/bpf_endian.h>
 
 #include "endpoint.h"
+#include "../include/toa.h"
 
 char g_license[] SEC("license") = "GPL";
 #define ETH_P_IP	0x0800		/* Internet Protocol packet	*/
@@ -665,6 +666,131 @@ end:
     return 0;
 }
 
+/* Parse TCP options in skb, try to get client ip, port
+ * @param skb [in] received skb, it should be a ack/get-ack packet.
+ * @return NULL if we don't get client ip/port;
+ *         value of toa_data in ret_ptr if we get client ip/port.
+ */
+static void *get_toa_data(struct sk_buff *skb, int af, enum toa_type *type, struct toa_v6_entry *v6_toa_data)
+{
+    const struct tcphdr *th = NULL;
+    int length;
+    const unsigned char *ptr = NULL;
+    void *ret_ptr = NULL;
+
+    th = tcp_hdr(skb);
+
+    u16 _doff = BPF_CORE_READ_BITFIELD_PROBED(th, doff);
+    length = _doff * 4 - sizeof(struct tcphdr);
+    if (length <= 0) {
+        return NULL;
+    }
+
+    ptr = (const unsigned char *) (th + 1);
+    if (ptr == NULL) {
+        return NULL;
+    }
+
+    // todo: while循环需要在4.18/4.19内核版本验证
+    while (length > 0) {
+        int opcode = _(*ptr);
+        ptr++;
+        int opsize;
+        switch (opcode) {
+            case TCPOPT_EOL: {
+                *type = TOA_NOT;
+                return NULL;
+            }
+            case TCPOPT_NOP:    /* Ref: RFC 793 section 3.1 */
+                length--;
+                continue;
+            default:
+                opsize = _(*ptr);
+                ptr++;
+                if (opsize < 2) {
+                    /* "silly options" */
+                    *type = TOA_NOT;
+                    return NULL;
+                }
+                if (opsize > length) {
+                    /* don't parse partial options */
+                    *type = TOA_NOT;
+                    return NULL;
+                }
+
+                if (af == AF_INET && opcode == TCPOPT_TOA && opsize == TCPOLEN_TOA) {
+                    bpf_core_read(&ret_ptr, sizeof(struct toa_opt), ptr - 2);
+                    *type = TOA_IPV4;
+                    return ret_ptr;
+                } else if (af == AF_INET6 && opcode == TCPOPT_TOA_V6 && opsize == TCPOLEN_TOA_V6) {
+                    bpf_core_read(&v6_toa_data->toa_data, sizeof(struct toa_opt_v6), ptr - 2);
+                    *type = TOA_IPV6;
+                    return v6_toa_data;
+                } else if (af == AF_INET6 && opcode == TCPOPT_TOA && opsize == TCPOLEN_TOA) {
+                    bpf_core_read(&ret_ptr, sizeof(struct toa_opt), ptr - 2);
+                    *type = TOA_IPV4;
+                    return ret_ptr;
+                }
+                ptr += opsize - 2;
+                length -= opsize;
+        }
+    }
+
+    *type = TOA_NOT;
+    return NULL;
+}
+
+/**
+ * Modify s_ip of link from TCP Option
+ *
+ * @param link tcp link
+ * @param info sock_info
+ * @param skb sk_buff
+ */
+static bool get_toa_from_opt(struct sk_buff *skb, struct tcp_socket_event_s *evt)
+{
+    // 1. Specify af according to IP-Protocol
+    int af = -1;
+    if (_(skb->protocol) == bpf_htons(ETH_P_IP)) {
+        af = AF_INET;
+    } else if (_(skb->protocol) == bpf_htons(ETH_P_IPV6)) {
+        af = AF_INET6;
+    } else {
+        return false;
+    }
+
+    // 2. Get toa_data from skb, and set is_toa flag
+    void *toa_data_ptr = NULL;
+    struct toa_v6_entry v6_toa_data = {0};
+    enum toa_type type = TOA_NOT;
+    toa_data_ptr = get_toa_data(skb, af, &type, &v6_toa_data);
+    if (toa_data_ptr == NULL || type == TOA_NOT) {
+        return false;
+    }
+
+    // 3. Transfer Returned data into toa_opt or toa_v6_entry, and then extract ip and port
+    switch (type) {
+        case TOA_IPV4: {
+            struct toa_opt opt = {0};
+            bpf_core_read(&opt, sizeof(struct toa_opt), &toa_data_ptr);
+            evt->toa_client_ipaddr.ip = opt.ip;
+            evt->toa_client_ipaddr.family = AF_INET;
+            evt->server_ipaddr.family = af;
+            break;
+        }
+        case TOA_IPV6: {
+            __builtin_memcpy(evt->toa_client_ipaddr.ip6, v6_toa_data.toa_data.ip6, IP6_LEN);
+            evt->toa_client_ipaddr.family = AF_INET6;
+            evt->server_ipaddr.family = af;
+            break;
+        }
+        default:
+            return false;
+    }
+
+    return true;
+}
+
 KPROBE(tcp_conn_request, pt_regs)
 {
     struct sock *sk = (struct sock *)PT_REGS_PARM3(ctx);
@@ -672,6 +798,7 @@ KPROBE(tcp_conn_request, pt_regs)
     struct tcp_socket_event_s evt = {0};
     int tgid = 0;
     int is_multi = 0;
+    bool is_sk_acceptq_full = false, is_sk_synq_full = false, is_toa = false;
 
     if (sk == NULL || skb == NULL) {
         goto end;
@@ -694,15 +821,10 @@ KPROBE(tcp_conn_request, pt_regs)
         add_sock_and_tgid((const struct sock *)sk, TCP_LISTEN_SK, val);
     }
 
-    evt.evt = EP_STATS_MAX;
-    if (sk_acceptq_is_full((const struct sock *)sk)) {
-        evt.evt = EP_STATS_ACCEPT_OVERFLOW;
-    }
-    if (sk_synq_is_full((const struct sock *)sk)) {
-        evt.evt = EP_STATS_SYN_OVERFLOW;
-    }
-
-    if (evt.evt == EP_STATS_MAX) {
+    is_sk_acceptq_full = sk_acceptq_is_full((const struct sock *)sk);
+    is_sk_synq_full = sk_synq_is_full((const struct sock *)sk);
+    is_toa = get_toa_from_opt(skb, &evt);
+    if (!is_sk_acceptq_full && !is_sk_synq_full && !is_toa) {
         goto end;
     }
 
@@ -754,7 +876,19 @@ KPROBE(tcp_conn_request, pt_regs)
     evt.is_multi = is_multi;
     // report;
     evt.role = TCP_SERVER;
-    (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
+
+    if (is_toa) {
+        evt.evt = EP_STATS_SYN_TOA_RECV;
+        (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
+    }
+    if (is_sk_acceptq_full) {
+        evt.evt = EP_STATS_ACCEPT_OVERFLOW;
+        (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
+    }
+    if (is_sk_synq_full) {
+        evt.evt = EP_STATS_SYN_OVERFLOW;
+        (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
+    }
 
 end:
     return 0;

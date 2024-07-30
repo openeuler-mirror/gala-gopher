@@ -35,9 +35,12 @@
 #define TCP_PROBE_RATE      (u32)(1 << 5)
 #define TCP_PROBE_SRTT      (u32)(1 << 6)
 #define TCP_PROBE_DELAY     (u32)(1 << 7)
+#define TCP_PROBE_TOA       (u32)(1 << 8)
+#define TCP_PROBE_TCP_CLOSE (u32)(1 << 9)
 #define TCP_PROBE_ALL       (u32)(TCP_PROBE_ABN | TCP_PROBE_WINDOWS \
                 | TCP_PROBE_RTT | TCP_PROBE_TXRX \
-                | TCP_PROBE_SOCKBUF | TCP_PROBE_RATE | TCP_PROBE_SRTT | TCP_PROBE_DELAY)
+                | TCP_PROBE_SOCKBUF | TCP_PROBE_RATE | TCP_PROBE_SRTT | TCP_PROBE_DELAY \
+                | TCP_PROBE_TOA | TCP_PROBE_TCP_CLOSE)
 
 #define TCP_FD_PER_PROC_MAX (10)
 
@@ -154,6 +157,12 @@ struct tcp_link_s {
     __u16 family;
     __u16 role;     // role: client:1/server:0
     char comm[TASK_COMM_LEN];
+
+    __u16 opt_family;
+    union {
+        __u32 opt_c_ip;
+        unsigned char opt_c_ip6[IP6_LEN];
+    };
 };
 
 struct tcp_metrics_s {
