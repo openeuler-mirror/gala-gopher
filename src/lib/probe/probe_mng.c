@@ -192,19 +192,11 @@ u32 get_probe_status_flags(struct probe_s* probe)
     return probe_status_flags;
 }
 
-void set_probe_status_started(struct probe_s* probe)
+static void set_probe_status_started(struct probe_s* probe)
 {
     (void)pthread_rwlock_wrlock(&probe->rwlock);
     probe->probe_status.status_flags |= PROBE_FLAGS_STARTED;
     probe->probe_status.status_flags &= ~(PROBE_FLAGS_STOPPING);
-    (void)pthread_rwlock_unlock(&probe->rwlock);
-}
-
-void set_probe_status_running(struct probe_s* probe)
-{
-    (void)pthread_rwlock_wrlock(&probe->rwlock);
-    probe->probe_status.status_flags |= PROBE_FLAGS_RUNNING;
-    probe->probe_status.status_flags &= ~(PROBE_FLAGS_STOPPED);
     (void)pthread_rwlock_unlock(&probe->rwlock);
 }
 
@@ -216,7 +208,7 @@ void set_probe_status_stopped(struct probe_s* probe)
     (void)pthread_rwlock_unlock(&probe->rwlock);
 }
 
-void set_probe_status_stopping(struct probe_s* probe)
+static void set_probe_status_stopping(struct probe_s* probe)
 {
     (void)pthread_rwlock_wrlock(&probe->rwlock);
     probe->probe_status.status_flags |= PROBE_FLAGS_STOPPING;
@@ -529,13 +521,18 @@ static int try_start_probe(struct probe_s *probe)
         probe->tid = 0;
     }
 
+    (void)pthread_rwlock_wrlock(&probe->rwlock);
     ret = pthread_create(&probe->tid, NULL, probe->cb, probe);
     if (ret != 0) {
         ERROR("[PROBEMNG] Failed to create thread for probe(name: %s errno: %d).\n",
             probe->name, errno);
+        (void)pthread_rwlock_unlock(&probe->rwlock);
         return -1;
     }
 
+    probe->probe_status.status_flags |= PROBE_FLAGS_RUNNING;
+    probe->probe_status.status_flags &= ~(PROBE_FLAGS_STOPPED);
+    (void)pthread_rwlock_unlock(&probe->rwlock);
     probe->resnd_snooper_for_restart = 1;  // must be reset when start ends
     return 0;
 }
