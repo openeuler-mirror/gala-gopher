@@ -132,9 +132,11 @@ static int init_http_ssl_ctx(http_server_mgr_s *server_mgr, const char *key_file
     }
 
     SSL_CTX_set_options(ssl_ctx,
-                        SSL_OP_ALL | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 |
+                        SSL_OP_ALL | SSL_OP_NO_SSL_MASK |
                         SSL_OP_NO_COMPRESSION |
                         SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
+
+    SSL_CTX_clear_options(ssl_ctx, SSL_OP_NO_TLSv1_3);
 
     if (SSL_CTX_set1_curves_list(ssl_ctx, "P-256") != 1) {
         ERROR("[%s] SSL set curves list failed\n", server_mgr->name);
