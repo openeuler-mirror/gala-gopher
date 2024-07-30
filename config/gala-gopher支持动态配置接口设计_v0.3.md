@@ -4,7 +4,7 @@
 
 gala-gopher支持通过两种方式来实现探针的动态配置：
 
-1. 通过 Restful API 接口。当 gala-gopher 配置文件中 "global" 部分的 ”listen_on“ 项的值为 true 时，则可使用该方式；否则，无法使用该方式。
+1. 通过 Restful API 接口。当 gala-gopher 配置文件中 "global" 部分的 ”rest_api_on“ 项的值为 true 时，则可使用该方式；否则，无法使用该方式。
 2. 通过命令行工具 gopher-ctl。该方式默认支持。
 
 使用命令行工具的方式参见章节：[使用命令行工具进行探针动态配置](##使用命令行工具进行探针动态配置) 。这里首先介绍通过 Restful API 接口的配置方式。

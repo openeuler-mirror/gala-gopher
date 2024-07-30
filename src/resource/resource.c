@@ -511,6 +511,11 @@ static int RestServerInit(ResourceMgr *resourceMgr)
     ConfigMgr *configMgr = resourceMgr->configMgr;
     http_server_mgr_s *rest_server_mgr;
 
+    if (configMgr->globalConfig->restApiOn == 0) {
+        INFO("[RESOURCE] config rest_api_on is false, skip create rest server.\n");
+        return 0;
+    }
+
     rest_server_mgr = (http_server_mgr_s *)calloc(1, sizeof(http_server_mgr_s));
     if (rest_server_mgr == NULL) {
         ERROR("[RESOURCE] create rest server mgr failed\n");

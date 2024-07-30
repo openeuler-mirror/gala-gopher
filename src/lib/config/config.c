@@ -175,9 +175,17 @@ static int ConfigMgrLoadGlobalConfig(void *config, config_setting_t *settings)
     }
     (void)snprintf(globalConfig->logLevel, sizeof(globalConfig->logLevel), "%s", strVal);
 
-    ret = config_setting_lookup_bool(settings, "listen_on", &globalConfig->listenOn);
+    // prevent error when updating gala-gopher if the od config does not have "rest_api_on"
+    config_setting_t *member = config_setting_get_member(settings, "rest_api_on");
+    if (member == NULL) {
+        INFO("[CONFIG] rest_api_on settings not found, set it to default false.\n");
+        globalConfig->restApiOn = 0;
+        return 0;
+    }
+
+    ret = config_setting_lookup_bool(settings, "rest_api_on", &globalConfig->restApiOn);
     if (ret == 0) {
-        ERROR("[CONFIG] load config for listen_on failed.\n");
+        ERROR("[CONFIG] load config for rest_api_on failed.\n");
         return -1;
     }
 
@@ -273,113 +281,80 @@ static int ConfigMgrLoadIMDBConfig(void *config, config_setting_t *settings)
     return 0;
 }
 
-static int ConfigMgrLoadWebServerConfig(void *config, config_setting_t *settings)
+static int ConfigMgrLoadServerConfig(void *config, config_setting_t *settings, const char *serverName)
 {
-    HttpServerConfig *webServerConfig = (HttpServerConfig *)config;
+    HttpServerConfig *serverConfig = (HttpServerConfig *)config;
     int ret = 0;
     const char *strVal = NULL;
-    int intVal = 0;
+    int port = 0;
 
-    ret = config_setting_lookup_int(settings, "port", &intVal);
-    if (ret == 0 || intVal <= 0) {
-        ERROR("[CONFIG] load config for webServerConfig port failed.\n");
+    ret = config_setting_lookup_int(settings, "port", &port);
+    if (ret == 0) {
+        ERROR("[CONFIG] load config for %s port failed.\n", serverName);
         return -1;
     }
-    webServerConfig->port = (uint16_t)intVal;
-
+    serverConfig->port = (uint16_t)port;
 
     ret = config_setting_lookup_string(settings, "bind_addr", &strVal);
     if (ret == 0) {
-        ERROR("[CONFIG] load config for webServerConfig bind_addr failed.\n");
+        ERROR("[CONFIG] load config for %s bind_addr failed.\n", serverName);
         return -1;
     }
-    (void)snprintf(webServerConfig->bindAddr, sizeof(webServerConfig->bindAddr), "%s", strVal);
+    (void)snprintf(serverConfig->bindAddr, sizeof(serverConfig->bindAddr), "%s", strVal);
 
     ret = config_setting_lookup_string(settings, "ssl_auth", &strVal);
     if (ret == 0) {
-        ERROR("[CONFIG] load config for webServerConfig ssl_auth failed.\n");
+        ERROR("[CONFIG] load config for %s ssl_auth failed.\n", serverName);
         return -1;
     }
+
     if (strcmp(strVal, "on") == 0) {
-        webServerConfig->sslAuth = 1;
-    }
+        serverConfig->sslAuth = 1;
+        ret = config_setting_lookup_string(settings, "private_key", &strVal);
+        if (ret == 0) {
+            ERROR("[CONFIG] load config for %s private_key failed.\n", serverName);
+            return -1;
+        }
+        ret = snprintf(serverConfig->privateKey, sizeof(serverConfig->privateKey), "%s", strVal);
+        if (ret < 0 || ret >= sizeof(serverConfig->privateKey)) {
+            ERROR("[CONFIG] %s private_key must shorter than %lu.\n", serverName, sizeof(serverConfig->privateKey));
+            return -1;
+        }
 
-    ret = config_setting_lookup_string(settings, "private_key", &strVal);
-    if (ret == 0) {
-        ERROR("[CONFIG] load config for restServerConfig private_key failed.\n");
-        return -1;
-    }
-    (void)snprintf(webServerConfig->privateKey, sizeof(webServerConfig->privateKey), "%s", strVal);
+        ret = config_setting_lookup_string(settings, "cert_file", &strVal);
+        if (ret == 0) {
+            ERROR("[CONFIG] load config for %s cert_file failed.\n", serverName);
+            return -1;
+        }
+        ret = snprintf(serverConfig->certFile, sizeof(serverConfig->certFile), "%s", strVal);
+        if (ret < 0 || ret >= sizeof(serverConfig->certFile)) {
+            ERROR("[CONFIG] %s cert_file must shorter than %lu.\n", serverName, sizeof(serverConfig->certFile));
+            return -1;
+        }
 
-    ret = config_setting_lookup_string(settings, "cert_file", &strVal);
-    if (ret == 0) {
-        ERROR("[CONFIG] load config for webServerConfig cert_file failed.\n");
-        return -1;
+        ret = config_setting_lookup_string(settings, "ca_file", &strVal);
+        if (ret == 0) {
+            ERROR("[CONFIG] load config for %s ca_file failed.\n", serverName);
+            return -1;
+        }
+        ret = snprintf(serverConfig->caFile, sizeof(serverConfig->caFile), "%s", strVal);
+        if (ret < 0 || ret >= sizeof(serverConfig->caFile)) {
+            ERROR("[CONFIG] %s cert_file must shorter than %lu.\n", serverName, sizeof(serverConfig->caFile));
+            return -1;
+        }
     }
-    (void)snprintf(webServerConfig->certFile, sizeof(webServerConfig->certFile), "%s", strVal);
-
-    ret = config_setting_lookup_string(settings, "ca_file", &strVal);
-    if (ret == 0) {
-        ERROR("[CONFIG] load config for webServerConfig ca_file failed.\n");
-        return -1;
-    }
-    (void)snprintf(webServerConfig->caFile, sizeof(webServerConfig->caFile), "%s", strVal);
 
     return 0;
 }
 
+static int ConfigMgrLoadWebServerConfig(void *config, config_setting_t *settings)
+{
+    return ConfigMgrLoadServerConfig(config, settings, "webServerConfig");
+}
+
 static int ConfigMgrLoadRestServerConfig(void *config, config_setting_t *settings)
 {
-    HttpServerConfig *restServerConfig = (HttpServerConfig *)config;
-    int ret = 0;
-    const char *strVal = NULL;
-    int intVal = 0;
-
-    ret = config_setting_lookup_string(settings, "bind_addr", &strVal);
-    if (ret == 0) {
-        ERROR("[CONFIG] load config for restServerConfig bind_addr failed.\n");
-        return -1;
-    }
-    (void)snprintf(restServerConfig->bindAddr, sizeof(restServerConfig->bindAddr), "%s", strVal);
-
-    ret = config_setting_lookup_int(settings, "port", &intVal);
-    if (ret == 0 || intVal <= 0) {
-        ERROR("[CONFIG] load config for restServerConfig port failed.\n");
-        return -1;
-    }
-    restServerConfig->port = (uint16_t)intVal;
-
-    ret = config_setting_lookup_string(settings, "ssl_auth", &strVal);
-    if (ret == 0) {
-        ERROR("[CONFIG] load config for restServerConfig ssl_auth failed.\n");
-        return -1;
-    }
-    if (strcmp(strVal, "on") == 0) {
-        restServerConfig->sslAuth = 1;
-    }
-
-    ret = config_setting_lookup_string(settings, "private_key", &strVal);
-    if (ret == 0) {
-        ERROR("[CONFIG] load config for restServerConfig private_key failed.\n");
-        return -1;
-    }
-    (void)snprintf(restServerConfig->privateKey, sizeof(restServerConfig->privateKey), "%s", strVal);
-
-    ret = config_setting_lookup_string(settings, "cert_file", &strVal);
-    if (ret == 0) {
-        ERROR("[CONFIG] load config for restServerConfig cert_file failed.\n");
-        return -1;
-    }
-    (void)snprintf(restServerConfig->certFile, sizeof(restServerConfig->certFile), "%s", strVal);
-
-    ret = config_setting_lookup_string(settings, "ca_file", &strVal);
-    if (ret == 0) {
-        ERROR("[CONFIG] load config for restServerConfig ca_file failed.\n");
-        return -1;
-    }
-    (void)snprintf(restServerConfig->caFile, sizeof(restServerConfig->caFile), "%s", strVal);
-
-    return 0;
+    return ConfigMgrLoadServerConfig(config, settings, "restServerConfig");
 }
 
 static int ConfigMgrLoadLogsConfig(void *config, config_setting_t *settings)

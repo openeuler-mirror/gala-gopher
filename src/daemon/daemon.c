@@ -106,7 +106,6 @@ static void CleanData(const ResourceMgr *mgr)
 int DaemonRun(ResourceMgr *mgr)
 {
     int ret;
-    int listen_on = mgr->configMgr->globalConfig->listenOn;
 
     // 0. clean data
     CleanData(mgr);
@@ -129,17 +128,15 @@ int DaemonRun(ResourceMgr *mgr)
     INFO("[DAEMON] create egress thread success.\n");
 
     // 3. start web_server thread
-    if (listen_on != 0) {
-        if (mgr->web_server_mgr == NULL) {
-            INFO("[DAEMON] skip create web_server thread.\n");
-        } else {
-            ret = pthread_create(&mgr->web_server_mgr->tid, NULL, DaemonRunWebServer, mgr->web_server_mgr);
-            if (ret != 0) {
-                ERROR("[DAEMON] create web_server thread failed.(errno:%d, %s)\n", errno, strerror(errno));
-                return -1;
-            }
-            INFO("[DAEMON] create web_server thread success.\n");
+    if (mgr->web_server_mgr == NULL) {
+        INFO("[DAEMON] skip create web_server thread.\n");
+    } else {
+        ret = pthread_create(&mgr->web_server_mgr->tid, NULL, DaemonRunWebServer, mgr->web_server_mgr);
+        if (ret != 0) {
+            ERROR("[DAEMON] create web_server thread failed.(errno:%d, %s)\n", errno, strerror(errno));
+            return -1;
         }
+        INFO("[DAEMON] create web_server thread success.\n");
     }
 
     // 4. start metadata_report thread
@@ -166,8 +163,10 @@ int DaemonRun(ResourceMgr *mgr)
     }
     INFO("[DAEMON] create metrics_write_logs thread success.\n");
 
-    if (listen_on != 0) {
-        // 8. start rest_api_server thread
+    // 8. start rest_api_server thread
+    if (mgr->rest_server_mgr == NULL) {
+        INFO("[DAEMON] skip create rest api server thread.\n");
+    } else {
         ret = pthread_create(&mgr->rest_server_mgr->tid, NULL, DaemonRunRestServer, mgr->rest_server_mgr);
         if (ret != 0) {
             ERROR("[DAEMON] create rest api server thread failed.(errno:%d, %s)\n", errno, strerror(errno));
