@@ -293,7 +293,7 @@ static int ConfigMgrLoadServerConfig(void *config, config_setting_t *settings, c
         ERROR("[CONFIG] load config for %s port failed.\n", serverName);
         return -1;
     }
-    serverConfig->port = (uint16_t)port;
+    serverConfig->port = port;
 
     ret = config_setting_lookup_string(settings, "bind_addr", &strVal);
     if (ret == 0) {
