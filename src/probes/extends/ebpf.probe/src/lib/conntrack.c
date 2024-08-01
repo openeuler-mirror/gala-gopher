@@ -251,7 +251,7 @@ int get_cluster_ip_backend(struct tcp_connect_s *connect, int *transform)
     char line[LINE_BUF_LEN];
     char command[COMMAND_LEN];
 
-    *transform = 0;
+    *transform = ADDR_TRANSFORM_NONE;
     // Only transform Kubernetes cluster IP backend for the client TCP connection.
     if (connect->role == 0) {
         return 0;
@@ -294,7 +294,7 @@ int get_cluster_ip_backend(struct tcp_connect_s *connect, int *transform)
 
         ret = __dnat_op((const struct tcp_conntrack_s *)conntrack, connect);
         if (ret == 0) {
-            *transform = 1;
+            *transform = ADDR_TRANSFORM_SERVER;
             __free_conntrack_tcp(conntrack);
             break;
         }
