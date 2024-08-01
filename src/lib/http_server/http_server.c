@@ -296,7 +296,8 @@ int init_http_server_mgr(http_server_mgr_s *server_mgr, HttpServerConfig *config
 
     handle = evhttp_bind_socket_with_handle(server_mgr->evhttp, server_mgr->bind_addr, server_mgr->port);
     if (handle == NULL) {
-        ERROR("[%s] Failed to bind to addr %s, port %d\n", server_mgr->name, server_mgr->bind_addr, server_mgr->port);
+        ERROR("[%s] Failed to bind to addr %s, port %d, err=%s\n", server_mgr->name,
+              server_mgr->bind_addr, server_mgr->port, strerror(errno));
         return - 1;
     }
     return 0;
