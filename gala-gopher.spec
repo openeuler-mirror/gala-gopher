@@ -19,7 +19,8 @@
 %define without_ksli          0
 %define without_container     0
 %define without_sermant       0
-%define without_sli       0
+%define without_sli           0
+%define without_flowtracer    0
 
 %define disable_report_event   0
 %define disable_kafka_channel  0
@@ -125,6 +126,7 @@ BUILD_OPTS=(
   -DENABLE_CONTAINER=%[0%{?without_cadvisor}?0:1]
   -DENABLE_SERMANT=%[0%{?without_sermant}?0:1]
   -DENABLE_SLI=%[0%{?without_sli}?0:1]
+  -DENABLE_FLOWTRACER=%[0%{?without_flowtracer}?0:1]
 
   -DENABLE_REPORT_EVENT=%[0%{?disable_report_event}?0:1]
   -DKAFKA_CHANNEL=%[0%{?disable_kafka_channel}?0:1]

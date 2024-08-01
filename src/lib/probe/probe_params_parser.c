@@ -561,7 +561,7 @@ struct param_key_s param_keys[] = {
     {NATIVE_STACK,        {0, 0, 1, ""},                             parser_native_stack,            set_default_params_char_native_stack_flag, JSON_NUMBER},
     {SVG_DIR,             {0, 0, 0, "/var/log/gala-gopher/stacktrace"},  parser_svg_dir,             set_default_params_str_svg_dir, JSON_STRING},
     {FLAME_DIR,           {0, 0, 0, "/var/log/gala-gopher/flamegraph"},  parser_flame_dir,           set_default_params_str_flame_dir, JSON_STRING},
-    {CLUSTER_IP_BACKEND,  {0, 0, 1, ""},                             parser_cluster_ip_backend_flag, set_default_params_char_cluster_ip_backend, JSON_NUMBER},
+    {CLUSTER_IP_BACKEND,  {0, 0, 2, ""},                             parser_cluster_ip_backend_flag, set_default_params_char_cluster_ip_backend, JSON_NUMBER},
     {DEV_NAME_KEY,        {0, 0, 0, ""},                             parser_dev_name,                NULL, JSON_STRING},
     {CONTINUOUS_SAMPLING, {0, 0, 1, ""},                             parser_continuous_sampling,     set_default_params_char_continuous_sampling_flag, JSON_NUMBER},
     {ELF_PATH,            {0, 0, 0, ""},                             parser_elf_path,                NULL, JSON_STRING},

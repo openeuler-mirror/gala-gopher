@@ -58,6 +58,7 @@ struct probe_define_s probe_define[] = {
     {"container",           "/opt/gala-gopher/extend_probes/cadvisor_probe.py",   PROBE_CONTAINER,      ENABLE_CONTAINER},
     {"sermant",             "/opt/gala-gopher/extend_probes/sermant_probe.py",    PROBE_SERMANT,        ENABLE_SERMANT},
     {"sli",                 "/opt/gala-gopher/extend_probes/sliprobe",            PROBE_SLI,            ENABLE_SLI},
+    {"flowtracer",          "/opt/gala-gopher/extend_probes/flowtracer",          PROBE_FLOWTRACER,     ENABLE_FLOWTRACER}
     // If you want to add a probe, add the probe define.
 };
 

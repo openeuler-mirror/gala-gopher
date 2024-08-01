@@ -17,6 +17,10 @@
 
 #include "common.h"
 
+#define ADDR_TRANSFORM_NONE   0
+#define ADDR_TRANSFORM_CLIENT 1
+#define ADDR_TRANSFORM_SERVER 2
+
 struct tcp_connect_s {
     union {
         u32 c_ip;

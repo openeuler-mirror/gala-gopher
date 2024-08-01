@@ -70,3 +70,9 @@ submodule_test
 
 # BPF skeletons
 *.skel.*
+
+# Build artifacts
+/bpftool
+/gala-gopher
+/gopher-ctl
+/src/daemon/build
