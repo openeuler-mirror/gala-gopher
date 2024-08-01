@@ -40,11 +40,16 @@
 #include "event.h"
 #include "ipc.h"
 #include "hash.h"
+#include "conntrack.h"
 #include "container.h"
+#include "delaying_ring_buffer.h"
+#include "flowtracer_reader.h"
 #include "histogram.h"
 #include "endpoint.h"
 
 #define EP_ENTITY_ID_LEN 64
+#define CAPACITY         4096
+#define DELAY_MS         500
 #define RM_ENDPOINT_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__endpoint*"
 
 #define OO_TCP_SOCK     "endpoint_tcp"
@@ -150,6 +155,7 @@ struct endpoint_probe_s {
     int tcp_socks_num;
     int udp_socks_num;
     time_t last_report;
+    struct delaying_ring_buffer *drb;
 };
 
 static volatile sig_atomic_t g_stop;
@@ -440,6 +446,76 @@ static int process_tcp_conn_close(struct tcp_socket_s *tcp, struct tcp_socket_ev
     return 0;
 }
 
+static void transform_cluster_ip(struct endpoint_probe_s *probe_mng, struct tcp_socket_id_s *tracker)
+{
+    int transform = ADDR_TRANSFORM_NONE;
+
+    char cluster_ip_backend = probe_mng->ipc_body.probe_param.cluster_ip_backend;
+    if (cluster_ip_backend == 0) {
+        return;
+    }
+
+    struct tcp_connect_s connect;
+
+    connect.role = (tracker->role == TCP_CLIENT) ? 1 : 0;
+    connect.family = tracker->client_ipaddr.family;
+
+    if (connect.family == AF_INET) {
+        connect.cip_addr.c_ip = tracker->client_ipaddr.ip;
+        connect.sip_addr.s_ip = tracker->server_ipaddr.ip;
+    } else {
+        memcpy(&(connect.cip_addr), tracker->client_ipaddr.ip6, IP6_LEN);
+        memcpy(&(connect.sip_addr), tracker->server_ipaddr.ip6, IP6_LEN);
+    }
+    connect.c_port = tracker->client_ipaddr.port;
+    connect.s_port = tracker->server_ipaddr.port;
+
+    if (cluster_ip_backend == 1) { // use conntrack
+        // Only transform Kubernetes cluster IP backend for the client TCP connection.
+        if (connect.role != 1) {
+            return;
+        }
+        (void)get_cluster_ip_backend(&connect, &transform);
+    } else if (cluster_ip_backend == 2) { // use FlowTracer
+        transform = lookup_flowtracer(&connect);
+        DEBUG("[EPPROBE] FlowTracer transform: %d\n", transform);
+    }
+
+    if (!transform) {
+        return;
+    }
+
+#ifdef GOPHER_DEBUG
+    char s_ip1[IP6_STR_LEN], s_ip2[IP6_STR_LEN], c_ip1[IP6_STR_LEN], c_ip2[IP6_STR_LEN];
+    inet_ntop(connect.family, &tracker->server_ipaddr.ip, s_ip1, sizeof(s_ip1));
+    inet_ntop(connect.family, &connect.sip_addr, s_ip2, sizeof(s_ip2));
+    inet_ntop(connect.family, &tracker->client_ipaddr.ip, c_ip1, sizeof(c_ip1));
+    inet_ntop(connect.family, &connect.cip_addr, c_ip2, sizeof(c_ip2));
+    DEBUG("[EPPROBE]: Flow (%s:%u - %s:%u) is transformed into (%s:%u - %s:%u)\n",
+            c_ip1, tracker->client_ipaddr.port, s_ip1, tracker->server_ipaddr.port,
+            c_ip2, connect.c_port, s_ip2, connect.s_port);
+#endif
+
+    if (transform & ADDR_TRANSFORM_SERVER) {
+        if (connect.family == AF_INET) {
+            tracker->server_ipaddr.ip = connect.sip_addr.s_ip;
+        } else {
+            memcpy(tracker->server_ipaddr.ip6, &(connect.sip_addr.s_ip6), IP6_LEN);
+        }
+        tracker->server_ipaddr.port = connect.s_port;
+    }
+    if (transform & ADDR_TRANSFORM_CLIENT) {
+        if (connect.family == AF_INET) {
+            tracker->client_ipaddr.ip = connect.cip_addr.c_ip;
+        } else {
+            memcpy(tracker->client_ipaddr.ip6, &(connect.cip_addr.c_ip6), IP6_LEN);
+        }
+        tracker->client_ipaddr.port = connect.c_port;
+    }
+
+    return;
+}
+
 static void get_toa_socket(struct endpoint_probe_s *probe, const struct tcp_socket_event_s *evt,
                            const struct tcp_socket_id_s *id)
 {
@@ -484,6 +560,17 @@ static int add_tcp_sock_evt(struct endpoint_probe_s * probe, struct tcp_socket_e
     }
 
     __init_tcp_socket_id(&id, evt);
+
+#ifdef GOPHER_DEBUG
+    char s_ip[INET6_ADDRSTRLEN] = {0}, c_ip[INET6_ADDRSTRLEN] = {0};
+    (void)inet_ntop(id.server_ipaddr.family, (const void *)&(id.server_ipaddr.ip), s_ip, sizeof(s_ip));
+    (void)inet_ntop(id.client_ipaddr.family, (const void *)&(id.client_ipaddr.ip), c_ip, sizeof(c_ip));
+    DEBUG("[EPPROBE]: tcp socket event %d, role: %d, observed flow: (%s:%u - %s:%u), tgid: %d\n",
+            evt->evt, evt->role, c_ip, id.client_ipaddr.port, s_ip, id.server_ipaddr.port, id.tgid);
+#endif
+
+    transform_cluster_ip(probe, &id);
+
     // syn_toa_recv事件到达，刷入toa表，处理toa表时仍需要client_port
     if (evt->evt == EP_STATS_SYN_TOA_RECV) {
         get_toa_socket(probe, evt, (const struct tcp_socket_id_s *)&id);
@@ -610,6 +697,15 @@ err:
 }
 
 static int proc_tcp_sock_evt(void *ctx, void *data, u32 size)
+{
+    struct endpoint_probe_s *probe = ctx;
+    if (drb_put(probe->drb, data, size)) {
+        WARN("[EPPROBE] Not enough space to put event into the ring buffer. Event is discarded.\n");
+    }
+    return 0;
+}
+
+static int proc_tcp_sock_evt_continue(void *ctx, void *data, u32 size)
 {
     char *p = data;
     size_t remain_size = (size_t)size, step_size = sizeof(struct tcp_socket_event_s), offset = 0;
@@ -1035,6 +1131,15 @@ static int poll_endpoint_pb(struct endpoint_probe_s *probe)
     return 0;
 }
 
+static void poll_drb(struct endpoint_probe_s *probe)
+{
+    const struct drb_item *item;
+    while ((item = drb_look(probe->drb))) {
+        proc_tcp_sock_evt_continue(probe, item->data, item->size);
+        drb_pop(probe->drb);
+    }
+}
+
 static char is_report_tmout(struct endpoint_probe_s *probe)
 {
     time_t current = time(NULL);
@@ -1129,6 +1234,12 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    g_ep_probe.drb = drb_new(CAPACITY, DELAY_MS);
+    if (!g_ep_probe.drb) {
+        ERROR("[ENDPOINTPROBE] Failed to allocate delaying ring buffer.\n");
+        return -1;
+    }
+
     INIT_BPF_APP(endpoint, EBPF_RLIM_LIMITED);
     INFO("[ENDPOINTPROBE] Successfully started!\n");
 
@@ -1157,6 +1268,7 @@ int main(int argc, char **argv)
             sleep(1);
         }
 
+        poll_drb(&g_ep_probe);
         report_tcp_socks(&g_ep_probe);
         report_endpoint(&g_ep_probe);
     }
@@ -1169,6 +1281,7 @@ int main(int argc, char **argv)
     unload_bpf_prog(&(g_ep_probe.prog));
     destroy_ipc_body(&(g_ep_probe.ipc_body));
 
+    drb_destroy(g_ep_probe.drb);
     clean_endpoint_pin_map();
     return ret;
 }
