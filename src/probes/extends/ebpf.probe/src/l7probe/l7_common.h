@@ -15,6 +15,7 @@
 #ifndef __L7_COMMON_H__
 #define __L7_COMMON_H__
 
+#include "delaying_ring_buffer.h"
 #include "ipc.h"
 #include "include/filter.h"
 #include "include/connect.h"
@@ -51,6 +52,7 @@ struct l7_mng_s {
     struct l7_link_s *l7_links;
     struct conn_data_s conn_data;
     struct java_proc_s *java_procs;
+    struct delaying_ring_buffer *drb;
 };
 
 #endif
