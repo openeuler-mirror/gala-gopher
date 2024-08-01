@@ -192,6 +192,7 @@ void l7_parser(void *ctx);
 void report_l7(void *ctx);
 
 int tracker_msg(void *ctx, void *data, u32 size);
+int tracker_msg_continue(void *ctx, void *data, u32 size);
 
 #endif
 

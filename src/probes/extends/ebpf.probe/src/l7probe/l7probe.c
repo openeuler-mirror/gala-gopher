@@ -42,6 +42,8 @@
 #include "include/java_mng.h"
 
 #define RM_L7_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__l7*"
+#define CAPACITY 4096
+#define DELAY_MS 500
 
 volatile sig_atomic_t g_stop;
 static struct l7_mng_s g_l7_mng;
@@ -350,6 +352,15 @@ static int poll_l7_pb(struct l7_ebpf_prog_s* ebpf_progs)
     return 0;
 }
 
+static void poll_drb(struct l7_mng_s *l7_mng)
+{
+    const struct drb_item *item;
+    while ((item = drb_look(l7_mng->drb))) {
+        tracker_msg_continue(l7_mng, item->data, item->size);
+        drb_pop(l7_mng->drb);
+    }
+}
+
 static void save_filter_proto(int fd, u32 proto)
 {
     u32 key = 0;
@@ -379,6 +390,12 @@ int main(int argc, char **argv)
     }
 
     (void)memset(l7_mng, 0, sizeof(struct l7_mng_s));
+
+    l7_mng->drb = drb_new(CAPACITY, DELAY_MS);
+    if (!l7_mng->drb) {
+        ERROR("[L7PROBE] Failed to allocate delaying ring buffer.\n");
+        goto err;
+    }
 
     int msq_id = create_ipc_msg_queue(IPC_EXCL);
     if (msq_id < 0) {
@@ -441,6 +458,8 @@ int main(int argc, char **argv)
                 ERROR("[L7Probe]: perf poll failed(%d).\n", ret);
                 break;
             }
+
+            poll_drb(l7_mng);
             l7_parser(l7_mng);
             report_l7(l7_mng);
         } else {
@@ -454,5 +473,7 @@ err:
     l7_unload_probe_jsse(l7_mng);
     unload_l7_prog(l7_mng);
     destroy_ipc_body(&(l7_mng->ipc_body));
+    drb_destroy(l7_mng->drb);
+    INFO("[L7PROBE] Cleanup is completed");
     return 0;
 }

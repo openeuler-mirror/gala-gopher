@@ -27,10 +27,15 @@
 #undef BPF_PROG_USER
 #endif
 
+#ifdef GOPHER_DEBUG
+#include <arpa/inet.h>
+#endif
+
 #include "bpf.h"
 #include "container.h"
 #include "histogram.h"
 #include "conntrack.h"
+#include "flowtracer_reader.h"
 #include "include/connect.h"
 #include "protocol/expose/protocol_parser.h"
 #include "include/data_stream.h"
@@ -341,14 +346,10 @@ static struct l7_api_statistic_s* create_l7_api_statistic(const struct api_stats
 
 static void transform_cluster_ip(struct l7_mng_s *l7_mng, struct conn_tracker_s* tracker)
 {
-    int transform = 0;
+    int transform = ADDR_TRANSFORM_NONE;
 
-    if (l7_mng->ipc_body.probe_param.cluster_ip_backend == 0) {
-        return;
-    }
-
-    // Only transform Kubernetes cluster IP backend for the client TCP connection.
-    if (tracker->l4_role != L4_CLIENT) {
+    char cluster_ip_backend = l7_mng->ipc_body.probe_param.cluster_ip_backend;
+    if (cluster_ip_backend == 0) {
         return;
     }
 
@@ -367,17 +368,49 @@ static void transform_cluster_ip(struct l7_mng_s *l7_mng, struct conn_tracker_s*
     connect.c_port = tracker->open_info.client_addr.port;
     connect.s_port = tracker->open_info.server_addr.port;
 
-    (void)get_cluster_ip_backend(&connect, &transform);
+    if (cluster_ip_backend == 1) { // use conntrack
+        // Only transform Kubernetes cluster IP backend for the client TCP connection.
+        if (tracker->l4_role != L4_CLIENT) {
+            return;
+        }
+        (void)get_cluster_ip_backend(&connect, &transform);
+    } else if (cluster_ip_backend == 2) { // use FlowTracer
+        transform = lookup_flowtracer(&connect);
+        DEBUG("[L7PROBE] FlowTracer transform: %d\n", transform);
+    }
+
     if (!transform) {
         return;
     }
 
-    if (connect.family == AF_INET) {
-        tracker->open_info.server_addr.ip = connect.sip_addr.s_ip;
-    } else {
-        memcpy(tracker->open_info.server_addr.ip6, &(connect.sip_addr), IP6_LEN);
+    #ifdef GOPHER_DEBUG
+    char s_ip1[IP6_STR_LEN], s_ip2[IP6_STR_LEN], c_ip1[IP6_STR_LEN], c_ip2[IP6_STR_LEN];
+    inet_ntop(connect.family, &tracker->open_info.server_addr.ip, s_ip1, sizeof(s_ip1));
+    inet_ntop(connect.family, &connect.sip_addr, s_ip2, sizeof(s_ip2));
+    inet_ntop(connect.family, &tracker->open_info.client_addr.ip, c_ip1, sizeof(c_ip1));
+    inet_ntop(connect.family, &connect.cip_addr, c_ip2, sizeof(c_ip2));
+    DEBUG("[L7PROBE]: Flow (%s:%u - %s:%u) is transformed into (%s:%u - %s:%u)\n",
+            c_ip1, tracker->open_info.client_addr.port, s_ip1, tracker->open_info.server_addr.port,
+            c_ip2, connect.c_port, s_ip2, connect.s_port);
+#endif
+
+    if (transform & ADDR_TRANSFORM_SERVER) {
+        if (connect.family == AF_INET) {
+            tracker->open_info.server_addr.ip = connect.sip_addr.s_ip;
+        } else {
+            memcpy(tracker->open_info.server_addr.ip6, &(connect.sip_addr.s_ip6), IP6_LEN);
+        }
+        tracker->open_info.server_addr.port = connect.s_port;
     }
-    tracker->open_info.server_addr.port = connect.s_port;
+    if (transform & ADDR_TRANSFORM_CLIENT) {
+        if (connect.family == AF_INET) {
+            tracker->open_info.client_addr.ip = connect.cip_addr.c_ip;
+        } else {
+            memcpy(tracker->open_info.client_addr.ip6, &(connect.cip_addr.c_ip6), IP6_LEN);
+        }
+        tracker->open_info.client_addr.port = connect.c_port;
+    }
+
     return;
 }
 
@@ -419,6 +452,15 @@ static int proc_conn_ctl_msg(struct l7_mng_s *l7_mng, struct conn_ctl_s *conn_ct
                     // Client port just used for cluster IP address translation. Here, client port MUST set 0.
                     tracker->open_info.client_addr.port = 0;
                 }
+#ifdef GOPHER_DEBUG
+    char s_ip[IP6_STR_LEN], c_ip[IP6_STR_LEN];
+    s_ip[0] = 0;
+    (void)inet_ntop(tracker->open_info.server_addr.family, (const void *)&(tracker->open_info.server_addr.ip), s_ip, sizeof(s_ip));
+    c_ip[0] = 0;
+    (void)inet_ntop(tracker->open_info.client_addr.family, (const void *)&(tracker->open_info.client_addr.ip), c_ip, sizeof(c_ip));
+    DEBUG("[L7PROBE.proc_conn_ctl_msg]: CONN_EVT_OPEN: tracker flow (%s:%u - %s:%u)\n",
+            c_ip, tracker->open_info.client_addr.port, s_ip, tracker->open_info.server_addr.port);
+#endif
             }
             break;
         }
@@ -1001,6 +1043,15 @@ void l7_parser(void *ctx)
 }
 
 int tracker_msg(void *ctx, void *data, u32 size)
+{
+    struct l7_mng_s *l7_mng = ctx;
+    if (drb_put(l7_mng->drb, data, size)) {
+        WARN("[L7PROBE] Not enough space to put event into the ring buffer. Event is discarded.\n");
+    }
+    return 0;
+}
+
+int tracker_msg_continue(void *ctx, void *data, u32 size)
 {
     char *p = data;
     struct l7_mng_s *l7_mng  = ctx;
