@@ -38,6 +38,7 @@
 #include "bpf.h"
 #include "ipc.h"
 #include "conntrack.h"
+#include "flowtracer_reader.h"
 #include "tcpprobe.h"
 #include "tcp_tracker.h"
 
@@ -200,57 +201,54 @@ static struct tcp_tracker_s* lkup_tcp_tracker(struct tcp_mng_s *tcp_mng, const s
     return tracker;
 }
 
-static void __transform_cluster_ip(struct tcp_mng_s *tcp_mng, const struct tcp_link_s *tcp_link, struct backend_ip_s *backend_ip)
+static int __transform_cluster_ip(struct tcp_mng_s *tcp_mng, const struct tcp_link_s *tcp_link, struct tcp_connect_s *connect)
 {
-    int transform = 0;
+    int transform = ADDR_TRANSFORM_NONE;
 
-    if (tcp_mng->ipc_body.probe_param.cluster_ip_backend == 0) {
-        return;
+    char cluster_ip_backend = tcp_mng->ipc_body.probe_param.cluster_ip_backend;
+    if (cluster_ip_backend == 0) {  // transform is disabled
+        return ADDR_TRANSFORM_NONE;
     }
 
-    // Only transform Kubernetes cluster IP backend for the client TCP connection.
-    if (tcp_link->role == 0) {
-        return;
-    }
-
-    struct tcp_connect_s connect;
-
-    connect.role = tcp_link->role;
-    connect.family = tcp_link->family;
+    connect->role = tcp_link->role;
+    connect->family = tcp_link->family;
 
     if (tcp_link->family == AF_INET) {
-        connect.cip_addr.c_ip = tcp_link->c_ip;
-        connect.sip_addr.s_ip = tcp_link->s_ip;
+        connect->cip_addr.c_ip = tcp_link->c_ip;
+        connect->sip_addr.s_ip = tcp_link->s_ip;
     } else {
-        memcpy(&(connect.cip_addr), tcp_link->c_ip6, IP6_LEN);
-        memcpy(&(connect.sip_addr), tcp_link->s_ip6, IP6_LEN);
+        memcpy(&(connect->cip_addr), tcp_link->c_ip6, IP6_LEN);
+        memcpy(&(connect->sip_addr), tcp_link->s_ip6, IP6_LEN);
     }
-    connect.c_port = tcp_link->c_port;
-    connect.s_port = tcp_link->s_port;
 
-    (void)get_cluster_ip_backend(&connect, &transform);
+    connect->c_port = tcp_link->c_port;
+    connect->s_port = tcp_link->s_port;
+
+    if (cluster_ip_backend == 1) { // use conntrack
+        // Only transform Kubernetes cluster IP backend for the client TCP connection.
+        if (tcp_link->role == 0) {
+            return ADDR_TRANSFORM_NONE;
+        }
+        (void)get_cluster_ip_backend(connect, &transform);
+    } else if (cluster_ip_backend == 2) { // use FlowTracer
+        transform = lookup_flowtracer(connect);
+    }
+
     if (!transform) {
-        return;
+        return ADDR_TRANSFORM_NONE;
     }
 
 #ifdef GOPHER_DEBUG
-    char ip1[IP6_LEN], ip2[IP6_LEN];
-    ip1[0] = 0;
-    (void)inet_ntop(tcp_link->family, (const void *)&(tcp_link->s_ip), ip1, IP6_LEN);
-    ip2[0] = 0;
-    (void)inet_ntop(connect.family, (const void *)&(connect.sip_addr), ip2, IP6_LEN);
-    DEBUG("[TCPPROBE]: Cluster IP[%s:%u->%s:%u] transform successfully.\n", ip1, tcp_link->s_port, ip2, connect.s_port);
+    char s_ip1[IP6_STR_LEN], s_ip2[IP6_STR_LEN], c_ip1[IP6_STR_LEN], c_ip2[IP6_STR_LEN];
+    inet_ntop(tcp_link->family, &tcp_link->s_ip, s_ip1, sizeof(s_ip1));
+    inet_ntop(connect->family, &connect->sip_addr, s_ip2, sizeof(s_ip2));
+    inet_ntop(tcp_link->family, &tcp_link->c_ip, c_ip1, sizeof(c_ip1));
+    inet_ntop(connect->family, &connect->cip_addr, c_ip2, sizeof(c_ip2));
+    DEBUG("[TCPPROBE]: Flow (%s:%u - %s:%u) is transformed into (%s:%u - %s:%u)\n",
+            c_ip1, tcp_link->c_port, s_ip1, tcp_link->s_port, c_ip2, connect->c_port, s_ip2, connect->s_port);
 #endif
 
-    backend_ip->family = tcp_link->family;
-
-    if (backend_ip->family == AF_INET) {
-        backend_ip->ip_addr.ip = connect.sip_addr.s_ip;
-    } else {
-        memcpy(&(backend_ip->ip_addr), &(connect.sip_addr), IP6_LEN);
-    }
-    backend_ip->port = connect.s_port;
-    return;
+    return transform;
 }
 
 void __init_toa_sock_id(struct toa_sock_id_s *toa_sock_id, const struct tcp_link_s *tcp_link)
@@ -359,20 +357,26 @@ static void __init_flow_tracker_id(struct tcp_flow_tracker_id_s *tracker_id, con
 
 struct tcp_tracker_s *get_tcp_tracker(struct tcp_mng_s *tcp_mng, const void *link, const struct toa_socket_s *toa_sock)
 {
-    struct backend_ip_s backend_ip = {0};
+    struct tcp_connect_s connect = {0};
     struct tcp_tracker_id_s tracker_id = {0};
     const struct tcp_link_s *tcp_link = link;
 
     __init_tracker_id(&tracker_id, tcp_link, toa_sock);
 
-    __transform_cluster_ip(tcp_mng, tcp_link, &backend_ip);
-    if (backend_ip.family != 0 && backend_ip.port != 0) {
-        if (backend_ip.family == AF_INET) {
-            tracker_id.s_ip = backend_ip.ip_addr.ip;
+    int transform = __transform_cluster_ip(tcp_mng, tcp_link, &connect);
+    if (transform & ADDR_TRANSFORM_SERVER) {
+        if (connect.family == AF_INET) {
+            tracker_id.s_ip = connect.sip_addr.s_ip;
         } else {
-            memcpy(tracker_id.s_ip6, &(backend_ip.ip_addr), IP6_LEN);
+            memcpy(tracker_id.s_ip6, &(connect.sip_addr.s_ip6), IP6_LEN);
         }
-        tracker_id.port = backend_ip.port;
+        tracker_id.port = connect.s_port;
+    } else if (transform & ADDR_TRANSFORM_CLIENT) {
+        if (connect.family == AF_INET) {
+            tracker_id.c_ip = connect.cip_addr.c_ip;
+        } else {
+            memcpy(tracker_id.c_ip6, &(connect.cip_addr.c_ip6), IP6_LEN);
+        }
     }
 
     struct tcp_tracker_s* tracker = lkup_tcp_tracker(tcp_mng, (const struct tcp_tracker_id_s *)&tracker_id);
@@ -428,18 +432,18 @@ void destroy_toa_sockets(struct tcp_mng_s *tcp_mng)
 
 struct tcp_flow_tracker_s* get_tcp_flow_tracker(struct tcp_mng_s *tcp_mng, const void *link)
 {
-    struct backend_ip_s backend_ip = {0};
+    struct tcp_connect_s connect = {0};
     struct tcp_flow_tracker_id_s tracker_id = {0};
     const struct tcp_link_s *tcp_link = link;
 
     __init_flow_tracker_id(&tracker_id, tcp_link);
 
-    __transform_cluster_ip(tcp_mng, tcp_link, &backend_ip);
-    if (backend_ip.family != 0 && backend_ip.port != 0) {
+    int transform = __transform_cluster_ip(tcp_mng, tcp_link, &connect);
+    if (transform & ADDR_TRANSFORM_SERVER) {
         tracker_id.remote_ip[0] = 0;
-        ip_str(backend_ip.family, (unsigned char *)&(backend_ip.ip_addr),
+        ip_str(connect.family, (unsigned char *)&(connect.sip_addr),
             (unsigned char *)tracker_id.remote_ip, sizeof(tracker_id.remote_ip));
-        tracker_id.port = backend_ip.port;
+        tracker_id.port = connect.s_port;
     }
 
     struct tcp_flow_tracker_s* tracker = lkup_tcp_flow_tracker(tcp_mng,
