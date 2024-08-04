@@ -89,7 +89,7 @@ static void web_server_request_handler(struct evhttp_request *req, void *arg)
         return http_server_reply_code(req, HTTP_NOCONTENT);
     }
 
-    if ((fstat(fd, &buf) == -1) || !S_ISREG(buf.st_mode)) {
+    if ((fstat(fd, &buf) == -1) || !S_ISREG(buf.st_mode) || buf.st_size == 0) {
         (void)close(fd);
         return http_server_reply_code(req, HTTP_NOCONTENT);
     }
