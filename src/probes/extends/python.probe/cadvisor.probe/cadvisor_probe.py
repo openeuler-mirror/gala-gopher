@@ -1,15 +1,18 @@
 #!/usr/bin/python3
-from ctypes import cdll, c_uint, c_char, Structure, POINTER, pointer, create_string_buffer
 import sys
-import time
-import signal
-import subprocess
 import os
-import io
-import requests
-import json
-import re
-import ipc
+try:
+    from ctypes import cdll, create_string_buffer
+    import time
+    import signal
+    import subprocess
+    import io
+    import json
+    import re
+    import requests
+    import ipc
+except KeyboardInterrupt:
+    sys.exit(0)
 
 CONTAINER_ID_LEN = 64
 CGROUP_PATH_LEN = 256
