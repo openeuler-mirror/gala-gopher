@@ -47,7 +47,7 @@ gala-gopher是一款结合eBPF、java agent等非侵入可观测技术的观测�
 
 ### 性能Profiling
 
-性能火焰图是常用的性能问题诊断工具，常见的性能火焰图工具（perf、ansyc-profier）存在底噪大、精细化不够、多语言能力不够等问题。
+性能火焰图是常用的性能问题诊断工具，常见的性能火焰图工具（perf、async-profier）存在底噪大、精细化不够、多语言能力不够等问题。
 
 gala-gopher提供持续、低底噪、多实例形式的性能Profiling能力，覆盖C/C++、Go、Java（最佳效果时，推荐加上-XX:+PreserveFramePointer启动参数）语言。
 
