@@ -12,7 +12,8 @@ TAILOR_PATH=${PROJECT_FOLDER}/tailor.conf
 VMLINUX_DIR=${PROJECT_FOLDER}/src/probes/extends/ebpf.probe/src/include
 EXT_PROBE_BUILD_LIST=$(find ${EXT_PROBE_FOLDER} -maxdepth 2 | grep "\<build.sh\>")
 DEP_LIST=(cmake git librdkafka-devel libconfig-devel uthash-devel libbpf-devel clang bpftool
-          llvm java-1.8.0-openjdk-devel jsoncpp-devel libcurl-devel openssl-devel libevent-devel)
+          llvm java-1.8.0-openjdk-devel jsoncpp-devel libcurl-devel openssl-devel libevent-devel
+          elfutils-devel)
 PROBES_LIST=""
 PROBES_C_LIST=""
 PROBES_META_LIST=""

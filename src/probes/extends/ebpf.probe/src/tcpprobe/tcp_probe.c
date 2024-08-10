@@ -1111,7 +1111,7 @@ int tcp_load_probe(struct tcp_mng_s *tcp_mng, struct ipc_body_s *ipc_body, struc
         return -1;
     }
 
-#ifdef __x86_64__
+#if defined(__x86_64__) || defined(__riscv)
     if (tcp_load_probe_link(tcp_mng, &(ipc_body->probe_param), prog)) {
         goto err;
     }

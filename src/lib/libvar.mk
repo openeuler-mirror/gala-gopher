@@ -15,6 +15,8 @@ ifeq ($(ARCH), x86_64)
     TYPE = x86
 else ifeq ($(ARCH), aarch64)
     TYPE = arm64
+else ifeq ($(ARCH), riscv64)
+    TYPE = riscv
 endif
 
 LIBBPF_VER = $(shell rpm -q libbpf | awk -F'-' '{print $$2}')

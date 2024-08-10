@@ -9,6 +9,11 @@ JAVA_VER_MINOR=$(echo ${JAVA_VER} | awk -F'.' '{print $2}')
 # java version > 8u272
 function check_jfr_supported()
 {
+    # rv openjdk1.8 has no jfr
+    if [ `uname -m` == riscv64 ]; then
+        return 0
+    fi
+
     if [ "$JAVA_VER_MAJOR" -gt 1 ] || [ "$JAVA_VER_MINOR" -gt 8 ];then
         return 1
     fi

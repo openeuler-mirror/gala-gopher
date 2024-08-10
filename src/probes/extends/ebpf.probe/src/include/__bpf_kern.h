@@ -137,6 +137,15 @@ static __always_inline __maybe_unused char is_compat_task(struct task_struct *ta
     return (flags & TIF_32BIT) || (flags & TIF_32BIT_AARCH64);
 }
 
+#elif defined(__TARGET_ARCH_riscv)
+#ifndef PT_REGS_PARM6
+#define PT_REGS_RV64 const volatile struct user_regs_struct
+#define PT_REGS_PARM6(x) (((PT_REGS_RV64 *)(x))->a5)
+#endif
+/* It's appropriate to assume kernel always be in supervisor mode. */
+#define user_mode(regs) (((regs)->status & 0x00000100) == 0)
+#define compat_user_mode(regs)  (0)
+static __always_inline __maybe_unused char is_compat_task(struct task_struct *task) {return 0;}
 
 #endif
 

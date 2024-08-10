@@ -34,6 +34,8 @@ char g_license[] SEC("license") = "GPL";
 #define KPROBE_SYSCALL(func) __KPROBE_SYSCALL(__x64_sys_, func)
 #elif defined(__TARGET_ARCH_arm64)
 #define KPROBE_SYSCALL(func)  __KPROBE_SYSCALL(__arm64_sys_, func)
+#elif defined(__TARGET_ARCH_riscv)
+#define KPROBE_SYSCALL(func)  __KPROBE_SYSCALL(__riscv_sys_, func)
 #endif
 
 #define __KRETPROBE_SYSCALL(arch, func) KRETPROBE(arch##func, pt_regs)
@@ -42,6 +44,8 @@ char g_license[] SEC("license") = "GPL";
 #define KRETPROBE_SYSCALL(func) __KRETPROBE_SYSCALL(__x64_sys_, func)
 #elif defined(__TARGET_ARCH_arm64)
 #define KRETPROBE_SYSCALL(func) __KRETPROBE_SYSCALL(__arm64_sys_, func)
+#elif defined(__TARGET_ARCH_riscv)
+#define KRETPROBE_SYSCALL(func) __KRETPROBE_SYSCALL(__riscv_sys_, func)
 #endif
 
 // /sys/kernel/debug/tracing/events/syscalls/sys_enter_connect/format

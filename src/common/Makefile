@@ -3,6 +3,8 @@ ifeq ($(ARCH), x86_64)
 	ARCH = x86
 else ifeq ($(ARCH), aarch64)
 	ARCH = arm64
+else ifeq ($(ARCH), riscv64)
+	ARCH = riscv
 endif
 
 LIBBPF_VER = $(shell rpm -q libbpf | awk -F'-' '{print $$2}')
