@@ -84,7 +84,7 @@ Requires:      libcurl
 Requires:      python3-psycopg2 python3-yaml net-tools
 %endif
 %if !0%{?without_container}
-Requires:      cadvisor python3-requests net-tools util-linux
+Requires:      cadvisor python3-requests util-linux
 %endif
 %if !0%{?without_postgre_sli}
 Requires:      iproute

@@ -142,6 +142,7 @@ def init_param():
 if __name__ == "__main__":
     init_param()
     signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
     init_conns()
 
     while True:
