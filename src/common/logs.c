@@ -19,6 +19,7 @@
 #define RM_DIR_COMMAND      "/usr/bin/rm -rf %s"
 
 static struct log_mgr_s *local = NULL;
+static pthread_mutex_t metric_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int mkdirp(const char *path, mode_t mode)
 {
@@ -719,13 +720,16 @@ int wr_metrics_logs(const char* logs, size_t logs_len)
         return -1;
     }
 
+    pthread_mutex_lock(&metric_mutex);
     if (que_current_is_invalid(mgr, 1)) {
         if (append_metrics_logger(mgr)) {
+            pthread_mutex_unlock(&metric_mutex);
             return -1;
         }
     }
     log_without_date(&g_metrics_logger, logs);
     que_current_set_size(mgr->metrics_files, logs_len);
+    pthread_mutex_unlock(&metric_mutex);
     return 0;
 }
 
@@ -743,19 +747,23 @@ int read_metrics_logs(char logs_file_name[], size_t size)
         return -1;
     }
 
+    pthread_mutex_lock(&metric_mutex);
     file_id = que_pop_file(mgr->metrics_files);
     if (!IS_VALID_FILE_ID(file_id)) {
         DEBUG("File id invalid(%d)!\n", file_id);
+        pthread_mutex_unlock(&metric_mutex);
         return -1;
     }
 
     if (get_file_name(mgr, 1, file_id, logs_file_name, size)) {
         ERROR("Read metrics_logs failed, get log's file_name failed.\n");
+        pthread_mutex_unlock(&metric_mutex);
         return -1;
     }
     (void)pthread_rwlock_wrlock(&(g_metrics_logger.rwlock));
     g_metrics_logger.buf_len = 0; // if delete file by curl, should reset it buf_len
     (void)pthread_rwlock_unlock(&(g_metrics_logger.rwlock));
+    pthread_mutex_unlock(&metric_mutex);
     return 0;
 }
 
