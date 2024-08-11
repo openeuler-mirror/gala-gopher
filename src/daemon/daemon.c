@@ -186,80 +186,43 @@ int DaemonRun(ResourceMgr *mgr)
     return 0;
 }
 
-void destroy_daemon_threads(ResourceMgr *mgr)
+void DaemonWaitDone(const ResourceMgr *mgr)
 {
     if (mgr == NULL) {
         return;
     }
 
     if (mgr->ingressMgr != NULL && mgr->ingressMgr->tid != 0) {
-        pthread_cancel(mgr->ingressMgr->tid);
         pthread_join(mgr->ingressMgr->tid, NULL);
     }
 
     if (mgr->egressMgr != NULL && mgr->egressMgr->tid != 0) {
-        pthread_cancel(mgr->egressMgr->tid);
         pthread_join(mgr->egressMgr->tid, NULL);
     }
 
     if (mgr->web_server_mgr != NULL && mgr->web_server_mgr->tid != 0) {
-        pthread_cancel(mgr->web_server_mgr->tid);
         pthread_join(mgr->web_server_mgr->tid, NULL);
     }
 
     if (mgr->mmMgr != NULL && mgr->mmMgr->tid != 0) {
-        pthread_cancel(mgr->mmMgr->tid);
         pthread_join(mgr->mmMgr->tid, NULL);
     }
 
     if (mgr->probe_mng != NULL && mgr->probe_mng->tid != 0) {
-        pthread_cancel(mgr->probe_mng->tid);
         pthread_join(mgr->probe_mng->tid, NULL);
     }
 
     if (mgr->imdbMgr != NULL && mgr->imdbMgr->metrics_tid != 0) {
-        pthread_cancel(mgr->imdbMgr->metrics_tid);
         pthread_join(mgr->imdbMgr->metrics_tid, NULL);
     }
 
     if (mgr->rest_server_mgr != NULL && mgr->rest_server_mgr->tid != 0) {
-        pthread_cancel(mgr->rest_server_mgr->tid);
         pthread_join(mgr->rest_server_mgr->tid, NULL);
     }
 
     if (mgr->ctl_tid != 0) {
-        pthread_cancel(mgr->ctl_tid);
         pthread_join(mgr->ctl_tid, NULL);
         (void)unlink(GALA_GOPHER_CMD_SOCK_PATH);
     }
-}
-
-int DaemonWaitDone(const ResourceMgr *mgr)
-{
-    // 1. wait ingress done
-    pthread_join(mgr->ingressMgr->tid, NULL);
-
-    // 2. wait egress done
-    pthread_join(mgr->egressMgr->tid, NULL);
-
-    // 3. wait web_server mng done
-    pthread_join(mgr->web_server_mgr->tid, NULL);
-
-    // 4. wait metadata_report done
-    pthread_join(mgr->mmMgr->tid, NULL);
-
-    // 5. wait probe mng done
-    pthread_join(mgr->probe_mng->tid, NULL);
-
-    // 6. wait metric_write_logs done
-    pthread_join(mgr->imdbMgr->metrics_tid, NULL);
-
-    // 7. wait rest_api_server mng done
-    pthread_join(mgr->rest_server_mgr->tid, NULL);
-
-    // 8.wait ctl thread done
-    pthread_join(mgr->ctl_tid, NULL);
-
-    return 0;
 }
 

@@ -22,6 +22,7 @@
 #include <limits.h>
 #include <sys/file.h>
 #include <sys/stat.h>
+#include <sys/prctl.h>
 #include "daemon.h"
 #include "base.h"
 #include "ipc.h"
@@ -37,6 +38,8 @@
 #endif
 
 char *g_galaConfPath;
+pthread_t sig_handler_tid;
+pthread_mutex_t sig_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void ShowUsage(void)
 {
@@ -144,18 +147,8 @@ static void clean_pin_map()
 
 static void quit_handler(int signo)
 {
-    destroy_probe_threads();
-    destroy_daemon_threads(g_resourceMgr);
-    // probe_mng创建的ipc消息队列是跟随内核的，进程结束消息队列还会存在，需要显示调用函数销毁
-    destroy_ipc_msg_queue(g_probe_mng_ipc_msgid);
-    clean_pin_map();
-    if (g_resourceMgr && g_resourceMgr->logsMgr) {
-        clear_log_dir(g_resourceMgr->logsMgr->metrics_path);
-    }
-
-    (void)unlink(PIDFILE);
-
-    exit(EXIT_SUCCESS);
+    (void)signo;
+    pthread_mutex_unlock(&sig_mutex);
 }
 
 static int write_pid_to_file(pid_t pid, const char *pidfile, int fd)
@@ -260,9 +253,31 @@ static int is_singleton(void)
     return 0;
 }
 
+static void *run_sig_handler(void *arg)
+{
+    prctl(PR_SET_NAME, "[SIGHANDLER]");
+
+    pthread_mutex_lock(&sig_mutex);
+    (void)pthread_rwlock_wrlock(&g_resourceMgr->probe_mng->rwlock);
+    destroy_probe_threads();
+    // probe_mng创建的ipc消息队列是跟随内核的，进程结束消息队列还会存在，需要显示调用函数销毁
+    destroy_ipc_msg_queue(g_probe_mng_ipc_msgid);
+    clean_pin_map();
+    if (g_resourceMgr && g_resourceMgr->logsMgr) {
+        clear_log_dir(g_resourceMgr->logsMgr->metrics_path);
+    }
+
+    (void)unlink(PIDFILE);
+    (void)unlink(GALA_GOPHER_CMD_SOCK_PATH);
+    exit(EXIT_SUCCESS);
+}
+
+
 static void sig_setup(void)
 {
+    int ret;
     struct sigaction quit_action;
+    pthread_mutex_lock(&sig_mutex);
 
     (void)memset(&quit_action, 0, sizeof(struct sigaction));
     quit_action.sa_handler = quit_handler;
@@ -271,6 +286,12 @@ static void sig_setup(void)
     (void)sigaction(SIGTERM, &quit_action, NULL);
     (void)signal(SIGHUP, SIG_IGN);
     (void)signal(SIGPIPE, SIG_IGN);
+
+    ret = pthread_create(&sig_handler_tid, NULL, run_sig_handler, NULL);
+    if (ret != 0) {
+        ERROR("[MAIN] create sig handler thread failed.(errno:%d, %s)\n", errno, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
 }
 
 int main(int argc, char *argv[])
@@ -312,11 +333,7 @@ int main(int argc, char *argv[])
         goto err;
     }
 
-    ret = DaemonWaitDone(g_resourceMgr);
-    if (ret != 0) {
-        ERROR("[MAIN] daemon wait done failed.\n");
-        goto err;
-    }
+    DaemonWaitDone(g_resourceMgr);
 err:
     ResourceMgrDeinit(g_resourceMgr);
     ResourceMgrDestroy(g_resourceMgr);

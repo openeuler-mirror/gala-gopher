@@ -25,7 +25,6 @@
 #define GOPHER_ERR      (-1)
 
 #define GALA_GOPHER_LISTEN_LEN      5
-#define GALA_GOPHER_CMD_SOCK_PATH   "/var/run/gala_gopher/gala_gopher_cmd.sock"
 
 #define SOCK_TIMEOUT_SEC 60
 
