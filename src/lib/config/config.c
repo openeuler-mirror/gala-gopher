@@ -251,8 +251,12 @@ static int ConfigMgrLoadIMDBConfig(void *config, config_setting_t *settings)
     int intVal = 0;
 
     ret = config_setting_lookup_int(settings, "max_tables_num", &intVal);
-    if (ret == 0 || intVal <= 0) {
+    if (ret == 0) {
         ERROR("[CONFIG] load config for imdbConfig max_tables_num failed.\n");
+        return -1;
+    }
+    if (intVal <= 0 || intVal > MAX_MEASUREMENT_NUM) {
+        ERROR("[CONFIG] imdbConfig max_tables_num must be in (0, %d].\n", MAX_MEASUREMENT_NUM);
         return -1;
     }
     imdbConfig->maxTablesNum = intVal;
