@@ -456,16 +456,31 @@ typedef struct {
     ConfigLoadFunc func;
 } ConfigLoadHandle;
 
+static int ConfigCheckSkipHandle(const char *sectionName, const ConfigMgr *mgr)
+{
+    if (strcmp(sectionName, "rest_api_server") == 0 &&
+        mgr->globalConfig->restApiOn == 0) {
+        return 1;
+    }
+
+    if (strcmp(sectionName, "web_server") == 0 &&
+        mgr->metricOutConfig->outChnl != OUT_CHNL_WEB_SERVER) {
+        return 1;
+    }
+
+    return 0;
+}
+
 int ConfigMgrLoad(const ConfigMgr *mgr, const char *confPath)
 {
     ConfigLoadHandle configLoadHandles[] = {
         { (void *)mgr->globalConfig, "global", ConfigMgrLoadGlobalConfig },
         { (void *)mgr->kafkaConfig, "kafka", ConfigMgrLoadKafkaConfig },
+        { (void *)mgr->metricOutConfig, "metric", ConfigMgrLoadOutConfig },
         { (void *)mgr->imdbConfig, "imdb", ConfigMgrLoadIMDBConfig },
         { (void *)mgr->webServerConfig, "web_server", ConfigMgrLoadWebServerConfig },
         { (void *)mgr->restServerConfig, "rest_api_server", ConfigMgrLoadRestServerConfig },
         { (void *)mgr->logsConfig, "logs", ConfigMgrLoadLogsConfig },
-        { (void *)mgr->metricOutConfig, "metric", ConfigMgrLoadOutConfig },
         { (void *)mgr->eventOutConfig, "event", ConfigMgrLoadOutConfig },
         { (void *)mgr->metaOutConfig, "meta", ConfigMgrLoadOutConfig }
     };
@@ -485,6 +500,9 @@ int ConfigMgrLoad(const ConfigMgr *mgr, const char *confPath)
     for (int i = 0; i < configUnitNum; i++) {
         settings = config_lookup(&cfg, configLoadHandles[i].sectionName);
         if (settings == NULL) {
+            if (ConfigCheckSkipHandle(configLoadHandles[i].sectionName, mgr)) {
+                continue;
+            }
             ERROR("[CONFIG] config lookup %s failed.\n", configLoadHandles[i].sectionName);
             goto ERR;
         }
