@@ -55,7 +55,7 @@ static int open_file_with_clear_file(const char *filename)
     if (!filename) {
         return -1;
     }
-    int file_fd = open(filename, O_WRONLY | O_CREAT | O_CLOEXEC, LOG_FILE_PERMISSION);
+    int file_fd = open(filename, O_WRONLY | O_CREAT | O_CLOEXEC | O_NOFOLLOW, LOG_FILE_PERMISSION);
     if (file_fd < 0) {
         return -1;
     }

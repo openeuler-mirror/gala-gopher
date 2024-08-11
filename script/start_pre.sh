@@ -16,6 +16,11 @@ SYS_UUID_FILE=/opt/gala-gopher/machine_id
 
 function gen_sys_uuid_file()
 {
+    if [ -L $SYS_UUID_FILE ] ; then
+        echo "[START_PRE] ${SYS_UUID_FILE} must not be a symbolic link"
+        exit 1
+    fi
+
     if [ -f /sys/class/dmi/id/product_uuid ] ; then
         cat /sys/class/dmi/id/product_uuid > $SYS_UUID_FILE
         chmod 440 $SYS_UUID_FILE || exit 1
