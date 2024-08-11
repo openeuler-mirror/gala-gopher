@@ -467,7 +467,7 @@ static int get_probe_pid(struct probe_s *probe)
     return pid;
 }
 
-static void set_probe_pid(struct probe_s *probe, int pid)
+void set_probe_pid(struct probe_s *probe, int pid)
 {
     (void)pthread_rwlock_wrlock(&probe->rwlock);
     probe->pid = pid;

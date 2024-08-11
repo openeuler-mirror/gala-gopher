@@ -50,7 +50,6 @@ static int lkup_and_set_probe_pid(struct probe_s *probe)
     char cmd[COMMAND_LEN];
     char pid_str[INT_LEN];
 
-
     if (probe->bin == NULL) {
         return -1;
     }
@@ -61,10 +60,11 @@ static int lkup_and_set_probe_pid(struct probe_s *probe)
         return -1;
     }
     pid = strtol(pid_str, NULL, 10);
-    (void)pthread_rwlock_wrlock(&probe->rwlock);
-    probe->pid = pid;
-    (void)pthread_rwlock_unlock(&probe->rwlock);
-    return (pid > 0) ? 0 : -1;
+    if (pid == getpid() || pid <= 0) {
+        return -1;
+    }
+    set_probe_pid(probe, pid);
+    return 0;
 }
 
 static void sendOutputToIngresss(struct probe_s *probe, char *buffer, uint32_t bufferSize)
