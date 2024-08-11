@@ -303,6 +303,10 @@ static void probe_init(struct sli_probe_s *probe)
     for (int i = 0; i < SLI_MEM_LAT_NR; i++) {
         (void)init_histo_bucket(&(probe->sli_mem_lat_buckets[i]), sli_mem_lat_histios[i].min, sli_mem_lat_histios[i].max);
     }
+
+    for (int i = 0; i < SLI_IO_LAT_NR; i++) {
+        (void)init_histo_bucket(&(probe->sli_io_lat_buckets[i]), sli_io_lat_histios[i].min, sli_io_lat_histios[i].max);
+    }
     return;
 }
 
