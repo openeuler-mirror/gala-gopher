@@ -83,7 +83,7 @@ static void web_server_request_handler(struct evhttp_request *req, void *arg)
         return http_server_reply_code(req, HTTP_NOCONTENT);
     }
 
-    fd = open(log_file_name, O_RDONLY);
+    fd = open(log_file_name, O_RDONLY | O_NOFOLLOW);
     if (fd < 0) {
         ERROR("[WEBSERVER] Failed to open '%s': %s\n", log_file_name, strerror(errno));
         return http_server_reply_code(req, HTTP_NOCONTENT);

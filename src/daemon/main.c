@@ -217,7 +217,7 @@ static int acquire_daemonlock(const char *pidfile, pid_t pid)
     }
 
     // Initial mode is 0600 to prevent flock() race/DoS.
-    fd = open(pidfile, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+    fd = open(pidfile, O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0600);
     if (fd == -1) {
         ERROR("[MAIN] can't open or create %s, %s.\n", pidfile, strerror(errno));
         return 1;

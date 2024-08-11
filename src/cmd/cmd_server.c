@@ -203,7 +203,7 @@ int processMetricRequest(GopherCmdRequest *rcvRequest, int client_fd)
         return GOPHER_ERR;
     }
 
-    fd = open(log_file_name, O_RDONLY);
+    fd = open(log_file_name, O_RDONLY | O_NOFOLLOW);
     if (fd < 0) {
         ERROR("Failed to open '%s': %s\n", log_file_name, strerror(errno));
         (void)SendSizeHeader(client_fd, 0);
