@@ -1,18 +1,15 @@
 #!/usr/bin/python3
 import sys
 import os
-try:
-    from ctypes import cdll, create_string_buffer
-    import time
-    import signal
-    import subprocess
-    import io
-    import json
-    import re
-    import requests
-    import ipc
-except KeyboardInterrupt:
-    sys.exit(0)
+from ctypes import cdll, create_string_buffer
+import time
+import signal
+import subprocess
+import io
+import json
+import re
+import requests
+import ipc
 
 CONTAINER_ID_LEN = 64
 CGROUP_PATH_LEN = 256
@@ -57,12 +54,11 @@ class ParamException(Exception):
 def init_so():
     container_lib_path = os.path.join(PROJECT_PATH, "lib/container.so")
     container_lib = cdll.LoadLibrary(container_lib_path)
-    info_log("load container.so.")
     return container_lib
 
 def signal_handler(signum, frame):
     cadvisor_probe.stop_cadvisor()
-    sys.exit(0)
+    os._exit(0)
 
 def convert_meta():
     '''
@@ -120,42 +116,10 @@ class CadvisorProbe():
     def set_cgroup_path_map(self, map):
         self.cgroup_path_map = map
 
-    def get_cadvisor_port(self):
-        p = subprocess.Popen("/usr/bin/netstat -nltp | /usr/bin/grep cadvisor | \
-                            /usr/bin/awk  -F \":::\" '{print $2}'", stdout=subprocess.PIPE, shell=True)
-        try:
-            (rawout, serr) = p.communicate(timeout=10)
-        except subprocess.TimeoutExpired:
-            return False
-
-        if len(rawout) != 0:
-            self.port = rawout.rstrip().decode()
-            return True
-        return False
-
     def start_cadvisor(self, period):
-        p = subprocess.Popen("which cadvisor", stdout=subprocess.PIPE, shell=True)
-        p.communicate(timeout=5)
-        if p.returncode != 0:
-            raise Exception('cAdvisor not installed')
-        p = subprocess.Popen("/usr/bin/ps -ef | /usr/bin/grep /usr/bin/cadvisor | /usr/bin/grep -v grep | \
-                            /usr/bin/awk '{print $2}'", stdout=subprocess.PIPE, shell=True)
-        try:
-            (rawout, serr) = p.communicate(timeout=5)
-        except subprocess.TimeoutExpired:
-            error_log("Failed to get cAdvisor running state")
-            sys.exit(0)
-
-        if len(rawout) != 0:
-            self.pid = rawout.rstrip().decode()
-            if self.get_cadvisor_port():
-                info_log("cAdvisor has already been running at port %s." % self.port)
-                return
-            else:
-                raise Exception('cAdvisor running but get info failed')
         whitelist_label = "-whitelisted_container_labels=" + get_meta_label_list()
         interval = "--housekeeping_interval="+ str(period) + "s"
-        ps = subprocess.Popen(["/usr/bin/cadvisor", "-port", str(self.port),\
+        ps = subprocess.Popen(["/usr/bin/cadvisor", "-listen_ip", "localhost", "-port", str(self.port),\
             "--store_container_labels=false", interval, whitelist_label,\
             DISABLE_METRICS_OPTION],\
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=False)
@@ -165,11 +129,10 @@ class CadvisorProbe():
             info_log("cAdvisor started at port %s." % self.port)
         else:
             error_log("cAdvisor started at port %s failed. retcode: %d" % (self.port, ps.returncode))
-            sys.exit(0)
+            os._exit(0)
         self.pid = ps.pid
 
     def stop_cadvisor(self):
-        info_log("stop cAdvisor before exit.")
         if self.pid != 0:
             subprocess.Popen(["/usr/bin/kill", "-9", str(self.pid)], stdout=subprocess.PIPE, shell=False)
 
@@ -250,7 +213,7 @@ class CadvisorProbe():
         self.parse_metrics(r.text)
 
     def change_cadvisor_port(self, port, period):
-        if self.get_cadvisor_port() and self.port == port:
+        if self.port == port:
             return True
         self.stop_cadvisor()
         self.port = port
@@ -320,7 +283,6 @@ if __name__ == "__main__":
 
     convert_meta()
     container_lib = init_so()
-    signal.signal(signal.SIGINT, signal_handler)
     containerUtils = ContainerUtils(container_lib)
     ipc_body = ipc.IpcBody()
     s = requests.Session()
@@ -328,10 +290,12 @@ if __name__ == "__main__":
     msq_id = ipc.create_ipc_msg_queue(ipc.IPC_EXCL)
     if msq_id < 0:
         error_log("create ipc msg queue failed")
-        sys.exit(-1)
+        os._exit(-1)
 
-    cadvisor_probe = CadvisorProbe(cadvisor_port)
-
+    cadvisor_probe = CadvisorProbe(0)
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    last_report = 0
     while True:
         ret = ipc.recv_ipc_msg(msq_id, ipc.ProbeType.PROBE_CONTAINER, ipc_body)
         if ret == 0:
@@ -356,12 +320,18 @@ if __name__ == "__main__":
                 reset_g_metric()
             ipc.destroy_ipc_body(ipc_body)
 
-        if cadvisor_running_flag and cadvisor_probe.cgroup_path_map:
-            try:
-                cadvisor_probe.get_metrics(s, cadvisor_port)
-            except Exception as e:
-                debug_log("get metrics failed. Err: %s" % repr(e))
-                s = requests.Session()
-        print_metrics()
-        clean_metrics()
-        time.sleep(period)
+        now = time.time()
+        if now < last_report:
+            last_report = now
+
+        if now - last_report >= period:
+            last_report = now
+            if cadvisor_running_flag and cadvisor_probe.cgroup_path_map:
+                try:
+                    cadvisor_probe.get_metrics(s, cadvisor_port)
+                except Exception as e:
+                    debug_log("get metrics failed. Err: %s" % repr(e))
+                    s = requests.Session()
+            print_metrics()
+            clean_metrics()
+        time.sleep(1)

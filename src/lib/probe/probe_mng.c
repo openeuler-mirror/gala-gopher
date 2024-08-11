@@ -553,9 +553,29 @@ static int start_probe(struct probe_s *probe)
     return 0;
 }
 
-static int stop_probe(struct probe_s *probe)
+static int kill_extend_probe(struct probe_s *probe)
 {
     int pid;
+    int sig_num = SIGINT;
+
+    pid = get_probe_pid(probe);
+    if (pid < 0) {
+        PARSE_ERR("failed to find process of extend probe");
+        return -1;
+    }
+
+    if (probe->probe_type == PROBE_CONTAINER ||
+        probe->probe_type == PROBE_POSTGRE_SLI ||
+        probe->probe_type == PROBE_SERMANT) {
+        sig_num = SIGTERM;
+    }
+
+    kill(pid, sig_num);
+    return 0;
+}
+
+static int stop_probe(struct probe_s *probe)
+{
     if (!IS_RUNNING_PROBE(probe)) {
         return 0;
     }
@@ -566,12 +586,9 @@ static int stop_probe(struct probe_s *probe)
         set_probe_status_stopped(probe);
         clear_ipc_msg((long)probe->probe_type);
     } else {
-        pid = get_probe_pid(probe);
-        if (pid < 0) {
-            PARSE_ERR("failed to find process of extend probe");
+        if (kill_extend_probe(probe)) {
             return -1;
         }
-        kill(pid, SIGINT);
     }
     pthread_join(probe->tid, NULL);
     probe->tid = 0;
