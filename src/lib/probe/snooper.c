@@ -508,11 +508,12 @@ static int parse_snooper_procname(struct probe_s *probe, const void *json)
 
 static void print_snooper_pod_container(struct probe_s *probe, void *json)
 {
-    void *pod_item, *cntr_item;
+    void *pod_item, *cntr_item, *cntrname_item;
     struct snooper_conf_s *snooper_conf;
 
     pod_item = Json_CreateArray();
     cntr_item = Json_CreateArray();
+    cntrname_item = Json_CreateArray();
     for (int i = 0; i < probe->snooper_conf_num; i++) {
         snooper_conf = probe->snooper_confs[i];
         if (snooper_conf->type == SNOOPER_CONF_POD_ID) {
@@ -526,7 +527,7 @@ static void print_snooper_pod_container(struct probe_s *probe, void *json)
         }
 
         if (snooper_conf->type == SNOOPER_CONF_CONTAINER_NAME) {
-            Json_AddStringItemToArray(cntr_item,snooper_conf->conf.container_name);
+            Json_AddStringItemToArray(cntrname_item,snooper_conf->conf.container_name);
             continue;
         }
     }
@@ -534,6 +535,8 @@ static void print_snooper_pod_container(struct probe_s *probe, void *json)
     Json_Delete(pod_item);
     Json_AddItemToObject(json, SNOOPER_OBJNAME_CONTAINERID, cntr_item);
     Json_Delete(cntr_item);
+    Json_AddItemToObject(json, SNOOPER_OBJNAME_CONTAINERNAME, cntrname_item);
+    Json_Delete(cntrname_item);
 }
 
 static int parse_snooper_pod_container(struct probe_s *probe, const void *json, const char *item_name)

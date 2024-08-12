@@ -39,7 +39,7 @@
 #include "web_server.h"
 #include "rest_server.h"
 #include "http_server.h"
-
+#include "http_client.h"
 #include "logs.h"
 
 #include "event.h"
@@ -75,6 +75,8 @@ typedef struct {
 
     // rest api server(libevent)
     http_server_mgr_s *rest_server_mgr;
+
+    HttpClientMgr *httpClientMgr;
 
     // logs
     LogsMgr *logsMgr;

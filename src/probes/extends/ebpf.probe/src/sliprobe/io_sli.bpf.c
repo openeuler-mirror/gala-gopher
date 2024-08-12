@@ -122,9 +122,6 @@ static __always_inline void end_bio(void *ctx, struct bio *bio)
             }
 
             u64 delay = end_ts - bio_stats->start_ts;
-            enum sli_io_lat_t idx = get_sli_io_lat_type(delay);
-
-            sli_io->sli.io_lats.cnt[idx]++;
             sli_io->sli.lat_ns += delay;
 
             report_sli_io(ctx, sli_io, end_ts);

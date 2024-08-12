@@ -59,7 +59,7 @@ typedef enum {
     METRIC_LOG_NULL = 0,
     METRIC_LOG_PROM,
     METRIC_LOG_JSON,
-
+    METRIC_LOG_FALCON,
     METRIC_LOG_MAX
 } MetricLogType;
 
@@ -126,6 +126,7 @@ typedef struct {
     struct pod_cache *pod_caches;
 
     pthread_t metrics_tid;
+    pthread_t falcon_tid;
 } IMDB_DataBaseMgr;
 
 IMDB_Metric *IMDB_MetricCreate(char *name, char *description, char *type);

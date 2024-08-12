@@ -37,6 +37,7 @@ PROBES=(
     "ksli"
     "container"
     "sermant"
+    "sli"
     )
 
 function check_cmd_server()

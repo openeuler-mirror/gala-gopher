@@ -401,11 +401,6 @@ static void tgid_record_set_container_info(TGID_Record *record, IMDB_DataBaseMgr
             con_cache = create_container_cache(&mgr->container_caches, container_id);
         }
     }
-    if (con_cache && con_cache->pod_id[0]) {
-        if (!lkup_pod_cache(mgr->pod_caches, con_cache->pod_id)) {
-            (void)create_pod_cache(&mgr->pod_caches, con_cache->pod_id, con_cache->container_id);
-        }
-    }
 }
 
 static TGID_Record* IMDB_TgidCreateRecord(IMDB_DataBaseMgr *mgr, const char* tgid)
@@ -665,6 +660,25 @@ static int MetricTypeSatisfyPrometheus(IMDB_Metric *metric)
     return -1;
 }
 
+static char *FalconMetricType[] = {
+    "COUNTER",
+    "GAUGE"
+};
+
+// return -1 if not satisfy
+static int MetricTypeSatisfyFalcon(IMDB_Metric *metric)
+{
+    int i;
+    size_t size = sizeof(FalconMetricType) / sizeof(FalconMetricType[0]);
+    for (i = 0; i < size; i++) {
+        if (strcasecmp(metric->type, FalconMetricType[i]) == 0) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
 static int MetricTypeIsLabel(IMDB_Metric *metric)
 {
     const char *label[] = {METRIC_TYPE_LABEL, METRIC_TYPE_KEY};
@@ -708,6 +722,35 @@ static int IMDB_BuildMetrics(const char *entity_name,
     }
 
     return __snprintf(&buffer, size, &size, fmt, entity_name, metrcisName);
+}
+
+static char *IMDB_BuildContainerHostname(IMDB_DataBaseMgr *mgr, const char *container_id, char **buffer_ptr, int *size_ptr)
+{
+    int ret = 0;
+    struct container_cache *con_cache = NULL;
+    const char *fmt = "\",\"endpoint\":\"%s\"";
+
+    if (!container_id || container_id[0] == 0) {
+        return NULL;
+    }
+
+    con_cache = lkup_container_cache(mgr->container_caches, container_id);
+    if (!con_cache) {
+        con_cache = create_container_cache(&mgr->container_caches, container_id);
+        if (!con_cache) {
+            DEBUG("[IMDB] Failed to create container cache(container_id=%s)\n", container_id);
+            return NULL;
+        }
+    }
+
+    if (con_cache->container_hostname[0] == 0) {
+        fill_container_info(con_cache);
+        if (con_cache->container_hostname[0] == 0) {
+            return NULL;
+        }
+    }
+
+    return con_cache->container_hostname;
 }
 
 // eg: gala_gopher_tcp_link_rx_bytes(label) 128 1586960586000000000
@@ -827,28 +870,11 @@ static int append_container_level_labels(const char *container_id, char **buffer
             return IMDB_BUFFER_FULL;
         }
     }
-    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, fmt,
-        META_COMMON_LABEL_CONTAINER_NAME, con_cache->container_name);
-    if (ret < 0) {
-        return IMDB_BUFFER_FULL;
-    }
-
-    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, fmt,
-        META_COMMON_LABEL_CONTAINER_IMAGE, con_cache->container_image);
-    if (ret < 0) {
-        return IMDB_BUFFER_FULL;
-    }
 
     ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, fmt,
         META_COMMON_LABEL_CONTAINER_HOSTNAME, con_cache->container_hostname);
     if (ret < 0) {
         return IMDB_BUFFER_FULL;
-    }
-
-    ret = append_pod_level_labels(con_cache, buffer_ptr, size_ptr, mgr, table, type_json);
-    if (ret < 0) {
-        DEBUG("[IMDB] Failed to append pod-level labels(pod_id=%s)\n", con_cache->pod_id);
-        return ret;
     }
 
     return 0;
@@ -1434,6 +1460,141 @@ static int IMDB_Rec2Json(IMDB_DataBaseMgr *mgr, IMDB_Record *record, IMDB_Table 
     return (int)(maxLen - curMaxLen);
 }
 
+int IMDB_BuildFalconMetrics(const IMDB_Metric *metric, char *buffer, uint32_t maxLen,
+    const char *container_hostname, const char *entity_name, char *first_flag, int metricType)
+{
+    int ret = 0;
+    int total = 0;
+    size_t len;
+    time_t now;
+    char *curBuffer = buffer;
+    int curMaxLen = maxLen;
+    int con_id_idx = -1;
+    char *con_id = NULL;
+
+    if (metric == NULL || metric->name == NULL || entity_name == NULL) {
+        return -1;
+    }
+
+    // 1. fill metric
+    if (*first_flag) {
+        ret = __snprintf(&curBuffer, curMaxLen, &curMaxLen, "[{\"metric\":\"gala_gopher_%s_%s\",",
+            entity_name, metric->name);
+        if (ret < 0) {
+            return ret;
+        }
+        *first_flag = 0;
+    } else {
+        ret = __snprintf(&curBuffer, curMaxLen, &curMaxLen, ",{\"metric\":\"gala_gopher_%s_%s\",",
+            entity_name, metric->name);
+        if (ret < 0) {
+            return ret;
+        }
+    }
+
+    // 2. fill endpoint
+    ret = __snprintf(&curBuffer, curMaxLen, &curMaxLen, "\"endpoint\":\"%s\",", container_hostname);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // 3. fill timestamp
+    (void)time(&now);
+    ret = __snprintf(&curBuffer, curMaxLen, &curMaxLen, "\"timestamp\":%lld,", now * THOUSAND);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // 4. fill step
+    ret = __snprintf(&curBuffer, curMaxLen, &curMaxLen, "\"step\":%d,", 60);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // 5. fill value
+    ret = __snprintf(&curBuffer, curMaxLen, &curMaxLen, "\"value\":%s,", metric->val);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // 6. fill counterType
+    ret = __snprintf(&curBuffer, curMaxLen, &curMaxLen, "\"counterType\":\"%s\"}", FalconMetricType[metricType]);
+    if (ret < 0) {
+        return ret;
+    }
+
+    return (int)maxLen - curMaxLen;
+}
+
+// [
+//     {
+//         "metric": "gala_gopher_sli_container_mem_reclaim",
+//         "endpoint": "con1",
+//         "timestamp": 1723625827000,
+//         "step": 60,
+//         "value": 9,
+//         "counterType": "GAUGE",
+//     },
+//     {
+//         "metric": "gala_gopher_sli_container_mem_compact",
+//         "endpoint": "con2",
+//         "timestamp": 1723625827000,
+//         "step": 60,
+//         "value": 19,
+//         "counterType": "GAUGE",
+//     }
+// ]
+static int IMDB_Rec2FalconJson(IMDB_DataBaseMgr *mgr, IMDB_Record *record, IMDB_Table *table,
+                         char *buffer, uint32_t maxLen, char *first_flag)
+{
+    int ret = 0;
+    int total = 0;
+    size_t len;
+    time_t now;
+    char *curBuffer = buffer;
+    int curMaxLen = maxLen;
+    int metricType;
+    char *con_id = NULL;
+    char *container_hostname = NULL;
+
+    for (int i = 0; i < record->metricsNum; i++) {
+        if (MetricNameIsContainerId(record->metrics[i])) {
+            con_id = (char *)(record->metrics[i]->val);
+            container_hostname = IMDB_BuildContainerHostname(mgr, con_id, &curBuffer, &curMaxLen);
+            break;
+        }
+    }
+
+    if (container_hostname == NULL) {
+        DEBUG("[IMDB] Failed to append container-hostname(container_id=%s)\n", con_id);
+        return -1;
+    }
+
+    for (int i = 0; i < record->metricsNum; i++) {
+        metricType = MetricTypeSatisfyFalcon(record->metrics[i]);
+        if (metricType < 0) {
+            continue;
+        }
+
+        if (!strcmp(record->metrics[i]->val, INVALID_METRIC_VALUE)) {
+            // Do not report metric whose value is (null)
+            continue;
+        }
+    
+        ret = IMDB_BuildFalconMetrics(record->metrics[i],
+            curBuffer, curMaxLen, container_hostname, table->entity_name, first_flag, metricType);
+        if (ret < 0) {
+            break;  /* buffer is full, break loop */
+        }
+
+        curBuffer += ret;
+        curMaxLen -= ret;
+        total += ret;
+    }
+
+    return total;
+}
+
 static int IMDB_Tbl2Metrics(IMDB_DataBaseMgr *mgr, IMDB_Table *table, char *buffer, uint32_t maxLen)
 {
     int ret = 0;
@@ -1443,6 +1604,7 @@ static int IMDB_Tbl2Metrics(IMDB_DataBaseMgr *mgr, IMDB_Table *table, char *buff
     uint32_t curMaxLen = maxLen;
     uint32_t period_records = DEFAULT_PERIOD_RECORD_NUM;
     uint32_t index = 0;
+    char first_flag = 1;
 
 #define __RESERVED_BUF_SIZE 2
     if (curMaxLen < __RESERVED_BUF_SIZE) {
@@ -1466,7 +1628,9 @@ static int IMDB_Tbl2Metrics(IMDB_DataBaseMgr *mgr, IMDB_Table *table, char *buff
             continue;
         }
 
-        if (mgr->writeLogsType == METRIC_LOG_JSON) {
+        if (mgr->writeLogsType == METRIC_LOG_FALCON) {
+            ret = IMDB_Rec2FalconJson(mgr, record, table, curBuffer, curMaxLen, &first_flag);
+        } else if (mgr->writeLogsType == METRIC_LOG_JSON) {
             ret = IMDB_Rec2Json(mgr, record, table, curBuffer, curMaxLen);
         } else {
             ret = IMDB_Rec2Prometheus(mgr, record, table, curBuffer, curMaxLen);
@@ -1503,7 +1667,11 @@ static int IMDB_Tbl2Metrics(IMDB_DataBaseMgr *mgr, IMDB_Table *table, char *buff
     }
 
     curMaxLen += __RESERVED_BUF_SIZE;
-    ret = snprintf(curBuffer, curMaxLen, "\n");
+    if (mgr->writeLogsType == METRIC_LOG_FALCON) {
+        ret = snprintf(curBuffer, curMaxLen, "]");
+    } else {
+        ret = snprintf(curBuffer, curMaxLen, "\n");
+    }
     if (ret < 0 || ret >= curMaxLen) {
         ERROR("[IMDB] table(%s) add endsym fail, ret=%d.\n", table->name, ret);
         return -1;

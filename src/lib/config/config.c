@@ -439,7 +439,9 @@ static int ConfigMgrLoadOutConfig(void *config, config_setting_t *settings)
         ERROR("[CONFIG] load config for out_channel failed.\n");
         return -1;
     }
-    if (!strcmp(strVal, "logs")) {
+    if (!strcmp(strVal, "falcon")) {
+        outConfig->outChnl = OUT_CHNL_FALCON;
+    } else if (!strcmp(strVal, "logs")) {
         outConfig->outChnl = OUT_CHNL_LOGS;
     } else if (!strcmp(strVal, "kafka")) {
         outConfig->outChnl = OUT_CHNL_KAFKA;
@@ -464,6 +466,15 @@ static int ConfigMgrLoadOutConfig(void *config, config_setting_t *settings)
     ret = config_setting_lookup_int(settings, "timeout", &timeout);
     if (ret > 0) {
         outConfig->timeout = (uint32_t)timeout;
+    }
+
+    if (outConfig->outChnl == OUT_CHNL_FALCON) {
+        ret = config_setting_lookup_string(settings, "falcon_url", &strVal);
+        if (ret == 0 || strlen(strVal) == 0) {
+            ERROR("[CONFIG] load config for falcon_url failed.\n");
+            return -1;
+        }
+        (void)snprintf(outConfig->falconUrl, sizeof(outConfig->falconUrl), "%s", strVal);
     }
 
     return 0;

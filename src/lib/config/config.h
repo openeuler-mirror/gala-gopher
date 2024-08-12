@@ -80,6 +80,7 @@ typedef struct {
 typedef struct {
     OutChannelType outChnl;
     char kafka_topic[MAX_KAFKA_TOPIC_LEN];
+    char falconUrl[PATH_LEN];
     uint32_t timeout;
 } OutConfig;
 

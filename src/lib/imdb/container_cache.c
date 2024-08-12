@@ -56,23 +56,12 @@ struct container_cache *lkup_container_cache(struct container_cache *caches, con
     return con_cache;
 }
 
-static void fill_container_info(struct container_cache *con_cache)
+void fill_container_info(struct container_cache *con_cache)
 {
     int ret;
 
     con_cache->container_name[0] = 0;
-    ret = get_container_name(con_cache->container_id, con_cache->container_name, sizeof(con_cache->container_name));
-    if (ret) {
-        DEBUG("[IMDB] Failed to get container name(container_id=%s)\n", con_cache->container_id);
-        con_cache->container_name[0] = 0;
-    }
-
     con_cache->container_image[0] = 0;
-    ret = get_container_image(con_cache->container_id, con_cache->container_image, sizeof(con_cache->container_image));
-    if (ret) {
-        DEBUG("[IMDB] Failed to get container image name(container_id=%s)\n", con_cache->container_id);
-        con_cache->container_image[0] = 0;
-    }
 
     con_cache->container_hostname[0] = 0;
     ret = get_container_hostname(con_cache->container_id, con_cache->container_hostname, sizeof(con_cache->container_hostname));
@@ -82,11 +71,6 @@ static void fill_container_info(struct container_cache *con_cache)
     }
 
     con_cache->pod_id[0] = 0;
-    ret = get_container_pod_id(con_cache->container_id, con_cache->pod_id, sizeof(con_cache->pod_id));
-    if (ret) {
-        DEBUG("[IMDB] Failed to get container pod id(container_id=%s)\n", con_cache->container_id);
-        con_cache->pod_id[0] = 0;
-    }
 }
 
 struct container_cache *create_container_cache(struct container_cache **caches_ptr, const char *container_id)
