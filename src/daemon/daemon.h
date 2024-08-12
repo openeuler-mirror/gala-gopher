@@ -21,8 +21,7 @@
 #include "resource.h"
 
 int DaemonRun(ResourceMgr *mgr);
-void destroy_daemon_threads(ResourceMgr *mgr);
-int DaemonWaitDone(const ResourceMgr *mgr);
+void DaemonWaitDone(const ResourceMgr *mgr);
 
 #endif
 
