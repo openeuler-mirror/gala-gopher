@@ -176,7 +176,7 @@ static int en_queue(struct files_queue_s *files_que, int file_id, size_t len)
     files_que->queue[pos].file_id = file_id;
     files_que->queue[pos].len = len;
 
-    files_que->rear++;
+    files_que->rear = (files_que->rear + 1) % ((int)files_que->que_size);
     return 0;
 }
 
