@@ -30,6 +30,7 @@
 #define MAX_FIELD_TYPE_LEN          64
 #define MAX_FIELD_NAME_LEN          64
 #define MAX_MEASUREMENT_NAME_LEN    64
+#define MAX_MEASUREMENT_NUM         4096
 #define MAX_FIELDS_NUM              128
 #define MAX_META_VERSION_LEN        16
 
