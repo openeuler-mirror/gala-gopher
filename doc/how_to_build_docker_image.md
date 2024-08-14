@@ -51,7 +51,7 @@
    
    #install library dependencies
    RUN sed -i
-   's/repo.openeuler.org/mirrors.tools.huawei.com\/openeuler/g'/etc/yum.repos.d/openEuler.repo\
+   's/repo.openeuler.org/mirrors.tools.huawei.com\/openeuler/g' /etc/yum.repos.d/openEuler.repo\
    && yum install -y docker\
    && yum install -y gala-gopher-2.0.0-3.x86_64.rpm\
    && yum install -y java-1.8.0-openjdk\
