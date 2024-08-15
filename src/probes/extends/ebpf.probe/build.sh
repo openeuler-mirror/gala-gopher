@@ -27,7 +27,7 @@ function check_dep()
 
     V=`clang --version | grep version | awk -F ' ' '{print $3}' | awk -F . '{print $1}'`
     if [ "$V" -lt 10 ];then
-        echo "Error: clange version need >= 10.x.x"
+        echo "Error: clang version need >= 10.x.x"
         exit 1
     fi
 }
