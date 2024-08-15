@@ -37,6 +37,8 @@ PROBES=(
     "ksli"
     "container"
     "sermant"
+    "sli"
+    "flowtracer"
     )
 
 function check_cmd_server()
