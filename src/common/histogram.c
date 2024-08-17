@@ -69,6 +69,7 @@ int histo_bucket_add_value(struct histo_bucket_s bucket[], size_t bucket_size, u
     for (int i = 0; i < bucket_size; i++) {
         if ((value > bucket[i].min) && (value <= bucket[i].max)) {
             bucket[i].count++;
+            bucket[i].sum += value;
             return 0;
         }
     }
@@ -124,7 +125,7 @@ int histo_bucket_value(struct histo_bucket_s bucket[], size_t bucket_size, enum 
 int serialize_histo(struct histo_bucket_s bucket[], size_t bucket_size, char *buf, size_t buf_size)
 {
     int ret;
-    u64 sum = 0;
+    u64 count = 0, sum = 0;
     int i;
     strbuf_t strbuf = {
         .buf = buf,
@@ -138,25 +139,30 @@ int serialize_histo(struct histo_bucket_s bucket[], size_t bucket_size, char *bu
     strbuf_update_offset(&strbuf, ret);
 
     for (i = 0; i < bucket_size; i++) {
-        sum += bucket[i].count;
-        ret = snprintf(strbuf.buf, strbuf.size, " %llu %llu", bucket[i].max, sum);
+        count += bucket[i].count;
+        sum += bucket[i].sum;
+        ret = snprintf(strbuf.buf, strbuf.size, " %llu %llu", bucket[i].max, count);
         if (ret < 0 || ret >= strbuf.size) {
             goto err;
         }
         strbuf_update_offset(&strbuf, ret);
     }
-    strbuf_append_chr(&strbuf, '\0');
 
+    ret = snprintf(strbuf.buf, strbuf.size, " %llu", sum);
+    if (ret < 0 || ret >= strbuf.size) {
+        goto err;
+    }
     return 0;
 err:
     ERROR("[HISTOGRAM] Failed to serialize histogram: buffer space not enough\n");
     return -1;
 }
 
-static int _deserialize_histo(char *buf, struct histo_bucket_s *bucket, size_t bucket_size)
+static int _deserialize_histo(char *buf, struct histo_bucket_s *bucket, size_t bucket_size, u64 *bkt_sum)
 {
     char *cur_pos, *next_pos;
-    u64 sum = 0, count;
+    u64 last_count = 0, count;
+    size_t buf_size = strlen(buf);
     int i;
 
     cur_pos = buf;
@@ -169,32 +175,29 @@ static int _deserialize_histo(char *buf, struct histo_bucket_s *bucket, size_t b
 
         bucket[i].max = strtoull(cur_pos, NULL, 10);
         bucket[i].min = (i == 0) ? 0 : bucket[i - 1].max;
-
         cur_pos = next_pos + 1;
-        next_pos = strchr(cur_pos, ' ');
-        if (i + 1 < bucket_size) {
-            if (!next_pos) {
-                return -1;
-            }
-            *next_pos = '\0';
-        } else {
-            if (next_pos) {
-                return -1;
-            }
-        }
-
-        count = strtoull(cur_pos, NULL, 10);
-        if (count < sum) {
+        if (cur_pos - buf >= buf_size) {
             return -1;
         }
-        bucket[i].count = count - sum;
-        sum = count;
 
-        if (i + 1 < bucket_size) {
-            cur_pos = next_pos + 1;
+        next_pos = strchr(cur_pos, ' ');
+        if (!next_pos) {
+            return -1;
+        }
+        *next_pos = '\0';
+        count = strtoull(cur_pos, NULL, 10);
+        if (count < last_count) {
+            return -1;
+        }
+        bucket[i].count = count - last_count;
+        last_count = count;
+        cur_pos = next_pos + 1;
+        if (cur_pos - buf >= buf_size) {
+            return -1;
         }
     }
 
+    *bkt_sum = strtoull(cur_pos, NULL, 10);
     return 0;
 }
 
@@ -218,7 +221,7 @@ static int resolve_bucket_size(char *buf, char **new_buf)
     return ret;
 }
 
-int deserialize_histo(const char *buf, struct histo_bucket_s **bucket, size_t *bucket_size)
+int deserialize_histo(const char *buf, struct histo_bucket_s **bucket, size_t *bucket_size, u64 *bkt_sum)
 {
     struct histo_bucket_s *bkt = NULL;
     size_t bkt_sz = 0;
@@ -244,7 +247,7 @@ int deserialize_histo(const char *buf, struct histo_bucket_s **bucket, size_t *b
         free(buf_dup);
         return -1;
     }
-    ret = _deserialize_histo(pos, bkt, bkt_sz);
+    ret = _deserialize_histo(pos, bkt, bkt_sz, bkt_sum);
     if (ret) {
         goto err;
     }
@@ -255,11 +258,7 @@ int deserialize_histo(const char *buf, struct histo_bucket_s **bucket, size_t *b
     return 0;
 err:
     ERROR("[HISTOGRAM] Failed to deserialize histogram: format error(%s)\n", buf);
-    if (buf_dup) {
-        free(buf_dup);
-    }
-    if (bkt) {
-        free(bkt);
-    }
+    free(buf_dup);
+    free(bkt);
     return -1;
 }

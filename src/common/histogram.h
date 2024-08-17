@@ -30,6 +30,7 @@ enum histo_type_t {
 struct histo_bucket_s {
     u64 min, max;
     u64 count;
+    u64 sum;              // sum of all values in this bucket
 };
 
 int init_histo_bucket(struct histo_bucket_s *bucket, u64 min, u64 max);
@@ -45,7 +46,7 @@ int serialize_histo(struct histo_bucket_s bucket[], size_t bucket_size, char *bu
 /*
  * deserialize histogram metric from a string to a struct histo_bucket_s.
  */
-int deserialize_histo(const char *buf, struct histo_bucket_s **bucket, size_t *bucket_size);
+int deserialize_histo(const char *buf, struct histo_bucket_s **bucket, size_t *bucket_size, u64 *bkt_sum);
 
 #endif
 

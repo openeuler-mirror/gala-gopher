@@ -1120,10 +1120,10 @@ static int IMDB_BuildPrometheusHistoMetrics(const IMDB_Metric *metric, char *buf
 
     struct histo_bucket_s *bkt = NULL;
     size_t bkt_sz = 0;
-    u64 sum = 0;
+    u64 sum = 0, bkt_sum = 0;
     int i;
 
-    ret = deserialize_histo(metric->val, &bkt, &bkt_sz);
+    ret = deserialize_histo(metric->val, &bkt, &bkt_sz, &bkt_sum);
     if (ret) {
         ERROR("[IMDB] Failed to deserialize histogram metric %s\n", metric->name);
         return -1;
@@ -1217,15 +1217,14 @@ static int IMDB_Rec2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Record *record, IMDB_
 
 static int IMDB_BuildJsonHistosBkt(const IMDB_Metric *metric, char **buffer, int *maxLen)
 {
-    int ret;
+    int ret, i;
     char buf[INT_LEN];
     struct histo_bucket_s *bkt = NULL;
     size_t bkt_sz = 0;
-    u64 sum = 0;
-    int i;
+    u64 count = 0, bkt_sum = 0;
     char first_flag = 1;
 
-    ret = deserialize_histo(metric->val, &bkt, &bkt_sz);
+    ret = deserialize_histo(metric->val, &bkt, &bkt_sz, &bkt_sum);
     if (ret) {
         ERROR("[IMDB] Failed to deserialize histogram metric %s\n", metric->name);
         return IMDB_BUILD_ERR;
@@ -1234,11 +1233,11 @@ static int IMDB_BuildJsonHistosBkt(const IMDB_Metric *metric, char **buffer, int
     for (i = 0; i < bkt_sz; i++) {
         buf[0] = 0;
         (void)snprintf(buf, sizeof(buf), "%llu", bkt[i].max);
-        sum += bkt[i].count;
+        count += bkt[i].count;
         if (first_flag) {
-            ret = __snprintf(buffer, *maxLen, maxLen, "\"%s\":%llu", buf, sum);
+            ret = __snprintf(buffer, *maxLen, maxLen, "\"%s\":%llu", buf, count);
         } else {
-            ret = __snprintf(buffer, *maxLen, maxLen, ",\"%s\":%llu", buf, sum);
+            ret = __snprintf(buffer, *maxLen, maxLen, ",\"%s\":%llu", buf, count);
         }
         if (ret < 0) {
             free(bkt);
@@ -1248,7 +1247,7 @@ static int IMDB_BuildJsonHistosBkt(const IMDB_Metric *metric, char **buffer, int
     }
 
     free(bkt);
-    ret = __snprintf(buffer, *maxLen, maxLen, "}");
+    ret = __snprintf(buffer, *maxLen, maxLen, ",\"count\":%llu,\"sum\":%llu}", count, bkt_sum);
     if (ret < 0) {
         return IMDB_BUFFER_FULL;
     }
@@ -1268,16 +1267,6 @@ static int IMDB_BuildJsonHistos(IMDB_DataBaseMgr *mgr, IMDB_Record *record, IMDB
     }
 
     for (int i = 0; i < record->metricsNum; i++) {
-        ret = MetricTypeSatisfyPrometheus(record->metrics[i]);
-        if (ret != 0) {
-            continue;
-        }
-
-        if (!strcmp(record->metrics[i]->val, INVALID_METRIC_VALUE)) {
-            // Do not report metric whose value is (null)
-            continue;
-        }
-
         if (strcmp(record->metrics[i]->type, "histogram") != 0) {
             continue;
         }
