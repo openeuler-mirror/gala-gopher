@@ -53,8 +53,7 @@ static __always_inline __maybe_unused int get_current_cpuacct_ino(cpu_cgrp_inode
     int level = BPF_CORE_READ(css, cgroup, level);
     if (level == 0) {
         // root level cgroup
-        *ino = CPUACCT_GLOBAL_CGPID;
-        return 0;
+        goto end;
     }
 
     struct kernfs_node *kn = BPF_CORE_READ(css, cgroup, kn);

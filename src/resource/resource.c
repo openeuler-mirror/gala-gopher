@@ -41,6 +41,8 @@ static int EgressMgrInit(ResourceMgr *resourceMgr);
 static void EgressMgrDeinit(ResourceMgr *resourceMgr);
 static int WebServerInit(ResourceMgr *resourceMgr);
 static void WebServerDeinit(ResourceMgr *resourceMgr);
+static int FalconPusherInit(ResourceMgr *resourceMgr);
+static void FalconPusherDeinit(ResourceMgr *resourceMgr);
 static int RestServerInit(ResourceMgr *resourceMgr);
 static void RestServerDeinit(ResourceMgr *resourceMgr);
 static int LogsMgrInit(ResourceMgr *resourceMgr);
@@ -68,6 +70,7 @@ SubModuleInitor gSubModuleInitorTbl[] = {
     { EgressMgrInit,        EgressMgrDeinit },      // egress must precede ingress
     { IngressMgrInit,       IngressMgrDeinit },
     { WebServerInit,        WebServerDeinit },
+    { FalconPusherInit,     FalconPusherDeinit },
     { RestServerInit,       RestServerDeinit },
     { LogsMgrInit,          LogsMgrDeinit },
     { EventMgrInit,         EventMgrDeinit }
@@ -475,7 +478,6 @@ static int WebServerInit(ResourceMgr *resourceMgr)
     http_server_mgr_s *web_server_mgr;
 
     if (configMgr->metricOutConfig->outChnl != OUT_CHNL_WEB_SERVER) {
-        INFO("[RESOURCE] metirc out channel isn't web_server, skip create webServer.\n");
         return 0;
     }
 
@@ -502,6 +504,39 @@ static void WebServerDeinit(ResourceMgr *resourceMgr)
 {
     destroy_http_server_mgr(resourceMgr->web_server_mgr);
     resourceMgr->web_server_mgr = NULL;
+    return;
+}
+
+static int FalconPusherInit(ResourceMgr *resourceMgr)
+{
+    int ret;
+    ConfigMgr *configMgr = resourceMgr->configMgr;
+
+    if (configMgr->metricOutConfig->outChnl != OUT_CHNL_FALCON) {
+        INFO("[RESOURCE] metirc out channel isn't falcon, skip create FalconPusher.\n");
+        return 0;
+    }
+
+    HttpClientMgr *mgr = InitHttpClientMgr(configMgr->metricOutConfig->falconUrl);
+    if (mgr == NULL) {
+        ERROR("[RESOURCE] create HttpClientMgr failed.\n");
+        return -1;
+    }
+
+    resourceMgr->httpClientMgr = mgr;
+    INFO("[RESOURCE] create HttpClientMgr success.\n");
+    
+    if (resourceMgr->imdbMgr) {
+        resourceMgr->imdbMgr->writeLogsType = METRIC_LOG_FALCON;
+    }
+
+    return 0;
+}
+
+static void FalconPusherDeinit(ResourceMgr *resourceMgr)
+{
+    DestroyHttpClientMgr(resourceMgr->httpClientMgr);
+    resourceMgr->httpClientMgr = NULL;
     return;
 }
 
@@ -540,7 +575,8 @@ static int LogsMgrInit(ResourceMgr *resourceMgr)
     int is_metric_out_log, is_meta_out_log, is_event_out_log;
     OutChannelType metric_out_chnl = configMgr->metricOutConfig->outChnl;
 
-    is_metric_out_log = (metric_out_chnl == OUT_CHNL_WEB_SERVER ||
+    is_metric_out_log = (metric_out_chnl == OUT_CHNL_FALCON ||
+                         metric_out_chnl == OUT_CHNL_WEB_SERVER ||
                          metric_out_chnl == OUT_CHNL_LOGS ||
                          metric_out_chnl == OUT_CHNL_JSON) ? 1 : 0;
     is_event_out_log = (configMgr->eventOutConfig->outChnl == OUT_CHNL_LOGS) ? 1 : 0;
@@ -573,6 +609,10 @@ static int LogsMgrInit(ResourceMgr *resourceMgr)
 
             if (metric_out_chnl == OUT_CHNL_JSON) {
                 resourceMgr->imdbMgr->writeLogsType = METRIC_LOG_JSON;
+            }
+
+            if (metric_out_chnl == OUT_CHNL_FALCON) {
+                resourceMgr->imdbMgr->writeLogsType = METRIC_LOG_FALCON;
             }
         }
     }

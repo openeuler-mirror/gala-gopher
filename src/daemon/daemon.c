@@ -179,10 +179,10 @@ int DaemonRun(ResourceMgr *mgr)
     // 9. start CmdServer thread
     ret = pthread_create(&mgr->ctl_tid, NULL, CmdServer, NULL);
     if (ret != 0) {
-        printf("[DAEMON] create cmd_server thread failed. errno: %d\n", errno);
+        ERROR("[DAEMON] create cmd_server thread failed. errno: %d\n", errno);
         return -1;
     }
-    printf("[DAEMON] create cmd_server thread success.\n");
+    INFO("[DAEMON] create cmd_server thread success.\n");
 
     return 0;
 }

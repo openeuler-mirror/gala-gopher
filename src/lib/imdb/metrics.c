@@ -19,6 +19,7 @@
 #include <string.h>
 #include "imdb.h"
 #include "logs.h"
+#include "http_client.h"
 
 #define LEN_1M (1024 * 1024)     // 1 MB
 static char g_buffer[LEN_1M];
@@ -55,10 +56,14 @@ static int WriteMetricsLogs(IMDB_DataBaseMgr *imdbMgr)
         ERROR("[METRICLOG] g_buffer[buffer_len] is not 0.\n");
     }
 
-    ret = wr_metrics_logs(g_buffer, buffer_len);
-    if (ret < 0) {
-        ERROR("[METRICLOG] write metrics logs fail.\n");
-        return -1;
+    if (imdbMgr->writeLogsType == METRIC_LOG_FALCON) {
+        HttpClientPost(g_buffer, buffer_len);
+    } else {
+        ret = wr_metrics_logs(g_buffer, buffer_len);
+        if (ret < 0) {
+            ERROR("[METRICLOG] write metrics logs fail.\n");
+            return -1;
+        }
     }
 
     return 0;
@@ -69,7 +74,8 @@ void WriteMetricsLogsMain(IMDB_DataBaseMgr *mgr)
 {
     int ret;
 
-    if (mgr->writeLogsType != METRIC_LOG_PROM && mgr->writeLogsType != METRIC_LOG_JSON) {
+    if (mgr->writeLogsType != METRIC_LOG_PROM && mgr->writeLogsType != METRIC_LOG_JSON
+        && mgr->writeLogsType != METRIC_LOG_FALCON) {
         ERROR("[METRICLOG] metric outchannel isn't web_server, logs or json, break.\n");
         return;
     }

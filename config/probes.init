@@ -1,1 +1,1 @@
-sli {"params":{"report_period":15},"snoopers":{"container_name":["k8s_app"]},"state":"running"}
+sli {"params":{"report_period":60},"snoopers":{"container_name":["k8s_app"]},"state":"running"}

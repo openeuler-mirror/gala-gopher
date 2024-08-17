@@ -29,6 +29,7 @@ SET(IMDB_DIR        ${SRC_DIR}/lib/imdb)
 SET(COMMON_DIR      ${SRC_DIR}/common)
 SET(RESTAPI_DIR     ${SRC_DIR}/api)
 SET(HTTPSERVER_DIR  ${SRC_DIR}/lib/http_server)
+SET(HTTPCLIENT_DIR  ${SRC_DIR}/lib/http_client)
 SET(EBPF_PROBE_DIR  ${SRC_DIR}/probes/extends/ebpf.probe)
 SET(CMD_DIR         ${SRC_DIR}/cmd)
 
@@ -58,6 +59,7 @@ SET(SOURCES main.c daemon.c
     ${FIFO_DIR}/fifo.c
     ${META_DIR}/meta.c
     ${HTTPSERVER_DIR}/http_server.c
+    ${HTTPCLIENT_DIR}/http_client.c
 
     ${PROBE_DIR}/probe.c
     ${PROBE_DIR}/extend_probe.c
@@ -133,12 +135,13 @@ SET(INC_DIRECTORIES
     ${COMMON_DIR}
     ${JSON_INC_PATH}
     ${HTTPSERVER_DIR}
+    ${HTTPCLIENT_DIR}
     ${EBPF_PROBE_DIR}/src/include
 
     ${CMD_DIR}
 )
 
-SET(LINK_LIBRARIES config pthread rt dl bpf elf jsoncpp_lib ssl event event_openssl crypto)
+SET(LINK_LIBRARIES config pthread rt dl bpf elf jsoncpp_lib ssl event event_openssl crypto curl)
 
 add_definitions(${BUILD_OPTS})
 

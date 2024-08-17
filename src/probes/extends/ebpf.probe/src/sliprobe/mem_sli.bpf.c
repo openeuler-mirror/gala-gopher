@@ -106,9 +106,6 @@ static __always_inline int mem_sli_end(struct task_struct *task, enum sli_mem_t 
             }
 
             u64 delay = now - task_mem->start_ts;
-            enum sli_mem_lat_t idx = get_sli_mem_lat_type(delay);
-            
-            sli_mem->sli.mem_lats[type].cnt[idx]++;
             sli_mem->sli.lat_ns[type] += delay;
 
             report_sli_mem(ctx, sli_mem, now);

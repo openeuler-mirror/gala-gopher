@@ -47,7 +47,7 @@ struct container_cache *lkup_container_cache(struct container_cache *caches, con
 struct container_cache *create_container_cache(struct container_cache **caches_ptr, const char *container_id);
 void free_container_cache(struct container_cache *cache);
 void free_container_caches(struct container_cache **caches_ptr);
-
+void fill_container_info(struct container_cache *con_cache);
 struct pod_cache *lkup_pod_cache(struct pod_cache *caches, const char *pod_id);
 struct pod_cache *create_pod_cache(struct pod_cache **caches_ptr, const char *pod_id, const char *container_id);
 void free_pod_cache(struct pod_cache *cache);
