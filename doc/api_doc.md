@@ -4,7 +4,7 @@ gala-gopher共对外提供三类数据：观测指标数据、异常事件数据
 
 ## 1. 指标数据获取接口
 
-gala-gopher支持将采集到的数据上报到Promethous、Kafka等数据库；可以通过配置文件开启/关闭某个数据上报通道，具体参考[配置文件](conf_introduction.md)中 `metric`部分。
+gala-gopher支持将采集到的数据上报到Prometheus、Kafka等数据库；可以通过配置文件开启/关闭某个数据上报通道，具体参考[配置文件](conf_introduction.md)中 `metric`部分。
 
 ### 1.1 http方式(默认)
 
