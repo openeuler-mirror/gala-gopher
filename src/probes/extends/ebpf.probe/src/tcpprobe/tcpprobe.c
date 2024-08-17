@@ -215,10 +215,20 @@ static void clean_tcp_pin_map()
     }
 }
 
+static void tcp_load_args(int args_fd, struct probe_params* params)
+{
+    u32 key = 0;
+    struct tcp_args_s args = {0};
+
+    args.sample_period = MS2NS(params->sample_period);
+
+    (void)bpf_map_update_elem(args_fd, &key, &args, BPF_ANY);
+}
+
 int main(int argc, char **argv)
 {
     int err = -1, ret;
-    int tcp_fd_map_fd = -1, proc_obj_map_fd = -1;
+    int tcp_fd_map_fd = -1, proc_obj_map_fd = -1, args_map_fd = -1;
     struct tcp_mng_s *tcp_mng = &g_tcp_mng;
 
     struct ipc_body_s ipc_body;
@@ -260,7 +270,8 @@ int main(int argc, char **argv)
 
     tcp_fd_map_fd = bpf_obj_get(TCP_LINK_FD_PATH);
     proc_obj_map_fd = bpf_obj_get(GET_PROC_MAP_PIN_PATH(tcpprobe));
-    if (tcp_fd_map_fd <= 0 || proc_obj_map_fd <= 0) {
+    args_map_fd = bpf_obj_get(TCP_LINK_ARGS_PATH);
+    if (tcp_fd_map_fd <= 0 || proc_obj_map_fd <= 0 || args_map_fd <= 0) {
         ERROR("[TCPPROBE]: Failed to get bpf map fd\n");
         goto err;
     }
@@ -272,7 +283,7 @@ int main(int argc, char **argv)
         ret = recv_ipc_msg(msq_id, (long)PROBE_TCP, &ipc_body);
         if (ret == 0) {
             /* zero probe_flag means probe is restarted, so reload bpf prog */
-            if (ipc_body.probe_flags & IPC_FLAGS_PARAMS_CHG || ipc_body.probe_flags == 0) {
+            if (tcp_mng->ipc_body.probe_range_flags != ipc_body.probe_range_flags || ipc_body.probe_flags == 0) {
                 INFO("[TCPPROBE]: Starting to unload ebpf prog.\n");
                 reload_tc_bpf(&ipc_body);
                 unload_bpf_prog(&(tcp_mng->tcp_progs));
@@ -280,6 +291,10 @@ int main(int argc, char **argv)
                     destroy_ipc_body(&ipc_body);
                     break;
                 }
+            }
+
+            if (ipc_body.probe_flags & IPC_FLAGS_PARAMS_CHG || ipc_body.probe_flags == 0) {
+                tcp_load_args(args_map_fd, &ipc_body.probe_param);
             }
 
             if (ipc_body.probe_flags & IPC_FLAGS_SNOOPER_CHG || ipc_body.probe_flags == 0) {
