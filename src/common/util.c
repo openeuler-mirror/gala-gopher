@@ -21,6 +21,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <limits.h>
+#include <arpa/inet.h>
 #include "common.h"
 
 #define CHROOT_CMD          "/usr/sbin/chroot %s %s"
@@ -102,8 +103,6 @@ char *get_cur_time(void)
 static void ip6_str(unsigned char *ip6, unsigned char *ip_str, unsigned int ip_str_size)
 {
     unsigned short *addr = (unsigned short *)ip6;
-    int i, j;
-    char str[48];
 
     /*
       parse ipv4 from ipv6 if the ipv6_addr is ipv4_addr mapped
@@ -114,23 +113,8 @@ static void ip6_str(unsigned char *ip6, unsigned char *ip_str, unsigned int ip_s
                        ip6[IP4_BYTE_1_IN_IP6], ip6[IP4_BYTE_2_IN_IP6], ip6[IP4_BYTE_3_IN_IP6], ip6[IP4_BYTE_4_IN_IP6]);
         return;
     }
-    /* 1. format ipv6 address */
-    (void)snprintf((char *)str, ip_str_size, NIP6_FMT, NIP6(addr));
-    /* 2. compress */
-    for (i = 0, j = 0; str[j] != '\0'; i++, j++) {
-        if (str[j] == '0' && (j == 0 || ip_str[i - 1] == ':')) {  // the first 0
-            if (str[j + 1] != '0') {        // 0XXX
-                j = j + 1;
-            } else if (str[j + 2] != '0') {   // 00XX
-                j = j + 2;
-            } else {                        // 000X 0000
-                j = j + 3;
-            }
-        }
-        ip_str[i] = str[j];
-    }
-    ip_str[i] = '\0';
-    return;
+
+    inet_ntop(AF_INET6, (const void *)ip6, (char *)ip_str, ip_str_size);
 }
 
 void ip_str(unsigned int family, unsigned char *ip, unsigned char *ip_str, unsigned int ip_str_size)
