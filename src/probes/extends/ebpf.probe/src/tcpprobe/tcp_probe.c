@@ -1046,16 +1046,6 @@ err:
     return -1;
 }
 
-static void load_args(int args_fd, struct probe_params* params)
-{
-    u32 key = 0;
-    struct tcp_args_s args = {0};
-
-    args.sample_period = MS2NS(params->sample_period);
-
-    (void)bpf_map_update_elem(args_fd, &key, &args, BPF_ANY);
-}
-
 static int tcp_load_probe_link(struct tcp_mng_s *tcp_mng, struct probe_params *args, struct bpf_prog_s *prog)
 {
     int err;
@@ -1076,8 +1066,6 @@ static int tcp_load_probe_link(struct tcp_mng_s *tcp_mng, struct probe_params *a
     }
     prog->buffers[prog->num] = buffer;
     prog->num++;
-
-    load_args(GET_MAP_FD(tcp_link, args_map), args);
 
     return 0;
 err:
