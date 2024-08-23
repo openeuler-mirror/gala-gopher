@@ -90,7 +90,7 @@ static int EgressInit(EgressMgr *mgr)
         ERROR("[EGRESS] add EPOLLIN m_event failed.\n");
         return -1;
     }
-    INFO("[EGRESS] add EGRESS METRIC FIFO trigger success.\n");
+    INFO("[EGRESS] add EGRESS METRIC FIFO trigger succeeded.\n");
 
     e_event.events = EPOLLIN;
     e_event.data.ptr = mgr->event_fifo;
@@ -99,7 +99,7 @@ static int EgressInit(EgressMgr *mgr)
         ERROR("[EGRESS] add EPOLLIN e_event failed.\n");
         return -1;
     }
-    INFO("[EGRESS] add EGRESS EVENT FIFO trigger success.\n");
+    INFO("[EGRESS] add EGRESS EVENT FIFO trigger succeeded.\n");
 
     return 0;
 }
@@ -176,7 +176,7 @@ void EgressMain(EgressMgr *mgr)
         ERROR("[EGRESS] egress init failed.\n");
         return;
     }
-    DEBUG("[EGRESS] egress init success.\n");
+    DEBUG("[EGRESS] egress init succeeded.\n");
 
     for (;;) {
         ret = EgressDataProcess(mgr);
