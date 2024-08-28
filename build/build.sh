@@ -36,7 +36,7 @@ EXTEND_PROBES_DIR_LIST=(stackprobe l7probe tcpprobe endpointprobe ioprobe taskpr
         pgsliprobe pg_stat.probe nginxprobe kafkaprobe tprofilingprobe  hwprobe
         ksliprobe cadvisor.probe sermant.probe sliprobe flowtracer)
 
-FEATURE_OPT_LIST=(-DENABLE_REPORT_EVENT -DKAFKA_CHANNEL -DFLAMEGRAPH_SVG)
+FEATURE_OPT_LIST=(-DENABLE_REPORT_EVENT -DKAFKA_CHANNEL -DFLAMEGRAPH_SVG -DL4_TOA)
 
 function load_native_tailor()
 {
