@@ -18,7 +18,7 @@ public class JstackProbeAgent {
     private static final String MEM_EVENT_IN_TLAB = "jdk.ObjectAllocationInNewTLAB";
     private static final String MEM_EVENT_OUT_TLAB = "jdk.ObjectAllocationOutsideTLAB";
 
-    private static int initFiles() throws Exception {
+    private static void initFiles() throws Exception {
         File dataDir = new File(DataDir);
         if (!dataDir.exists()) {
             dataDir.mkdir();
@@ -32,10 +32,8 @@ public class JstackProbeAgent {
 
         JfrPath = jfrFile.toPath();
         if (JfrPath == null) {
-            System.out.println("[JstackProbe] get Jfr Path failed.");
-            return -1;
+            throw new Exception("[JstackProbe] get Jfr Path failed.");
         }
-        return 0;
     }
 
     private static void startRecording() {
@@ -66,16 +64,14 @@ public class JstackProbeAgent {
         }
     }
 
-    private static int setArgs(String Args) {
+    private static void setArgs(String Args) {
         if (Args == null) {
-            System.out.println("[JstackProbe] Agent agentmain input agentArgs is null.");
-            return -1;
+            throw new RuntimeException("[JstackProbe] Agent agentmain input agentArgs is null.");
         }
 
         String[] args = Args.split("[,]");
         if (args.length < 4) {
-            System.out.println("[JstackProbeAgent] please add args: Pid, DataPath, EventType, SamplePeriod.");
-            return -1;
+            throw new RuntimeException("[JstackProbeAgent] please add args: Pid, DataPath, EventType, SamplePeriod.");
         }
         try {
             DataDir = args[1];
@@ -93,24 +89,17 @@ public class JstackProbeAgent {
             }
             SamplePeriodMs = Integer.parseInt(args[3]);
         } catch (IllegalArgumentException e) {
-            System.out.println("[JstackProbeAgent] parse args failed.");
-            return -1;
+            throw new RuntimeException("[JstackProbeAgent] parse args failed.");
         }
-        return 0;
     }
 
     public static void agentmain(String agentArgs) {
-        if (setArgs(agentArgs) != 0) {
-            return;
-        }
-
         try {
-            if (initFiles() != 0) {
-                return;
-            }
+            setArgs(agentArgs);
+            initFiles();
             startRecording(); // +150~300% cpu 0.4s=>5~0% cpu 0.2s
         } catch (Exception e) {
-            System.out.println(e.getMessage());
+            System.err.println(e.getMessage());
         }
     }
 }
