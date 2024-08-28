@@ -25,6 +25,7 @@
 %define disable_report_event   0
 %define disable_kafka_channel  0
 %define disable_flamegraph_svg 0
+%define disable_l4_toa         1
 
 
 Summary:       Intelligent ops toolkit for openEuler
@@ -131,6 +132,7 @@ BUILD_OPTS=(
   -DENABLE_REPORT_EVENT=%[0%{?disable_report_event}?0:1]
   -DKAFKA_CHANNEL=%[0%{?disable_kafka_channel}?0:1]
   -DFLAMEGRAPH_SVG=%[0%{?disable_flamegraph_svg}?0:1]
+  -DL4_TOA=%[0%{?disable_l4_toa}?0:1]
 )
 
 pushd build

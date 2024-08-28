@@ -29,13 +29,6 @@
 
 char g_linsence[] SEC("license") = "GPL";
 
-static __always_inline void report_toa(void *ctx, struct tcp_metrics_s *metrics)
-{
-    metrics->report_flags |= TCP_PROBE_TOA;
-    (void) bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
-    metrics->report_flags &= ~TCP_PROBE_TOA;
-}
-
 static __always_inline void report_srtt(void *ctx, struct tcp_metrics_s *metrics)
 {
     metrics->report_flags |= TCP_PROBE_SRTT;
@@ -204,6 +197,14 @@ KPROBE(tcp_recvmsg, pt_regs)
         report_srtt(ctx, metrics);
     }
     return 0;
+}
+
+#ifdef L4_TOA
+static __always_inline void report_toa(void *ctx, struct tcp_metrics_s *metrics)
+{
+    metrics->report_flags |= TCP_PROBE_TOA;
+    (void) bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
+    metrics->report_flags &= ~TCP_PROBE_TOA;
 }
 
 static __always_inline unsigned char *skb_network_header(const struct sk_buff *skb)
@@ -440,3 +441,4 @@ KPROBE(tcp_conn_request, pt_regs)
     }
     return 0;
 }
+#endif

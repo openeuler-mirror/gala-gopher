@@ -673,6 +673,7 @@ end:
     return 0;
 }
 
+#ifdef L4_TOA
 /* Parse TCP options in skb, try to get client ip, port
  * @param skb [in] received skb, it should be a ack/get-ack packet.
  * @return NULL if we don't get client ip/port;
@@ -797,6 +798,12 @@ static bool get_toa_from_opt(struct sk_buff *skb, struct tcp_socket_event_s *evt
 
     return true;
 }
+#else
+static bool get_toa_from_opt(struct sk_buff *skb, struct tcp_socket_event_s *evt)
+{
+    return false;
+}
+#endif
 
 KPROBE(tcp_conn_request, pt_regs)
 {
