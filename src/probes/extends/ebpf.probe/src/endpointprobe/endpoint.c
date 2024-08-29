@@ -860,7 +860,7 @@ static void reload_listen_port(struct endpoint_probe_s *probe)
         container = &(ipc_body->snooper_objs[i].obj.con_info);
         ret = enter_container_netns((const char *)container->con_id);
         if (ret) {
-            ERROR("[EPPROBE]: Enter container netns failed.(container_name = %s)\n", container->container_name);
+            ERROR("[EPPROBE]: Enter container netns failed.(container_id = %s)\n", container->con_id);
             continue;
         }
 

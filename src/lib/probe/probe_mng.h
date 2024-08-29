@@ -41,6 +41,7 @@ struct probe_define_s {
     char *desc;
     char *bin;
     enum probe_type_e type;
+    u8 snooper_type;
     char enable;
 };
 
@@ -64,6 +65,7 @@ struct probe_s {
     char is_params_chg;                                 // Probe params changed
     char is_snooper_chg;                                // Probe snoopers changed
     char resnd_snooper_for_restart;                     // Need to resend snooper obj after probe is restarted
+    u8 snooper_type;                                    // Specify the type of snoopers that one probe really concern */
     enum probe_type_e probe_type;
     u32 probe_range_flags;                              // Refer to flags defined [PROBE_RANGE_XX_XX]
     ProbeMain probe_entry;                              // Main function for native probe
@@ -76,8 +78,8 @@ struct probe_s {
     pthread_rwlock_t rwlock;                            // Used to exclusive operations between multi-thread.
 
     u32 snooper_conf_num;
-    struct snooper_conf_s *snooper_confs[SNOOPER_MAX];  // snooper config, wr&rd by rest/probe-mng thread
-    struct snooper_obj_s *snooper_objs[SNOOPER_MAX];    // snooper object, wr&rd by rest/probe-mng thread
+    struct snooper_conf_s *snooper_confs[SNOOPER_CONF_MAX];  // snooper config, wr&rd by rest/probe-mng thread
+    struct snooper_obj_s *snooper_objs[SNOOPER_MAX];         // snooper object, wr&rd by rest/probe-mng thread
 
     struct probe_params probe_param;                    // params for probe
     struct ext_label_conf ext_label_conf;

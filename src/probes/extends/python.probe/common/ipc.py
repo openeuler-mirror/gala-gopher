@@ -5,7 +5,8 @@ DEV_NAME = 32
 MAX_PATH_LEN = 512
 PYSCOPE_SERVER_URL_LEN = 64
 PATH_LEN = 256
-SNOOPER_MAX = 100
+SNOOPER_CONF_MAX = 100
+SNOOPER_MAX = 1000
 IPC_EXCL = 0o2000 # copy from linux/ipc.h
 IPC_FLAGS_SNOOPER_CHG = 0x00000001
 IPC_FLAGS_PARAMS_CHG = 0x00000002
@@ -54,14 +55,10 @@ class Proc(Structure):
 
 class SnooperConnInfo(Structure):
     _fields_ = [
-        ("flags", c_uint),
         ("cpucg_inode", c_uint),
         ("con_id", c_char_p),
-        ("container_name", c_char_p),
         ("libc_path", c_char_p),
         ("libssl_path", c_char_p),
-        ("pod_id", c_char_p),
-        ("pod_ip_str", c_char_p),
     ]
 
 class MonitorObj(Union):

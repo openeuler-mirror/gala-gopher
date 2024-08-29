@@ -100,10 +100,6 @@ static void __free_container_obj(struct snooper_con_info_s *container)
         (void)free(container->con_id);
         container->con_id = NULL;
     }
-    if (container->container_name) {
-        (void)free(container->container_name);
-        container->container_name = NULL;
-    }
     if (container->libc_path) {
         (void)free(container->libc_path);
         container->libc_path = NULL;
@@ -111,14 +107,6 @@ static void __free_container_obj(struct snooper_con_info_s *container)
     if (container->libssl_path) {
         (void)free(container->libssl_path);
         container->libssl_path = NULL;
-    }
-    if (container->pod_id) {
-        (void)free(container->pod_id);
-        container->pod_id = NULL;
-    }
-    if (container->pod_ip_str) {
-        (void)free(container->pod_ip_str);
-        container->pod_ip_str = NULL;
     }
     return;
 }
@@ -140,14 +128,11 @@ static u32 get_tlv_len_container(struct snooper_obj_s *obj)
         return 0;
     }
 
-    tlv_len += sizeof(u32) + sizeof(u32); // flags and cpucg_inode
+    tlv_len += sizeof(u32); // cpucg_inode
 
     container = &(obj->obj.con_info);
     if (container->con_id) {
         tlv_len += sizeof(struct ipc_tlv_s) + strlen(container->con_id) + 1;
-    }
-    if (container->container_name) {
-        tlv_len += sizeof(struct ipc_tlv_s) + strlen(container->container_name) + 1;
     }
     if (container->libc_path) {
         tlv_len += sizeof(struct ipc_tlv_s) + strlen(container->libc_path) + 1;
@@ -155,13 +140,6 @@ static u32 get_tlv_len_container(struct snooper_obj_s *obj)
     if (container->libssl_path) {
         tlv_len += sizeof(struct ipc_tlv_s) + strlen(container->libssl_path) + 1;
     }
-    if (container->pod_id) {
-        tlv_len += sizeof(struct ipc_tlv_s) + strlen(container->pod_id) + 1;
-    }
-    if (container->pod_ip_str) {
-        tlv_len += sizeof(struct ipc_tlv_s) + strlen(container->pod_ip_str) + 1;
-    }
-
     return tlv_len;
 }
 
@@ -202,11 +180,6 @@ static int build_tlv_container(char *buf, size_t size, struct snooper_obj_s *obj
     start = (char *)(tlv_1st + 1);
 
     p = start + tlv_len_1st;
-    *(u32 *)p = container->flags;
-    tlv_len_1st += sizeof(u32);
-    max_len -= tlv_len_1st;
-
-    p = start + tlv_len_1st;
     *(u32 *)p = container->cpucg_inode;
     tlv_len_1st += sizeof(u32);
     max_len -= tlv_len_1st;
@@ -222,21 +195,6 @@ static int build_tlv_container(char *buf, size_t size, struct snooper_obj_s *obj
         tlv_2nd->type = IPCT_CONTAINER_ID;
         tlv_2nd->len = tlv_len_2nd - sizeof(struct ipc_tlv_s);
         (void)memcpy(tlv_2nd->value, container->con_id, tlv_2nd->len);
-
-        tlv_len_1st += tlv_len_2nd;
-    }
-
-    if (container->container_name) {
-        tlv_len_2nd = strlen(container->container_name) + 1 + sizeof(struct ipc_tlv_s);
-        max_len -= tlv_len_2nd;
-        if (max_len < 0) {
-            return -1;
-        }
-        p = start + tlv_len_1st;
-        tlv_2nd = (struct ipc_tlv_s *)p;
-        tlv_2nd->type = IPCT_CONTAINER_NAME;
-        tlv_2nd->len = tlv_len_2nd - sizeof(struct ipc_tlv_s);
-        (void)memcpy(tlv_2nd->value, container->container_name, tlv_2nd->len);
 
         tlv_len_1st += tlv_len_2nd;
     }
@@ -268,36 +226,6 @@ static int build_tlv_container(char *buf, size_t size, struct snooper_obj_s *obj
         tlv_2nd->type = IPCT_LIBSSL_PATH;
         tlv_2nd->len = tlv_len_2nd - sizeof(struct ipc_tlv_s);
         (void)memcpy(tlv_2nd->value, container->libssl_path, tlv_2nd->len);
-
-        tlv_len_1st += tlv_len_2nd;
-    }
-
-    if (container->pod_id) {
-        tlv_len_2nd = strlen(container->pod_id) + 1 + sizeof(struct ipc_tlv_s);
-        max_len -= tlv_len_2nd;
-        if (max_len < 0) {
-            return -1;
-        }
-        p = start + tlv_len_1st;
-        tlv_2nd = (struct ipc_tlv_s *)p;
-        tlv_2nd->type = IPCT_POD_ID;
-        tlv_2nd->len = tlv_len_2nd - sizeof(struct ipc_tlv_s);
-        (void)memcpy(tlv_2nd->value, container->pod_id, tlv_2nd->len);
-
-        tlv_len_1st += tlv_len_2nd;
-    }
-
-    if (container->pod_ip_str) {
-        tlv_len_2nd = strlen(container->pod_ip_str) + 1 + sizeof(struct ipc_tlv_s);
-        max_len -= tlv_len_2nd;
-        if (max_len < 0) {
-            return -1;
-        }
-        p = start + tlv_len_1st;
-        tlv_2nd = (struct ipc_tlv_s *)p;
-        tlv_2nd->type = IPCT_POD_IP;
-        tlv_2nd->len = tlv_len_2nd - sizeof(struct ipc_tlv_s);
-        (void)memcpy(tlv_2nd->value, container->pod_ip_str, tlv_2nd->len);
 
         tlv_len_1st += tlv_len_2nd;
     }
@@ -345,10 +273,6 @@ static int deserialize_tlv_container(char *buf, size_t size, struct snooper_obj_
     start = (char *)(tlv_1st->value);
 
     p = start + offset;
-    container->flags = *(u32 *)p;
-    offset += sizeof(u32);
-
-    p = start + offset;
     container->cpucg_inode = *(u32 *)p;
     offset += sizeof(u32);
 
@@ -369,18 +293,6 @@ static int deserialize_tlv_container(char *buf, size_t size, struct snooper_obj_
                 }
 
                 (void)memcpy(container->con_id, tlv_2nd->value, tlv_2nd->len);
-                offset += tlv_2nd->len + sizeof(struct ipc_tlv_s);
-                break;
-            }
-            case IPCT_CONTAINER_NAME:
-            {
-                container->container_name = (char *)malloc(tlv_2nd->len);
-                if (container->container_name == NULL) {
-                    err = 1;
-                    goto end;
-                }
-
-                (void)memcpy(container->container_name, tlv_2nd->value, tlv_2nd->len);
                 offset += tlv_2nd->len + sizeof(struct ipc_tlv_s);
                 break;
             }
@@ -405,30 +317,6 @@ static int deserialize_tlv_container(char *buf, size_t size, struct snooper_obj_
                 }
 
                 (void)memcpy(container->libssl_path, tlv_2nd->value, tlv_2nd->len);
-                offset += tlv_2nd->len + sizeof(struct ipc_tlv_s);
-                break;
-            }
-            case IPCT_POD_ID:
-            {
-                container->pod_id = (char *)malloc(tlv_2nd->len);
-                if (container->pod_id == NULL) {
-                    err = 1;
-                    goto end;
-                }
-
-                (void)memcpy(container->pod_id, tlv_2nd->value, tlv_2nd->len);
-                offset += tlv_2nd->len + sizeof(struct ipc_tlv_s);
-                break;
-            }
-            case IPCT_POD_IP:
-            {
-                container->pod_ip_str = (char *)malloc(tlv_2nd->len);
-                if (container->pod_ip_str == NULL) {
-                    err = 1;
-                    goto end;
-                }
-
-                (void)memcpy(container->pod_ip_str, tlv_2nd->value, tlv_2nd->len);
                 offset += tlv_2nd->len + sizeof(struct ipc_tlv_s);
                 break;
             }
@@ -830,7 +718,7 @@ int send_ipc_msg(int msqid, long msg_type, struct ipc_body_s* ipc_body)
     }
 
     if (msgsnd(msqid, ipc_msg, ipc_msg->msg_len + sizeof(ipc_msg->msg_len) + sizeof(ipc_msg->msg_flag), 0) < 0) {
-        ERROR("[IPC] send ipc message(msg_type = %ld) failed(%d).\n", msg_type, errno);
+        ERROR("[IPC] send ipc message(msg_type = %ld) failed(%d). Try increasing sysctl param kernel.msgmax.\n", msg_type, errno);
         err = -1;
     }
 

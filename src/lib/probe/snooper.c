@@ -108,7 +108,7 @@ static struct snooper_conf_s* new_snooper_conf(void)
 
 static int add_snooper_conf_procid(struct probe_s *probe, u32 proc_id)
 {
-    if (probe->snooper_conf_num >= SNOOPER_MAX) {
+    if (probe->snooper_conf_num >= SNOOPER_CONF_MAX) {
         return -1;
     }
 
@@ -132,7 +132,7 @@ static int add_snooper_conf_procid(struct probe_s *probe, u32 proc_id)
 static int add_snooper_conf_procname(struct probe_s *probe,
                             const char* comm, const char *cmdline, const char *dbgdir)
 {
-    if (probe->snooper_conf_num >= SNOOPER_MAX) {
+    if (probe->snooper_conf_num >= SNOOPER_CONF_MAX) {
         return -1;
     }
 
@@ -166,7 +166,7 @@ static int add_snooper_conf_procname(struct probe_s *probe,
 
 static int add_snooper_conf_pod(struct probe_s *probe, const char* pod_id)
 {
-    if (probe->snooper_conf_num >= SNOOPER_MAX) {
+    if (probe->snooper_conf_num >= SNOOPER_CONF_MAX) {
         return -1;
     }
     if (pod_id == NULL || pod_id[0] == 0) {
@@ -193,7 +193,7 @@ static int add_snooper_conf_pod(struct probe_s *probe, const char* pod_id)
 
 static int add_snooper_conf_container(struct probe_s *probe, const char* container_id)
 {
-    if (probe->snooper_conf_num >= SNOOPER_MAX) {
+    if (probe->snooper_conf_num >= SNOOPER_CONF_MAX) {
         return -1;
     }
 
@@ -548,9 +548,20 @@ static void __build_ipc_body(struct probe_s *probe, struct ipc_body_s* ipc_body)
 {
     ipc_body->snooper_obj_num = 0;
     ipc_body->probe_flags = 0;
+    u8 snooper_type = probe->snooper_type;
 
     for (int i = 0; i < SNOOPER_MAX; i++) {
-        if (probe->snooper_objs[i] == NULL) {
+        if (probe->snooper_objs[i] == NULL || probe->snooper_objs[i]->type == SNOOPER_OBJ_MAX) {
+            continue;
+        }
+
+        if (probe->snooper_objs[i]->type == SNOOPER_OBJ_PROC &&
+            (snooper_type & SNOOPER_TYPE_PROC) == 0) {
+            continue;
+        }
+
+        if (probe->snooper_objs[i]->type == SNOOPER_OBJ_CON &&
+            (snooper_type & SNOOPER_TYPE_CON) == 0) {
             continue;
         }
 
@@ -627,8 +638,7 @@ int parse_snooper(struct probe_s *probe, const void *json)
         return -1;
     }
 
-    if (probe->snooper_conf_num == 0 && (!strcmp(probe->name, "tcp") ||
-        !strcmp(probe->name, "socket") || !strcmp(probe->name, "container"))) {
+    if (probe->snooper_conf_num == 0 && probe->snooper_type != SNOOPER_TYPE_NONE) {
         PARSE_ERR("the snooper for %s cannot be empty", probe->name);
         return -1;
     }
@@ -657,20 +667,11 @@ void free_snooper_obj(struct snooper_obj_s* snooper_obj)
         if (snooper_obj->obj.con_info.con_id) {
             (void)free(snooper_obj->obj.con_info.con_id);
         }
-        if (snooper_obj->obj.con_info.container_name) {
-            (void)free(snooper_obj->obj.con_info.container_name);
-        }
         if (snooper_obj->obj.con_info.libc_path) {
             (void)free(snooper_obj->obj.con_info.libc_path);
         }
         if (snooper_obj->obj.con_info.libssl_path) {
             (void)free(snooper_obj->obj.con_info.libssl_path);
-        }
-        if (snooper_obj->obj.con_info.pod_id) {
-            (void)free(snooper_obj->obj.con_info.pod_id);
-        }
-        if (snooper_obj->obj.con_info.pod_ip_str) {
-            (void)free(snooper_obj->obj.con_info.pod_ip_str);
         }
     }
 
@@ -697,8 +698,8 @@ void backup_snooper(struct probe_s *probe, struct probe_s *probe_backup)
     probe_backup->snooper_conf_num = snooper_conf_num;
 
     (void)memcpy(&probe_backup->snooper_confs, &probe->snooper_confs,
-                    SNOOPER_MAX * (sizeof(struct snooper_conf_s *)));
-    (void)memset(&probe->snooper_confs, 0, SNOOPER_MAX * (sizeof(struct snooper_conf_s *)));
+                    SNOOPER_CONF_MAX * (sizeof(struct snooper_conf_s *)));
+    (void)memset(&probe->snooper_confs, 0, SNOOPER_CONF_MAX * (sizeof(struct snooper_conf_s *)));
 
     (void)memcpy(&probe_backup->snooper_objs, &probe->snooper_objs,
                     SNOOPER_MAX * (sizeof(struct snooper_obj_s *)));
@@ -709,11 +710,13 @@ void rollback_snooper(struct probe_s *probe, struct probe_s *probe_backup)
 {
     int i;
 
-    for (i = 0 ; i < SNOOPER_MAX; i++) {
+    for (i = 0 ; i < SNOOPER_CONF_MAX; i++) {
         free_snooper_conf(probe->snooper_confs[i]);
         probe->snooper_confs[i] = probe_backup->snooper_confs[i];
         probe_backup->snooper_confs[i] = NULL;
+    }
 
+    for (i = 0 ; i < SNOOPER_MAX; i++) {
         free_snooper_obj(probe->snooper_objs[i]);
         probe->snooper_objs[i] = probe_backup->snooper_objs[i];
         probe_backup->snooper_objs[i] = NULL;
@@ -907,29 +910,16 @@ static int add_snooper_obj_con_info(struct probe_s *probe, struct con_info_s *co
     }
     DEBUG("[SNOOPER] Adding container %s to snooper obj\n", con_info->con_id ?:"unknown");
     snooper_obj->type = SNOOPER_OBJ_CON;
-    snooper_obj->obj.con_info.flags = con_info->flags;
     snooper_obj->obj.con_info.cpucg_inode = con_info->cpucg_inode;
     if (con_info->con_id) {
         snooper_obj->obj.con_info.con_id = strdup(con_info->con_id);
     }
-    if (con_info->container_name) {
-        snooper_obj->obj.con_info.container_name = strdup(con_info->container_name);
-    }
-    if (con_info->libc_path) {
+    if (probe->probe_type == PROBE_PROC && con_info->libc_path) {
         snooper_obj->obj.con_info.libc_path = strdup(con_info->libc_path);
     }
-    if (con_info->libssl_path) {
+    if (probe->probe_type == PROBE_L7 && con_info->libssl_path) {
         snooper_obj->obj.con_info.libssl_path = strdup(con_info->libssl_path);
     }
-    if (con_info->pod_info_ptr) {
-        if (con_info->pod_info_ptr->pod_id) {
-            snooper_obj->obj.con_info.pod_id = strdup(con_info->pod_info_ptr->pod_id);
-        }
-        if (con_info->pod_info_ptr->pod_ip_str) {
-            snooper_obj->obj.con_info.pod_ip_str = strdup(con_info->pod_info_ptr->pod_ip_str);
-        }
-    }
-
     probe->snooper_objs[pos] = snooper_obj;
     return 0;
 }
@@ -1174,7 +1164,7 @@ static char __rcv_snooper_proc_exec_sub(struct probe_s *probe, const char *comm,
     struct snooper_conf_s *snooper_conf;
     char pid_str[INT_LEN];
 
-    for (int j = 0; j < probe->snooper_conf_num && j < SNOOPER_MAX; j++) {
+    for (int j = 0; j < probe->snooper_conf_num && j < SNOOPER_CONF_MAX; j++) {
         snooper_conf = probe->snooper_confs[j];
         if (snooper_conf && snooper_conf->type == SNOOPER_CONF_APP) {
             if (__chk_snooper_pattern((const char *)(snooper_conf->conf.app.comm), comm)) {
@@ -1322,7 +1312,7 @@ static char __rcv_snooper_cgrp_exec_sub(struct probe_s *probe, struct con_info_s
     char snooper_obj_added = 0;
     struct snooper_conf_s *snooper_conf;
 
-    for (int j = 0; j < probe->snooper_conf_num && j < SNOOPER_MAX; j++) {
+    for (int j = 0; j < probe->snooper_conf_num && j < SNOOPER_CONF_MAX; j++) {
         snooper_conf = probe->snooper_confs[j];
         if (!snooper_conf) {
             continue;

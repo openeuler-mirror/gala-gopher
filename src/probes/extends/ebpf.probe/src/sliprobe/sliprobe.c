@@ -283,9 +283,9 @@ static void reload_sli_container_tbl(struct sli_probe_s *probe)
         }
 
         if (add_sli_container(probe, (cpu_cgrp_inode_t)container->cpucg_inode, (const char *)container->con_id)) {
-            ERROR("[SLIPROBE]: Add container failed.(container_name = %s)\n", container->container_name);
+            ERROR("[SLIPROBE]: Add container failed.(container_id = %s)\n", container->con_id);
         } else {
-            INFO("[SLIPROBE]: Add container succeed.(container_name = %s)\n", container->container_name);
+            INFO("[SLIPROBE]: Add container succeed.(container_id = %s)\n", container->con_id);
         }
     }
 
