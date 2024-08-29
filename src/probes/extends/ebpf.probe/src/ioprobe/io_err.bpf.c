@@ -91,8 +91,12 @@ static __always_inline struct request *scsi_cmd_to_request(struct scsi_cmnd *sc)
     if (bpf_core_field_exists(((struct scsi_cmnd *)0)->request)) {
         req = _(sc->request);
     } else {
+#if CLANG_VER_MAJOR >= 12
         // same with scsi_cmd_to_rq() in kernel
         req = (struct request *)(sc - bpf_core_type_size(struct request));
+#else
+        req = NULL;
+#endif
     }
 
     return req;
