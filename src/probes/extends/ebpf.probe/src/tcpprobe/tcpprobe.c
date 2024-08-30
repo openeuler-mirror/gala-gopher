@@ -313,11 +313,17 @@ int main(int argc, char **argv)
             }
 
             for (int i = 0; i < tcp_mng->tcp_progs->num && i < SKEL_MAX_NUM; i++) {
-                if (tcp_mng->tcp_progs->buffers[i] &&
-                    ((err = bpf_buffer__poll(tcp_mng->tcp_progs->buffers[i], THOUSAND)) < 0) &&
-                    err != -EINTR) {
-                    ERROR("[TCPPROBE]: perf poll prog_%d failed.\n", i);
-                    break;
+                if (tcp_mng->tcp_progs->buffers[i]) {
+                    err = bpf_buffer__poll(tcp_mng->tcp_progs->buffers[i], THOUSAND);
+                    if (err < 0 && err != -EINTR) {
+                        ERROR("[TCPPROBE]: perf poll prog_%d failed.\n", i);
+                        break;
+                    }
+
+                    // All sub-probes share a output buffer, so only need to poll once a time
+                    if (err >= 0) {
+                        break;
+                    }
                 }
             }
         } else {
