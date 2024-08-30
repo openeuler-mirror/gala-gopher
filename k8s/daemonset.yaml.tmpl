@@ -76,7 +76,7 @@ spec:
             tcp {"cmd":{"probe":["tcp_abnormal","tcp_rtt","tcp_windows","tcp_srtt","tcp_rate","tcp_stats","tcp_delay"]},"snoopers":{"proc_name":[{"comm":"^java$","cmdline":""}]},"params":{"report_event":1,"report_period":60},"state":"running"}
             io {"cmd":{"probe":["io_trace","io_err","io_count","page_cache"]},"params":{"report_event":1,"report_period":30},"state":"running"}
             socket {"cmd":{"probe":["tcp_socket","udp_socket"]},"snoopers":{"proc_name":[{"comm":"java$","cmdline":""}]},"params":{"report_period":30},"state":"running"}
-            proc {"cmd":{"probe":["base_metrics","proc_syscall","proc_fs","proc_io","proc_dns","proc_pagecache"]},"snoopers":{"proc_name":[{"comm":"^java$","cmdline":""}]},"params":{"report_period":30},"state":"running"}
+            proc {"cmd":{"probe":["proc_syscall","proc_fs","proc_io","proc_dns","proc_pagecache","proc_offcpu","proc_net"]},"snoopers":{"proc_name":[{"comm":"^java$","cmdline":""}]},"params":{"report_period":30},"state":"running"}
             jvm {"cmd":{},"snoopers":{"proc_name":[{"comm":"^java$","cmdline":""}]},"params":{"report_period":30},"state":"running"}
             container {"cmd":{},"snoopers":{"proc_name":[{"comm":"^java$","cmdline":""}]},"params":{"cadvisor_port":8080, report_period":30},"state":"running"}
       hostNetwork: true
