@@ -8,7 +8,7 @@ gala-gopher支持将采集到的数据上报到Prometheus、Kafka等数据库；
 
 ### 1.1 http方式(默认)
 
-采用本方式每条采集数据是基于指标粒度上报的，通常gala-gopher部署在1个到多个普通节点，管理节点的Promethous可以配置定时拉取各个普通节点的指标数据。
+采用本方式每条采集数据是基于指标粒度上报的，通常gala-gopher部署在1个到多个普通节点，管理节点的Prometheus可以配置定时拉取各个普通节点的指标数据。
 
 #### 默认提供的URL地址
 
@@ -26,7 +26,7 @@ http监听IP和端口支持自定义配置，详情参考[配置文件](conf_int
 metric_name {"key1"="xx","key2"="xx","label1"="xx","label2"="xx",...} metric_value timestamp
 ```
 
-metirc_name即指标名，遵循如下指标命名规范：gala_gopher_<entity_name>_<metric_name>。metric_value即指标的值是一个float格式的数据。timestamp默认为当前时间(从1970-01-01 00:00:00以来的毫秒数)。每条数据由指标名metric_name和标签{key..label..}组合唯一确定。
+metric_name即指标名，遵循如下指标命名规范：gala_gopher_<entity_name>_<metric_name>。metric_value即指标的值是一个float格式的数据。timestamp默认为当前时间(从1970-01-01 00:00:00以来的毫秒数)。每条数据由指标名metric_name和标签{key..label..}组合唯一确定。
 
 #### 请求示例
 
@@ -45,7 +45,7 @@ gala_gopher_thread_task_io_time_us{pid="2494",tgid="2494",comm="hello",major="8"
 
 ### 1.2 kafka方式
 
-本方式输出的数据是基于观测对象粒度的，即每条数据是观测对象的一个实例信息，包含了：观测对象名(entity_name)和全量的keys、lables和metrics信息。
+本方式输出的数据是基于观测对象粒度的，即每条数据是观测对象的一个实例信息，包含了：观测对象名(entity_name)和全量的keys、labels和metrics信息。
 
 #### 默认提供的topic
 
