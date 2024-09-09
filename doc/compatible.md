@@ -31,7 +31,7 @@ Linux社区提供的解决方案是CO-RE技术（Compile Once Run Everywhere）�
 ### 项目方案
 
 - 构建openEuler BTF管理基础设施，归档于：openeuler/btfhub-archive。
-- openEuler引入bpf-compatible，在编译阶段，用户可以指定支持的内核版本范围，将BTFs插入probe ELF文件内；加载时，bpf-compatible根据生产环境实际版本信息选择相应的BTF，对BPF ByteCode进行reloacte。
+- openEuler引入bpf-compatible，在编译阶段，用户可以指定支持的内核版本范围，将BTFs插入probe ELF文件内；加载时，bpf-compatible根据生产环境实际版本信息选择相应的BTF，对BPF ByteCode进行relocate。
 
 ![](./pic/eBPF-3.png)
 
