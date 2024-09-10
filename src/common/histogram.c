@@ -80,6 +80,7 @@ void histo_bucket_reset(struct histo_bucket_s bucket[], size_t bucket_size)
 {
     for (int i = 0; i < bucket_size; i++) {
         bucket[i].count = 0;
+        bucket[i].sum = 0;
     }
     return;
 }
