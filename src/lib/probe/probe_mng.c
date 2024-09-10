@@ -131,6 +131,30 @@ struct probe_range_define_s probe_range_define[] = {
     // If you want to add a probe, add the probe range.
 };
 
+#define EXTEND_PROBE_PROCID_CMD  "pgrep -g %d -af \"%s$\" | awk '{print $1}'"
+int lkup_and_set_probe_pid(struct probe_s *probe)
+{
+    int pid;
+    char cmd[COMMAND_LEN];
+    char pid_str[INT_LEN];
+
+    if (probe->bin == NULL) {
+        return -1;
+    }
+
+    cmd[0] = 0;
+    (void)snprintf(cmd, COMMAND_LEN, EXTEND_PROBE_PROCID_CMD, getpid(), probe->bin);
+    if (exec_cmd((const char *)cmd, pid_str, INT_LEN) < 0) {
+        return -1;
+    }
+    pid = strtol(pid_str, NULL, 10);
+    if (pid == getpid() || pid <= 0) {
+        return -1;
+    }
+    set_probe_pid(probe, pid);
+    return 0;
+}
+
 static int get_probe_range(enum probe_type_e probe_type, const char *range)
 {
 
@@ -559,6 +583,11 @@ static int kill_extend_probe(struct probe_s *probe)
     int sig_num = SIGINT;
 
     pid = get_probe_pid(probe);
+    if (pid < 0) {
+        DEBUG("re-search probe name: %s pid when kill it before\n", probe->name);
+        lkup_and_set_probe_pid(probe);
+        pid = get_probe_pid(probe);
+    }
     if (pid < 0) {
         PARSE_ERR("failed to find process of extend probe");
         return -1;
