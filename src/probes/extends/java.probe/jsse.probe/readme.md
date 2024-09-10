@@ -23,9 +23,9 @@ JSSE为基于SSL和TLS协议的Java网络应用提供了Java API，JSSEProbe基�
 
 - JavaAgent是一个 jar 包，该 jar 包不能独立运行，需要依附到目标JVM进程中。JavaAgent 还有一种称呼叫 Java 探针，JVM一旦运行起来对于外界而言它就是一个黑盒，而 JavaAgent 可以像一支针一样插到JVM内部，获取进程运行信息。JSSEProbeAgent.jar 即是一个JavaAgent。
 
-- insturment机制 主要提供 Java 代码增强，可以在已有的类上附加（修改）字节码从而实现增强的逻辑。其底层依赖JVMTI实现，jdk提供了 libinstrument.so，探针运行环境需要确认已提供该lib。
+- instrument机制 主要提供 Java 代码增强，可以在已有的类上附加（修改）字节码从而实现增强的逻辑。其底层依赖JVMTI实现，jdk提供了 libinstrument.so，探针运行环境需要确认已提供该lib。
 
-- 字节码修改工具 以字节码指令的格式实现代码逻辑，常用的字节码修改工具有：ASM、javasisst、Byte-Buddy 等，由于 ASM 直接操作字节码，性能上高于其他，因而 JSSEAgent 选用 ASM 框架实现。
+- 字节码修改工具 以字节码指令的格式实现代码逻辑，常用的字节码修改工具有：ASM、javassist、Byte-Buddy 等，由于 ASM 直接操作字节码，性能上高于其他，因而 JSSEAgent 选用 ASM 框架实现。
 
 - 字节码插桩原理如下图所示：
 
