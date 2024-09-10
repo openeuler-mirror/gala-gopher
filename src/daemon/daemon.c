@@ -26,7 +26,7 @@
 #include "daemon.h"
 
 #define RM_MAP_CMD "/usr/bin/find %s/* 2> /dev/null | /usr/bin/xargs rm -f"
-static const ResourceMgr *resouce_msg;
+static const ResourceMgr *resource_msg;
 
 #if GALA_GOPHER_INFO("inner func declaration")
 static void *DaemonRunIngress(void *arg);
@@ -109,7 +109,7 @@ int DaemonRun(ResourceMgr *mgr)
 
     // 0. clean data
     CleanData(mgr);
-    resouce_msg = mgr;
+    resource_msg = mgr;
 
     // 1. start ingress thread
     ret = pthread_create(&mgr->ingressMgr->tid, NULL, DaemonRunIngress, mgr->ingressMgr);
