@@ -42,7 +42,7 @@ static int WriteMetricsLogs(IMDB_DataBaseMgr *imdbMgr)
 
     ret = IMDB_DataBase2Metrics(imdbMgr, g_buffer, LEN_1M, &buffer_len);
     if (ret < 0) {
-        ERROR("[METRICLOG] IMDB database to promethous fail, ret: %d\n", ret);
+        ERROR("[METRICLOG] IMDB database to prometheus fail, ret: %d\n", ret);
         return -1;
     }
 
