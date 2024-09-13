@@ -20,7 +20,7 @@ static void TestEndpointBlackBox(void)
     }
     int proc_id = (int)atoi(res);
     if (proc_id < 0) {
-        fprintf(stderr, "get a unsuitable proc_id: $d\n", proc_id);
+        fprintf(stderr, "get an unsuitable proc_id: %d\n", proc_id);
         return;
     }
     /* curl put activate probe node */

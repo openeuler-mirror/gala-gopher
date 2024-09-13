@@ -77,9 +77,7 @@ err:
 
 static void rest_handle_get_request(struct evhttp_request *req, const char *path)
 {
-    int ret;
     char *buf;
-    struct evbuffer *evbuffer = NULL;
 
     path++;   // skip prefix "/"
     buf = get_probe_json(path);

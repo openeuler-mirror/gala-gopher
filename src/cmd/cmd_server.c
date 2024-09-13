@@ -249,8 +249,7 @@ void *CmdServer(void *arg)
 
     struct sockaddr_un client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
-    ssize_t receive_num;
-
+    
     ret = setRunDir();
     if (ret != GOPHER_OK) {
         ERROR("dir not exist and create fail. ret=%d.\n", ret);
