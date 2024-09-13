@@ -54,20 +54,21 @@ int exe_cmd2(const char* cmd, char *res, int len)
     FILE *fp;
     char buf[1024];
     int l, nread = 0;
-    fp = popen(cmd,"r");
+    fp = popen(cmd, "r");
     if(fp != NULL){
-        while(fgets(buf,1024,fp) != NULL)
+        while(fgets(buf, 1024, fp) != NULL)
         {
             l = strlen(buf);
             if(l >= len - nread)
             {
-                memcpy(res + nread,buf,len-nread);
+                memcpy(res + nread, buf, len-nread);
                 res[len+1] = '\0';
+		pclose(fp);
                 return len;
             }
             else
             {
-                memcpy(res + nread,buf,l+1);
+                memcpy(res + nread, buf, l+1);
             }
             nread += l;
         }
@@ -75,7 +76,7 @@ int exe_cmd2(const char* cmd, char *res, int len)
         return nread;
     }
     else{
-        printf("popen % failed!",cmd);
+        printf("popen %s failed!\n", cmd);
         return -1;
     }
 }
