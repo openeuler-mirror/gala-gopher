@@ -104,6 +104,7 @@ struct probe_mng_s {
 void *extend_probe_thread_cb(void *arg);
 void *native_probe_thread_cb(void *arg);
 
+int lkup_and_set_probe_pid(struct probe_s *probe);
 void run_probe_mng_daemon(struct probe_mng_s *probe_mng);
 int parse_probe_json(const char *probe_name, const char *probe_content);
 char *get_probe_json(const char *probe_name);

@@ -43,30 +43,6 @@ repeat:
     return f;
 }
 
-#define EXTEND_PROBE_PROCID_CMD  "pgrep -g %d -af \"%s$\" | awk '{print $1}'"
-static int lkup_and_set_probe_pid(struct probe_s *probe)
-{
-    int pid;
-    char cmd[COMMAND_LEN];
-    char pid_str[INT_LEN];
-
-    if (probe->bin == NULL) {
-        return -1;
-    }
-
-    cmd[0] = 0;
-    (void)snprintf(cmd, COMMAND_LEN, EXTEND_PROBE_PROCID_CMD, getpid(), probe->bin);
-    if (exec_cmd((const char *)cmd, pid_str, INT_LEN) < 0) {
-        return -1;
-    }
-    pid = strtol(pid_str, NULL, 10);
-    if (pid == getpid() || pid <= 0) {
-        return -1;
-    }
-    set_probe_pid(probe, pid);
-    return 0;
-}
-
 static void sendOutputToIngresss(struct probe_s *probe, char *buffer, uint32_t bufferSize)
 {
     int ret = 0;
