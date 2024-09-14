@@ -554,7 +554,6 @@ static void output_proc_infos(proc_hash_t *one_proc, unsigned int period)
 
 static proc_hash_t* init_one_proc(u32 pid, char *stime, char *comm)
 {
-    int ret;
     proc_hash_t *item;
 
     item = (proc_hash_t *)malloc(sizeof(proc_hash_t));

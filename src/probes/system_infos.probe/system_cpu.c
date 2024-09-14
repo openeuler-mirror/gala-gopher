@@ -209,7 +209,6 @@ static int get_softnet_stat_info(void)
     FILE *f = fopen(SOFTNET_STAT_PATH, "r");
     char line[LINE_BUF_LEN];
     char *val, *save;
-    int ret;
 
     if (f == NULL) {
         return -1;

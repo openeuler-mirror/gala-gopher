@@ -143,7 +143,7 @@ static int get_netdev_name(const char *line, char dev_name[])
 #define NETDEV_FIELD_NUM        8
 static int get_netdev_fileds(const char *net_dev_info, net_dev_stat *stats)
 {
-    int i, ret;
+    int ret;
     char *devinfo = (char *)net_dev_info;
 
     /* parse fileds */
