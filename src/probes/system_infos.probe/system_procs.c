@@ -56,36 +56,6 @@ static proc_hash_t *hash_find_proc(u32 pid, const char *stime)
     return p;
 }
 
-static char is_proc_exited(const int pid)
-{
-    FILE *f = NULL;
-    char fname[LINE_BUF_LEN];
-
-    fname[0] = 0;
-    (void)snprintf(fname, LINE_BUF_LEN, "/proc/%d", pid);
-    if (access((const char *)fname, 0) != 0) {
-        return 1;
-    }
-    return 0;
-}
-
-static void hash_clear_invalid_proc(void)
-{
-    if (g_procmap == NULL) {
-        return;
-    }
-    proc_hash_t *r, *tmp;
-    HASH_ITER(hh, g_procmap, r, tmp) {
-        if (!is_proc_exited(r->key.pid)) {
-            continue;
-        }
-        HASH_DEL(g_procmap, r);
-        if (r != NULL) {
-            (void)free(r);
-        }
-    }
-}
-
 static void hash_clear_all_proc(void)
 {
     if (g_procmap == NULL) {
@@ -140,27 +110,6 @@ out:
         pclose(f);
     }
     return;
-}
-
-static int __is_valid_container_id(char *str)
-{
-    size_t len = strlen(str);
-    if (len != 64) {
-        return 0;
-    }
-
-    for (int i = 0; i < len; i++) {
-        if (*(str + i) >= '0' && *(str + i) <= '9') {
-            continue;
-        } else if (*(str + i) >= 'A' && *(str + i) <= 'F') {
-            continue;
-        } else if (*(str + i) >= 'a' && *(str + i) <= 'f') {
-            continue;
-        } else {
-            return 0;
-        }
-    }
-    return 1;
 }
 
 static FILE *get_proc_file(u32 pid, const char *file_fmt)

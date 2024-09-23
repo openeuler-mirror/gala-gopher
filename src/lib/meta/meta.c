@@ -145,7 +145,6 @@ static int MeasurementLoad(MeasurementMgr *mgr, Measurement *mm, config_setting_
     int ret = 0;
     const char *name;
     const char *entity;
-    const char *field;
     ret = config_setting_lookup_string(mmConfig, "table_name", &name);
     if (ret == 0) {
         ERROR("load measurement name failed.\n");
@@ -190,9 +189,6 @@ int MeasurementMgrLoadSingleMeta(MeasurementMgr *mgr, const char *metaPath)
     config_t cfg;
     config_setting_t *measurements = NULL;
     const char *version = NULL;
-
-    char *name = NULL;
-    char *field = NULL;
 
     INFO("[META] begin load meta: %s.\n", metaPath);
 
@@ -486,7 +482,7 @@ static int is_filed_type_metric(char *field_type)
 /* "metrics": ["rx_bytes", "tx_bytes"] */
 static int metadata_build_metrics(const Measurement *mm, char *json_str, int max_len)
 {
-    int i, j, ret;
+    int i, ret;
     char *str = json_str;
     int str_len = max_len;
     int total_len = 0;

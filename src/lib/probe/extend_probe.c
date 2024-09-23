@@ -93,7 +93,6 @@ static void writeIngressEvt(struct probe_s *probe)
 static void parseExtendProbeOutput(struct probe_s *probe, FILE *f)
 {
 #define __WRITE_EVT_PERIOD  5
-    int ret = 0;
     char buffer[MAX_DATA_STR_LEN];
     size_t bufferSize = 0;
     time_t last_wr_event = (time_t)0, current = (time_t)0;
@@ -144,7 +143,7 @@ static void parseExtendProbeOutput(struct probe_s *probe, FILE *f)
 
 static void RunExtendProbe(struct probe_s *probe)
 {
-    int ret = 0, retry = 0;
+    int retry = 0;
     FILE *f = NULL;
 
     f = __DoRunExtProbe(probe);
@@ -173,7 +172,6 @@ out:
 
 void *extend_probe_thread_cb(void *arg)
 {
-    int ret = 0;
     struct probe_s *probe = (struct probe_s *)arg;
 
     char thread_name[MAX_THREAD_NAME_LEN];

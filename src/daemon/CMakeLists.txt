@@ -34,7 +34,7 @@ SET(CMD_DIR         ${SRC_DIR}/cmd)
 
 SET(LIBELF_DIR /usr/include/libelf)
 
-SET(CMAKE_C_FLAGS "-rdynamic -std=gnu11 -g -Wl,-z,relro,-z,now -DNATIVE_PROBE_FPRINTF \
+SET(CMAKE_C_FLAGS "-rdynamic -std=gnu11 -Wunused -g -Wl,-z,relro,-z,now -DNATIVE_PROBE_FPRINTF \
     -DPROBES_LIST=\"${PROBES_LIST}\" \
     -DLIBBPF_VER_MAJOR=\"${LIBBPF_VER_MAJOR}\" -DLIBBPF_VER_MINOR=\"${LIBBPF_VER_MINOR}\" "
 )

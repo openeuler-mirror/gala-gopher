@@ -271,9 +271,7 @@ static int parse_snooper_procid(struct probe_s *probe, const void *json)
 static struct custom_label_elem *dup_custom_labels_from_json(const void *labelItems, int num)
 {
     struct custom_label_elem *custom_labels;
-    void *labelItem;
     char *labelVal;
-    char *keyValue;
 
     custom_labels = (struct custom_label_elem *)calloc(num, sizeof(struct custom_label_elem));
     if (!custom_labels) {
@@ -310,7 +308,6 @@ static struct custom_label_elem *dup_custom_labels_from_json(const void *labelIt
 
 static int parse_snooper_custom_labels(struct probe_s *probe, const void *json)
 {
-    int ret;
     void *labelItems;
     int custom_label_num;
     struct custom_label_elem *custom_labels;
@@ -378,7 +375,6 @@ static struct pod_label_elem *dup_pod_labels_from_json(const void *labelItems, i
 
 static int parse_snooper_pod_labels(struct probe_s *probe, const void *json)
 {
-    int ret;
     void *labelItems;
     int pod_label_num;
     struct pod_label_elem *pod_labels;
@@ -1150,7 +1146,6 @@ struct snooper_generator_s snooper_generators[] = {
 static void refresh_snooper_obj(struct probe_s *probe)
 {
     int i;
-    struct snooper_conf_s * snooper_conf;
     struct snooper_generator_s *generator;
     size_t size = sizeof(snooper_generators) / sizeof(struct snooper_generator_s);
 
@@ -1346,9 +1341,8 @@ static char __rcv_snooper_cgrp_exec_sub(struct probe_s *probe, struct con_info_s
 static void __rcv_snooper_cgrp_exec(struct probe_mng_s *probe_mng, char *pod_id, char *con_id, enum id_ret_t id_ret)
 {
     char snooper_obj_added;
-    int i, j;
+    int i;
     struct probe_s *probe;
-    struct snooper_conf_s *snooper_conf;
     struct ipc_body_s ipc_body;
     get_probemng_lock();
     struct con_info_s *con_info = get_con_info(pod_id, con_id);

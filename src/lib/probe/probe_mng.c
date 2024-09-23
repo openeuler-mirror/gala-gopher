@@ -35,7 +35,6 @@
 #include "json_tool.h"
 #include "probe_mng.h"
 
-static int set_probe_bin(struct probe_s *probe, const char *bin);
 static void init_probe_bin(struct probe_s *probe, enum probe_type_e probe_type);
 
 struct probe_define_s probe_define[] = {
@@ -248,12 +247,14 @@ static void set_probe_status_flags(struct probe_s* probe, u32 flags)
     (void)pthread_rwlock_unlock(&probe->rwlock);
 }
 
+#if 0
 static void unset_probe_status_flags(struct probe_s* probe, u32 flags)
 {
     (void)pthread_rwlock_wrlock(&probe->rwlock);
     probe->probe_status.status_flags &= ~(flags);
     (void)pthread_rwlock_unlock(&probe->rwlock);
 }
+#endif
 
 static int attach_probe_fd(struct probe_mng_s *probe_mng, struct probe_s *probe)
 {
@@ -422,41 +423,6 @@ static int set_probe_entry(struct probe_s *probe)
 end:
     dlclose(hdl);
     return ret;
-}
-
-static int set_probe_bin(struct probe_s *probe, const char *bin)
-{
-
-    if (bin == NULL || strlen(bin) == 0) {
-        PARSE_ERR("null binfile");
-        return -1;
-    }
-
-    if (probe->is_extend_probe == 0) {
-        if (strncmp(bin, probe->bin, strlen(bin))) {
-            PARSE_ERR("native probes can only be assigned default values");
-            return -1;
-        }
-
-        return 0;
-    }
-
-    if (check_path_for_security(bin)) {
-        PARSE_ERR("unsafe binfile");
-        return -1;
-    }
-
-    if (access(bin,  F_OK) != 0) {
-        PARSE_ERR("not exist binfile");
-        return -1;
-    }
-
-    if (probe->bin) {
-        free(probe->bin);
-    }
-
-    probe->bin = strdup(bin);
-    return 0;
 }
 
 static void init_probe_bin(struct probe_s *probe, enum probe_type_e probe_type)
@@ -1111,8 +1077,6 @@ void destroy_probe_threads(void)
 
 void destroy_probe_mng(void)
 {
-    struct probe_s *probe;
-
     if (g_probe_mng == NULL) {
         return;
     }

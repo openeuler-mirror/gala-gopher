@@ -180,62 +180,6 @@ static int parser_report_event(struct probe_s *probe, const struct param_key_s *
     return 0;
 }
 
-static int parser_metrics_type(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
-{
-    void *object;
-    u32 metrics_flags;
-
-    probe->probe_param.metrics_flags = 0;
-    size_t size = Json_GetArraySize(key_item);
-    for (size_t i = 0; i < size; i++) {
-        object = Json_GetArrayItem(key_item, i);
-        if (Json_IsString(object) == 0) {
-            return -1;
-        }
-
-        const char* value = (const char *)Json_GetValueString(object);
-        metrics_flags = __get_params_flags(param_metrics_flags,
-                        sizeof(param_metrics_flags) / sizeof(struct param_flags_s), value);
-        if (metrics_flags == 0) {
-            PARSE_ERR("params.%s invalid value: %s", param_key->key, value);
-            return -1;
-        }
-
-        probe->probe_param.metrics_flags |= (char)metrics_flags;
-    }
-
-
-    return 0;
-}
-
-static int parser_work_env(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
-{
-    void *object;
-    u32 env_flags;
-
-    probe->probe_param.env_flags = 0;
-    size_t size = Json_GetArraySize(key_item);
-    for (size_t i = 0; i < size; i++) {
-        object = Json_GetArrayItem(key_item, i);
-        if (Json_IsString(object) == 0) {
-            return -1;
-        }
-        const char* value = (const char *)Json_GetValueString(object);
-
-        env_flags = __get_params_flags(param_env_flags,
-                    sizeof(param_env_flags) / sizeof(struct param_flags_s), value);
-        if (env_flags == 0) {
-            PARSE_ERR("params.%s invalid value: %s", param_key->key, value);
-            return -1;
-        }
-
-        probe->probe_param.env_flags |= (char)env_flags;
-    }
-
-
-    return 0;
-}
-
 static int parser_l7pro(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     void *object;
@@ -588,7 +532,7 @@ void set_default_params(struct probe_s *probe)
 int parse_params(struct probe_s *probe, const void *params_json)
 {
     int ret = -1;
-    void *key_item, *object;
+    void *key_item;
     struct param_key_s *param_key;
     size_t size = sizeof(param_keys) / sizeof(struct param_key_s);
 

@@ -133,15 +133,6 @@ static int get_os_release_info(struct node_infos *infos)
     return 0;
 }
 
-static int parse_netmask(char *ip_addr)
-{
-    char *colon = strchr(ip_addr, '/');
-    if (colon == NULL) {
-        return 32;
-    }
-    return (strtol(colon + 1, NULL, 10) > 32) ? 0 : strtol(colon + 1, NULL, 10);
-}
-
 static int check_skip_ifa(struct ifaddrs *ifa, struct ipc_body_s * ipc_body)
 {
     int family;
@@ -183,7 +174,6 @@ static int get_ip_addr(struct node_infos *infos, struct ipc_body_s * ipc_body)
     char *ip_addr_str = infos->ip_addr;
     int ip_addr_len = MAX_IP_ADDRS_LEN;
     int first_flag = 0;
-    int filter_flag = 1;
     int ret;
 
     if (getifaddrs(&ifaddr) != 0) {

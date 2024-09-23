@@ -40,10 +40,8 @@ static void hash_add_con(con_hash_t *one_con)
 static con_hash_t *hash_find_con(const char *con_id)
 {
     con_hash_t *p = NULL;
-    con_hash_t temp = {0};
 
     HASH_FIND(hh, g_conmap, &con_id, sizeof(con_id), p);
-
     return p;
 }
 
@@ -63,7 +61,6 @@ static void hash_clear_all_con(void)
 
 static int update_con_infos(const char *cmd, u64 *proc_write_bytes_to_dir)
 {
-    int ret = 0;
     FILE *f = NULL;
     u64 value = 0;
     char line[LINE_BUF_LEN];
@@ -159,7 +156,7 @@ int refresh_con_filter_map(struct ipc_body_s *ipc_body)
         if (ipc_body->snooper_objs[i].type != SNOOPER_OBJ_CON) {
             continue;
         }
-    
+
         container = &(ipc_body->snooper_objs[i].obj.con_info);
         p = hash_find_con((const char *)container->con_id);
         if (p == NULL) {

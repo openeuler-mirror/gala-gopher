@@ -123,8 +123,6 @@ static void init_ssl_lib(void)
 
 static int load_private_key(SSL_CTX *ctx, const char *name, const char *key_file)
 {
-    EVP_PKEY *pkey;
-
     // If private key and encryted key were both set, private key takes advance
     if (strlen(key_file)) {
         if (SSL_CTX_use_PrivateKey_file(ctx, key_file, SSL_FILETYPE_PEM) != 1) {
