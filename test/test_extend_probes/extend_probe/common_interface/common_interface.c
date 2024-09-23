@@ -164,4 +164,4 @@ int CheckoutHaveSpeProbe(char (*name_record)[MAX_NAME_LEN], char *probe)
         }
     }
     return 0;
-}
+}
