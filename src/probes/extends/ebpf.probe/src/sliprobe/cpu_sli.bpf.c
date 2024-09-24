@@ -122,9 +122,6 @@ KRAWTRACE(sched_stat_wait, bpf_raw_tracepoint_args)
         return -1;
     }
 
-    enum sli_cpu_lat_t idx = get_sli_cpu_lat_type(delay);
-
-    sli_cpu->sli.cpu_lats[SLI_CPU_WAIT].cnt[idx]++;
     sli_cpu->sli.lat_ns[SLI_CPU_WAIT] += delay;
 
     report_sli_cpu(ctx, sli_cpu);
@@ -145,9 +142,6 @@ KRAWTRACE(sched_stat_sleep, bpf_raw_tracepoint_args)
         return -1;
     }
 
-    enum sli_cpu_lat_t idx = get_sli_cpu_lat_type(delay);
-
-    sli_cpu->sli.cpu_lats[SLI_CPU_SLEEP].cnt[idx]++;
     sli_cpu->sli.lat_ns[SLI_CPU_SLEEP] += delay;
 
     report_sli_cpu(ctx, sli_cpu);
@@ -168,13 +162,9 @@ KRAWTRACE(sched_stat_blocked, bpf_raw_tracepoint_args)
         return -1;
     }
 
-    enum sli_cpu_lat_t idx = get_sli_cpu_lat_type(delay);
-
     if (in_iowait(task)) {
-        sli_cpu->sli.cpu_lats[SLI_CPU_IOWAIT].cnt[idx]++;
         sli_cpu->sli.lat_ns[SLI_CPU_IOWAIT] += delay;
     } else {
-        sli_cpu->sli.cpu_lats[SLI_CPU_BLOCK].cnt[idx]++;
         sli_cpu->sli.lat_ns[SLI_CPU_BLOCK] += delay;
     }
 
@@ -185,7 +175,6 @@ KRAWTRACE(sched_stat_blocked, bpf_raw_tracepoint_args)
 KRAWTRACE(sched_switch, bpf_raw_tracepoint_args)
 {
     u64 delay = 0, now = 0;
-    enum sli_cpu_lat_t idx;
     struct task_struct *next_task = (struct task_struct *)ctx->args[2];
     
     if (is_filter_task(next_task)) {
@@ -210,9 +199,7 @@ KRAWTRACE(sched_switch, bpf_raw_tracepoint_args)
     } else if (new_run_delay > sched->last_run_delay) {
         delay = new_run_delay - sched->last_run_delay;
         sched->last_run_delay = new_run_delay;
-        idx = get_sli_cpu_lat_type(delay);
-        
-        sli_cpu->sli.cpu_lats[SLI_CPU_RUNDELAY].cnt[idx]++;
+
         sli_cpu->sli.lat_ns[SLI_CPU_RUNDELAY] += delay;
 
         sched->is_report = 1;
@@ -228,9 +215,7 @@ KRAWTRACE(sched_switch, bpf_raw_tracepoint_args)
     }
     if (now > sched->kernel_exec_start) {
         delay = now - sched->kernel_exec_start;
-        idx = get_sli_cpu_lat_type(delay);
 
-        sli_cpu->sli.cpu_lats[SLI_CPU_LONGSYS].cnt[idx]++;
         sli_cpu->sli.lat_ns[SLI_CPU_LONGSYS] += delay;
         sched->is_report = 1;
         goto end2;

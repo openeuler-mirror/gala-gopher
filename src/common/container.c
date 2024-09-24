@@ -777,6 +777,12 @@ static enum id_ret_t get_pod_container_id_by_type(const char *cgrp_path, char *p
         con_id[j] = p[j];
         j++;
     }
+
+    if (j < CONTAINER_ABBR_ID_LEN) {
+        // Failed to get cpucg inode of container cleanup.
+        // /system.slice/docker-cleanup.service
+        return ID_FAILED;
+    }
     con_id[CONTAINER_ABBR_ID_LEN] = 0;
     return ret;
 }

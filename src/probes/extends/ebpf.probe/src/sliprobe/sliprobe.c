@@ -92,21 +92,6 @@ struct sli_container_s {
     u32 flags;
 };
 
-struct sli_cpu_lat_histo_s {
-    enum sli_cpu_lat_t range;
-    u64 min, max;
-};
-
-struct sli_mem_lat_histo_s {
-    enum sli_mem_lat_t range;
-    u64 min, max;
-};
-
-struct sli_io_lat_histo_s {
-    enum sli_io_lat_t range;
-    u64 min, max;
-};
-
 struct sli_probe_s {
     struct ipc_body_s ipc_body;
     struct sli_container_s *container_caches;
@@ -116,51 +101,6 @@ struct sli_probe_s {
     int sli_mem_fd;
     int sli_io_fd;
     int init;
-    struct histo_bucket_s sli_cpu_lat_buckets[SLI_CPU_LAT_NR];
-    struct histo_bucket_s sli_mem_lat_buckets[SLI_MEM_LAT_NR];
-    struct histo_bucket_s sli_io_lat_buckets[SLI_IO_LAT_NR];
-    char cpu_wait_histo_str[MAX_HISTO_SERIALIZE_SIZE];
-    char cpu_sleep_histo_str[MAX_HISTO_SERIALIZE_SIZE];
-    char cpu_iowait_histo_str[MAX_HISTO_SERIALIZE_SIZE];
-    char cpu_block_histo_str[MAX_HISTO_SERIALIZE_SIZE];
-    char cpu_rundelay_histo_str[MAX_HISTO_SERIALIZE_SIZE];
-    char cpu_longsys_histo_str[MAX_HISTO_SERIALIZE_SIZE];
-
-    char mem_reclaim_histo_str[MAX_HISTO_SERIALIZE_SIZE];
-    char mem_compact_histo_str[MAX_HISTO_SERIALIZE_SIZE];
-    char mem_swapin_histo_str[MAX_HISTO_SERIALIZE_SIZE];
-
-    char bio_latency_histo_str[MAX_HISTO_SERIALIZE_SIZE];
-};
-
-struct sli_cpu_lat_histo_s sli_cpu_lat_histios[SLI_CPU_LAT_NR] = {
-    {SLI_CPU_LAT_0_1, 0,          1000000},
-    {SLI_CPU_LAT_1_5, 1000000,    5000000},
-    {SLI_CPU_LAT_5_10, 5000000,   10000000},
-    {SLI_CPU_LAT_10_100, 10000000, 100000000},
-    {SLI_CPU_LAT_100_500, 100000000, 500000000},
-    {SLI_CPU_LAT_500_1000, 500000000, 1000000000},
-    {SLI_CPU_LAT_1000_INTF, 1000000000, (u64)-1}
-};
-
-struct sli_mem_lat_histo_s sli_mem_lat_histios[SLI_MEM_LAT_NR] = {
-    {SLI_MEM_LAT_0_1, 0,          1000000},
-    {SLI_MEM_LAT_1_5, 1000000,    5000000},
-    {SLI_MEM_LAT_5_10, 5000000,   10000000},
-    {SLI_MEM_LAT_10_100, 10000000, 100000000},
-    {SLI_MEM_LAT_100_500, 100000000, 500000000},
-    {SLI_MEM_LAT_500_1000, 500000000, 1000000000},
-    {SLI_MEM_LAT_1000_INTF, 1000000000, (u64)-1}
-};
-
-struct sli_io_lat_histo_s sli_io_lat_histios[SLI_IO_LAT_NR] = {
-    {SLI_IO_LAT_0_1, 0,          1000000},
-    {SLI_IO_LAT_1_5, 1000000,    5000000},
-    {SLI_IO_LAT_5_10, 5000000,   10000000},
-    {SLI_IO_LAT_10_100, 10000000, 100000000},
-    {SLI_IO_LAT_100_500, 100000000, 500000000},
-    {SLI_IO_LAT_500_1000, 500000000, 1000000000},
-    {SLI_IO_LAT_1000_INTF, 1000000000, (u64)-1}
 };
 
 static struct sli_probe_s g_sli_probe;
@@ -172,6 +112,7 @@ static void destroy_sli_container(struct sli_probe_s *probe, struct sli_containe
     (void)bpf_map_delete_elem(probe->sli_mem_fd, &(cache->ino));
     (void)bpf_map_delete_elem(probe->sli_io_fd, &(cache->ino));
     if (cache->container_id) {
+        INFO("[SLIPROBE]: Del container succeed.(con_id = %s)\n", cache->container_id);
         free(cache->container_id);
         cache->container_id = NULL;
     }
@@ -283,9 +224,9 @@ static void reload_sli_container_tbl(struct sli_probe_s *probe)
         }
 
         if (add_sli_container(probe, (cpu_cgrp_inode_t)container->cpucg_inode, (const char *)container->con_id)) {
-            ERROR("[SLIPROBE]: Add container failed.(container_name = %s)\n", container->container_name);
+            ERROR("[SLIPROBE]: Add container failed.(con_id = %s)\n", container->con_id);
         } else {
-            INFO("[SLIPROBE]: Add container succeed.(container_name = %s)\n", container->container_name);
+            INFO("[SLIPROBE]: Add container succeed.(con_id = %s)\n", container->con_id);
         }
     }
 
@@ -294,91 +235,19 @@ static void reload_sli_container_tbl(struct sli_probe_s *probe)
     return;
 }
 
-static void probe_init(struct sli_probe_s *probe)
-{
-    for (int i = 0; i < SLI_CPU_LAT_NR; i++) {
-        (void)init_histo_bucket(&(probe->sli_cpu_lat_buckets[i]), sli_cpu_lat_histios[i].min, sli_cpu_lat_histios[i].max);
-    }
-
-    for (int i = 0; i < SLI_MEM_LAT_NR; i++) {
-        (void)init_histo_bucket(&(probe->sli_mem_lat_buckets[i]), sli_mem_lat_histios[i].min, sli_mem_lat_histios[i].max);
-    }
-    return;
-}
-
 static void sig_int(int signo)
 {
     g_stop = 1;
 }
 
-static int __get_sli_cpu_histo_str(struct sli_probe_s *probe, struct sli_cpu_lat_s *cpu_lat, char histo_str[], size_t size)
-{
-    for (int i = 0; i < SLI_CPU_LAT_NR; i++) {
-        probe->sli_cpu_lat_buckets[i].count = cpu_lat->cnt[i];
-    }
-
-    histo_str[0] = 0;
-    if (serialize_histo(probe->sli_cpu_lat_buckets, SLI_CPU_LAT_NR, histo_str, size)) {
-        return -1;
-    }
-    return 0;
-}
-
-static void __rcv_sli_cpu_node(struct sli_probe_s *probe, struct sli_cpu_obj_s *sli_cpu_obj)
-{
-    (void)__get_sli_cpu_histo_str(probe, &(sli_cpu_obj->sli.cpu_lats[SLI_CPU_WAIT]), probe->cpu_wait_histo_str, MAX_HISTO_SERIALIZE_SIZE);
-    (void)__get_sli_cpu_histo_str(probe, &(sli_cpu_obj->sli.cpu_lats[SLI_CPU_SLEEP]), probe->cpu_sleep_histo_str, MAX_HISTO_SERIALIZE_SIZE);
-    (void)__get_sli_cpu_histo_str(probe, &(sli_cpu_obj->sli.cpu_lats[SLI_CPU_IOWAIT]), probe->cpu_iowait_histo_str, MAX_HISTO_SERIALIZE_SIZE);
-    (void)__get_sli_cpu_histo_str(probe, &(sli_cpu_obj->sli.cpu_lats[SLI_CPU_BLOCK]), probe->cpu_block_histo_str, MAX_HISTO_SERIALIZE_SIZE);
-    (void)__get_sli_cpu_histo_str(probe, &(sli_cpu_obj->sli.cpu_lats[SLI_CPU_RUNDELAY]), probe->cpu_rundelay_histo_str, MAX_HISTO_SERIALIZE_SIZE);
-    (void)__get_sli_cpu_histo_str(probe, &(sli_cpu_obj->sli.cpu_lats[SLI_CPU_LONGSYS]), probe->cpu_longsys_histo_str, MAX_HISTO_SERIALIZE_SIZE);
-
-    (void)fprintf(stdout,
-        "|%s|%s"
-        "|%s|%s|%s|%s|%s|%s"
-        "|%llu|%llu|%llu|%llu|%llu|%llu|\n",
-        SLI_CPU_NODE,
-        SLI_TBL_NODE_KEY,
-
-        probe->cpu_wait_histo_str,
-        probe->cpu_sleep_histo_str,
-        probe->cpu_iowait_histo_str,
-        probe->cpu_block_histo_str,
-        probe->cpu_rundelay_histo_str,
-        probe->cpu_longsys_histo_str,
-
-        sli_cpu_obj->sli.lat_ns[SLI_CPU_WAIT],
-        sli_cpu_obj->sli.lat_ns[SLI_CPU_SLEEP],
-        sli_cpu_obj->sli.lat_ns[SLI_CPU_IOWAIT],
-        sli_cpu_obj->sli.lat_ns[SLI_CPU_BLOCK],
-        sli_cpu_obj->sli.lat_ns[SLI_CPU_RUNDELAY],
-        sli_cpu_obj->sli.lat_ns[SLI_CPU_LONGSYS]);
-    (void)fflush(stdout);
-    return;
-}
-
 static void __rcv_sli_cpu_container(struct sli_probe_s *probe, struct sli_container_s * sli_container, struct sli_cpu_obj_s *sli_cpu_obj)
 {
-    (void)__get_sli_cpu_histo_str(probe, &(sli_cpu_obj->sli.cpu_lats[SLI_CPU_WAIT]), probe->cpu_wait_histo_str, MAX_HISTO_SERIALIZE_SIZE);
-    (void)__get_sli_cpu_histo_str(probe, &(sli_cpu_obj->sli.cpu_lats[SLI_CPU_SLEEP]), probe->cpu_sleep_histo_str, MAX_HISTO_SERIALIZE_SIZE);
-    (void)__get_sli_cpu_histo_str(probe, &(sli_cpu_obj->sli.cpu_lats[SLI_CPU_IOWAIT]), probe->cpu_iowait_histo_str, MAX_HISTO_SERIALIZE_SIZE);
-    (void)__get_sli_cpu_histo_str(probe, &(sli_cpu_obj->sli.cpu_lats[SLI_CPU_BLOCK]), probe->cpu_block_histo_str, MAX_HISTO_SERIALIZE_SIZE);
-    (void)__get_sli_cpu_histo_str(probe, &(sli_cpu_obj->sli.cpu_lats[SLI_CPU_RUNDELAY]), probe->cpu_rundelay_histo_str, MAX_HISTO_SERIALIZE_SIZE);
-    (void)__get_sli_cpu_histo_str(probe, &(sli_cpu_obj->sli.cpu_lats[SLI_CPU_LONGSYS]), probe->cpu_longsys_histo_str, MAX_HISTO_SERIALIZE_SIZE);
-
     (void)fprintf(stdout,
         "|%s|%s"
-        "|%s|%s|%s|%s|%s|%s"
         "|%llu|%llu|%llu|%llu|%llu|%llu|\n",
         SLI_CPU_CONTAINER,
         sli_container->container_id,
 
-        probe->cpu_wait_histo_str,
-        probe->cpu_sleep_histo_str,
-        probe->cpu_iowait_histo_str,
-        probe->cpu_block_histo_str,
-        probe->cpu_rundelay_histo_str,
-        probe->cpu_longsys_histo_str,
         sli_cpu_obj->sli.lat_ns[SLI_CPU_WAIT],
         sli_cpu_obj->sli.lat_ns[SLI_CPU_SLEEP],
         sli_cpu_obj->sli.lat_ns[SLI_CPU_IOWAIT],
@@ -396,9 +265,7 @@ static int __rcv_sli_cpu(struct sli_probe_s *probe, struct sli_cpu_obj_s *sli_cp
         return -1;
     }
 
-    if (sli_container->ino == CPUACCT_GLOBAL_CGPID) {
-        __rcv_sli_cpu_node(probe, sli_cpu_obj);
-    } else {
+    if (sli_container->ino != CPUACCT_GLOBAL_CGPID) {
         __rcv_sli_cpu_container(probe, sli_container, sli_cpu_obj);
     }
     return 0;
@@ -427,58 +294,13 @@ static int rcv_sli_cpu(void *ctx, void *data, __u32 size)
     return 0;
 }
 
-static int __get_sli_mem_histo_str(struct sli_probe_s *probe, struct sli_mem_lat_s *mem_lat, char histo_str[], size_t size)
-{
-    for (int i = 0; i < SLI_MEM_LAT_NR; i++) {
-        probe->sli_mem_lat_buckets[i].count = mem_lat->cnt[i];
-    }
-
-    histo_str[0] = 0;
-    if (serialize_histo(probe->sli_mem_lat_buckets, SLI_MEM_LAT_NR, histo_str, size)) {
-        return -1;
-    }
-    return 0;
-}
-
-static void __rcv_sli_mem_node(struct sli_probe_s *probe, struct sli_mem_obj_s *sli_mem_obj)
-{
-    (void)__get_sli_mem_histo_str(probe, &(sli_mem_obj->sli.mem_lats[SLI_MEM_RECLAIM]), probe->mem_reclaim_histo_str, MAX_HISTO_SERIALIZE_SIZE);
-    (void)__get_sli_mem_histo_str(probe, &(sli_mem_obj->sli.mem_lats[SLI_MEM_COMPACT]), probe->mem_compact_histo_str, MAX_HISTO_SERIALIZE_SIZE);
-    (void)__get_sli_mem_histo_str(probe, &(sli_mem_obj->sli.mem_lats[SLI_MEM_SWAPIN]), probe->mem_swapin_histo_str, MAX_HISTO_SERIALIZE_SIZE);
-
-    (void)fprintf(stdout,
-        "|%s|%s"
-        "|%s|%s|%s"
-        "|%llu|%llu|%llu|\n",
-        SLI_MEM_NODE,
-        SLI_TBL_NODE_KEY,
-
-        probe->mem_reclaim_histo_str,
-        probe->mem_compact_histo_str,
-        probe->mem_swapin_histo_str,
-        sli_mem_obj->sli.lat_ns[SLI_MEM_RECLAIM],
-        sli_mem_obj->sli.lat_ns[SLI_MEM_COMPACT],
-        sli_mem_obj->sli.lat_ns[SLI_MEM_SWAPIN]);
-    (void)fflush(stdout);
-    return;
-}
-
 static void __rcv_sli_mem_container(struct sli_probe_s *probe, struct sli_container_s * sli_container, struct sli_mem_obj_s *sli_mem_obj)
 {
-    (void)__get_sli_mem_histo_str(probe, &(sli_mem_obj->sli.mem_lats[SLI_MEM_RECLAIM]), probe->mem_reclaim_histo_str, MAX_HISTO_SERIALIZE_SIZE);
-    (void)__get_sli_mem_histo_str(probe, &(sli_mem_obj->sli.mem_lats[SLI_MEM_COMPACT]), probe->mem_compact_histo_str, MAX_HISTO_SERIALIZE_SIZE);
-    (void)__get_sli_mem_histo_str(probe, &(sli_mem_obj->sli.mem_lats[SLI_MEM_SWAPIN]), probe->mem_swapin_histo_str, MAX_HISTO_SERIALIZE_SIZE);
-
     (void)fprintf(stdout,
         "|%s|%s"
-        "|%s|%s|%s"
         "|%llu|%llu|%llu|\n",
         SLI_MEM_CONTAINER,
         sli_container->container_id,
-
-        probe->mem_reclaim_histo_str,
-        probe->mem_compact_histo_str,
-        probe->mem_swapin_histo_str,
         sli_mem_obj->sli.lat_ns[SLI_MEM_RECLAIM],
         sli_mem_obj->sli.lat_ns[SLI_MEM_COMPACT],
         sli_mem_obj->sli.lat_ns[SLI_MEM_SWAPIN]);
@@ -493,9 +315,7 @@ static int __rcv_sli_mem(struct sli_probe_s *probe, struct sli_mem_obj_s *sli_me
         return -1;
     }
 
-    if (sli_container->ino == CPUACCT_GLOBAL_CGPID) {
-        __rcv_sli_mem_node(probe, sli_mem_obj);
-    } else {
+    if (sli_container->ino != CPUACCT_GLOBAL_CGPID) {
         __rcv_sli_mem_container(probe, sli_container, sli_mem_obj);
     }
     return 0;
@@ -524,46 +344,13 @@ static int rcv_sli_mem(void *ctx, void *data, __u32 size)
     return 0;
 }
 
-static int __get_sli_io_histo_str(struct sli_probe_s *probe, struct sli_io_lat_s *io_lat, char histo_str[], size_t size)
-{
-    for (int i = 0; i < SLI_IO_LAT_NR; i++) {
-        probe->sli_io_lat_buckets[i].count = io_lat->cnt[i];
-    }
-
-    histo_str[0] = 0;
-    if (serialize_histo(probe->sli_io_lat_buckets, SLI_IO_LAT_NR, histo_str, size)) {
-        return -1;
-    }
-    return 0;
-}
-
-static void __rcv_sli_io_node(struct sli_probe_s *probe, struct sli_io_obj_s *sli_io_obj)
-{
-    (void)__get_sli_io_histo_str(probe, &(sli_io_obj->sli.io_lats), probe->bio_latency_histo_str, MAX_HISTO_SERIALIZE_SIZE);
-
-    (void)fprintf(stdout,
-        "|%s|%s"
-        "|%s|%llu|\n",
-        SLI_IO_NODE,
-        SLI_TBL_NODE_KEY,
-
-        probe->bio_latency_histo_str,
-        sli_io_obj->sli.lat_ns);
-    (void)fflush(stdout);
-    return;
-}
-
 static void __rcv_sli_io_container(struct sli_probe_s *probe, struct sli_container_s *sli_container, struct sli_io_obj_s *sli_io_obj)
 {
-    (void)__get_sli_io_histo_str(probe, &(sli_io_obj->sli.io_lats), probe->bio_latency_histo_str, MAX_HISTO_SERIALIZE_SIZE);
-
     (void)fprintf(stdout,
         "|%s|%s"
-        "|%s|%llu|\n",
+        "|%llu|\n",
         SLI_IO_CONTAINER,
         sli_container->container_id,
-
-        probe->bio_latency_histo_str,
         sli_io_obj->sli.lat_ns);
     (void)fflush(stdout);
     return;
@@ -576,9 +363,7 @@ static int __rcv_sli_io(struct sli_probe_s *probe, struct sli_io_obj_s *sli_io_o
         return -1;
     }
 
-    if (sli_container->ino == CPUACCT_GLOBAL_CGPID) {
-        __rcv_sli_io_node(probe, sli_io_obj);
-    } else {
+    if (sli_container->ino != CPUACCT_GLOBAL_CGPID) {
         __rcv_sli_io_container(probe, sli_container, sli_io_obj);
     }
     return 0;
@@ -817,7 +602,6 @@ int main(int argc, char **argv)
                     break;
                 }
                 load_default_container(sli_probe);
-                probe_init(sli_probe);
                 sli_probe->init = 1;
             }
 

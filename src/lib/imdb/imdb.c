@@ -820,6 +820,18 @@ static int append_container_level_labels(const char *container_id, char **buffer
         }
     }
 
+    if (con_cache->container_hostname[0] == 0) {
+        ret = get_container_hostname(con_cache->container_id, con_cache->container_hostname, sizeof(con_cache->container_hostname));
+        if (ret) {
+            DEBUG("[IMDB] Failed to get container hostname(container_id=%s)\n", con_cache->container_id);
+            con_cache->container_hostname[0] = 0;
+        }
+        if (con_cache->container_hostname[0] == 0) {
+            DEBUG("[IMDB] Failed to get container_hostname(container_id=%s)\n", container_id);
+            return 0;
+        }
+    }
+
     if (!is_con_id_appended) {
         ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, fmt,
             META_COMMON_LABEL_CONTAINER_ID, con_cache->container_id);
