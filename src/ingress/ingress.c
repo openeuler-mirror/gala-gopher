@@ -306,8 +306,6 @@ static int IngressDataProcesssInput(Fifo *fifo, IngressMgr *mgr)
     char *dataStr, *content;
     int ret = 0;
     char tblName[MAX_IMDB_TABLE_NAME_LEN];
-    IMDB_Table* table;
-    IMDB_Record* rec;
 
     uint64_t val = 0;
     ret = read(fifo->triggerFd, &val, sizeof(val));
