@@ -82,7 +82,7 @@ Requires:      flamegraph
 Requires:      libcurl
 %endif
 %if !0%{?without_opengauss_sli}
-Requires:      python3-psycopg2 python3-yaml net-tools
+Requires:      python3-psycopg2 python3-yaml net-tools util-linux
 %endif
 %if !0%{?without_container}
 Requires:      cadvisor python3-requests util-linux
