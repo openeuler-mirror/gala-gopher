@@ -119,11 +119,11 @@ static int set_map_fds(struct KafkaConfig *cfg)
     if (ret) {
         return -1;
     }
-    open_bpf_map_file(cfg, "xdp_ctrl_map", &ctrl_map_fd);
+    ret = open_bpf_map_file(cfg, "xdp_ctrl_map", &ctrl_map_fd);
     if (ret) {
         return -1;
     }
-    open_bpf_map_file(cfg, "xdp_port_map", &port_map_fd);
+    ret = open_bpf_map_file(cfg, "xdp_port_map", &port_map_fd);
     if (ret) {
         return -1;
     }
