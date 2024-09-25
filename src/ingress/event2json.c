@@ -361,8 +361,6 @@ static int get_entityId(char *entityId, int size, IMDB_NodeInfo *nodeInfo, strbu
 // format: <timestamp>_<entity_id>
 static int get_eventId(char *eventId, int size, time_t timestamp, const char *entityId)
 {
-    int requiredSize;
-    int entityIdLen;
     strbuf_t sbuf = {
         .buf = eventId,
         .size = size
