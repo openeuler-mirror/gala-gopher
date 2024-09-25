@@ -354,7 +354,6 @@ static int get_proc_io(u32 pid, proc_info_t *proc_info)
     FILE *f = NULL;
     int index = 0;
     u64 value = 0;
-    char fname[PATH_LEN];
     char line[LINE_BUF_LEN];
 
     f = get_proc_file(pid, PROC_IO);
