@@ -51,6 +51,7 @@ struct probe_define_s probe_define[] = {
     {"postgre_sli",         "/opt/gala-gopher/extend_probes/pgsliprobe",          PROBE_POSTGRE_SLI,    ENABLE_POSTGRE_SLI},
     {"opengauss_sli",       "/opt/gala-gopher/extend_probes/pg_stat_probe.py",    PROBE_GAUSS_SLI,      ENABLE_OPENGAUSS_SLI},
     {"nginx",               "/opt/gala-gopher/extend_probes/nginx_probe",         PROBE_NGINX,          ENABLE_NGINX},
+    {"lvs",                 "/opt/gala-gopher/extend_probes/trace_lvs",           PROBE_LVS,            ENABLE_LVS},
     {"kafka",               "/opt/gala-gopher/extend_probes/kafkaprobe",          PROBE_KAFKA,          ENABLE_KAFKA},
     {"tprofiling",          "/opt/gala-gopher/extend_probes/tprofiling",          PROBE_TP,             ENABLE_TPROFILING},
     {"hw",                  "/opt/gala-gopher/extend_probes/hwprobe",             PROBE_HW,             ENABLE_HW},

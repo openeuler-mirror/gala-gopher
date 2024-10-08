@@ -16,7 +16,7 @@
 GOPHER_INITIAL_CONF="/etc/gala-gopher/probes.init"
 GOPHER_CMD_SOCK_PATH="/var/run/gala_gopher/gala_gopher_cmd.sock"
 RETRY_COUNT=5
-MAX_INIT_NUM=20
+MAX_INIT_NUM=25
 
 PROBES=(
     "baseinfo"
@@ -31,6 +31,7 @@ PROBES=(
     "postgre_sli"
     "opengauss_sli"
     "nginx"
+    "lvs"
     "kafka"
     "tprofiling"
     "hw"

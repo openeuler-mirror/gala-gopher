@@ -45,6 +45,7 @@ struct ngx_metric {
 
 struct ngx_statistic_key {
     struct ip cip;
+    __u16 cport;
     char sip_str[INET6_ADDRSTRLEN];
     __u32 family : 31;
     __u32 is_l7 : 1;

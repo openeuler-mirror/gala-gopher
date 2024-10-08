@@ -60,24 +60,5 @@
 #define AF_X25      9 /* Reserved for X.25 project  */
 #define AF_INET6    10 /* IP version 6          */
 
-struct ip_vs_conn_fnat {
-    char        temp1[16];
-    u16         cport;
-    u16         dport;
-    u16         vport;
-    u16         lport;
-    u16         af;         /* address family */
-    union nf_inet_addr  caddr; /* client address */
-    union nf_inet_addr  vaddr; /* virtual address */
-    union nf_inet_addr  daddr; /* destination address */
-    union nf_inet_addr  laddr; /* local address */
-    u32         flags;      /* status flags */
-    u16         protocol;   /* Which protocol (TCP/UDP) */
-    u16         temp2;
-    u64         temp3;
-    u64         temp4;
-    struct timer_list   timer; /* Expiration timer */
-};
-
 #endif
 #endif

@@ -40,11 +40,11 @@ struct nginx_probe_s {
 };
 
 static struct nginx_probe_s g_nginx_probe = {0};
-static volatile bool stop = false;
+static volatile sig_atomic_t g_stop;
 
 static void sig_handler(int sig)
 {
-    stop = true;
+    g_stop = 1;
 }
 
 static void update_statistic_map(int map_fd, const struct ngx_metric *data)
@@ -54,14 +54,15 @@ static void update_statistic_map(int map_fd, const struct ngx_metric *data)
 
     /* build key */
     memcpy(&k.cip, &(data->src_ip.ipaddr), sizeof(struct ip));
+    k.cport = data->src_ip.port;
     k.family = data->src_ip.family;
     k.is_l7 = data->is_l7;
     memcpy(k.sip_str, data->dst_ip_str, INET6_ADDRSTRLEN);
 
     (void)bpf_map_lookup_elem(map_fd, &k, &v);
-    if (v.link_count == 0)
+    if (v.link_count == 0) {
         memcpy(&(v.ngx_ip), &(data->ngx_ip), sizeof(struct ip_addr));
-
+    }
     v.link_count++;
 
     (void)bpf_map_update_elem(map_fd, &k, &v, BPF_ANY);
@@ -112,11 +113,8 @@ static void print_statistic_map(int fd)
     struct ngx_statistic_key k = {0};
     struct ngx_statistic_key nk = {0};
     struct ngx_statistic d = {0};
-
     unsigned char cip_str[INET6_ADDRSTRLEN];
     unsigned char ngxip_str[INET6_ADDRSTRLEN];
-    // unsigned char sip_str[INET6_ADDRSTRLEN];
-
     char *colon = NULL;
 
     while (bpf_map_get_next_key(fd, &k, &nk) == 0) {
@@ -126,22 +124,25 @@ static void print_statistic_map(int fd)
             ip_str(d.ngx_ip.family, (unsigned char *)&(d.ngx_ip.ipaddr), ngxip_str, INET6_ADDRSTRLEN);
 
             colon = strrchr(nk.sip_str, ':');
-            if (colon != NULL)
+            if (colon != NULL) {
                 *colon = '\0';
+            }
 
             fprintf(stdout,
-                "|%s|%s|%s|%s|%u|%s|%u|%u|\n",
+                "|%s|%s|%s|%s|%u|%u|%s|%u|%u|\n",
                 METRIC_STATISTIC_NAME,
                 cip_str,
                 ngxip_str,
                 nk.sip_str,
+                ntohs(nk.cport),
                 ntohs(d.ngx_ip.port),
                 (colon ? (colon + 1) : "0"),
                 nk.is_l7,
                 d.link_count);
 
-            if (colon != NULL)
+            if (colon != NULL) {
                 *colon = ':';
+            }
         }
         (void)bpf_map_delete_elem(fd, &nk);
     }
@@ -308,7 +309,7 @@ int main(int argc, char **argv)
     INFO("%s Nginx probe started Successfully.\n", LOG_NGINX_PREFIX);
 
     /* try to hit probe info */
-    while (!stop) {
+    while (!g_stop) {
         err = recv_ipc_msg(msq_id, (long)PROBE_NGINX, &ipc_body);
         if (err == 0) {
             err = reload_bpf_prog(&ipc_body);

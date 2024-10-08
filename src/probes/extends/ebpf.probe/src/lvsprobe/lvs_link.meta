@@ -1,0 +1,66 @@
+version = "1.0.0"
+measurements:
+(
+    {
+        table_name: "ipvs_link",
+        entity_name: "ipvs_link",
+        fields:
+        (
+            {
+                description: "process name",
+                type: "key",
+                name: "process_name",
+            },
+            {
+                description: "client ip",
+                type: "key",
+                name: "client_ip",
+            },
+            {
+                description: "virtual ip",
+                type: "key",
+                name: "virtual_ip",
+            },
+            {
+                description: "local ip",
+                type: "key",
+                name: "local_ip",
+            },
+            {
+                description: "server ip",
+                type: "key",
+                name: "server_ip",
+            },
+            {
+                description: "client port",
+                type: "key",
+                name: "client_port",
+            },
+            {
+                description: "server port",
+                type: "key",
+                name: "server_port",
+            },
+            {
+                description: "local port",
+                type: "key",
+                name: "local_port",
+            },
+            {
+                description: "virtual port",
+                type: "key",
+                name: "virtual_port",
+            },
+            {
+                description: "protocol",
+                type: "key",
+                name: "protocol",
+            },
+            {
+                description: "link count",
+                type: "gauge",
+                name: "link_count",
+            }
+        )
+    }
+)
