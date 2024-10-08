@@ -22,6 +22,11 @@ measurements:
                 name: "server_ip",
             },
             {
+                description: "client port",
+                type: "Unknown",
+                name: "client_port",
+            },
+            {
                 description: "virtual port",
                 type: "Unknown",
                 name: "virtual_port",

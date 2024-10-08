@@ -57,6 +57,9 @@
 #ifndef ENABLE_NGINX
 #define ENABLE_NGINX 0
 #endif
+#ifndef ENABLE_LVS
+#define ENABLE_LVS 0
+#endif
 #ifndef ENABLE_KAFKA
 #define ENABLE_KAFKA 0
 #endif
@@ -178,6 +181,7 @@ enum probe_type_e {
     PROBE_POSTGRE_SLI,
     PROBE_GAUSS_SLI,
     PROBE_NGINX,
+    PROBE_LVS,
     PROBE_KAFKA,
     PROBE_TP,
     PROBE_HW,

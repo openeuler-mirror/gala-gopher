@@ -30,10 +30,10 @@ NATIVE_PROBES_OPT_LIST=(-DENABLE_BASEINFO -DENABLE_VIRT)
 NATIVE_PROBES_DIR_LIST=(system_infos.probe virtualized_infos.probe)
 
 EXTEND_PROBES_OPT_LIST=(-DENABLE_FLAMEGRAPH -DENABLE_L7 -DENABLE_TCP -DENABLE_SOCKET -DENABLE_IO -DENABLE_PROC -DENABLE_JVM
-        -DENABLE_POSTGRE_SLI -DENABLE_OPENGAUSS_SLI -DENABLE_NGINX -DENABLE_KAFKA -DENABLE_TPROFILING -DENABLE_HW
+        -DENABLE_POSTGRE_SLI -DENABLE_OPENGAUSS_SLI -DENABLE_NGINX -DENABLE_LVS -DENABLE_KAFKA -DENABLE_TPROFILING -DENABLE_HW
         -DENABLE_KSLI -DENABLE_CONTAINER -DENABLE_SERMANT -DENABLE_SLI -DENABLE_FLOWTRACER)
 EXTEND_PROBES_DIR_LIST=(stackprobe l7probe tcpprobe endpointprobe ioprobe taskprobe jvm.probe
-        pgsliprobe pg_stat.probe nginxprobe kafkaprobe tprofilingprobe  hwprobe
+        pgsliprobe pg_stat.probe nginxprobe lvsprobe kafkaprobe tprofilingprobe  hwprobe
         ksliprobe cadvisor.probe sermant.probe sliprobe flowtracer)
 
 FEATURE_OPT_LIST=(-DENABLE_REPORT_EVENT -DKAFKA_CHANNEL -DFLAMEGRAPH_SVG -DL4_TOA)

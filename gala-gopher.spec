@@ -13,6 +13,7 @@
 %define without_postgre_sli   0
 %define without_opengauss_sli 0
 %define without_nginx         0
+%define without_lvs           0
 %define without_tprofiling    0
 %define without_kafka         0
 %define without_hw            0
@@ -120,11 +121,12 @@ BUILD_OPTS=(
   -DENABLE_POSTGRE_SLI=%[0%{?without_postgre_sli}?0:1]
   -DENABLE_OPENGAUSS_SLI=%[0%{?without_opengauss_sli}?0:1]
   -DENABLE_NGINX=%[0%{?without_nginx}?0:1]
+  -DENABLE_LVS=%[0%{?without_lvs}?0:1]
   -DENABLE_TPROFILING=%[0%{?without_tprofiling}?0:1]
   -DENABLE_KAFKA=%[0%{?without_kafka}?0:1]
   -DENABLE_HW=%[0%{?without_hw}?0:1]
   -DENABLE_KSLI=%[0%{?without_ksli}?0:1]
-  -DENABLE_CONTAINER=%[0%{?without_cadvisor}?0:1]
+  -DENABLE_CONTAINER=%[0%{?without_container}?0:1]
   -DENABLE_SERMANT=%[0%{?without_sermant}?0:1]
   -DENABLE_SLI=%[0%{?without_sli}?0:1]
   -DENABLE_FLOWTRACER=%[0%{?without_flowtracer}?0:1]
