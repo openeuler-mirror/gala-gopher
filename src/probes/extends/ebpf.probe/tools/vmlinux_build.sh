@@ -139,7 +139,7 @@ function generate_vmlinux_h()
     echo "==== Step 4: Copy vmlinux.h to " ${DST_VMLINUX_H}
     rm -rf ${DST_VMLINUX_H}
     cp vmlinux.h ${DST_VMLINUX_H}
-    echo "==== Secceed to generate vmlinux.h"
+    echo "==== Succeed to generate vmlinux.h"
 }
 
 function clean_temp_files()
