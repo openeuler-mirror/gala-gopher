@@ -24,8 +24,7 @@ function gen_sys_uuid_file()
     if [ -f /sys/class/dmi/id/product_uuid ] ; then
         cat /sys/class/dmi/id/product_uuid > $SYS_UUID_FILE
         chmod 440 $SYS_UUID_FILE || exit 1
-    elif [ "`uname -m`" = "riscv64" ] ; then
-        # riscv not support SMBIOS/DMI last for kernel 6.10-rc5
+    else
         cat /etc/machine-id > $SYS_UUID_FILE
         chmod 440 $SYS_UUID_FILE || exit 1
     fi
