@@ -20,8 +20,8 @@
 #include "common.h"
 
 /**
-* retrun code1: -1
-* retrun code2: refer to /usr/include/elf.h
+* return code1: -1
+* return code2: refer to /usr/include/elf.h
 * #define ET_NONE         0
 * #define ET_REL          1
 * #define ET_EXEC         2
