@@ -87,7 +87,8 @@
 #ifndef ENABLE_FLOWTRACER
 #define ENABLE_FLOWTRACER 0
 #endif
-#define SNOOPER_MAX    100
+#define SNOOPER_CONF_MAX   100
+#define SNOOPER_MAX        1000
 
 /* FlameGraph subprobe define */
 #define PROBE_RANGE_ONCPU       0x00000001
@@ -162,6 +163,10 @@
 #define PROBE_RANGE_SCHED_SYSTIME   0x00000001
 #define PROBE_RANGE_SCHED_SYSCALL   0x00000002
 
+#define SNOOPER_TYPE_NONE           0x00
+#define SNOOPER_TYPE_PROC           0x01
+#define SNOOPER_TYPE_CON            0x02
+#define SNOOPER_TYPE_ALL            (SNOOPER_TYPE_PROC | SNOOPER_TYPE_CON)
 /*
     copy probe_type_e, snooper_obj_e, snooper_con_info_s, snooper_obj_s, ipc_body_s code to python.probe/ipc.py.
     if modify above struct , please sync change to ipc.py
@@ -204,15 +209,10 @@ enum snooper_obj_e {
 };
 
 struct snooper_con_info_s {
-    u32 flags;
     u32 cpucg_inode;
     char *con_id;
-    char *container_name;
     char *libc_path;
     char *libssl_path;
-    // pod_info
-    char *pod_id;
-    char *pod_ip_str;
 };
 
 struct snooper_obj_s {

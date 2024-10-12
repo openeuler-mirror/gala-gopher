@@ -39,27 +39,27 @@ static int set_probe_bin(struct probe_s *probe, const char *bin);
 static void init_probe_bin(struct probe_s *probe, enum probe_type_e probe_type);
 
 struct probe_define_s probe_define[] = {
-    {"baseinfo",            "system_infos",                                       PROBE_BASEINFO,       ENABLE_BASEINFO},
-    {"virt",                "virtualized_infos",                                  PROBE_VIRT,           ENABLE_VIRT},
-    {"flamegraph",          "/opt/gala-gopher/extend_probes/stackprobe",          PROBE_FG,             ENABLE_FLAMEGRAPH},
-    {"l7",                  "/opt/gala-gopher/extend_probes/l7probe",             PROBE_L7,             ENABLE_L7},
-    {"tcp",                 "/opt/gala-gopher/extend_probes/tcpprobe",            PROBE_TCP,            ENABLE_TCP},
-    {"socket",              "/opt/gala-gopher/extend_probes/endpoint",            PROBE_SOCKET,         ENABLE_SOCKET},
-    {"io",                  "/opt/gala-gopher/extend_probes/ioprobe",             PROBE_IO,             ENABLE_IO},
-    {"proc",                "/opt/gala-gopher/extend_probes/taskprobe",           PROBE_PROC,           ENABLE_PROC},
-    {"jvm",                 "/opt/gala-gopher/extend_probes/jvmprobe",            PROBE_JVM,            ENABLE_JVM},
-    {"postgre_sli",         "/opt/gala-gopher/extend_probes/pgsliprobe",          PROBE_POSTGRE_SLI,    ENABLE_POSTGRE_SLI},
-    {"opengauss_sli",       "/opt/gala-gopher/extend_probes/pg_stat_probe.py",    PROBE_GAUSS_SLI,      ENABLE_OPENGAUSS_SLI},
-    {"nginx",               "/opt/gala-gopher/extend_probes/nginx_probe",         PROBE_NGINX,          ENABLE_NGINX},
-    {"lvs",                 "/opt/gala-gopher/extend_probes/trace_lvs",           PROBE_LVS,            ENABLE_LVS},
-    {"kafka",               "/opt/gala-gopher/extend_probes/kafkaprobe",          PROBE_KAFKA,          ENABLE_KAFKA},
-    {"tprofiling",          "/opt/gala-gopher/extend_probes/tprofiling",          PROBE_TP,             ENABLE_TPROFILING},
-    {"hw",                  "/opt/gala-gopher/extend_probes/hwprobe",             PROBE_HW,             ENABLE_HW},
-    {"ksli",                "/opt/gala-gopher/extend_probes/ksliprobe",           PROBE_KSLI,           ENABLE_KSLI},
-    {"container",           "/opt/gala-gopher/extend_probes/cadvisor_probe.py",   PROBE_CONTAINER,      ENABLE_CONTAINER},
-    {"sermant",             "/opt/gala-gopher/extend_probes/sermant_probe.py",    PROBE_SERMANT,        ENABLE_SERMANT},
-    {"sli",                 "/opt/gala-gopher/extend_probes/sliprobe",            PROBE_SLI,            ENABLE_SLI},
-    {"flowtracer",          "/opt/gala-gopher/extend_probes/flowtracer",          PROBE_FLOWTRACER,     ENABLE_FLOWTRACER}
+    {"baseinfo",      "system_infos",                                      PROBE_BASEINFO,    SNOOPER_TYPE_ALL,    ENABLE_BASEINFO},
+    {"virt",          "virtualized_infos",                                 PROBE_VIRT,        SNOOPER_TYPE_NONE,   ENABLE_VIRT},
+    {"flamegraph",    "/opt/gala-gopher/extend_probes/stackprobe",         PROBE_FG,          SNOOPER_TYPE_PROC,   ENABLE_FLAMEGRAPH},
+    {"l7",            "/opt/gala-gopher/extend_probes/l7probe",            PROBE_L7,          SNOOPER_TYPE_ALL,    ENABLE_L7},
+    {"tcp",           "/opt/gala-gopher/extend_probes/tcpprobe",           PROBE_TCP,         SNOOPER_TYPE_PROC,   ENABLE_TCP},
+    {"socket",        "/opt/gala-gopher/extend_probes/endpoint",           PROBE_SOCKET,      SNOOPER_TYPE_ALL,    ENABLE_SOCKET},
+    {"io",            "/opt/gala-gopher/extend_probes/ioprobe",            PROBE_IO,          SNOOPER_TYPE_NONE,   ENABLE_IO},
+    {"proc",          "/opt/gala-gopher/extend_probes/taskprobe",          PROBE_PROC,        SNOOPER_TYPE_ALL,    ENABLE_PROC},
+    {"jvm",           "/opt/gala-gopher/extend_probes/jvmprobe",           PROBE_JVM,         SNOOPER_TYPE_PROC,   ENABLE_JVM},
+    {"postgre_sli",   "/opt/gala-gopher/extend_probes/pgsliprobe",         PROBE_POSTGRE_SLI, SNOOPER_TYPE_NONE,   ENABLE_POSTGRE_SLI},
+    {"opengauss_sli", "/opt/gala-gopher/extend_probes/pg_stat_probe.py",   PROBE_GAUSS_SLI,   SNOOPER_TYPE_NONE,   ENABLE_OPENGAUSS_SLI},
+    {"nginx",         "/opt/gala-gopher/extend_probes/nginx_probe",        PROBE_NGINX,       SNOOPER_TYPE_NONE,   ENABLE_NGINX},
+    {"lvs",           "/opt/gala-gopher/extend_probes/trace_lvs",          PROBE_LVS,         SNOOPER_TYPE_NONE,   ENABLE_LVS},
+    {"kafka",         "/opt/gala-gopher/extend_probes/kafkaprobe",         PROBE_KAFKA,       SNOOPER_TYPE_NONE,   ENABLE_KAFKA},
+    {"tprofiling",    "/opt/gala-gopher/extend_probes/tprofiling",         PROBE_TP,          SNOOPER_TYPE_PROC,   ENABLE_TPROFILING},
+    {"hw",            "/opt/gala-gopher/extend_probes/hwprobe",            PROBE_HW,          SNOOPER_TYPE_NONE,   ENABLE_HW},
+    {"ksli",          "/opt/gala-gopher/extend_probes/ksliprobe",          PROBE_KSLI,        SNOOPER_TYPE_NONE,   ENABLE_KSLI},
+    {"container",     "/opt/gala-gopher/extend_probes/cadvisor_probe.py",  PROBE_CONTAINER,   SNOOPER_TYPE_PROC,   ENABLE_CONTAINER},
+    {"sermant",       "/opt/gala-gopher/extend_probes/sermant_probe.py",   PROBE_SERMANT,     SNOOPER_TYPE_PROC,   ENABLE_SERMANT},
+    {"sli",           "/opt/gala-gopher/extend_probes/sliprobe",           PROBE_SLI,         SNOOPER_TYPE_CON,    ENABLE_SLI},
+    {"flowtracer",    "/opt/gala-gopher/extend_probes/flowtracer",         PROBE_FLOWTRACER,  SNOOPER_TYPE_NONE,   ENABLE_FLOWTRACER}
     // If you want to add a probe, add the probe define.
 };
 
@@ -362,6 +362,7 @@ static struct probe_s* new_probe(const char* name, enum probe_type_e probe_type)
     }
     probe->fifo->probe = probe;
     probe->probe_type = probe_type;
+    probe->snooper_type = probe_define[probe_type - 1].snooper_type;
     init_probe_bin(probe, probe_type);
     set_default_params(probe);
 
@@ -961,7 +962,7 @@ static void set_probe_modify(struct probe_s *probe, struct probe_s *backup_probe
     }
 
     is_modify = 0;
-    for (int i = 0; i < probe->snooper_conf_num && i < SNOOPER_MAX; i++) {
+    for (int i = 0; i < probe->snooper_conf_num && i < SNOOPER_CONF_MAX; i++) {
         if ((probe->snooper_confs[i] == NULL) || (backup_probe->snooper_confs[i] == NULL)) {
             is_modify = 1;
             break;

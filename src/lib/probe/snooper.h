@@ -29,7 +29,7 @@ enum snooper_conf_e {
     SNOOPER_CONF_FIXED_LABEL,
     SNOOPER_CONF_POD_LABELS,
 
-    SNOOPER_CONF_MAX
+    SNOOPER_CONF_TYPE_MAX
 };
 
 struct snooper_app_s {
