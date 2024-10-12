@@ -113,7 +113,6 @@ static void del_one_con(struct pod_info_s *pod_info, char *con_id)
 static struct containers_hash_t *add_one_con(struct pod_info_s *pod_info, char *con_id)
 {
     struct containers_hash_t *con = NULL;
-    int ret;
 
     if (con_id == NULL || con_id[0] == 0) {
         ERROR("Failed to add one container. container id is null\n");
@@ -368,7 +367,7 @@ void free_con_id_list(con_id_element *con_id_list)
 
 int append_con_id_list(con_id_element **con_id_list, struct con_info_s *con_info)
 {
-    con_id_element *con_info_elem, *tmp;
+    con_id_element *con_info_elem;
 
     con_info_elem = (con_id_element *)malloc(sizeof(con_id_element));
     if (con_info_elem == NULL) {

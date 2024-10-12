@@ -172,8 +172,6 @@ static void ConfigMgrDeinit(ResourceMgr *resourceMgr)
 
 static int ProbeMngInit(ResourceMgr *resourceMgr)
 {
-    int ret = 0;
-
     struct probe_mng_s *probe_mng = NULL;
 
     probe_mng = create_probe_mng();

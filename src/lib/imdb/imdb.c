@@ -415,8 +415,6 @@ static TGID_Record* IMDB_TgidCreateRecord(IMDB_DataBaseMgr *mgr, const char* tgi
     u64 startup_ts;
     char comm[TASK_COMM_LEN + 1];
     TGID_Record *record;
-    char container_id[CONTAINER_ABBR_ID_LEN + 1];
-    struct container_cache *container_cache;
 
     comm[0] = 0;
     pid = strtol(tgid, NULL, 10);
@@ -1258,7 +1256,6 @@ static int IMDB_BuildJsonHistos(IMDB_DataBaseMgr *mgr, IMDB_Record *record, IMDB
                                 char **buffer, int *maxLen)
 {
     int ret = 0;
-    int total = 0;
     char first_flag = 1;
 
     ret = __snprintf(buffer, *maxLen, maxLen, "%s", "\"histos\":{");

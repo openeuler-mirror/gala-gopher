@@ -134,7 +134,6 @@ int copy_ext_label_conf(struct ext_label_conf *dest, const struct ext_label_conf
 {
     struct custom_label_elem *custom_labels = NULL;
     struct pod_label_elem *pod_labels = NULL;
-    int i;
 
     if (src->custom_label_num > 0) {
         custom_labels = dup_custom_labels(src->custom_labels, src->custom_label_num);

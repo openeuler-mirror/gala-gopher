@@ -63,8 +63,6 @@ void system_meminfo_destroy(void)
 // get key & value from the line text, and assign to the target key.
 static int set_meminfosp_fileds(const char* line, const int cur_index)
 {
-    int ret = 0;
-
     char* colon = strchr(line, ':');
     if (colon == NULL) {
         return -1;

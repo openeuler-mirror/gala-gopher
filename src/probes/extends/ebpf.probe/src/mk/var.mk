@@ -39,7 +39,7 @@ BTF_ENABLE = $(shell if [ -n "$(BTF_ENABLE_OVERRIDE)" ]; then echo "$(BTF_ENABLE
 
 JAVA_SYM_AGENT_VER := v1
 LINK_TARGET ?= -lpthread -lbpf -lelf -lz -lconfig -ljsoncpp -lstdc++
-EXTRA_CFLAGS ?= -g -O2 -Wall -fPIC -std=gnu11
+EXTRA_CFLAGS ?= -g -O2 -Wall -fPIC -std=gnu11 -Wunused
 EXTRA_CDEFINE ?= -D__TARGET_ARCH_$(TYPE)
 EXTRA_CDEFINE += -D__BTF_ENABLE_$(BTF_ENABLE)
 EXTRA_CDEFINE += -DBPF_NO_GLOBAL_DATA

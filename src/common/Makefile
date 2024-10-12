@@ -15,7 +15,7 @@ C++ = g++
 CC = gcc
 
 LINK_TARGET := -lpthread -lbpf -lelf -lz
-EXTRA_CFLAGS := -g -O2 -Wall -fPIC -shared -Wl,-z,relro,-z,now -std=gnu11 -Wno-format-truncation
+EXTRA_CFLAGS := -g -O2 -Wall -fPIC -shared -Wl,-z,relro,-z,now -std=gnu11 -Wno-format-truncation -Wunused
 EXTRA_CDEFINE := -D__TARGET_ARCH_$(ARCH)
 EXTRA_CDEFINE += -DBPF_NO_GLOBAL_DATA
 CFLAGS := $(EXTRA_CFLAGS) $(EXTRA_CDEFINE)

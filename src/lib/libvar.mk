@@ -28,7 +28,7 @@ CLANG_VER_MAJOR = $(shell echo $(CLANG_VER) | awk -F '.' '{print $$1}')
 
 BTF_ENABLE = $(shell if [ -f /sys/kernel/btf/vmlinux ]; then echo "ON" ; else echo "OFF"; fi)
 
-EXTRA_CFLAGS ?= -g -O2 -Wall -fPIC -std=gnu11
+EXTRA_CFLAGS ?= -g -O2 -Wall -fPIC -std=gnu11 -Wunused
 EXTRA_CDEFINE ?= -D__TARGET_ARCH_$(TYPE)
 EXTRA_CDEFINE += -D__BTF_ENABLE_$(BTF_ENABLE)
 EXTRA_CDEFINE += -DBPF_NO_GLOBAL_DATA
