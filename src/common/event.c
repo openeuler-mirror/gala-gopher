@@ -80,7 +80,7 @@ void report_logs(const struct event_info_s* evt, enum evt_sec_e sec, const char 
     body[0] = 0;
     __get_local_time(body, __EVT_BODY_LEN, &cur_time);
     if ((g_evt_period > 0) && (!is_evt_need_report(evt->entityId, cur_time))) {
-        DEBUG("event not report, bacause entityId[%s] in event_period.\n", evt->entityId);
+        DEBUG("event not report, because entityId[%s] in event_period.\n", evt->entityId);
         return;
     }
 
