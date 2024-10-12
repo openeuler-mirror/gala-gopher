@@ -8,42 +8,42 @@ measurements:
         (
             {
                 description: "client ip",
-                type: "Unknown",
+                type: "key",
                 name: "client_ip",
             },
             {
                 description: "virtual ip",
-                type: "Unknown",
+                type: "key",
                 name: "virtual_ip",
             },
             {
                 description: "server_ip",
-                type: "Unknown",
+                type: "key",
                 name: "server_ip",
             },
             {
                 description: "client port",
-                type: "Unknown",
+                type: "key",
                 name: "client_port",
             },
             {
                 description: "virtual port",
-                type: "Unknown",
+                type: "key",
                 name: "virtual_port",
             },
             {
                 description: "server port",
-                type: "Unknown",
+                type: "key",
                 name: "server_port",
             },
             {
                 description: "is_l7",
-                type: "Unknown",
+                type: "key",
                 name: "is_l7",
             },
             {
                 description: "link count",
-                type: "Unknown",
+                type: "gauge",
                 name: "link_count",
             }
         )
