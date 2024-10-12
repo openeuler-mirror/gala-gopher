@@ -51,6 +51,7 @@
 #define L7PROBE_TRACING_MONGO   0x0040
 #define L7PROBE_TRACING_CQL     0x0080
 #define L7PROBE_TRACING_NATS    0x0100
+#define L7PROBE_TRACING_CRPC    0x0200
 
 /*
     copy struct probe_params code to python.probe/ipc.py.

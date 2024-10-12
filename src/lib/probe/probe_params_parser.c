@@ -34,7 +34,8 @@ struct param_flags_s param_l7pro_flags[] = {
     {"mysql",   L7PROBE_TRACING_MYSQL},
     {"pgsql",   L7PROBE_TRACING_PGSQL},
     {"kafka",   L7PROBE_TRACING_KAFKA},
-    {"mongo",   L7PROBE_TRACING_MONGO}
+    {"mongo",   L7PROBE_TRACING_MONGO},
+    {"crpc",    L7PROBE_TRACING_CRPC}
 };
 
 struct param_flags_s param_metrics_flags[] = {

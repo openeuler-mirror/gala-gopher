@@ -31,6 +31,14 @@
  */
 parse_state_t decoder_extract_char(struct raw_data_s *raw_data, char *res);
 
+/**
+ * 从raw_data中提取decode_len长度字符串，拷贝到res。
+ *
+ * @param raw_data 字符串缓存
+ * @param decode_len 提取字符串的长度
+ * @return parse_state_t
+ */
+parse_state_t decoder_extract_char_array(struct raw_data_s *raw_data, char *res, size_t decode_len);
 
 /**
  * 提取raw_data中的第一个字节，并转换为bool。
