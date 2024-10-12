@@ -215,7 +215,7 @@ int LogData2Json(IngressMgr *mgr, const char *logData, char *jsonFmt, int jsonSi
     int ret;
 
     if (*barNow != bar) {
-        ERROR("[INGRESS] log data format error: first charactor is not |\n");
+        ERROR("[INGRESS] log data format error: first character is not |\n");
         return -1;
     }
 
@@ -270,7 +270,7 @@ static int get_event_fields(strbuf_t *evtFields, int num, const char *evtData)
     int fieldNo;
 
     if (*barNow != bar) {
-        ERROR("[INGRESS] event data format error: first charactor is not |\n");
+        ERROR("[INGRESS] event data format error: first character is not |\n");
         return -1;
     }
 
