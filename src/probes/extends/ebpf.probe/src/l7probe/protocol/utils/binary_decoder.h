@@ -20,7 +20,7 @@
 
 #include <stdbool.h>
 #include "common.h"
-#include "../../include/data_stream.h"
+#include "data_stream.h"
 
 /**
  * 提取raw_data中的第一个字节，并填充至char型结果中。

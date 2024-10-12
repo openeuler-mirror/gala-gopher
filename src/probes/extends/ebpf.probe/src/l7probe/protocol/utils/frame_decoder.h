@@ -18,9 +18,8 @@
 #ifndef __FRAME_DECODER_H__
 #define __FRAME_DECODER_H__
 #pragma once
-
-#include "../../include/data_stream.h"
-#include "stdbool.h"
+#include <stdbool.h>
+#include "data_stream.h"
 
 parse_state_t decode_bool(struct raw_data_s *raw_data, bool *res);
 

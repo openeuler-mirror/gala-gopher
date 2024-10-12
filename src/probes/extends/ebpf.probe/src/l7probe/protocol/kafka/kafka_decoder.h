@@ -19,7 +19,7 @@
 #define __KAFKA_DECODER_H__
 #pragma once
 
-#include "../../include/data_stream.h"
+#include "data_stream.h"
 #include "kafka_msg_format.h"
 
 parse_state_t decode_tag_item(struct raw_data_s *data_stream_buf);

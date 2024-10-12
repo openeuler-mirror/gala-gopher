@@ -19,7 +19,7 @@
 #include <uthash.h>
 #include <ctype.h>
 #include "hash.h"
-#include "../../utils/string_utils.h"
+#include "utils/string_utils.h"
 
 #define MAX_HEADERS_SIZE 50
 

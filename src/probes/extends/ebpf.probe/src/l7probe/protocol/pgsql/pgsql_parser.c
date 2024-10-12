@@ -15,9 +15,8 @@
 
 #include <string.h>
 
-#include "../utils/macros.h"
-#include "../utils/binary_decoder.h"
-#include "../common/protocol_common.h"
+#include "utils/binary_decoder.h"
+#include "common/protocol_common.h"
 #include "pgsql_parser.h"
 
 parse_state_t pgsql_parse_regular_msg(struct raw_data_s *raw_data, struct pgsql_regular_msg_s *msg)

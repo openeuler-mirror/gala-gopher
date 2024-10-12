@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "../common/protocol_common.h"
+#include "common/protocol_common.h"
 #include "pgsql_msg_format.h"
 
 void pgsql_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *rsp_frames,

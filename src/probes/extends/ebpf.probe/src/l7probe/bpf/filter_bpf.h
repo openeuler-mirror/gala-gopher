@@ -31,7 +31,7 @@
 #include <bpf/bpf_core_read.h>
 
 #include "bpf.h"
-#include "include/filter.h"
+#include "filter.h"
 
 struct {
     __uint(type, BPF_MAP_TYPE_ARRAY);

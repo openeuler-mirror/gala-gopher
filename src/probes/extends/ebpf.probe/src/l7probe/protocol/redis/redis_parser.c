@@ -15,11 +15,10 @@
 #include <string.h>
 #include <stdint.h>
 #include <utarray.h>
-#include "../utils/binary_decoder.h"
-#include "../utils/string_utils.h"
-#include "../utils/macros.h"
-#include "../common/protocol_common.h"
-#include "../../include/l7.h"
+#include "utils/binary_decoder.h"
+#include "utils/string_utils.h"
+#include "common/protocol_common.h"
+#include "l7.h"
 #include "redis_msg_format.h"
 #include "format.h"
 #include "redis_parser.h"

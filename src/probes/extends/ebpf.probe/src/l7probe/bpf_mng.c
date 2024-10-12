@@ -28,7 +28,7 @@
 
 #include "bpf.h"
 #include "ipc.h"
-#include "include/conn_tracker.h"
+#include "conn_tracker.h"
 #include "bpf/kern_sock.skel.h"
 #include "bpf/libssl.skel.h"
 #include "l7_common.h"

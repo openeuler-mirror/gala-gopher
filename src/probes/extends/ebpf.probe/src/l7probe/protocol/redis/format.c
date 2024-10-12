@@ -16,7 +16,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <json_tool.h>
-#include "../utils/string_utils.h"
+#include "utils/string_utils.h"
 #include "common.h"
 #include "format.h"
 

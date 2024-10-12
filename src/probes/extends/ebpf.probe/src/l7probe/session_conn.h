@@ -16,7 +16,7 @@
 #define __SESSION_CONN_H__
 
 #include "hash.h"
-#include "include/connect.h"
+#include "connect.h"
 
 struct session_conn_id_s {
     int tgid;

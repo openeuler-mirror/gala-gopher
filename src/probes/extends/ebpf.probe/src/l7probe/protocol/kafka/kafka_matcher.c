@@ -16,7 +16,7 @@
 
 #include <string.h>
 #include "kafka_decoder.h"
-#include "../utils/frame_decoder.h"
+#include "utils/frame_decoder.h"
 #include "kafka_matcher.h"
 
 parse_state_t decode_fetch_resp(struct raw_data_s *resp_frame, int16_t api_version, size_t *error_count)

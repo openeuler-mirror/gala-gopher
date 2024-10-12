@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "../../include/data_stream.h"
+#include "data_stream.h"
 #include "kafka_msg_format.h"
 
 size_t kafka_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s *raw_data);

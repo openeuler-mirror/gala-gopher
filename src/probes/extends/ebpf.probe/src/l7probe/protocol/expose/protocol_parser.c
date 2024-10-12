@@ -14,16 +14,16 @@
  ******************************************************************************/
 
 #include "protocol_parser.h"
-#include "../pgsql/pgsql_msg_format.h"
-#include "../pgsql/pgsql_parser.h"
-#include "../pgsql/pgsql_matcher.h"
-#include "../http1.x/parser/http_parser.h"
-#include "../http1.x/matcher/http_matcher.h"
-#include "../kafka/kafka_msg_format.h"
-#include "../kafka/kafka_parser.h"
-#include "../kafka/kafka_matcher.h"
-#include "../redis/redis_parser.h"
-#include "../redis/redis_matcher.h"
+#include "pgsql/pgsql_msg_format.h"
+#include "pgsql/pgsql_parser.h"
+#include "pgsql/pgsql_matcher.h"
+#include "http1.x/parser/http_parser.h"
+#include "http1.x/matcher/http_matcher.h"
+#include "kafka/kafka_msg_format.h"
+#include "kafka/kafka_parser.h"
+#include "kafka/kafka_matcher.h"
+#include "redis/redis_parser.h"
+#include "redis/redis_matcher.h"
 
 /**
  * Free record data

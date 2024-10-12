@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "../../include/data_stream.h"
+#include "data_stream.h"
 
 /**
  * 拷贝raw_data_s。

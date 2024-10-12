@@ -17,9 +17,9 @@
 
 #include "delaying_ring_buffer.h"
 #include "ipc.h"
-#include "include/filter.h"
-#include "include/connect.h"
-#include "include/conn_tracker.h"
+#include "filter.h"
+#include "connect.h"
+#include "conn_tracker.h"
 
 
 #define LIBSSL_EBPF_PROG_MAX 256

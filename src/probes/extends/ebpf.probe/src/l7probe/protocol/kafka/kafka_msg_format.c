@@ -16,7 +16,7 @@
 
 #include <stddef.h>
 #include <stdlib.h>
-#include "../common/protocol_common.h"
+#include "common/protocol_common.h"
 #include "kafka_msg_format.h"
 
 const int KAFKA_API_KEY_LENGTH = 2;
