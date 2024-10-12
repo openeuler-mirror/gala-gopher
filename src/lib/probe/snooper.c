@@ -607,6 +607,10 @@ int parse_snooper(struct probe_s *probe, const void *json)
 {
     int i;
 
+    if (probe->snooper_type == SNOOPER_TYPE_NONE) {
+        return 0;
+    }
+
     /* free current snooper config */
     for (i = 0 ; i < probe->snooper_conf_num ; i++) {
         free_snooper_conf(probe->snooper_confs[i]);
@@ -634,7 +638,7 @@ int parse_snooper(struct probe_s *probe, const void *json)
         return -1;
     }
 
-    if (probe->snooper_conf_num == 0 && probe->snooper_type != SNOOPER_TYPE_NONE) {
+    if (probe->snooper_conf_num == 0) {
         PARSE_ERR("the snooper for %s cannot be empty", probe->name);
         return -1;
     }
@@ -1247,7 +1251,7 @@ static void __rcv_snooper_proc_exit(struct probe_mng_s *probe_mng, u32 proc_id)
     for (i = 0; i < PROBE_TYPE_MAX; i++) {
         get_probemng_lock();
         probe = probe_mng->probes[i];
-        if (!probe) {
+        if (!probe || probe->snooper_type == SNOOPER_TYPE_NONE) {
             put_probemng_lock();
             continue;
         }
@@ -1377,7 +1381,7 @@ static void __rcv_snooper_cgrp_exit(struct probe_mng_s *probe_mng, char *pod_id,
     for (i = 0; i < PROBE_TYPE_MAX; i++) {
         get_probemng_lock();
         probe = probe_mng->probes[i];
-        if (!probe) {
+        if (!probe || probe->snooper_type == SNOOPER_TYPE_NONE) {
             put_probemng_lock();
             continue;
         }
