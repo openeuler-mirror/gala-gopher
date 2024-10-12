@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "../common/protocol_common.h"
+#include "common/protocol_common.h"
 #include "kafka_msg_format.h"
 #include "hash.h"
 

@@ -22,7 +22,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include "../../include/data_stream.h"
+#include "data_stream.h"
 #include "hash.h"
 
 

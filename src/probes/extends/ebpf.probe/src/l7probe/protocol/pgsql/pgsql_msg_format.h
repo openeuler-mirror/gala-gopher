@@ -24,7 +24,7 @@
 #include <utlist.h>
 
 #include "hash.h"
-#include "../../include/data_stream.h"
+#include "data_stream.h"
 
 #define PGSQL_MSG_HEADER_SIZE (2 * sizeof(int32_t))
 

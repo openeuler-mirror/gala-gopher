@@ -26,7 +26,7 @@
 #include <bpf/bpf_endian.h>
 #include "bpf.h"
 
-#include "include/connect.h"
+#include "connect.h"
 #include "bpf/filter_bpf.h"
 #include "bpf/kern_sock_conn.h"
 

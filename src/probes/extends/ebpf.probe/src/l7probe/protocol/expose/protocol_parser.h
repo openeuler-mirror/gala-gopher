@@ -15,9 +15,9 @@
 #ifndef __PROTOCOL_PARSER_H__
 #define __PROTOCOL_PARSER_H__
 
-#include "../../include/l7.h"
-#include "../../include/data_stream.h"
-#include "../common/protocol_common.h"
+#include "l7.h"
+#include "data_stream.h"
+#include "common/protocol_common.h"
 
 /**
  * Free record data

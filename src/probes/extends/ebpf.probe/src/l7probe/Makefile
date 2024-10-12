@@ -4,7 +4,7 @@ BTF_ENABLE_OVERRIDE := ON
 
 include ../mk/var.mk
 INCLUDES = $(BASE_INC)
-INCLUDES += -I$(ROOT_DIR)/../l7probe
+INCLUDES += -I$(ROOT_DIR)/../l7probe -I$(ROOT_DIR)/../l7probe/include -I$(ROOT_DIR)/../l7probe/protocol
 INSTALL_DIR=/opt/gala-gopher/extend_probes
 APP := l7probe
 META := $(wildcard *.meta)

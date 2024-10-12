@@ -18,9 +18,8 @@
 #include <ctype.h>
 #include <string.h>
 #include "protocol/expose/protocol_parser.h"
-#include "include/data_stream.h"
+#include "data_stream.h"
 
-#if 1
 
 static void destroy_frame_data(enum proto_type_t type, struct frame_data_s* frame_data)
 {
@@ -39,10 +38,6 @@ static int push_frame_data(struct data_stream_s *data_stream, const struct frame
     frame_buf->frame_buf_size++;
     return 0;
 }
-
-#endif
-
-#if 1
 
 struct api_stats* create_api_stats(char* api)
 {
@@ -65,9 +60,6 @@ void destroy_api_stats(struct api_stats *api_stats)
     }
 }
 
-#endif
-
-#if 1
 static void destroy_raw_data(struct raw_data_s* raw_data)
 {
     (void)free(raw_data);
@@ -209,8 +201,6 @@ static int overlay_raw_data(struct data_stream_s *data_stream)
 
     return 0;
 }
-
-#endif
 
 static void __do_pop_frames(enum proto_type_t type, struct frame_buf_s *frame_bufs)
 {

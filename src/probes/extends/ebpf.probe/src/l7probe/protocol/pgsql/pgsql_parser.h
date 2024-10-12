@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "../../include/data_stream.h"
+#include "data_stream.h"
 #include "pgsql_msg_format.h"
 
 size_t pgsql_find_frame_boundary(struct raw_data_s *raw_data);

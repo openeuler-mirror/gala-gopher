@@ -17,8 +17,8 @@
 
 #pragma once
 
-#include "include/connect.h"
-#include "include/data_stream.h"
+#include "connect.h"
+#include "data_stream.h"
 #include "histogram.h"
 #include "hash.h"
 

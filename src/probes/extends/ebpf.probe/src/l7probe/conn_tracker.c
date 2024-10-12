@@ -36,11 +36,11 @@
 #include "histogram.h"
 #include "conntrack.h"
 #include "flowtracer_reader.h"
-#include "include/connect.h"
+#include "connect.h"
 #include "protocol/expose/protocol_parser.h"
-#include "include/data_stream.h"
+#include "data_stream.h"
 #include "l7_common.h"
-#include "include/conn_tracker.h"
+#include "conn_tracker.h"
 
 #define OO_NAME         "l7"
 #define L7_TBL_LINK     "l7_link"
@@ -95,8 +95,6 @@ static void init_latency_buckets(struct histo_bucket_s latency_buckets[], size_t
         (void)init_histo_bucket(&(latency_buckets[i]), latency_histios[i].min, latency_histios[i].max);
     }
 }
-
-#if 1
 
 static void destroy_tracker_record(struct conn_tracker_s* tracker)
 {
@@ -193,12 +191,6 @@ static struct frame_buf_s* get_resp_frames(struct conn_tracker_s* tracker)
     }
     return NULL;
 }
-
-
-
-#endif
-
-#if 1
 
 static void destroy_l7_api_statistic(struct l7_api_statistic_s* l7_api_statistic)
 {
@@ -340,10 +332,6 @@ static struct l7_api_statistic_s* create_l7_api_statistic(const struct api_stats
     return l7_api_statistic;
 }
 
-#endif
-
-#if 1
-
 static void transform_cluster_ip(struct l7_mng_s *l7_mng, struct conn_tracker_s* tracker)
 {
     int transform = ADDR_TRANSFORM_NONE;
@@ -383,7 +371,7 @@ static void transform_cluster_ip(struct l7_mng_s *l7_mng, struct conn_tracker_s*
         return;
     }
 
-    #ifdef GOPHER_DEBUG
+#ifdef GOPHER_DEBUG
     char s_ip1[IP6_STR_LEN], s_ip2[IP6_STR_LEN], c_ip1[IP6_STR_LEN], c_ip2[IP6_STR_LEN];
     inet_ntop(connect.family, &tracker->open_info.server_addr.ip, s_ip1, sizeof(s_ip1));
     inet_ntop(connect.family, &connect.sip_addr, s_ip2, sizeof(s_ip2));
@@ -668,11 +656,6 @@ static void l7_parser_tracker(struct l7_mng_s *l7_mng, struct conn_tracker_s* tr
     data_stream_pop_frames(&(tracker->recv_stream));
     return;
 }
-
-#endif
-
-
-#if 1
 
 static void reset_api_stats(struct l7_api_statistic_s *statistic)
 {
@@ -975,9 +958,6 @@ void report_l7(void *ctx)
     reset_l7_stats(l7_mng);
     return;
 }
-
-
-#endif
 
 void destroy_trackers(void *ctx)
 {

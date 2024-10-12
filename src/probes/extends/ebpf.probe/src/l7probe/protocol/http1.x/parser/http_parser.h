@@ -17,9 +17,9 @@
 
 #pragma once
 
-#include "../../common/protocol_common.h"
+#include "common/protocol_common.h"
 #include "../model/http_msg_format.h"
-#include "../../../include/l7.h"
+#include "l7.h"
 #include "http_parse_wrapper.h"
 
 /* first field of http first line, method for request and http_version for response */

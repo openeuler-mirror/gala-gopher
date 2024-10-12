@@ -18,7 +18,7 @@
 #pragma once
 
 #include "multiple_map.h"
-#include "../../../include/data_stream.h"
+#include "data_stream.h"
 
 extern char KEY_CONTENT_ENCODING[17];
 extern char KEY_CONTENT_LENGTH[15];

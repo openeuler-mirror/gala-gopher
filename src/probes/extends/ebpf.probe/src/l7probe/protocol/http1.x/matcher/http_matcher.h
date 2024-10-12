@@ -16,7 +16,7 @@
 #define __HTTP_MATCHER_H__
 
 #include "../model/http_msg_format.h"
-#include "../../../include/data_stream.h"
+#include "data_stream.h"
 
 /**
  * http match frames

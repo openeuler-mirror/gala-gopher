@@ -15,8 +15,8 @@
  ******************************************************************************/
 
 #include <string.h>
-#include "../common/protocol_common.h"
-#include "../utils/binary_decoder.h"
+#include "common/protocol_common.h"
+#include "utils/binary_decoder.h"
 #include "kafka_parser.h"
 
 // Kafka request/response format: https://kafka.apache.org/protocol.html#protocol_messages

@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "../../include/data_stream.h"
+#include "data_stream.h"
 
 void redis_match_frames(struct frame_buf_s *req_frames, struct frame_buf_s *resp_frames, struct record_buf_s *record_buf);
 

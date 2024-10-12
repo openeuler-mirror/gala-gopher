@@ -38,8 +38,8 @@
 
 #include "container.h"
 #include "l7_common.h"
-#include "include/bpf_mng.h"
-#include "include/java_mng.h"
+#include "bpf_mng.h"
+#include "java_mng.h"
 
 #define RM_L7_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__l7*"
 #define CAPACITY 4096

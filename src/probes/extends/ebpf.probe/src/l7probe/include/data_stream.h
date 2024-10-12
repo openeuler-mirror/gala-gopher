@@ -22,6 +22,7 @@
 #include "l7.h"
 #include "hash.h"
 
+#define PARSER_INVALID_BOUNDARY_INDEX (SIZE_MAX)
 /**
  * The status of a single parse.
  */

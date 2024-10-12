@@ -25,7 +25,7 @@
 #pragma once
 
 #include "bpf.h"
-#include "include/connect.h"
+#include "connect.h"
 
 #define __MAX_CONCURRENCY   1000
 #define __MAX_CONN_COUNT    1000
