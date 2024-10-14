@@ -160,7 +160,7 @@ static int get_proc_stat_info(void)
             &cur_cpus[index]->cpu_softirq_total_second,
             &cur_cpus[index]->cpu_steal_total_second);
         if (ret < PROC_STAT_FILEDS_NUM) {
-            DEBUG("system_cpu.probe faild get proc_stat metrics.\n");
+            DEBUG("system_cpu.probe failed get proc_stat metrics.\n");
         }
         index++;
     }

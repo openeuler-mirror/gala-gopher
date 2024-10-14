@@ -50,14 +50,14 @@ static int ipvs_state_get_key(const struct ip_vs_conn *p, struct link_key *key, 
             bpf_probe_read_kernel(&key->s_addr.in, sizeof(struct in_addr), &p->daddr);
             /* client */
             bpf_probe_read_kernel(&key->c_addr.in, sizeof(struct in_addr), &p->caddr);
-            /* virtural */
+            /* virtual */
             bpf_probe_read_kernel(&key->v_addr.in, sizeof(struct in_addr), &p->vaddr);
             break;
         case AF_INET6:
             bpf_probe_read_kernel(&key->s_addr.in6, sizeof(struct in6_addr), &p->daddr);
             /* client */
             bpf_probe_read_kernel(&key->c_addr.in6, sizeof(struct in6_addr), &p->caddr);
-            /* virtural */
+            /* virtual */
             bpf_probe_read_kernel(&key->v_addr.in6, sizeof(struct in6_addr), &p->vaddr);
             break;
         default:
@@ -84,7 +84,7 @@ static void ipvs_fnat_state_get_key(const struct ip_vs_conn_fnat *p, struct link
             bpf_probe_read_kernel(&addr->in, sizeof(struct in_addr), &p->laddr);
             /* client */
             bpf_probe_read_kernel(&key->c_addr.in, sizeof(struct in_addr), &p->caddr);
-            /* virtural */
+            /* virtual */
             bpf_probe_read_kernel(&key->v_addr.in, sizeof(struct in_addr), &p->vaddr);
             break;
         case AF_INET6:
@@ -94,7 +94,7 @@ static void ipvs_fnat_state_get_key(const struct ip_vs_conn_fnat *p, struct link
             bpf_probe_read_kernel(&addr->in6, sizeof(struct in6_addr), &p->laddr);
             /* client */
             bpf_probe_read_kernel(&key->c_addr.in6, sizeof(struct in6_addr), &p->caddr);
-            /* virtural */
+            /* virtual */
             bpf_probe_read_kernel(&key->v_addr.in6, sizeof(struct in6_addr), &p->vaddr);
             break;
         default:
