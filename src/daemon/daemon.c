@@ -35,7 +35,7 @@ static void *DaemonRunSingleProbe(void *arg);
 static void *DaemonRunSingleExtendProbe(void *arg);
 #endif
 
-#if GALA_GOPHER_INFO("inner func defination")
+#if GALA_GOPHER_INFO("inner func definition")
 static void *DaemonRunIngress(void *arg)
 {
     IngressMgr *mgr = (IngressMgr *)arg;
