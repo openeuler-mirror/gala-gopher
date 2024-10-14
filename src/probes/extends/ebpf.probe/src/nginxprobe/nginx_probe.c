@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/resource.h>
+#include <time.h>
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
 #endif
@@ -37,6 +38,7 @@ struct nginx_probe_s {
     struct ipc_body_s ipc_body;
     struct bpf_prog_s *prog;
     int stats_map_fd;
+    time_t last_report;
 };
 
 static struct nginx_probe_s g_nginx_probe = {0};
@@ -45,6 +47,22 @@ static volatile sig_atomic_t g_stop;
 static void sig_handler(int sig)
 {
     g_stop = 1;
+}
+
+static char is_report_tmout(void)
+{
+    time_t current = time(NULL);
+    time_t secs;
+
+    if (current > g_nginx_probe.last_report) {
+        secs = current - g_nginx_probe.last_report;
+        if (secs >= g_nginx_probe.ipc_body.probe_param.period) {
+            g_nginx_probe.last_report = current;
+            return 1;
+        }
+    }
+
+    return 0;
 }
 
 static void update_statistic_map(int map_fd, const struct ngx_metric *data)
@@ -246,7 +264,9 @@ static int reload_bpf_prog(struct ipc_body_s *ipc_body)
 {
     int ret;
 
-    if (strcmp(ipc_body->probe_param.elf_path, g_nginx_probe.ipc_body.probe_param.elf_path)) {
+    if (g_nginx_probe.prog == NULL ||
+        strcmp(ipc_body->probe_param.elf_path,
+               g_nginx_probe.ipc_body.probe_param.elf_path)) {
         unload_bpf_prog(&g_nginx_probe.prog);
         ret = load_bpf_prog(ipc_body);
         if (ret) {
@@ -319,13 +339,11 @@ int main(int argc, char **argv)
             }
         }
 
-        if (g_nginx_probe.prog != NULL) {
+        if (g_nginx_probe.prog != NULL && is_report_tmout()) {
             pull_all_probe_data();
             print_statistic_map(g_nginx_probe.stats_map_fd);
-            sleep(g_nginx_probe.ipc_body.probe_param.period);
-        } else {
-            sleep(DEFAULT_PERIOD);
         }
+        sleep(1);
     }
 
     err = 0;
