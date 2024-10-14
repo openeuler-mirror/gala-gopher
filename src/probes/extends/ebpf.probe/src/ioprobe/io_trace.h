@@ -26,7 +26,7 @@
 
 #define IS_LOAD_PROBE(LOAD_TYPE, PROG_TYPE) (LOAD_TYPE & PROG_TYPE)
 
-// Refer to linux souce code: include/scsi/scsi.h
+// Refer to linux source code: include/scsi/scsi.h
 
 /*
  * Midlevel queue return values.

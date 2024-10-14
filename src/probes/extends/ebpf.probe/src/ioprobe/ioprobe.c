@@ -125,7 +125,7 @@ struct blk_tbl_s {
 
 static struct blk_tbl_s g_blk_tbl;
 
-// Refer to linux souce code: include/linux/blk_types.h
+// Refer to linux source code: include/linux/blk_types.h
 #define BLK_STS_OK                      (0)
 #define BLK_STS_NOTSUPP                 (1)
 #define BLK_STS_TIMEOUT                 (2)
@@ -385,7 +385,7 @@ static const char* get_scis_err_desc(int scsi_err)
             return scsi_err_desc[i].desc;
     }
 
-    return "UNKNOW";
+    return "UNKNOWN";
 }
 
 static const char* get_blk_err_desc(int ret_err, int *blk_err)
@@ -397,7 +397,7 @@ static const char* get_blk_err_desc(int ret_err, int *blk_err)
         }
     }
 
-    return "UNKNOW";
+    return "UNKNOWN";
 }
 
 #define __ENTITY_ID_LEN 32
@@ -435,7 +435,7 @@ static void rcv_io_latency_thr(struct io_latency_s *io_latency)
 
         report_logs((const struct event_info_s *)&evt,
                     EVT_SEC_WARN,
-                    "IO latency occured."
+                    "IO latency occurred."
                     "(Disk %s(%d:%d), COMM %s, PID %u, op: %s, datalen %u, "
                     "drv_latency %llu, dev_latency %llu)",
                     cache->disk_name ? cache->disk_name : "", io_latency->major, io_latency->first_minor,
@@ -474,7 +474,7 @@ static int rcv_io_err(void *ctx, void *data, __u32 size)
     const char *blk_err_desc = get_blk_err_desc(io_err->err_code, &blk_err);
     report_logs((const struct event_info_s *)&evt,
                 EVT_SEC_WARN,
-                "IO errors occured."
+                "IO errors occurred."
                 "(Disk %s(%d:%d), COMM %s, PID %u, op: %s, datalen %u, "
                 "blk_err(%d) '%s', scsi_err(%d) '%s', timestamp %f)",
                 cache->disk_name ? cache->disk_name : "", io_err->major, io_err->first_minor,

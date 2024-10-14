@@ -111,7 +111,7 @@ struct conn_tracker_s {
     char is_ssl;
     char inactive;
     char pad[2];
-    enum l4_role_t l4_role;     // TCP client or server; udp unknow
+    enum l4_role_t l4_role;     // TCP client or server; udp unknown
     enum l7_role_t l7_role;     // RPC client or server
     enum proto_type_t protocol; // L7 protocol type
     // Keep the state of tracker

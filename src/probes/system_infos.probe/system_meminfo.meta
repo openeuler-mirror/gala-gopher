@@ -8,7 +8,7 @@ measurements:
         fields:
         (
             {
-                description: "indexs of OS memory",
+                description: "indexes of OS memory",
                 type: "key",
                 name: "infos",
             },
@@ -140,7 +140,7 @@ measurements:
         fields:
         (
             {
-                description: "indexs of origin",
+                description: "indexes of origin",
                 type: "key",
                 name: "infos",
             },

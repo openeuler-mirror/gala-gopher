@@ -99,9 +99,9 @@ static const char* mc_event_error_type(unsigned int err_type)
 
 #ifdef ENABLE_REPORT_EVENT
 #define __ENTITY_ID_LEN 32
-static void __build_entity_id(char *dev, char *deriver, char *buf, int buf_len)
+static void __build_entity_id(char *dev, char *driver, char *buf, int buf_len)
 {
-    (void)snprintf(buf, buf_len, "%s_%s", dev, deriver);
+    (void)snprintf(buf, buf_len, "%s_%s", dev, driver);
 }
 
 static int rcv_nic_failure(void *ctx, void *data, __u32 size)

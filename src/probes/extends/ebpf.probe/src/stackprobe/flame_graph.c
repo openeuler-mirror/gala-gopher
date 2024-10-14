@@ -57,11 +57,11 @@ static char *appname[STACK_SVG_MAX] = {
 static void __mkdir_flame_graph_path(struct stack_svg_mng_s *svg_mng)
 {
     FILE *fp;
-    char commad[COMMAND_LEN];
+    char command[COMMAND_LEN];
 
-    commad[0] = 0;
-    (void)snprintf(commad, COMMAND_LEN, "/usr/bin/mkdir -p %s", svg_mng->flame_graph.flame_graph_dir ?: "/");
-    fp = popen(commad, "r");
+    command[0] = 0;
+    (void)snprintf(command, COMMAND_LEN, "/usr/bin/mkdir -p %s", svg_mng->flame_graph.flame_graph_dir ?: "/");
+    fp = popen(command, "r");
     if (fp != NULL) {
         (void)pclose(fp);
     }
@@ -129,15 +129,15 @@ static void __rm_flame_graph_file(struct stack_svg_mng_s *svg_mng)
 {
 #define __COMMAND_LEN   (2 * PATH_LEN)
     FILE *fp;
-    char commad[__COMMAND_LEN];
+    char command[__COMMAND_LEN];
     struct stack_flamegraph_s *sfg;
 
     sfg = &(svg_mng->flame_graph);
 
     if (!access(sfg->flame_graph_file, 0)) {
-        commad[0] = 0;
-        (void)snprintf(commad, __COMMAND_LEN, "/usr/bin/rm -f %s", sfg->flame_graph_file);
-        fp = popen(commad, "r");
+        command[0] = 0;
+        (void)snprintf(command, __COMMAND_LEN, "/usr/bin/rm -f %s", sfg->flame_graph_file);
+        fp = popen(command, "r");
         if (fp != NULL) {
             (void)pclose(fp);
             fp = NULL;
@@ -155,22 +155,22 @@ static size_t __write_memory_cb(void *contents, size_t size, size_t nmemb, void 
 {
     size_t realsize = size * nmemb;
     struct MemoryStruct *mem = (struct MemoryStruct *)userp;
-    
+
     char *ptr = realloc(mem->memory, mem->size + realsize + 1);
     if(!ptr) {
         /* out of memory! */
         ERROR("[FLAMEGRAPH]:not enough memory (realloc returned NULL)\n");
         return 0;
     }
-    
+
     mem->memory = ptr;
     memcpy(&(mem->memory[mem->size]), contents, realsize);
     mem->size += realsize;
     mem->memory[mem->size] = 0;
-    
+
     return realsize;
 }
- 
+
 // http://localhost:4040/ingest?name=gala-gopher-oncpu.56789&from=1671189474&until=1671189534&units=samples&sampleRate=100",
 static int __build_url(struct stack_svg_mng_s *svg_mng, char *url,
     struct post_server_s *post_server, int en_type, int proc_id)
@@ -185,7 +185,7 @@ static int __build_url(struct stack_svg_mng_s *svg_mng, char *url,
     svg_mng->last_post_ts = now;
 
     if (post_server->multi_instance_flag) {
-        (void)snprintf(url, LINE_BUF_LEN, 
+        (void)snprintf(url, LINE_BUF_LEN,
             "http://%s/ingest?name=%s-%s.%d&from=%ld&until=%ld&units=%s&sampleRate=%u",
             post_server->host,
             appname[en_type],
@@ -196,7 +196,7 @@ static int __build_url(struct stack_svg_mng_s *svg_mng, char *url,
             (en_type == STACK_SVG_MEM || en_type == STACK_SVG_MEM_GLIBC) ? "bytes" : "samples",
             1000 / post_server->perf_sample_period); // 1000 ms
     } else {
-        (void)snprintf(url, LINE_BUF_LEN, 
+        (void)snprintf(url, LINE_BUF_LEN,
             "http://%s/ingest?name=%s-%s&from=%ld&until=%ld&units=%s&sampleRate=%u",
             post_server->host,
             appname[en_type],

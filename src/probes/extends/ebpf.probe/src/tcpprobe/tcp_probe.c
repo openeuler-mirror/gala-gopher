@@ -421,53 +421,53 @@ static void reset_tcp_flow_tracker_stats(struct tcp_flow_tracker_s *tracker)
 
 static int output_tcp_metrics(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
 {
-    int outputed = 0;
+    int outputted = 0;
     u32 flags = tracker->report_flags & TCP_PROBE_ALL;
 
     if ((flags & TCP_PROBE_ABN) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_ABNORMAL)) {
-        outputed = 1;
+        outputted = 1;
         output_tcp_abn(tcp_mng, tracker);
         reset_tcp_abn_stats(tracker);
     }
 
     if ((flags & TCP_PROBE_SRTT) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_SRTT)) {
-        outputed = 1;
+        outputted = 1;
         output_tcp_syn_rtt(tcp_mng, tracker);
         reset_tcp_syn_rtt_stats(tracker);
     }
 
     if ((flags & TCP_PROBE_WINDOWS) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_WINDOWS)) {
-        outputed = 1;
+        outputted = 1;
         output_tcp_win(tcp_mng, tracker);
         reset_tcp_win_stats(tracker);
     }
 
     if ((flags & TCP_PROBE_RTT) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_RTT)) {
-        outputed = 1;
+        outputted = 1;
         output_tcp_rtt(tcp_mng, tracker);
         reset_tcp_rtt_stats(tracker);
     }
 
     if ((flags & TCP_PROBE_TXRX) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_STATS)) {
-        outputed = 1;
+        outputted = 1;
         output_tcp_txrx(tcp_mng, tracker);
         reset_tcp_txrx_stats(tracker);
     }
 
     if ((flags & TCP_PROBE_SOCKBUF) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_SOCKBUF)) {
-        outputed = 1;
+        outputted = 1;
         output_tcp_sockbuf(tcp_mng, tracker);
         reset_tcp_sockbuf_stats(tracker);
     }
 
     if ((flags & TCP_PROBE_RATE) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_RATE)) {
-        outputed = 1;
+        outputted = 1;
         output_tcp_rate(tcp_mng, tracker);
         reset_tcp_rate_stats(tracker);
     }
 
     tracker->report_flags = 0;
-    return outputed;
+    return outputted;
 }
 
 static int output_tcp_flow_metrics(struct tcp_mng_s *tcp_mng, struct tcp_flow_tracker_s *tracker)

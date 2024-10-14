@@ -32,7 +32,7 @@
 
 #define NETSNMP_TCP_FIELD_NUM   5
 #define NETSNMP_UDP_FIELD_NUM   2
-static int get_netsnmp_fileds(const char *net_snmp_info, net_snmp_stat *stats)
+static int get_netsnmp_fields(const char *net_snmp_info, net_snmp_stat *stats)
 {
     int ret;
     char *colon = strchr(net_snmp_info, ':');
@@ -91,7 +91,7 @@ int system_tcp_probe(void)
         if (fgets(line, LINE_BUF_LEN, f) == NULL) {
             break;
         }
-        if (get_netsnmp_fileds(line, (net_snmp_stat *)&g_snmp_stats) < 0) {
+        if (get_netsnmp_fields(line, (net_snmp_stat *)&g_snmp_stats) < 0) {
             continue;
         }
     }
@@ -141,12 +141,12 @@ static int get_netdev_name(const char *line, char dev_name[])
 }
 
 #define NETDEV_FIELD_NUM        8
-static int get_netdev_fileds(const char *net_dev_info, net_dev_stat *stats)
+static int get_netdev_fields(const char *net_dev_info, net_dev_stat *stats)
 {
     int ret;
     char *devinfo = (char *)net_dev_info;
 
-    /* parse fileds */
+    /* parse fields */
     ret = sscanf(devinfo,
         "%*s %llu %llu %llu %llu %*Lu %*Lu %*Lu %*Lu %llu %llu %llu %llu %*Lu %*Lu %*Lu %*Lu",
         &stats->rx_bytes, &stats->rx_packets, &stats->rx_errs, &stats->rx_dropped,
@@ -376,7 +376,7 @@ int system_net_probe(struct ipc_body_s *ipc_body)
         (void)snprintf(g_dev_stats[index].dev_name, NET_DEVICE_NAME_SIZE, "%s", dev_name);
 
         (void)memcpy(&temp, &g_dev_stats[index], sizeof(net_dev_stat));
-        if (get_netdev_fileds(line, &g_dev_stats[index]) < 0) {
+        if (get_netdev_fields(line, &g_dev_stats[index]) < 0) {
             continue;
         }
         get_netdev_status(&g_dev_stats[index]);

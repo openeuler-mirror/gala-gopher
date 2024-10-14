@@ -25,7 +25,7 @@
 #include "syscall.h"
 #include "container.h"
 
-#define ERR_MSG2 "not installe"
+#define ERR_MSG2 "not installed"
 #define RUNNING "active (running)"
 
 #define DOCKER_STATS_RUNNING "running"

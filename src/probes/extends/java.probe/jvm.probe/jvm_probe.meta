@@ -23,7 +23,7 @@ measurements:
                 name: "runtime",
             },
             {
-                description: "JVM implementation vender.",
+                description: "JVM implementation vendor.",
                 type: "label",
                 name: "vendor",
             },

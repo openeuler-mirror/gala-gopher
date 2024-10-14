@@ -208,11 +208,11 @@ events_en_US =
 		(
 			{
 				metric = "latency_req_max";
-				description = "IO latency occured.(Block %d:%d, COMM %s, PID %u, op: %s, datalen %u, drv_latency %llu, dev_latency %llu)";
+				description = "IO latency occurred.(Block %d:%d, COMM %s, PID %u, op: %s, datalen %u, drv_latency %llu, dev_latency %llu)";
 			},
 			{
 				metric = "err_code";
-				description = "IO errors occured.(Block %d:%d, COMM %s, PID %u, op: %s, datalen %u, err_code %d, scsi_err %d, scsi_tmout %d)";
+				description = "IO errors occurred.(Block %d:%d, COMM %s, PID %u, op: %s, datalen %u, err_code %d, scsi_err %d, scsi_tmout %d)";
 			}
 		)
 	},

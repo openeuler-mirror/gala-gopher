@@ -10,7 +10,7 @@
 enum socket_evt_e {
     // tcp event
     EP_STATS_LISTEN_DROPS = 0,
-    EP_STATS_ACCEPT_OVERFLOW,   // alarm accpet queue full
+    EP_STATS_ACCEPT_OVERFLOW,   // alarm accept queue full
     EP_STATS_SYN_OVERFLOW,      // alarm syn queue full
     EP_STATS_PASSIVE_OPENS,
     EP_STATS_PASSIVE_FAILS,

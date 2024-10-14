@@ -60,7 +60,7 @@ enum symbol_err_e {
     GET_ELF_OFFSET  = -9,
     ADD_MOD         = -10,
 };
-#define __UNKNOW_NAME     "Unknow"
+#define __UNKNOW_NAME     "Unknown"
 
 #ifdef PRINT_DETAILS
 
@@ -166,7 +166,7 @@ static void __print_mods(struct mod_s *mod)
     char buf[LINE_BUF_LEN];
 
     const char *col[__MOD_COL_NUM] = {"MOD_NAME", "TYPE", "PATH", "ELF", "ELF_OFFSET",
-        "RANGE", "SYMBOS"};
+        "RANGE", "SYMBOLS"};
     const int offset[__MOD_COL_NUM] = {-32, -12, -32, -12, -12, -12, 12};
 
     buf[0] = 0;
@@ -248,7 +248,7 @@ static void __print_mod_symbs(struct mod_s *mod)
 
 static void __print_proc(struct proc_symbs_s* proc_symbs)
 {
-    INFO("[SYMBOL]: loaded proc symbos [%s, %d], %u mods\n",
+    INFO("[SYMBOL]: loaded proc symbols [%s, %d], %u mods\n",
             proc_symbs->comm, proc_symbs->proc_id, proc_symbs->mods_count);
     for (int i = 0; i < proc_symbs->mods_count; i++) {
         if (proc_symbs->mods[i]) {
@@ -374,7 +374,7 @@ static int load_symbs(struct mod_s* mod)
     }
     */
 
-    // TOOD: MODULE_VDSO, MODULE_MAP
+    // TODO: MODULE_VDSO, MODULE_MAP
     if ((mod->mod_type == MODULE_MAP) || (mod->mod_type == MODULE_VDSO)) {
         return 0;
     }
@@ -515,7 +515,7 @@ static int get_mod_type(struct mod_info_s* mod_info)
         return 0;
     }
 
-    mod_info->type = MODULE_UNKNOW;
+    mod_info->type = MODULE_UNKNOWN;
     return GET_MOD_TYPE;
 }
 
@@ -627,7 +627,7 @@ static int get_mod_name(struct mod_info_s* mod_info, char *maps_line, struct pro
         return 0;
     }
 
-    // JVM mod dont' display no mod name in /proc/<pid>/maps which is like as follows:
+    // JVM mod don't display no mod name in /proc/<pid>/maps which is like as follows:
     // 111222330000-111222334000 rwxp 00000000 00:00 0
     if (proc_symbs->is_java) {
         free(mod_info->name);

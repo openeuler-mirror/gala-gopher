@@ -71,7 +71,7 @@ function prepare_dep()
 
     yum download --source kernel
     if [ ! -f kernel*.src.rpm ]; then
-        echo "****Warnning: Failed to download kernel-*.src.rpm, please check yum.repo****"
+        echo "****Warning: Failed to download kernel-*.src.rpm, please check yum.repo****"
         return 1
     fi
 
@@ -149,7 +149,7 @@ function clean_temp_files()
     rm -rf ${VMLINUX_DIR}
 }
 
-# build vmlinux 
+# build vmlinux
 if [ -f /sys/fs/bpf/vmlinux ]; then
     echo "==== vmlinux exist!"
     exit

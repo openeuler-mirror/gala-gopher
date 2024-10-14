@@ -310,7 +310,7 @@ static char *parse_request(char *buf, int buf_len, http_request* req, int *ret)
         IS_EXCEPT_CHAR('\012');
     } else if (*buf == '\012') {
         buf++;
-    } else {    // there sholdn't be valid characters at the end of line
+    } else {    // there shouldn't be valid characters at the end of line
         *ret = -1;
         DEBUG("[HTTP1.x PARSER]found garbage at the end of request first line.\n");
         return NULL;
@@ -331,7 +331,7 @@ static char *parse_response(char *buf, int buf_len, http_response* res, int *ret
     }
     if (*buf != ' ') {
         *ret = -1;
-        DEBUG("[HTTP1.x PARSER]response parse version failed, there shold be SP after HTTP/1.x \n");
+        DEBUG("[HTTP1.x PARSER]response parse version failed, there should be SP after HTTP/1.x \n");
         return NULL;
     }
     do {    // skip SPs after version
@@ -358,7 +358,7 @@ static char *parse_response(char *buf, int buf_len, http_response* res, int *ret
                 res->msg_len--;
             } while(*res->msg == ' ');
         } else {
-            /* garbage found, bacause there should be SP between status and msg */
+            /* garbage found, because there should be SP between status and msg */
             *ret = -1;
             DEBUG("[HTTP1.x PARSER] response parsie failed, found garbage between status code and msg\n");
             return NULL;
