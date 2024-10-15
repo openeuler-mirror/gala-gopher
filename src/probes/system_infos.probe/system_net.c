@@ -152,7 +152,7 @@ static int get_netdev_fileds(const char *net_dev_info, net_dev_stat *stats)
         &stats->rx_bytes, &stats->rx_packets, &stats->rx_errs, &stats->rx_dropped,
         &stats->tx_bytes, &stats->tx_packets, &stats->tx_errs, &stats->tx_dropped);
     if (ret < NETDEV_FIELD_NUM) {
-        DEBUG("[SYSTEM_NET] system_net.probe faild get net_dev metrics.\n");
+        DEBUG("[SYSTEM_NET] system_net.probe failed get net_dev metrics.\n");
         return -1;
     }
     return 0;
