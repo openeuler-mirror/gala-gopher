@@ -47,7 +47,7 @@
 struct svg_param_s {
     char *file_name;
     char *params;
-    char *titile;
+    char *title;
 };
 
 static struct svg_param_s svg_params[STACK_SVG_MAX] =
@@ -61,16 +61,16 @@ static struct svg_param_s svg_params[STACK_SVG_MAX] =
 static void __rm_svg(const char *svg_file)
 {
     FILE *fp;
-    char commad[__COMMAND_LEN];
+    char command[__COMMAND_LEN];
     const char *fmt = "rm -rf %s";
 
     if (access(svg_file, 0) != 0) {
         return;
     }
 
-    commad[0] = 0;
-    (void)snprintf(commad, __COMMAND_LEN, fmt, svg_file);
-    fp = popen(commad, "r");
+    command[0] = 0;
+    (void)snprintf(command, __COMMAND_LEN, fmt, svg_file);
+    fp = popen(command, "r");
     if (fp != NULL) {
         (void)pclose(fp);
         fp = NULL;
@@ -81,7 +81,7 @@ static void __rm_svg(const char *svg_file)
 static int __new_svg(const char *flame_graph, const char *svg_file, int en_type)
 {
     const char *flamegraph_bin = FAMEGRAPH_BIN;
-    char commad[__COMMAND_LEN];
+    char command[__COMMAND_LEN];
     FILE *fp;
 
     if (access(flamegraph_bin, 0) != 0) {
@@ -94,12 +94,12 @@ static int __new_svg(const char *flame_graph, const char *svg_file, int en_type)
         return -1;
     }
 
-    commad[0] = 0;
-    (void)snprintf(commad, __COMMAND_LEN, SVG_COMMAND,
-        flamegraph_bin, svg_params[en_type].titile,
+    command[0] = 0;
+    (void)snprintf(command, __COMMAND_LEN, SVG_COMMAND,
+        flamegraph_bin, svg_params[en_type].title,
         svg_params[en_type].params, flame_graph, svg_file);
 
-    fp = popen(commad, "r");
+    fp = popen(command, "r");
     if (fp != NULL) {
         (void)pclose(fp);
         fp = NULL;
@@ -300,12 +300,12 @@ void destroy_svg_mng(struct stack_svg_mng_s* svg_mng)
 static void __mkdir_svg_dir(struct stack_svgs_s *svg)
 {
     FILE *fp;
-    char commad[LINE_BUF_LEN];
+    char command[LINE_BUF_LEN];
 
-    commad[0] = 0;
+    command[0] = 0;
 
-    (void)snprintf(commad, LINE_BUF_LEN, "/usr/bin/mkdir -p %s", svg->svg_dir ?: "/");
-    fp = popen(commad, "r");
+    (void)snprintf(command, LINE_BUF_LEN, "/usr/bin/mkdir -p %s", svg->svg_dir ?: "/");
+    fp = popen(command, "r");
     if (fp != NULL) {
         (void)pclose(fp);
     }

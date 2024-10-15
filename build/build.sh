@@ -329,7 +329,7 @@ fi
 if [ "$1" == "--check" ]; then
     prepare_dependence
     if [ $? -ne 0 ];then
-        echo "Error: prepare dependence softwares failed"
+        echo "Error: prepare dependence software failed"
         exit 1
     fi
 fi

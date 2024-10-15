@@ -192,7 +192,7 @@ static void do_lkup_established_tcp_info(void)
         }
     }
     /* Ensure that container processes with the same netns(eg. in k8s scenario)
-     * do not repeatly set established tcp connections.
+     * do not repeatedly set established tcp connections.
      */
     set_estab_tcps_finished_flag(&head);
 

@@ -98,7 +98,7 @@ typedef struct {
     u32 proc_lazyfree;                  // FROM same as proc_shared_dirty
     u32 proc_swap;                      // FROM same as proc_shared_dirty
     u32 proc_swappss;                   // FROM same as proc_shared_dirty
-    u64 proc_stat_min_flt;              // FROME '/usr/bin/cat /proc/%s/stat'
+    u64 proc_stat_min_flt;              // FROM '/usr/bin/cat /proc/%s/stat'
     u64 proc_stat_maj_flt;              // FROM same as proc_stat_min_flt
     u64 proc_stat_utime;                // FROM same as proc_stat_min_flt
     u64 proc_stat_stime;                // FROM same as proc_stat_min_flt
@@ -116,7 +116,7 @@ typedef struct {
 typedef struct {
     proc_key_t key;     // key
     char flag;          // whether in proc_range list, 1:yes/0:no
-    proc_info_t info;  
+    proc_info_t info;
     UT_hash_handle hh;
 } proc_hash_t;
 

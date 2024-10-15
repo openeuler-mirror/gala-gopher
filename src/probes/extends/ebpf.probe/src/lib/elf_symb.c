@@ -207,7 +207,7 @@ static ELF_CB_RET __add_symbs(const char *symb, u64 addr_start, u64 size, void *
 
     if (elf_symbo->symbs_count >= elf_symbo->symbs_capability) {
         if (__inc_symbs_capability(elf_symbo)) {
-            ERROR("[ELF_SYMBOL]: Too many symbos(%s).\n", elf_symbo->elf);
+            ERROR("[ELF_SYMBOL]: Too many symbols(%s).\n", elf_symbo->elf);
             return ELF_SYMB_CB_ERR;
         }
     }
@@ -328,7 +328,7 @@ int __get_java_symb_from_file(const char *file, struct elf_symbo_s* elf_symbo)
     while (fgets(line, sizeof(line), fd)) {
         if (elf_symbo->symbs_count >= elf_symbo->symbs_capability) {
             if (__inc_symbs_capability(elf_symbo)) {
-                ERROR("[ELF_SYMBOL]: Too many symbos(%s).\n", elf_symbo->elf);
+                ERROR("[ELF_SYMBOL]: Too many symbols(%s).\n", elf_symbo->elf);
                 ret = -1;
                 goto err;
             }

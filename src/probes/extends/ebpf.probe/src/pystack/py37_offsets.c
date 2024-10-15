@@ -10,7 +10,7 @@
  * See the Mulan PSL v2 for more details.
  * Author: algorithmofdish
  * Create: 2023-12-14
- * Description: defination of cpython(version 3.7) structure offsets
+ * Description: definition of cpython(version 3.7) structure offsets
  ******************************************************************************/
 #include "py_stack.h"
 

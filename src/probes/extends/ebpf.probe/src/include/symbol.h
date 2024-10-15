@@ -24,7 +24,7 @@
 #define SYMBS_MAX_COUNT     1000000
 #define SYMBS_STEP_COUNT    1000
 enum module_type {
-    MODULE_UNKNOW = 0,
+    MODULE_UNKNOWN = 0,
     MODULE_SO = 1,
     MODULE_EXEC = 2,
     MODULE_JVM,
@@ -63,7 +63,7 @@ struct elf_symbo_s {
     u32 i_inode;
     u32 refcnt;
     char *elf;
-    long elf_offset; // for jvm symbols 
+    long elf_offset; // for jvm symbols
     u32 symbs_count;
     u32 symbs_capability;
     struct symb_s** __symbs;

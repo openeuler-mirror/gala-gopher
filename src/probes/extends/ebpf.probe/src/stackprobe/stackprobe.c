@@ -678,7 +678,7 @@ static int __stack_file2string(struct proc_symbs_s *proc_symbs, char *line, char
 }
 
 static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, struct proc_symbs_s *proc_symbs,
-                                char symbos_str[], size_t size, int incomplete_stack_flag)
+                                char symbols_str[], size_t size, int incomplete_stack_flag)
 {
     int len;
     struct stack_output_ctx output_ctx = {
@@ -686,7 +686,7 @@ static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, struct proc_s
         .stack_type = SYMB_STACK_TYPE_DEFAULT
     };
     int remain_len = size;
-    char *pos = symbos_str;
+    char *pos = symbols_str;
     struct addr_symb_s *addr_symb;
     int i;
 
@@ -737,7 +737,7 @@ static int __stack_symbs2string(struct stack_symbs_s *stack_symbs, struct proc_s
         pos += len;
     }
 
-    symbos_str[size - 1] = 0;
+    symbols_str[size - 1] = 0;
     return 0;
 }
 

@@ -123,7 +123,7 @@ static void init_ssl_lib(void)
 
 static int load_private_key(SSL_CTX *ctx, const char *name, const char *key_file)
 {
-    // If private key and encryted key were both set, private key takes advance
+    // If private key and encrypted key were both set, private key takes advance
     if (strlen(key_file)) {
         if (SSL_CTX_use_PrivateKey_file(ctx, key_file, SSL_FILETYPE_PEM) != 1) {
             ERROR("[%s] Could not load private key, errno = %d\n", name, errno);

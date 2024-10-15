@@ -10,7 +10,7 @@
  * See the Mulan PSL v2 for more details.
  * Author: luzhihao
  * Create: 2023-04-06
- * Description: probe managment
+ * Description: probe management
  ******************************************************************************/
 #ifndef __PROBE_MNG_H__
 #define __PROBE_MNG_H__
@@ -86,7 +86,7 @@ struct probe_s {
 };
 
 struct probe_mng_s {
-    int msq_id;                                         // ipc control msg channnel
+    int msq_id;                                         // ipc control msg channel
     struct probe_s *probes[PROBE_TYPE_MAX];
     void *snooper_skel;
     const char *btf_custom_path;

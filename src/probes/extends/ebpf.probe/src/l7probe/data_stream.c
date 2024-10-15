@@ -287,7 +287,7 @@ static enum parse_rslt_e __do_parse_frames(enum message_type_t msg_type, struct 
         case STATE_SUCCESS:
         {
             if (frame_data == NULL) {
-                // TODO: debuging
+                // TODO: debugging
                 rslt = PARSE_ERROR;
                 break;
             }

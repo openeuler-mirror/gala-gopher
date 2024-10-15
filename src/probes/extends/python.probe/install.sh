@@ -13,7 +13,7 @@ do
         b) INSTALL_PATH=$OPTARG;;
         c) CONF_PATH=$OPTARG;;
         m) META_PATH=$OPTARG;;
-        ?) echo "unknow param"; exit 1;;
+        ?) echo "unknown param"; exit 1;;
     esac
 done
 

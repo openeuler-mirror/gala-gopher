@@ -51,7 +51,7 @@ int system_meminfo_init(void)
     return 0;
 }
 
-// destry the memory spce for meminfos.
+// destroy the memory space for meminfos.
 void system_meminfo_destroy(void)
 {
     if (meminfo_fields != NULL) {
@@ -61,7 +61,7 @@ void system_meminfo_destroy(void)
 }
 
 // get key & value from the line text, and assign to the target key.
-static int set_meminfosp_fileds(const char* line, const int cur_index)
+static int set_meminfosp_fields(const char* line, const int cur_index)
 {
     char* colon = strchr(line, ':');
     if (colon == NULL) {
@@ -203,7 +203,7 @@ static int get_meminfo(struct ipc_body_s *ipc_body)
         if (fgets(line, LINE_BUF_LEN, f) == NULL) {
             break;
         }
-        ret = set_meminfosp_fileds(line, cur_index);
+        ret = set_meminfosp_fields(line, cur_index);
         if (!ret) {
             cur_index++;
         }

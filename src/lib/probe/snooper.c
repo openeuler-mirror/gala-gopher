@@ -1444,7 +1444,7 @@ static int rcv_snooper_cgrp_evt(void *ctx, void *data, __u32 size)
 
 static void loss_data(void *ctx, int cpu, u64 cnt)
 {
-    // TODO: debuging
+    // TODO: debugging
 }
 
 int load_snooper_bpf(struct probe_mng_s *probe_mng)

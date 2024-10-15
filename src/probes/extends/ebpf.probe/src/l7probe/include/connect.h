@@ -63,7 +63,7 @@ struct conn_info_s {
     char is_ssl;
     char is_reported;
     u16 pad;
-    enum l4_role_t l4_role;     // TCP client or server; udp unknow
+    enum l4_role_t l4_role;     // TCP client or server; udp unknown
     enum l7_role_t l7_role;     // RPC client or server
     enum proto_type_t protocol; // L7 protocol type
 
@@ -91,7 +91,7 @@ enum conn_evt_e {
 struct conn_open_s {
     struct conn_addr_s client_addr; // TCP client IP address;
     struct conn_addr_s server_addr; // TCP server IP address; UDP remote address
-    enum l4_role_t l4_role;     // TCP client or server; udp unknow
+    enum l4_role_t l4_role;     // TCP client or server; udp unknown
     char is_ssl;
     char pad[3];
 };

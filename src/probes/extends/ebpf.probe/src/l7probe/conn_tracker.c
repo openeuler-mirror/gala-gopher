@@ -462,7 +462,7 @@ static int proc_conn_ctl_msg(struct l7_mng_s *l7_mng, struct conn_ctl_s *conn_ct
         }
         default:
         {
-            ERROR("[L7PROBE]: Recv unknow ctrl msg.\n");
+            ERROR("[L7PROBE]: Recv unknown ctrl msg.\n");
             return -1;
         }
     }
@@ -553,7 +553,7 @@ static int proc_conn_data_msg(struct l7_mng_s *l7_mng, struct conn_data_msg_s *c
         }
         default:
         {
-            ERROR("[L7PROBE] Recv unknow data msg.\n");
+            ERROR("[L7PROBE] Recv unknown data msg.\n");
             return -1;
         }
     }

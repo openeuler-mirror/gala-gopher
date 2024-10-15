@@ -226,7 +226,7 @@ void report_logs(const struct event_info_s* evt, enum evt_sec_e sec, const char 
 示例：
     report_logs((const struct event_info_s *)&evt,
                 EVT_SEC_WARN,
-                "IO errors occured."
+                "IO errors occurred."
                 "(Disk %s(%d:%d), COMM %s, PID %u, op: %s, datalen %u, "
                 "blk_err(%d) '%s', scsi_err(%d) '%s', timestamp %f)",
                 .....);

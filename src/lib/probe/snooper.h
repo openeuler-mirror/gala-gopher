@@ -10,7 +10,7 @@
  * See the Mulan PSL v2 for more details.
  * Author: luzhihao
  * Create: 2023-04-06
- * Description: snooper managment
+ * Description: snooper management
  ******************************************************************************/
 #ifndef __GOPHER_SNOOPER__
 #define __GOPHER_SNOOPER__

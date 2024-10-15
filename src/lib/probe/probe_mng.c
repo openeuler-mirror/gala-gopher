@@ -10,7 +10,7 @@
  * See the Mulan PSL v2 for more details.
  * Author: luzhihao
  * Create: 2023-04-06
- * Description: probe managment
+ * Description: probe management
  ******************************************************************************/
 #include <stdio.h>
 #include <sys/socket.h>
