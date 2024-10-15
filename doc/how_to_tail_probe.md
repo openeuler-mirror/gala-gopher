@@ -26,7 +26,7 @@ gala-gopher作为探针框架，默认集成了各种native/extends探针程序�
   tailor.conf中的每一行定义了一个裁剪的配置项，如：
 
   ```
-  PROBES="example.probe"`
+  PROBES="example.probe"
   EXTEND_PROBES="stackprobe|ioprobe"
   ```
 
