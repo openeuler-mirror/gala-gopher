@@ -205,9 +205,6 @@ unsigned short ntohs(unsigned short netshort);
     ((addr)[4] == 0) && \
     ((addr)[5] == 0xffff))
 
-/* get uprobe func offset */
-int get_func_offset(char *proc_name, char *func_name, char *bin_file_path);
-
 char *get_cur_date(void);
 char *get_cur_time(void);
 
@@ -230,6 +227,8 @@ int get_proc_start_time(u32 pid, char *buf, int buf_len);
 u64 get_proc_startup_ts(int pid);
 int get_proc_comm(u32 pid, char *buf, int buf_len);
 int get_proc_cmdline(u32 pid, char *buf, u32 buf_len);
+int get_proc_exe(u32 pid, char *buf, u32 buf_len);
+int get_so_path(int pid, char *elf_path, int size, const char *so_keyword);
 int get_kern_version(u32 *kern_version);
 int is_valid_proc(int pid);
 void convert_to_host_path(char *host_path, const char *path, int path_len);

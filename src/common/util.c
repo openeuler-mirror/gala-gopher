@@ -28,11 +28,13 @@
 #define PROC_COMM           "/proc/%u/comm"
 #define PROC_COMM_CMD       "/usr/bin/cat /proc/%u/comm 2> /dev/null"
 #define PROC_CMDLINE_CMD    "/proc/%u/cmdline"
+#define PROC_EXE_CMD        "/usr/bin/readlink /proc/%u/exe 2> /dev/null"
 #define PROC_STAT           "/proc/%u/stat"
 #define PROC_START_TIME_CMD "/usr/bin/cat /proc/%u/stat | awk '{print $22}'"
 #define SYS_UUID_CMD        "/usr/bin/cat /sys/class/dmi/id/product_uuid"
 #define SYS_UUID_CMD_ALT    "/usr/bin/cat /opt/gala-gopher/machine_id"
 #define SYS_HOSTNAME_CMD    "/usr/bin/uname -n"
+#define PROC_MAPS_PATH      "/proc/%d/maps"
 
 static char *g_host_path_prefix;
 
@@ -447,6 +449,56 @@ int get_proc_cmdline(u32 pid, char *buf, u32 buf_len)
 
     (void)fclose(f);
     return 0;
+}
+
+int get_proc_exe(u32 pid, char *buf, u32 buf_len)
+{
+    char cmd[PATH_LEN];
+
+    cmd[0] = 0;
+    (void)snprintf(cmd, sizeof(cmd), PROC_EXE_CMD, pid);
+    return exec_cmd(cmd, buf, buf_len);
+}
+
+int get_so_path(int pid, char *elf_path, int size, const char *so_keyword)
+{
+    char map_file[PATH_LEN];
+    char so_path[PATH_LEN];
+    char *so_name;
+    char buf[PATH_LEN];
+    FILE *fp;
+    int ret;
+
+    elf_path[0] = 0;
+    map_file[0] = 0;
+    (void)snprintf(map_file, sizeof(map_file), PROC_MAPS_PATH, pid);
+    fp = fopen(map_file, "r");
+    if (!fp) {
+        return -1;
+    }
+
+    while (fgets(buf, sizeof(buf), fp)) {
+        so_path[0] = 0;
+        if (sscanf(buf, "%*x-%*x %*s %*s %*s %*s %s", so_path) != 1) {
+            continue;
+        }
+        if (so_path[0] != '/') {
+            continue;
+        }
+        so_name = strrchr(so_path, '/') + 1;
+        if (!strstr(so_name, so_keyword)) {
+            continue;
+        }
+        ret = snprintf(elf_path, size, "/proc/%d/root%s", pid, so_path);
+        if (ret < 0 || ret >= size) {
+            break;
+        }
+        fclose(fp);
+        return 0;
+    }
+
+    fclose(fp);
+    return -1;
 }
 
 int get_kern_version(u32 *kern_version)
