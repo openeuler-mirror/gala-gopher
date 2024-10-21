@@ -2,9 +2,6 @@
 
 static pid_t exec_cmd3(uid_t uid, const char *psz_cmd)
 {
-    char exec[EXEC_MAX] = {0};
-    char **args = NULL;
-    int args_num = 0;
     pid_t pid = -1;
     int fd = -1;
 
