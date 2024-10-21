@@ -317,7 +317,6 @@ void TestSystemdNetTcpProbe(void)
 void TestSystemProcProbe(void)
 {
     uint32_t ret = 0;
-    uint32_t *elemP = NULL;
     FILE *f = NULL;
     char cmd[COMMAND_LEN];
     struct probe_params params = {.period = DEFAULT_PERIOD};
@@ -369,7 +368,6 @@ void TestSystemProcProbe(void)
 void TestVirtInfoProbe(void)
 {
     int ret;
-    char *dataStr = NULL;
     virt_proc_init();
 
     g_probe = ProbeCreate();
