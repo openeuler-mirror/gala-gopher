@@ -92,7 +92,33 @@ static __always_inline void get_tcp_tx_rx_segs(struct sock *sk, struct tcp_tx_rx
     struct tcp_sock *tcp_sk = (struct tcp_sock *)sk;
 
     stats->segs_in = _(tcp_sk->segs_in);
-    stats->segs_out = _(tcp_sk->segs_out) + 2; // 2 means FIN and ACK
+    stats->segs_out = _(tcp_sk->segs_out);
+}
+
+// for short connections, we expect to only report abnormal/rtt/txrx/delay metrics
+#define TCP_CLOSE_FLAG (TCP_PROBE_TCP_CLOSE | TCP_PROBE_ABN | TCP_PROBE_RTT | TCP_PROBE_TXRX | TCP_PROBE_DELAY)
+static __always_inline void report_tcp_close(void *ctx, struct sock *sk, struct tcp_metrics_s *metrics)
+{
+    metrics->report_flags |= TCP_CLOSE_FLAG;
+    get_tcp_tx_rx_segs(sk, &metrics->tx_rx_stats);
+    u32 last_time_sk_drops = metrics->abn_stats.sk_drops;
+    u32 last_time_lost_out = metrics->abn_stats.lost_out;
+    u32 last_time_segs_out = metrics->tx_rx_stats.segs_out;
+    u32 last_time_segs_in = metrics->tx_rx_stats.segs_in;
+
+    (void)bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
+
+    metrics->report_flags &= ~TCP_CLOSE_FLAG;
+
+    // reset tcp abn metrics
+    __builtin_memset(&(metrics->abn_stats), 0x0, sizeof(metrics->abn_stats));
+    metrics->abn_stats.last_time_sk_drops = last_time_sk_drops;
+    metrics->abn_stats.last_time_lost_out = last_time_lost_out;
+
+    // reset tcp tx_rx metrics
+    __builtin_memset(&(metrics->tx_rx_stats), 0x0, sizeof(metrics->tx_rx_stats));
+    metrics->tx_rx_stats.last_time_segs_in = last_time_segs_in;
+    metrics->tx_rx_stats.last_time_segs_out = last_time_segs_out;
 }
 
 KPROBE(tcp_set_state, pt_regs)
@@ -116,14 +142,11 @@ KPROBE(tcp_set_state, pt_regs)
         (void)create_sock_obj(0, sk, &tcp_sock_data);
     }
 
-    if (new_state == TCP_CLOSE || new_state == TCP_CLOSE_WAIT || new_state == TCP_FIN_WAIT1) {
+    if (new_state == TCP_CLOSE) {
         struct tcp_metrics_s *metrics;
         metrics = get_tcp_metrics(sk);
         if (metrics) {
-            // for short connections, we expect to only report abnormal/rtt/txrx/delay metrics
-            metrics->report_flags |= (TCP_PROBE_TCP_CLOSE | TCP_PROBE_ABN | TCP_PROBE_RTT | TCP_PROBE_TXRX | TCP_PROBE_DELAY);
-            get_tcp_tx_rx_segs(sk, &metrics->tx_rx_stats);
-            (void)bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
+            report_tcp_close(ctx, sk, metrics);
         }
     }
     return 0;
