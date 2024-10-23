@@ -41,8 +41,8 @@
 #define TBL_MC_EVENT "mem_mc_event"
 
 #define HW_ARGS_PATH             "/sys/fs/bpf/gala-gopher/__hw_args"
-#define MC_EVENT_CHANNEL_PTAH    "/sys/fs/bpf/gala-gopher/__hw_mc_event_channel_map"
-#define NIC_FAUILURE_CHANNEL_PTAH "/sys/fs/bpf/gala-gopher/__hw_nic_failure_channel_map"
+#define MC_EVENT_CHANNEL_PATH    "/sys/fs/bpf/gala-gopher/__hw_mc_event_channel_map"
+#define NIC_FAUILURE_CHANNEL_PATH "/sys/fs/bpf/gala-gopher/__hw_nic_failure_channel_map"
 #define RM_NIC_PATH              "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__hw*"
 
 #define __OPEN_NIC_PROBE(probe_name, end, load, buffer) \
@@ -51,7 +51,7 @@
     OPEN_OPTS(probe_name, end, load); \
     MAP_INIT_BPF_BUFFER(probe_name, nic_failure_channel_map, buffer, load); \
     MAP_SET_PIN_PATH(probe_name, hw_args_map, HW_ARGS_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, nic_failure_channel_map, NIC_FAUILURE_CHANNEL_PTAH, load);
+    MAP_SET_PIN_PATH(probe_name, nic_failure_channel_map, NIC_FAUILURE_CHANNEL_PATH, load);
 
 #define __OPEN_MEM_PROBE(probe_name, end, load, buffer) \
     INIT_OPEN_OPTS(probe_name); \
@@ -59,7 +59,7 @@
     OPEN_OPTS(probe_name, end, load); \
     MAP_INIT_BPF_BUFFER(probe_name, mc_event_channel_map, buffer, load); \
     MAP_SET_PIN_PATH(probe_name, hw_args_map, HW_ARGS_PATH, load); \
-    MAP_SET_PIN_PATH(probe_name, mc_event_channel_map, MC_EVENT_CHANNEL_PTAH, load);
+    MAP_SET_PIN_PATH(probe_name, mc_event_channel_map, MC_EVENT_CHANNEL_PATH, load);
 
 static volatile sig_atomic_t g_stop = 0;
 static int hw_args_fd = -1;
