@@ -83,10 +83,10 @@ struct probe_params {
         0x0004  REDIS
         0x0008  MYSQL
         0x0010  PGSQL
-        0x0012  KAFKA
-        0x0014  MONGODB
-        0x0018  Cassandra
-        0x0020  NATS
+        0x0020  KAFKA
+        0x0040  MONGODB
+        0x0080  Cassandra
+        0x00100 NATS
     */
     unsigned int l7_probe_proto_flags;
     unsigned int svg_period;
