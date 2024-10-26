@@ -22,6 +22,7 @@
 #include <sys/stat.h>
 #include <sched.h>
 #include <fcntl.h>
+#include <regex.h>
 #include "syscall.h"
 #include "container.h"
 
@@ -96,6 +97,7 @@
 #define CONTAINERD_PREFIX_CGRPFS  "/kubepods-"
 #define PODID_CONTAINERD_PREFIX_CGRPFS "-pod"
 #define POD_CONTAINERD_DELIM_CGRPFS "slice/cri-containerd:"
+#define CGRP_PATH_CGRPFS ".*[a-z0-9]{12}$" // cgroup path end with "<con_id>""
 
 // cgroupdriver=systemd
 #define KUBEPODS_PREFIX_SYSTEMD   "/kubepods.slice/"
@@ -103,6 +105,7 @@
 #define PODID_PREFIX_SYSTEMD      "-pod"
 #define POD_DOCKER_DELIM_SYSTEMD  "slice/docker-"
 #define POD_CONTAINERD_DELIM_SYSTEMD "slice/cri-containerd-"
+#define CGRP_PATH_SYSTEMD ".*[a-z0-9]{12}\\.scope$" // cgroup path end with "<con_id>.scope"
 
 static char *current_docker_command = NULL;
 static char current_docker_command_chroot[COMMAND_LEN];
@@ -679,6 +682,25 @@ static enum cgrp_driver_t get_cgroup_drvier(const char *cgrp_path)
     return CGRP_DRIVER_UNKNOWN;
 }
 
+static char __chk_cgrp_path_pattern(const char *conf_pattern, const char *target)
+{
+    int status;
+    regex_t re;
+
+    if (target[0] == 0 || conf_pattern[0] == 0) {
+        return 0;
+    }
+
+    if (regcomp(&re, conf_pattern, REG_EXTENDED | REG_NOSUB) != 0) {
+        return 0;
+    }
+
+    status = regexec(&re, target, 0, NULL, 0);
+    regfree(&re);
+
+    return (status == 0) ? 1 : 0;
+}
+
 static enum id_ret_t get_pod_container_id_by_type(const char *cgrp_path, char *pod_id, char *con_id, enum cgrp_driver_t type)
 {
     enum id_ret_t ret;
@@ -698,6 +720,9 @@ static enum id_ret_t get_pod_container_id_by_type(const char *cgrp_path, char *p
          * docker scenario, cgrp_path is like: /docker/<con_id>
          * containerd scenario, cgrp_path is like /kubepods-burstable-pod<pod_id>.slice:cri-containerd:<con_id>
          */
+        if (!__chk_cgrp_path_pattern(CGRP_PATH_CGRPFS, cgrp_path)) {
+            return ID_FAILED;
+        }
         docker_prefix = DOCKER_PREFIX_CGRPFS;
         if (is_containerd) {
             kube_prefix = CONTAINERD_PREFIX_CGRPFS;
@@ -714,6 +739,9 @@ static enum id_ret_t get_pod_container_id_by_type(const char *cgrp_path, char *p
          * docker scenario, cgrp_path is like: /system.slice/docker-<con_id>.scope
          * containerd scenario, cgrp_path is like /kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod<pod_id>.slice/cri-containerd-<con_id>.scope
          */
+        if (!__chk_cgrp_path_pattern(CGRP_PATH_SYSTEMD, cgrp_path)) {
+            return ID_FAILED;
+        }
         kube_prefix = KUBEPODS_PREFIX_SYSTEMD;
         podid_prefix = PODID_PREFIX_SYSTEMD;
         docker_prefix = DOCKER_PREFIX_SYSTEMD;

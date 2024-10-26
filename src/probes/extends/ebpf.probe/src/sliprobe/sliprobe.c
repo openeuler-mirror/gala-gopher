@@ -112,6 +112,7 @@ static void destroy_sli_container(struct sli_probe_s *probe, struct sli_containe
     (void)bpf_map_delete_elem(probe->sli_mem_fd, &(cache->ino));
     (void)bpf_map_delete_elem(probe->sli_io_fd, &(cache->ino));
     if (cache->container_id) {
+        INFO("[SLIPROBE]: Del container succeed.(con_id = %s)\n", cache->container_id);
         free(cache->container_id);
         cache->container_id = NULL;
     }
@@ -606,8 +607,9 @@ int main(int argc, char **argv)
 
             destroy_ipc_body(&(sli_probe->ipc_body));
             (void)memcpy(&(sli_probe->ipc_body), &ipc_body, sizeof(ipc_body));
-
-            reload_sli_container_tbl(sli_probe);
+            if (ipc_body.probe_flags & IPC_FLAGS_SNOOPER_CHG || ipc_body.probe_flags == 0) {
+                reload_sli_container_tbl(sli_probe);
+            }
         }
 
         if (sli_probe->prog == NULL) {

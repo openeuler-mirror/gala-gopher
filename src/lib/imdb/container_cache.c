@@ -82,6 +82,8 @@ struct container_cache *create_container_cache(struct container_cache **caches_p
     if (con_cache == NULL) {
         return NULL;
     }
+    (void)memset(con_cache, 0, sizeof(struct container_cache));
+
     ret = snprintf(con_cache->container_id, sizeof(con_cache->container_id), "%s", container_id);
     if (ret < 0) {
         free(con_cache);
