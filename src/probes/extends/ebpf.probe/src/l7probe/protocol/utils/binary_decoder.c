@@ -35,6 +35,18 @@ parse_state_t decoder_extract_char(struct raw_data_s *raw_data, char *res)
     return STATE_SUCCESS;
 }
 
+parse_state_t decoder_extract_char_array(struct raw_data_s *raw_data, char *res, size_t decode_len)
+{
+    if ((raw_data->data_len - raw_data->current_pos) < decode_len) {
+        ERROR("[Binary Decoder] Buffer bytes are insufficient.\n");
+        return STATE_NEEDS_MORE_DATA;
+    }
+
+    memcpy(res, &raw_data->data[raw_data->current_pos], decode_len);
+    parser_raw_data_offset(raw_data, decode_len);
+    return STATE_SUCCESS;
+}
+
 parse_state_t decoder_extract_bool(struct raw_data_s *raw_data, bool *res)
 {
     char res_char;

@@ -19,6 +19,7 @@
 
 #ifndef BPF_PROG_KERN
 #include <stddef.h>
+#include <bpf/bpf_endian.h>
 #endif
 #include "common.h"
 
@@ -30,10 +31,11 @@
 #define REDIS_ENABLE    0x0004
 #define MYSQL_ENABLE    0x0008
 #define PGSQL_ENABLE    0x0010
-#define KAFKA_ENABLE    0x0012
-#define MONGO_ENABLE    0x0014
-#define CQL_ENABLE      0x0018
-#define NATS_ENABLE     0x0020
+#define KAFKA_ENABLE    0x0020
+#define MONGO_ENABLE    0x0040
+#define CQL_ENABLE      0x0080
+#define NATS_ENABLE     0x0100
+#define CRPC_ENABLE     0x0200
 
 #define PROTO_ALL_ENABLE     0XFFFF
 
@@ -49,6 +51,7 @@ enum proto_type_t {
     PROTO_CQL,
     PROTO_MONGO,
     PROTO_KAFKA,
+    PROTO_CRPC,
 
     PROTO_MAX
 };
@@ -557,6 +560,90 @@ static __inline enum message_type_t __get_pgsql_type(const char* buf, size_t cou
     return MESSAGE_UNKNOW;
 }
 
+
+/*
+CRPC request packet header:
+
+0         8        16        24        32         40        48        56        64
++---------+---------+---------+---------+---------+---------+---------+---------+    --
+|   0x1A  |   0x19  |                 msgLen                |       headLen     |     |
++---------+---------+---------+---------+---------+---------+---------+---------+     |
+| headVer |            property         |            requestID(16bytes)         |     |
++---------+---------+---------+---------+---------+---------+---------+---------+     |   Tech Header
+|                                  requestID                                    |     |
++---------+---------+---------+---------+---------+---------+---------+---------+     |
+|                 requestID             |                timeout                |     |
++---------+---------+---------+---------+---------+---------+---------+---------+    --
+|             intorSystCod              |       intorTranJnalNum（36bytes）     |
++---------+---------+---------+---------+---------+---------+---------+---------+
+|                                 intorTranJnalNum                              |
++---------+---------+---------+---------+---------+---------+---------+---------+
+|                                 intorTranJnalNum                              |
++---------+---------+---------+---------+---------+---------+---------+---------+
+|                                 intorTranJnalNum                              |
++---------+---------+---------+---------+---------+---------+---------+---------+
+|                                 intorTranJnalNum                              |
++---------+---------+---------+---------+---------+---------+---------+---------+
+|                               aplySystTmtp(26bytes)                           |
++---------+---------+---------+---------+---------+---------+---------+---------+
+|                                  aplySystTmtp                                 |
++---------+---------+---------+---------+---------+---------+---------+---------+
+|                                  aplySystTmtp                                 |
++---------+---------+---------+---------+---------+---------+---------+---------+
+|     aplySystTmtp  |              sendSystCod              | hbCount | xxxxx()
++---------+---------+---------+---------+---------+---------+---------+---------+
+
+Property:
+0      1      2      3                     6                                    24
++------+------+------+------+------+------+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
+|rqFlag| RFU  |hbFlag|        msgFmt      |                RFU                   |
++------+------+------+------+------+------+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
+*/
+#define CRPC_REQUEST_HEADER_MIN_LEN       103
+#define CRPC_HEADER_BEGIN_FLAG1           0x1A
+#define CRPC_HEADER_BEGIN_FLAG2           0x19
+#define CRPC_HEADER_BEGIN_FLAG_LEN        2
+#define CRPC_HEADER_MSGLEN_LEN            4
+#define CRPC_HEADER_HEADLEN_LEN           2
+#define CRPC_HEADER_MSGLEN_OFFSET         (CRPC_HEADER_BEGIN_FLAG_LEN + CRPC_HEADER_MSGLEN_LEN)
+#define CRPC_HEADER_HEADLEN_OFFSET        (CRPC_HEADER_MSGLEN_OFFSET + CRPC_HEADER_HEADLEN_LEN)
+static __inline enum message_type_t __get_crpc_type(const char* buf, size_t count)
+{
+    if (count < CRPC_REQUEST_HEADER_MIN_LEN) {
+        return MESSAGE_UNKNOW;
+    }
+
+    // check beginFlag
+    if (buf[0] != CRPC_HEADER_BEGIN_FLAG1 || buf[1] != CRPC_HEADER_BEGIN_FLAG2) {
+        return MESSAGE_UNKNOW;
+    }
+
+    // check headVer
+    u8 head_ver = buf[8];
+    if (head_ver != 0x01 && head_ver != 0x02) {
+        return MESSAGE_UNKNOW;
+    }
+
+    //// check msgLen and headlen, need to ntohs
+    u32 *msg_len_ptr = (u32 *)&buf[2];
+    u16 *head_len_ptr = (u16 *)&buf[6];
+    u32 msg_len = bpf_ntohl(*msg_len_ptr);
+    u16 head_len = bpf_ntohs(*head_len_ptr);
+    if (msg_len != (count - CRPC_HEADER_MSGLEN_OFFSET) &&
+        head_len != (count - CRPC_HEADER_HEADLEN_OFFSET)) {
+        return MESSAGE_UNKNOW;
+    }
+
+    // check requestFlag and msgFmt
+    u8 request_flag = buf[9] & 0x80;  // 0=response, 1=request
+    u8 msg_fmt = buf[9] & 0x1C;    // serialization fmt, 000=Hessian，001=Xml，010=Json
+    if (msg_fmt == 0 && request_flag == 1) {
+        return MESSAGE_REQUEST;
+    }
+
+    return MESSAGE_UNKNOW;
+}
+
 static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, enum l7_direction_t direction, struct l7_proto_s* l7pro)
 {
     enum message_type_t type;
@@ -597,6 +684,15 @@ static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, en
         type = __get_redis_type(buf, count);
         if (type != MESSAGE_UNKNOW) {
             l7pro->proto = PROTO_REDIS;
+            l7pro->type = type;
+            return 0;
+        }
+    }
+
+    if (flags & CRPC_ENABLE) {
+        type = __get_crpc_type(buf, count);
+        if (type != MESSAGE_UNKNOW) {
+            l7pro->proto = PROTO_CRPC;
             l7pro->type = type;
             return 0;
         }

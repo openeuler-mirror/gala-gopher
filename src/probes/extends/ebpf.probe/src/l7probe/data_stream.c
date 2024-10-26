@@ -357,7 +357,7 @@ next:
 
 rebound:
         new_pos = proto_find_frame_boundary(data_stream->type, msg_type, raw_data);
-        if (new_pos == -1) {
+        if (new_pos == PARSER_INVALID_BOUNDARY_INDEX) {
             raw_data = pop_raw_data(data_stream);
             if (raw_data) {
                 destroy_raw_data(raw_data);

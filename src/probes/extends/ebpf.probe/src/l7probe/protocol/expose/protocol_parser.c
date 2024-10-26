@@ -24,6 +24,7 @@
 #include "kafka/kafka_matcher.h"
 #include "redis/redis_parser.h"
 #include "redis/redis_matcher.h"
+#include "crpc/crpc_parser.h"
 
 /**
  * Free record data
@@ -56,6 +57,9 @@ void free_record_data(enum proto_type_t type, struct record_data_s *record_data)
             break;
         case PROTO_KAFKA:
             free_kafka_record((struct kafka_record_s *) record_data->record);
+            break;
+        case PROTO_CRPC:
+            free_crpc_record(record_data->record);
             break;
         case PROTO_MYSQL:
         case PROTO_MONGO:
@@ -93,6 +97,9 @@ void free_frame_data_s(enum proto_type_t type, struct frame_data_s *frame)
             break;
         case PROTO_KAFKA:
             free_kafka_frame((struct kafka_frame_s *) frame->frame);
+            break;
+        case PROTO_CRPC:
+            free_crpc_msg(frame->frame);
             break;
         case PROTO_MYSQL:
         case PROTO_MONGO:
@@ -133,6 +140,9 @@ size_t proto_find_frame_boundary(enum proto_type_t type, enum message_type_t msg
             break;
         case PROTO_CQL:
             break;
+        case PROTO_CRPC:
+            ret = crpc_find_frame_boundary(raw_data);
+            break;
         default:
             WARN("[PROTOCOL FIND BOUNDARY] Not Supported Protocol.\n");
             break;
@@ -168,6 +178,9 @@ parse_state_t proto_parse_frame(enum proto_type_t type, enum message_type_t msg_
         case PROTO_NATS:
             break;
         case PROTO_CQL:
+            break;
+        case PROTO_CRPC:
+            state = crpc_parse_frame(msg_type, raw_data, frame_data);
             break;
         default:
             WARN("[PROTOCOL PARSER] Not Supported Protocol.\n");
@@ -207,6 +220,9 @@ void proto_match_frames(enum proto_type_t type, struct frame_buf_s *req_frame, s
         case PROTO_NATS:
             break;
         case PROTO_CQL:
+            break;
+        case PROTO_CRPC:
+            crpc_match_frames(req_frame, resp_frame, record_buf);
             break;
         default:
             break;
