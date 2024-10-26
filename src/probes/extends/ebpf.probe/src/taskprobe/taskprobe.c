@@ -19,6 +19,7 @@
 #include <string.h>
 #include <sys/resource.h>
 #include <dirent.h>
+#include <libgen.h>
 
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
@@ -93,34 +94,34 @@ static void taskprobe_unload_bpf(void)
 {
     unload_bpf_prog(&(g_task_probe.proc_bpf_progs));
 
-    for (int i = 0; i < GLIBC_EBPF_PROG_MAX; i++) {
-        if (g_task_probe.glibc_bpf_progs[i].prog) {
-            unload_bpf_prog(&(g_task_probe.glibc_bpf_progs[i].prog));
+    for (int i = 0; i < UPROBE_MAX; i++) {
+        if (g_task_probe.uprobe_progs[i].prog) {
+            unload_bpf_prog(&(g_task_probe.uprobe_progs[i].prog));
         }
-        if (g_task_probe.glibc_bpf_progs[i].glibc_path) {
-            (void)free(g_task_probe.glibc_bpf_progs[i].glibc_path);
-            g_task_probe.glibc_bpf_progs[i].glibc_path = NULL;
+        if (g_task_probe.uprobe_progs[i].elf) {
+            (void)free(g_task_probe.uprobe_progs[i].elf);
+            g_task_probe.uprobe_progs[i].elf = NULL;
         }
     }
 }
 
-static char __is_exist_glibc_ebpf(struct task_probe_s *task_probe, const char *glibc)
+static char __is_exist_uprobe_prog(struct task_probe_s *task_probe, const char *elf)
 {
-    for (int i = 0; i < GLIBC_EBPF_PROG_MAX; i++) {
-        if (task_probe->glibc_bpf_progs[i].glibc_path &&
-            !strcmp(glibc, task_probe->glibc_bpf_progs[i].glibc_path)) {
+    for (int i = 0; i < UPROBE_MAX; i++) {
+        if (task_probe->uprobe_progs[i].elf &&
+            !strcmp(elf, task_probe->uprobe_progs[i].elf)) {
             return 1;
         }
     }
     return 0;
 }
 
-static int __add_glibc_ebpf(struct task_probe_s *task_probe, struct bpf_prog_s *ebpf_prog, const char *glibc)
+static int __add_uprobe_prog(struct task_probe_s *task_probe, struct bpf_prog_s *ebpf_prog, const char *elf)
 {
-    for (int i = 0; i < GLIBC_EBPF_PROG_MAX; i++) {
-        if (task_probe->glibc_bpf_progs[i].prog == NULL) {
-            task_probe->glibc_bpf_progs[i].prog = ebpf_prog;
-            task_probe->glibc_bpf_progs[i].glibc_path = strdup(glibc);
+    for (int i = 0; i < UPROBE_MAX; i++) {
+        if (task_probe->uprobe_progs[i].prog == NULL) {
+            task_probe->uprobe_progs[i].prog = ebpf_prog;
+            task_probe->uprobe_progs[i].elf = strdup(elf);
             return 0;
         }
     }
@@ -146,7 +147,7 @@ static int taskprobe_load_glibc_bpf(struct task_probe_s *task_probe, struct ipc_
     if (ret) {
         goto err;
     }
-    ret = __add_glibc_ebpf(task_probe, new_prog, (const char *)host_glibc);
+    ret = __add_uprobe_prog(task_probe, new_prog, (const char *)host_glibc);
     if (ret) {
         unload_bpf_prog(&new_prog);
         goto err;
@@ -161,7 +162,7 @@ static int taskprobe_load_glibc_bpf(struct task_probe_s *task_probe, struct ipc_
             WARN("[TASKPROBE] Empty glibc path for container %s, skip loading\n", ipc_body->snooper_objs[i].obj.con_info.con_id);
             continue;
         }
-        if (__is_exist_glibc_ebpf(task_probe, (const char *)glibc)) {
+        if (__is_exist_uprobe_prog(task_probe, (const char *)glibc)) {
             continue;
         }
         new_prog = NULL;
@@ -169,9 +170,81 @@ static int taskprobe_load_glibc_bpf(struct task_probe_s *task_probe, struct ipc_
         if (ret) {
             goto err;
         }
-        ret = __add_glibc_ebpf(task_probe, new_prog, (const char *)glibc);
+        ret = __add_uprobe_prog(task_probe, new_prog, (const char *)glibc);
         if (ret) {
             unload_bpf_prog(&new_prog);
+            ERROR("[TASKPROBE] Failed to add '%s' uprobe prog.\n", glibc);
+            goto err;
+        }
+    }
+
+    return 0;
+err:
+    return -1;
+}
+
+static char is_python_proc(u32 proc_id)
+{
+    int ret;
+    char exe_path[PATH_LEN];
+    char *base_name;
+
+    exe_path[0] = 0;
+    ret = get_proc_exe(proc_id, exe_path, sizeof(exe_path));
+    if (ret) {
+        return 0;
+    }
+    base_name = basename(exe_path);
+    if (!base_name) {
+        return 0;
+    }
+
+    if (strcmp(base_name, "python") == 0) {
+        return 1;
+    }
+
+    return 0;
+}
+
+static int taskprobe_load_pygc_bpf(struct task_probe_s *task_probe, struct ipc_body_s *ipc_body)
+{
+    int ret;
+    char elf[PATH_LEN];
+    u32 proc_id;
+    struct bpf_prog_s *new_prog = NULL;
+
+    if (!(ipc_body->probe_range_flags & PROBE_RANGE_PROC_PYGC)) {
+        return 0;
+    }
+
+    for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_body->snooper_objs[i].type != SNOOPER_OBJ_PROC) {
+            continue;
+        }
+        proc_id = ipc_body->snooper_objs[i].obj.proc.proc_id;
+        if (!is_python_proc(proc_id)) {
+            continue;
+        }
+
+        elf[0] = 0;
+        ret = get_so_path(proc_id, elf, PATH_LEN, "libpython");
+        if (ret) {
+            WARN("[TASKPROBE] Empty libpython path for proc_id %u, skip loading\n", proc_id);
+            continue;
+        }
+
+        if (__is_exist_uprobe_prog(task_probe, (const char *)elf)) {
+            continue;
+        }
+        new_prog = NULL;
+        ret = load_pygc_prog(task_probe, elf, &new_prog);
+        if (ret) {
+            goto err;
+        }
+        ret = __add_uprobe_prog(task_probe, new_prog, (const char *)elf);
+        if (ret) {
+            unload_bpf_prog(&new_prog);
+            ERROR("[TASKPROBE] Failed to add '%s' uprobe prog.\n", elf);
             goto err;
         }
     }
@@ -187,6 +260,11 @@ static int taskprobe_load_bpf(struct ipc_body_s *ipc_body)
     struct bpf_prog_s *new_prog = NULL;
 
     ret = taskprobe_load_glibc_bpf(&g_task_probe, ipc_body);
+    if (ret) {
+        goto err;
+    }
+
+    ret = taskprobe_load_pygc_bpf(&g_task_probe, ipc_body);
     if (ret) {
         goto err;
     }
@@ -217,16 +295,16 @@ static int perf_poll(struct task_probe_s *task_probe)
         }
     }
 
-    for (int i = 0; i < GLIBC_EBPF_PROG_MAX; i++) {
-        if (task_probe->glibc_bpf_progs[i].prog == NULL) {
+    for (int i = 0; i < UPROBE_MAX; i++) {
+        if (task_probe->uprobe_progs[i].prog == NULL) {
             break;
         }
 
-        if (task_probe->glibc_bpf_progs[i].prog->buffer == NULL) {
+        if (task_probe->uprobe_progs[i].prog->buffer == NULL) {
             break;
         }
         ebpf_installed = 1;
-        if ((ret = bpf_buffer__poll(task_probe->glibc_bpf_progs[i].prog->buffer, THOUSAND)) < 0 && ret != -EINTR) {
+        if ((ret = bpf_buffer__poll(task_probe->uprobe_progs[i].prog->buffer, THOUSAND)) < 0 && ret != -EINTR) {
             err = -1;
             goto end;
         }
@@ -291,12 +369,14 @@ int main(int argc, char **argv)
             break;
         }
         scan_dns_entrys(&g_task_probe);
+        scan_pygc_entrys(&g_task_probe);
     }
 
 err:
     taskprobe_unload_bpf();
     destroy_ipc_body(&(g_task_probe.ipc_body));
     destroy_dns_entrys(&g_task_probe);
+    destroy_pygc_entrys(&g_task_probe);
     return ret;
 }
 

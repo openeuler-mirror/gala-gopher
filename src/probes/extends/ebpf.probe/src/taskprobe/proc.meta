@@ -375,4 +375,31 @@ measurements:
             }
         )
     }
+    {
+        table_name: "proc_pygc",
+        entity_name: "proc",
+        fields:
+        (
+            {
+                description: "ID of the process",
+                type: "key",
+                name: "tgid",
+            },
+            {
+                description: "Python GC event count.",
+                type: "gauge",
+                name: "python_gc",
+            },
+            {
+                description: "Python GC duration of process, in ms.",
+                type: "gauge",
+                name: "latency_sum",
+            },
+            {
+                description: "Python GC duration of process, in ms.",
+                type: "gauge",
+                name: "latency_max",
+            }
+        )
+    },
 )

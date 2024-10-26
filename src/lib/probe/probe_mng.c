@@ -104,6 +104,7 @@ struct probe_range_define_s probe_range_define[] = {
     {PROBE_PROC,   "proc_net",            PROBE_RANGE_PROC_NET},
     {PROBE_PROC,   "proc_offcpu",         PROBE_RANGE_PROC_OFFCPU},
     {PROBE_PROC,   "proc_ioctl",          PROBE_RANGE_PROC_IOCTL},
+    {PROBE_PROC,   "proc_pygc",           PROBE_RANGE_PROC_PYGC},
 
     {PROBE_BASEINFO,  "cpu",              PROBE_RANGE_SYS_CPU},
     {PROBE_BASEINFO,  "mem",              PROBE_RANGE_SYS_MEM},

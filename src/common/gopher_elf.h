@@ -51,5 +51,6 @@ int gopher_get_elf_symb(const char *elf_file, char *symb_name, u64 *symb_offset)
 int gopher_get_elf_symb_addr(const char *elf_file, char *symb_name, u64 *symb_addr);
 int gopher_get_elf_build_id(const char *elf_file, char build_id[], size_t len);
 int gopher_get_elf_debug_link(const char *elf_file, char debug_link[], size_t len);
+u64 get_func_offset_by_build_id(const char *build_id, const char *func_name);
 
 #endif

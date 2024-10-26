@@ -477,3 +477,75 @@ err:
     return ret;
 }
 
+#define PYGC_FUNC_NAME_LEN 32
+#define MAX_SUPPORT_FUNC_NUM 4
+#define MAX_BUILD_VER_NUM 10
+#define ELF_BUILD_ID_LEN 64
+
+struct pygc_offset {
+    char func_name[PYGC_FUNC_NAME_LEN];
+    u64 offset;
+};
+
+struct pygc_build_ver {
+    char build_id[ELF_BUILD_ID_LEN];
+    int func_num;
+    struct pygc_offset func_offsets[MAX_SUPPORT_FUNC_NUM];
+};
+
+static struct pygc_build_ver pygc_build_vers[MAX_BUILD_VER_NUM] = {
+    {   // libpython3.9.so.1.0-3.9.9-28.oe2203sp1.x86_64.debug
+        .build_id = "2570c4d5f065ad4e110e09a65e3366a5f5b87fce",
+        .func_num = 1,
+        .func_offsets = {
+            {"collect_with_callback", 0xb03f0}
+        }
+    },
+    {   // libpython3.9.so.1.0-3.9.9-28.oe2203sp1.aarch64.debug
+        .build_id = "36332c2a701cd21ee9b9872870a0091b82f9dfa3",
+        .func_num = 1,
+        .func_offsets = {
+            {"collect_with_callback", 0xb0614}
+        }
+    }
+};
+static int pygc_ver_num = 2;
+
+static struct pygc_build_ver* get_build_ver(const char *build_id)
+{
+    int i;
+
+    for (i = 0; i < pygc_ver_num; i++) {
+        if (strcmp(build_id, pygc_build_vers[i].build_id) == 0) {
+            return &pygc_build_vers[i];
+        }
+    }
+
+    return NULL;
+}
+
+static u64 get_func_offset(struct pygc_build_ver *build_ver, const char *func_name)
+{
+    int i;
+
+    for (i = 0; i < build_ver->func_num; i++) {
+        if (strcmp(func_name, build_ver->func_offsets[i].func_name) == 0) {
+            return build_ver->func_offsets[i].offset;
+        }
+    }
+
+    return 0;
+}
+
+u64 get_func_offset_by_build_id(const char *build_id, const char *func_name)
+{
+    struct pygc_build_ver *build_ver;
+
+    build_ver = get_build_ver(build_id);
+    if (!build_ver) {
+        return 0;
+    }
+    return get_func_offset(build_ver, func_name);
+}
+
+

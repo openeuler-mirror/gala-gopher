@@ -236,11 +236,22 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
     do { \
         int err; \
         u64 symbol_offset; \
+        char __build_id[64]; \
         err = gopher_get_elf_symb((const char *)elf_path, #func_name, &symbol_offset); \
         if (err < 0) { \
-            ERROR("Failed to get func(" #func_name ") in(%s) offset.\n", elf_path); \
-            succeed = 0; \
-            break; \
+            __build_id[0] = 0; \
+            err = gopher_get_elf_build_id((const char *)elf_path, __build_id, 64); \
+            if (err < 0) { \
+                ERROR("Failed to get func(" #func_name ") in(%s) build_id.\n", elf_path); \
+                succeed = 0; \
+                break; \
+            } \
+            symbol_offset = get_func_offset_by_build_id(__build_id, #func_name); \
+            if (symbol_offset == 0) { \
+                ERROR("Failed to get func(" #func_name ") in(%s) offset.\n", elf_path); \
+                succeed = 0; \
+                break; \
+            } \
         } \
         \
         /* Attach tracepoint handler */ \
@@ -261,11 +272,22 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
     do { \
         int err; \
         u64 symbol_offset; \
+        char __build_id[64]; \
         err = gopher_get_elf_symb((const char *)elf_path, #func_name, &symbol_offset); \
         if (err < 0) { \
-            ERROR("Failed to get func(" #func_name ") in(%s) offset.\n", elf_path); \
-            succeed = 0; \
-            break; \
+            __build_id[0] = 0; \
+            err = gopher_get_elf_build_id((const char *)elf_path, __build_id, 64); \
+            if (err < 0) { \
+                ERROR("Failed to get func(" #func_name ") in(%s) build_id.\n", elf_path); \
+                succeed = 0; \
+                break; \
+            } \
+            symbol_offset = get_func_offset_by_build_id(__build_id, #func_name); \
+            if (symbol_offset == 0) { \
+                ERROR("Failed to get func(" #func_name ") in(%s) offset.\n", elf_path); \
+                succeed = 0; \
+                break; \
+            } \
         } \
         \
         /* Attach tracepoint handler */ \
@@ -286,11 +308,22 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
     do { \
         int err; \
         u64 symbol_offset; \
+        char __build_id[64]; \
         err = gopher_get_elf_symb((const char *)elf_path, #func_name, &symbol_offset); \
         if (err < 0) { \
-            ERROR("Failed to get func(" #func_name ") in(%s) offset.\n", elf_path); \
-            succeed = 0; \
-            break; \
+            __build_id[0] = 0; \
+            err = gopher_get_elf_build_id((const char *)elf_path, __build_id, 64); \
+            if (err < 0) { \
+                ERROR("Failed to get func(" #func_name ") in(%s) build_id.\n", elf_path); \
+                succeed = 0; \
+                break; \
+            } \
+            symbol_offset = get_func_offset_by_build_id(__build_id, #func_name); \
+            if (symbol_offset == 0) { \
+                ERROR("Failed to get func(" #func_name ") in(%s) offset.\n", elf_path); \
+                succeed = 0; \
+                break; \
+            } \
         } \
         \
         /* Attach tracepoint handler */ \
@@ -321,11 +354,22 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
     do { \
         int err; \
         u64 symbol_offset; \
+        char __build_id[64]; \
         err = gopher_get_elf_symb((const char *)elf_path, #func_name, &symbol_offset); \
         if (err < 0) { \
-            ERROR("Failed to get func(" #func_name ") in(%s) offset.\n", elf_path); \
-            succeed = 0; \
-            break; \
+            __build_id[0] = 0; \
+            err = gopher_get_elf_build_id((const char *)elf_path, __build_id, 64); \
+            if (err < 0) { \
+                ERROR("Failed to get func(" #func_name ") in(%s) build_id.\n", elf_path); \
+                succeed = 0; \
+                break; \
+            } \
+            symbol_offset = get_func_offset_by_build_id(__build_id, #func_name); \
+            if (symbol_offset == 0) { \
+                ERROR("Failed to get func(" #func_name ") in(%s) offset.\n", elf_path); \
+                succeed = 0; \
+                break; \
+            } \
         } \
         \
         /* Attach tracepoint handler */ \
@@ -345,11 +389,22 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
     do { \
         int err; \
         u64 symbol_offset; \
+        char __build_id[64]; \
         err = gopher_get_elf_symb((const char *)elf_path, #func_name, &symbol_offset); \
         if (err < 0) { \
-            ERROR("Failed to get func(" #func_name ") in(%s) offset.\n", elf_path); \
-            succeed = 0; \
-            break; \
+            __build_id[0] = 0; \
+            err = gopher_get_elf_build_id((const char *)elf_path, __build_id, 64); \
+            if (err < 0) { \
+                ERROR("Failed to get func(" #func_name ") in(%s) build_id.\n", elf_path); \
+                succeed = 0; \
+                break; \
+            } \
+            symbol_offset = get_func_offset_by_build_id(__build_id, #func_name); \
+            if (symbol_offset == 0) { \
+                ERROR("Failed to get func(" #func_name ") in(%s) offset.\n", elf_path); \
+                succeed = 0; \
+                break; \
+            } \
         } \
         \
         /* Attach tracepoint handler */ \
