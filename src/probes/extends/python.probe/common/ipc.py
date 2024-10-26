@@ -46,6 +46,9 @@ class ProbeParams(Structure):
         ("svg_dir", c_char * PATH_LEN),
         ("flame_dir", c_char * PATH_LEN),
         ("cadvisor_port", c_uint),
+        ("profiling_chan", c_uint),
+        ("min_exec_dur", c_uint),
+        ("min_aggr_dur", c_uint),
     ]
 
 class Proc(Structure):

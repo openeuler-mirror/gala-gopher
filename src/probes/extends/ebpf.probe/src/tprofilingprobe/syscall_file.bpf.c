@@ -31,98 +31,108 @@ char g_license[] SEC("license") = "GPL";
 
 SET_TP_SYSCALL_PARAMS(read)
 {
+    sce->nr = SYSCALL_READ_ID;
     sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(read)
 {
-    scm->nr = SYSCALL_READ_ID;
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
 SET_TP_SYSCALL_PARAMS(write)
 {
+    sce->nr = SYSCALL_WRITE_ID;
     sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(write)
 {
-    scm->nr = SYSCALL_WRITE_ID;
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
 SET_TP_SYSCALL_PARAMS(readv)
 {
+    sce->nr = SYSCALL_READV_ID;
     sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(readv)
 {
-    scm->nr = SYSCALL_READV_ID;
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
 SET_TP_SYSCALL_PARAMS(writev)
 {
+    sce->nr = SYSCALL_WRITEV_ID;
     sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(writev)
 {
-    scm->nr = SYSCALL_WRITEV_ID;
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
 SET_TP_SYSCALL_PARAMS(preadv)
 {
+    sce->nr = SYSCALL_PREADV_ID;
     sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(preadv)
 {
-    scm->nr = SYSCALL_PREADV_ID;
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
 SET_TP_SYSCALL_PARAMS(pwritev)
 {
+    sce->nr = SYSCALL_PWRITEV_ID;
     sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(pwritev)
 {
-    scm->nr = SYSCALL_PWRITEV_ID;
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
-SET_TP_SYSCALL_PARAMS(sync) { return; }
+SET_TP_SYSCALL_PARAMS(sync) { sce->nr = SYSCALL_SYNC_ID; }
 
 SET_SYSCALL_META(sync)
 {
-    scm->nr = SYSCALL_SYNC_ID;
     scm->flag = SYSCALL_FLAG_STACK;
 }
 
 SET_TP_SYSCALL_PARAMS(fsync)
 {
+    sce->nr = SYSCALL_FSYNC_ID;
     sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(fsync)
 {
-    scm->nr = SYSCALL_FSYNC_ID;
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
 SET_TP_SYSCALL_PARAMS(fdatasync)
 {
+    sce->nr = SYSCALL_FDATASYNC_ID;
     sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(fdatasync)
 {
-    scm->nr = SYSCALL_FDATASYNC_ID;
     scm->flag = SYSCALL_FLAG_FD_STACK;
+}
+
+SET_TP_SYSCALL_PARAMS(ioctl)
+{
+    sce->nr = SYSCALL_IOCTL_ID;
+    sce->ext_info.ioctl_info.cmd = ctx->cmd;
+}
+
+SET_SYSCALL_META(ioctl)
+{
+    scm->flag = SYSCALL_FLAG_STACK;
 }
 
 TP_SYSCALL(read)
@@ -134,3 +144,4 @@ TP_SYSCALL(pwritev)
 TP_SYSCALL(sync)
 TP_SYSCALL(fsync)
 TP_SYSCALL(fdatasync)
+TP_SYSCALL(ioctl)

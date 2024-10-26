@@ -31,12 +31,12 @@ char g_license[] SEC("license") = "GPL";
 
 SET_TP_SYSCALL_PARAMS(futex)
 {
+    sce->nr = SYSCALL_FUTEX_ID;
     sce->ext_info.futex_info.op = ctx->op;
 }
 
 SET_SYSCALL_META(futex)
 {
-    scm->nr = SYSCALL_FUTEX_ID;
     scm->flag = SYSCALL_FLAG_STACK;
 }
 

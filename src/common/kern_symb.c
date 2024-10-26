@@ -159,6 +159,7 @@ int search_kern_addr_symb(struct ksymb_tbl_s *ksymbs, u64 addr, struct addr_symb
 
     // init data
     addr_symb->orign_addr = addr;
+    addr_symb->relat_addr = 0;
     addr_symb->sym = NULL;
     addr_symb->mod = __kern_unknow_symb;
     addr_symb->offset = 0;

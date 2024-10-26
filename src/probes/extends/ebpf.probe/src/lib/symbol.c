@@ -825,6 +825,7 @@ int proc_search_addr_symb(struct proc_symbs_s *proc_symbs,
     u64 target_addr;
 
     addr_symb->orign_addr = addr;
+    addr_symb->relat_addr = 0;
     for (int i = 0; i < proc_symbs->mods_count; i++) {
         target_addr = 0;
 
@@ -840,7 +841,7 @@ int proc_search_addr_symb(struct proc_symbs_s *proc_symbs,
             }
             // search debug symbs
             ret = search_elf_symb(proc_symbs->mods[i]->debug_symbs,
-                    addr, addr, comm, addr_symb);
+                    addr, addr, proc_symbs->mods[i]->mod_name, addr_symb);
             if (ret == 0) {
                 break;
             }
@@ -849,14 +850,18 @@ int proc_search_addr_symb(struct proc_symbs_s *proc_symbs,
             if (is_mod_contain_addr(proc_symbs->mods[i], addr, &target_addr)) {
                 is_contain_range = 1;
                 ret = search_elf_symb(proc_symbs->mods[i]->mod_symbs,
-                        addr, target_addr, comm, addr_symb);
+                        addr, target_addr, proc_symbs->mods[i]->mod_name, addr_symb);
                 if (ret != 0) {
 #ifdef PRINT_DETAILS
                     __print_mod_symbs(proc_symbs->mods[i]);
 #endif
-                } else {
-                    break;
+                    // if the search fails, use mod name and origin address instead
+                    addr_symb->mod = proc_symbs->mods[i]->mod_name;
+                    addr_symb->orign_addr = target_addr;
+                    addr_symb->relat_addr = target_addr;
                 }
+                ret = 0;
+                break;
             }
         }
     }

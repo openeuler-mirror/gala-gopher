@@ -364,6 +364,53 @@ static int parser_dev_name(struct probe_s *probe, const struct param_key_s *para
     return 0;
 }
 
+static int parser_profiling_channel(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
+{
+    const char *value = (const char *)Json_GetValueString(key_item);
+
+    if (!Json_IsString(key_item)) {
+        return -1;
+    }
+
+    if (strcmp(value, PROFILING_CHAN_LOCAL_STR) == 0) {
+        probe->probe_param.profiling_chan = PROFILING_CHAN_LOCAL;
+    } else if (strcmp(value, PROFILING_CHAN_KAFKA_STR) == 0) {
+        probe->probe_param.profiling_chan = PROFILING_CHAN_KAFKA;
+    } else {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int parser_min_exec_dur(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
+{
+    int value = Json_GetValueInt(key_item);
+
+    if (value < param_key->v.min || value > param_key->v.max || value == INVALID_INT_NUM) {
+        PARSE_ERR("params.%s invalid value %d, must be in [%d, %d]",
+                  param_key->key, value, param_key->v.min, param_key->v.max);
+        return -1;
+    }
+
+    probe->probe_param.min_exec_dur = (u32)value;
+    return 0;
+}
+
+static int parser_min_aggr_dur(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
+{
+    int value = Json_GetValueInt(key_item);
+
+    if (value < param_key->v.min || value > param_key->v.max || value == INVALID_INT_NUM) {
+        PARSE_ERR("params.%s invalid value %d, must be in [%d, %d]",
+                  param_key->key, value, param_key->v.min, param_key->v.max);
+        return -1;
+    }
+
+    probe->probe_param.min_aggr_dur = (u32)value;
+    return 0;
+}
+
 static int parser_kafka_port(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     int value = Json_GetValueInt(key_item);
@@ -447,6 +494,9 @@ SET_DEFAULT_PARAMS_INTER(l7_probe_proto_flags);
 SET_DEFAULT_PARAMS_INTER(svg_period);
 SET_DEFAULT_PARAMS_INTER(perf_sample_period);
 SET_DEFAULT_PARAMS_INTER(cadvisor_port);
+SET_DEFAULT_PARAMS_INTER(profiling_chan);
+SET_DEFAULT_PARAMS_INTER(min_exec_dur);
+SET_DEFAULT_PARAMS_INTER(min_aggr_dur);
 
 SET_DEFAULT_PARAMS_CAHR(logs);
 SET_DEFAULT_PARAMS_CAHR(support_ssl);
@@ -484,6 +534,9 @@ SET_DEFAULT_PARAMS_STR(flame_dir);
 #define ELF_PATH            "elf_path"
 #define KAFKA_PORT          "kafka_port"
 #define CADVISOR_PORT       "cadvisor_port"
+#define PROFLING_CHANNEL    "profiling_channel"
+#define MIN_EXEC_DUR        "min_exec_dur"
+#define MIN_AGGR_DUR        "min_aggr_dur"
 
 struct param_key_s param_keys[] = {
     {SAMPLE_PERIOD,       {DEFAULT_SAMPLE_PERIOD, 100, 10000, ""},   parser_sample_peirod,           set_default_params_inter_sample_period, JSON_NUMBER},
@@ -511,7 +564,10 @@ struct param_key_s param_keys[] = {
     {CONTINUOUS_SAMPLING, {0, 0, 1, ""},                             parser_continuous_sampling,     set_default_params_char_continuous_sampling_flag, JSON_NUMBER},
     {ELF_PATH,            {0, 0, 0, ""},                             parser_elf_path,                NULL, JSON_STRING},
     {KAFKA_PORT,          {DEFAULT_KAFKA_PORT, 1, 65535, ""},        parser_kafka_port,              set_default_params_inter_kafka_port, JSON_NUMBER},
-    {CADVISOR_PORT,       {DEFAULT_CADVISOR_PORT, 1, 65535, ""},     parser_cadvisor_port,           set_default_params_inter_cadvisor_port, JSON_NUMBER}
+    {CADVISOR_PORT,       {DEFAULT_CADVISOR_PORT, 1, 65535, ""},     parser_cadvisor_port,           set_default_params_inter_cadvisor_port, JSON_NUMBER},
+    {PROFLING_CHANNEL,    {PROFILING_CHAN_LOCAL, 0, 0, ""},          parser_profiling_channel,       set_default_params_inter_profiling_chan, JSON_STRING},
+    {MIN_EXEC_DUR,        {1, 0, 1000000, ""},                       parser_min_exec_dur,            set_default_params_inter_min_exec_dur, JSON_NUMBER},  
+    {MIN_AGGR_DUR,        {100, 10, 10000, ""},                      parser_min_aggr_dur,            set_default_params_inter_min_aggr_dur, JSON_NUMBER},
 };
 
 void set_default_params(struct probe_s *probe)

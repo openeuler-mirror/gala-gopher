@@ -29,114 +29,100 @@
 
 char g_license[] SEC("license") = "GPL";
 
-SET_TP_SYSCALL_PARAMS(sched_yield) { return; }
+SET_TP_SYSCALL_PARAMS(sched_yield) { sce->nr = SYSCALL_SCHED_YIELD_ID; }
 
 SET_SYSCALL_META(sched_yield)
 {
-    scm->nr = SYSCALL_SCHED_YIELD_ID;
     scm->flag = SYSCALL_FLAG_STACK;
 }
 
-SET_TP_SYSCALL_PARAMS(nanosleep) { return; }
+SET_TP_SYSCALL_PARAMS(nanosleep) { sce->nr = SYSCALL_NANOSLEEP_ID; }
 
 SET_SYSCALL_META(nanosleep)
 {
-    scm->nr = SYSCALL_NANOSLEEP_ID;
     scm->flag = SYSCALL_FLAG_STACK;
 }
 
-SET_TP_SYSCALL_PARAMS(clock_nanosleep) { return; }
+SET_TP_SYSCALL_PARAMS(clock_nanosleep) { sce->nr = SYSCALL_CLOCK_NANOSLEEP_ID; }
 
 SET_SYSCALL_META(clock_nanosleep)
 {
-    scm->nr = SYSCALL_CLOCK_NANOSLEEP_ID;
     scm->flag = SYSCALL_FLAG_STACK;
 }
 
-SET_TP_SYSCALL_PARAMS(wait4) { return; }
+SET_TP_SYSCALL_PARAMS(wait4) { sce->nr = SYSCALL_WAIT4_ID; }
 
 SET_SYSCALL_META(wait4)
 {
-    scm->nr = SYSCALL_WAIT4_ID;
     scm->flag = SYSCALL_FLAG_STACK;
 }
 
 #if defined(__TARGET_ARCH_x86) || defined(__TARGET_ARCH_riscv)
 #ifndef __TARGET_ARCH_riscv
-SET_SYSCALL_PARAMS(waitpid) { return; }
+SET_SYSCALL_PARAMS(waitpid) { sce->nr = SYSCALL_WAITPID_ID; }
 
 SET_SYSCALL_META(waitpid)
 {
-    scm->nr = SYSCALL_WAITPID_ID;
     scm->flag = SYSCALL_FLAG_STACK;
 }
 #endif
 
-
-SET_TP_SYSCALL_PARAMS(select) { return; }
+SET_TP_SYSCALL_PARAMS(select) { sce->nr = SYSCALL_SELECT_ID; }
 
 SET_SYSCALL_META(select)
 {
-    scm->nr = SYSCALL_SELECT_ID;
     scm->flag = SYSCALL_FLAG_STACK;
 }
 
-SET_TP_SYSCALL_PARAMS(poll) { return; }
+SET_TP_SYSCALL_PARAMS(poll) { sce->nr = SYSCALL_POLL_ID; }
 
 SET_SYSCALL_META(poll)
 {
-    scm->nr = SYSCALL_POLL_ID;
     scm->flag = SYSCALL_FLAG_STACK;
 }
 
-SET_TP_SYSCALL_PARAMS(epoll_wait) { return; }
+SET_TP_SYSCALL_PARAMS(epoll_wait) { sce->nr = SYSCALL_EPOLL_WAIT_ID; }
 
 SET_SYSCALL_META(epoll_wait)
 {
-    scm->nr = SYSCALL_EPOLL_WAIT_ID;
     scm->flag = SYSCALL_FLAG_STACK;
 }
 
 #elif defined(__TARGET_ARCH_arm64)
-SET_SYSCALL_PARAMS(select) { return; }
+SET_SYSCALL_PARAMS(select) { sce->nr = SYSCALL_SELECT_ID; }
 
 SET_SYSCALL_META(select)
 {
-    scm->nr = SYSCALL_SELECT_ID;
     scm->flag = SYSCALL_FLAG_STACK;
 }
 
-SET_SYSCALL_PARAMS(poll) { return; }
+SET_SYSCALL_PARAMS(poll) { sce->nr = SYSCALL_POLL_ID; }
 
 SET_SYSCALL_META(poll)
 {
-    scm->nr = SYSCALL_POLL_ID;
     scm->flag = SYSCALL_FLAG_STACK;
 }
 
-SET_SYSCALL_PARAMS(epoll_wait) { return; }
+SET_SYSCALL_PARAMS(epoll_wait) { sce->nr = SYSCALL_EPOLL_WAIT_ID; }
 
 SET_SYSCALL_META(epoll_wait)
 {
-    scm->nr = SYSCALL_EPOLL_WAIT_ID;
     scm->flag = SYSCALL_FLAG_STACK;
 }
 
 #endif
 
-SET_TP_SYSCALL_PARAMS(pselect6) { return; }
+SET_TP_SYSCALL_PARAMS(pselect6) { sce->nr = SYSCALL_PSELECT6_ID; }
 
 SET_SYSCALL_META(pselect6)
 {
-    scm->nr = SYSCALL_PSELECT6_ID;
     scm->flag = SYSCALL_FLAG_STACK;
 }
 
-SET_TP_SYSCALL_PARAMS(ppoll) { return; }
+SET_TP_SYSCALL_PARAMS(ppoll) { sce->nr = SYSCALL_PPOLL_ID; }
 
 SET_SYSCALL_META(ppoll)
 {
-    scm->nr = SYSCALL_PPOLL_ID;
     scm->flag = SYSCALL_FLAG_STACK;
 }
 

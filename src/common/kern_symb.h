@@ -35,6 +35,7 @@ struct addr_symb_s {
     char *sym;      // No release is required.
     char *mod;      // No release is required.
     u64 orign_addr;
+    u64 relat_addr;
     u64 offset;
 };
 

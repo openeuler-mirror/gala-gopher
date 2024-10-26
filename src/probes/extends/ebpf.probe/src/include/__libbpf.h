@@ -60,10 +60,13 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
 
 #define GET_MAP_OBJ(probe_name, map_name) (probe_name##_skel->maps.map_name)
 #define GET_MAP_FD(probe_name, map_name) bpf_map__fd(probe_name##_skel->maps.map_name)
-#define GET_PROG_FD(prog_name) bpf_program__fd(probe_name##_skel->progs.prog_name)
+#define GET_PROG_FD(probe_name, prog_name) bpf_program__fd(probe_name##_skel->progs.prog_name)
+#define GET_PROGRAM_OBJ(probe_name, prog_name) (probe_name##_skel->progs.prog_name)
 
 #define GET_MAP_FD_BY_SKEL(skel, probe_name, map_name) \
     bpf_map__fd(((struct probe_name##_bpf *)(skel))->maps.map_name)
+#define GET_PROG_OBJ_BY_SKEL(skel, probe_name) \
+    (((struct probe_name##_bpf *)(skel))->obj)
 
 #define BPF_OBJ_GET_MAP_FD(obj, map_name)   \
             ({ \
@@ -182,6 +185,16 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
         if (load) { \
             buffer = bpf_buffer__new(probe_name##_skel->maps.map_name, probe_name##_skel->maps.heap); \
             if (buffer == NULL) { \
+                ERROR("Failed to initialize bpf_buffer for " #map_name " in " #probe_name "\n"); \
+            } \
+        } \
+    } while (0)
+
+#define MAP_INIT_BPF_BUFFER_SHARED(probe_name, map_name, buffer_ptr, load) \
+    do { \
+        if (load) { \
+            (void)bpf_buffer__new_shared(probe_name##_skel->maps.map_name, probe_name##_skel->maps.heap, (buffer_ptr)); \
+            if (*(buffer_ptr) == NULL) { \
                 ERROR("Failed to initialize bpf_buffer for " #map_name " in " #probe_name "\n"); \
             } \
         } \

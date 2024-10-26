@@ -155,6 +155,11 @@
 #define PROBE_RANGE_TPROFILING_SYSCALL_NET      0x00000004
 #define PROBE_RANGE_TPROFILING_SYSCALL_SCHED    0x00000008
 #define PROBE_RANGE_TPROFILING_SYSCALL_LOCK     0x00000010
+#define PROBE_RANGE_TPROFILING_PYTHON_GC        0x00000020
+#define PROBE_RANGE_TPROFILING_PTHREAD_SYNC     0x00000040
+#define PROBE_RANGE_TPROFILING_ONCPU_SAMPLE     0x00000080
+#define PROBE_RANGE_TPROFILING_MEM_USAGE        0x00000100
+#define PROBE_RANGE_TPROFILING_MEM_GLIBC        0x00000200
 
 /* hardware subprobe define */
 #define PROBE_RANGE_HW_NIC          0x00000001
@@ -240,4 +245,5 @@ int send_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body);
 int recv_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body);
 void clear_ipc_msg(long msg_type);
 void destroy_ipc_body(struct ipc_body_s *ipc_body);
+char is_load_probe_ipc(struct ipc_body_s *ipc_body, u32 probe_range_flag);
 #endif

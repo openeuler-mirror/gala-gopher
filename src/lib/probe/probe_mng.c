@@ -118,9 +118,14 @@ struct probe_range_define_s probe_range_define[] = {
 
     {PROBE_TP,     "oncpu",               PROBE_RANGE_TPROFILING_ONCPU},
     {PROBE_TP,     "syscall_file",        PROBE_RANGE_TPROFILING_SYSCALL_FILE},
-    {PROBE_TP,     "syscall_net",        PROBE_RANGE_TPROFILING_SYSCALL_NET},
+    {PROBE_TP,     "syscall_net",         PROBE_RANGE_TPROFILING_SYSCALL_NET},
     {PROBE_TP,     "syscall_lock",        PROBE_RANGE_TPROFILING_SYSCALL_LOCK},
-    {PROBE_TP,     "syscall_sched",        PROBE_RANGE_TPROFILING_SYSCALL_SCHED},
+    {PROBE_TP,     "syscall_sched",       PROBE_RANGE_TPROFILING_SYSCALL_SCHED},
+    {PROBE_TP,     "python_gc",           PROBE_RANGE_TPROFILING_PYTHON_GC},
+    {PROBE_TP,     "pthread_sync",        PROBE_RANGE_TPROFILING_PTHREAD_SYNC},
+    {PROBE_TP,     "oncpu_sample",        PROBE_RANGE_TPROFILING_ONCPU_SAMPLE},
+    {PROBE_TP,     "mem_usage",           PROBE_RANGE_TPROFILING_MEM_USAGE},
+    {PROBE_TP,     "mem_glibc",           PROBE_RANGE_TPROFILING_MEM_GLIBC},
 
     {PROBE_HW,     "hw_nic",              PROBE_RANGE_HW_NIC},
     {PROBE_HW,     "hw_mem",              PROBE_RANGE_HW_MEM},

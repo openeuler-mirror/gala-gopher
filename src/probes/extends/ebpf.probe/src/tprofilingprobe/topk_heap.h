@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright (c) Huawei Technologies Co., Ltd. 2023. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2021. All rights reserved.
  * gala-gopher licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -9,31 +9,20 @@
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
  * Author: algorithmofdish
- * Create: 2023-12-14
- * Description: definition of cpython(version 3.7) structure offsets
+ * Create: 2024-10-24
+ * Description: topk heap
  ******************************************************************************/
-#include "py_stack.h"
+#ifndef __TOPK_HEAP_H__
+#define __TOPK_HEAP_H__
+#include <utlist.h>
 
-// https://github.com/python/cpython/tree/v3.7.16
-struct py_offset py37_offset = {
-    .tstate_curr = 1496,
-    .state = {
-        .frame = 24
-    },
-    .frame_obj = {
-        .f_back = 24,
-        .f_code = 32,
-        .f_localsplus = 360
-    },
-    .code_obj = {
-        .co_varnames = 64,
-        .co_name = 104
-    },
-    .obj = {
-        .obj_type = 8,
-        .type_obj_name = 24,
-        .tuple_obj_item = 24,
-        .var_obj_size = 16,
-        .string_data = 48
-    }
-};
+#include "stack_tree.h"
+
+typedef struct _heap_mem_elem {
+    struct stack_node_s *leaf;
+    struct _heap_mem_elem *next;
+} heap_mem_elem_t;
+
+struct stack_node_s **get_topk_mem_stack(heap_mem_elem_t *head, int k, int *top_num);
+
+#endif

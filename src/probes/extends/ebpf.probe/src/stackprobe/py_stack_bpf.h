@@ -73,7 +73,7 @@ static __always_inline int get_py_stack(struct py_sample *py_sample, struct py_p
 
     py_event->py_stack.stack_len = 0;
 #pragma unroll
-    for (int i = 0; i < MAX_PYTHON_STACK_DEPTH_16; i++) {
+    for (int i = 0; i < MAX_PYTHON_STACK_DEPTH_MAX; i++) {
         // TODO: consider stack truncation scene
         __builtin_memset(&py_sym, 0, sizeof(py_sym));
         ret = get_py_frame_info(&py_sym, &py_frame, &py_proc_data->offsets);

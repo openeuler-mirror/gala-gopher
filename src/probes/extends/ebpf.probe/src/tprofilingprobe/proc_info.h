@@ -19,8 +19,9 @@
 #include "common.h"
 #include "fd_info.h"
 #include "symbol.h"
+#include "stack_tree.h"
 
-#define MAX_CACHE_PROC_NUM 64
+#define MAX_CACHE_PROC_NUM 128
 #define MAX_CACHE_THRD_NUM 1024
 #define MAX_CACHE_EVENT_NUM 100
 #define MAX_PATH_SIZE 128
@@ -65,6 +66,8 @@ struct _proc_info {
     fd_info_t **fd_table;
     thrd_info_t **thrd_table;
     struct proc_symbs_s *symbs;
+    struct stack_node_s *mem_glibc_tree;
+    u64 alloc_mem_sz;
     UT_hash_handle hh;
 };
 

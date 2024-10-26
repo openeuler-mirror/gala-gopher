@@ -820,3 +820,10 @@ void destroy_ipc_body(struct ipc_body_s *ipc_body)
     return;
 }
 
+char is_load_probe_ipc(struct ipc_body_s *ipc_body, u32 probe_range_flag)
+{
+    if (ipc_body->probe_range_flags & probe_range_flag) {
+        return 1;
+    }
+    return 0;
+}

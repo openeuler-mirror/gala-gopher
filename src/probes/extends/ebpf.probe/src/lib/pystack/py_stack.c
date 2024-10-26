@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <elf.h>
 
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
@@ -31,6 +32,7 @@
 #include "py_stack.h"
 
 extern struct py_offset py37_offset;
+extern struct py_offset py38_offset;
 extern struct py_offset py39_offset;
 
 #define PYTHON_VERSION_LEN 32
@@ -48,6 +50,7 @@ struct py_support_version {
 
 static struct py_support_version g_py_support_vers[] = {
     {"python3.7", &py37_offset},
+    {"python3.8", &py38_offset},
     {"python3.9", &py39_offset}
 };
 
@@ -119,6 +122,7 @@ static int init_py_proc_data(int pid, struct py_proc_data *data,
 {
     struct py_support_version *py_ver;
     char real_path[PATH_LEN];
+    int elf_type;
     int ret;
 
     py_ver = get_curr_py_version(elf_path);
@@ -141,7 +145,10 @@ static int init_py_proc_data(int pid, struct py_proc_data *data,
     }
     DEBUG("Succeed to get _PyRuntime addr:%llx, elf_path=%s\n", data->py_runtime_addr, elf_path);
 
-    data->py_runtime_addr += mod_info->start - mod_info->f_offset;
+    elf_type = gopher_get_elf_type(real_path);
+    if (elf_type == ET_DYN) {
+        data->py_runtime_addr += mod_info->start - mod_info->f_offset;
+    }
     memcpy(&data->offsets, py_ver->py_offset, sizeof(struct py_offset));
     return 0;
 }

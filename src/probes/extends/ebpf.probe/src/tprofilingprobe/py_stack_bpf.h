@@ -22,8 +22,6 @@
 #ifndef __PY_STACK_BPF_H__
 #define __PY_STACK_BPF_H__
 
-#define BPF_PROG_KERN
-
 #pragma once
 #include "py_stack_bpf_comm.h"
 #include "stack.h"
@@ -34,6 +32,20 @@ struct {
     __uint(value_size, sizeof(struct py_sample));
     __uint(max_entries, 1);
 } py_sample_heap SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(u64));
+    __uint(value_size, sizeof(struct py_stack));
+    __uint(max_entries, 100000);
+} py_stack_a SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(u64));
+    __uint(value_size, sizeof(struct py_stack));
+    __uint(max_entries, 100000);
+} py_stack_b SEC(".maps");
 
 static __always_inline u64 get_py_symbol_id(struct py_symbol *sym, struct py_sample *sample)
 {
@@ -73,7 +85,7 @@ static __always_inline int get_py_stack(struct py_sample *py_sample, struct py_p
 
     py_event->py_stack.stack_len = 0;
 #pragma unroll
-    for (int i = 0; i < MAX_PYTHON_STACK_DEPTH_16; i++) {
+    for (int i = 0; i < MAX_PYTHON_STACK_DEPTH_MAX; i++) {
         // TODO: consider stack truncation scene
         __builtin_memset(&py_sym, 0, sizeof(py_sym));
         ret = get_py_frame_info(&py_sym, &py_frame, &py_proc_data->offsets);
@@ -93,6 +105,37 @@ static __always_inline struct py_sample *get_py_sample()
     u32 zero = 0;
 
     return (struct py_sample *)bpf_map_lookup_elem(&py_sample_heap, &zero);
+}
+
+static __always_inline int get_py_stack_id(int tgid, void *cur_py_stack)
+{
+    struct py_proc_data *py_proc_data;
+    struct py_sample *py_sample;
+    u64 py_stack_id = 0;
+
+    py_proc_data = (struct py_proc_data *)bpf_map_lookup_elem(&py_proc_map, &tgid);
+
+    if (!py_proc_data) {
+        return 0;
+    }
+    py_sample = get_py_sample();
+    if (!py_sample) {
+        return 0;
+    }
+
+    py_sample->cpu_id = bpf_get_smp_processor_id();
+    if (get_py_stack(py_sample, py_proc_data) != 0) {
+        return 0;
+    }
+
+    //避免出现 py_stack_id为 0 的现象影响后续判断
+    py_stack_id = py_sample->py_stack_counter * py_sample->nr_cpus + py_sample->cpu_id + 1;
+    if (bpf_map_update_elem(cur_py_stack, &py_stack_id, &py_sample->event.py_stack, BPF_ANY)) {
+        return 0;
+    }
+    py_sample->py_stack_counter++;
+
+    return py_stack_id;
 }
 
 #endif

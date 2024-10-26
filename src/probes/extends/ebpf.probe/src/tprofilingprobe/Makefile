@@ -4,7 +4,7 @@ BTF_ENABLE_OVERRIDE := ON
 
 include ../mk/var.mk
 INCLUDES = $(BASE_INC)
-INCLUDES += -I../pystack/
+INCLUDES += -I. -I../lib/pystack/ -I./local_storage/ -I./mem/
 
 APP := tprofiling
 
@@ -17,7 +17,7 @@ DEPS += $(patsubst %.bpf.c, %.skel.h, $(BPF_C))
 DEPS += $(patsubst %.cpp, %.o, $(SRC_CPLUS))
 
 SRC_C := $(filter-out $(BPF_C), $(wildcard *.c))
-SRC_C += $(wildcard ../pystack/*.c)
+SRC_C += $(wildcard ../lib/pystack/*.c ./local_storage/*.c ./mem/*.c)
 SRC_C += $(CFILES)
 
 .PHONY: all clean install
