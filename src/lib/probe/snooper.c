@@ -41,6 +41,7 @@
 #define SNOOPER_OBJNAME_PROCNAME    "proc_name"
 #define SNOOPER_OBJNAME_PODID       "pod_id"
 #define SNOOPER_OBJNAME_CONTAINERID "container_id"
+#define SNOOPER_OBJNAME_CONTAINERNAME    "container_name"
 #define SNOOPER_OBJNAME_CUSTOM_LABELS "custom_labels"
 #define SNOOPER_OBJNAME_POD_LABELS  "pod_labels"
 
@@ -219,6 +220,38 @@ static int add_snooper_conf_container(struct probe_s *probe, const char* contain
     return 0;
 }
 
+static int add_snooper_conf_container_name(struct probe_s *probe, const char* container_name)
+{
+    if (probe->snooper_conf_num >= SNOOPER_MAX) {
+        return -1;
+    }
+
+    if (container_name == NULL) {
+        return 0;
+    }
+
+    if (check_path_for_security(container_name)) {
+        return -1;
+    }
+
+    struct snooper_conf_s* snooper_conf = new_snooper_conf();
+    if (snooper_conf == NULL) {
+        return -1;
+    }
+
+    (void)snprintf(snooper_conf->conf.container_name,
+        sizeof(snooper_conf->conf.container_name), "%s", container_name);
+    snooper_conf->type = SNOOPER_CONF_CONTAINER_NAME;
+
+    if (probe->snooper_confs[probe->snooper_conf_num] != NULL) {
+        free_snooper_conf(probe->snooper_confs[probe->snooper_conf_num]);
+        probe->snooper_confs[probe->snooper_conf_num] = NULL;
+    }
+
+    probe->snooper_confs[probe->snooper_conf_num] = snooper_conf;
+    probe->snooper_conf_num++;
+    return 0;
+}
 
 static void print_snooper_procid(struct probe_s *probe, void *json)
 {
@@ -475,11 +508,12 @@ static int parse_snooper_procname(struct probe_s *probe, const void *json)
 
 static void print_snooper_pod_container(struct probe_s *probe, void *json)
 {
-    void *pod_item, *cntr_item;
+    void *pod_item, *cntr_item, *cntrname_item;
     struct snooper_conf_s *snooper_conf;
 
     pod_item = Json_CreateArray();
     cntr_item = Json_CreateArray();
+    cntrname_item = Json_CreateArray();
     for (int i = 0; i < probe->snooper_conf_num; i++) {
         snooper_conf = probe->snooper_confs[i];
         if (snooper_conf->type == SNOOPER_CONF_POD_ID) {
@@ -491,21 +525,30 @@ static void print_snooper_pod_container(struct probe_s *probe, void *json)
             Json_AddStringItemToArray(cntr_item,snooper_conf->conf.container_id);
             continue;
         }
+
+        if (snooper_conf->type == SNOOPER_CONF_CONTAINER_NAME) {
+            Json_AddStringItemToArray(cntrname_item,snooper_conf->conf.container_name);
+            continue;
+        }
     }
     Json_AddItemToObject(json, SNOOPER_OBJNAME_PODID, pod_item);
     Json_Delete(pod_item);
     Json_AddItemToObject(json, SNOOPER_OBJNAME_CONTAINERID, cntr_item);
     Json_Delete(cntr_item);
+    Json_AddItemToObject(json, SNOOPER_OBJNAME_CONTAINERNAME, cntrname_item);
+    Json_Delete(cntrname_item);
 }
 
 static int parse_snooper_pod_container(struct probe_s *probe, const void *json, const char *item_name)
 {
     int ret;
     void *item, *object;
-    int pod_flag = 0;
+    enum snooper_conf_e conf_flag = SNOOPER_CONF_CONTAINER_ID;
 
-    if (!strcasecmp(item_name, SNOOPER_OBJNAME_PODID)) {
-        pod_flag = 1;
+    if (!strcasecmp(item_name, SNOOPER_OBJNAME_CONTAINERNAME)) {
+        conf_flag = SNOOPER_CONF_CONTAINER_NAME;
+    } else if (!strcasecmp(item_name, SNOOPER_OBJNAME_PODID)) {
+        conf_flag = SNOOPER_CONF_POD_ID;
     }
 
     item = Json_GetObjectItem(json, item_name);
@@ -519,10 +562,18 @@ static int parse_snooper_pod_container(struct probe_s *probe, const void *json, 
         if (!Json_IsString(object)) {
             return -1;
         }
-        if (pod_flag) {
-            ret = add_snooper_conf_pod(probe, (const char *)Json_GetValueString(object));
-        } else {
-            ret = add_snooper_conf_container(probe, (const char *)Json_GetValueString(object));
+        switch (conf_flag) {
+            case SNOOPER_CONF_CONTAINER_NAME:
+                ret = add_snooper_conf_container_name(probe, (const char *)Json_GetValueString(object));
+                break;
+            case SNOOPER_CONF_POD_ID:
+                ret = add_snooper_conf_pod(probe, (const char *)Json_GetValueString(object));
+                break;
+            case SNOOPER_CONF_CONTAINER_ID:
+                ret = add_snooper_conf_container(probe, (const char *)Json_GetValueString(object));
+                break;
+            default:
+                break;
         }
         if (ret != 0) {
             return -1;
@@ -635,6 +686,11 @@ int parse_snooper(struct probe_s *probe, const void *json)
 
     if (parse_snooper_pod_container(probe, json, SNOOPER_OBJNAME_CONTAINERID)) {
         PARSE_ERR("Error occurs when parsing snooper %s", SNOOPER_OBJNAME_CONTAINERID);
+        return -1;
+    }
+
+    if (parse_snooper_pod_container(probe, json, SNOOPER_OBJNAME_CONTAINERNAME)) {
+        PARSE_ERR("Error occurs when parsing snooper %s", SNOOPER_OBJNAME_CONTAINERNAME);
         return -1;
     }
 
@@ -914,6 +970,9 @@ static int add_snooper_obj_con_info(struct probe_s *probe, struct con_info_s *co
     if (con_info->con_id) {
         snooper_obj->obj.con_info.con_id = strdup(con_info->con_id);
     }
+    if (probe->probe_type == PROBE_SLI && con_info->container_name) {
+        snooper_obj->obj.con_info.container_name = strdup(con_info->container_name);
+    }
     if (probe->probe_type == PROBE_PROC && con_info->libc_path) {
         snooper_obj->obj.con_info.libc_path = strdup(con_info->libc_path);
     }
@@ -1051,6 +1110,50 @@ static int __gen_snooper_by_container(struct probe_s *probe, con_id_element *con
     return 0;
 }
 
+static int gen_snooper_by_container_name(struct probe_s *probe)
+{
+    struct snooper_conf_s * snooper_conf;
+    struct con_info_s *con_info;
+    FILE *f;
+    char cmd[COMMAND_LEN];
+    char line[CONTAINER_ID_LEN];
+
+    for (int i = 0; i < probe->snooper_conf_num; i++) {
+        snooper_conf = probe->snooper_confs[i];
+        if (snooper_conf->type != SNOOPER_CONF_CONTAINER_NAME) {
+            continue;
+        }
+        
+        cmd[0] = 0;
+        (void)snprintf(cmd, COMMAND_LEN, 
+            "docker ps -q --filter \"name=%s\"", (const char *)snooper_conf->conf.container_name);
+        f = popen_chroot(cmd, "r");
+        if (f == NULL) {
+            return -1;
+        }
+        while (!feof(f)) {
+            (void)memset(line, 0, CONTAINER_ID_LEN);
+            if (fgets(line, CONTAINER_ID_LEN, f) == NULL) {
+                (void)pclose(f);
+                return -1;
+            }
+
+            con_info = get_and_add_con_info(FAKE_POD_ID, line);
+            if (con_info == NULL) {
+                WARN("[SNOOPER] Fail to get info of container %s from container name %s\n",
+                line,
+                snooper_conf->conf.container_name);
+                continue;
+            }
+
+            (void)add_snooper_obj_con_info(probe, con_info);
+        }
+        (void)pclose(f);
+    }
+
+    return 0;
+}
+
 
 static int gen_snooper_by_container(struct probe_s *probe)
 {
@@ -1133,7 +1236,8 @@ struct snooper_generator_s snooper_generators[] = {
     {SNOOPER_CONF_APP,           gen_snooper_by_procname   },
     {SNOOPER_CONF_PROC_ID,       gen_snooper_by_procid     },
     {SNOOPER_CONF_POD_ID,        gen_snooper_by_pod        },
-    {SNOOPER_CONF_CONTAINER_ID,  gen_snooper_by_container  }
+    {SNOOPER_CONF_CONTAINER_ID,  gen_snooper_by_container  },
+    {SNOOPER_CONF_CONTAINER_NAME,  gen_snooper_by_container_name  }
 };
 
 /* Flush current snooper obj and re-generate */
@@ -1327,6 +1431,11 @@ static char __rcv_snooper_cgrp_exec_sub(struct probe_s *probe, struct con_info_s
                 add_snooper_obj_con_info(probe, con_info);
                 snooper_obj_added = 1;
             }
+        } else if (snooper_conf->type == SNOOPER_CONF_CONTAINER_NAME) {
+            if (strstr((const char *)con_info->container_name, (const char *)(snooper_conf->conf.container_name)) != NULL) {
+                add_snooper_obj_con_info(probe, con_info);
+                snooper_obj_added = 1;
+            }
         }
     }
     return snooper_obj_added;
@@ -1423,7 +1532,9 @@ static int rcv_snooper_cgrp_evt(void *ctx, void *data, __u32 size)
     char con_id[CONTAINER_ABBR_ID_LEN + 1] = {0};
     enum id_ret_t id_ret = get_pod_container_id(msg_data->cgrp_path, pod_id, con_id);
 
-    if (id_ret == ID_FAILED) {
+    if (id_ret == ID_FAILED || pod_id[0] == 0 || con_id[0] == 0) {
+        DEBUG("[SNOOPER] failed to get pod_id or con_id from snooper_cgrp_evt. "
+            "ret = %d, pod_id = %s, con_id = %s\n", id_ret, pod_id, con_id);
         return 0;
     }
 

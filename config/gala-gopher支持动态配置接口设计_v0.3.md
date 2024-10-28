@@ -31,7 +31,8 @@ Restful API只接收用户发起的PUT和GET请求，分别对应如下两类功
           "proc_id": [],
           "proc_name": [{}],
           "pod_id": [],
-          "container_id": []
+          "container_id": [],
+          "container_name": [],
           "custom_labels": {}
       },
       "params": {},
@@ -40,7 +41,7 @@ Restful API只接收用户发起的PUT和GET请求，分别对应如下两类功
   ```
 
   1. ”cmd“字段用于[配置探针基本属性](#配置探针基本属性)，包括探针采集子项；
-  2. ”snoopers“字段从进程号、进程名、pod ID、容器 ID四个维度来[配置观测范围](#配置探针观测范围)，同时支持[拓展标签匹配](#配置探针扩展标签)；
+  2. ”snoopers“字段从进程号、进程名、pod ID、容器 ID、容器名五个维度来[配置观测范围](#配置探针观测范围)，同时支持[拓展标签匹配](#配置探针扩展标签)；
   3. ”params“字段用于[配置探针运行参数](#配置探针运行参数)；
   4. ”state“字段用于配置探针运行状态， 即[启动/停止探针](#启动停止探针)。
 
@@ -140,6 +141,9 @@ curl -X PUT http://localhost:9999/flamegraph -d json='
         "container_id": [
             "container1",
             "container2"
+        ],
+        "container_name": [
+            "container_name1"
         ]
     }
 }'
@@ -150,6 +154,7 @@ curl -X PUT http://localhost:9999/flamegraph -d json='
 - proc_name：proc_name中的一个对象包含comm、cmdline和debugging_dir，假设这一个对象的进程id已知为101，则该进程的comm值为/proc/101/comm文件中的内容，cmdline值为/proc/101/cmdline文件中的内容，debugging_dir的含义是预留给探针设置debug目录（暂未实现相关功能）；
 - pod_id：pod 是可以在 Kubernetes 中创建和管理的、最小的可部署的计算单元，可以使用了kubectl run创建pod并获取pod_name，然后使用kubectl get pods -n <namespace> <pod-name> -o jsonpath='{.metadata.uid}'获取pod_id；
 - container_id：可以使用docker容器，通过docker run运行一个容器，通过docker ps查看container_id。
+- container_name：可以使用docker容器，通过docker run运行一个容器，通过docker ps查看container_name。
 
 ### 配置探针扩展标签
 
