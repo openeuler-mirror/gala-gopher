@@ -827,8 +827,9 @@ int main(int argc, char **argv)
 
             destroy_ipc_body(&(sli_probe->ipc_body));
             (void)memcpy(&(sli_probe->ipc_body), &ipc_body, sizeof(ipc_body));
-
-            reload_sli_container_tbl(sli_probe);
+            if (ipc_body.probe_flags & IPC_FLAGS_SNOOPER_CHG || ipc_body.probe_flags == 0) {
+                reload_sli_container_tbl(sli_probe);
+            }
         }
 
         if (sli_probe->prog == NULL) {
