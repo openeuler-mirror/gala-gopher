@@ -944,7 +944,7 @@ static int gen_snooper_by_procname(struct probe_s *probe)
         if (entry == NULL) {
             break;
         }
-        if (!__is_proc_dir(entry->d_name) == -1) {
+        if (!__is_proc_dir(entry->d_name)) {
             continue;
         }
 
