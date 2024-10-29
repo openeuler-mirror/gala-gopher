@@ -19,6 +19,8 @@
 
 #include "common.h"
 
+#define ELF_BUILD_ID_LEN 64
+
 /**
 * return code1: -1
 * return code2: refer to /usr/include/elf.h

@@ -151,6 +151,11 @@
 #define SYSCALL_SYSLOG_ID   103
 #define SYSCALL_SYSLOG_NAME "syslog"
 
+// ioctl
+
+#define SYSCALL_IOCTL_ID   16
+#define SYSCALL_IOCTL_NAME "ioctl"
+
 #if !defined(BPF_PROG_KERN) && !defined(BPF_PROG_USER)
 #include <uthash.h>
 

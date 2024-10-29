@@ -21,8 +21,9 @@
 
 #define MAX_PYTHON_PROG_NUM 1000
 
+#define MAX_PYTHON_STACK_DEPTH_8 8
 #define MAX_PYTHON_STACK_DEPTH_16 16
-#define MAX_PYTHON_STACK_DEPTH_MAX (MAX_PYTHON_STACK_DEPTH_16)
+#define MAX_PYTHON_STACK_DEPTH_MAX (MAX_PYTHON_STACK_DEPTH_8)
 #define MAX_PYTHON_SYMBOL_SIZE 64
 
 struct py_stack {
@@ -38,7 +39,7 @@ struct py_symbol {
 
 // offsets of struct PyThreadState
 struct py_offset_thrd_state {
-    u64 frame;              // offsetof(PyThreadState, ob_type)
+    u64 frame;              // offsetof(PyThreadState, frame)
 };
 
 // offsets of struct PyFrameObject

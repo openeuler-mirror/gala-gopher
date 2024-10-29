@@ -1,6 +1,7 @@
 ## 什么是 tprofiling ？
 
-tprofiling 是 gala-gopher 提供的一个基于 ebpf 的线程级应用性能诊断工具，它使用 ebpf 技术观测线程的关键系统性能事件，并关联丰富的事件内容，从而实时地记录线程的运行状态和关键行为，帮助用户快速识别应用性能问题。
+Profiling 是 gala-gopher 提供的一个主机侧的进程/线程级应用性能诊断工具，它使用 ebpf 技术观测进程/线程运行过程中的关键系统性能事件，并关联丰富的事件内容，从而实时地记录应用程序的运行状态和关键行为。
+通过在前端界面以时间线的方式对 Profiling 结果进行展示，用户可以更加直观地分析这些线程在某段时间内正在做什么，比如是在 CPU 上执行还是阻塞在某个文件、网络操作上，从而帮助用户快速识别出一些应用性能问题。
 
 ## 功能特性
 
@@ -98,150 +99,101 @@ tprofiling 当前已观测的系统调用事件参见章节： [支持的系统�
 
 ### 事件输出
 
-tprofiling 作为 gala-gopher 提供的一个扩展的 ebpf 探针程序，产生的系统事件会发送至 gala-gopher 处理，并由 gala-gopher 按照开源的 openTelemetry 事件格式对外输出，并通过 json 格式发送到 kafka 消息队列中。前端可以通过对接 kafka 消费 tprofiling 事件。
 
-下面是线程 profiling 事件的一个输出示例：
-
-```json
-{
-	"Timestamp": 1661088145000,
-	"SeverityText": "INFO",
-	"SeverityNumber": 9,
-	"Body": "",
-    "Resource": {
-		"host.id": "",
-        "host.name": "",
-        "thread.pid": 10,
-        "thread.tgid": 10,
-        "thread.comm": "java",
-        "proc.name": "xxx.jar",
-        "container.id": "",
-        "container.name": "",
-	},
-    "Attributes": {
-        "values": [
-            {
-                // common info
-                "event.name": "read",
-                "event.type": "file",
-                "start_time": 1661088145000,
-                "end_time": 1661088146000,
-                "duration": 0.1, // ms
-                "count": 1,
-                // extend info
-                "func.stack": "id-related-to-flamegraph",	// 存储一个id值，用于从pyroscope查询对应的火焰图信息
-                "io.top": [
-                    {
-                        "file.path": "/test1.txt",
-                        "duration": 0.05 // ms
-                    },
-                    {
-                        "file.inode": 4,
-                        "duration": 0.02
-                    },
-                    {
-                        "sock.conn": "/test2.txt",
-                        "duration": 0.02
-                    }
-                ],
-                "futex.top": [
-                    {
-                        "op": "wait",
-                        "duration": 0.05
-                    },
-                    {
-                        "op": "wake",
-                        "duration": 0.02
-                    }
-                ]
-            },
-            {
-                "event.name": "oncpu",
-                "event.type": "oncpu",
-                "start_time": 1661088146000,
-                "end_time": 1661088147000,
-                "duration": 0.1,
-                "count": 1,
-            }
-        ]
-	}
-}
-```
-
-部分字段说明：
-
-- `Timestamp`：事件上报的事件点
-- `Resource`：包括事件来源信息
-- `Attributes`：包括事件属性信息，它包含一个 `values` 列表字段，列表中的每一项表示一个属于相同来源的 tprofiling 事件，其中包含该事件的属性信息。
 
 ## 快速开始
+
+### 运行环境要求
+
+1. 支持的内核版本：>= 4.18
+2. 支持的操作系统：openEuler/EulerOS
+3. 对python程序的支持：
+   - 支持的python版本：3.7/3.8/3.9
+   - 支持采集python语言的调用栈：内核版本需 > 4.19
 
 ### 安装部署
 
 tprofiling 是 gala-gopher 提供的一个扩展的 ebpf 探针程序，因此，需要先安装部署好 gala-gopher 软件，然后再开启 tprofiling 功能。
 
-另外，为了能够在前端用户界面使用 tprofiling 的能力，[gala-ops](https://gitee.com/openeuler/gala-docs) 基于开源的 `kafka + logstash + elasticsearch + grafana` 可观测软件搭建了用于演示的 tprofiling 功能的用户界面，用户可以使用 gala-ops 提供的部署工具进行快速部署。
-
-#### 运行架构
-
-![](./image/tprofiling-run-arch.png)
-
-前端软件说明：
-
-- kafka：一个开源的消息队列中间件，用于接收并存储 gala-gopher 采集的 tprofiling 事件。
-- logstash：一个实时的开源日志收集引擎，用于从 kafka 消费 tprofiling 事件，经过过滤、转换等处理后发送至 elasticsearch 。
-- elasticsearch：一个开放的分布式搜索和分析引擎，用于储存经过处理后的 tprofiling 事件，供 grafana 查询和可视化展示。
-- grafana：一个开源的可视化工具，用于查询并可视化展示采集的 tprofiling 事件。用户最终通过 grafana 提供的用户界面来使用 tprofiling 的功能，分析应用性能问题。
-
 #### 部署 tprofiling 探针
 
-用户需要先安装好 gala-gopher，具体的安装部署说明可参考 [gala-gopher文档](https://gitee.com/openeuler/gala-gopher#快速开始) 。由于 tprofiling 事件会发送到 kafka 中，因此部署时需要配置好 kafka 的服务地址。
+gala-gopher正常运行后，按照如下步骤使用 Profiling 功能。
 
-安装并运行 gala-gopher 后，使用 gala-gopher 提供的基于 HTTP 的动态配置接口启动 tprofiling 探针。
+##### <a id="start_profiling_task">1. 启动 Profiling 监控任务</a>
 
-```sh
-curl -X PUT http://<gopher-node-ip>:9999/tprofiling -d json='{"cmd": {"probe": ["oncpu", "syscall_file", "syscall_net", "syscall_sched", "syscall_lock"]}, "snoopers": {"proc_name": [{"comm": "java"}]}, "state": "running"}'
+启动命令如下：
+
+```bash
+curl -X PUT http://localhost:9999/tprofiling -d json='{"cmd":{"probe": ["oncpu",  "oncpu_sample", "python_gc", "syscall_lock", "syscall_file", "syscall_net", "syscall_sched"]}, "snoopers":{"proc_name": [{"comm":"python3", "cmdline":""}]}, "state": "running"}'
 ```
 
-配置参数说明：
+启动配置参数说明：
 
-- `<gopher-node-ip>`：部署 gala-gopher 的节点 IP
-- `probe`：`cmd` 下的 `probe` 配置项指定了 tprofiling 探针观测的系统事件范围。其中，oncpu、syscall_file、syscall_net、syscall_sched、syscall_lock 分别对应 oncpu 事件、以及 file、net、sched、lock 四类系统调用事件。用户可根据需要只开启部分 tprofiling 事件类型的观测。
-- `proc_name`：`snoopers` 下的 `proc_name` 配置项用于过滤要观测的进程名。另外也可以通过 `proc_id` 配置项来过滤要观测的进程ID，详情参考：[动态配置接口使用文档](https://gitee.com/openeuler/gala-gopher/blob/master/config/gala-gopher%E6%94%AF%E6%8C%81%E5%8A%A8%E6%80%81%E9%85%8D%E7%BD%AE%E6%8E%A5%E5%8F%A3%E8%AE%BE%E8%AE%A1_v0.3.md)。
+- `"probe"` ：指定了 Profiling 事件的监控范围。
+  当前支持如下6类事件，用户可根据需要开启一个或多个事件类型。
+  
+  - oncpu：线程是否在占用cpu的事件
+  - oncpu_sample：线程在占用cpu期间的调用栈采样事件
+  - syscall_file：线程在执行文件操作相关的系统调用事件，比如 read/write/sync
+  - syscall_net：线程在执行网络操作相关的系统调用事件，比如 send/recv
+  - sycall_lock：线程在执行锁相关的系统调用事件，比如 futex
+  - syscall_sched：线程在执行调度相关的系统调用事件，比如 sleep/epoll_wait
+  - python_gc：python线程执行的gc事件
+  - pthread_sync：线程在执行 glibc 库中 pthread 相关的同步、锁事件，比如 pthread_mutex_lock/sem_wait
+- `"snoopers"`：指定了要监控的应用程序范围。
+  根据应用的部署方式，我们支持通过Pod ID（`pod_id`）、容器ID（`container_id`）、进程ID（`proc_id`）、进程名（`proc_name`）的方式来指定待监控的应用程序。`snoopers` 相关的配置示例如下，
+  
+  ```json
+  json='
+   {
+       "snoopers": {
+           "proc_id": [1255, 1256],
+           "proc_name": [{"comm": "python3", "cmdline": ""}],
+           "pod_id": ["pod-id-1", "pod-id-2"],
+           "container_id": ["ba2bf847778c", "a4f3fba20924"]
+       }
+   }'
+  ```
+  
+  其中，对于 `proc_name` 配置方式，可以通过 `comm` 匹配完整的进程名，同时可进一步通过 `cmdline` 来模糊匹配程序启动的命令行关键字，以便缩小要监控的应用范围。
 
-要关闭 tprofiling 探针，执行如下命令：
+##### 2. 关闭 Profiling 监控任务
 
-```sh
-curl -X PUT http://<gopher-node-ip>:9999/tprofiling -d json='{"state": "stopped"}'
+关闭命令如下：
+
+```bash
+curl -X PUT http://localhost:9999/tprofiling -d json='{"state": "stopped"}'
 ```
 
-#### 部署前端软件
+##### <a id="query_profiling_output">3. 查看 Profiling 输出文件</a>
 
-使用 tprofiling 功能的用户界面需要用到的软件包括：kafka、logstash、elasticsearch、grafana。这些软件安装在管理节点，用户可以使用 gala-ops 提供的部署工具进行快速安装部署，参考：[在线部署文档](https://gitee.com/openeuler/gala-docs#%E5%9C%A8%E7%BA%BF%E9%83%A8%E7%BD%B2)。
+关闭 Profiling 监控任务后，会生成一个 json 格式的 Profiling 输出文件。该文件可以直接导入到 chrome 浏览器提供的 trace viewer UI 界面（在浏览器上输入 `chrome://tracing/` ）上展示 Profiling 的效果。
 
-在管理节点上，通过 [在线部署文档](https://gitee.com/openeuler/gala-docs#%E5%9C%A8%E7%BA%BF%E9%83%A8%E7%BD%B2) 获取部署脚本后，执行如下命令一键安装中间件：kafka、logstash、elasticsearch。
+Profiling 输出文件存放在 gala-gopher 容器内部的 `/var/log/gala-gopher/tprofiling` 下，可通过如下命令查看，
 
-```sh
-sh deploy.sh middleware -K <部署节点管理IP> -E <部署节点管理IP> -A -p
+```bash
+docker exec <your_container_id> ls /var/log/gala-gopher/tprofiling
 ```
 
-执行如下命令一键安装 grafana 。
+输出文件的名称会带上一个时间戳（启动 Profiling 监控任务的时间），例如 `timeline-trace-202404261508.json` 。
 
-```sh
-sh deploy.sh grafana -P <Prometheus服务器地址> -E <es服务器地址>
+接下来，可通过 `docker cp` 命令把相应的 Profiling 输出文件拷出来。例如，
+
+```bash
+docker cp <your_container_id>:/var/log/gala-gopher/tprofiling/timeline-trace-202404261508.json ./
 ```
 
-### 使用
+#### 效果展示
 
-完成上述部署动作后，即可通过浏览器访问 `http://[部署节点管理IP]:3000` 登录 grafana 来使用 A-Ops，登录用户名、密码默认均为 admin。
+下载下面的文件到本地，打开google chrome浏览器，输入 `chrome://tracing/` 打开Profiling界面，通过 Load 按钮加载下载的本地文件，即可以看到 Profiling 分析结果。
 
-登录 grafana 界面后，找到名为 `ThreadProfiling` 的 dashboard。
+[timeline-trace-202406121458-good-example.json](/vision-file-storage/api/file/download/attachment-v2/2024/5/13/415868d7671a46618401bc50aa6f5681/20240613T194616Z_181a4f88ed934334bb21923f7f3b7284.json?attachment_id=8799856)
 
-![image-20230628155002410](./image/image-20230628155002410.png)
+Profiling展示效果如下：
 
-点击进入 tprofiling 功能的前端界面，接下来就可以探索 tprofiling 的功能了。
+![image](./image/timeline-output-example.PNG)
 
-![image-20230628155249009](./image/image-20230628155249009.png)
+
 
 ## 使用案例
 
@@ -290,6 +242,13 @@ sh deploy.sh grafana -P <Prometheus服务器地址> -E <es服务器地址>
 ## 如何贡献
 
 ## topics
+
+### Profiling能力地图&规划
+
+Profiling 能力全景图&故障场景如下所示：
+
+![image](./image/profiling-quanjintu.PNG)
+
 
 ### 支持的系统调用事件
 

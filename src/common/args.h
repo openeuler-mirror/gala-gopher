@@ -53,6 +53,11 @@
 #define L7PROBE_TRACING_NATS    0x0100
 #define L7PROBE_TRACING_CRPC    0x0200
 
+#define PROFILING_CHAN_LOCAL_STR        "local"
+#define PROFILING_CHAN_KAFKA_STR        "kafka"         // used in tprofiling
+#define PROFILING_CHAN_LOCAL            0
+#define PROFILING_CHAN_KAFKA            1               // used in tprofiling
+
 /*
     copy struct probe_params code to python.probe/ipc.py.
     if modify struct probe_params, please sync change to the class ProbeParams in ipc.py
@@ -96,6 +101,9 @@ struct probe_params {
     char svg_dir[PATH_LEN];
     char flame_dir[PATH_LEN];
     unsigned int cadvisor_port;         // the port which cadvisor start.
+    unsigned int profiling_chan;        // the output channel for profiling probes, include stackprobe and tprofiling.
+    unsigned int min_exec_dur;  // unit: microsecond(us)
+    unsigned int min_aggr_dur;  // unit: millisecond(ms)
 };
 
 

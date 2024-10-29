@@ -31,68 +31,67 @@ char g_license[] SEC("license") = "GPL";
 
 SET_TP_SYSCALL_PARAMS(sendto)
 {
+    sce->nr = SYSCALL_SENDTO_ID;
     sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(sendto)
 {
-    scm->nr = SYSCALL_SENDTO_ID;
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
 SET_TP_SYSCALL_PARAMS(recvfrom)
 {
+    sce->nr = SYSCALL_RECVFROM_ID;
     sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(recvfrom)
 {
-    scm->nr = SYSCALL_RECVFROM_ID;
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
 SET_TP_SYSCALL_PARAMS(sendmsg)
 {
+    sce->nr = SYSCALL_SENDMSG_ID;
     sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(sendmsg)
 {
-    scm->nr = SYSCALL_SENDMSG_ID;
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
 SET_TP_SYSCALL_PARAMS(recvmsg)
 {
+    sce->nr = SYSCALL_RECVMSG_ID;
     sce->ext_info.fd_info.fd = ctx->fd;
-
 }
 
 SET_SYSCALL_META(recvmsg)
 {
-    scm->nr = SYSCALL_RECVMSG_ID;
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
 SET_TP_SYSCALL_PARAMS(sendmmsg)
 {
+    sce->nr = SYSCALL_SENDMMSG_ID;
     sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(sendmmsg)
 {
-    scm->nr = SYSCALL_SENDMMSG_ID;
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 
 SET_TP_SYSCALL_PARAMS(recvmmsg)
 {
+    sce->nr = SYSCALL_RECVMMSG_ID;
     sce->ext_info.fd_info.fd = ctx->fd;
 }
 
 SET_SYSCALL_META(recvmmsg)
 {
-    scm->nr = SYSCALL_RECVMMSG_ID;
     scm->flag = SYSCALL_FLAG_FD_STACK;
 }
 

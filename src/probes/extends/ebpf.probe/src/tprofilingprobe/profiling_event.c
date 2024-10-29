@@ -13,8 +13,10 @@
  * Description: handling thread profiling event
  ******************************************************************************/
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 #include <utlist.h>
+#include <dirent.h>
 #include <sys/stat.h>
 #include <linux/futex.h>
 
@@ -29,21 +31,59 @@
 #include "bpf.h"
 #include "event.h"
 #include "strbuf.h"
+#include "args.h"
 #include "kern_symb.h"
 #include "proc_info.h"
+#include "trace_viewer_fmt.h"
+#include "mem_usage.h"
 #include "profiling_event.h"
+#include "topk_heap.h"
+#include "container.h"
 
 #define LEN_OF_RESOURCE 1024
 #define LEN_OF_ATTRS    (8192 - LEN_OF_RESOURCE)
 
+#define FUNC_NAME_LEN 64
+#define MAX_FUNC_NAME_LEN (2 * FUNC_NAME_LEN)
+
+#define MAX_STACK_STR_LEN ((PERF_MAX_STACK_DEPTH + MAX_PYTHON_STACK_DEPTH_MAX) * MAX_FUNC_NAME_LEN)
+
+typedef int (*func_set_evt_fmt)(struct trace_event_fmt_s *, struct local_store_s *, event_elem_t *);
+
 static int get_sys_boot_time(__u64 *boot_time);
 static __u64 get_unix_time_from_uptime(__u64 uptime);
 
+void output_mem_glibc_event(trace_event_data_t *evt_data);
 static void set_syscall_name(unsigned long nr, char *name);
 static int set_evt_attrs_batch(thrd_info_t *thrd_info, char *evt_attrs, int attrs_size);
 static int filter_by_thread_bl(trace_event_data_t *evt_data);
 static void cache_thrd_event(thrd_info_t **thrd_info_ptr, trace_event_data_t *evt_data);
 static void try_report_thrd_events(thrd_info_t *thrd_info);
+void report_thrd_events_local(thrd_info_t *thrd_info);
+static int get_symb_stack_user(char *symbs_str, int symb_size, int uid, proc_info_t *proc_info);
+static int get_symb_stack_py(char *symbs_str, int symb_size, u64 pyid);
+static int get_symb_stack(char *symbs_str, int symb_size, stack_trace_t *stack, proc_info_t *proc_info);
+
+static char *g_pthrd_name_tbl[PTHREAD_MAX_ID] = {
+    NULL,
+    PTHREAD_MUTEX_LOCK_NAME,
+    PTHREAD_MUTEX_TIMEDLOCK_NAME,
+    PTHREAD_MUTEX_TRYLOCK_NAME,
+    PTHREAD_RWLOCK_RDLOCK_NAME,
+    PTHREAD_RWLOCK_WRLOCK_NAME,
+    PTHREAD_RWLOCK_TIMEDRDLOCK_NAME,
+    PTHREAD_RWLOCK_TIMEDWRLOCK_NAME,
+    PTHREAD_RWLOCK_TRYRDLOCK_NAME,
+    PTHREAD_RWLOCK_TRYWRLOCK_NAME,
+    PTHREAD_SPIN_LOCK_NAME,
+    PTHREAD_SPIN_TRYLOCK_NAME,
+    PTHREAD_TIMEDJOIN_NP_NAME,
+    PTHREAD_TRYJOIN_NP_NAME,
+    PTHREAD_YIELD_NAME,
+    SEM_TIMEDWAIT_NAME,
+    SEM_TRYWAIT_NAME,
+    SEM_WAIT_NAME
+};
 
 int init_sys_boot_time(__u64 *sysBootTime)
 {
@@ -58,6 +98,11 @@ static __u64 get_unix_time_from_uptime(__u64 uptime)
 void output_profiling_event(trace_event_data_t *evt_data)
 {
     thrd_info_t *ti = NULL;
+
+    if (evt_data->type == EVT_TYPE_MEM_GLIBC) {
+        output_mem_glibc_event(evt_data);
+        return;
+    }
 
     if (filter_by_thread_bl(evt_data)) {
         return;
@@ -155,6 +200,12 @@ static void set_cached_event_data(event_elem_t *cached_evt, trace_event_data_t *
         memcpy(&cached_evt_data->syscall_d, &evt_data->syscall_d, sizeof(syscall_data_t));
     } else if (evt_data->type == EVT_TYPE_ONCPU) {
         memcpy(&cached_evt_data->oncpu_d, &evt_data->oncpu_d, sizeof(oncpu_data_t));
+    } else if (evt_data->type == EVT_TYPE_PYGC) {
+        memcpy(&cached_evt_data->pygc_d, &evt_data->pygc_d, sizeof(pygc_data_t));
+    } else if (evt_data->type == EVT_TYPE_PTHREAD) {
+        memcpy(&cached_evt_data->pthrd_d, &evt_data->pthrd_d, sizeof(pthrd_data_t));
+    } else if (evt_data->type == EVT_TYPE_ONCPU_PERF) {
+        memcpy(&cached_evt_data->sample_d, &evt_data->sample_d, sizeof(oncpu_sample_data_t));
     }
 }
 
@@ -219,9 +270,16 @@ static void report_thrd_events(thrd_info_t *thrd_info)
     }
 }
 
+#define LOCAL_REPORT_PERIOD 5
+
 static inline bool can_report(time_t now, time_t last)
 {
-    if (now < last + tprofiler.report_period) {
+    int report_period = tprofiler.report_period;
+
+    if (tprofiler.output_chan == PROFILING_CHAN_LOCAL) {
+        report_period = LOCAL_REPORT_PERIOD;
+    }
+    if (now < last + report_period) {
         return false;
     }
     return true;
@@ -244,34 +302,75 @@ static void try_report_thrd_events(thrd_info_t *thrd_info)
         return;
     }
 
-    report_thrd_events(thrd_info);
+    if (tprofiler.output_chan == PROFILING_CHAN_LOCAL) {
+        report_thrd_events_local(thrd_info);
+    } else if (tprofiler.output_chan == PROFILING_CHAN_KAFKA) {
+        report_thrd_events(thrd_info);
+    } else {
+        return;
+    }
 
     thrd_info->last_report_time = now;
 }
 
 int get_addr_stack(__u64 *addr_stack, int uid)
 {
-    if (tprofiler.stackMapFd <= 0) {
-        TP_ERROR("Can not get stack map fd: %d.\n", tprofiler.stackMapFd);
+    int stackMapFd = get_current_stack_map();
+
+    if (stackMapFd <= 0) {
+        TP_ERROR("Can not get stack map fd: %d.\n", stackMapFd);
         return -1;
     }
 
     if (uid <= 0) {
         return -1;
     }
-    if (bpf_map_lookup_elem(tprofiler.stackMapFd, &uid, addr_stack) != 0) {
+    if (bpf_map_lookup_elem(stackMapFd, &uid, addr_stack) != 0) {
         return -1;
     }
 
     return 0;
 }
 
-static void stack_transfer_addrs2symbs(__u64 *addrs, int addr_num,
+static void get_user_symb_name(char symb_name[], int size, struct addr_symb_s *symb)
+{
+    symb_name[0] = '\0';
+    if (symb != NULL) {
+        if (symb->sym != NULL) {
+            // it is allowed that symbol name may be truncated
+            (void)snprintf(symb_name, size, "%s", symb->sym);
+            return;
+        }
+    }
+    // default
+    (void)snprintf(symb_name, size, DFT_STACK_SYMB_NAME);
+    return;
+}
+
+static void get_user_symb_ext(char symb_ext[], int size, struct addr_symb_s *symb)
+{
+    char *mod_basename = NULL;
+
+    symb_ext[0] = '\0';
+    if (symb->mod != NULL && symb->relat_addr > 0) {
+        mod_basename = strrchr(symb->mod, '/');
+        if (mod_basename == NULL) {
+            mod_basename = symb->mod;
+        } else {
+            mod_basename++;
+        }
+        (void)snprintf(symb_ext, size, "(%s:0x%llx)", mod_basename, symb->relat_addr);
+    }
+    return;
+}
+
+static int stack_transfer_addrs2symbs(__u64 *addrs, int addr_num,
                                       char *symbs_str, int symb_size, proc_info_t *proc_info)
 {
     struct proc_symbs_s *symbs;
     struct addr_symb_s symb = {0};
-    char *symb_name;
+    char symb_name[MAX_FUNC_NAME_LEN];
+    char symb_ext[MAX_FUNC_NAME_LEN];
     int i;
     strbuf_t symbs_buf = {
         .buf = symbs_str,
@@ -288,55 +387,73 @@ static void stack_transfer_addrs2symbs(__u64 *addrs, int addr_num,
 
         memset(&symb, 0, sizeof(symb));
         ret = proc_search_addr_symb(symbs, addrs[i], &symb, proc_info->comm);
+        symb_name[0] = 0;
+        symb_ext[0] = 0;
         if (ret) {
-            symb_name = "[unknown]";
+            get_user_symb_name(symb_name, sizeof(symb_name), NULL);
         } else {
-            symb_name = symb.sym ?: symb.mod;
+            get_user_symb_name(symb_name, sizeof(symb_name), &symb);
+            get_user_symb_ext(symb_ext, sizeof(symb_ext), &symb);
         }
-        ret = snprintf(symbs_buf.buf, symbs_buf.size , "%s[u];", symb_name);
+
+        ret = snprintf(symbs_buf.buf, symbs_buf.size, "%s[u]%s;", symb_name, symb_ext);
         if (ret < 0 || ret >= symbs_buf.size) {
-            // it is allowed that stack may be truncated
             TP_WARN("Stack buffer not large enough.\n");
-            return;
+            return -1;
         }
         strbuf_update_offset(&symbs_buf, ret);
     }
-}
-
-static int get_symb_stack(char *symbs_str, int symb_size, event_elem_t *cached_evt)
-{
-    __u64 ip[PERF_MAX_STACK_DEPTH] = {0};
-
-    proc_info_t *pi;
-    struct proc_symbs_s *symbs;
-    int uid;
-
-    uid = EVT_DATA_SC(cached_evt)->stats.stats_stack.stacks[0].stack.uid;
-    if (get_addr_stack(ip, uid)) {
-        return -1;
-    }
-
-    pi = cached_evt->thrd_info->proc_info;
-    if (pi == NULL) {
-        return -1;
-    }
-
-    // cache process symbol table if not
-    symbs = get_symb_info(pi);
-    if (symbs == NULL) {
-        return -1;
-    }
-
-    stack_transfer_addrs2symbs(ip, PERF_MAX_STACK_DEPTH, symbs_str, symb_size, pi);
 
     return 0;
 }
 
-static int get_py_symb_stack(char *symbs_str, int symb_size, event_elem_t *cached_evt)
+static struct stats_stack_elem *get_stack_elem(event_elem_t *evt)
 {
+    trace_event_type_t typ = EVT_DATA_TYPE(evt);
+    struct stats_stack_elem *elem = NULL;
+
+    if (typ == EVT_TYPE_SYSCALL) {
+        elem = &(EVT_DATA_SC(evt)->stats.stats_stack);
+    } else if (typ == EVT_TYPE_PYGC) {
+        elem = &(EVT_DATA_PYGC(evt)->stats_stack);
+    } else if (typ == EVT_TYPE_PTHREAD) {
+        elem = &(EVT_DATA_PTHRD(evt)->stats_stack);
+    } else if (typ == EVT_TYPE_ONCPU_PERF) {
+        elem = &(EVT_DATA_CPU_SAMPLE(evt)->stats_stack);
+    }
+
+    return elem;
+} 
+
+static int get_symb_stack_user(char *symbs_str, int symb_size, int uid, proc_info_t *proc_info)
+{
+    __u64 ip[PERF_MAX_STACK_DEPTH] = {0};
+    struct proc_symbs_s *symbs;
+    int ret;
+
+    if (get_addr_stack(ip, uid)) {
+        return -1;
+    }
+
+    // cache process symbol table if not
+    symbs = get_symb_info(proc_info);
+    if (symbs == NULL) {
+        return -1;
+    }
+
+    ret = stack_transfer_addrs2symbs(ip, PERF_MAX_STACK_DEPTH, symbs_str, symb_size, proc_info);
+    if (ret) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int get_symb_stack_py(char *symbs_str, int symb_size, u64 pyid)
+{
+    int pyStackMapFd = get_current_py_stack_map();
     struct py_stack py_stack;
     struct py_symbol sym;
-    __u64 pyid;
     int i;
     int ret;
 
@@ -345,14 +462,13 @@ static int get_py_symb_stack(char *symbs_str, int symb_size, event_elem_t *cache
         .size = symb_size
     };
 
-    pyid = EVT_DATA_SC(cached_evt)->stats.stats_stack.stacks[0].stack.pyid;
     if (pyid == 0){
         return 0;
     }
-    if (bpf_map_lookup_elem(tprofiler.pyStackMapFd, &pyid, &py_stack) != 0) {
+    if (bpf_map_lookup_elem(pyStackMapFd, &pyid, &py_stack) != 0) {
         return -1;
     }
-    bpf_map_delete_elem(tprofiler.pyStackMapFd, &pyid);
+    bpf_map_delete_elem(pyStackMapFd, &pyid);
 
     for (i = py_stack.stack_len - 1; i >= 0; i--) {
         if (bpf_map_lookup_elem(tprofiler.pySymbMapFd, &py_stack.stack[i & (MAX_PYTHON_STACK_DEPTH_MAX - 1)], &sym) == 0) {
@@ -363,7 +479,7 @@ static int get_py_symb_stack(char *symbs_str, int symb_size, event_elem_t *cache
             }
         } else {
             char *symb_name;
-            symb_name = "[unknown]";
+            symb_name = DFT_STACK_SYMB_NAME;
             ret = snprintf(symbs_buf.buf, symbs_buf.size , "%s[p];", symb_name);
         }
 
@@ -380,18 +496,44 @@ static int get_py_symb_stack(char *symbs_str, int symb_size, event_elem_t *cache
 
 }
 
-#define FUNC_NAME_LEN 64
+static int get_symb_stack(char *symbs_str, int symb_size, stack_trace_t *stack, proc_info_t *proc_info)
+{
+    int ret;
+
+    symbs_str[0] = 0;
+    ret = get_symb_stack_py(symbs_str, symb_size, stack->pyid);
+    if (ret){
+        TP_DEBUG("Failed to get python symbol stack\n");
+        return -1;
+    }
+
+    int len = strlen(symbs_str);
+    ret = get_symb_stack_user(symbs_str + len, symb_size - len, stack->uid, proc_info);
+    if (ret) {
+        TP_DEBUG("Failed to get user symbol stack\n");
+        return -1;
+    }
+
+    return 0;
+}
 
 static int append_stack_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
 {
     int ret;
-    char symbs_str[PERF_MAX_STACK_DEPTH * FUNC_NAME_LEN] = {0};
+    char symbs_str[PERF_MAX_STACK_DEPTH * FUNC_NAME_LEN];
+    struct stats_stack_elem *stack_elem;
 
-    ret = get_py_symb_stack(symbs_str, sizeof(symbs_str), cached_evt);
-    if (ret){
+    stack_elem = get_stack_elem(cached_evt);
+    if (!stack_elem) {
         return -1;
     }
-    ret = get_symb_stack(symbs_str + strlen(symbs_str), sizeof(symbs_str) - strlen(symbs_str), cached_evt);
+
+    proc_info_t *pi = cached_evt->thrd_info->proc_info;
+    if (pi == NULL) {
+        return -1;
+    }
+
+    ret = get_symb_stack(symbs_str, sizeof(symbs_str), &stack_elem->stack, pi);
     if (ret) {
         return -1;
     }
@@ -404,14 +546,13 @@ static int append_stack_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
     return 0;
 }
 
-static int append_regular_file_attrs(strbuf_t *attrs_buf, fd_info_t *fd_info, struct stats_fd_elem *fd_elem, bool first_flag)
+// example: {}
+static int append_empty_attr(strbuf_t *attrs_buf, bool first_flag)
 {
     int ret;
     char *comma = first_flag ? "" : ",";
 
-    ret = snprintf(attrs_buf->buf, attrs_buf->size,
-                   "%s{\"file.path\":\"%s\",\"duration\":%.3lf}",
-                   comma, fd_info->reg_info.name, (double)fd_elem->duration / NSEC_PER_MSEC);
+    ret = snprintf(attrs_buf->buf, attrs_buf->size, "%s{}", comma);
     if (ret < 0 || ret >= attrs_buf->size) {
         return -ERR_TP_NO_BUFF;
     }
@@ -420,7 +561,24 @@ static int append_regular_file_attrs(strbuf_t *attrs_buf, fd_info_t *fd_info, st
     return 0;
 }
 
-static int append_sock_attrs(strbuf_t *attrs_buf, fd_info_t *fd_info, struct stats_fd_elem *fd_elem, bool first_flag)
+// example: {"file.path":"/path/to/xxx"}
+static int append_regular_file_attr(strbuf_t *attrs_buf, fd_info_t *fd_info, struct stats_fd_elem *fd_elem, bool first_flag)
+{
+    int ret;
+    char *comma = first_flag ? "" : ",";
+
+    ret = snprintf(attrs_buf->buf, attrs_buf->size, "%s{\"file.path\":\"%s\"}",
+                   comma, fd_info->reg_info.name);
+    if (ret < 0 || ret >= attrs_buf->size) {
+        return -ERR_TP_NO_BUFF;
+    }
+    strbuf_update_offset(attrs_buf, ret);
+
+    return 0;
+}
+
+// example: {"sock.conn": ""}
+static int append_sock_attr(strbuf_t *attrs_buf, fd_info_t *fd_info, struct stats_fd_elem *fd_elem, bool first_flag)
 {
     int ret;
     sock_info_t *si = &fd_info->sock_info;
@@ -429,28 +587,26 @@ static int append_sock_attrs(strbuf_t *attrs_buf, fd_info_t *fd_info, struct sta
     switch (si->type) {
         case SOCK_TYPE_IPV4:
         case SOCK_TYPE_IPV6:
-            ret = snprintf(attrs_buf->buf, attrs_buf->size,
-                           "%s{\"sock.conn\":\"%s\",\"duration\": %.3lf}",
-                           comma, si->ip_info.conn, (double)fd_elem->duration / NSEC_PER_MSEC);
+            ret = snprintf(attrs_buf->buf, attrs_buf->size, "%s{\"sock.conn\":\"%s\"}",
+                           comma, si->ip_info.conn);
             if (ret < 0 || ret >= attrs_buf->size) {
                 return -ERR_TP_NO_BUFF;
             }
             strbuf_update_offset(attrs_buf, ret);
             break;
         default:
-            return -1;
+            return append_empty_attr(attrs_buf, first_flag);
     }
     return 0;
 }
 
-static int append_inode_attrs(strbuf_t *attrs_buf, struct stats_fd_elem *fd_elem, bool first_flag)
+// example: {"file.inode": 1}
+static int append_inode_attr(strbuf_t *attrs_buf, struct stats_fd_elem *fd_elem, bool first_flag)
 {
     int ret;
     char *comma = first_flag ? "" : ",";
 
-    ret = snprintf(attrs_buf->buf, attrs_buf->size,
-                   "%s{\"file.inode\":%lu,\"duration\":%.3lf}",
-                   comma, fd_elem->ino, (double)fd_elem->duration / NSEC_PER_MSEC);
+    ret = snprintf(attrs_buf->buf, attrs_buf->size, "%s{\"file.inode\":%lu}", comma, fd_elem->ino);
     if (ret < 0 || ret >= attrs_buf->size) {
         return -ERR_TP_NO_BUFF;
     }
@@ -459,39 +615,54 @@ static int append_inode_attrs(strbuf_t *attrs_buf, struct stats_fd_elem *fd_elem
     return 0;
 }
 
-static int append_fd_attr(strbuf_t *attrs_buf, proc_info_t *proc_info, struct stats_fd_elem *fd_elem, bool first_flag)
+/*
+ * 如果 inode 号未初始化，则只通过 fd 来获取文件或网络的属性信息；否则，以 inode 号为准
+ */
+static int append_fd_attr(strbuf_t *attrs_buf, proc_info_t *proc_info, struct stats_fd_elem *fd_elem,
+    bool first_flag)
 {
     fd_info_t *fi;
 
     fi = get_fd_info(proc_info, fd_elem->fd);
     if (fi == NULL) {
-        return append_inode_attrs(attrs_buf, fd_elem, first_flag);
+        if (fd_elem->ino != 0) {
+            return append_inode_attr(attrs_buf, fd_elem, first_flag);
+        } else {
+            return append_empty_attr(attrs_buf, first_flag);
+        }
     }
-    if (fi->ino != fd_elem->ino) {
-        delete_fd_info(proc_info, fi);
-        return append_inode_attrs(attrs_buf, fd_elem, first_flag);
+    if (fd_elem->ino != 0 && fi->ino != fd_elem->ino) {
+        delete_fd_info(proc_info, fi);  // 缓存的 fd 信息失效
+        return append_inode_attr(attrs_buf, fd_elem, first_flag);
     }
 
     switch (fi->type) {
         case FD_TYPE_REG:
-            return append_regular_file_attrs(attrs_buf, fi, fd_elem, first_flag);
+            return append_regular_file_attr(attrs_buf, fi, fd_elem, first_flag);
         case FD_TYPE_SOCK:
-            return append_sock_attrs(attrs_buf, fi, fd_elem, first_flag);
+            return append_sock_attr(attrs_buf, fi, fd_elem, first_flag);
         default:
-            return append_inode_attrs(attrs_buf, fd_elem, first_flag);
+            if (fd_elem->ino != 0) {
+                return append_inode_attr(attrs_buf, fd_elem, first_flag);
+            } else {
+                return append_empty_attr(attrs_buf, first_flag);
+            }
     }
 }
 
-// 带fd类事件可能既包含文件操作、也包含网络操作，因此默认选择第一个fd事件的类型。
 static const char *get_fd_evt_type(event_elem_t *cached_evt)
 {
-    const char *dft_type = PROFILE_EVT_TYPE_OTHER;
-    struct stats_fd *stats_fd;
-    int i;
+    const char *dft_type = PROFILE_EVT_TYPE_IO;
+    struct stats_fd_elem *fd_elem;
+    fd_info_t *fi;
 
-    stats_fd = &EVT_DATA_SC(cached_evt)->stats.stats_fd;
-    for (i = 0; i < stats_fd->num && i < STATS_TOP_FD_MAX_NUM; i++) {
-        switch (stats_fd->fds[i].imode & S_IFMT) {
+    fd_elem = &EVT_DATA_SC(cached_evt)->stats.stats_fd;
+    if (fd_elem->fd <= 0) {
+        return dft_type;
+    }
+
+    if (fd_elem->ino > 0) { // 优先使用 imode 来判断 fd 类型
+        switch (fd_elem->imode & S_IFMT) {
             case S_IFDIR:
             case S_IFREG:
                 return PROFILE_EVT_TYPE_FILE;
@@ -501,20 +672,39 @@ static const char *get_fd_evt_type(event_elem_t *cached_evt)
                 return dft_type;
         }
     }
+    if (cached_evt->thrd_info != NULL && cached_evt->thrd_info->proc_info != NULL) {
+        fi = HASH_find_fd_info(cached_evt->thrd_info->proc_info->fd_table, fd_elem->fd);
+        if (fi != NULL) {
+            switch (fi->type) {
+                case FD_TYPE_REG:
+                    return PROFILE_EVT_TYPE_FILE;
+                case FD_TYPE_SOCK:
+                    return PROFILE_EVT_TYPE_NET;
+                default:
+                    return dft_type;
+            }
+        }
+    }
 
     return dft_type;
 }
 
-static int append_fd_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
+/*
+ * 实际上最多只会保存一条 fd 数据
+ * example: ,"io.info":{...}, "event.type": ""
+ */
+static int append_fd_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt, bool *typed)
 {
-    struct stats_fd *stats_fd;
+    struct stats_fd_elem *fd_elem;
     proc_info_t *pi;
-    const char *prefix = ",\"io.top\":[";
-    const char *suffix = "]";
-    bool first_flag = true;
+    const char *prefix = ",\"io.info\":";
     const char *evt_type;
-    int i;
     int ret;
+
+    fd_elem = &EVT_DATA_SC(cached_evt)->stats.stats_fd;
+    if (fd_elem->fd <= 0) {
+        return 0;
+    }
 
     pi = cached_evt->thrd_info->proc_info;
     if (pi == NULL) {
@@ -525,19 +715,9 @@ static int append_fd_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
     if (ret) {
         return -ERR_TP_NO_BUFF;
     }
-
-    stats_fd = &EVT_DATA_SC(cached_evt)->stats.stats_fd;
-    for (i = 0; i < stats_fd->num && i < STATS_TOP_FD_MAX_NUM; i++) {
-        ret = append_fd_attr(attrs_buf, pi, &stats_fd->fds[i], first_flag);
-        if (ret == -ERR_TP_NO_BUFF) {
-            return ret;
-        }
-        first_flag = false;
-    }
-
-    ret = strbuf_append_str_with_check(attrs_buf, suffix, strlen(suffix));
+    ret = append_fd_attr(attrs_buf, pi, fd_elem, true);
     if (ret) {
-        return -ERR_TP_NO_BUFF;
+        return ret;
     }
 
     evt_type = get_fd_evt_type(cached_evt);
@@ -546,6 +726,7 @@ static int append_fd_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
         return -ERR_TP_NO_BUFF;
     }
     strbuf_update_offset(attrs_buf, ret);
+    *typed = true;
 
     return 0;
 }
@@ -587,9 +768,8 @@ static int append_futex_attr(strbuf_t *attrs_buf, struct stats_futex_elem *futex
     const char *futexOp = get_futex_op_name(futex_elem->op);
     char *comma = first_flag ? "" : ",";
 
-    ret = snprintf(attrs_buf->buf, attrs_buf->size,
-                   "%s{\"futex.op\":\"%s\",\"duration\":%.3lf}",
-                   comma, futexOp, (double)futex_elem->duration / NSEC_PER_MSEC);
+    ret = snprintf(attrs_buf->buf, attrs_buf->size, "%s{\"futex.op\":\"%s\"}",
+                   comma, futexOp);
     if (ret < 0 || ret >= attrs_buf->size) {
         return -ERR_TP_NO_BUFF;
     }
@@ -598,32 +778,26 @@ static int append_futex_attr(strbuf_t *attrs_buf, struct stats_futex_elem *futex
     return 0;
 }
 
-static int append_futex_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
+// example: ,"futex.info":{...}, "event.type": ""
+static int append_futex_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt, bool *typed)
 {
-    struct stats_futex *stats_futex;
-    const char *prefix = ",\"futex.top\":[";
-    const char *suffix = "]";
-    bool first_flag = true;
-    int i;
+    struct stats_futex_elem *futex_elem;
+    const char *prefix = ",\"futex.info\":";
     int ret;
+
+    futex_elem = &EVT_DATA_SC(cached_evt)->stats.stats_futex;
+    if (futex_elem->op < 0) {
+        return 0;
+    }
 
     ret = strbuf_append_str_with_check(attrs_buf, prefix, strlen(prefix));
     if (ret) {
         return -ERR_TP_NO_BUFF;
     }
 
-    stats_futex = &EVT_DATA_SC(cached_evt)->stats.stats_futex;
-    for (i = 0; i < stats_futex->num && i < STATS_TOP_FD_MAX_NUM; i++) {
-        ret = append_futex_attr(attrs_buf, &stats_futex->ops[i], first_flag);
-        if (ret == -ERR_TP_NO_BUFF) {
-            return ret;
-        }
-        first_flag = false;
-    }
-
-    ret = strbuf_append_str_with_check(attrs_buf, suffix, strlen(suffix));
+    ret = append_futex_attr(attrs_buf, futex_elem, true);
     if (ret) {
-        return -ERR_TP_NO_BUFF;
+        return ret;
     }
 
     ret = snprintf(attrs_buf->buf, attrs_buf->size, ",\"event.type\": \"%s\"", PROFILE_EVT_TYPE_LOCK);
@@ -631,6 +805,7 @@ static int append_futex_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
         return -ERR_TP_NO_BUFF;
     }
     strbuf_update_offset(attrs_buf, ret);
+    *typed = true;
 
     return 0;
 }
@@ -649,6 +824,8 @@ static int append_untyped_attrs(strbuf_t *attrs_buf, syscall_meta_t *scm)
 
     return 0;
 }
+
+// output example: ,"io.info":{...}, "event.type": "read"
 static int append_syscall_attrs_by_nr(strbuf_t *attrs_buf, event_elem_t *cached_evt)
 {
     syscall_meta_t *scm;
@@ -661,26 +838,26 @@ static int append_syscall_attrs_by_nr(strbuf_t *attrs_buf, event_elem_t *cached_
         return -1;
     }
     if (scm->flag & SYSCALL_FLAG_FD) {
-        ret = append_fd_attrs(attrs_buf, cached_evt);
+        ret = append_fd_attrs(attrs_buf, cached_evt, &typed);
         if (ret) {
             return ret;
         }
-        typed = true;
     }
 
     if (nr == SYSCALL_FUTEX_ID) {
-        ret = append_futex_attrs(attrs_buf, cached_evt);
+        ret = append_futex_attrs(attrs_buf, cached_evt, &typed);
         if (ret) {
             return ret;
         }
-        typed = true;
     }
-    if (scm->flag & SYSCALL_FLAG_STACK) {
-        // 获取函数调用栈
-        // TODO: 换成使用火焰图结构存储调用栈信息
-        ret = append_stack_attrs(attrs_buf, cached_evt);
-        if (ret) {
-            return ret;
+
+    if (tprofiler.output_chan == PROFILING_CHAN_KAFKA) {
+        if (scm->flag & SYSCALL_FLAG_STACK) {
+            // 获取函数调用栈
+            ret = append_stack_attrs(attrs_buf, cached_evt);
+            if (ret) {
+                return ret;
+            }
         }
     }
 
@@ -926,3 +1103,1004 @@ static int filter_by_thread_bl(trace_event_data_t *evt_data)
 
     return 0;
 }
+
+int local_write_process_name_meta_event(struct local_store_s *local_storage, u32 pid, const char *comm)
+{
+    struct trace_event_fmt_s evt_fmt = {0};
+    int ret;
+
+    evt_fmt.pid = pid;
+    evt_fmt.phase = EVENT_PHASE_META;
+    (void)snprintf(evt_fmt.name, sizeof(evt_fmt.name), "%s", EVENT_META_PROC_NAME);
+    (void)snprintf(evt_fmt.args, sizeof(evt_fmt.args), "\"%s\": \"%s\"", EVENT_META_ARG_PROC_NAME, comm);
+
+    ret = trace_event_fmt_to_json_str(&evt_fmt, local_storage->buf, sizeof(local_storage->buf));
+    if (ret) {
+        return ret;
+    }
+
+    return trace_file_fill_event_from_buffer(local_storage);
+}
+
+void set_oncpu_event_args(struct trace_event_fmt_s *evt_fmt, event_elem_t *evt)
+{
+    oncpu_data_t *oncpu_d = EVT_DATA_CPU(evt);
+    thrd_info_t *thrd_info = evt->thrd_info;
+    int ret;
+
+    ret = snprintf(evt_fmt->args, sizeof(evt_fmt->args),
+        "\"count\": %d, \"event.type\": \"%s\", \"thread.name\": \"%s\"",
+        oncpu_d->count, PROFILE_EVT_TYPE_ONCPU, thrd_info->comm);
+    if (ret < 0 || ret >= sizeof(evt_fmt->args)) {
+        TP_WARN("Failed to set args of oncpu event: no enough buffer\n");
+        evt_fmt->args[0] = 0;
+    }
+}
+
+int local_write_oncpu_event(struct local_store_s *local_storage, event_elem_t *evt)
+{
+    struct trace_event_fmt_s evt_fmt = {0};
+    thrd_info_t *thrd_info = evt->thrd_info;
+    proc_info_t *proc_info = thrd_info->proc_info;
+    oncpu_data_t *oncpu_d = EVT_DATA_CPU(evt);
+    __u64 start_time, end_time;
+    int ret;
+
+    start_time = get_unix_time_from_uptime(oncpu_d->start_time);
+    end_time = get_unix_time_from_uptime(oncpu_d->start_time + oncpu_d->duration);
+
+    evt_fmt.pid = proc_info->tgid;
+    evt_fmt.tid = thrd_info->pid;
+    evt_fmt.id = gen_async_event_id();
+    // TODO: oncpu事件包含公共信息，可作为一个模版进行优化
+    (void)snprintf(evt_fmt.category, sizeof(evt_fmt.category), EVENT_CATEGORY_ONCPU);
+    (void)snprintf(evt_fmt.name, sizeof(evt_fmt.name), PROFILE_EVT_TYPE_ONCPU);
+    (void)snprintf(evt_fmt.cname, sizeof(evt_fmt.cname), EVENT_CNAME_OF_ONCPU);
+
+    // set async begin event
+    evt_fmt.phase = EVENT_PHASE_ASYNC_START;
+    evt_fmt.ts = start_time;
+    ret = trace_event_fmt_to_json_str(&evt_fmt, local_storage->buf, sizeof(local_storage->buf));
+    if (ret) {
+        return ret;
+    }
+
+    ret = trace_file_fill_event_from_buffer(local_storage);
+    if (ret < 0) {
+        return -1;
+    }
+
+    // set async end event
+    set_oncpu_event_args(&evt_fmt, evt);
+    evt_fmt.phase = EVENT_PHASE_ASYNC_END;
+    evt_fmt.ts = end_time;
+    ret = trace_event_fmt_to_json_str(&evt_fmt, local_storage->buf, sizeof(local_storage->buf));
+    if (ret) {
+        return ret;
+    }
+
+    return trace_file_fill_event_from_buffer(local_storage);
+}
+
+int set_stack_sf(struct trace_event_fmt_s *evt_fmt, event_elem_t *evt, struct local_store_s *local_storage)
+{
+    char symbs_str[MAX_STACK_STR_LEN];
+    struct stats_stack_elem *stack_elem;
+    int ret;
+
+    stack_elem = get_stack_elem(evt);
+    if (!stack_elem) {
+        return -1;
+    }
+
+    proc_info_t *pi = evt->thrd_info->proc_info;
+    if (pi == NULL) {
+        return -1;
+    }
+
+    ret = get_symb_stack(symbs_str, sizeof(symbs_str), &stack_elem->stack, pi);
+    if (ret){
+        return -1;
+    }
+
+    struct stack_node_s *leaf = stack_tree_add_stack(local_storage->stack_root, symbs_str, true);
+    evt_fmt->sf = leaf == NULL ? 0 : leaf->id;
+    return 0;
+}
+
+void set_syscall_event_args(struct trace_event_fmt_s *evt_fmt, event_elem_t *evt)
+{
+    syscall_data_t *syscall_d = EVT_DATA_SC(evt);
+    thrd_info_t *thrd_info = evt->thrd_info;
+    strbuf_t strbuf = {
+        .buf = evt_fmt->args,
+        .size = sizeof(evt_fmt->args)
+    };
+    int ret;
+
+    ret = snprintf(strbuf.buf, strbuf.size, "\"count\": %d, \"thread.name\": \"%s\"",
+        syscall_d->count, thrd_info->comm);
+    if (ret < 0 || ret >= strbuf.size) {
+        TP_DEBUG("Failed to set args of syscall event: no enough buffer\n");
+        evt_fmt->args[0] = 0;
+        return;
+    }
+    strbuf_update_offset(&strbuf, ret);
+    ret = append_syscall_attrs_by_nr(&strbuf, evt);
+    if (ret) {
+        TP_DEBUG("Failed to set args of syscall event: ret=%d\n", ret);
+        evt_fmt->args[0] = 0;
+        return;
+    }
+}
+
+int set_syscall_evt_fmt(struct trace_event_fmt_s *evt_fmt, struct local_store_s *local_storage, event_elem_t *evt)
+{
+    syscall_data_t *syscall_d = EVT_DATA_SC(evt);
+    syscall_meta_t *scm;
+
+    evt_fmt->phase = EVENT_PHASE_COMPLETE;
+    evt_fmt->ts = get_unix_time_from_uptime(syscall_d->start_time);
+    evt_fmt->duration = syscall_d->duration;
+    // TODO: add event type to category
+    (void)snprintf(evt_fmt->category, sizeof(evt_fmt->category), EVENT_CATEGORY_SYSCALL);
+    set_syscall_name(syscall_d->nr, evt_fmt->name);
+    set_syscall_event_args(evt_fmt, evt);
+
+    scm = get_syscall_meta(syscall_d->nr);
+    if (scm == NULL) {
+        return -1;
+    }
+    if (scm->flag & SYSCALL_FLAG_STACK) {
+       (void)set_stack_sf(evt_fmt, evt, local_storage);
+    }
+
+    return 0;
+}
+
+int set_syscall_stuck_evt_fmt(struct trace_event_fmt_s *evt_fmt, struct local_store_s *local_storage, event_elem_t *evt);
+
+void set_pthrd_event_args(struct trace_event_fmt_s *evt_fmt, event_elem_t *evt)
+{
+    pthrd_data_t *pthrd_d = EVT_DATA_PTHRD(evt);
+    thrd_info_t *thrd_info = evt->thrd_info;
+    int ret;
+
+    ret = snprintf(evt_fmt->args, sizeof(evt_fmt->args),
+        "\"count\": %d, \"thread.name\": \"%s\"",
+        pthrd_d->count, thrd_info->comm);
+    if (ret < 0 || ret >= sizeof(evt_fmt->args)) {
+        TP_DEBUG("Failed to set args of pygc event: no enough buffer\n");
+        evt_fmt->args[0] = 0;
+    }
+}
+
+static void set_pthrd_event_name(char *name, int size, int id)
+{
+    name[0] = '\0';
+    if (id <= 0 || id >= PTHREAD_MAX_ID) {
+        return;
+    }
+    (void)snprintf(name, size, "%s", g_pthrd_name_tbl[id]);
+}
+
+int set_pthrd_evt_fmt(struct trace_event_fmt_s *evt_fmt, struct local_store_s *local_storage, event_elem_t *evt)
+{
+    pthrd_data_t *pthrd_d = EVT_DATA_PTHRD(evt);
+
+    evt_fmt->phase = EVENT_PHASE_COMPLETE;
+    evt_fmt->ts = get_unix_time_from_uptime(pthrd_d->start_time);
+    evt_fmt->duration = pthrd_d->duration;
+    (void)snprintf(evt_fmt->category, sizeof(evt_fmt->category), EVENT_CATEGORY_PTHRD_SYNC);
+    (void)snprintf(evt_fmt->name, sizeof(evt_fmt->name), PROFILE_EVT_TYPE_PYGC);
+    set_pthrd_event_name(evt_fmt->name, sizeof(evt_fmt->name), pthrd_d->id);
+    set_pthrd_event_args(evt_fmt, evt);
+    (void)set_stack_sf(evt_fmt, evt, local_storage);
+
+    return 0;
+}
+
+void set_pygc_event_args(struct trace_event_fmt_s *evt_fmt, event_elem_t *evt)
+{
+    pygc_data_t *pygc_d = EVT_DATA_PYGC(evt);
+    thrd_info_t *thrd_info = evt->thrd_info;
+    int ret;
+
+    ret = snprintf(evt_fmt->args, sizeof(evt_fmt->args),
+        "\"count\": %d, \"event.type\": \"%s\", \"thread.name\": \"%s\"",
+        pygc_d->count, PROFILE_EVT_TYPE_PYGC, thrd_info->comm);
+    if (ret < 0 || ret >= sizeof(evt_fmt->args)) {
+        TP_WARN("Failed to set args of pygc event: no enough buffer\n");
+        evt_fmt->args[0] = 0;
+    }
+}
+
+int set_pygc_evt_fmt(struct trace_event_fmt_s *evt_fmt, struct local_store_s *local_storage, event_elem_t *evt)
+{
+    pygc_data_t *pygc_d = EVT_DATA_PYGC(evt);
+
+    evt_fmt->phase = EVENT_PHASE_COMPLETE;
+    evt_fmt->ts = get_unix_time_from_uptime(pygc_d->start_time);
+    evt_fmt->duration = pygc_d->duration;
+    (void)snprintf(evt_fmt->category, sizeof(evt_fmt->category), EVENT_CATEGORY_PYGC);
+    (void)snprintf(evt_fmt->name, sizeof(evt_fmt->name), PROFILE_EVT_TYPE_PYGC);
+    set_pygc_event_args(evt_fmt, evt);
+    (void)set_stack_sf(evt_fmt, evt, local_storage);
+
+    return 0;
+}
+
+void set_oncpu_sample_event_args(struct trace_event_fmt_s *evt_fmt, event_elem_t *evt)
+{
+    oncpu_sample_data_t *sample_d = EVT_DATA_CPU_SAMPLE(evt);
+    int ret;
+
+    ret = snprintf(evt_fmt->args, sizeof(evt_fmt->args), "\"cpu\": %u", sample_d->cpu);
+    if (ret < 0 || ret >= sizeof(evt_fmt->args)) {
+        TP_WARN("Failed to set args of oncpu_sample event: no enough buffer\n");
+        evt_fmt->args[0] = 0;
+    }
+}
+
+int set_oncpu_sample_evt_fmt(struct trace_event_fmt_s *evt_fmt, struct local_store_s *local_storage, event_elem_t *evt)
+{
+    oncpu_sample_data_t *sample_d = EVT_DATA_CPU_SAMPLE(evt);
+
+    evt_fmt->phase = EVENT_PHASE_SAMPLE;
+    evt_fmt->ts = get_unix_time_from_uptime(sample_d->time);
+    (void)snprintf(evt_fmt->category, sizeof(evt_fmt->category), EVENT_CATEGORY_SAMPLE);
+    (void)snprintf(evt_fmt->name, sizeof(evt_fmt->name), PROFILE_EVT_TYPE_SAMPLE);
+    set_oncpu_sample_event_args(evt_fmt, evt);
+    (void)set_stack_sf(evt_fmt, evt, local_storage);
+
+    return 0;
+}
+
+int local_write_general_event(struct local_store_s *local_storage, event_elem_t *evt, func_set_evt_fmt callback)
+{
+    struct trace_event_fmt_s evt_fmt = {0};
+    int ret;
+
+    if (evt->thrd_info == NULL || evt->thrd_info->proc_info == NULL) {
+        return -1;
+    }
+
+    evt_fmt.pid = evt->thrd_info->proc_info->tgid;
+    evt_fmt.tid = evt->thrd_info->pid;
+
+    ret = callback(&evt_fmt, local_storage, evt);
+    if (ret < 0) {
+        return -1;
+    }
+
+    ret = trace_event_fmt_to_json_str(&evt_fmt, local_storage->buf, sizeof(local_storage->buf));
+    if (ret) {
+        return ret;
+    }
+
+    return trace_file_fill_event_from_buffer(local_storage);
+}
+
+int local_write_event(struct local_store_s *local_storage, event_elem_t *evt)
+{
+    trace_event_type_t typ = EVT_DATA_TYPE(evt);
+    int ret;
+
+    if (local_storage->is_write == 0) {
+        ret = trace_file_fill_head(local_storage->fp);
+        if (ret) {
+            return -1;
+        }
+        local_storage->is_write = 1;
+    }
+
+    switch (typ) {
+        case EVT_TYPE_ONCPU:
+            return local_write_oncpu_event(local_storage, evt);
+        case EVT_TYPE_SYSCALL:
+            return local_write_general_event(local_storage, evt, set_syscall_evt_fmt);
+        case EVT_TYPE_SYSCALL_STUCK:
+            return local_write_general_event(local_storage, evt, set_syscall_stuck_evt_fmt);
+        case EVT_TYPE_PTHREAD:
+            return local_write_general_event(local_storage, evt, set_pthrd_evt_fmt);
+        case EVT_TYPE_PYGC:
+            return local_write_general_event(local_storage, evt, set_pygc_evt_fmt);
+        case EVT_TYPE_ONCPU_PERF:
+            return local_write_general_event(local_storage, evt, set_oncpu_sample_evt_fmt);
+        default:
+            TP_WARN("Unknown event type %d\n", typ);
+            return -1;
+    }
+}
+
+void report_thrd_events_local(thrd_info_t *thrd_info)
+{
+    event_elem_t *evt = NULL;
+    int ret;
+
+    if (thrd_info->cached_evts == NULL) {
+        return;
+    }
+
+    DL_FOREACH(thrd_info->cached_evts, evt) {
+        ret = local_write_event(&tprofiler.localStorage, evt);
+        if (ret) {
+            TP_WARN("Failed to write event locally\n");
+        }
+    }
+
+    delete_first_k_events(thrd_info, thrd_info->evt_num);
+}
+
+void report_all_cached_thrd_events_local()
+{
+    proc_info_t *pi, *pi_tmp;
+    thrd_info_t *ti, *ti_tmp;
+
+    if (tprofiler.procTable != NULL) {
+        HASH_ITER(hh, tprofiler.procTable, pi, pi_tmp) {
+            if (pi->thrd_table == NULL || *pi->thrd_table == NULL) {
+                continue;
+            }
+            HASH_ITER(hh, *pi->thrd_table, ti, ti_tmp) {
+                report_thrd_events_local(ti);
+            }
+        }
+    }
+}
+
+int report_all_cached_events_local(struct local_store_s *local_storage)
+{
+    int ret;
+
+    if (local_storage->fp == NULL) {
+        return 0;
+    }
+
+    if (local_storage->is_write == 0) {
+        ret = trace_file_fill_head(local_storage->fp);
+        if (ret) {
+            return -1;
+        }
+        local_storage->is_write = 1;
+    }
+
+    report_all_cached_thrd_events_local();
+
+    ret = fprintf(local_storage->fp, "],\n");
+    if (ret < 0) {
+        return -1;
+    }
+
+    ret = trace_file_fill_stack_from_file(local_storage->fp, local_storage->stack_fp);
+    if (ret) {
+        return -1;
+    }
+
+    ret = trace_file_fill_tail(local_storage->fp);
+    if (ret) {
+        return -1;
+    }
+    (void)fflush(local_storage->fp);
+
+    ret = rename(local_storage->trace_path_tmp, local_storage->trace_path);
+    if (ret < 0) {
+        TP_ERROR("Failed to rename trace file %s to %s\n",
+            local_storage->trace_path_tmp, local_storage->trace_path);
+        return -1;
+    }
+    (void)fclose(local_storage->fp);
+    local_storage->fp = NULL;
+
+    // 清理stack临时文件
+    (void)fclose(local_storage->stack_fp);
+    local_storage->stack_fp = NULL;
+    if (remove(local_storage->stack_path_tmp)) {
+        TP_DEBUG("Cannot remove stack tmp file: %s, err=%s\n", local_storage->stack_path_tmp, strerror(errno));
+    }
+
+    return 0;
+}
+
+/* begin: stuck event related */
+
+#define SYSCALL_STUCK_EVT_DESC "The event is not finished"
+
+void set_syscall_stuck_event_args(struct trace_event_fmt_s *evt_fmt, event_elem_t *evt)
+{
+    syscall_data_t *syscall_d = EVT_DATA_SC(evt);
+    thrd_info_t *thrd_info = evt->thrd_info;
+    strbuf_t strbuf = {
+        .buf = evt_fmt->args,
+        .size = sizeof(evt_fmt->args)
+    };
+    u64 start_time;
+    int ret;
+
+    start_time = get_unix_time_from_uptime(syscall_d->start_time);
+    ret = snprintf(strbuf.buf, strbuf.size,
+        "\"desc\": \"%s\", \"thread.name\": \"%s\", \"start_time\": %llu, \"duration\": \"%llu s\"",
+        SYSCALL_STUCK_EVT_DESC, thrd_info->comm, start_time / NSEC_PER_USEC, (evt_fmt->ts - start_time) / NSEC_PER_SEC);
+    if (ret < 0 || ret >= strbuf.size) {
+        TP_DEBUG("Failed to set args of syscall stuck event: no enough buffer\n");
+        evt_fmt->args[0] = 0;
+        return;
+    }
+    strbuf_update_offset(&strbuf, ret);
+
+    ret = append_syscall_attrs_by_nr(&strbuf, evt);
+    if (ret) {
+        TP_DEBUG("Failed to set args of syscall stuck event: ret=%d\n", ret);
+        evt_fmt->args[0] = 0;
+        return;
+    }
+}
+
+int set_syscall_stuck_evt_fmt(struct trace_event_fmt_s *evt_fmt, struct local_store_s *local_storage,
+    event_elem_t *evt)
+{
+    syscall_data_t *syscall_d = EVT_DATA_SC(evt);
+
+    evt_fmt->phase = EVENT_PHASE_INSTANT;
+    evt_fmt->ts = NS(time(NULL));
+    evt_fmt->scope = EVENT_INSTANT_SCOPE_THREAD;
+    (void)snprintf(evt_fmt->category, sizeof(evt_fmt->category), "%s,%s",
+        EVENT_CATEGORY_SYSCALL, EVENT_CATEGORY_STUCK);
+    set_syscall_name(syscall_d->nr, evt_fmt->name);
+    set_syscall_stuck_event_args(evt_fmt, evt);
+
+    return 0;
+}
+
+thrd_info_t *cache_thrd_info(syscall_m_enter_t *sce)
+{
+    proc_info_t *pi;
+    thrd_info_t *ti;
+
+    pi = get_proc_info(&tprofiler.procTable, PTID_GET_PID(sce->ptid));
+    if (pi == NULL) {
+        return NULL;
+    }
+    ti = get_thrd_info(pi, PTID_GET_TID(sce->ptid));
+    if (ti == NULL) {
+        return NULL;
+    }
+
+    return ti;
+}
+
+void parse_syscall_stat_info(stats_syscall_t *sc_stats, syscall_m_enter_t *sce)
+{
+    syscall_meta_t *scm;
+    unsigned long nr = sce->nr;
+
+    scm = get_syscall_meta(nr);
+    if (!scm) {
+        return;
+    }
+    if (nr == SYSCALL_FUTEX_ID) {
+        sc_stats->stats_futex.op = sce->ext_info.futex_info.op;
+    } else if (scm->flag & SYSCALL_FLAG_FD) {
+        sc_stats->stats_fd.fd = sce->ext_info.fd_info.fd;
+    }
+}
+
+event_elem_t *parse_stuck_event_elem(syscall_m_enter_t *sce, thrd_info_t *thrd_info)
+{
+    event_elem_t *stuck_evt;
+    event_data_t *data;
+    syscall_data_t *scd;
+
+    stuck_evt = create_event_elem(sizeof(event_data_t));
+    if (stuck_evt == NULL) {
+        return NULL;
+    }
+    stuck_evt->thrd_info = thrd_info;
+
+    data = EVT_DATA(stuck_evt);
+    data->type = EVT_TYPE_SYSCALL_STUCK;
+
+    scd = &data->syscall_d;
+    scd->nr = sce->nr;
+    scd->start_time = sce->start_time;
+    parse_syscall_stat_info(&scd->stats, sce);
+
+    return stuck_evt;
+}
+
+void do_report_syscall_stuck_event(syscall_m_enter_t *sce)
+{
+    event_elem_t *stuck_evt;
+    thrd_info_t *ti;
+    int ret;
+
+    ti = cache_thrd_info(sce);
+    if (ti == NULL) {
+        TP_DEBUG("Failed to get thread info\n");
+        return;
+    }
+    stuck_evt = parse_stuck_event_elem(sce, ti);
+    if (stuck_evt == NULL) {
+        return;
+    }
+
+    ret = local_write_event(&tprofiler.localStorage, stuck_evt);
+    if (ret) {
+        TP_WARN("Failed to write stuck event locally\n");
+        return;
+    }
+}
+
+void report_syscall_stuck_event(void)
+{
+    int scEnterMapFd = tprofiler.scEnterMapFd;
+    u64 cur_key = 0, next_key = 0;
+    syscall_m_enter_t sce;
+    time_t now = time(NULL);
+    int ret;
+
+    if (scEnterMapFd <= 0) {
+        return;
+    }
+
+    while (bpf_map_get_next_key(scEnterMapFd, &cur_key, &next_key) == 0) {
+        ret = bpf_map_lookup_elem(scEnterMapFd, &next_key, &sce);
+        cur_key = next_key;
+        if (ret != 0) {
+            continue;
+        }
+        /* 超过一定时间阈值，说明该事件所在的线程可能卡死，上报该事件 */
+        if (now < get_unix_time_from_uptime(sce.start_time) / NSEC_PER_SEC + STUCK_EVT_REPORT_THRD) {
+            continue;
+        }
+        do_report_syscall_stuck_event(&sce);
+    }
+}
+
+void report_stuck_event(struct ipc_body_s *ipc_body)
+{
+    time_t now = time(NULL);
+
+    if (tprofiler.stuck_evt_timer + STUCK_EVT_REPORT_DURATION > now) {
+        return;
+    }
+    tprofiler.stuck_evt_timer = now;
+
+    if (is_load_probe_ipc(ipc_body, TPROFILING_PROBE_SYSCALL_ALL)) {
+        report_syscall_stuck_event();
+    }
+}
+
+/* end: stuck event related */
+
+/* start: mem snapshot event related */
+
+void add_alloc_event_to_mem_stack_tree(trace_event_data_t *evt_data, proc_info_t *proc_info)
+{
+    struct mem_alloc_s *mem_alloc;
+    char symbs_str[MAX_STACK_STR_LEN];
+    mem_glibc_data_t *mem_glibc_d = &evt_data->mem_glibc_d;
+    stack_trace_t *stack;
+    int ret;
+
+    mem_alloc = mem_alloc_tbl_find_item(&tprofiler.mem_alloc_tbl, proc_info->tgid, mem_glibc_d->addr, mem_glibc_d->ts);
+    if (mem_alloc != NULL) {
+        if (mem_alloc->symb_addr == NULL) { // 内存释放事件
+            mem_alloc_tbl_delete_item(&tprofiler.mem_alloc_tbl, mem_alloc);
+        }
+        return;
+    }
+
+    stack = &mem_glibc_d->stats_stack.stack;
+    if (stack->uid <= 0) {
+        return;
+    }
+
+    symbs_str[0] = 0;
+    ret = get_symb_stack(symbs_str, sizeof(symbs_str), stack, proc_info);
+    if (ret){
+        TP_WARN("Failed to get symbol stack\n");
+        return;
+    }
+
+    // 1. 加入到进程的内存堆栈树里面
+    struct stack_node_s *leaf = stack_tree_add_stack(proc_info->mem_glibc_tree, symbs_str, false);
+    if (leaf == NULL) {
+        TP_ERROR("Failed to add malloc stack to mem tree\n");
+        return;
+    }
+    leaf->count += mem_glibc_d->size;
+    // 2. 更新进程的内存使用量
+    proc_info->alloc_mem_sz += mem_glibc_d->size;
+    // 3. 保存内存地址到堆栈的映射关系
+    (void)mem_alloc_tbl_add_item(&tprofiler.mem_alloc_tbl, proc_info->tgid, mem_glibc_d->addr, mem_glibc_d->ts,
+        (void *)leaf, mem_glibc_d->size);
+}
+
+void add_free_event_to_mem_stack_tree(trace_event_data_t *evt_data, proc_info_t *proc_info)
+{
+    struct mem_alloc_s *mem_alloc;
+
+    mem_alloc = mem_alloc_tbl_find_item(&tprofiler.mem_alloc_tbl, proc_info->tgid, evt_data->mem_glibc_d.addr, evt_data->mem_glibc_d.ts);
+    if (mem_alloc == NULL) {
+        (void)mem_alloc_tbl_add_item(&tprofiler.mem_alloc_tbl, proc_info->tgid, evt_data->mem_glibc_d.addr, evt_data->mem_glibc_d.ts,
+            NULL, evt_data->mem_glibc_d.size);
+        return;
+    }
+    if (mem_alloc->symb_addr == NULL) { // 不是内存申请事件
+        return;
+    }
+
+    // 1. 更新内存堆栈的大小，更新内存使用量大小
+    struct stack_node_s *leaf = (struct stack_node_s *)mem_alloc->symb_addr;
+    leaf->count -= mem_alloc->size;
+    proc_info->alloc_mem_sz -= mem_alloc->size;
+
+    // 2. 删除内存地址映射
+    mem_alloc_tbl_delete_item(&tprofiler.mem_alloc_tbl, mem_alloc);
+}
+
+void output_mem_glibc_event(trace_event_data_t *evt_data)
+{
+    proc_info_t *pi;
+    mem_glibc_data_t *mem_glibc_d = &evt_data->mem_glibc_d;
+    
+    pi = get_proc_info(&tprofiler.procTable, evt_data->tgid);
+    if (pi == NULL) {
+        return;
+    }
+
+    if (mem_glibc_d->size > 0) {    // 内存申请事件
+        add_alloc_event_to_mem_stack_tree(evt_data, pi);
+    } else if (mem_glibc_d->size < 0) {
+        add_free_event_to_mem_stack_tree(evt_data, pi);
+    }
+}
+
+int local_write_mem_snap_metric_event(proc_info_t *pi, u64 ts)
+{
+    struct local_store_s *local_storage = &tprofiler.localStorage;
+    struct trace_event_fmt_s evt_fmt = {0};
+    int ret;
+
+    evt_fmt.phase = EVENT_PHASE_COUNTER;
+    evt_fmt.pid = pi->tgid;
+    evt_fmt.ts = ts;
+    (void)snprintf(evt_fmt.name, sizeof(evt_fmt.name), "memory::Allocs");
+    (void)snprintf(evt_fmt.category, sizeof(evt_fmt.category), "memory");
+    (void)snprintf(evt_fmt.args, sizeof(evt_fmt.args), "\"current_allocs\": %llu", pi->alloc_mem_sz);
+
+    ret = trace_event_fmt_to_json_str(&evt_fmt, local_storage->buf, sizeof(local_storage->buf));
+    if (ret) {
+        return ret;
+    }
+
+    return trace_file_fill_event_from_buffer(local_storage);
+}
+
+int dfs_mem_stack_tree(heap_mem_elem_t **leafs_p, struct stack_node_s *cur_node)
+{
+    struct stack_node_s *child, *tmp;
+
+    if (cur_node->childs == NULL) {
+        // 叶子节点
+        heap_mem_elem_t *leaf = (heap_mem_elem_t *)calloc(1, sizeof(heap_mem_elem_t));
+        if (leaf == NULL) {
+            return -1;
+        }
+        leaf->leaf = cur_node;
+        LL_APPEND(*leafs_p, leaf);
+        return 0;
+    }
+
+    HASH_ITER(hh, cur_node->childs, child, tmp) {
+        if (dfs_mem_stack_tree(leafs_p, child)) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+int mem_stack_get_all_leafs(heap_mem_elem_t **leafs_p, struct stack_node_s *mem_glibc_tree)
+{
+    struct stack_node_s *child, *tmp;
+
+    HASH_ITER(hh, mem_glibc_tree->childs, child, tmp) {
+        if (dfs_mem_stack_tree(leafs_p, child)) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+void clean_released_stacks(heap_mem_elem_t *leafs)
+{
+    heap_mem_elem_t *leaf;
+
+    LL_FOREACH(leafs, leaf) {
+        if (leaf->leaf->count == 0) {
+            stack_tree_remove_leaf(leaf->leaf);
+            leaf->leaf = NULL;
+        }
+    }
+}
+
+void empty_leafs(heap_mem_elem_t **leafs_p)
+{
+    heap_mem_elem_t *leaf, *tmp;
+
+    LL_FOREACH_SAFE(*leafs_p, leaf, tmp) {
+        LL_DELETE(*leafs_p, leaf);
+    }
+}
+
+int get_proc_mem_snap(proc_info_t *pi, char *buf, int buf_sz)
+{
+    heap_mem_elem_t *leafs = NULL;
+    struct stack_node_s **top_stacks = NULL;
+    int top_num = 0;
+    char symbs_str[MAX_STACK_STR_LEN];
+    char *comma;
+    int ret;
+
+    symbs_str[0] = 0;
+    ret = mem_stack_get_all_leafs(&leafs, pi->mem_glibc_tree);
+    if (ret) {
+        empty_leafs(&leafs);
+        return -1;
+    }
+    clean_released_stacks(leafs);
+    top_stacks = get_topk_mem_stack(leafs, MEM_SNAP_TOP_STACK_NUM, &top_num);
+    if (top_stacks == NULL) {
+        empty_leafs(&leafs);
+        return -1;
+    }
+
+    for (int i = 0; i < top_num; ++i) {
+        comma = (i == 0) ? "" : ",";
+        ret = stack_tree_get_stack_str(top_stacks[i], symbs_str, sizeof(symbs_str));
+        if (ret) {
+            empty_leafs(&leafs);
+            free(top_stacks);
+            return -1;
+        }
+        ret = snprintf(buf, buf_sz, "%s{\"trace\": \"%s\", \"current_allocs\": %llu}", comma, symbs_str, top_stacks[i]->count);
+        if (ret < 0 || ret >= buf_sz) {
+            TP_ERROR("Failed to write proc memory snapshot, ret=%d\n", ret);
+            empty_leafs(&leafs);
+            free(top_stacks);
+            return -1;
+        }
+        buf_sz -= ret;
+        buf += ret;
+    }
+
+    empty_leafs(&leafs);
+    free(top_stacks);
+    return 0;
+}
+
+int local_write_mem_snap_event(proc_info_t *pi, u64 ts)
+{
+    struct local_store_s *local_storage = &tprofiler.localStorage;
+    char mem_snap[MAX_STACK_STR_LEN + 128];
+    int ret;
+
+    mem_snap[0] = 0;
+    ret = get_proc_mem_snap(pi, mem_snap, sizeof(mem_snap));
+    if (ret) {
+        TP_ERROR("Failed to get proc memory snapshot, ret=%d\n", ret);
+        return -1;
+    }
+
+    // 考虑到内存快照事件的 args 字段内容比较大，这里直接写文件，减少通过 trace_event_fmt_to_json_str 的二次内存拷贝开销
+    ret = fprintf(local_storage->fp, ",\n{\"cat\": \"memory\", \"pid\": %u, \"ts\": %llu, "
+        "\"ph\": \"O\", \"name\": \"memory::Heap\", \"id\": \"%u\", \"args\": {\"snapshot\": [%s]}}",
+        pi->tgid, ts / NSEC_PER_USEC, pi->tgid, mem_snap);
+    if  (ret < 0) {
+        TP_ERROR("Failed to write local file, ret=%d\n", ret);
+        return -1;
+    }
+
+    return 0;
+}
+
+int report_proc_mem_snap_event(proc_info_t *pi)
+{
+    struct local_store_s *local_storage = &tprofiler.localStorage;
+    u64 ts = (u64)time(NULL) * NSEC_PER_SEC;
+    int ret;
+
+    if (local_storage->fp == NULL) {
+        return -1;
+    }
+
+    if (local_storage->is_write == 0) {
+        ret = trace_file_fill_head(local_storage->fp);
+        if (ret) {
+            TP_ERROR("Failed to fill trace file head\n");
+            return -1;
+        }
+        local_storage->is_write = 1;
+    }
+
+    ret = local_write_mem_snap_metric_event(pi, ts);
+    if (ret) {
+        TP_ERROR("Failed to write memory snapshot metric event\n");
+        return -1;
+    }
+
+    ret = local_write_mem_snap_event(pi, ts);
+    if (ret) {
+        TP_ERROR("Failed to write memory snapshot event\n");
+        return -1;
+    }
+    return 0;
+}
+
+int report_mem_snap_event(struct ipc_body_s *ipc_body)
+{
+    time_t now = time(NULL);
+
+    if (!is_load_probe_ipc(ipc_body, PROBE_RANGE_TPROFILING_MEM_GLIBC)) {
+        return 0;
+    }
+
+    if (tprofiler.mem_snap_timer + MEM_SNAP_EVT_REPORT_THRD > now) {
+        return 0;
+    }
+    tprofiler.mem_snap_timer = now;
+
+    proc_info_t *pi, *pi_tmp;
+    HASH_ITER(hh, tprofiler.procTable, pi, pi_tmp) {
+        if (report_proc_mem_snap_event(pi)) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+/* end: mem snapshot event related */
+
+/* start: mem usage probe related */
+
+int gen_oom_trace_file(char *file_path, int size)
+{
+    size_t sz;
+    int ret;
+
+    time_t now = time(NULL);
+    struct tm *tm = localtime(&now);
+    file_path[0] = 0;
+    sz = strftime(file_path, size, TRACE_DIR "oom-trace-%Y%m%d%H%M.json", tm);
+    if (sz == 0) {
+        TP_ERROR("Failed to set oom trace file path\n");
+        return -1;
+    }
+
+    if (access(TRACE_DIR, F_OK)) {
+        ret = mkdir(TRACE_DIR, 0700);
+        if (ret) {
+            TP_ERROR("Failed to create trace dir:%s, ret=%d\n", TRACE_DIR, ret);
+            return -1;
+        }
+        TP_INFO("Succeed to create trace dir:%s\n", TRACE_DIR);
+    }
+
+    return 0;
+}
+
+static int get_proc_container_id(int pid, char *container_id, int size)
+{
+    char pid_str[INT_LEN];
+
+    pid_str[0] = 0;
+    (void)snprintf(pid_str, sizeof(pid_str), "%d", pid);
+    return get_container_id_by_pid_cpuset(pid_str, container_id, size);
+}
+
+// example: {"pid": 100, "comm": "python3", "cmdline": "python3 xxx.py", "container_id": "abcd"}
+int local_write_oom_proc(FILE *fp, struct proc_mem_usage *proc_item, bool is_first)
+{
+    char *comma = is_first ? "" : ",";
+    char cmd[LINE_BUF_LEN];
+    char container_id[CONTAINER_ABBR_ID_LEN + 1];
+    int ret;
+
+    cmd[0] = 0;
+    if (get_proc_cmdline(proc_item->pid, cmd, sizeof(cmd))) {
+        cmd[0] = 0;
+    }
+    container_id[0] = 0;
+    if (get_proc_container_id(proc_item->pid, container_id, sizeof(container_id))) {
+        container_id[0] = 0;
+    }
+
+    ret = fprintf(fp, "%s\n{\"pid\": %u, \"comm\": \"%s\", \"cmdline\": \"%s\"",
+        comma, proc_item->pid, proc_item->comm, cmd);
+    if (ret < 0) {
+        return -1;
+    }
+    if (container_id[0] != 0) {
+        ret = fprintf(fp, ", \"container_id\": \"%s\"", container_id);
+        if (ret < 0) {
+            return -1;
+        }
+    }
+    ret = fprintf(fp, "}");
+    if (ret < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+int local_write_all_oom_procs(FILE *fp)
+{
+    struct proc_mem_usage **mem_usage_tbl = get_mem_usage_tbl();
+    struct proc_mem_usage *proc_item, *tmp;
+    char is_grow = 0;
+    bool is_first = true;
+
+    HASH_ITER(hh, *mem_usage_tbl, proc_item, tmp) {
+        if (mem_usage_detect_oom(proc_item, &is_grow) == 0) {
+            if (is_grow) {
+                if (local_write_oom_proc(fp, proc_item, is_first)) {
+                    TP_ERROR("Failed to write oom proc\n");
+                    return -1;
+                }
+                is_first = false;
+            }
+        } else {
+            TP_ERROR("Failed to detect oom proc\n");
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+int report_oom_procs_local(void)
+{
+    char file_path[PATH_LEN];
+    FILE *fp = NULL;
+    int ret;
+
+    ret = gen_oom_trace_file(file_path, sizeof(file_path));
+    if (ret) {
+        TP_ERROR("Failed to get oom trace file\n");
+        return -1;
+    }
+    fp = fopen(file_path, "w");
+    if (fp == NULL) {
+        TP_ERROR("Failed to open oom trace file\n");
+        return -1;
+    }
+
+    ret = fprintf(fp, "{\n\"oom_procs\": [");
+    if (ret < 0) {
+        TP_ERROR("Failed to write oom trace file, ret=%d\n", ret);
+        goto err;
+    }
+
+    ret = local_write_all_oom_procs(fp);
+    if (ret) {
+        TP_ERROR("Failed to write all oom procs\n");
+        goto err;
+    }
+
+    ret = fprintf(fp, "\n]}");
+    if (ret < 0) {
+        TP_ERROR("Failed to write oom trace file, ret=%d\n", ret);
+        goto err;
+    }
+
+    fclose(fp);
+    return 0;
+err:
+    fclose(fp);
+    remove(file_path);
+    return -1;
+}
+
+/* end: mem usage probe related */

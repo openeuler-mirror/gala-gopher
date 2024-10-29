@@ -99,9 +99,8 @@ static void __perfbuf_sample_fn(void *ctx, int cpu, void *data, __u32 size)
     (void)fn(buffer->ctx, data, size);
 }
 
-static inline struct bpf_buffer *bpf_buffer__new(struct bpf_map *map, struct bpf_map *heap)
+static inline int bpf_buffer__reset(struct bpf_map *map, struct bpf_map *heap)
 {
-    struct bpf_buffer *buffer;
     bool use_ringbuf;
     int type;
 
@@ -118,6 +117,15 @@ static inline struct bpf_buffer *bpf_buffer__new(struct bpf_map *map, struct bpf
         type = BPF_MAP_TYPE_PERF_EVENT_ARRAY;
     }
 
+    return type;
+}
+
+static inline struct bpf_buffer *bpf_buffer__new(struct bpf_map *map, struct bpf_map *heap)
+{
+    struct bpf_buffer *buffer;
+    int type;
+
+    type = bpf_buffer__reset(map, heap);
     buffer = (struct bpf_buffer *)calloc(1, sizeof(*buffer));
     if (!buffer) {
         errno = ENOMEM;
@@ -126,6 +134,20 @@ static inline struct bpf_buffer *bpf_buffer__new(struct bpf_map *map, struct bpf
 
     buffer->map = map;
     buffer->type = type;
+    return buffer;
+}
+
+static inline struct bpf_buffer *bpf_buffer__new_shared(struct bpf_map *map, struct bpf_map *heap, struct bpf_buffer **buffer_ptr)
+{
+    struct bpf_buffer *buffer;
+
+    if (*buffer_ptr != NULL) {
+        (void)bpf_buffer__reset(map, heap);
+        return *buffer_ptr;
+    }
+
+    buffer = bpf_buffer__new(map, heap);
+    *buffer_ptr = buffer;
     return buffer;
 }
 

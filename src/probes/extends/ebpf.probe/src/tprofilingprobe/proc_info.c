@@ -218,14 +218,14 @@ proc_info_t *add_proc_info(proc_info_t **proc_table, int tgid)
     pi->tgid = tgid;
     ret = fill_proc_info(pi);
     if (ret) {
-        free(pi);
+        free_proc_info(pi);
         return NULL;
     }
 
     pi->fd_table = (fd_info_t **)malloc(sizeof(fd_info_t *));
     if (pi->fd_table == NULL) {
         TP_ERROR("Failed to allocate fd table.\n");
-        free(pi);
+        free_proc_info(pi);
         return NULL;
     }
     *(pi->fd_table) = NULL;
@@ -233,10 +233,17 @@ proc_info_t *add_proc_info(proc_info_t **proc_table, int tgid)
     pi->thrd_table = (thrd_info_t **)malloc(sizeof(thrd_info_t *));
     if (pi->thrd_table == NULL) {
         TP_ERROR("Failed to allocate thread table.\n");
-        free(pi);
+        free_proc_info(pi);
         return NULL;
     }
     *(pi->thrd_table) = NULL;
+
+    pi->mem_glibc_tree = (struct stack_node_s *)calloc(1, sizeof(struct stack_node_s));
+    if (pi->mem_glibc_tree == NULL) {
+        TP_ERROR("Failed to allocate mem_glibc_tree\n");
+        free_proc_info(pi);
+        return NULL;
+    }
 
     HASH_add_proc_info_with_LRU(proc_table, pi);
     return pi;
@@ -405,6 +412,10 @@ void free_proc_info(proc_info_t *proc_info)
 
     if (proc_info->symbs != NULL) {
         proc_delete_all_symbs(proc_info->symbs);
+    }
+
+    if (proc_info->mem_glibc_tree != NULL) {
+        cleanup_stack_tree(proc_info->mem_glibc_tree);
     }
 
     free(proc_info);

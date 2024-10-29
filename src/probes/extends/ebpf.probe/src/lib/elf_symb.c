@@ -415,6 +415,7 @@ static int __do_search_addr(struct elf_symbo_s* elf_symb,
             addr_symb->sym = elf_symb->symbs[search_index]->symb_name;
             addr_symb->offset = target_addr - elf_symb->symbs[search_index]->start;
             addr_symb->orign_addr = orign_addr;
+            addr_symb->relat_addr = target_addr;
             addr_symb->mod = (char *)comm;
             return 0;
         }

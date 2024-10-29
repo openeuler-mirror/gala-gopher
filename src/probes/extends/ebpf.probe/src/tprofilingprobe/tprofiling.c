@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <pthread.h>
+#include <sys/stat.h>
 #include <linux/limits.h>
 
 #ifdef BPF_PROG_KERN
@@ -34,9 +35,12 @@
 #include "profiling_event.h"
 #include "java_support.h"
 #include "bpf_prog.h"
-#include "syscall.h"
 #include "tprofiling.h"
+#include "syscall.h"
+#include "mem_usage.h"
 Tprofiler tprofiler;
+
+#define TP_WAIT_DURATION 5  /* 设置一个小的值，避免长时间等待导致无法接收ipc消息 */
 
 static volatile sig_atomic_t stop = 0;
 
@@ -75,6 +79,8 @@ static syscall_meta_t g_syscall_metas[] = {
     {SYSCALL_RECVMMSG_ID, SYSCALL_RECVMMSG_NAME, SYSCALL_FLAG_FD_STACK, PROFILE_EVT_TYPE_NET},
     // lock
     {SYSCALL_FUTEX_ID, SYSCALL_FUTEX_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_LOCK},
+    // ioctl
+    {SYSCALL_IOCTL_ID, SYSCALL_IOCTL_NAME, SYSCALL_FLAG_STACK, PROFILE_EVT_TYPE_IO},
 };
 
 static void sig_handling(int signal);
@@ -86,25 +92,121 @@ static void clean_map_files(void);
 static void clean_tprofiler(void);
 static int refresh_tprofiler(struct ipc_body_s *ipc_body);
 static void refresh_proc_filter_map(struct ipc_body_s *ipc_body);
+int init_local_storage(struct local_store_s *local_storage);
+void init_pb_mgmt(PerfBufferMgmt *pbMgmt);
+void clean_local_storage(struct local_store_s *local_storage);
 
-static int __poll_pb(struct bpf_prog_s* prog)
+static int setting_map_update_pb(char is_pb_a)
 {
+    int map_fd = tprofiler.settingMapFd;
+    trace_setting_t setting = {0};
+    u32 zero = 0;
     int ret;
 
-    for (int i = 0; i < prog->num && i < SKEL_MAX_NUM; i++) {
-        if (prog->buffers[i]) {
-            ret = bpf_buffer__poll(prog->buffers[i], THOUSAND);
-            if (ret < 0 && ret != -EINTR) {
-                return ret;
-            }
-        }
+    ret = bpf_map_lookup_elem(map_fd, &zero, &setting);
+    if (ret != 0) {
+        TP_ERROR("Failed to lookup setting map\n");
+        return -1;
+    }
+
+    setting.is_pb_a = is_pb_a;
+    ret = bpf_map_update_elem(map_fd, &zero, &setting, BPF_ANY);
+    if (ret != 0) {
+        TP_ERROR("Failed to update pb config to setting map\n");
+        return -1;
     }
 
     return 0;
 }
+
+static void clear_current_stack_map()
+{
+    int stackMapFd = get_current_stack_map();
+    u32 stack_id = 0, next_id;
+
+    while (bpf_map_get_next_key(stackMapFd, &stack_id, &next_id) == 0) {
+        bpf_map_delete_elem(stackMapFd, &next_id);
+        stack_id = next_id;
+    }
+}
+
+static void clear_current_py_stack_map()
+{
+    int fd = get_current_py_stack_map();
+    u32 stack_id = 0, next_id;
+
+    while (bpf_map_get_next_key(fd, &stack_id, &next_id) == 0) {
+        bpf_map_delete_elem(fd, &next_id);
+        stack_id = next_id;
+    }
+}
+
+static int __poll_pb(struct bpf_prog_s *prog, PerfBufferMgmt *pbMgmt)
+{
+    struct bpf_buffer *cur_perf_buffer;
+    time_t now = time(NULL);
+    bool switch_on = false;
+    int ret;
+
+    if (prog == NULL) {
+        return 0;
+    }
+
+    // 1. 若超时触发perf buffer切换，首先通知bpf程序不再向当前perf buffer写事件
+    if (pbMgmt->pb_switch_timer + PERF_BUFFER_SWITCH_DURATION < now) {
+        switch_on = true;
+        ret = setting_map_update_pb(!pbMgmt->is_pb_a);
+        if (ret) {
+            return -1;
+        }
+        pbMgmt->pb_switch_timer = now;
+        sleep(1);   // 延迟一小段时间，确保历史的事件都已经写入当前perf buffer
+    }
+
+    // 2. 从当前perf buffer读取所有的剩余事件并进行处理
+    cur_perf_buffer = get_current_perf_buffer(pbMgmt);
+    if (cur_perf_buffer != NULL) {
+        ret = bpf_buffer__poll(cur_perf_buffer, THOUSAND);
+        if (ret < 0 && ret != -EINTR) {
+            return ret;
+        }
+    }
+
+    if (switch_on) {
+        // 3. 清理当前perf buffer的上下文信息（标记，堆栈map，缓存的事件等），切换到另一个perf buffer的上下文
+        report_all_cached_thrd_events_local();
+        clear_current_stack_map();  // 必须在 is_pb_a 切换之前执行
+        clear_current_py_stack_map();
+        pbMgmt->is_pb_a = !pbMgmt->is_pb_a;
+    }
+
+    return 0;
+}
+
+static int init_setting_map(int map_fd, struct ipc_body_s *ipc_body)
+{
+    trace_setting_t setting = {0};
+    u32 zero = 0;
+    int ret;
+
+    tprofiler.pbMgmt.is_pb_a = 1;
+    (void)time(&tprofiler.pbMgmt.pb_switch_timer);
+    setting.is_pb_a = 1;
+
+    setting.min_exec_dur = (u64)ipc_body->probe_param.min_exec_dur * NSEC_PER_USEC;
+    setting.min_aggr_dur = (u64)ipc_body->probe_param.min_aggr_dur * NSEC_PER_MSEC;
+    ret = bpf_map_update_elem(map_fd, &zero, &setting, BPF_ANY);
+    if (ret) {
+        return -1;
+    }
+    TP_INFO("setting.min_exec_dur=%u us, setting.min_aggr_dur=%u ms\n",
+        ipc_body->probe_param.min_exec_dur, ipc_body->probe_param.min_aggr_dur);
+    return 0;
+}
+
 static int init_py_sample_heap(int map_fd)
 {
-    u32 nr_cpus = NR_CPUS;
+    int nr_cpus = NR_CPUS;
     struct py_sample *samples;
     u32 zero = 0;
     int i;
@@ -121,14 +223,17 @@ static int init_py_sample_heap(int map_fd)
     free(samples);
     return ret;
 }
-int main(int argc, char **argv)
-{
-    int err = -1;
-    struct bpf_prog_s *syscall_bpf_progs = NULL;
-    struct bpf_prog_s *oncpu_bpf_progs = NULL;
-    struct ipc_body_s ipc_body;
-    int msq_id;
 
+static char exist_profiling_task(struct ipc_body_s *ipc_body)
+{
+    if (is_load_probe_ipc(ipc_body, TPROFILING_PROBE_ALL)) {
+        return 1;
+    }
+    return 0;
+}
+
+static int register_signal_handler(void)
+{
     if (signal(SIGINT, sig_handling) == SIG_ERR) {
         TP_ERROR("Can't set signal handler: %s\n", strerror(errno));
         return -1;
@@ -137,18 +242,33 @@ int main(int argc, char **argv)
         TP_ERROR("Can't set signal handler: %s\n", strerror(errno));
         return -1;
     }
+    /* gopher框架关闭探针时会关闭标准输出重定向的管道，导致探针后续日志打印操作会接收pipe信号 */
+    if (signal(SIGPIPE, sig_handling) == SIG_ERR) {
+        TP_ERROR("Can't set signal handler: %s\n", strerror(errno));
+        return -1;
+    }
+
+    return 0;
+}
+
+int main(int argc, char **argv)
+{
+    int err = -1;
+    int msq_id;
+    struct ipc_body_s ipc_body = {0};
+
+    if (register_signal_handler()) {
+        return -1;
+    }
 
     msq_id = create_ipc_msg_queue(IPC_EXCL);
     if (msq_id < 0) {
-        ERROR("[TPROFILING] Get ipc msg queue failed.\n");
         return -1;
     }
 
     if (init_tprofiler()) {
         return -1;
     }
-
-    clean_map_files();
 
     INIT_BPF_APP(tprofiling, EBPF_RLIM_LIMITED);
 
@@ -158,45 +278,68 @@ int main(int argc, char **argv)
         err = recv_ipc_msg(msq_id, (long)PROBE_TP, &ipc_body);
         if (err == 0) {
             if (ipc_body.probe_flags & IPC_FLAGS_PARAMS_CHG || ipc_body.probe_flags == 0) {
-                unload_bpf_prog(&syscall_bpf_progs);
-                unload_bpf_prog(&oncpu_bpf_progs);
-
-                syscall_bpf_progs = load_syscall_bpf_prog(&ipc_body);
-                if (syscall_bpf_progs == NULL) {
+                unload_profiling_bpf_prog();
+                err = load_profiling_bpf_progs(&ipc_body);
+                if (err) {
+                    TP_ERROR("Failed to load profiling bpf progs\n");
                     goto cleanup;
                 }
-                oncpu_bpf_progs = load_oncpu_bpf_prog(&ipc_body);
-                if (oncpu_bpf_progs == NULL) {
-                    goto cleanup;
-                }
+                clean_mem_usage_probe();
             }
 
             if (refresh_tprofiler(&ipc_body)) {
+                TP_ERROR("Failed to refresh tprofiler\n");
                 goto cleanup;
             }
             destroy_ipc_body(&g_ipc_body);
             (void)memcpy(&g_ipc_body, &ipc_body, sizeof(g_ipc_body));
         }
 
-        if (syscall_bpf_progs == NULL && oncpu_bpf_progs == NULL) {
-            sleep(DEFAULT_PERIOD);
+        if (!exist_profiling_task(&g_ipc_body)) {
+            TP_WARN("No profiling task is started, do nothing\n");
+            sleep(TP_WAIT_DURATION);
             continue;
         }
-        if (__poll_pb(syscall_bpf_progs)) {
+
+        if (__poll_pb(tprofiler.bpf_progs, &tprofiler.pbMgmt)) {
+            TP_ERROR("Failed to poll perf buffer from bpf progs\n");
+            goto cleanup;
+        }
+        if (is_load_probe_ipc(&g_ipc_body, PROBE_RANGE_TPROFILING_MEM_USAGE)) {
+            if (mem_usage_probe()) {
+                TP_ERROR("Failed to run mem_usage probe\n");
+                goto cleanup;
+            }
+            /* 对于只开启 mem_usage 探针的情况，添加 sleep 操作防止 mem_usage_probe 函数空转 */
+            if (!is_load_probe_ipc(&g_ipc_body, TPROFILING_EBPF_PROBE_ALL)) {
+                sleep(TP_WAIT_DURATION);
+            }
+        }
+
+        report_stuck_event(&g_ipc_body);
+        if (report_mem_snap_event(&g_ipc_body)) {
             goto cleanup;
         }
 
-        if (__poll_pb(oncpu_bpf_progs)) {
+        if (tprofiler.localStorage.stack_node_num > MAX_STACK_NODE_NUM) {
+            report_all_cached_events_local(&tprofiler.localStorage);
+            clean_local_storage(&tprofiler.localStorage);
+            init_local_storage(&tprofiler.localStorage);
+        }
+    }
+
+    report_all_cached_events_local(&tprofiler.localStorage);
+    if (is_load_probe_ipc(&g_ipc_body, PROBE_RANGE_TPROFILING_MEM_USAGE)) {
+        if (report_oom_procs_local()) {
+            TP_ERROR("Failed to report oom procs locally.\n");
             goto cleanup;
         }
     }
 
     TP_INFO("Tprofiling probe closed.\n");
 cleanup:
-    unload_bpf_prog(&syscall_bpf_progs);
-    unload_bpf_prog(&oncpu_bpf_progs);
     clean_tprofiler();
-    clean_map_files();
+    clean_mem_usage_probe();
     destroy_ipc_body(&g_ipc_body);
     return -err;
 }
@@ -208,6 +351,13 @@ static void sig_handling(int signal)
 
 static int init_tprofiler(void)
 {
+    // 清理 tprofiling 探针异常情况下退出产生的残留文件
+    clean_map_files();
+
+    // only support local storage now
+    tprofiler.output_chan = PROFILING_CHAN_LOCAL;
+    tprofiler.stuck_evt_timer = time(NULL);
+
     if (initThreadBlacklist(&tprofiler.thrdBl)) {
         TP_ERROR("Failed to init thread blacklist.\n");
         return -1;
@@ -223,11 +373,33 @@ static int init_tprofiler(void)
         return -1;
     }
 
+    if (init_local_storage(&tprofiler.localStorage)) {
+        TP_ERROR("Failed to init local storage.\n");
+        return -1;
+    }
+
+    init_pb_mgmt(&tprofiler.pbMgmt);
+
     return 0;
 }
 
 static int init_tprofiler_map_fds(struct ipc_body_s *ipc_body)
 {
+    int ret;
+
+    if (tprofiler.settingMapFd <= 0) {
+        tprofiler.settingMapFd = bpf_obj_get(SETTING_MAP_PATH);
+        if (tprofiler.settingMapFd < 0) {
+            TP_ERROR("Failed to get bpf prog setting map.\n");
+            return -1;
+        }
+    }
+    ret = init_setting_map(tprofiler.settingMapFd, ipc_body);
+    if (ret) {
+        TP_ERROR("Failed to init setting map.\n");
+        return -1;
+    }
+
     if (tprofiler.procFilterMapFd <= 0) {
         tprofiler.procFilterMapFd = bpf_obj_get(PROC_FILTER_MAP_PATH);
         if (tprofiler.procFilterMapFd < 0) {
@@ -244,11 +416,18 @@ static int init_tprofiler_map_fds(struct ipc_body_s *ipc_body)
         }
     }
 
-    if ((ipc_body->probe_range_flags & TPROFILING_PROBE_SYSCALL_ALL)) {
-        if (tprofiler.stackMapFd <= 0) {
-            tprofiler.stackMapFd = bpf_obj_get(STACK_MAP_PATH);
-            if (tprofiler.stackMapFd < 0) {
+    if (is_load_probe_ipc(ipc_body, TPROFILING_PROBES_WITH_STACK)) {
+        if (tprofiler.stackMapAFd <= 0) {
+            tprofiler.stackMapAFd = bpf_obj_get(STACK_MAP_A_PATH);
+            if (tprofiler.stackMapAFd < 0) {
                 TP_ERROR("Failed to get bpf prog stack map.\n");
+                return -1;
+            }
+        }
+        if (tprofiler.stackMapBFd <= 0) {
+            tprofiler.stackMapBFd = bpf_obj_get(STACK_MAP_B_PATH);
+            if (tprofiler.stackMapBFd < 0) {
+                TP_ERROR("Failed to get bpf prog stack map b.\n");
                 return -1;
             }
         }
@@ -259,10 +438,17 @@ static int init_tprofiler_map_fds(struct ipc_body_s *ipc_body)
                 return -1;
             }
         }
-        if (tprofiler.pyStackMapFd <= 0) {
-            tprofiler.pyStackMapFd = bpf_obj_get(PY_STACK_MAP_PATH);
-            if (tprofiler.pyStackMapFd < 0) {
-                TP_ERROR("Failed to get bpf prog py_stack map.\n");
+        if (tprofiler.pyStackMapAFd <= 0) {
+            tprofiler.pyStackMapAFd = bpf_obj_get(PY_STACK_MAP_A_PATH);
+            if (tprofiler.pyStackMapAFd < 0) {
+                TP_ERROR("Failed to get bpf prog py_stack map a.\n");
+                return -1;
+            }
+        }
+        if (tprofiler.pyStackMapBFd <= 0) {
+            tprofiler.pyStackMapBFd = bpf_obj_get(PY_STACK_MAP_B_PATH);
+            if (tprofiler.pyStackMapBFd < 0) {
+                TP_ERROR("Failed to get bpf prog py_stack map b.\n");
                 return -1;
             }
         }
@@ -272,7 +458,7 @@ static int init_tprofiler_map_fds(struct ipc_body_s *ipc_body)
                 TP_ERROR("Failed to get bpf prog py_heap map.\n");
                 return -1;
             }
-            int ret = init_py_sample_heap(tprofiler.pyHeapMapFd);
+            ret = init_py_sample_heap(tprofiler.pyHeapMapFd);
             if (ret){
                 TP_ERROR("Failed to init python sample heap map.\n");
                 return -1;
@@ -285,12 +471,16 @@ static int init_tprofiler_map_fds(struct ipc_body_s *ipc_body)
                 return -1;
             }
         }
-    } else {
-        tprofiler.stackMapFd = 0;
-        tprofiler.pyProcMapFd = 0;
-        tprofiler.pyStackMapFd = 0;
-        tprofiler.pySymbMapFd = 0;
-        tprofiler.pyHeapMapFd = 0;
+    }
+
+    if (is_load_probe_ipc(ipc_body, TPROFILING_PROBE_SYSCALL_ALL)) {
+        if (tprofiler.scEnterMapFd <= 0) {
+            tprofiler.scEnterMapFd = bpf_obj_get(SYSCALL_ENTER_MAP_PATH);
+            if (tprofiler.scEnterMapFd < 0) {
+                TP_ERROR("Failed to get bpf prog syscall enter map.\n");
+                return -1;
+            }
+        }
     }
 
     return 0;
@@ -324,7 +514,7 @@ static void java_symb_mgmt(int proc_filter_map_fd)
     struct proc_s next_key = {0};
     char comm[TASK_COMM_LEN];
 
-    if (tprofiler.stackMapFd <= 0) {
+    if (tprofiler.stackMapAFd <= 0 || tprofiler.stackMapBFd <= 0) {
         return;
     }
 
@@ -372,6 +562,8 @@ static void clean_syscall_meta_table(syscall_meta_t **scmTable)
 
 static void clean_tprofiler(void)
 {
+    unload_profiling_bpf_prog();
+
     if (tprofiler.scmTable) {
         clean_syscall_meta_table(&tprofiler.scmTable);
     }
@@ -381,11 +573,20 @@ static void clean_tprofiler(void)
     }
 
     destroyThreadBlacklist(&tprofiler.thrdBl);
+
+    clean_local_storage(&tprofiler.localStorage);
+    clean_proc_link_tbl();
+
+    clean_map_files();
 }
 
 static int refresh_tprofiler(struct ipc_body_s *ipc_body)
 {
     tprofiler.report_period = ipc_body->probe_param.period;
+
+    if (!is_load_probe_ipc(ipc_body, TPROFILING_EBPF_PROBE_ALL)) {
+        return 0;
+    }
 
     if (ipc_body->probe_flags & IPC_FLAGS_PARAMS_CHG || ipc_body->probe_flags == 0) {
         if (init_tprofiler_map_fds(ipc_body)) {
@@ -393,37 +594,210 @@ static int refresh_tprofiler(struct ipc_body_s *ipc_body)
         }
     }
 
-    if (ipc_body->probe_flags & IPC_FLAGS_SNOOPER_CHG || ipc_body->probe_flags == 0) {
+    if ((ipc_body->probe_flags & IPC_FLAGS_PARAMS_CHG) || (ipc_body->probe_flags & IPC_FLAGS_SNOOPER_CHG) || \
+        ipc_body->probe_flags == 0) {
         refresh_proc_filter_map(ipc_body);
         java_symb_mgmt(tprofiler.procFilterMapFd);
     }
 
+    reattach_uprobes(ipc_body);
+
     return 0;
+}
+
+struct _proc_item {
+    int pid;
+    UT_hash_handle hh;
+};
+
+static void add_proc_items(struct _proc_item **proc_tbl, struct ipc_body_s *ipc_body)
+{
+    struct _proc_item *item;
+    int pid;
+    int i;
+
+    for (i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_body->snooper_objs[i].type != SNOOPER_OBJ_PROC) {
+            continue;
+        }
+        pid = ipc_body->snooper_objs[i].obj.proc.proc_id;
+        HASH_FIND_INT(*proc_tbl, &pid, item);
+        if (item == NULL) {
+            item = (struct _proc_item *)malloc(sizeof(struct _proc_item));
+            if (item == NULL) {
+                TP_DEBUG("Failed to add process range, alloc memory failed\n");
+                continue;
+            }
+            item->pid = pid;
+            HASH_ADD_INT(*proc_tbl, pid, item);
+        }
+    }
+}
+
+static void clear_proc_items(struct _proc_item **proc_tbl)
+{
+    struct _proc_item *cur, *tmp;
+
+    HASH_ITER(hh, *proc_tbl, cur, tmp) {
+        HASH_DEL(*proc_tbl, cur);
+        free(cur);
+    }
 }
 
 static void refresh_proc_filter_map(struct ipc_body_s *ipc_body)
 {
     struct proc_s key = {0};
     struct proc_s next_key = {0};
-    struct obj_ref_s val = {.count = 0};
+    struct obj_ref_s val;
+    struct obj_ref_s dft_val = {.count = 0};
     struct py_proc_data py_proc_data;
-    u32 i;
+    struct _proc_item *proc_tbl = NULL;
+    struct _proc_item *item, *tmp;
+    int ret;
 
+    add_proc_items(&proc_tbl, ipc_body);
     while (bpf_map_get_next_key(tprofiler.procFilterMapFd, &key, &next_key) == 0) {
-        (void)bpf_map_delete_elem(tprofiler.procFilterMapFd, &next_key);
+        HASH_FIND_INT(proc_tbl, &next_key.proc_id, item);
+        if (item == NULL) {
+            (void)bpf_map_delete_elem(tprofiler.procFilterMapFd, &next_key);
+            (void)bpf_map_delete_elem(tprofiler.pyProcMapFd, &next_key.proc_id);
+        }
         key = next_key;
     }
 
-    for (i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
-        if (ipc_body->snooper_objs[i].type != SNOOPER_OBJ_PROC) {
+    item = NULL;
+    HASH_ITER(hh, proc_tbl, item, tmp) {
+        key.proc_id = item->pid;
+        if (bpf_map_lookup_elem(tprofiler.procFilterMapFd, &key, &val) == 0) {
             continue;
         }
-        key.proc_id = ipc_body->snooper_objs[i].obj.proc.proc_id;
-        (void)bpf_map_update_elem(tprofiler.procFilterMapFd, &key, &val, BPF_ANY);
+        // new process to observe
+        ret = bpf_map_update_elem(tprofiler.procFilterMapFd, &key, &dft_val, BPF_ANY);
+        if (ret != 0) {
+            TP_DEBUG("Failed to add new process to proc filter map(pid=%u)\n", key.proc_id);
+            continue;
+        }
 
         if(try_init_py_proc_data(key.proc_id, &py_proc_data)){
             continue;
         }
-        (void)bpf_map_update_elem(tprofiler.pyProcMapFd, &key.proc_id, &py_proc_data, BPF_ANY);
+        ret = bpf_map_update_elem(tprofiler.pyProcMapFd, &key.proc_id, &py_proc_data, BPF_ANY);
+        if (ret != 0) {
+            TP_DEBUG("Failed to add new python process to python proc filter map(pid=%u)\n", key.proc_id);
+            continue;
+        }
     }
+
+    clear_proc_items(&proc_tbl);
+}
+
+static int gen_trace_path(struct local_store_s *local_storage)
+{
+    time_t now;
+    struct tm *tm;
+    size_t sz;
+    int ret;
+
+    now = time(NULL);
+    tm = localtime(&now);
+    sz = strftime(local_storage->trace_path, sizeof(local_storage->trace_path),
+        TRACE_DIR "timeline-trace-%Y%m%d%H%M.json", tm);
+    if (sz == 0) {
+        return -1;
+    }
+
+    ret = snprintf(local_storage->trace_path_tmp, sizeof(local_storage->trace_path_tmp),
+        "%s.tmp", local_storage->trace_path);
+    if (ret < 0 || ret >= sizeof(local_storage->trace_path_tmp)) {
+        return -1;
+    }
+
+    sz = strftime(local_storage->stack_path_tmp, sizeof(local_storage->stack_path_tmp),
+        TRACE_DIR "timeline-trace-%Y%m%d%H%M-stack.json.tmp", tm);
+    if (sz == 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+void clean_local_storage(struct local_store_s *local_storage);
+
+int init_local_storage(struct local_store_s *local_storage)
+{
+    int ret;
+
+    (void)memset(local_storage, 0, sizeof(*local_storage));
+    local_storage->stack_root = (struct stack_node_s *)calloc(1, sizeof(struct stack_node_s));
+    if (local_storage->stack_root == NULL) {
+        TP_ERROR("Failed to allocate stack root\n");
+        return -1;
+    }
+
+    if (gen_trace_path(local_storage)) {
+        goto err;
+    }
+    if (access(TRACE_DIR, F_OK)) {
+        ret = mkdir(TRACE_DIR, 0700);
+        if (ret) {
+            TP_ERROR("Failed to create trace dir:%s, ret=%d\n", TRACE_DIR, ret);
+            goto err;
+        }
+        TP_INFO("Succeed to create trace dir:%s\n", TRACE_DIR);
+    }
+
+    local_storage->fp = fopen(local_storage->trace_path_tmp, "w+");
+    if (local_storage->fp == NULL) {
+        TP_ERROR("Failed to create tmp trace file:%s\n", local_storage->trace_path_tmp);
+        goto err;
+    }
+    local_storage->stack_fp = fopen(local_storage->stack_path_tmp, "w+");
+    if (local_storage->stack_fp == NULL) {
+        TP_ERROR("Failed to create tmp stack trace file:%s\n", local_storage->stack_path_tmp);
+        goto err;
+    }
+
+    TP_INFO("Succeed to create tmp trace file:%s\n", local_storage->trace_path_tmp);
+    return 0;
+err:
+    clean_local_storage(local_storage);
+    return -1;
+}
+
+void init_pb_mgmt(PerfBufferMgmt *pbMgmt)
+{
+    pbMgmt->is_pb_a = 1;
+    pbMgmt->perf_buffer_a = NULL;
+    pbMgmt->perf_buffer_b = NULL;
+    (void)time(&pbMgmt->pb_switch_timer);
+}
+
+void clean_local_storage(struct local_store_s *local_storage)
+{
+    if (local_storage->fp != NULL) {
+        fclose(local_storage->fp);
+        local_storage->fp = NULL;
+    }
+    if (local_storage->stack_fp != NULL) {
+        fclose(local_storage->stack_fp);
+        local_storage->stack_fp = NULL;
+    }
+    if (local_storage->stack_root) {
+        cleanup_stack_tree(local_storage->stack_root);
+        local_storage->stack_root = NULL;
+        local_storage->stack_node_num = 0;
+    }
+    if (local_storage->proc_meta_written) {
+        cleanup_proc_meta(local_storage->proc_meta_written);
+        local_storage->proc_meta_written = NULL;
+    }
+    if (local_storage->trace_path_tmp[0] != '\0') {
+        (void)remove(local_storage->trace_path_tmp);
+        local_storage->trace_path_tmp[0] = '\0';
+    }
+    if (local_storage->stack_path_tmp[0] != '\0') {
+        (void)remove(local_storage->stack_path_tmp);
+        local_storage->stack_path_tmp[0] = '\0';
+    }
+    (void)memset(local_storage, 0, sizeof(*local_storage));
 }

@@ -153,7 +153,7 @@ static void sig_int(int signo)
 
 static int get_py_stack_size(void)
 {
-    return MAX_PYTHON_STACK_DEPTH_16;
+    return MAX_PYTHON_STACK_DEPTH_MAX;
 }
 
 static const char *get_symb_stack_type_flag(enum symb_stack_type type)

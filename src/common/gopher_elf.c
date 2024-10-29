@@ -480,7 +480,6 @@ err:
 #define PYGC_FUNC_NAME_LEN 32
 #define MAX_SUPPORT_FUNC_NUM 4
 #define MAX_BUILD_VER_NUM 10
-#define ELF_BUILD_ID_LEN 64
 
 struct pygc_offset {
     char func_name[PYGC_FUNC_NAME_LEN];
