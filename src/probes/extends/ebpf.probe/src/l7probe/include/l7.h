@@ -73,6 +73,61 @@ struct l7_proto_s {
     enum message_type_t type;
 };
 
+enum l4_role_t {
+    L4_UNKNOW = 0, // udp
+    L4_CLIENT,
+    L4_SERVER,
+
+    L4_ROLE_MAX
+};
+
+enum l7_role_t {
+    L7_UNKNOW = 0,
+    L7_CLIENT,
+    L7_SERVER,
+
+    L7_ROLE_MAX
+};
+
+struct conn_id_s {
+    int tgid; // process id
+    int fd;
+};
+
+struct conn_addr_s {
+    u16 family;
+    u16 port; // TCP server port or client connect port
+    union {
+        u32 ip;
+        char ip6[IP6_LEN];
+    };
+};
+
+struct conn_info_s {
+    struct conn_id_s id;
+    u8 prev_count;
+    char prev_buf[4];
+    char is_ssl;
+    char is_reported;
+    u16 pad;
+    enum l4_role_t l4_role;     // TCP client or server; udp unknow
+    enum l7_role_t l7_role;     // RPC client or server
+    enum proto_type_t protocol; // L7 protocol type
+
+    struct conn_addr_s remote_addr; // UDP datagram address
+    struct conn_addr_s client_addr; // TCP client address
+    struct conn_addr_s server_addr; // TCP server address
+};
+
+// The information of socket connection
+struct sock_conn_s {
+    struct conn_info_s info;
+
+    // The number of bytes written/read on this socket connection.
+    u64 wr_bytes;
+    u64 rd_bytes;
+};
+
 #define __HTTP_MIN_SIZE  16     // Smallest HTTP size
 static __inline enum message_type_t __get_http_type(const char* buf, size_t count)
 {
@@ -487,60 +542,6 @@ static __inline enum message_type_t __get_mongo_type(const char* buf, size_t cou
     return MESSAGE_UNKNOW;
 }
 
-/*
-
-// References mysql spec:
-https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_packets.html
-
-MySQL packet:
-0         8        16        24        32
-+---------+---------+---------+---------+
-|        payload_length       | seq_id  |
-+---------+---------+---------+---------+
-|                                       |
-.            ...  body ...              .
-.                                       .
-.                                       .
-+----------------------------------------
-
-*/
-#define __MYSQL_MINSIZE             5
-#define __MYSQL_MAXSIZE             (16 * 1024 * 1024)
-
-#define __MYSQL_COM_QUERY           0x03
-#define __MYSQL_COM_CONNECT         0x0b
-#define __MYSQL_COM_STMT_PREPARE    0x16
-#define __MYSQL_COM_STMT_EXECUTE    0x17
-#define __MYSQL_COM_STMT_CLOSE      0x19
-
-static __inline enum message_type_t get_mysql_type(const char* buf, size_t count)
-{
-    // Packets including at least 3-byte packets length, 1-byte packet number and 1-byte command.
-    if (count < __MYSQL_MINSIZE) {
-        return MESSAGE_UNKNOW;
-    }
-
-    u32 len = *(u32 *)buf & 0x00ffffff;
-    u8 seq = buf[3];
-    u8 com = buf[4];
-
-    if ((len == 0) || (len > __MYSQL_MAXSIZE)) {
-        return MESSAGE_UNKNOW;
-    }
-
-    switch (com) {
-        case __MYSQL_COM_QUERY:
-        case __MYSQL_COM_CONNECT:
-        case __MYSQL_COM_STMT_PREPARE:
-        case __MYSQL_COM_STMT_EXECUTE:
-        case __MYSQL_COM_STMT_CLOSE:
-            return (seq != 0) ? MESSAGE_RESPONSE : MESSAGE_REQUEST;
-    }
-
-    return MESSAGE_UNKNOW;
-}
-
-
 #define PGSQL_REGULAR_MSG_MIN_LEN         4   // sizeof(int32_t)
 #define PGSQL_REGULAR_PACKET_MIN_LEN      (1 + PGSQL_REGULAR_MSG_MIN_LEN) // sizeof(char tag) + sizeof(int32_t)
 static __inline enum message_type_t __get_pgsql_type(const char* buf, size_t count, enum l7_direction_t direction)
@@ -644,10 +645,79 @@ static __inline enum message_type_t __get_crpc_type(const char* buf, size_t coun
     return MESSAGE_UNKNOW;
 }
 
-static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, enum l7_direction_t direction, struct l7_proto_s* l7pro)
-{
-    enum message_type_t type;
 
+/*
+
+// References mysql spec:
+https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_packets.html
+
+MySQL packet:
+0         8        16        24        32
++---------+---------+---------+---------+
+|        payload_length       | seq_id  |
++---------+---------+---------+---------+
+|                                       |
+.            ...  body ...              .
+.                                       .
+.                                       .
++----------------------------------------
+
+*/
+// TODO: This produces too many false positives. Add stronger protocol detection.
+#define __MYSQL_MINSIZE 5
+#define __MYSQL_MAXSIZE (16 * 1024 * 1024)
+#define __MYSQL_COM_QUERY 0x03
+#define __MYSQL_COM_CONNECT 0x0b
+#define __MYSQL_COM_STMT_PREPARE 0x16
+#define __MYSQL_COM_STMT_EXECUTE 0x17
+#define __MYSQL_COM_STMT_CLOSE 0x19
+#define __MYSQL_HEADER_LENGTH 4
+static __inline enum message_type_t __get_mysql_type(const char *buf, size_t count, struct sock_conn_s *sock_conn)
+{
+    size_t data_count = count;
+    int use_prev_buf =
+        (sock_conn->info.prev_count == __MYSQL_HEADER_LENGTH) && (*((u32 *)sock_conn->info.prev_buf) == data_count);
+    if (use_prev_buf) {
+        data_count += __MYSQL_HEADER_LENGTH;
+    }
+    // MySQL packets start with a 3-byte packet length and a 1-byte packet number.
+    // The 5th byte on a request contains a command that tells the type.
+    if (data_count < __MYSQL_MINSIZE) {
+        return MESSAGE_UNKNOW;
+    }
+    // Convert 3-byte length to uint32_t. But since the 4th byte is supposed to be \x00, directly
+    // casting 4-bytes is correct.
+    // NOLINTNEXTLINE: readability/casting
+    u32 len = use_prev_buf ? *((u32 *)sock_conn->info.prev_buf) : *((u32 *)buf);
+    len = len & 0x00ffffff;
+    u8 seq = use_prev_buf ? sock_conn->info.prev_buf[3] : buf[3];
+    u8 com = use_prev_buf ? buf[0] : buf[4];
+    // The packet number of a request should always be 0.
+    if (seq != 0) {
+        return MESSAGE_UNKNOW;
+    }
+    // No such thing as a zero-length request in MySQL protocol.
+    if (len == 0) {
+        return MESSAGE_UNKNOW;
+    }
+    // Assuming that the length of a request is less than 10k characters to avoid false
+    // positive flagging as MySQL, which statistically happens frequently for a single-byte
+    // check.
+    if (len > __MYSQL_MAXSIZE) {
+        return MESSAGE_UNKNOW;
+    }
+    // TODO: Consider adding more commands (0x00 to 0x1f).
+    // Be careful, though: trade-off is higher rates of false positives.
+    if (com == __MYSQL_COM_QUERY || com == __MYSQL_COM_CONNECT || com == __MYSQL_COM_STMT_PREPARE ||
+        com == __MYSQL_COM_STMT_EXECUTE || com == __MYSQL_COM_STMT_CLOSE) {
+        return MESSAGE_REQUEST;
+    }
+    return MESSAGE_UNKNOW;
+}
+
+static __inline int get_l7_protocol(const char *buf, size_t count, u32 flags, enum l7_direction_t direction,
+    struct l7_proto_s *l7pro, struct sock_conn_s *sock_conn){
+    enum message_type_t type;
     if (l7pro == NULL || buf == NULL) {
         return -1;
     }
@@ -724,6 +794,20 @@ static __inline int get_l7_protocol(const char* buf, size_t count, u32 flags, en
             return 0;
         }
     }
+
+    if (flags & MYSQL_ENABLE) {
+        type = __get_mysql_type(buf, count, sock_conn);
+        sock_conn->info.prev_count = count;
+        if (count == __MYSQL_HEADER_LENGTH) {
+            __builtin_memcpy(sock_conn->info.prev_buf, buf, 4);
+        }
+        if (type != MESSAGE_UNKNOW) {
+            l7pro->proto = PROTO_MYSQL;
+            l7pro->type = type;
+            return 0;
+        }
+    }
     return -1;
 }
 #endif
+
