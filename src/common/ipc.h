@@ -217,6 +217,7 @@ enum snooper_obj_e {
 struct snooper_con_info_s {
     u32 cpucg_inode;
     char *con_id;
+    char *container_name;
     char *libc_path;
     char *libssl_path;
 };
