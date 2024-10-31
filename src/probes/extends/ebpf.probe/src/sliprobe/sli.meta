@@ -2,7 +2,49 @@ version = "1.0.0"
 measurements:
 (
     {
-        table_name: "sli_cpu_node",
+        table_name: "sli_cpu_node_gauge",
+        entity_name: "sli_node",
+        fields:
+        (
+            {
+                description: "Key of sli node table",
+                type: "key",
+                name: "sli_node_key",
+            },
+            {
+                description: "Latency of CPU wait",
+                type: "gauge",
+                name: "cpu_wait",
+            },
+            {
+                description: "Latency of CPU sleep",
+                type: "gauge",
+                name: "cpu_sleep",
+            },
+            {
+                description: "Latency of CPU io wait",
+                type: "gauge",
+                name: "cpu_iowait",
+            },
+            {
+                description: "Latency of CPU block",
+                type: "gauge",
+                name: "cpu_block",
+            },
+            {
+                description: "Latency of CPU run delay",
+                type: "gauge",
+                name: "cpu_rundelay",
+            },
+            {
+                description: "Latency of CPU long systime",
+                type: "gauge",
+                name: "cpu_longsys",
+            }
+        )
+    },
+    {
+        table_name: "sli_cpu_node_histogram",
         entity_name: "sli_node",
         fields:
         (
@@ -40,6 +82,18 @@ measurements:
                 description: "Latency of CPU long systime",
                 type: "histogram",
                 name: "cpu_longsys_histo",
+            }
+        )
+    },
+    {
+        table_name: "sli_cpu_container_gauge",
+        entity_name: "sli_container",
+        fields:
+        (
+            {
+                description: "container id",
+                type: "key",
+                name: "container_id",
             },
             {
                 description: "Latency of CPU wait",
@@ -74,7 +128,7 @@ measurements:
         )
     },
     {
-        table_name: "sli_cpu_container",
+        table_name: "sli_cpu_container_histogram",
         entity_name: "sli_container",
         fields:
         (
@@ -112,41 +166,38 @@ measurements:
                 description: "Latency of CPU long systime",
                 type: "histogram",
                 name: "cpu_longsys_histo",
-            },
-            {
-                description: "Latency of CPU wait",
-                type: "gauge",
-                name: "cpu_wait",
-            },
-            {
-                description: "Latency of CPU sleep",
-                type: "gauge",
-                name: "cpu_sleep",
-            },
-            {
-                description: "Latency of CPU io wait",
-                type: "gauge",
-                name: "cpu_iowait",
-            },
-            {
-                description: "Latency of CPU block",
-                type: "gauge",
-                name: "cpu_block",
-            },
-            {
-                description: "Latency of CPU run delay",
-                type: "gauge",
-                name: "cpu_rundelay",
-            },
-            {
-                description: "Latency of CPU long systime",
-                type: "gauge",
-                name: "cpu_longsys",
             }
         )
     },
     {
-        table_name: "sli_mem_node",
+        table_name: "sli_mem_node_gauge",
+        entity_name: "sli_node",
+        fields:
+        (
+            {
+                description: "Key of sli node table",
+                type: "key",
+                name: "sli_node_key",
+            },
+            {
+                description: "Latency of memory reclaim",
+                type: "gauge",
+                name: "mem_reclaim",
+            },
+            {
+                description: "Latency of memory compact",
+                type: "gauge",
+                name: "mem_compact",
+            },
+            {
+                description: "Latency of memory swapin",
+                type: "gauge",
+                name: "mem_swapin",
+            }
+        )
+    },
+    {
+        table_name: "sli_mem_node_histogram",
         entity_name: "sli_node",
         fields:
         (
@@ -169,6 +220,18 @@ measurements:
                 description: "Latency of memory swapin",
                 type: "histogram",
                 name: "mem_swapin_histo",
+            }
+        )
+    },
+    {
+        table_name: "sli_mem_container_gauge",
+        entity_name: "sli_container",
+        fields:
+        (
+            {
+                description: "container id",
+                type: "key",
+                name: "container_id",
             },
             {
                 description: "Latency of memory reclaim",
@@ -188,7 +251,7 @@ measurements:
         )
     },
     {
-        table_name: "sli_mem_container",
+        table_name: "sli_mem_container_histogram",
         entity_name: "sli_container",
         fields:
         (
@@ -211,26 +274,28 @@ measurements:
                 description: "Latency of memory swapin",
                 type: "histogram",
                 name: "mem_swapin_histo",
-            },
-            {
-                description: "Latency of memory reclaim",
-                type: "gauge",
-                name: "mem_reclaim",
-            },
-            {
-                description: "Latency of memory compact",
-                type: "gauge",
-                name: "mem_compact",
-            },
-            {
-                description: "Latency of memory swapin",
-                type: "gauge",
-                name: "mem_swapin",
             }
         )
     },
     {
-        table_name: "sli_io_node",
+        table_name: "sli_io_node_gauge",
+        entity_name: "sli_node",
+        fields:
+        (
+            {
+                description: "Key of sli node table",
+                type: "key",
+                name: "sli_node_key",
+            },
+            {
+                description: "I/O operation delay at the BIO layer (unit: ns)",
+                type: "gauge",
+                name: "bio_latency",
+            }
+        )
+    },
+    {
+        table_name: "sli_io_node_histogram",
         entity_name: "sli_node",
         fields:
         (
@@ -243,6 +308,18 @@ measurements:
                 description: "I/O operation delay at the BIO layer (unit: ns)",
                 type: "histogram",
                 name: "bio_latency_histo",
+            }
+        )
+    },
+    {
+        table_name: "sli_io_container_gauge",
+        entity_name: "sli_container",
+        fields:
+        (
+            {
+                description: "container id",
+                type: "key",
+                name: "container_id",
             },
             {
                 description: "I/O operation delay at the BIO layer (unit: ns)",
@@ -252,7 +329,7 @@ measurements:
         )
     },
     {
-        table_name: "sli_io_container",
+        table_name: "sli_io_container_histogram",
         entity_name: "sli_container",
         fields:
         (
@@ -265,11 +342,6 @@ measurements:
                 description: "I/O operation delay at the BIO layer (unit: ns)",
                 type: "histogram",
                 name: "bio_latency_histo",
-            },
-            {
-                description: "I/O operation delay at the BIO layer (unit: ns)",
-                type: "gauge",
-                name: "bio_latency",
             }
         )
     }

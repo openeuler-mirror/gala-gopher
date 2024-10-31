@@ -134,6 +134,12 @@ struct probe_range_define_s probe_range_define[] = {
     {PROBE_SERMANT, "l7_rpc_metrics",   PROBE_RANGE_SERMANT_RPC_METRICS},
     {PROBE_SERMANT, "l7_rpc_trace",     PROBE_RANGE_SERMANT_RPC_TRACE},
 
+    {PROBE_SLI,     "cpu",              PROBE_RANGE_SLI_CPU},
+    {PROBE_SLI,     "mem",              PROBE_RANGE_SLI_MEM},
+    {PROBE_SLI,     "io",               PROBE_RANGE_SLI_IO},
+    {PROBE_SLI,     "node",             PROBE_RANGE_SLI_NODE},
+    {PROBE_SLI,     "container",        PROBE_RANGE_SLI_CONTAINER},
+    {PROBE_SLI,     "histogram",        PROBE_RANGE_SLI_HISTOGRAM_METRICS},
     // If you want to add a probe, add the probe range.
 };
 
