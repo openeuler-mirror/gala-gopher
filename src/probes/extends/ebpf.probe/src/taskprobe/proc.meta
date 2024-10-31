@@ -374,7 +374,7 @@ measurements:
                 name: "ns_ioctl",
             }
         )
-    }
+    },
     {
         table_name: "proc_pygc",
         entity_name: "proc",
@@ -401,5 +401,5 @@ measurements:
                 name: "latency_max",
             }
         )
-    },
+    }
 )
