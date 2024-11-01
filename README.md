@@ -40,6 +40,7 @@ gala-gopher是一款结合eBPF、java agent等非侵入可观测技术的观测�
 应用性能经常受系统资源性能影响，gala-gopher可以提供应用视角精细化（进程粒度）的系统性能观测能力，涉及网络、I/O、内存、调度等多个方面。
 
 - [TCP性能](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#tcp%E6%8C%87%E6%A0%87)：提供TCP窗口、RTT、SRTT、reordering、ato等性能指标；
+- [应用系统时延](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%BA%94%E7%94%A8%E7%B3%BB%E7%BB%9F%E6%97%B6%E5%BB%B6)：提供应用系统时延（包括应用网络栈、调度产生的时延），应用网络时延（包括网络栈、网络传输产生的时延）
 - [I/O性能](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%BA%94%E7%94%A8io)：提供进程维度的 I/O操作字节数统计、FD资源占用统计、文件系统（vfs/ext4/overlay/tmpfs）层时延统计，大小I/O操作数量统计、BIO时延、错误统计（虚拟化QEMU进程有意义）等；
 - [内存](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%BA%94%E7%94%A8%E5%86%85%E5%AD%98-1)：提供进程维度的pagefault、swap区、脏页、虚拟内存、物理内存等统计。
 - [JVM监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#%E5%BA%94%E7%94%A8jvm)：提供jvm线程、java类加载、jvm内存、jvm buffer、gc次数/花费时间等统计。
@@ -74,14 +75,14 @@ nginx/haproxy通常作为云原生应用之间的负载均衡，网络流量经�
 
 ![负载分担流量监控](./doc/pic/demo.gif)
 
-### Redis/PostgreSQL监控
+### 高负载应用性能监控
 
-Redis/PostgreSQL常用于为应用提供数据存储服务，现有性能监控工具（拨测、打点）存在失真、误差等问题，gala-gopher针对redis/PostgreSQL应用，提供非侵入的性能观测能力。除此以外，这类应用性能经常受网络、I/O影响，gala-gopher提供针对这些应用的网络、I/O监控能力。
+高负载应用是指像DB、Cache等应用，常见的比如Redis/PostgreSQL等，现有性能监控工具（拨测、打点）存在失真、误差等问题，gala-gopher针对Redis/PostgreSQL应用时延SLI观测能力。
 
 - [Redis性能监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#redis%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7)：提供精细化的（具体到某个TCP）redis时延监控能力。（注意不支持加密场景）
 - [PostgreSQL性能监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#postgresql%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7)：提供精细化的（具体到某个TCP）Postgre时延监控能力。
 
-备注：与[应用访问性能监控](./README.md#%E5%BA%94%E7%94%A8%E5%BE%AE%E6%9C%8D%E5%8A%A1%E8%AE%BF%E9%97%AE%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7)的区别在于，该观测精度略低，但是其底噪更低。
+备注：高负载应用性能监控与[应用访问性能监控](./README.md#%E5%BA%94%E7%94%A8%E5%BE%AE%E6%9C%8D%E5%8A%A1%E8%AE%BF%E9%97%AE%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7)的区别在于，前者SLI包括了应用处理时延、系统处理时延，后者只包括应用处理时延。
 
 ## 软件架构
 
