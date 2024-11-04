@@ -21,21 +21,6 @@
 
 #define L7_CONN_BPF_PATH          "/sys/fs/bpf/gala-gopher/__l7_connect"
 
-enum l4_role_t {
-    L4_UNKNOW = 0,              // udp
-    L4_CLIENT,
-    L4_SERVER,
-
-    L4_ROLE_MAX
-};
-
-enum l7_role_t {
-    L7_UNKNOW = 0,
-    L7_CLIENT,
-    L7_SERVER,
-
-    L7_ROLE_MAX
-};
 
 enum tracker_evt_e {
     TRACKER_EVT_STATS = 1,
@@ -44,44 +29,10 @@ enum tracker_evt_e {
 };
 
 
-struct conn_id_s {
-    int tgid;                   // process id
-    int fd;
-};
-
-struct conn_addr_s {
-    u16 family;
-    u16 port;                   // TCP server port or client connect port
-    union {
-        u32 ip;
-        char ip6[IP6_LEN];
-    };
-};
-
-struct conn_info_s {
-    struct conn_id_s id;
-    char is_ssl;
-    char is_reported;
-    u16 pad;
-    enum l4_role_t l4_role;     // TCP client or server; udp unknown
-    enum l7_role_t l7_role;     // RPC client or server
-    enum proto_type_t protocol; // L7 protocol type
-
-    struct conn_addr_s remote_addr; // UDP datagram address
-    struct conn_addr_s client_addr; // TCP client address
-    struct conn_addr_s server_addr; // TCP server address
-};
 
 typedef u64 conn_ctx_t;         // pid & tgid
 
-// The information of socket connection
-struct sock_conn_s {
-    struct conn_info_s info;
 
-    // The number of bytes written/read on this socket connection.
-    u64 wr_bytes;
-    u64 rd_bytes;
-};
 
 enum conn_evt_e {
     CONN_EVT_OPEN,
@@ -130,7 +81,7 @@ struct conn_stats_s {
 
 // Exchange data between user mode/kernel using
 // 'conn_data_events' perf channel.
-#define LOOP_LIMIT 4
+#define LOOP_LIMIT 10
 #define CONN_DATA_MAX_SIZE  (8 * 1024 - 1)
 
 struct conn_data_msg_s {
@@ -194,9 +145,8 @@ static __always_inline __maybe_unused int update_sock_conn_proto(struct sock_con
     if (sock_conn->info.protocol != PROTO_UNKNOW) {
         return 0;
     }
-
     struct l7_proto_s l7pro = {0};
-    if (get_l7_protocol(buf, count, flags, direction, &l7pro)) {
+    if (get_l7_protocol(buf, count, flags, direction, &l7pro, sock_conn)) {
         return -1;
     }
 
