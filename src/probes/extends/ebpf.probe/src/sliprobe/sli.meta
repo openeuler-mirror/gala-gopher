@@ -2,6 +2,50 @@ version = "1.0.0"
 measurements:
 (
     {
+        table_name: "sli_cpu_node_stat",
+        entity_name: "sli_node",
+        fields:
+        (
+            {
+                description: "Key of sli node table",
+                type: "key",
+                name: "sli_node_key",
+            },
+            {
+                description: "CPU usage",
+                type: "gauge",
+                name: "cpu_busy",
+            },
+            {
+                description: "CPU core number",
+                type: "gauge",
+                name: "cpu_cores",
+            }
+        )
+    },
+    {
+        table_name: "sli_cpu_container_stat",
+        entity_name: "sli_container",
+        fields:
+        (
+            {
+                description: "container id",
+                type: "key",
+                name: "container_id",
+            },
+            {
+                description: "CPU usage",
+                type: "gauge",
+                name: "cpu_busy",
+            },
+            {
+                description: "CPU core number",
+                type: "gauge",
+                name: "cpu_cores",
+            }
+        )
+    },
+    {
         table_name: "sli_cpu_node_gauge",
         entity_name: "sli_node",
         fields:

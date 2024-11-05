@@ -19,6 +19,7 @@
 #include <string.h>
 #include <time.h>
 #include <sys/resource.h>
+#include "container.h"
 
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
@@ -40,6 +41,9 @@
 
 #define OO_SLI_NODE "sli_node"  // Observation Object name
 #define OO_SLI_CONTAINER "sli_container"  // Observation Object name
+
+#define SLI_CPU_NODE_STAT                   "sli_cpu_node_stat"
+#define SLI_CPU_CONTAINER_STAT              "sli_cpu_container_stat"
 
 #define SLI_CPU_NODE_GAUGE                  "sli_cpu_node_gauge"
 #define SLI_CPU_NODE_HISTOGRAM              "sli_cpu_node_histogram"
@@ -95,9 +99,12 @@
 
 struct sli_container_s {
     H_HANDLE;
+    int cpu_cores;
     cpu_cgrp_inode_t ino;
+    u64 last_cpu_usage_ns;
     char *container_id;
     u32 flags;
+    char cpu_usage_path[CG_PATH_LEN];
 };
 
 struct sli_cpu_lat_histo_s {
@@ -125,10 +132,12 @@ struct sli_probe_s {
     u8 is_report_node;
     u8 is_report_container;
     u8 is_report_histogram;
+    int host_cpu_cores;
     int sli_args_fd;
     int sli_cpu_fd;
     int sli_mem_fd;
     int sli_io_fd;
+    time_t last_report;
     struct histo_bucket_s sli_cpu_lat_buckets[SLI_CPU_LAT_NR];
     struct histo_bucket_s sli_mem_lat_buckets[SLI_MEM_LAT_NR];
     struct histo_bucket_s sli_io_lat_buckets[SLI_IO_LAT_NR];
@@ -231,6 +240,93 @@ static void flush_sli_container_tbl(struct sli_probe_s *probe, u32 flags)
     return;
 }
 
+#define __CGROUP_CPUACCT_USAGE "%s/cpuacct.usage"
+#define __ROOT_CGROUP_CPUACCT_USAGE "/sys/fs/cgroup/cpuacct/cpuacct.usage"
+static int __fill_container_cpu_usage_path(struct sli_container_s *container_cache)
+{
+    if (container_cache->ino == CPUACCT_GLOBAL_CGPID) {
+        (void)snprintf(container_cache->cpu_usage_path, PATH_LEN, "%s", __ROOT_CGROUP_CPUACCT_USAGE);
+    } else {
+        char cpucg_dir[CG_PATH_LEN];
+        cpucg_dir[0] = 0;
+        if (get_container_cpucg_dir(container_cache->container_id, cpucg_dir, CG_PATH_LEN) < 0) {
+            return -1;
+        }
+        if (cpucg_dir[0] == 0) {
+            return -1;
+        }
+        (void)snprintf(container_cache->cpu_usage_path, CG_PATH_LEN, __CGROUP_CPUACCT_USAGE, cpucg_dir);
+    }
+    return 0;
+}
+
+static u64 __read_cgroup_file(const char *path)
+{
+    u64 num = 0;
+    FILE *f = fopen(path, "r");
+    if (f == NULL) {
+        ERROR("[SLIPROBE] open file %s failed.\n", path);
+        return 0;
+    }
+
+    char line[LINE_BUF_LEN];
+    line[0] = 0;
+    if (fgets(line, sizeof(line), f) != NULL) {
+        num = strtoull(line, NULL, 10);
+    } else {
+        ERROR("[SLIPROBE] Error reading line from %s\n", path);
+    }
+
+    (void)fclose(f);
+
+    return num;
+}
+
+#define __CGROUP_CPU_CFS_QUOTA "%s/cpu.cfs_quota_us"
+#define __CGROUP_CPU_CFS_PERIOD "%s/cpu.cfs_period_us"
+#define __ROOT_CGROUP_CFS_QUOTA "/sys/fs/cgroup/cpuacct/cpu.cfs_quota_us"
+#define __ROOT_CGROUP_CFS_PERIOD "/sys/fs/cgroup/cpuacct/cpu.cfs_period_us"
+static void __fill_container_cpu_cores(struct sli_probe_s *probe, struct sli_container_s *container_cache)
+{
+    char cpu_cfs_quota_path[CG_PATH_LEN];
+    char cpu_cfs_period_path[CG_PATH_LEN];
+    u64 cpu_cfs_quota_us;
+    u64 cpu_cfs_period_us;
+    if (container_cache->ino == CPUACCT_GLOBAL_CGPID) {
+        (void)snprintf(cpu_cfs_quota_path, PATH_LEN, "%s", __ROOT_CGROUP_CFS_QUOTA);
+        (void)snprintf(cpu_cfs_period_path, PATH_LEN, "%s", __ROOT_CGROUP_CFS_PERIOD);
+    } else {
+        char cpucg_dir[CG_PATH_LEN];
+        cpucg_dir[0] = 0;
+        if (get_container_cpucg_dir(container_cache->container_id, cpucg_dir, CG_PATH_LEN) < 0) {
+            goto err;
+        }
+        if (cpucg_dir[0] == 0) {
+            goto err;
+        }
+        (void)snprintf(cpu_cfs_quota_path, CG_PATH_LEN, __CGROUP_CPU_CFS_QUOTA, cpucg_dir);
+        (void)snprintf(cpu_cfs_period_path, CG_PATH_LEN, __CGROUP_CPU_CFS_PERIOD, cpucg_dir);
+    }
+
+    cpu_cfs_quota_us = __read_cgroup_file(cpu_cfs_quota_path);
+    cpu_cfs_period_us = __read_cgroup_file(cpu_cfs_period_path);
+
+    if (cpu_cfs_quota_us == 0 || cpu_cfs_period_us == 0) {
+        ERROR("[SLIPROBE] Error reading from :%s or :%s\n",
+            cpu_cfs_quota_path, cpu_cfs_period_path);
+        goto err;
+    }
+
+    if (cpu_cfs_quota_us != -1) {
+        container_cache->cpu_cores = cpu_cfs_quota_us / cpu_cfs_period_us;
+        return;
+    }
+
+err:
+    container_cache->cpu_cores = probe->host_cpu_cores;
+    return;
+}
+
 static int add_sli_container(struct sli_probe_s *probe, cpu_cgrp_inode_t ino, const char* container_id)
 {
     struct sli_container_s *container_cache = (struct sli_container_s *)malloc(sizeof(struct sli_container_s));
@@ -250,6 +346,14 @@ static int add_sli_container(struct sli_probe_s *probe, cpu_cgrp_inode_t ino, co
 
     container_cache->ino = ino;
     container_cache->flags = SLI_RUNNING;
+    if (__fill_container_cpu_usage_path(container_cache) || container_cache->cpu_usage_path[0] == 0) {
+        ERROR("[SLIPROBE]: fill con[%s] cpu_usage_path failed.\n", container_cache->container_id);
+        free(container_cache);
+        return -1;
+    }
+
+    __fill_container_cpu_cores(probe, container_cache);
+
     H_ADD_KEYPTR(probe->container_caches, &container_cache->ino, sizeof(cpu_cgrp_inode_t), container_cache);
 
     if (probe->is_load_cpu) {
@@ -303,9 +407,9 @@ static void reload_sli_container_tbl(struct sli_probe_s *probe)
         }
 
         if (add_sli_container(probe, (cpu_cgrp_inode_t)container->cpucg_inode, (const char *)container->con_id)) {
-            ERROR("[SLIPROBE]: Add container failed.(container_id = %s)\n", container->con_id);
+            ERROR("[SLIPROBE]: Add container failed.(con_id = %s)\n", container->con_id);
         } else {
-            INFO("[SLIPROBE]: Add container succeed.(container_id = %s)\n", container->con_id);
+            INFO("[SLIPROBE]: Add container succeed.(con_id = %s)\n", container->con_id);
         }
     }
 
@@ -314,7 +418,7 @@ static void reload_sli_container_tbl(struct sli_probe_s *probe)
     return;
 }
 
-static void probe_init(struct sli_probe_s *probe)
+static int probe_init(struct sli_probe_s *probe)
 {
     for (int i = 0; i < SLI_CPU_LAT_NR; i++) {
         (void)init_histo_bucket(&(probe->sli_cpu_lat_buckets[i]), sli_cpu_lat_histios[i].min, sli_cpu_lat_histios[i].max);
@@ -327,7 +431,14 @@ static void probe_init(struct sli_probe_s *probe)
     for (int i = 0; i < SLI_IO_LAT_NR; i++) {
         (void)init_histo_bucket(&(probe->sli_io_lat_buckets[i]), sli_io_lat_histios[i].min, sli_io_lat_histios[i].max);
     }
-    return;
+
+    probe->host_cpu_cores = (int)sysconf(_SC_NPROCESSORS_CONF);
+    if (probe->host_cpu_cores <= 0) {
+        ERROR("[SLIPROBE]: sysconf to read the number of cpus error\n");
+        return -1;
+    }
+
+    return 0;
 }
 
 static void sig_int(int signo)
@@ -852,6 +963,99 @@ err:
     return ret;
 }
 
+static int __get_cpu_busy(struct sli_probe_s *probe, struct sli_container_s *container_cache, time_t secs)
+{
+    if (container_cache == NULL || container_cache->cpu_usage_path == NULL) {
+        ERROR("[SLIPROBE] get cpu usage path failed.\n");
+        return 0;
+    }
+
+    FILE *f = fopen(container_cache->cpu_usage_path, "r");
+    if (f == NULL) {
+        ERROR("[SLIPROBE] open file %s failed.\n", container_cache->cpu_usage_path);
+        return 0;
+    }
+
+    char line[LINE_BUF_LEN];
+    int cpu_busy = 0;
+    line[0] = 0;
+    if (fgets(line, sizeof(line), f) != NULL) {
+        u64 cur_ns = strtoull(line, NULL, 10);
+        // if last_cpu_usage_ns equals 0, it means this is the first collection
+        // and we will not to report cpu_busy this time.
+        if (container_cache->last_cpu_usage_ns != 0) {
+            cpu_busy = (cur_ns - container_cache->last_cpu_usage_ns) * 100
+                / NSEC_PER_SEC / secs / probe->host_cpu_cores; // 100 means 100%
+            if (cpu_busy < 0) {
+                ERROR("[SLIPROBE] cpu_busy < 0. cpu_usage_path is %s.\n", container_cache->cpu_usage_path);
+            }
+        }
+        container_cache->last_cpu_usage_ns = cur_ns;
+    } else {
+        ERROR("[SLIPROBE] Error reading line from %s\n", container_cache->cpu_usage_path);
+    }
+
+    (void)fclose(f);
+
+    return cpu_busy;
+}
+
+static time_t get_time_since_last_report(struct sli_probe_s *probe)
+{
+    time_t current = (time_t)time(NULL);
+    time_t secs;
+
+    if (probe->last_report == 0 || current <= probe->last_report) {
+        probe->last_report = current;
+        return 0;
+    }
+
+    secs = current - probe->last_report;
+    if (secs >= probe->ipc_body.probe_param.period) {
+        probe->last_report = current;
+        return secs;
+    }
+
+    return 0;
+}
+
+static void report_cpu_stat(struct sli_probe_s *probe)
+{
+    int cpu_busy;
+    time_t secs = get_time_since_last_report(probe);
+    if (secs == 0) {
+        return;
+    }
+
+    struct sli_container_s *cache, *tmp;
+    H_ITER(probe->container_caches, cache, tmp) {
+        cpu_busy = __get_cpu_busy(probe, cache, secs);
+        if (cpu_busy < 0) {
+            continue;
+        }
+
+        if (cache->ino == CPUACCT_GLOBAL_CGPID && probe->is_report_node) {
+            (void)fprintf(stdout,
+                "|%s|%s"
+                "|%d|%d|\n",
+                SLI_CPU_NODE_STAT,
+                SLI_TBL_NODE_KEY,
+                cpu_busy,
+                cache->cpu_cores);
+            (void)fflush(stdout);
+        } else if (probe->is_report_container) {
+            (void)fprintf(stdout,
+                "|%s|%s"
+                "|%d|%d|\n",
+                SLI_CPU_CONTAINER_STAT,
+                cache->container_id,
+                cpu_busy,
+                cache->cpu_cores);
+            (void)fflush(stdout);
+        }
+    }
+}
+
 int main(int argc, char **argv)
 {
     int ret = 0;
@@ -873,11 +1077,14 @@ int main(int argc, char **argv)
     }
 
     if (signal(SIGINT, sig_int) == SIG_ERR) {
-        fprintf(stderr, "can't set signal handler: %s\n", strerror(errno));
+        ERROR("[SLIPROBE]: can't set signal handler: %s\n", strerror(errno));
         goto err;
     }
 
-    probe_init(sli_probe);
+    if (probe_init(sli_probe)) {
+        ERROR("[SLIPROBE]: probe init failed.\n");
+        goto err;
+    }
 
     INFO("[SLIPROBE]: Successfully started!\n");
 
@@ -922,6 +1129,10 @@ int main(int argc, char **argv)
                 ERROR("[SLIPROBE]: perf poll prog_%d failed.\n", i);
                 break;
             }
+        }
+    
+        if (sli_probe->is_load_cpu) {
+            report_cpu_stat(sli_probe);
         }
     }
 
