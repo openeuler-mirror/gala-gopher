@@ -306,6 +306,12 @@ int main(int argc, char *argv[])
         goto err;
     }
 
+    ret = is_singleton();
+    if (ret != 0) {
+        goto err;
+    }
+    delete_pid_file = 1;
+
     g_resourceMgr = ResourceMgrCreate();
     if (g_resourceMgr == NULL) {
         ERROR("[MAIN] create resource manager failed.\n");
@@ -317,13 +323,6 @@ int main(int argc, char *argv[])
         ERROR("[MAIN] ResourceMgrInit failed.\n");
         goto err;
     }
-
-    ret = is_singleton();
-    if (ret != 0) {
-        goto err;
-    }
-
-    delete_pid_file = 1;
 
     g_probe_mng_ipc_msgid = g_resourceMgr->probe_mng->msq_id;
 

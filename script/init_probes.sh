@@ -15,7 +15,7 @@
 
 GOPHER_INITIAL_CONF="/etc/gala-gopher/probes.init"
 GOPHER_CMD_SOCK_PATH="/var/run/gala_gopher/gala_gopher_cmd.sock"
-RETRY_COUNT=5
+GOPHER_PIDFILE="/var/run/gala_gopher/gala-gopher.pid"
 MAX_INIT_NUM=25
 
 PROBES=(
@@ -42,15 +42,25 @@ PROBES=(
     "flowtracer"
     )
 
+function check_gopher_running()
+{
+    [ -f ${GOPHER_PIDFILE} ] && [ ! -L ${GOPHER_PIDFILE} ]
+    return $?
+}
+
+function check_unix_socket_listen()
+{
+    ss -xl src ${GOPHER_CMD_SOCK_PATH} | grep -q ${GOPHER_CMD_SOCK_PATH}
+    return $?
+}
+
 function check_cmd_server()
 {
-    i=0
-    while ! ss -xl src ${GOPHER_CMD_SOCK_PATH} | grep -q ${GOPHER_CMD_SOCK_PATH} ; do
-        sleep 0.5
-        let i+=1
-        if [ $i -ge ${RETRY_COUNT} ] ; then
+    while ! check_unix_socket_listen ; do
+        if ! check_gopher_running ; then
             exit 1
         fi
+        sleep 0.5
     done
 }
 
