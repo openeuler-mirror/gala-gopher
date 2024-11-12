@@ -220,6 +220,10 @@ int IMDB_TableSetMeta(IMDB_Table *table, IMDB_Record *metaRecord)
 
 int IMDB_TableSetRecordKeySize(IMDB_Table *table, uint32_t keyNum)
 {
+    if (keyNum == 0) {
+        ERROR("[IMDB] Meta must contain at least one key field, table: %s\n", table->name);
+        return -1;
+    }
     table->recordKeySize = keyNum * MAX_IMDB_METRIC_VAL_LEN;
     return 0;
 }
@@ -560,8 +564,13 @@ static int IMDB_DataBaseMgrParseContent(IMDB_DataBaseMgr *mgr, IMDB_Table *table
 
         // if index > metricNum, it's invalid
         if (index >= table->meta->metricsNum) {
+            if (strcmp(token, INVALID_METRIC_VALUE) != 0) {
+                ERROR("[IMDB] Raw ingress data exceeds metrics num of table(%s)\n", table->name);
+                goto ERR;
+            }
             break;
         }
+
         // fill record by the rest substrings
         metric = IMDB_MetricCreate(table->meta->metrics[index]->name,
                                    table->meta->metrics[index]->description,
@@ -597,6 +606,12 @@ static int IMDB_DataBaseMgrParseContent(IMDB_DataBaseMgr *mgr, IMDB_Table *table
 
         index += 1;
     }
+
+    if (index != table->meta->metricsNum) {
+        ERROR("[IMDB] Raw ingress data does not reach metrics num of table(%s)\n", table->name);
+        goto ERR;
+    }
+
     if (buffer_head != NULL) {
         free(buffer_head);
     }
@@ -623,7 +638,6 @@ IMDB_Record* IMDB_DataBaseMgrCreateRec(IMDB_DataBaseMgr *mgr, IMDB_Table *table,
 
     ret = IMDB_DataBaseMgrParseContent(mgr, table, record, content, 1);
     if (ret != 0) {
-        ERROR("[IMDB]Raw ingress data to rec failed(CREATEREC).\n");
         goto ERR;
     }
     ret = IMDB_TableAddRecord(table, record);

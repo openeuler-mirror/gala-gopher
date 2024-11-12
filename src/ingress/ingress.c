@@ -270,8 +270,12 @@ static int ProcessMetricData(IngressMgr *mgr, const char *content, const char *t
     int ret = 0;
 
     table = IMDB_DataBaseMgrFindTable(mgr->imdbMgr, tblName);
-    if (table == NULL || table->recordKeySize == 0)
+    if (table == NULL) {
+        ERROR("[INGRESS] failed to find tablename \"%s\" of metrics reported by probe %s\n",
+              tblName, probe ? probe->name : "unknown");
         return -1;
+    }
+
     if (probe) {
         IMDB_TableUpdateExtLabelConf(table, &probe->ext_label_conf);
     }
@@ -280,7 +284,6 @@ static int ProcessMetricData(IngressMgr *mgr, const char *content, const char *t
         // save metric to imdb
         rec = IMDB_DataBaseMgrCreateRec(mgr->imdbMgr, table, content);
         if (rec == NULL) {
-            ERROR("[INGRESS] insert metric data into imdb failed.\n");
             return -1;
         }
     }
