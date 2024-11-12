@@ -72,24 +72,25 @@ static int LogData2Egress(IngressMgr *mgr, const char *logData)
 
     if (LogData2Json(mgr, logData, jsonFmt, MAX_DATA_STR_LEN)) {
         ERROR("[INGRESS] transfer log data to json format failed.\n");
-        free(jsonFmt);
-        return -1;
+        goto err;
     }
 
     ret = FifoPut(mgr->egressMgr->event_fifo, (void *)jsonFmt);
     if (ret != 0) {
         ERROR("[INGRESS] egress event fifo full.\n");
-        free(jsonFmt);
-        return -1;
+        goto err;
     }
     ret = write(mgr->egressMgr->event_fifo->triggerFd, &msg, sizeof(uint64_t));
     if (ret != sizeof(uint64_t)) {
         ERROR("[INGRESS] send trigger msg to egress event_fifo fd failed.\n");
-        free(jsonFmt);
-        return -1;
+        goto err;
     }
 
     return 0;
+
+err:
+    (void)free(jsonFmt);
+    return -1;
 }
 
 static int EventData2Egress(IngressMgr *mgr, const char *content)
