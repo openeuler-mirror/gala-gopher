@@ -23,6 +23,7 @@
 #define TCPOPT_NOP          1
 #define ETH_P_IP            0x0800
 #define ETH_P_IPV6          0x86DD
+#define MAX_TCP_OPTIONS_LEN 40   // 15(max u4) * 4 - sizeof(tcphdr)
 
 struct toa_opt {
     u8 opcode;
