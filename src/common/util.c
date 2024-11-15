@@ -426,7 +426,7 @@ int get_proc_cmdline(u32 pid, char *buf, u32 buf_len)
     /* parse line */
     while (feof(f) == 0) {
         if (index >= buf_len - 1) {
-            buf[buf_len - 1] = '\0';
+            buf[index] = '\0';
             break;
         }
         buf[index] = fgetc(f);
