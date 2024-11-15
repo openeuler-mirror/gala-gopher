@@ -848,7 +848,7 @@ static int __read_proc_cmdline(const char *dir_name, char *cmdline, u32 size)
     /* parse line */
     while (!feof(f)) {
         if (index >= size - 1) {
-            cmdline[index] = '\0';
+            cmdline[buf_len - 1] = '\0';
             break;
         }
         cmdline[index] = fgetc(f);
@@ -1123,9 +1123,9 @@ static int gen_snooper_by_container_name(struct probe_s *probe)
         if (snooper_conf->type != SNOOPER_CONF_CONTAINER_NAME) {
             continue;
         }
-        
+
         cmd[0] = 0;
-        (void)snprintf(cmd, COMMAND_LEN, 
+        (void)snprintf(cmd, COMMAND_LEN,
             "docker ps -q --filter \"name=%s\"", (const char *)snooper_conf->conf.container_name);
         f = popen_chroot(cmd, "r");
         if (f == NULL) {
