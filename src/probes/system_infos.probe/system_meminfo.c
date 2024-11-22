@@ -271,4 +271,5 @@ int system_meminfo_probe(struct ipc_body_s *ipc_body)
         ERROR("[SYSTEM_PROBE] failed to collect fs dentry_state.\n");
         return -1;
     }
+    return 0;
 }

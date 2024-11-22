@@ -75,6 +75,7 @@ parse_state_t kafka_parse_frame(enum message_type_t msg_type, struct raw_data_s 
         decode_status = decoder_extract_int16_t(raw_data, &api_key_int);
         if (decode_status != STATE_SUCCESS) {
             ERROR("[Kafka] Decode request key failed.\n");
+            free(raw_data_copy);//释放申请的内存
             return STATE_INVALID;
         }
         api_key = (enum kafka_api) api_key_int;
@@ -82,16 +83,19 @@ parse_state_t kafka_parse_frame(enum message_type_t msg_type, struct raw_data_s 
         decode_status = decoder_extract_int16_t(raw_data, &api_version);
         if (decode_status != STATE_SUCCESS) {
             ERROR("[Kafka] Decode request version failed.\n");
+            free(raw_data_copy);//释放申请的内存
             return STATE_INVALID;
         }
 
         if (!is_api_key_valid(api_key)) {
             ERROR("[Kafka] Decode request key is invalid.\n");
+            free(raw_data_copy);//释放申请的内存
             return STATE_INVALID;
         }
 
         if (!is_api_version_support(api_key, api_version)) {
             ERROR("[Kafka] Decode request version is invalid.\n");
+            free(raw_data_copy);//释放申请的内存
             return STATE_INVALID;
         }
     }
@@ -101,22 +105,26 @@ parse_state_t kafka_parse_frame(enum message_type_t msg_type, struct raw_data_s 
     decode_status = decoder_extract_int32_t(raw_data, &correlation_id);
     if (decode_status != STATE_SUCCESS) {
         ERROR("[Kafka] Decode correlation id failed.\n");
+        free(raw_data_copy);//释放申请的内存
         return STATE_INVALID;
     }
 
     if (correlation_id < 0) {
         ERROR("[Kafka] Decode correlation id is invalid.\n");
+        free(raw_data_copy);//释放申请的内存
         return STATE_INVALID;
     }
 
     if (raw_data_len - KAFKA_PAYLOAD_LENGTH < msg_length) {
         INFO("[Kafka] Decode needs more data.\n");
+        free(raw_data_copy);//释放申请的内存
         return STATE_NEEDS_MORE_DATA;
     }
 
     struct kafka_frame_s *kafka_frame = (struct kafka_frame_s *) malloc(sizeof(struct kafka_frame_s));
     if (kafka_frame == NULL) {
         ERROR("[Kafka] Malloc kafka frame failed.\n");
+        free(raw_data_copy);//释放申请的内存
         return STATE_INVALID;
     }
 
