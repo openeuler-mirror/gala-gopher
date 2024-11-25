@@ -53,6 +53,7 @@
 #define TRACE_FIELD_STACK_CATEGORY  "category"
 
 #define EVENT_CATEGORY_ONCPU        "oncpu"
+#define EVENT_CATEGORY_OFFCPU       "offcpu"
 #define EVENT_CATEGORY_SYSCALL      "syscall"
 #define EVENT_CATEGORY_PYGC         "python_gc"
 #define EVENT_CATEGORY_PTHRD_SYNC   "pthread_sync"
@@ -61,6 +62,7 @@
 #define EVENT_CATEGORY_STUCK        "stuck"
 
 #define EVENT_CNAME_OF_ONCPU        "good"
+#define EVENT_CNAME_OF_OFFCPU       "bad"
 
 #define EVENT_META_PROC_NAME        "process_name"
 #define EVENT_META_ARG_PROC_NAME    "name"
