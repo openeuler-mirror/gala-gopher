@@ -524,8 +524,8 @@ curl -X PUT http://localhost:9999/tcp -d json='
 5. params内容中的参数，示例中的参数都是tcp探针支持的参数
        sample_period控制着探针采集数据的周期，值为200的含义是每隔200ms进行数据的采集
        report_period是控制着采集的数据上报的周期，值为60的含义是每隔60s上报一次采集到的数据
-       latency_thr控制着时延上报的门限，值为10的含义是时延需要超过60ms才进行上报
-       drops_thr控制着丢包上送门限，值为10的含义是丢包需要大于10 package是才进行丢包上送
+       latency_thr控制着时延上报的门限，值为60的含义是时延需要超过60ms才进行上报
+       drops_thr控制着丢包上送门限，值为10的含义是丢包需要大于10 package时才进行丢包上送
        res_lower_thr是控制着资源的百分比下限
        res_upper_thr是控制着资源的百分比上限
        report_event是控制着探针是否上报异常事件，为1时代表上报异常事件
@@ -654,8 +654,8 @@ curl -X PUT http://localhost:9999/io -d json='
 5. snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
    一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
 6. params内容中的参数，示例中的参数都是io探针支持的参数
-        sample_period控制着采样周期，值为180的含义是每隔180ms进行一次数据的采样
-        report_period是控制着采集的数据上报的周期，值为180的含义是每个180s上报一次采集到的数据
+        sample_period控制着采样周期，值为200的含义是每隔200ms进行一次数据的采样
+        report_period是控制着采集的数据上报的周期，值为60的含义是每60s上报一次采集到的数据
         latency_thr控制着时延上报的门限，值为180的含义是时延大于180ms时进行时延的上报
         res_lower_thr是控制着资源的百分比下限
         res_upper_thr是控制着资源的百分比上限
@@ -733,7 +733,7 @@ curl -X PUT http://localhost:9999/proc -d json='
 4. snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
    一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
 5. params内容中的参数，示例中的参数都是proc探针支持的参数
-       report_period是控制着采集的数据上报的周期，值为180的含义是每个180s上报一次采集到的数据
+       report_period是控制着采集的数据上报的周期，值为180的含义是每隔180s上报一次采集到的数据
        res_lower_thr是控制着资源的百分比下限
        res_upper_thr是控制着资源的百分比上限
        report_event是控制着探针是否上报异常事件，为1时代表上报异常事件
@@ -800,7 +800,7 @@ curl -X PUT http://localhost:9999/jvm -d json='
 4. snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
    一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
 5. params内容中的参数，示例中的参数都是jvm探针支持的参数
-       report_period是控制着采集的数据上报的周期，值为180的含义是每个180s上报一次采集到的数据
+       report_period是控制着采集的数据上报的周期，值为180的含义是每隔180s上报一次采集到的数据
        res_lower_thr是控制着资源的百分比下限
        res_upper_thr是控制着资源的百分比上限
        report_event是控制着探针是否上报异常事件，为1时代表上报异常事件
@@ -872,7 +872,7 @@ curl -X PUT http://localhost:9999/ksli -d json='
 4. snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
    一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
 5. params内容中的参数，示例中的参数都是ksli探针支持的参数
-       report_period是控制着采集的数据上报的周期，值为180的含义是每个180s上报一次采集到的数据
+       report_period是控制着采集的数据上报的周期，值为180的含义是每隔180s上报一次采集到的数据
        latency_thr控制着时延上报的门限，值为180的含义是时延大于180ms时进行时延的上报
        res_lower_thr是控制着资源的百分比下限
        res_upper_thr是控制着资源的百分比上限
@@ -946,7 +946,7 @@ curl -X PUT http://localhost:9999/postgre_sli -d json='
 4. snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
    一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
 5. params内容中的参数，示例中的参数都是postgre_sli探针支持的参数
-       report_period是控制着采集的数据上报的周期，值为180的含义是每个180s上报一次采集到的数据
+       report_period是控制着采集的数据上报的周期，值为180的含义是每隔180s上报一次采集到的数据
        res_lower_thr是控制着资源的百分比下限
        res_upper_thr是控制着资源的百分比上限
        report_event是控制着探针是否上报异常事件，为1时代表上报异常事件
@@ -1010,7 +1010,7 @@ curl -X PUT http://localhost:9999/opengauss_sli -d json='
 4. snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
    一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
 5. params内容中的参数，示例中的参数都是opengauss_sli探针支持的参数
-       report_period是控制着采集的数据上报的周期，值为180的含义是每个180s上报一次采集到的数据
+       report_period是控制着采集的数据上报的周期，值为180的含义是每隔180s上报一次采集到的数据
        res_lower_thr是控制着资源的百分比下限
        res_upper_thr是控制着资源的百分比上限
        report_event是控制着探针是否上报异常事件，为1时代表上报异常事件
@@ -1052,7 +1052,7 @@ curl -X PUT http://localhost:9999/nginx -d json='
 3. cmd内容中的probe对应着探针的采集子项，nginx探针probe的内容为空时代表nginx探针对应的meta文件中的指标数据全采集
 4. snoopers内容中的配置探针监听对象为空
 5. params内容中的参数，示例中的参数都是nginx探针支持的参数
-       report_period是控制着采集的数据上报的周期，值为180的含义是每个180s上报一次采集到的数据
+       report_period是控制着采集的数据上报的周期，值为180的含义是每隔180s上报一次采集到的数据
        res_lower_thr是控制着资源的百分比下限
        res_upper_thr是控制着资源的百分比上限
        report_event是控制着探针是否上报异常事件，为1时代表上报异常事件
@@ -1096,7 +1096,7 @@ curl -X PUT http://localhost:9999/kafka -d json='
 4. cmd内容中的probe对应着探针的采集子项，kafka探针probe的内容为空时代表kafka探针对应的meta文件的指标数据全采集
 5. snoopers内容中的配置探针监听对象为空
 6. params内容中的参数，示例中的参数都是kafka探针支持的参数
-       report_period是控制着采集的数据上报的周期，值为180的含义是每个180s上报一次采集到的数据
+       report_period是控制着采集的数据上报的周期，值为180的含义是每隔180s上报一次采集到的数据
        res_lower_thr是控制着资源的百分比下限
        res_upper_thr是控制着资源的百分比上限
        report_event是控制着探针是否上报异常事件，为1时代表上报异常事件
@@ -1177,7 +1177,7 @@ curl -X PUT http://localhost:9999/baseinfo -d json='
 4. snoopers内容中的配置探针监听对象有四个维度，proc_id、proc_name、pod_id和container_id，分别是进程id，进程名称，pod id和容器id，其中任意
    一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
 5. params内容中的参数，示例中的参数都是baseinfo探针支持的参数
-       report_period是控制着采集的数据上报的周期，值为180的含义是每个180s上报一次采集到的数据
+       report_period是控制着采集的数据上报的周期，值为180的含义是每隔180s上报一次采集到的数据
        res_lower_thr是控制着资源的百分比下限
        res_upper_thr是控制着资源的百分比上限
        report_event是控制着探针是否上报异常事件，为1时代表上报异常事件
@@ -1220,7 +1220,7 @@ curl -X PUT http://localhost:9999/virt -d json='
 3. cmd内容中的probe对应着探针的采集子项，virt探针的probe对应着探针的采集子项为空时代表virt对应的meta文件的指标数据全采集
 4. snoopers内容中的配置探针监听对象为空
 5. params内容中的参数，示例中的参数都是virt探针支持的参数
-       report_period是控制着采集的数据上报的周期，值为180的含义是每个180s上报一次采集到的数据
+       report_period是控制着采集的数据上报的周期，值为180的含义是每隔180s上报一次采集到的数据
        res_lower_thr是控制着资源的百分比下限
        res_upper_thr是控制着资源的百分比上限
        report_event是控制着探针是否上报异常事件，为1时代表上报异常事件
@@ -1293,7 +1293,7 @@ curl -X PUT http://localhost:9999/tprofiling -d json='
 4. snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
    一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
 5. params内容中的参数，示例中的参数都是virt探针支持的参数
-       report_period是控制着采集的数据上报的周期，值为180的含义是每个180s上报一次采集到的数据
+       report_period是控制着采集的数据上报的周期，值为180的含义是每隔180s上报一次采集到的数据
        res_lower_thr是控制着资源的百分比下限
        res_upper_thr是控制着资源的百分比上限
        report_event是控制着探针是否上报异常事件，为1时代表上报异常事件
@@ -1351,7 +1351,7 @@ curl -X PUT http://localhost:9999/container -d json='
 4. snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
    一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
 5. params内容中的参数，示例中的参数都是container探针支持的参数
-       report_period是控制着采集的数据上报的周期，值为60的含义是每个60s上报一次采集到的数据
+       report_period是控制着采集的数据上报的周期，值为60的含义是每隔60s上报一次采集到的数据
        采集周期无需配置，其值与 report_period 数据相同。
 6. state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
 
