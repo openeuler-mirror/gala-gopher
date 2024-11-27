@@ -17,6 +17,7 @@ GOPHER_INITIAL_CONF="/etc/gala-gopher/probes.init"
 GOPHER_CMD_SOCK_PATH="/var/run/gala_gopher/gala_gopher_cmd.sock"
 GOPHER_PIDFILE="/var/run/gala_gopher/gala-gopher.pid"
 MAX_INIT_NUM=25
+MAX_ATTEMPTS=20
 
 PROBES=(
     "baseinfo"
@@ -44,8 +45,16 @@ PROBES=(
 
 function check_gopher_running()
 {
-    [ -f ${GOPHER_PIDFILE} ] && [ ! -L ${GOPHER_PIDFILE} ]
-    return $?
+    local attempt=0
+
+    while [ $attempt -lt $MAX_ATTEMPTS ]; do
+        if [ -f ${GOPHER_PIDFILE} ] && [ ! -L ${GOPHER_PIDFILE} ]; then
+            return 0
+        fi
+        attempt=$((attempt + 1))
+        sleep 0.5
+    done
+    return 1
 }
 
 function check_unix_socket_listen()
