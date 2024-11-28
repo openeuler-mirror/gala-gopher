@@ -238,7 +238,7 @@ curl -X PUT http://localhost:9999/tcp -d json='
 |     kafka_port      |        要观测的kafka端口号         |                       9092, [1, 65535]                       |         |                    kafka                    |     Y      |
 |    cadvisor_port    |        启动的cadvisor端口号        |                       8083, [1, 65535]                       |         |                  container                  |     Y      |
 
-注：探针参数只能配置在支持的监控范围中的探针才能生效，例如，参数sample_period对应的支持的监控范围为io和tcp，则表明参数sample_period只能配置在io探针和tcp探针，参数report_period对应的支持的监控范围为ALL，则表明参数report_period可以配置在gala-gopher支持的所有参数的参数中。
+注：探针参数只能配置在支持的监控范围中的探针才能生效，例如，参数sample_period对应的支持的监控范围为io和tcp，则表明参数sample_period只能配置在io探针和tcp探针，参数report_period对应的支持的监控范围为ALL，则表明参数report_period可以配置在gala-gopher支持的所有探针的参数中。
 
 ### 启动/停止探针
 
@@ -446,7 +446,7 @@ curl -X PUT http://localhost:9999/l7 -d json='
 
 1. 使用curl命令发起PUT请求
 2. 请求的URL为http://localhost:9999/l7，9999是Rest server处理启动探针请求监听的端口号，l7为探针的名称
-3. cmd内容中的probe对应着探针的采集子项，l7探针probe的内容为l7_bytes_metrics、l7_rpc_metrics和l7_rpc_trace，代表火焰图探针可以采集l7_bytes_metrics、l7_rpc_metrics和l7_rpc_trace这三种数据类型的数据，
+3. cmd内容中的probe对应着探针的采集子项，l7探针probe的内容为l7_bytes_metrics、l7_rpc_metrics和l7_rpc_trace，代表l7探针可以采集l7_bytes_metrics、l7_rpc_metrics和l7_rpc_trace这三种数据类型的数据，
    具体每种数据类型的含义在下文的采集子项详细说明可以查询到
 4. snoopers内容中的配置探针监听对象有四个维度，proc_id、proc_name、pod_id和container_id，分别是进程id，进程名称，pod id和容器id，其中任意
    一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
@@ -517,7 +517,7 @@ curl -X PUT http://localhost:9999/tcp -d json='
 
 1. 使用curl命令发起PUT请求
 2. 请求的URL为http://localhost:9999/tcp，9999是Rest server处理启动探针请求监听的端口号，tcp为探针的名称
-3. cmd内容中的probe对应着探针的采集子项，tcp探针probe的内容为tcp_abnormal、tcp_rtt、tcp_windows、tcp_rate、tcp_srtt、tcp_sockbuf、tcp_stats和tcp_delay， 代表火焰图探针可以采集tcp_abnormal、tcp_rtt、tcp_windows、tcp_rate、tcp_srtt、tcp_sockbuf、tcp_stats和tcp_delay这些数据类型的数据，
+3. cmd内容中的probe对应着探针的采集子项，tcp探针probe的内容为tcp_abnormal、tcp_rtt、tcp_windows、tcp_rate、tcp_srtt、tcp_sockbuf、tcp_stats和tcp_delay， 代表tcp探针可以采集tcp_abnormal、tcp_rtt、tcp_windows、tcp_rate、tcp_srtt、tcp_sockbuf、tcp_stats和tcp_delay这些数据类型的数据，
    具体每种数据类型的含义在下文的采集子项详细说明可以查询到
 4. snoopers内容中的配置探针监听对象有四个维度，proc_id、proc_name、pod_id和container_id，分别是进程id，进程名称，pod id和容器id，其中任意
    一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
