@@ -258,7 +258,9 @@ static void *run_sig_handler(void *arg)
     prctl(PR_SET_NAME, "[SIGHANDLER]");
 
     pthread_mutex_lock(&sig_mutex);
-    (void)pthread_rwlock_wrlock(&g_resourceMgr->probe_mng->rwlock);
+    if (g_resourceMgr && g_resourceMgr->probe_mng) {
+        (void)pthread_rwlock_wrlock(&g_resourceMgr->probe_mng->rwlock);
+    }
     destroy_probe_threads();
     // probe_mng创建的ipc消息队列是跟随内核的，进程结束消息队列还会存在，需要显示调用函数销毁
     destroy_ipc_msg_queue(g_probe_mng_ipc_msgid);
