@@ -60,6 +60,7 @@ class SnooperConnInfo(Structure):
     _fields_ = [
         ("cpucg_inode", c_uint),
         ("con_id", c_char_p),
+        ("container_name", c_char_p),
         ("libc_path", c_char_p),
         ("libssl_path", c_char_p),
     ]
