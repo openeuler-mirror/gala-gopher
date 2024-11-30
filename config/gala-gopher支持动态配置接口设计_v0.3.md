@@ -232,7 +232,7 @@ curl -X PUT http://localhost:9999/tcp -d json='
 | perf_sample_period  |   oncpu火焰图采集堆栈信息的周期    |                        10, [10, 1000]                        |   ms    |                 flamegraph                  |     Y      |
 |       svg_dir       |       火焰图svg文件存储目录        |              "/var/log/gala-gopher/stacktrace"               |         |                 flamegraph                  |     Y      |
 |      flame_dir      |     火焰图原始堆栈信息存储目录     |              "/var/log/gala-gopher/flamegraph"               |         |                 flamegraph                  |     Y      |
-|      dev_name       |       观测的网卡/磁盘设备名        |                              ""                              |         | io, kafka, ksli, postgre_sli，baseinfo, tcp |     Y      |
+|      dev_name       |       观测的网卡/磁盘设备名        |                              ""                              |         | kafka, ksli, postgre_sli，baseinfo, tcp |     Y      |
 | continuous_sampling |            是否持续采样            |                          0, [0, 1]                           |         |                    ksli                     |     Y      |
 |      elf_path       |      要观测的可执行文件的路径      |                              ""                              |         |      baseinfo, nginx, haproxy, dnsmasq      |     Y      |
 |     kafka_port      |        要观测的kafka端口号         |                       9092, [1, 65535]                       |         |                    kafka                    |     Y      |
@@ -634,10 +634,6 @@ curl -X PUT http://localhost:9999/io -d json='
             "telemetry"
         ],
         "env": "node",
-        "dev_name": [
-            "io",
-            "kafka"
-        ]
     },
     "state":"running"
 }'
@@ -662,7 +658,6 @@ curl -X PUT http://localhost:9999/io -d json='
         report_event是控制着探针是否上报异常事件，为1时代表上报异常事件
         metrics_type控制着上报telemetry的metrics类型
         env控制着工作环境类型，为node的含义是gala-gopher工作在工作结点，负责采集工作结点的数据
-        dev_name控制着观测的网卡/磁盘的设备名，值为io和kafka的含义是观测设备名为io与kafka的设备
 7. state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
 
 
@@ -853,10 +848,7 @@ curl -X PUT http://localhost:9999/ksli -d json='
             "telemetry"
         ],
         "env": "node",
-        "dev_name": [
-            "io",
-            "kafka"
-        ],
+        "dev_name": "ens4,lo",
         "continuous_sampling": 1
     },
     "state":"running"
@@ -879,7 +871,7 @@ curl -X PUT http://localhost:9999/ksli -d json='
        report_event是控制着探针是否上报异常事件，为1时代表上报异常事件
        metrics_type控制着上报telemetry的metrics类型
        env控制着工作环境类型，为node的含义是gala-gopher工作在工作结点，负责采集工作结点的数据
-       dev_name控制着观测的网卡/磁盘的设备名，值为io和kafka的含义是观测设备名为io与kafka的设备
+       dev_name控制着观测的网卡/磁盘的设备名，值为"ens4,lo"的含义是观测设备名为ens4与lo的网卡
        continuous_sampling控制着是否持续采样，为1的含义是持续采样
 6. state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
 
@@ -928,10 +920,7 @@ curl -X PUT http://localhost:9999/postgre_sli -d json='
             "telemetry"
         ],
         "env": "node",
-        "dev_name": [
-            "io",
-            "kafka"
-        ]
+        "dev_name": "ens4,lo"
     },
     "state":"running"
 }'
@@ -952,7 +941,7 @@ curl -X PUT http://localhost:9999/postgre_sli -d json='
        report_event是控制着探针是否上报异常事件，为1时代表上报异常事件
        metrics_type控制着上报telemetry的metrics类型
        env控制着工作环境类型，为node的含义是gala-gopher工作在工作结点，负责采集工作结点的数据
-       dev_name控制着观测的网卡/磁盘的设备名，值为io和kafka的含义是观测设备名为io与kafka的设备
+       dev_name控制着观测的网卡/磁盘的设备名，值为"ens4,lo"的含义是观测设备名为ens4与lo的网卡
 6. state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
 
 
@@ -1158,10 +1147,7 @@ curl -X PUT http://localhost:9999/baseinfo -d json='
             "telemetry"
         ],
         "env": "node",
-        "dev_name": [
-            "io",
-            "kafka"
-        ]
+        "dev_name": "ens4,lo"
     },
     "state":"running"
 }'
@@ -1184,6 +1170,7 @@ curl -X PUT http://localhost:9999/baseinfo -d json='
        metrics_type控制着上报telemetry的metrics类型
        env控制着工作环境类型，为node的含义是gala-gopher工作在工作结点，负责采集工作结点的数据
        elf_path参数仅当开启了con采集子项，且配置了container_id监听对象时有效。表示要监控容器下的对应目录
+       dev_name控制着观测的网卡/磁盘的设备名，值为"ens4,lo"的含义是观测设备名为ens4与lo的网卡
 6. state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
 
 
