@@ -200,6 +200,8 @@ static void set_cached_event_data(event_elem_t *cached_evt, trace_event_data_t *
         memcpy(&cached_evt_data->syscall_d, &evt_data->syscall_d, sizeof(syscall_data_t));
     } else if (evt_data->type == EVT_TYPE_ONCPU) {
         memcpy(&cached_evt_data->oncpu_d, &evt_data->oncpu_d, sizeof(oncpu_data_t));
+    } else if (evt_data->type == EVT_TYPE_OFFCPU) {
+        memcpy(&cached_evt_data->offcpu_d, &evt_data->offcpu_d, sizeof(offcpu_data_t));
     } else if (evt_data->type == EVT_TYPE_PYGC) {
         memcpy(&cached_evt_data->pygc_d, &evt_data->pygc_d, sizeof(pygc_data_t));
     } else if (evt_data->type == EVT_TYPE_PTHREAD) {
@@ -414,6 +416,8 @@ static struct stats_stack_elem *get_stack_elem(event_elem_t *evt)
 
     if (typ == EVT_TYPE_SYSCALL) {
         elem = &(EVT_DATA_SC(evt)->stats.stats_stack);
+    } else if (typ == EVT_TYPE_OFFCPU) {
+        elem = &(EVT_DATA_OFFCPU(evt)->stats_stack);
     } else if (typ == EVT_TYPE_PYGC) {
         elem = &(EVT_DATA_PYGC(evt)->stats_stack);
     } else if (typ == EVT_TYPE_PTHREAD) {
@@ -915,7 +919,7 @@ static int set_syscall_evt_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
 
 static int set_oncpu_evt_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
 {
-    oncpu_data_t *oncpu_d = EVT_DATA_CPU(cached_evt);
+    oncpu_data_t *oncpu_d = EVT_DATA_ONCPU(cached_evt);
     __u64 start_time, end_time;
     double duration;
     int ret;
@@ -940,6 +944,34 @@ static int set_oncpu_evt_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
     return 0;
 }
 
+static int set_offcpu_evt_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
+{
+    offcpu_data_t *offcpu_d = EVT_DATA_OFFCPU(cached_evt);
+    __u64 start_time, end_time;
+    double duration;
+    int ret;
+
+    start_time = get_unix_time_from_uptime(offcpu_d->start_time) / NSEC_PER_MSEC;
+    end_time = get_unix_time_from_uptime(offcpu_d->start_time + offcpu_d->duration) / NSEC_PER_MSEC;
+    if (start_time > end_time) {
+        TP_ERROR("Event start time large than end time.\n");
+        return -1;
+    }
+    duration = (double)offcpu_d->duration / NSEC_PER_MSEC;
+
+    ret = snprintf(attrs_buf->buf, attrs_buf->size,
+                   "\"event.name\":\"%s\",\"start_time\":%llu,\"end_time\":%llu,\"duration\":%.3lf,"
+                   "\"count\":%d,\"event.type\":\"%s\"",
+                   "offcpu", start_time, end_time, duration, offcpu_d->count, PROFILE_EVT_TYPE_OFFCPU);
+    if (ret < 0 || ret >= attrs_buf->size) {
+        return -ERR_TP_NO_BUFF;
+    }
+    strbuf_update_offset(attrs_buf, ret);
+
+    return 0;
+}
+
+
 static int set_typed_evt_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
 {
     trace_event_type_t type = EVT_DATA_TYPE(cached_evt);
@@ -949,6 +981,8 @@ static int set_typed_evt_attrs(strbuf_t *attrs_buf, event_elem_t *cached_evt)
             return set_syscall_evt_attrs(attrs_buf, cached_evt);
         case EVT_TYPE_ONCPU:
             return set_oncpu_evt_attrs(attrs_buf, cached_evt);
+        case EVT_TYPE_OFFCPU:
+            return set_offcpu_evt_attrs(attrs_buf, cached_evt);
         default:
             TP_ERROR("Unknown event type %d.\n", type);
             return -1;
@@ -1124,7 +1158,7 @@ int local_write_process_name_meta_event(struct local_store_s *local_storage, u32
 
 void set_oncpu_event_args(struct trace_event_fmt_s *evt_fmt, event_elem_t *evt)
 {
-    oncpu_data_t *oncpu_d = EVT_DATA_CPU(evt);
+    oncpu_data_t *oncpu_d = EVT_DATA_ONCPU(evt);
     thrd_info_t *thrd_info = evt->thrd_info;
     int ret;
 
@@ -1142,7 +1176,7 @@ int local_write_oncpu_event(struct local_store_s *local_storage, event_elem_t *e
     struct trace_event_fmt_s evt_fmt = {0};
     thrd_info_t *thrd_info = evt->thrd_info;
     proc_info_t *proc_info = thrd_info->proc_info;
-    oncpu_data_t *oncpu_d = EVT_DATA_CPU(evt);
+    oncpu_data_t *oncpu_d = EVT_DATA_ONCPU(evt);
     __u64 start_time, end_time;
     int ret;
 
@@ -1206,6 +1240,67 @@ int set_stack_sf(struct trace_event_fmt_s *evt_fmt, event_elem_t *evt, struct lo
     struct stack_node_s *leaf = stack_tree_add_stack(local_storage->stack_root, symbs_str, true);
     evt_fmt->sf = leaf == NULL ? 0 : leaf->id;
     return 0;
+}
+
+void set_offcpu_event_args(struct trace_event_fmt_s *evt_fmt, event_elem_t *evt)
+{
+    offcpu_data_t *offcpu_d = EVT_DATA_OFFCPU(evt);
+    thrd_info_t *thrd_info = evt->thrd_info;
+    int ret;
+
+    ret = snprintf(evt_fmt->args, sizeof(evt_fmt->args),
+        "\"count\": %d, \"event.type\": \"%s\", \"thread.name\": \"%s\"",
+        offcpu_d->count, PROFILE_EVT_TYPE_OFFCPU, thrd_info->comm);
+    if (ret < 0 || ret >= sizeof(evt_fmt->args)) {
+        TP_WARN("Failed to set args of offcpu event: no enough buffer\n");
+        evt_fmt->args[0] = 0;
+    }
+}
+
+int local_write_offcpu_event(struct local_store_s *local_storage, event_elem_t *evt)
+{
+    struct trace_event_fmt_s evt_fmt = {0};
+    thrd_info_t *thrd_info = evt->thrd_info;
+    proc_info_t *proc_info = thrd_info->proc_info;
+    offcpu_data_t *offcpu_d = EVT_DATA_OFFCPU(evt);
+    __u64 start_time, end_time;
+    int ret;
+
+    start_time = get_unix_time_from_uptime(offcpu_d->start_time);
+    end_time = get_unix_time_from_uptime(offcpu_d->start_time + offcpu_d->duration);
+
+    evt_fmt.pid = proc_info->tgid;
+    evt_fmt.tid = thrd_info->pid;
+    evt_fmt.id = gen_async_event_id();
+    // TODO: oncpu事件包含公共信息，可作为一个模版进行优化
+    (void)snprintf(evt_fmt.category, sizeof(evt_fmt.category), EVENT_CATEGORY_OFFCPU);
+    (void)snprintf(evt_fmt.name, sizeof(evt_fmt.name), PROFILE_EVT_TYPE_OFFCPU);
+    (void)snprintf(evt_fmt.cname, sizeof(evt_fmt.cname), EVENT_CNAME_OF_OFFCPU);
+    (void)set_stack_sf(&evt_fmt, evt, local_storage);
+
+    // set async begin event
+    evt_fmt.phase = EVENT_PHASE_ASYNC_START;
+    evt_fmt.ts = start_time;
+    ret = trace_event_fmt_to_json_str(&evt_fmt, local_storage->buf, sizeof(local_storage->buf));
+    if (ret) {
+        return ret;
+    }
+
+    ret = trace_file_fill_event_from_buffer(local_storage);
+    if (ret < 0) {
+        return -1;
+    }
+
+    // set async end event
+    set_offcpu_event_args(&evt_fmt, evt);
+    evt_fmt.phase = EVENT_PHASE_ASYNC_END;
+    evt_fmt.ts = end_time;
+    ret = trace_event_fmt_to_json_str(&evt_fmt, local_storage->buf, sizeof(local_storage->buf));
+    if (ret) {
+        return ret;
+    }
+
+    return trace_file_fill_event_from_buffer(local_storage);
 }
 
 void set_syscall_event_args(struct trace_event_fmt_s *evt_fmt, event_elem_t *evt)
@@ -1397,6 +1492,8 @@ int local_write_event(struct local_store_s *local_storage, event_elem_t *evt)
     switch (typ) {
         case EVT_TYPE_ONCPU:
             return local_write_oncpu_event(local_storage, evt);
+        case EVT_TYPE_OFFCPU:
+            return local_write_offcpu_event(local_storage, evt);
         case EVT_TYPE_SYSCALL:
             return local_write_general_event(local_storage, evt, set_syscall_evt_fmt);
         case EVT_TYPE_SYSCALL_STUCK:

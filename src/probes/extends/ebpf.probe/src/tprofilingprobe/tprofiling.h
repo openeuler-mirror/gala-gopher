@@ -49,6 +49,7 @@ typedef enum {
     EVT_TYPE_SYSCALL = 1,
     EVT_TYPE_SYSCALL_STUCK,
     EVT_TYPE_ONCPU,
+    EVT_TYPE_OFFCPU,
     EVT_TYPE_PYGC,
     EVT_TYPE_PTHREAD,
     EVT_TYPE_ONCPU_PERF,
@@ -162,6 +163,14 @@ typedef struct {
     __u64 duration;
     int count;
     struct stats_stack_elem stats_stack;
+} offcpu_data_t;
+
+typedef struct {
+    __u64 start_time;
+    __u64 end_time;
+    __u64 duration;
+    int count;
+    struct stats_stack_elem stats_stack;
 } pygc_data_t;
 
 typedef common_m_enter_t pygc_m_enter_t;
@@ -207,6 +216,7 @@ typedef struct {
     union {
         syscall_data_t syscall_d;
         oncpu_data_t oncpu_d;
+        offcpu_data_t offcpu_d;
         pygc_data_t pygc_d;
         pthrd_data_t pthrd_d;
         oncpu_sample_data_t sample_d;
@@ -242,6 +252,7 @@ typedef struct {
     union {
         syscall_data_t syscall_d;
         oncpu_data_t oncpu_d;
+        offcpu_data_t offcpu_d;
         pygc_data_t pygc_d;
         pthrd_data_t pthrd_d;
         oncpu_sample_data_t sample_d;
@@ -252,7 +263,8 @@ typedef struct {
 #define EVT_DATA(evt_elem) ((event_data_t *)(evt_elem)->data)
 #define EVT_DATA_TYPE(evt_elem) (EVT_DATA(evt_elem)->type)
 #define EVT_DATA_SC(evt_elem) (&EVT_DATA(evt_elem)->syscall_d)
-#define EVT_DATA_CPU(evt_elem) (&EVT_DATA(evt_elem)->oncpu_d)
+#define EVT_DATA_ONCPU(evt_elem) (&EVT_DATA(evt_elem)->oncpu_d)
+#define EVT_DATA_OFFCPU(evt_elem) (&EVT_DATA(evt_elem)->offcpu_d)
 #define EVT_DATA_PYGC(evt_elem) (&EVT_DATA(evt_elem)->pygc_d)
 #define EVT_DATA_PTHRD(evt_elem) (&EVT_DATA(evt_elem)->pthrd_d)
 #define EVT_DATA_CPU_SAMPLE(evt_elem) (&EVT_DATA(evt_elem)->sample_d)

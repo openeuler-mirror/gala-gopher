@@ -69,24 +69,62 @@ int event_complete_to_json_str(struct trace_event_fmt_s *evt_fmt, strbuf_t *buf)
 int event_async_to_json_str(struct trace_event_fmt_s *evt_fmt, strbuf_t *buf)
 {
     int ret;
+        //evt_fmt.phase = EVENT_PHASE_ASYNC_START;
 
-    ret = snprintf(buf->buf, buf->size,
-        "{\"%s\": \"%s\", \"%s\": \"%s\", \"%s\": \"%c\", "
-        "\"%s\": %u, \"%s\": %u, \"%s\": %llu, "
-        "\"%s\": %llu, \"%s\": \"%s\", \"%s\": {%s}}",
-        TRACE_FIELD_EVENT_CATEGORY, evt_fmt->category,
-        TRACE_FIELD_EVENT_NAME, evt_fmt->name,
-        TRACE_FIELD_EVENT_PHASE, evt_fmt->phase,
-        TRACE_FIELD_EVENT_PID, evt_fmt->pid,
-        TRACE_FIELD_EVENT_TID, evt_fmt->tid,
-        TRACE_FIELD_EVENT_TIMESTAMP, evt_fmt->ts / NSEC_PER_USEC,
-        TRACE_FIELD_EVENT_ID, evt_fmt->id,
-        TRACE_FIELD_EVENT_CNAME, evt_fmt->cname,
-        TRACE_FIELD_EVENT_ARGS, evt_fmt->args);
-    if (ret < 0 || ret >= buf->size) {
-        return -ERR_TP_NO_BUFF;
+    if (evt_fmt->category[0] == 'o' && evt_fmt->category[1] == 'f') {
+        // offcpu
+        ret = snprintf(buf->buf, buf->size,
+            "{\"%s\": \"%s\", \"%s\": \"%s\", \"%s\": \"%c\", "
+            "\"%s\": %u, \"%s\": %u, \"%s\": %llu, "
+            "\"%s\": %llu, \"%s\": \"%s\", \"%s\": {%s}",
+            TRACE_FIELD_EVENT_CATEGORY, evt_fmt->category,
+            TRACE_FIELD_EVENT_NAME, evt_fmt->name,
+            TRACE_FIELD_EVENT_PHASE, evt_fmt->phase,
+            TRACE_FIELD_EVENT_PID, evt_fmt->pid,
+            TRACE_FIELD_EVENT_TID, evt_fmt->tid,
+            TRACE_FIELD_EVENT_TIMESTAMP, evt_fmt->ts / NSEC_PER_USEC,
+            TRACE_FIELD_EVENT_ID, evt_fmt->id,
+            TRACE_FIELD_EVENT_CNAME, evt_fmt->cname,
+            TRACE_FIELD_EVENT_ARGS, evt_fmt->args);
+        if (ret < 0 || ret >= buf->size) {
+            return -ERR_TP_NO_BUFF;
+        }
+        strbuf_update_offset(buf, ret);
+        if (evt_fmt->sf != 0) {
+            ret = snprintf(buf->buf, buf->size, ", \"%s\": \"%llu\"",
+                TRACE_FIELD_EVENT_STACK_REF, evt_fmt->sf);
+            if (ret < 0 || ret >= buf->size) {
+                return -ERR_TP_NO_BUFF;
+            }
+            strbuf_update_offset(buf, ret);
+        }
+
+        ret = snprintf(buf->buf, buf->size, "}");
+        if (ret < 0 || ret >= buf->size) {
+            return -ERR_TP_NO_BUFF;
+        }
+        strbuf_update_offset(buf, ret);
+    } else {
+        // oncpu
+        ret = snprintf(buf->buf, buf->size,
+            "{\"%s\": \"%s\", \"%s\": \"%s\", \"%s\": \"%c\", "
+            "\"%s\": %u, \"%s\": %u, \"%s\": %llu, "
+            "\"%s\": %llu, \"%s\": \"%s\", \"%s\": {%s}}",
+            TRACE_FIELD_EVENT_CATEGORY, evt_fmt->category,
+            TRACE_FIELD_EVENT_NAME, evt_fmt->name,
+            TRACE_FIELD_EVENT_PHASE, evt_fmt->phase,
+            TRACE_FIELD_EVENT_PID, evt_fmt->pid,
+            TRACE_FIELD_EVENT_TID, evt_fmt->tid,
+            TRACE_FIELD_EVENT_TIMESTAMP, evt_fmt->ts / NSEC_PER_USEC,
+            TRACE_FIELD_EVENT_ID, evt_fmt->id,
+            TRACE_FIELD_EVENT_CNAME, evt_fmt->cname,
+            TRACE_FIELD_EVENT_ARGS, evt_fmt->args);
+        if (ret < 0 || ret >= buf->size) {
+            return -ERR_TP_NO_BUFF;
+        }
+        strbuf_update_offset(buf, ret);
     }
-    strbuf_update_offset(buf, ret);
+
     return 0;
 }
 
