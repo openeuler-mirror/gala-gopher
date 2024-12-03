@@ -866,6 +866,11 @@ static int add_stack_histo_from_hash(struct stack_trace_s *st, struct stack_symb
     struct proc_stack_trace_histo_s *proc_histo = proc_histo_tmp->proc_histo;
     struct proc_symbs_s *proc_symbs = proc_histo_tmp->proc_symbs;
 
+    //检查stack_symbs是否为空指针
+    if(stack_symbs == NULL) {
+        return -1;
+    }
+
     if (stack_symbs->user_stack_symbs[PERF_MAX_STACK_DEPTH - 1].orign_addr != 0) {
         incomplete_stack_flag = 1;
     }
