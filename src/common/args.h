@@ -98,7 +98,7 @@ struct probe_params {
     unsigned int svg_period;
     unsigned int perf_sample_period;
     char pyroscope_server[PYSCOPE_SERVER_URL_LEN];
-    char svg_dir[PATH_LEN];
+    char output_dir[PATH_LEN];
     char flame_dir[PATH_LEN];
     unsigned int cadvisor_port;         // the port which cadvisor start.
     unsigned int profiling_chan;        // the output channel for profiling probes, include stackprobe and tprofiling.

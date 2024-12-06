@@ -54,7 +54,7 @@ struct stack_svg_s {
 
 struct stack_svgs_s {
     u32 period;                 // unit is second
-    char svg_dir[PATH_LEN];
+    char output_dir[PATH_LEN];
     time_t last_create_time;
     struct stack_svg_s svg_files;
 };

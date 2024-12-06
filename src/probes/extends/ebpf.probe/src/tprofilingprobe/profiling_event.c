@@ -2069,19 +2069,27 @@ int gen_oom_trace_file(char *file_path, int size)
     time_t now = time(NULL);
     struct tm *tm = localtime(&now);
     file_path[0] = 0;
-    sz = strftime(file_path, size, TRACE_DIR "oom-trace-%Y%m%d%H%M.json", tm);
+
+    char timestamp[TASK_COMM_LEN];
+    sz = strftime(timestamp, sizeof(timestamp), "oom-trace-%Y%m%d%H%M.json", tm);
     if (sz == 0) {
         TP_ERROR("Failed to set oom trace file path\n");
         return -1;
     }
 
-    if (access(TRACE_DIR, F_OK)) {
-        ret = mkdir(TRACE_DIR, 0700);
+    ret = snprintf(file_path, size, "%s%s", tprofiler.output_dir, timestamp);
+    if (ret < 0) {
+        TP_ERROR("Failed to snprintf file path\n");
+        return -1;
+    }
+
+    if (access(tprofiler.output_dir, F_OK)) {
+        ret = mkdir(tprofiler.output_dir, 0700);
         if (ret) {
-            TP_ERROR("Failed to create trace dir:%s, ret=%d\n", TRACE_DIR, ret);
+            TP_ERROR("Failed to create trace dir:%s, ret=%d\n", tprofiler.output_dir, ret);
             return -1;
         }
-        TP_INFO("Succeed to create trace dir:%s\n", TRACE_DIR);
+        TP_INFO("Succeed to create trace dir:%s\n", tprofiler.output_dir);
     }
 
     return 0;

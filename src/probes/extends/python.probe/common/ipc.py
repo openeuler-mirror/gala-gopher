@@ -43,7 +43,7 @@ class ProbeParams(Structure):
         ("svg_period", c_uint),
         ("perf_sample_period", c_uint),
         ("pyroscope_server", c_char * PYSCOPE_SERVER_URL_LEN),
-        ("svg_dir", c_char * PATH_LEN),
+        ("output_dir", c_char * PATH_LEN),
         ("flame_dir", c_char * PATH_LEN),
         ("cadvisor_port", c_uint),
         ("profiling_chan", c_uint),

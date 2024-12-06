@@ -376,7 +376,7 @@ The detailed running parameters are as follows:
 | pyroscope_server    | IP address of the flame graph UI server                      | "localhost:4040"                                             |          | flamegraph                                  | Y                    |
 | svg_period          | Flame graph SVG file generation period                       | 180, \[30, 600\]                                             | s        | flamegraph                                  | Y                    |
 | perf_sample_period  | Stack information collection period for **oncpu** flame graphs | 10, \[10, 1000\]                                             | ms       | flamegraph                                  | Y                    |
-| svg_dir             | Directory for storing flame graph SVG files                  | "/var/log/gala-gopher/stacktrace"                            |          | flamegraph                                  | Y                    |
+| output_dir          | Directory for storing output files                           |                               ""                             |         |                 flamegraph, tprofiling      |     Y      |
 | flame_dir           | Directory for storing original stack information of flame graphs | "/var/log/gala-gopher/flamegraph"                            |          | flamegraph                                  | Y                    |
 | dev_name            | Name of the NIC or disk device to be observed                | ""                                                           |          | io, kafka, ksli, postgre_sli, baseinfo, tcp | Y                    |
 | continuous_sampling | Whether to perform continuous sampling                       | 0, \[0, 1\]                                                  |          | ksli                                        | Y                    |
@@ -509,7 +509,7 @@ Full set of flame graph probe configurations:
             "pyroscope_server": "localhost:4040",
             "svg_period": 180,
             "perf_sample_period": 10,
-            "svg_dir": "/var/log/gala-gopher/stacktrace",
+            "output_dir": "/var/log/gala-gopher/stacktrace",
             "flame_dir": "/var/log/gala-gopher/flamegraph"
         },
         "state":"running"
@@ -537,7 +537,7 @@ Many parameters can be configured in the PUT request for starting the flame grap
 >
 > **perf_sample_period** controls the interval for collecting stack information of the oncpu flame graph. The value **10** indicates that the oncpu flame graph stack information is collected every 10 ms.
 >
-> **svg_dir** controls the storage directory of the SVG file of the flame graph. The value **/var/log/gala-gopher/stacktrace** indicates the SVG file of the flame graph is stored in the **/var/log/gala-gopher/stacktrace** directory.
+> **output_dir** controls the storage directory of the SVG file of the flame graph. The value **/var/log/gala-gopher/stacktrace** indicates the SVG file of the flame graph is stored in the **/var/log/gala-gopher/stacktrace** directory.
 >
 > **flame_dir** controls the directory for storing the original stack information of the flame graph. The value **/var/log/gala-gopher/flamegraph** indicates the original stack information of the flame graph is stored in the **/var/log/gala-gopher/flamegraph** directory.
 >

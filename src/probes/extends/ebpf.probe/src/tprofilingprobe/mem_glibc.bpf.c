@@ -232,7 +232,7 @@ URETPROBE(posix_memalign, pt_regs)
         return 0;
     bpf_map_delete_elem(&memalign_allocate, &pid);
 
-    if (bpf_probe_read_user(&addr, sizeof(u64), *memptr))
+    if (bpf_probe_read_user(&addr, sizeof(u64), (void*)*memptr))
         return 0;
 
     alloc_exit(ctx, addr);

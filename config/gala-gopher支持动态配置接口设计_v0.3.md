@@ -230,13 +230,15 @@ curl -X PUT http://localhost:9999/tcp -d json='
 |  pyroscope_server   |       设置火焰图UI服务端地址       |                       "localhost:4040"                       |         |                 flamegraph                  |     Y      |
 |     svg_period      |       火焰图svg文件生成周期        |                        180, [30, 600]                        |    s    |                 flamegraph                  |     Y      |
 | perf_sample_period  |   oncpu火焰图采集堆栈信息的周期    |                        10, [10, 1000]                        |   ms    |                 flamegraph                  |     Y      |
-|       svg_dir       |       火焰图svg文件存储目录        |              "/var/log/gala-gopher/stacktrace"               |         |                 flamegraph                  |     Y      |
+|      output_dir     |           输出文件存储目录         |                               ""                             |         |                 flamegraph, tprofiling      |     Y      |
 |      flame_dir      |     火焰图原始堆栈信息存储目录     |              "/var/log/gala-gopher/flamegraph"               |         |                 flamegraph                  |     Y      |
 |      dev_name       |       观测的网卡/磁盘设备名        |                              ""                              |         | kafka, ksli, postgre_sli，baseinfo, tcp |     Y      |
 | continuous_sampling |            是否持续采样            |                          0, [0, 1]                           |         |                    ksli                     |     Y      |
 |      elf_path       |      要观测的可执行文件的路径      |                              ""                              |         |      baseinfo, nginx, haproxy, dnsmasq      |     Y      |
 |     kafka_port      |        要观测的kafka端口号         |                       9092, [1, 65535]                       |         |                    kafka                    |     Y      |
 |    cadvisor_port    |        启动的cadvisor端口号        |                       8083, [1, 65535]                       |         |                  container                  |     Y      |
+|     min_exec_dur    |       被观测事件最小持续时间       |                        1, [0, 1000000]                       |    us   |                  tprofiling                 |     Y      |
+|     min_aggr_dur    |            最小上报间隔            |                       100, [10, 10000]                       |    ms   |                  tprofiling                 |     Y      |
 
 注：探针参数只能配置在支持的监控范围中的探针才能生效，例如，参数sample_period对应的支持的监控范围为io和tcp，则表明参数sample_period只能配置在io探针和tcp探针，参数report_period对应的支持的监控范围为ALL，则表明参数report_period可以配置在gala-gopher支持的所有探针的参数中。
 
@@ -365,7 +367,7 @@ curl -X PUT http://localhost:9999/flamegraph -d json='
         "pyroscope_server": "localhost:4040",
         "svg_period": 180,
         "perf_sample_period": 10,
-        "svg_dir": "/var/log/gala-gopher/stacktrace",
+        "output_dir": "/var/log/gala-gopher/stacktrace",
         "flame_dir": "/var/log/gala-gopher/flamegraph"
     },
     "state":"running"
@@ -386,7 +388,7 @@ curl -X PUT http://localhost:9999/flamegraph -d json='
        pyroscope_server控制着火焰图UI服务端地址，值为localhost:4040的含义为火焰图UI服务端地址为localhost:4040
        svg_period是控制着火焰图svg文件生成的周期，值为180的含义为每隔180s生成火焰图svg文件
        perf_sample_period控制着oncpu火焰图采集堆栈信息的周期，值为10的含义是每个10ms采集oncpu火焰图堆栈信息
-       svg_dir控制着火焰图svg文件的存储目录，值为/var/log/gala-gopher/stacktrace的含义是火焰图svg文件存储在/var/log/gala-gopher/stacktrace目录
+       output_dir控制着火焰图svg文件的存储目录，值为/var/log/gala-gopher/stacktrace的含义是火焰图svg文件存储在/var/log/gala-gopher/stacktrace目录
        flame_dir控制着火焰图原始堆栈信息的存储目录，值为/var/log/gala-gopher/flamegraph的含义是火焰图原始堆栈信息存储在/var/log/gala-gopher/flamegraph目录
        注：尽量不配置火焰图探针不支持的参数，主要要看探针在实现时是否忽略了用户配置的火焰图探针不支持的参数，否则可能会影响探针采集的结果
 6. state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
@@ -1223,6 +1225,8 @@ curl -X PUT http://localhost:9999/tprofiling -d json='
     "cmd": {
         "probe": [
             "oncpu",
+            "oncpu_sample",
+            "python_gc", 
             "syscall_file",
             "syscall_net",
             "syscall_lock",
@@ -1256,15 +1260,9 @@ curl -X PUT http://localhost:9999/tprofiling -d json='
         ]
     },
     "params":{
-        "report_period": 180,
-        "res_lower_thr": 20,
-        "res_upper_thr": 40,
-        "report_event": 1,
-        "metrics_type": [
-            "raw",
-            "telemetry"
-        ],
-        "env": "node"
+        "output_dir": "/var/log/gala-gopher/tprofiling",
+        "min_exec_dur": 1,
+        "min_aggr_dur": 100
     },
     "state":"running"
 }'
@@ -1279,13 +1277,13 @@ curl -X PUT http://localhost:9999/tprofiling -d json='
    syscall_sched,代表tprofiling探针会采集这些类型的数据
 4. snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
    一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
-5. params内容中的参数，示例中的参数都是virt探针支持的参数
-       report_period是控制着采集的数据上报的周期，值为180的含义是每隔180s上报一次采集到的数据
-       res_lower_thr是控制着资源的百分比下限
-       res_upper_thr是控制着资源的百分比上限
-       report_event是控制着探针是否上报异常事件，为1时代表上报异常事件
-       metrics_type控制着上报telemetry的metrics类型
-       env控制着工作环境类型，为node的含义是gala-gopher工作在工作结点，负责采集工作结点的数据
+
+5. params内容中的参数，示例中的参数都是tprofiling探针支持的参数
+       output_dir控制着 Profiling 输出文件的存储目录，值为/var/log/gala-gopher/tprofiling的含义是 Profiling 输出文件存储在/var/log/gala-gopher/tprofiling目录
+       min_exec_dur表示被观测事件最小持续时间，持续时间小于此参数的事件会被忽略，不做聚合以及上报
+
+   ​	min_aggr_dur表示最小上报间隔，持续时间小于此参数的同类事件会被聚合上报
+
 6. state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
 
 

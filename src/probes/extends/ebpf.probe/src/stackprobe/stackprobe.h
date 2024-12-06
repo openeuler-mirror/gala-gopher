@@ -94,7 +94,7 @@ struct stack_stats_s {
 };
 
 struct flame_graph_param_s {
-    char svg_dir[PATH_LEN];
+    char output_dir[PATH_LEN];
     char flame_graph[PATH_LEN];
 };
 

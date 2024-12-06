@@ -222,7 +222,7 @@ static int parser_support_ssl(struct probe_s *probe, const struct param_key_s *p
     return 0;
 }
 
-static int parser_svg_dir(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
+static int parser_output_dir(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     const char *value = (const char*)Json_GetValueString(key_item);
 
@@ -235,7 +235,7 @@ static int parser_svg_dir(struct probe_s *probe, const struct param_key_s *param
         return -1;
     }
 
-    (void)snprintf(probe->probe_param.svg_dir, sizeof(probe->probe_param.svg_dir), "%s", value);
+    (void)snprintf(probe->probe_param.output_dir, sizeof(probe->probe_param.output_dir), "%s", value);
     return 0;
 }
 
@@ -508,7 +508,7 @@ SET_DEFAULT_PARAMS_CAHR(native_stack_flag);
 SET_DEFAULT_PARAMS_CAHR(cluster_ip_backend);
 
 SET_DEFAULT_PARAMS_STR(pyroscope_server);
-SET_DEFAULT_PARAMS_STR(svg_dir);
+SET_DEFAULT_PARAMS_STR(output_dir);
 SET_DEFAULT_PARAMS_STR(flame_dir);
 
 #define SAMPLE_PERIOD       "sample_period"
@@ -527,7 +527,7 @@ SET_DEFAULT_PARAMS_STR(flame_dir);
 #define MULTI_INSTANCE      "multi_instance"
 #define NATIVE_STACK        "native_stack"
 #define CLUSTER_IP_BACKEND  "cluster_ip_backend"
-#define SVG_DIR             "svg_dir"
+#define OUTPUT_DIR          "output_dir"
 #define FLAME_DIR           "flame_dir"
 #define DEV_NAME_KEY        "dev_name"
 #define CONTINUOUS_SAMPLING "continuous_sampling"
@@ -557,7 +557,7 @@ struct param_key_s param_keys[] = {
     {PERF_SAMPLE_PERIOD,  {10, 10, 1000, ""},                        parser_perf_sample_period,      set_default_params_inter_perf_sample_period, JSON_NUMBER},
     {MULTI_INSTANCE,      {0, 0, 1, ""},                             parser_multi_instance,          set_default_params_char_multi_instance_flag, JSON_NUMBER},
     {NATIVE_STACK,        {0, 0, 1, ""},                             parser_native_stack,            set_default_params_char_native_stack_flag, JSON_NUMBER},
-    {SVG_DIR,             {0, 0, 0, "/var/log/gala-gopher/stacktrace"},  parser_svg_dir,             set_default_params_str_svg_dir, JSON_STRING},
+    {OUTPUT_DIR,          {0, 0, 0, ""},                             parser_output_dir,          set_default_params_str_output_dir, JSON_STRING},
     {FLAME_DIR,           {0, 0, 0, "/var/log/gala-gopher/flamegraph"},  parser_flame_dir,           set_default_params_str_flame_dir, JSON_STRING},
     {CLUSTER_IP_BACKEND,  {0, 0, 2, ""},                             parser_cluster_ip_backend_flag, set_default_params_char_cluster_ip_backend, JSON_NUMBER},
     {DEV_NAME_KEY,        {0, 0, 0, ""},                             parser_dev_name,                NULL, JSON_STRING},
@@ -676,7 +676,7 @@ void probe_params_to_json(struct probe_s *probe, void *params)
         Json_AddUIntItemToObject(params, PERF_SAMPLE_PERIOD, probe_param->perf_sample_period);
         Json_AddCharItemToObject(params, MULTI_INSTANCE, probe_param->multi_instance_flag);
         Json_AddCharItemToObject(params, NATIVE_STACK, probe_param->native_stack_flag);
-        Json_AddStringToObject(params, SVG_DIR, probe_param->svg_dir);
+        Json_AddStringToObject(params, OUTPUT_DIR, probe_param->output_dir);
         Json_AddStringToObject(params, FLAME_DIR, probe_param->flame_dir);
     }
     if (probe_type == PROBE_IO || probe_type == PROBE_KAFKA || probe_type == PROBE_KSLI ||
