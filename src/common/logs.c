@@ -20,6 +20,7 @@
 
 static struct log_mgr_s *local = NULL;
 static pthread_mutex_t metric_mutex = PTHREAD_MUTEX_INITIALIZER;
+static char logger_level_str[LOGGER_MAX][LOG_LEVEL_STR_LEN] = {DEBUG_STR, INFO_STR, WARN_STR, ERROR_STR};
 
 static int mkdirp(const char *path, mode_t mode)
 {
@@ -519,8 +520,6 @@ static void set_debug_log_level(char *logLevel)
         g_debug_logger.level = LOGGER_WARN;
     } else if (strcmp(logLevel, "error") == 0) {
         g_debug_logger.level = LOGGER_ERROR;
-    } else if (strcmp(logLevel, "fatal") == 0) {
-        g_debug_logger.level = LOGGER_FATAL;
     }
 }
 
@@ -814,12 +813,13 @@ static int get_log_time(struct tm *t)
     return 0;
 }
 
-#define MAX_PATTERN_STR 200
+#define MAX_PATTERN_STR 50
 #define TM_YEAR_BEGIN 1900
 #define TM_YEAR_SHOW_OFFSET 2000
-static void log_with_date(struct logger *logger, const char *detail)
+static void log_with_date(struct logger *logger, const char *detail, enum logger_level_t level)
 {
-    if ((detail == NULL) || (!logger) || (!logger->pattern) || (strlen(logger->pattern) == 0)) {
+    if (detail == NULL || level >= LOGGER_MAX ||
+        logger == NULL || logger->pattern == NULL || strlen(logger->pattern) == 0) {
         return;
     }
     struct tm t;
@@ -831,7 +831,7 @@ static void log_with_date(struct logger *logger, const char *detail)
 
     int ret = snprintf(msg, __DEBUG_LEN + MAX_PATTERN_STR, logger->pattern,
                        t.tm_mon + 1, t.tm_mday, t.tm_year + TM_YEAR_BEGIN - TM_YEAR_SHOW_OFFSET,
-                       t.tm_hour, t.tm_min, t.tm_sec, detail);
+                       t.tm_hour, t.tm_min, t.tm_sec, logger_level_str[level], detail);
     if (ret == -1) {
         return;
     }
@@ -840,24 +840,30 @@ static void log_with_date(struct logger *logger, const char *detail)
 
 void convert_output_to_log(char *buffer, int bufferSize)
 {
+    size_t offset = 0;
+    char *content = buffer;
+    enum logger_level_t logger_level = LOGGER_DEBUG;
     if (buffer == NULL || bufferSize < 1) {
         return;
     }
 
     buffer[bufferSize - 1] = 0;
-    enum logger_level_t logger_level;
+
     if (strncmp(buffer, INFO_STR, sizeof(INFO_STR) - 1) == 0) {
         logger_level = LOGGER_INFO;
+        offset = sizeof(INFO_STR) - 1;
     } else if (strncmp(buffer, WARN_STR, sizeof(WARN_STR) - 1) == 0) {
         logger_level = LOGGER_WARN;
+        offset = sizeof(WARN_STR) - 1;
     } else if (strncmp(buffer, ERROR_STR, sizeof(ERROR_STR) - 1) == 0) {
         logger_level = LOGGER_ERROR;
-    } else {
-        logger_level = LOGGER_DEBUG;
+        offset = sizeof(ERROR_STR) - 1;
     }
+
+    content += offset;
     if (g_debug_logger.level <= logger_level) {
         reappend_debug_logger(local);
-        log_with_date(&g_debug_logger, buffer);
+        log_with_date(&g_debug_logger, content, logger_level);
     }
 }
 
@@ -867,12 +873,12 @@ void debug_logs(const char* format, ...)
 
     __FMT_LOGS(buf, __DEBUG_LEN, format);
     if (!local) {
-        printf("%s: %s", DEBUG_STR, buf);
+        printf("%s%s", DEBUG_STR, buf);
         (void)fflush(stdout);
     } else {
         if (g_debug_logger.level <= LOGGER_DEBUG) {
             reappend_debug_logger(local);
-            log_with_date(&g_debug_logger, buf);
+            log_with_date(&g_debug_logger, buf, LOGGER_DEBUG);
         }
     }
 }
@@ -884,12 +890,12 @@ void info_logs(const char* format, ...)
 
     __FMT_LOGS(buf, __DEBUG_LEN, format);
     if (!local) {
-        printf("%s: %s", INFO_STR, buf);
+        printf("%s%s", INFO_STR, buf);
         (void)fflush(stdout);
     } else {
         if (g_debug_logger.level <= LOGGER_INFO) {
             reappend_debug_logger(local);
-            log_with_date(&g_debug_logger, buf);
+            log_with_date(&g_debug_logger, buf, LOGGER_INFO);
         }
     }
 }
@@ -900,12 +906,12 @@ void warn_logs(const char* format, ...)
 
     __FMT_LOGS(buf, __DEBUG_LEN, format);
     if (!local) {
-        printf("%s: %s", WARN_STR, buf);
+        printf("%s%s", WARN_STR, buf);
         (void)fflush(stdout);
     } else {
         if (g_debug_logger.level <= LOGGER_WARN) {
             reappend_debug_logger(local);
-            log_with_date(&g_debug_logger, buf);
+            log_with_date(&g_debug_logger, buf, LOGGER_WARN);
         }
     }
 }
@@ -915,12 +921,12 @@ void error_logs(const char *format, ...) {
 
     __FMT_LOGS(buf, __DEBUG_LEN, format);
     if (!local) {
-        printf("%s: %s", ERROR_STR, buf);
+        printf("%s%s", ERROR_STR, buf);
         (void)fflush(stdout);
     } else {
         if (g_debug_logger.level <= LOGGER_ERROR) {
             reappend_debug_logger(local);
-            log_with_date(&g_debug_logger, buf);
+            log_with_date(&g_debug_logger, buf, LOGGER_ERROR);
         }
     }
 }

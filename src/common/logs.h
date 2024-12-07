@@ -45,7 +45,7 @@
 
 #define LOGS_SWITCH_ON  1
 #define PATTERN_META_LOGGER_STR "%s\n" // "%m%n"
-#define PATTERN_DEBUG_LOGGER_STR "%02d/%02d/%02d %02d:%02d:%02d  - %s" // "%D{%m/%d/%y %H:%M:%S}  - %m"
+#define PATTERN_DEBUG_LOGGER_STR "%02d/%02d/%02d %02d:%02d:%02d - %s %s" // "%D{%m/%d/%y %H:%M:%S}  - %m"
 #define PATTERN_METRICS_LOGGER_STR "%s" // "%m"
 #define PATTERN_EVENT_LOGGER_STR "%s\n" // "%m%n"
 
@@ -85,7 +85,8 @@ enum logger_level_t {
     LOGGER_INFO,
     LOGGER_WARN,
     LOGGER_ERROR,
-    LOGGER_FATAL
+
+    LOGGER_MAX
 };
 
 struct logger {
