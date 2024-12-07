@@ -274,7 +274,7 @@ static void *get_toa_data(struct sk_buff *skb, int af, enum toa_type *type, stru
 
     u16 _doff = BPF_CORE_READ_BITFIELD_PROBED(th, doff);
     length = _doff * 4 - sizeof(struct tcphdr);
-    if (length <= 0) {
+    if (length <= 0 || length > MAX_TCP_OPTIONS_LEN) {
         return NULL;
     }
 
@@ -284,7 +284,6 @@ static void *get_toa_data(struct sk_buff *skb, int af, enum toa_type *type, stru
     }
 
     // todo: 流程可优化为：先解套opcode&偏移opsize，再解出toa_opt或toa_opt_v6
-    // todo: 避免在低版本OS内核中因ebpf对循环的限制而导致不可用
     while (length > 0) {
         int opcode = _(*ptr);
         ptr++;

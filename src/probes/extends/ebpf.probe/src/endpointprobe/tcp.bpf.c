@@ -690,7 +690,7 @@ static void *get_toa_data(struct sk_buff *skb, int af, enum toa_type *type, stru
 
     u16 _doff = BPF_CORE_READ_BITFIELD_PROBED(th, doff);
     length = _doff * 4 - sizeof(struct tcphdr);
-    if (length <= 0) {
+    if (length <= 0 || length > MAX_TCP_OPTIONS_LEN) {
         return NULL;
     }
 
@@ -699,7 +699,6 @@ static void *get_toa_data(struct sk_buff *skb, int af, enum toa_type *type, stru
         return NULL;
     }
 
-    // todo: while循环需要在4.18/4.19内核版本验证
     while (length > 0) {
         int opcode = _(*ptr);
         ptr++;
