@@ -108,6 +108,7 @@ static inline int __debug_printf(const char *format, ...)
 #define WARN warn_logs
 #define ERROR error_logs
 
+#define LOG_LEVEL_STR_LEN  10
 #define DEBUG_STR "[DEBUG]"
 #define INFO_STR  "[INFO]"
 #define WARN_STR  "[WARN]"
