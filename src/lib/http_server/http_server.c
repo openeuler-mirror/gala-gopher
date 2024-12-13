@@ -34,7 +34,12 @@ static struct bufferevent* http_server_bevcb_ssl(struct event_base *evbase, void
         return NULL;
     }
 
-    return bufferevent_openssl_socket_new(evbase, -1, SSL_new(ssl_ctx),
+    SSL *ssl = SSL_new(ssl_ctx);
+    if (ssl == NULL) {
+        return NULL;
+    }
+
+    return bufferevent_openssl_socket_new(evbase, -1, ssl,
                                           BUFFEREVENT_SSL_ACCEPTING,
                                           BEV_OPT_CLOSE_ON_FREE);
 }
