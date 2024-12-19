@@ -373,11 +373,6 @@ static int init_tprofiler(void)
         return -1;
     }
 
-    if (init_local_storage(&tprofiler.localStorage)) {
-        TP_ERROR("Failed to init local storage.\n");
-        return -1;
-    }
-
     init_pb_mgmt(&tprofiler.pbMgmt);
 
     return 0;
@@ -580,6 +575,32 @@ static void clean_tprofiler(void)
     clean_map_files();
 }
 
+static int set_output_dir(char *output_dir)
+{
+    size_t len;
+
+    if (output_dir == NULL || output_dir[0] == 0) {
+        output_dir = DEFAULT_OUTPUT_DIR;
+    }
+
+    len = strlen(output_dir);
+    if (len <= 1 || len + 48 >= PATH_LEN) { // 48 means the size of file name : "timeline-trace-%s-stack.json.tmp"
+        output_dir = DEFAULT_OUTPUT_DIR;
+    }
+
+    if (output_dir[len - 1] == '/') {
+        (void)snprintf(tprofiler.output_dir, PATH_LEN, "%s", output_dir);
+    } else {
+        (void)snprintf(tprofiler.output_dir, PATH_LEN, "%s/", output_dir);
+    }
+    
+    if (init_local_storage(&tprofiler.localStorage)) {
+        return -1;
+    }
+
+    return 0;
+}
+
 static int refresh_tprofiler(struct ipc_body_s *ipc_body)
 {
     tprofiler.report_period = ipc_body->probe_param.period;
@@ -590,6 +611,9 @@ static int refresh_tprofiler(struct ipc_body_s *ipc_body)
 
     if (ipc_body->probe_flags & IPC_FLAGS_PARAMS_CHG || ipc_body->probe_flags == 0) {
         if (init_tprofiler_map_fds(ipc_body)) {
+            return -1;
+        }
+        if (set_output_dir(ipc_body->probe_param.output_dir)) {
             return -1;
         }
     }
@@ -697,12 +721,17 @@ static int gen_trace_path(struct local_store_s *local_storage)
     struct tm *tm;
     size_t sz;
     int ret;
+    char timestamp[TASK_COMM_LEN];
 
     now = time(NULL);
     tm = localtime(&now);
-    sz = strftime(local_storage->trace_path, sizeof(local_storage->trace_path),
-        TRACE_DIR "timeline-trace-%Y%m%d%H%M.json", tm);
+    sz = strftime(timestamp, sizeof(timestamp), "%Y%m%d%H%M", tm);
     if (sz == 0) {
+        return -1;
+    }
+
+    ret = snprintf(local_storage->trace_path, sizeof(local_storage->trace_path), "%stimeline-trace-%s.json", tprofiler.output_dir, timestamp);
+    if (ret < 0 || ret >= sizeof(local_storage->trace_path)) {
         return -1;
     }
 
@@ -712,9 +741,8 @@ static int gen_trace_path(struct local_store_s *local_storage)
         return -1;
     }
 
-    sz = strftime(local_storage->stack_path_tmp, sizeof(local_storage->stack_path_tmp),
-        TRACE_DIR "timeline-trace-%Y%m%d%H%M-stack.json.tmp", tm);
-    if (sz == 0) {
+    ret = snprintf(local_storage->stack_path_tmp, sizeof(local_storage->stack_path_tmp), "%stimeline-trace-%s-stack.json.tmp", tprofiler.output_dir, timestamp);
+    if (ret < 0 || ret >= sizeof(local_storage->stack_path_tmp)) {
         return -1;
     }
 
@@ -735,15 +763,16 @@ int init_local_storage(struct local_store_s *local_storage)
     }
 
     if (gen_trace_path(local_storage)) {
+        TP_ERROR("Failed to gen_trace_path\n");
         goto err;
     }
-    if (access(TRACE_DIR, F_OK)) {
-        ret = mkdir(TRACE_DIR, 0700);
+    if (access(tprofiler.output_dir, F_OK)) {
+        ret = mkdir(tprofiler.output_dir, 0700);
         if (ret) {
-            TP_ERROR("Failed to create trace dir:%s, ret=%d\n", TRACE_DIR, ret);
+            TP_ERROR("Failed to create trace dir:%s, ret=%d\n", tprofiler.output_dir, ret);
             goto err;
         }
-        TP_INFO("Succeed to create trace dir:%s\n", TRACE_DIR);
+        TP_INFO("Succeed to create trace dir:%s\n", tprofiler.output_dir);
     }
 
     local_storage->fp = fopen(local_storage->trace_path_tmp, "w+");

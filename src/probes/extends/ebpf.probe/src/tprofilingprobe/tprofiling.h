@@ -242,7 +242,7 @@ typedef struct {
 
 #define ERR_TP_NO_BUFF 2
 
-#define TRACE_DIR "/var/log/gala-gopher/tprofiling/"
+#define DEFAULT_OUTPUT_DIR "/var/log/gala-gopher/tprofiling/"
 
 #define DFT_PERF_SAMPLE_FREQ 99   // unit: Hz
 #define DFT_STACK_SYMB_NAME "[unknown]"
@@ -340,6 +340,7 @@ typedef struct {
     // TODO: 做一下容量控制
     struct mem_alloc_s *mem_alloc_tbl;  // mem_glibc探针中使用，用于记录进程已分配的地址和对应的原始堆栈地址
     time_t mem_snap_timer;      // mem_glibc探针中使用
+    char output_dir[PATH_LEN];
 } Tprofiler;
 
 extern Tprofiler tprofiler;

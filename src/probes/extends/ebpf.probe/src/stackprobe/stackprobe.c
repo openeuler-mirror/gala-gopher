@@ -1449,7 +1449,7 @@ static struct svg_stack_trace_s *create_svg_stack_trace(struct ipc_body_s *ipc_b
         goto cleanup;
     }
 #ifdef FLAMEGRAPH_SVG
-    if (set_svg_dir(&svg_st->svg_mng->svg, ipc_body->probe_param.svg_dir, flame_name)) {
+    if (set_svg_dir(&svg_st->svg_mng->svg, ipc_body->probe_param.output_dir, flame_name)) {
         goto cleanup;
     }
 

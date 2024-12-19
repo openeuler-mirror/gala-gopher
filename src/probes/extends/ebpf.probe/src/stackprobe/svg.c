@@ -159,15 +159,15 @@ static int __create_svg_files(struct stack_svg_s* svg_files, u32 period)
     return 0;
 }
 
-int __mkdir_with_svg_date(const char *svg_dir, char *svg_date_dir, size_t size)
+int __mkdir_with_svg_date(const char *output_dir, char *svg_date_dir, size_t size)
 {
-    size_t len = strlen(svg_dir);
+    size_t len = strlen(output_dir);
     const char *day = get_cur_date();
     if (len <= 1 || len + strlen(day) + 1 >= size) {
         return -1;
     }
 
-    (void)snprintf(svg_date_dir, size, "%s/%s", svg_dir, day);
+    (void)snprintf(svg_date_dir, size, "%s/%s", output_dir, day);
     if (access(svg_date_dir, F_OK) != 0) {
         FILE *fp;
         char command[COMMAND_LEN] = {0};
@@ -202,7 +202,7 @@ static int stack_get_next_svg_file(struct stack_svgs_s* svgs, char svg_file[], s
         svgs->svg_files.files[next] = NULL;
     }
 
-    if (__mkdir_with_svg_date(svgs->svg_dir, svg_date_dir, PATH_LEN) < 0) {
+    if (__mkdir_with_svg_date(svgs->output_dir, svg_date_dir, PATH_LEN) < 0) {
         return -1;
     }
 
@@ -304,7 +304,7 @@ static void __mkdir_svg_dir(struct stack_svgs_s *svg)
 
     command[0] = 0;
 
-    (void)snprintf(command, LINE_BUF_LEN, "/usr/bin/mkdir -p %s", svg->svg_dir ?: "/");
+    (void)snprintf(command, LINE_BUF_LEN, "/usr/bin/mkdir -p %s", svg->output_dir ?: "/");
     fp = popen(command, "r");
     if (fp != NULL) {
         (void)pclose(fp);
@@ -330,9 +330,9 @@ int set_svg_dir(struct stack_svgs_s *svg, const char *dir, const char *flame_nam
     }
 
     if (dir[len - 1] == '/') {
-        (void)snprintf(svg->svg_dir, PATH_LEN, "%s%s", dir, flame_name);
+        (void)snprintf(svg->output_dir, PATH_LEN, "%s%s", dir, flame_name);
     } else {
-        (void)snprintf(svg->svg_dir, PATH_LEN, "%s/%s", dir, flame_name);
+        (void)snprintf(svg->output_dir, PATH_LEN, "%s/%s", dir, flame_name);
     }
     __mkdir_svg_dir(svg);
     return 0;
