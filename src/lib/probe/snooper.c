@@ -625,6 +625,9 @@ static void __build_ipc_body(struct probe_s *probe, struct ipc_body_s* ipc_body)
     if (probe->is_snooper_chg) {
         ipc_body->probe_flags |= IPC_FLAGS_SNOOPER_CHG;
     }
+    if (probe->resnd_snooper_for_restart) {
+        ipc_body->probe_flags = 0;
+    }
     memcpy(&(ipc_body->probe_param), &probe->probe_param, sizeof(struct probe_params));
     return;
 }
