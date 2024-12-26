@@ -530,6 +530,7 @@ static int get_container_btrfs_subvol(unsigned int pid, char *subvol, unsigned i
     char fs_file[PATH_LEN];
     char fs_type[PATH_LEN];
     char fs_mntops[PATH_LEN];
+    char format[SSCANF_FORMAT_LEN];
     int ret;
 
     command[0] = 0;
@@ -539,6 +540,9 @@ static int get_container_btrfs_subvol(unsigned int pid, char *subvol, unsigned i
         return -1;
     }
 
+    (void)snprintf(format, sizeof(format), "%%*s %%%lus %%%lus %%%lus",
+                   sizeof(fs_file) - 1, sizeof(fs_type) - 1,
+                   sizeof(fs_mntops) - 1);
     while (!feof(f)) {
         line[0] = 0;
         if (fgets(line, sizeof(line), f) == NULL) {
@@ -547,7 +551,7 @@ static int get_container_btrfs_subvol(unsigned int pid, char *subvol, unsigned i
         fs_file[0] = 0;
         fs_type[0] = 0;
         fs_mntops[0] = 0;
-        ret = sscanf(line, "%*s %s %s %s", fs_file, fs_type, fs_mntops);
+        ret = sscanf(line, format, fs_file, fs_type, fs_mntops);
         if (ret != 3) {
             break;
         }

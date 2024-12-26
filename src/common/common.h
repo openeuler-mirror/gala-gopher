@@ -70,6 +70,7 @@
 #define LINE_BUF_LEN            512
 #define PATH_LEN                256
 #define CG_PATH_LEN             2048
+#define SSCANF_FORMAT_LEN       128
 
 #if !defined INET6_ADDRSTRLEN
     #define INET6_ADDRSTRLEN    46
