@@ -61,37 +61,47 @@ static void sig_int(int signo)
     g_stop = 1;
 }
 
-static void load_tcp_snoopers(int fd, struct ipc_body_s *ipc_body)
+static void clear_unref_proc_map(int fd)
 {
-    struct proc_s proc = {0};
-    struct obj_ref_s ref = {.count = 1};
+    struct proc_s key = {0};
+    struct proc_s next_key = {0};
+    struct obj_ref_s value = {0};
 
-    if (fd <= 0) {
-        return;
-    }
-
-    for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
-        if (ipc_body->snooper_objs[i].type == SNOOPER_OBJ_PROC) {
-            proc.proc_id = ipc_body->snooper_objs[i].obj.proc.proc_id;
-            (void)bpf_map_update_elem(fd, &proc, &ref, BPF_ANY);
+    while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
+        (void)bpf_map_lookup_elem(fd, &next_key, &value);
+        if (value.count == 0) {
+            (void)bpf_map_delete_elem(fd, &next_key);
         }
+        key = next_key;
     }
 }
 
-static void unload_tcp_snoopers(int fd, struct ipc_body_s *ipc_body)
+static void reload_tcp_snoopers(int fd, struct ipc_body_s *ipc_old, struct ipc_body_s *ipc_new)
 {
     struct proc_s proc = {0};
+    struct obj_ref_s ref = {.count = 1};
+    struct obj_ref_s ref_zero = {.count = 0};
+    int i;
 
     if (fd <= 0) {
         return;
     }
 
-    for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
-        if (ipc_body->snooper_objs[i].type == SNOOPER_OBJ_PROC) {
-            proc.proc_id = ipc_body->snooper_objs[i].obj.proc.proc_id;
-            (void)bpf_map_delete_elem(fd, &proc);
+    for (i = 0; i < ipc_old->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_old->snooper_objs[i].type == SNOOPER_OBJ_PROC) {
+            proc.proc_id = ipc_old->snooper_objs[i].obj.proc.proc_id;
+            (void)bpf_map_update_elem(fd, &proc, &ref_zero, BPF_ANY);
         }
     }
+
+    for (i = 0; i < ipc_new->snooper_obj_num && i < SNOOPER_MAX; i++) {
+        if (ipc_new->snooper_objs[i].type == SNOOPER_OBJ_PROC) {
+            proc.proc_id = ipc_new->snooper_objs[i].obj.proc.proc_id;
+            (void)bpf_map_update_elem(fd, &proc, &ref, BPF_ANY);
+        }
+    }
+
+    clear_unref_proc_map(fd);
 }
 
 static void reload_tc_bpf(struct ipc_body_s* ipc_body)
@@ -299,8 +309,7 @@ int main(int argc, char **argv)
 
             if (ipc_body.probe_flags & IPC_FLAGS_SNOOPER_CHG || ipc_body.probe_flags == 0) {
                 lkup_established_tcp(proc_obj_map_fd, &ipc_body);
-                unload_tcp_snoopers(proc_obj_map_fd, &(tcp_mng->ipc_body));
-                load_tcp_snoopers(proc_obj_map_fd, &ipc_body);
+                reload_tcp_snoopers(proc_obj_map_fd, &(tcp_mng->ipc_body), &ipc_body);
             }
             destroy_ipc_body(&(tcp_mng->ipc_body));
             (void)memcpy(&(tcp_mng->ipc_body), &ipc_body, sizeof(tcp_mng->ipc_body));
