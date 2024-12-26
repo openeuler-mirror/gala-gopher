@@ -316,12 +316,17 @@ int main(int argc, char **argv)
         }
 
         if (tcp_mng->tcp_progs) {
+            if (tcp_mng->tcp_progs->num == 0 || tcp_mng->tcp_progs->num > SKEL_MAX_NUM) {
+                goto err;
+            }
+
             ret = load_established_tcps_mngt(proc_obj_map_fd, tcp_fd_map_fd);
             if (ret) {
                 goto err;
             }
 
-            for (int i = 0; i < tcp_mng->tcp_progs->num && i < SKEL_MAX_NUM; i++) {
+            // poll from last buffer to adapt for pinned perf event map
+            for (int i = (int)tcp_mng->tcp_progs->num - 1; i >= 0; i--) {
                 if (tcp_mng->tcp_progs->buffers[i]) {
                     err = bpf_buffer__poll(tcp_mng->tcp_progs->buffers[i], THOUSAND);
                     if (err < 0 && err != -EINTR) {
