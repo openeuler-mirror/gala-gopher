@@ -813,32 +813,6 @@ curl -X PUT http://localhost:9999/ksli -d json='
     "cmd": {
         "probe": []
     },
-    "snoopers": {
-        "proc_id": [
-            101,
-            102
-        ],
-        "proc_name": [
-            {
-                "comm": "app1",
-                "cmdline": "",
-                "debugging_dir": ""
-            },
-            {
-                "comm": "app2",
-                "cmdline": "",
-                "debugging_dir": ""
-            }
-        ],
-        "pod_id": [
-            "pod1",
-            "pod2"
-        ],
-        "container_id": [
-            "container1",
-            "container2"
-        ]
-    },
     "params":{
         "report_period": 180,
         "latency_thr": 60,
@@ -863,9 +837,7 @@ curl -X PUT http://localhost:9999/ksli -d json='
 1. 使用curl命令发起PUT请求
 2. 请求的URL为http://localhost:9999/ksli, 9999是Rest server处理启动探针请求监听的端口号，jvm为探针的名称
 3. cmd内容中的probe对应着探针的采集子项，ksli探针probe的内容为空，表示上报对应的meta文件的相关指标数据全采集
-4. snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id和container_id, 分别是进程id，进程名称，pod id和容器id，其中任意
-   一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
-5. params内容中的参数，示例中的参数都是ksli探针支持的参数
+4. params内容中的参数，示例中的参数都是ksli探针支持的参数
        report_period是控制着采集的数据上报的周期，值为180的含义是每隔180s上报一次采集到的数据
        latency_thr控制着时延上报的门限，值为180的含义是时延大于180ms时进行时延的上报
        res_lower_thr是控制着资源的百分比下限
@@ -1340,7 +1312,34 @@ curl -X PUT http://localhost:9999/container -d json='
        采集周期无需配置，其值与 report_period 数据相同。
 6. state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
 
+### SLI探针配置
 
+```
+curl -X PUT http://localhost:9999/sli -d json='
+{
+	"cmd": {
+		"probe": ["cpu", "mem", "io", "node", "container", "histogram"]
+	},
+	"snoopers": {
+		"container_name": ["containername1"]
+	},
+	"params": {
+		"report_period": 60
+	},
+	"state": "running"
+}'
+
+```
+
+启动sli探针的PUT请求中可以配置很多参数，这些参数共同控制着sli探针的行为，由上往下分析一下请求中的各个重要组成部分
+
+1. 使用curl命令发起PUT请求
+2. sli为探针的名称
+3. cmd内容中的probe对应着探针的采集子项，其中"cpu", "mem", "io"为采集的资源类型，至少选一，可以多选；"node", "container"为采集的粒度，至少选一，可以多选；"histogram"表示采集直方图类型，可选。
+4. snoopers内容中的配置探针监听对象有四个维度,proc_id、proc_name、pod_id、container_id和container_name，分别是进程id，进程名称，pod id，容器id和容器名，其中任意一个都可以指定要监控的对象，监控对象指定之后，关于采集的监控对象相关的信息由cmd中的probe内容和params中的内容一起指定
+5. params内容中的参数，示例中的参数都是sli探针支持的参数
+     report_period是控制着采集的数据上报的周期，值为60的含义是每隔60s上报一次采集到的数据
+6. state控制着探针的状态，启动探针时state必须配置为running，停止探针时state必须配置为stopped
 
 ## 使用命令行工具进行探针动态配置
 
