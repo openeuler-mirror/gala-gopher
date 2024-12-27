@@ -29,7 +29,7 @@
 #define SYSTEM_PROC_STAT_PATH       "/proc/stat"
 #define SYSTEM_CPU_MHZ_INFO         "cat /proc/cpuinfo | grep MHz"
 #define SOFTNET_STAT_PATH           "/proc/net/softnet_stat"
-#define PROC_STAT_FILEDS_NUM        6
+#define PROC_STAT_FILEDS_NUM        8
 #define PROC_STAT_COL_NUM           8
 #define PROC_STAT_IDLE_COL          4
 #define PROC_STAT_IOWAIT_COL        5
@@ -160,7 +160,7 @@ static int get_proc_stat_info(void)
             &cur_cpus[index]->cpu_softirq_total_second,
             &cur_cpus[index]->cpu_steal_total_second);
         if (ret < PROC_STAT_FILEDS_NUM) {
-            DEBUG("system_cpu.probe failed get proc_stat metrics.\n");
+            ERROR("system_cpu.probe failed to get proc_stat metrics.\n");
         }
         index++;
     }

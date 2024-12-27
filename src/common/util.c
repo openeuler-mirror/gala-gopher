@@ -479,7 +479,7 @@ int get_so_path(int pid, char *elf_path, int size, const char *so_keyword)
 
     while (fgets(buf, sizeof(buf), fp)) {
         so_path[0] = 0;
-        if (sscanf(buf, "%*x-%*x %*s %*s %*s %*s %s", so_path) != 1) {
+        if (sscanf(buf, "%*x-%*x %*s %*s %*s %*s %255s", so_path) != 1) {
             continue;
         }
         if (so_path[0] != '/') {
