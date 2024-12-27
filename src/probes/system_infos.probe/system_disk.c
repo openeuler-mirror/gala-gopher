@@ -37,8 +37,12 @@ static df_stats *g_df_tbl = NULL;
 static int get_df_inode_fields(char *line, df_stats *stats)
 {
     int ret;
+    char format[SSCANF_FORMAT_LEN];
 
-    ret = sscanf(line, "%s %s %ld %ld %ld %ld%*s %s",
+    (void)snprintf(format, sizeof(format), "%%%lus %%%lus %%ld %%ld %%ld %%ld%%*s %%%lus",
+                   sizeof(stats->fsname) - 1, sizeof(stats->fstype) - 1,
+                   sizeof(stats->mount_on) - 1);
+    ret = sscanf(line, format,
         &stats->fsname, &stats->fstype, &stats->inode_sum, &stats->inode_used,
         &stats->inode_free, &stats->inode_used_per, &stats->mount_on);
     if (ret < DF_INODE_FIELD_NUM) {
@@ -52,8 +56,13 @@ static int get_df_inode_fields(char *line, df_stats *stats)
 static int get_df_block_fields(char *line, df_stats *stats)
 {
     int ret;
+    char format[SSCANF_FORMAT_LEN];
 
-    ret = sscanf(line, "%*s %*s %ld %ld %ld %ld%*s %s",
+    (void)snprintf(format, sizeof(format),
+                   "%%*s %%*s %%ld %%ld %%ld %%ld%%*s %%%lus",
+                   sizeof(stats->mount_on) - 1);
+
+    ret = sscanf(line, format,
         &stats->blk_sum, &stats->blk_used,
         &stats->blk_free, &stats->blk_used_per, &stats->mount_on);
     if (ret < DF_BLOCK_FIELD_NUM) {
@@ -64,14 +73,18 @@ static int get_df_block_fields(char *line, df_stats *stats)
 }
 
 #define MNT_FIELD_NUM 2
-static int get_fs_mount_status(char *line, char mountOn[MOUNTON_LEN], char mountStatus[MOUNTSTATUS_LEN])
+static int get_fs_mount_status(char *line, char *mountOn, size_t mounton_len,
+                               char *mountStatus, size_t mountstatus_len)
 {
     int ret;
     char buf[LINE_BUF_LEN];
     char *firstComma;
+    char format[SSCANF_FORMAT_LEN];
 
+    (void)snprintf(format, sizeof(format), "%%*s %%%lus %%*s %%%lus",
+                   mounton_len - 1, sizeof(buf) - 1);
     buf[0] = 0;
-    ret = sscanf(line, "%*s %s %*s %s", mountOn, buf);
+    ret = sscanf(line, format, mountOn, buf);
     if (ret < MNT_FIELD_NUM) {
         DEBUG("[SYSTEM_DISK] get fs mount status fail.\n");
         return -1;
@@ -83,7 +96,7 @@ static int get_fs_mount_status(char *line, char mountOn[MOUNTON_LEN], char mount
         return -1;
     }
     *firstComma = '\0';
-    (void)snprintf(mountStatus, MOUNTSTATUS_LEN, "%s", buf);
+    (void)snprintf(mountStatus, mountstatus_len, "%s", buf);
     return 0;
 }
 
@@ -252,7 +265,7 @@ static int init_fs_status(void)
 
         mountOn[0] = 0;
         mountStatus[0] = 0;
-        if (get_fs_mount_status(line, mountOn, mountStatus)) {
+        if (get_fs_mount_status(line, mountOn, sizeof(mountOn), mountStatus, sizeof(mountStatus))) {
             continue;
         }
 
