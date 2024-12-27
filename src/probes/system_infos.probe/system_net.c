@@ -365,9 +365,9 @@ int system_net_probe(struct ipc_body_s *ipc_body)
         if (strchr(line, '|') != NULL) {
             continue;
         }
-        if (index > g_netdev_num) {
-            ERROR("[SYSTEM_NET] net_probe records beyond max netdev nums(%d).\n", g_netdev_num);
-            continue;
+        if (index >= g_netdev_num) {
+            WARN("[SYSTEM_NET] net_probe records beyond max netdev nums(%d).\n", g_netdev_num);
+            break;
         }
         (void)get_netdev_name(line, dev_name);
         if (is_physical_netdev(dev_name, g_netdev_num) != 1) {
@@ -429,6 +429,10 @@ static int load_physical_device(void)
         fpath[0] = 0;
         (void)snprintf(fpath, COMMAND_LEN, "/sys/devices/virtual/net/%s", entry->d_name);
         if (access((const char *)fpath, 0) < 0) {
+            if (g_netdev_num >= MAX_NETDEV_NUM) {
+                WARN("[SYSTEM_NET] num of physical net devices exceeds %d, some will be ignored\n", MAX_NETDEV_NUM);
+                break;
+            }
             // this is not virtual device
             (void)snprintf(g_phy_netdev_list[g_netdev_num++], NET_DEVICE_NAME_SIZE, "%s", entry->d_name);
         }
