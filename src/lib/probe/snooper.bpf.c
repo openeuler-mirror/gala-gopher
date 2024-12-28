@@ -33,7 +33,7 @@ char g_linsence[] SEC("license") = "GPL";
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 256 *1024);
+    __uint(max_entries, 1024 * 1024);
 } snooper_proc_channel SEC(".maps");
 
 static __always_inline void process_new_forked_task(struct task_struct *child, void *ctx)

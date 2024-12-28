@@ -1198,20 +1198,21 @@ static char is_keeplive_tmout(struct probe_mng_s *probe_mng)
     return 0;
 }
 
+#define SNOOPER_POLL_TMOUT  100  // 100ms
 void run_probe_mng_daemon(struct probe_mng_s *probe_mng)
 {
     int ret;
 
     for (;;) {
         if (probe_mng->snooper_proc_pb != NULL) {
-            ret = bpf_buffer__poll((struct bpf_buffer *)probe_mng->snooper_proc_pb, THOUSAND);
+            ret = bpf_buffer__poll((struct bpf_buffer *)probe_mng->snooper_proc_pb, SNOOPER_POLL_TMOUT);
             if (ret < 0 && ret != -EINTR) {
                 break;
             }
         }
 
         if (probe_mng->snooper_cgrp_pb != NULL) {
-            ret = bpf_buffer__poll((struct bpf_buffer *)probe_mng->snooper_cgrp_pb, THOUSAND);
+            ret = bpf_buffer__poll((struct bpf_buffer *)probe_mng->snooper_cgrp_pb, SNOOPER_POLL_TMOUT);
             if (ret < 0 && ret != -EINTR) {
                 break;
             }
