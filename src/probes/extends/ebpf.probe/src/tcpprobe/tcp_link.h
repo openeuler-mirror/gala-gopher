@@ -94,19 +94,6 @@ static __always_inline __maybe_unused u64 get_period(void)
     return period; // units from second to nanosecond
 }
 
-static __always_inline __maybe_unused int is_gopher_comm(void)
-{
-    char comm[TASK_COMM_LEN] = {0};
-
-    (void)bpf_get_current_comm(&comm, sizeof(comm));
-
-    // TODO: need to modify when we drop libmicrohttpd
-    if (comm[0] == 'M' && comm[1] == 'H' && comm[2] == 'D' && comm[3] == '-') {
-        return 1;
-    }
-    return 0;
-}
-
 static __always_inline __maybe_unused char is_valid_tgid(u32 tgid)
 {
     struct proc_s obj = {.proc_id = tgid};
@@ -136,6 +123,14 @@ static __always_inline __maybe_unused int delete_tcp_link(struct sock *sk)
     return bpf_map_delete_elem(&tcp_link_map, &sk);
 }
 
+static __always_inline __maybe_unused void reset_sock_obj_link_state(struct sock *sk)
+{
+    struct sock_info_s *sock_info = bpf_map_lookup_elem(&sock_map, &sk);
+    if (sock_info) {
+        sock_info->tcp_link_ok = 0;
+    }
+}
+
 static __always_inline __maybe_unused struct tcp_metrics_s *get_tcp_metrics(struct sock *sk)
 {
     struct sock_stats_s *sock_stats;
@@ -149,15 +144,12 @@ static __always_inline __maybe_unused struct tcp_metrics_s *get_tcp_metrics(stru
         return &(sock_stats->metrics);
     }
     (void)delete_tcp_link(sk);
+    reset_sock_obj_link_state(sk);
     return NULL;
 }
 
 static __always_inline __maybe_unused int create_sock_obj(u32 tgid, struct sock *sk, struct sock_info_s *info)
 {
-    if (is_gopher_comm()) {
-        return 0;
-    }
-
     info->proc_id = tgid;
     return bpf_map_update_elem(&sock_map, &sk, info, BPF_ANY);
 }
