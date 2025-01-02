@@ -141,14 +141,14 @@ struct toa_socket_s *create_toa_sock(const struct toa_sock_id_s *id)
     return toa_sock;
 }
 
+#define TCP_TRACKER_MAX (4 * 1024)
 static struct tcp_tracker_s* create_tcp_tracker(struct tcp_mng_s *tcp_mng, const struct tcp_tracker_id_s *id)
 {
     unsigned char src_ip_str[INET6_ADDRSTRLEN];
     unsigned char dst_ip_str[INET6_ADDRSTRLEN];
     unsigned char toa_src_ip_str[INET6_ADDRSTRLEN];
 
-#define __TCP_TRACKER_MAX (4 * 1024)
-    if (tcp_mng->tcp_tracker_count >= __TCP_TRACKER_MAX) {
+    if (tcp_mng->tcp_tracker_count >= TCP_TRACKER_MAX) {
         ERROR("[TCPPROBE]: Create 'tcp_tracker' failed(upper to limited).\n");
         return NULL;
     }
@@ -168,6 +168,9 @@ static struct tcp_tracker_s* create_tcp_tracker(struct tcp_mng_s *tcp_mng, const
     if (tracker->id.toa_famlily == AF_INET || tracker->id.toa_famlily == AF_INET6) {
         ip_str(tracker->id.toa_famlily, (unsigned char *)&(tracker->id.toa_c_ip), toa_src_ip_str, INET6_ADDRSTRLEN);
         tracker->toa_src_ip = strdup((const char *)toa_src_ip_str);
+        if (!tracker->toa_src_ip) {
+            goto err;
+        }
     }
 
     if (tracker->src_ip == NULL || tracker->dst_ip == NULL) {
@@ -180,9 +183,7 @@ static struct tcp_tracker_s* create_tcp_tracker(struct tcp_mng_s *tcp_mng, const
     return tracker;
 
 err:
-    if (tracker) {
-        destroy_tcp_tracker(tracker);
-    }
+    destroy_tcp_tracker(tracker);
     return NULL;
 }
 
@@ -395,6 +396,9 @@ struct tcp_tracker_s *get_tcp_tracker(struct tcp_mng_s *tcp_mng, const void *lin
 
 void destroy_tcp_tracker(struct tcp_tracker_s* tracker)
 {
+    if (!tracker) {
+        return;
+    } 
     if (tracker->src_ip) {
         free(tracker->src_ip);
     }
@@ -407,7 +411,6 @@ void destroy_tcp_tracker(struct tcp_tracker_s* tracker)
         free(tracker->toa_src_ip);
     }
     free(tracker);
-    return;
 }
 
 void destroy_tcp_trackers(struct tcp_mng_s *tcp_mng)

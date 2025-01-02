@@ -60,6 +60,9 @@ int ensure_core_btf(struct bpf_object_open_opts* opts)
     }
 
     opts->btf_custom_path = strdup(btf_file);
+    if (!opts->btf_custom_path) {
+        return -1;
+    }
     return 0;
 }
 

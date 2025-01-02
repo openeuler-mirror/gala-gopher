@@ -236,6 +236,10 @@ static struct l7_link_s* create_l7_link(const struct l7_link_id_s *id)
         ip_str(link->id.client_addr.family, (unsigned char *)&(link->id.client_addr.ip), ip, INET6_ADDRSTRLEN);
         if (ip[0] != 0) {
             link->client_ip = strdup((const char *)ip);
+            if (!link->client_ip) {
+                free(link);
+                return NULL;
+            }
         }
     }
 
@@ -244,6 +248,11 @@ static struct l7_link_s* create_l7_link(const struct l7_link_id_s *id)
         ip_str(link->id.server_addr.family, (unsigned char *)&(link->id.server_addr.ip), ip, INET6_ADDRSTRLEN);
         if (ip[0] != 0) {
             link->server_ip = strdup((const char *)ip);
+            if (!link->server_ip) {
+                free(link->client_ip);
+                free(link);
+                return NULL;
+            }
         }
     }
 

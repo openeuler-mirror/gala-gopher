@@ -519,7 +519,7 @@ static int get_mod_type(struct mod_info_s* mod_info)
     return GET_MOD_TYPE;
 }
 
-static void __do_get_mod_path_byname(struct mod_info_s* mod_info, int proc_id)
+static int __do_get_mod_path_byname(struct mod_info_s* mod_info, int proc_id)
 {
     char *fmt = "/proc/%d/root%s";
     char path[PATH_LEN];
@@ -527,7 +527,10 @@ static void __do_get_mod_path_byname(struct mod_info_s* mod_info, int proc_id)
     path[0] = 0;
     (void)snprintf(path, PATH_LEN, fmt, proc_id, mod_info->name);
     mod_info->path = strdup(path);
-    return;
+    if (!mod_info->path) {
+        return -1;
+    }
+    return 0;
 }
 
 #define IS_CONTAIN_STR(s, contain_s)    (strstr(s, contain_s))
@@ -548,10 +551,15 @@ static int get_mod_path(struct mod_info_s* mod_info, int proc_id)
     }
     if (mod_info->type == MODULE_JVM) {
         mod_info->path = strdup(mod_info->name);
+        if (!mod_info->path) {
+            return -1;
+        }
         return 0;
     }
     if (!IS_BACKEND_MOD(mod_info->name)) {
-        __do_get_mod_path_byname(mod_info, proc_id);
+        if (__do_get_mod_path_byname(mod_info, proc_id) == -1) {
+            goto err;
+        }
         return 0;
     }
 
@@ -572,6 +580,9 @@ static int get_mod_path(struct mod_info_s* mod_info, int proc_id)
 
         if (f_stat.st_ino == mod_info->inode) {
             mod_info->path = strdup(fd_file);
+            if (!mod_info->path) {
+                goto err;
+            }
             ret = 0;
             break;
         }

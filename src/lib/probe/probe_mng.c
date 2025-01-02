@@ -35,7 +35,7 @@
 #include "json_tool.h"
 #include "probe_mng.h"
 
-static void init_probe_bin(struct probe_s *probe, enum probe_type_e probe_type);
+static int init_probe_bin(struct probe_s *probe, enum probe_type_e probe_type);
 
 struct probe_define_s probe_define[] = {
     {"baseinfo",      "system_infos",                                      PROBE_BASEINFO,    SNOOPER_TYPE_ALL,    ENABLE_BASEINFO},
@@ -359,6 +359,9 @@ static struct probe_s* new_probe(const char* name, enum probe_type_e probe_type)
 
     memset(probe, 0, sizeof(struct probe_s));
     probe->name = strdup(name);
+    if (!probe->name) {
+        goto err;
+    }
 
     ret = pthread_rwlock_init(&probe->rwlock, NULL);
     if (ret) {
@@ -376,7 +379,10 @@ static struct probe_s* new_probe(const char* name, enum probe_type_e probe_type)
     probe->fifo->probe = probe;
     probe->probe_type = probe_type;
     probe->snooper_type = probe_define[probe_type - 1].snooper_type;
-    init_probe_bin(probe, probe_type);
+    ret = init_probe_bin(probe, probe_type);
+    if (ret) {
+        goto err;
+    }
     set_default_params(probe);
 
     ret = attach_probe_fd(g_probe_mng, probe);
@@ -439,13 +445,16 @@ end:
     return ret;
 }
 
-static void init_probe_bin(struct probe_s *probe, enum probe_type_e probe_type)
+static int init_probe_bin(struct probe_s *probe, enum probe_type_e probe_type)
 {
     if (probe_type >= PROBE_TYPE_MAX) {
-        return;
+        return -1;
     }
 
     probe->bin = strdup(probe_define[probe_type - 1].bin);
+    if (!probe->bin) {
+        return -1;
+    }
 
     if (is_extend_probe(probe)) {
         probe->is_extend_probe = 1;
@@ -453,13 +462,13 @@ static void init_probe_bin(struct probe_s *probe, enum probe_type_e probe_type)
     } else {
         int ret = set_probe_entry(probe);
         if (ret) {
-            return;
+            return -1;
         }
         probe->is_extend_probe = 0;
         probe->cb = native_probe_thread_cb;
     }
 
-    return;
+    return 0;
 }
 
 static int get_probe_pid(struct probe_s *probe)
@@ -703,7 +712,6 @@ static int probe_parser_cmd(struct probe_s *probe, const void *item)
 
 static void probe_backup_cmd(struct probe_s *probe, struct probe_s *probe_backup)
 {
-    probe_backup->bin = probe->bin ? strdup(probe->bin) : NULL;
     probe_backup->is_extend_probe = probe->is_extend_probe;
     probe_backup->probe_entry = probe->probe_entry;
     probe_backup->cb = probe->cb;
@@ -715,9 +723,6 @@ static void probe_rollback_cmd(struct probe_s *probe, struct probe_s *probe_back
     if (probe->bin) {
         free(probe->bin);
     }
-
-    probe->bin = probe_backup->bin;
-    probe_backup->bin = NULL;
 
     probe->is_extend_probe = probe_backup->is_extend_probe;
     probe->probe_entry = probe_backup->probe_entry;

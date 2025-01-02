@@ -162,6 +162,10 @@ static int __add_libssl_prog(struct l7_mng_s *l7_mng, struct bpf_prog_s *prog, c
         if (l7_mng->bpf_progs.libssl_progs[i].prog == NULL) {
             l7_mng->bpf_progs.libssl_progs[i].prog = prog;
             l7_mng->bpf_progs.libssl_progs[i].libssl_path = strdup(libssl);
+            if (!l7_mng->bpf_progs.libssl_progs[i].libssl_path) {
+                l7_mng->bpf_progs.libssl_progs[i].prog = NULL;
+                return -1;
+            }
             return 0;
         }
     }

@@ -149,9 +149,17 @@ static int add_snooper_conf_procname(struct probe_s *probe,
     (void)snprintf(snooper_conf->conf.app.comm, sizeof(snooper_conf->conf.app.comm), "%s", comm);
     if (cmdline && cmdline[0] != 0) {
         snooper_conf->conf.app.cmdline = strdup(cmdline);
+        if (!snooper_conf->conf.app.cmdline) {
+            free_snooper_conf(snooper_conf);
+            return -1;
+        }
     }
     if (dbgdir && dbgdir[0] != 0) {
         snooper_conf->conf.app.debuging_dir = strdup(dbgdir);
+        if (!snooper_conf->conf.app.debuging_dir) {
+            free_snooper_conf(snooper_conf);
+            return -1;
+        }
     }
     snooper_conf->type = SNOOPER_CONF_APP;
 
@@ -733,7 +741,6 @@ void free_snooper_obj(struct snooper_obj_s* snooper_obj)
             (void)free(snooper_obj->obj.con_info.libssl_path);
         }
     }
-
     (void)free(snooper_obj);
     snooper_obj = NULL;
 }
@@ -970,20 +977,37 @@ static int add_snooper_obj_con_info(struct probe_s *probe, struct con_info_s *co
     DEBUG("[SNOOPER] Adding container %s to snooper obj\n", con_info->con_id ?:"unknown");
     snooper_obj->type = SNOOPER_OBJ_CON;
     snooper_obj->obj.con_info.cpucg_inode = con_info->cpucg_inode;
-    if (con_info->con_id) {
+    if (con_info->con_id[0] != 0) {
         snooper_obj->obj.con_info.con_id = strdup(con_info->con_id);
+        if (!snooper_obj->obj.con_info.con_id) {
+            goto err;
+        }
     }
-    if (probe->probe_type == PROBE_SLI && con_info->container_name) {
+    if (probe->probe_type == PROBE_SLI && (!con_info->container_name[0])) {
         snooper_obj->obj.con_info.container_name = strdup(con_info->container_name);
+        if (!snooper_obj->obj.con_info.container_name) {
+            goto err;
+        }
     }
-    if (probe->probe_type == PROBE_PROC && con_info->libc_path) {
+    if (probe->probe_type == PROBE_PROC && (!con_info->libc_path[0])) {
         snooper_obj->obj.con_info.libc_path = strdup(con_info->libc_path);
+        if (!snooper_obj->obj.con_info.libc_path) {
+            goto err;
+        }
     }
-    if (probe->probe_type == PROBE_L7 && con_info->libssl_path) {
+    if (probe->probe_type == PROBE_L7 && (!con_info->libssl_path[0])) {
         snooper_obj->obj.con_info.libssl_path = strdup(con_info->libssl_path);
+        if (!snooper_obj->obj.con_info.libssl_path) {
+            goto err;
+        }
     }
     probe->snooper_objs[pos] = snooper_obj;
     return 0;
+
+err:
+    WARN("add_snooper_obj_con_info add snooper obj failed !\n");
+    free_snooper_obj(snooper_obj);
+    return -1;
 }
 
 static int gen_snooper_by_procname(struct probe_s *probe)
@@ -1149,7 +1173,11 @@ static int gen_snooper_by_container_name(struct probe_s *probe)
                 continue;
             }
 
-            (void)add_snooper_obj_con_info(probe, con_info);
+            if (add_snooper_obj_con_info(probe, con_info) == -1) {
+                WARN("[SNOOPER] Fail to add snooper to con info from container name %s\n",
+                     con_info->con_id[0] == 0 ? "null" : con_info->con_id, snooper_conf->conf.container_name);
+                continue;
+            }
         }
         (void)pclose(f);
     }
@@ -1179,7 +1207,11 @@ static int gen_snooper_by_container(struct probe_s *probe)
             free_con_id_list(con_id_list);
             return -1;
         }
-        (void)add_snooper_obj_con_info(probe, con_info);
+        if (add_snooper_obj_con_info(probe, con_info) == -1) {
+            WARN("[SNOOPER] Fail to add snooper to container info from container name %s\n",
+                 con_info->con_id[0] == 0 ? "null" : con_info->con_id, snooper_conf->conf.container_name);
+            continue;
+        }
     }
 
     if (con_id_list) {
@@ -1218,7 +1250,11 @@ static int gen_snooper_by_pod(struct probe_s *probe)
                     free_con_id_list(con_id_list);
                     return -1;
                 }
-                (void)add_snooper_obj_con_info(probe, &con->con_info);
+                if (add_snooper_obj_con_info(probe, &con->con_info) == -1) {
+                    WARN("[SNOOPER] Fail to add snooper to pod info from container name %s\n",
+                         con->con_info.con_id[0] == 0 ? "null" : con->con_info.con_id, snooper_conf->conf.container_name);
+                    continue;
+                }
             }
         }
     }
@@ -1426,18 +1462,15 @@ static char __rcv_snooper_cgrp_exec_sub(struct probe_s *probe, struct con_info_s
         if (snooper_conf->type == SNOOPER_CONF_POD_ID) {
             if (con_info->pod_info_ptr->pod_id[0] != 0 &&
                 !strcasecmp(con_info->pod_info_ptr->pod_id, snooper_conf->conf.pod_id)) {
-                add_snooper_obj_con_info(probe, con_info);
-                snooper_obj_added = 1;
+                snooper_obj_added = add_snooper_obj_con_info(probe, con_info) == -1 ? 0 : 1;
             }
         } else if (snooper_conf->type == SNOOPER_CONF_CONTAINER_ID) {
             if (con_info->con_id[0] != 0 && !strcasecmp(con_info->con_id, snooper_conf->conf.container_id)) {
-                add_snooper_obj_con_info(probe, con_info);
-                snooper_obj_added = 1;
+                snooper_obj_added = add_snooper_obj_con_info(probe, con_info) == -1 ? 0: 1;
             }
         } else if (snooper_conf->type == SNOOPER_CONF_CONTAINER_NAME) {
             if (strstr((const char *)con_info->container_name, (const char *)(snooper_conf->conf.container_name)) != NULL) {
-                add_snooper_obj_con_info(probe, con_info);
-                snooper_obj_added = 1;
+                snooper_obj_added = add_snooper_obj_con_info(probe, con_info) == -1 ? 0 : 1;
             }
         }
     }

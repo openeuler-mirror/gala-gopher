@@ -625,15 +625,16 @@ static int add_tcp_sock_evt(struct endpoint_probe_s * probe, struct tcp_socket_e
     ip_str(new_tcp->id.server_ipaddr.family, (unsigned char *)&(new_tcp->id.server_ipaddr.ip), server_ip_str, INET6_ADDRSTRLEN);
     new_tcp->client_ip = strdup((const char *)client_ip_str);
     new_tcp->server_ip = strdup((const char *)server_ip_str);
-    if (new_tcp->id.toa_client_ipaddr.family == AF_INET || new_tcp->id.toa_client_ipaddr.family == AF_INET6) {
-        ip_str(new_tcp->id.toa_client_ipaddr.family, (unsigned char *)&(new_tcp->id.toa_client_ipaddr.ip), toa_client_ip_str, INET6_ADDRSTRLEN);
-        new_tcp->toa_client_ip = strdup((const char *)toa_client_ip_str);
-    }
-
     if (new_tcp->client_ip == NULL || new_tcp->server_ip == NULL) {
         goto err;
     }
-
+    if (new_tcp->id.toa_client_ipaddr.family == AF_INET || new_tcp->id.toa_client_ipaddr.family == AF_INET6) {
+        ip_str(new_tcp->id.toa_client_ipaddr.family, (unsigned char *)&(new_tcp->id.toa_client_ipaddr.ip), toa_client_ip_str, INET6_ADDRSTRLEN);
+        new_tcp->toa_client_ip = strdup((const char *)toa_client_ip_str);
+        if (!new_tcp->toa_client_ip) {
+            goto err;
+        }
+    }
     H_ADD_KEYPTR(probe->tcps, &new_tcp->id, sizeof(struct tcp_socket_id_s), new_tcp);
     probe->tcp_socks_num++;
     return 0;
