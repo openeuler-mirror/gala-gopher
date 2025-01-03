@@ -133,7 +133,7 @@ static int get_proc_stat_info(void)
             fclose(f);
             return 0;
         }
-        strncpy(dst_line, line, LINE_BUF_LEN - 1);
+        snprintf(dst_line, sizeof(dst_line), "%s", line);
         if (is_first_line) {
             util_per = get_cpu_util(dst_line, &last_time_total, &last_time_used,
                                     &cur_time_total, &cur_time_used);
@@ -144,6 +144,10 @@ static int get_proc_stat_info(void)
         }
         if (strstr(line, "cpu") == NULL) {
             continue;
+        }
+
+        if (index >= cpus_num) {
+            break;
         }
         cur_cpus[index]->cpu_util_per = get_cpu_util(dst_line, &old_cpus[index]->cpu_time_total,
                                                      &old_cpus[index]->cpu_time_used,
@@ -299,11 +303,7 @@ static struct cpu_stat **alloc_memory(void)
     for (size_t i = 0; i < cpus_num; i++) {
         cpus[i] = (struct cpu_stat *)malloc(sizeof(struct cpu_stat));
         if (cpus[i] == NULL) {
-            for (size_t j = 0; j < i; j++) {
-                free(cpus[j]);
-            }
-            free(cpus);
-            cpus = NULL;
+            // dealloc_memory will free previous allocated memory
             return NULL;
         }
         cpus[i]->cpu_num = i;
@@ -313,8 +313,12 @@ static struct cpu_stat **alloc_memory(void)
 
 static void dealloc_memory(struct cpu_stat **cpus)
 {
+    if (cpus == NULL) {
+        return;
+    }
     for (size_t i = 0; i < cpus_num; i++) {
         free(cpus[i]);
+        cpus[i] = NULL;
     }
     free(cpus);
 }
@@ -335,18 +339,15 @@ int system_cpu_init(void)
     old_cpus = alloc_memory();
     if (cur_cpus == NULL || old_cpus == NULL) {
         ERROR("[SYSTEM_PROBE] fail alloc memory for cpu probe structure\n");
-        if (cur_cpus != NULL) {
-            dealloc_memory(cur_cpus);
-            cur_cpus = NULL;
-        }
-        if (old_cpus != NULL) {
-            dealloc_memory(old_cpus);
-            old_cpus = NULL;
-        }
+        system_cpu_destroy();
         return -1;
     }
     softirq_line_num = MAX_COL_NUM * (1 + cpus_num);
-    softirq_line = (char*)malloc(softirq_line_num);
+    softirq_line = (char *)malloc(softirq_line_num);
+    if (softirq_line == NULL) {
+        system_cpu_destroy();
+        return -1;
+    }
     return 0;
 }
 
