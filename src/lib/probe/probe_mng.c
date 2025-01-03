@@ -394,24 +394,6 @@ err:
     return NULL;
 }
 
-static int is_extend_probe(struct probe_s *probe)
-{
-    if (probe->bin == NULL) {
-        return 0;
-    }
-
-    // Independent running binary for extend probe, Otherwise, it's a native probe
-    if (access(probe->bin, 0) == 0) {
-        return 1;
-    }
-
-    if (strchr(probe->bin, '/') != NULL) {
-        return 1;
-    }
-
-    return 0;
-}
-
 static int set_probe_entry(struct probe_s *probe)
 {
     int ret = 0;
@@ -447,7 +429,7 @@ static void init_probe_bin(struct probe_s *probe, enum probe_type_e probe_type)
 
     probe->bin = strdup(probe_define[probe_type - 1].bin);
 
-    if (is_extend_probe(probe)) {
+    if ((probe_type != PROBE_BASEINFO) && (probe_type != PROBE_VIRT)) {
         probe->is_extend_probe = 1;
         probe->cb = extend_probe_thread_cb;
     } else {
@@ -459,7 +441,7 @@ static void init_probe_bin(struct probe_s *probe, enum probe_type_e probe_type)
         probe->cb = native_probe_thread_cb;
     }
 
-    return;
+    return 0;
 }
 
 static int get_probe_pid(struct probe_s *probe)

@@ -180,6 +180,10 @@ static int get_softirq_info(void)
     }
     while (fgets(softirq_line, softirq_line_num - 1, f) != NULL) {
         field = __strtok_r(softirq_line, " ", &save);
+        if (!field) {
+            softirq_line[0] = 0;
+            continue;
+        }
         if (strcmp(field, "RCU:") == 0) {
             for (size_t i = 0; i < cpus_num; i++) {
                 cur_cpus[i]->rcu = strtoul(__strtok_r(NULL, " ", &save), NULL, 10);
@@ -346,7 +350,11 @@ int system_cpu_init(void)
         return -1;
     }
     softirq_line_num = MAX_COL_NUM * (1 + cpus_num);
-    softirq_line = (char*)malloc(softirq_line_num);
+    softirq_line = (char *)malloc(softirq_line_num);
+    if (softirq_line == NULL) {
+        system_cpu_destroy();
+        return -1;
+    }
     return 0;
 }
 
