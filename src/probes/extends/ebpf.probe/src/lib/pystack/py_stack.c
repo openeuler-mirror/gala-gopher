@@ -187,7 +187,7 @@ int try_init_py_proc_data(int pid, struct py_proc_data *data)
     }
 
     while (fgets(buf, sizeof(buf), fp) != NULL) {
-        if (sscanf(buf, "%llx-%llx %4s %llx %*s %*u %s",
+        if (sscanf(buf, "%llx-%llx %4s %llx %*s %*u %255s",
             &mod_info.start, &mod_info.end, perm, &mod_info.f_offset, so_path) != 5) {
             continue;
         }

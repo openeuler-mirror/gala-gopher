@@ -367,6 +367,7 @@ static int get_proc_mss(u32 pid, proc_info_t *proc_info)
     u32 value = 0;
     char line[LINE_BUF_LEN];
     char key[LINE_BUF_LEN];
+    char format[SSCANF_FORMAT_LEN];
     char smap_key_list[PROC_MSS_MAX][LINE_BUF_LEN] = {"Shared_Clean:", "Shared_Dirty:", "Private_Clean:",
         "Private_Dirty:", "Referenced:", "LazyFree:", "Swap:", "SwapPss:"};
     int smap_index = 0;
@@ -376,6 +377,7 @@ static int get_proc_mss(u32 pid, proc_info_t *proc_info)
         return -1;
     }
 
+    (void)snprintf(format, sizeof(format), "%%%lus %%u %%*s", sizeof(key) - 1);
     while (!feof(f)) {
         line[0] = 0;
         key[0] = 0;
@@ -387,8 +389,8 @@ static int get_proc_mss(u32 pid, proc_info_t *proc_info)
             continue;
         }
         value = 0;
-        int ret = sscanf(line, "%s %u %*s", key, &value);
-        if (ret < 1) {
+        int ret = sscanf(line, format, key, &value);
+        if (ret < 2) {
             goto out;
         }
         if (strcmp(smap_key_list[smap_index], key) != 0) {

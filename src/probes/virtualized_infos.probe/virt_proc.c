@@ -160,6 +160,7 @@ int virt_proc_probe(void)
     FILE *f = NULL;
     char cmd[COMMAND_LEN];
     char line[LINE_BUF_LEN];
+    char format[SSCANF_FORMAT_LEN];
     struct proc_infos one_proc;
 
     if (g_host_type_is_pm == 0) {
@@ -177,6 +178,9 @@ int virt_proc_probe(void)
     if (f == NULL) {
         return -1;
     }
+
+    (void)snprintf(format, sizeof(format), "%%%lus %%%lus",
+                   sizeof(one_proc.uuid) - 1, sizeof(one_proc.vm_name) - 1);
     while (!feof(f)) {
         (void)memset(line, 0, LINE_BUF_LEN);
         if (fgets(line, LINE_BUF_LEN, f) == NULL) {
@@ -184,7 +188,7 @@ int virt_proc_probe(void)
             return -1;
         }
         (void)memset(&one_proc, 0, sizeof(struct proc_infos));
-        if (sscanf(line, "%s %s", one_proc.uuid, one_proc.vm_name) < 2) {
+        if (sscanf(line, format, one_proc.uuid, one_proc.vm_name) < 2) {
             break;
         }
         (void)get_qemu_proc_tgid(&one_proc);
