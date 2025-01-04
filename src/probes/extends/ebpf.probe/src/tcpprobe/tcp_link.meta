@@ -2,7 +2,7 @@ version = "1.0.0"
 measurements:
 (
     {
-        table_name: "tcp_tx_rx",
+        table_name: "tcp_metric",
         entity_name: "tcp_link",
         fields:
         (
@@ -60,48 +60,6 @@ measurements:
                 description: "total number of segments sent",
                 type: "gauge",
                 name: "segs_out",
-            }
-        )
-    },
-    {
-        table_name: "tcp_rtt",
-        entity_name: "tcp_link",
-        fields:
-        (
-            {
-                description: "id of process",
-                type: "key",
-                name: "tgid",
-            },
-            {
-                description: "role",
-                type: "key",
-                name: "role",
-            },
-            {
-                description: "client ip",
-                type: "key",
-                name: "client_ip",
-            },
-            {
-                description: "client ip before toa",
-                type: "key",
-                name: "toa_client_ip",
-            },
-            {
-                description: "server ip",
-                type: "key",
-                name: "server_ip",
-            },
-            {
-                description: "server port",
-                type: "key",
-                name: "server_port",
-            },
-            {
-                description: "protocol",
-                type: "key",
-                name: "protocol",
             },
             {
                 description: "Smoothed Round Trip Time(us).",
@@ -112,48 +70,6 @@ measurements:
                 description: "Receive end RTT (unidirectional measurement).",
                 type: "histogram",
                 name: "rcv_rtt",
-            }
-        )
-    },
-    {
-        table_name: "tcp_windows",
-        entity_name: "tcp_link",
-        fields:
-        (
-            {
-                description: "id of process",
-                type: "key",
-                name: "tgid",
-            },
-            {
-                description: "role",
-                type: "key",
-                name: "role",
-            },
-            {
-                description: "client ip",
-                type: "key",
-                name: "client_ip",
-            },
-            {
-                description: "client ip before toa",
-                type: "key",
-                name: "toa_client_ip",
-            },
-            {
-                description: "server ip",
-                type: "key",
-                name: "server_ip",
-            },
-            {
-                description: "server port",
-                type: "key",
-                name: "server_port",
-            },
-            {
-                description: "protocol",
-                type: "key",
-                name: "protocol",
             },
             {
                 description: "Congestion Control Window Size.",
@@ -209,48 +125,6 @@ measurements:
                 description: "TCP zero send windows ratio",
                 type: "gauge",
                 name: "zero_win_tx_ratio",
-            }
-        )
-    },
-    {
-        table_name: "tcp_rate",
-        entity_name: "tcp_link",
-        fields:
-        (
-            {
-                description: "id of process",
-                type: "key",
-                name: "tgid",
-            },
-            {
-                description: "role",
-                type: "key",
-                name: "role",
-            },
-            {
-                description: "client ip",
-                type: "key",
-                name: "client_ip",
-            },
-            {
-                description: "client ip before toa",
-                type: "key",
-                name: "toa_client_ip",
-            },
-            {
-                description: "server ip",
-                type: "key",
-                name: "server_ip",
-            },
-            {
-                description: "server port",
-                type: "key",
-                name: "server_port",
-            },
-            {
-                description: "protocol",
-                type: "key",
-                name: "protocol",
             },
             {
                 description: "Retransmission timeOut(ms)",
@@ -261,48 +135,6 @@ measurements:
                 description: "Estimated value of delayed ACK(ms)",
                 type: "histogram",
                 name: "ato",
-            }
-        )
-    },
-    {
-        table_name: "tcp_srtt",
-        entity_name: "tcp_link",
-        fields:
-        (
-            {
-                description: "id of process",
-                type: "key",
-                name: "tgid",
-            },
-            {
-                description: "role",
-                type: "key",
-                name: "role",
-            },
-            {
-                description: "client ip",
-                type: "key",
-                name: "client_ip",
-            },
-            {
-                description: "client ip before toa",
-                type: "key",
-                name: "toa_client_ip",
-            },
-            {
-                description: "server ip",
-                type: "key",
-                name: "server_ip",
-            },
-            {
-                description: "server port",
-                type: "key",
-                name: "server_port",
-            },
-            {
-                description: "protocol",
-                type: "key",
-                name: "protocol",
             },
             {
                 description: "RTT of syn packet(us).",
@@ -313,48 +145,6 @@ measurements:
                 description: "RTT of syn packet(us).",
                 type: "gauge",
                 name: "syn_srtt_max",
-            }
-        )
-    },
-    {
-        table_name: "tcp_sockbuf",
-        entity_name: "tcp_link",
-        fields:
-        (
-            {
-                description: "id of process",
-                type: "key",
-                name: "tgid",
-            },
-            {
-                description: "role",
-                type: "key",
-                name: "role",
-            },
-            {
-                description: "client ip",
-                type: "key",
-                name: "client_ip",
-            },
-            {
-                description: "client ip before toa",
-                type: "key",
-                name: "toa_client_ip",
-            },
-            {
-                description: "server ip",
-                type: "key",
-                name: "server_ip",
-            },
-            {
-                description: "server port",
-                type: "key",
-                name: "server_port",
-            },
-            {
-                description: "protocol",
-                type: "key",
-                name: "protocol",
             },
             {
                 description: "Byte length of the RX buffer.",
@@ -365,48 +155,6 @@ measurements:
                 description: "Byte length of the TX buffer.",
                 type: "histogram",
                 name: "sk_sndbuf",
-            }
-        )
-    },
-    {
-        table_name: "tcp_abn",
-        entity_name: "tcp_link",
-        fields:
-        (
-            {
-                description: "id of process",
-                type: "key",
-                name: "tgid",
-            },
-            {
-                description: "role",
-                type: "key",
-                name: "role",
-            },
-            {
-                description: "client ip",
-                type: "key",
-                name: "client_ip",
-            },
-            {
-                description: "client ip before toa",
-                type: "key",
-                name: "toa_client_ip",
-            },
-            {
-                description: "server ip",
-                type: "key",
-                name: "server_ip",
-            },
-            {
-                description: "server port",
-                type: "key",
-                name: "server_port",
-            },
-            {
-                description: "protocol",
-                type: "key",
-                name: "protocol",
             },
             {
                 description: "retrans packets",

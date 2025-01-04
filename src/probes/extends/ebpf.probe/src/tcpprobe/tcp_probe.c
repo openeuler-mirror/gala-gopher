@@ -43,13 +43,7 @@
 #include "tcp_link.skel.h"
 #include "tcp_delay.skel.h"
 
-#define TCP_TBL_ABN     "tcp_abn"
-#define TCP_TBL_SYNRTT  "tcp_srtt"
-#define TCP_TBL_RTT     "tcp_rtt"
-#define TCP_TBL_WIN     "tcp_windows"
-#define TCP_TBL_RATE    "tcp_rate"
-#define TCP_TBL_SOCKBUF "tcp_sockbuf"
-#define TCP_TBL_TXRX    "tcp_tx_rx"
+#define TCP_TBL_METRIC  "tcp_metric"
 #define TCP_TBL_DELAY   "proc_flow_perf"
 
 static int is_load_probe(struct tcp_mng_s *tcp_mng, u32 probe_load_flag)
@@ -60,7 +54,8 @@ static int is_load_probe(struct tcp_mng_s *tcp_mng, u32 probe_load_flag)
     return 0;
 }
 
-static void output_tcp_abn(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
+static void output_tcp_abn(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker,
+                           char *buffer, size_t size)
 {
     float retrans_ratio = 0.0;
     report_tcp_abn_evt(&(tcp_mng->ipc_body.probe_param), tracker);
@@ -70,17 +65,8 @@ static void output_tcp_abn(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
                                                                           (float) tracker->stats[SEGS_SENT]);
     }
 
-    (void)fprintf(stdout,
-        "|%s|%u|%s|%s|%s|%s|%u|%u"
-        "|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f|\n",
-        TCP_TBL_ABN,
-        tracker->id.tgid,
-        (tracker->id.role == 0) ? "server" : "client",
-        tracker->src_ip,
-        tracker->toa_src_ip ? : "",
-        tracker->dst_ip,
-        tracker->id.port,
-        tracker->id.family,
+    (void)snprintf(buffer, size,
+        "|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f",
 
         tracker->stats[RETRANS],
         tracker->stats[BACKLOG_DROPS],
@@ -95,10 +81,10 @@ static void output_tcp_abn(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
         tracker->stats[SEND_RSTS],
         tracker->stats[RECEIVE_RSTS],
         retrans_ratio);
-    (void)fflush(stdout);
 }
 
-static void output_tcp_syn_rtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
+static void output_tcp_syn_rtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker,
+                               char *buffer, size_t size)
 {
     char *syn_srtt_historm = tcp_mng->historms[TCP_HISTORM_RTT_SYN_SRTT];
 
@@ -110,24 +96,14 @@ static void output_tcp_syn_rtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *
 
     report_tcp_syn_rtt_evt(&(tcp_mng->ipc_body.probe_param), tracker);
 
-    (void)fprintf(stdout,
-        "|%s|%u|%s|%s|%s|%s|%u|%u"
-        "|%s|%llu|\n",
-        TCP_TBL_SYNRTT,
-        tracker->id.tgid,
-        (tracker->id.role == 0) ? "server" : "client",
-        tracker->src_ip,
-        tracker->toa_src_ip ? : "",
-        tracker->dst_ip,
-        tracker->id.port,
-        tracker->id.family,
-
+    (void)snprintf(buffer, size,
+        "|%s|%llu",
         syn_srtt_historm,
         tracker->stats[SYN_SRTT_MAX]);
-    (void)fflush(stdout);
 }
 
-static void output_tcp_rtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
+static void output_tcp_rtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker,
+                           char *buffer, size_t size)
 {
     char *srtt_historm = tcp_mng->historms[TCP_HISTORM_RTT_SRTT];
     char *rcv_rtt_historm = tcp_mng->historms[TCP_HISTORM_RTT_RCV_RTT];
@@ -142,45 +118,25 @@ static void output_tcp_rtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
         return;
     }
 
-    (void)fprintf(stdout,
-        "|%s|%u|%s|%s|%s|%s|%u|%u"
-        "|%s|%s|\n",
-        TCP_TBL_RTT,
-        tracker->id.tgid,
-        (tracker->id.role == 0) ? "server" : "client",
-        tracker->src_ip,
-        tracker->toa_src_ip ? : "",
-        tracker->dst_ip,
-        tracker->id.port,
-        tracker->id.family,
-
+    (void)snprintf(buffer, size,
+        "|%s|%s",
         srtt_historm,
         rcv_rtt_historm);
-    (void)fflush(stdout);
 }
 
-static void output_tcp_txrx(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
+static void output_tcp_txrx(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker,
+                            char *buffer, size_t size)
 {
-    (void)fprintf(stdout,
-        "|%s|%u|%s|%s|%s|%s|%u|%u"
-        "|%llu|%llu|%llu|%llu|\n",
-        TCP_TBL_TXRX,
-        tracker->id.tgid,
-        (tracker->id.role == 0) ? "server" : "client",
-        tracker->src_ip,
-        tracker->toa_src_ip ? : "",
-        tracker->dst_ip,
-        tracker->id.port,
-        tracker->id.family,
-
+    (void)snprintf(buffer, size,
+        "|%llu|%llu|%llu|%llu",
         tracker->stats[BYTES_RECV],
         tracker->stats[BYTES_SENT],
         tracker->stats[SEGS_RECV],
         tracker->stats[SEGS_SENT]);
-    (void)fflush(stdout);
 }
 
-static void output_tcp_win(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
+static void output_tcp_win(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker,
+                           char *buffer, size_t size)
 {
     char *snd_cwnd_historm = tcp_mng->historms[TCP_HISTORM_WIND_SND_CWND];
     char *not_sent_historm = tcp_mng->historms[TCP_HISTORM_WIND_NOT_SENT];
@@ -232,22 +188,10 @@ static void output_tcp_win(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
 
     report_tcp_win_evt(&(tcp_mng->ipc_body.probe_param), tracker);
 
-    (void)fprintf(stdout,
-        "|%s|%u|%s|%s|%s|%s|%u|%u"
+    (void)snprintf(buffer, size,
         "|%s|%s|%s|%s|%s|%s|%s"
-
         "|%llu|%llu"
-
-        "|%.2f|%.2f|\n",
-        TCP_TBL_WIN,
-        tracker->id.tgid,
-        (tracker->id.role == 0) ? "server" : "client",
-        tracker->src_ip,
-        tracker->toa_src_ip ? : "",
-        tracker->dst_ip,
-        tracker->id.port,
-        tracker->id.family,
-
+        "|%.2f|%.2f",
         snd_cwnd_historm,
         not_sent_historm,
         not_acked_historm,
@@ -260,10 +204,10 @@ static void output_tcp_win(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
         tracker->stats[ZERO_WIN_TX],
 
         tracker->zero_win_rx_ratio, tracker->zero_win_tx_ratio);
-    (void)fflush(stdout);
 }
 
-static void output_tcp_rate(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
+static void output_tcp_rate(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker,
+                            char *buffer, size_t size)
 {
     char *rto_historm = tcp_mng->historms[TCP_HISTORM_RTO];
     char *ato_historm = tcp_mng->historms[TCP_HISTORM_ATO];
@@ -278,23 +222,13 @@ static void output_tcp_rate(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tra
         return;
     }
 
-    (void)fprintf(stdout,
-        "|%s|%u|%s|%s|%s|%s|%u|%u"
-        "|%s|%s|\n",
-        TCP_TBL_RATE,
-        tracker->id.tgid,
-        (tracker->id.role == 0) ? "server" : "client",
-        tracker->src_ip,
-        tracker->toa_src_ip ? : "",
-        tracker->dst_ip,
-        tracker->id.port,
-        tracker->id.family,
-
+    (void)snprintf(buffer, size,
+        "|%s|%s",
         rto_historm, ato_historm);
-    (void)fflush(stdout);
 }
 
-static void output_tcp_sockbuf(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
+static void output_tcp_sockbuf(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker,
+                               char *buffer, size_t size)
 {
     char *rcv_buf_historm = tcp_mng->historms[TCP_HISTORM_SOCKBUF_RCV];
     char *snd_buf_historm = tcp_mng->historms[TCP_HISTORM_SOCKBUF_SND];
@@ -309,20 +243,9 @@ static void output_tcp_sockbuf(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *
         return;
     }
 
-    (void)fprintf(stdout,
-        "|%s|%u|%s|%s|%s|%s|%u|%u"
-        "|%s|%s|\n",
-        TCP_TBL_SOCKBUF,
-        tracker->id.tgid,
-        (tracker->id.role == 0) ? "server" : "client",
-        tracker->src_ip,
-        tracker->toa_src_ip ? : "",
-        tracker->dst_ip,
-        tracker->id.port,
-        tracker->id.family,
-
+    (void)snprintf(buffer, size,
+        "|%s|%s",
         rcv_buf_historm, snd_buf_historm);
-    (void)fflush(stdout);
 }
 
 static void output_tcp_flow_delay(struct tcp_mng_s *tcp_mng, struct tcp_flow_tracker_s *tracker)
@@ -419,53 +342,92 @@ static void reset_tcp_flow_tracker_stats(struct tcp_flow_tracker_s *tracker)
     return;
 }
 
+/*
+ * 1. Max length of u64 is 20
+ * 2. The longest histogram str is like this, it's length will not exceed 24 + 16 * bucket_size
+ * |8 xxxxxxxx xxxxxx (* bucket size) %llu
+ *
+ * tx_rx: |%llu|%llu|%llu|%llu, most 4 * 21
+ * win: |histo|histo|histo|histo|histo|histo|histo|%llu|%llu|%.2f|%.2f, most 7 * 104 + 2 * 21 + 2 * 7
+ * abn: |%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%.2f, most 12 * 21 + 7
+ * rtt: |histo|histo, most 2 * 104
+ * rate: |histo|histo, most 2 * 104
+ * sockbuf: |histo|histo, most 2 * 152
+ * synrtt: |histo|%llu, most 104 + 21
+ * So 1024 is big enough for all types of metric
+*/
+#define  METRIC_DATA_STR_LEN  1024
 static int output_tcp_metrics(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
 {
     int outputted = 0;
-    u32 flags = tracker->report_flags & TCP_PROBE_ALL;
+    u32 report_flags = tracker->report_flags & TCP_PROBE_ALL;
+    u32 load_flags = tcp_mng->ipc_body.probe_range_flags;
+    char txrx_buf[METRIC_DATA_STR_LEN] = "||||";
+    char rtt_buf[METRIC_DATA_STR_LEN] = "||";
+    char win_buf[METRIC_DATA_STR_LEN] = "|||||||||||";
+    char rate_buf[METRIC_DATA_STR_LEN] = "||";
+    char syn_rtt_buf[METRIC_DATA_STR_LEN] = "||";
+    char sockbuf_buf[METRIC_DATA_STR_LEN] = "||";
+    char abn_buf[METRIC_DATA_STR_LEN] = "|||||||||||||";
 
-    if ((flags & TCP_PROBE_ABN) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_ABNORMAL)) {
+    if ((report_flags & TCP_PROBE_ABN) && (load_flags & PROBE_RANGE_TCP_ABNORMAL)) {
         outputted = 1;
-        output_tcp_abn(tcp_mng, tracker);
+        output_tcp_abn(tcp_mng, tracker, abn_buf, sizeof(abn_buf));
         reset_tcp_abn_stats(tracker);
     }
 
-    if ((flags & TCP_PROBE_SRTT) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_SRTT)) {
+    if ((report_flags & TCP_PROBE_SRTT) && (load_flags & PROBE_RANGE_TCP_SRTT)) {
         outputted = 1;
-        output_tcp_syn_rtt(tcp_mng, tracker);
+        output_tcp_syn_rtt(tcp_mng, tracker, syn_rtt_buf, sizeof(syn_rtt_buf));
         reset_tcp_syn_rtt_stats(tracker);
     }
 
-    if ((flags & TCP_PROBE_WINDOWS) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_WINDOWS)) {
+    if ((report_flags & TCP_PROBE_WINDOWS) && (load_flags & PROBE_RANGE_TCP_WINDOWS)) {
         outputted = 1;
-        output_tcp_win(tcp_mng, tracker);
+        output_tcp_win(tcp_mng, tracker, win_buf, sizeof(win_buf));
         reset_tcp_win_stats(tracker);
     }
 
-    if ((flags & TCP_PROBE_RTT) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_RTT)) {
+    if ((report_flags & TCP_PROBE_RTT) && (load_flags & PROBE_RANGE_TCP_RTT)) {
         outputted = 1;
-        output_tcp_rtt(tcp_mng, tracker);
+        output_tcp_rtt(tcp_mng, tracker, rtt_buf, sizeof(rtt_buf));
         reset_tcp_rtt_stats(tracker);
     }
 
-    if ((flags & TCP_PROBE_TXRX) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_STATS)) {
+    if ((report_flags & TCP_PROBE_TXRX) && (load_flags & PROBE_RANGE_TCP_STATS)) {
         outputted = 1;
-        output_tcp_txrx(tcp_mng, tracker);
+        output_tcp_txrx(tcp_mng, tracker, txrx_buf, sizeof(txrx_buf));
         reset_tcp_txrx_stats(tracker);
     }
 
-    if ((flags & TCP_PROBE_SOCKBUF) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_SOCKBUF)) {
+    if ((report_flags & TCP_PROBE_SOCKBUF) && (load_flags & PROBE_RANGE_TCP_SOCKBUF)) {
         outputted = 1;
-        output_tcp_sockbuf(tcp_mng, tracker);
+        output_tcp_sockbuf(tcp_mng, tracker, sockbuf_buf, sizeof(sockbuf_buf));
         reset_tcp_sockbuf_stats(tracker);
     }
 
-    if ((flags & TCP_PROBE_RATE) && is_load_probe(tcp_mng, PROBE_RANGE_TCP_RATE)) {
+    if ((report_flags & TCP_PROBE_RATE) && (load_flags & PROBE_RANGE_TCP_RATE)) {
         outputted = 1;
-        output_tcp_rate(tcp_mng, tracker);
+        output_tcp_rate(tcp_mng, tracker, rate_buf, sizeof(rate_buf));
         reset_tcp_rate_stats(tracker);
     }
 
+    if (outputted) {
+        (void)fprintf(stdout,
+            "|%s|%u|%s|%s|%s|%s|%u|%u"
+            "%s%s%s%s%s%s%s|\n",
+            TCP_TBL_METRIC,
+            tracker->id.tgid,
+            (tracker->id.role == 0) ? "server" : "client",
+            tracker->src_ip,
+            tracker->toa_src_ip ? : "",
+            tracker->dst_ip,
+            tracker->id.port,
+            tracker->id.family,
+
+            txrx_buf, rtt_buf, win_buf, rate_buf, syn_rtt_buf, sockbuf_buf, abn_buf);
+        (void)fflush(stdout);
+    }
     tracker->report_flags = 0;
     return outputted;
 }
