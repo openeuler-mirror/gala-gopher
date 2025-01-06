@@ -828,10 +828,12 @@ static int tcp_load_probe_sockbuf(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_sockbuf_bpf__destroy;
         prog->custom_btf_paths[prog->num] = tcp_sockbuf_open_opts.btf_custom_path;
 
-        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
-        if (err) {
-            ERROR("[TCPPROBE] Open 'tcp_sockbuf' bpf_buffer failed.\n");
-            goto err;
+        if (prog->num == 0) {  // All sub-probes share a output buffer
+            err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+            if (err) {
+                ERROR("[TCPPROBE] Open 'tcp_sockbuf' bpf_buffer failed.\n");
+                goto err;
+            }
         }
         prog->buffers[prog->num] = buffer;
         prog->num++;
@@ -862,10 +864,12 @@ static int tcp_load_probe_rtt(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_rtt_bpf__destroy;
         prog->custom_btf_paths[prog->num] = tcp_rtt_open_opts.btf_custom_path;
 
-        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
-        if (err) {
-            ERROR("[TCPPROBE] Open 'tcp_rtt' bpf_buffer failed.\n");
-            goto err;
+        if (prog->num == 0) {  // All sub-probes share a output buffer
+            err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+            if (err) {
+                ERROR("[TCPPROBE] Open 'tcp_rtt' bpf_buffer failed.\n");
+                goto err;
+            }
         }
         prog->buffers[prog->num] = buffer;
         prog->num++;
@@ -896,10 +900,12 @@ static int tcp_load_probe_win(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_windows_bpf__destroy;
         prog->custom_btf_paths[prog->num] = tcp_windows_open_opts.btf_custom_path;
 
-        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
-        if (err) {
-            ERROR("[TCPPROBE] Open 'tcp_windows' bpf_buffer failed.\n");
-            goto err;
+        if (prog->num == 0) {  // All sub-probes share a output buffer
+            err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+            if (err) {
+                ERROR("[TCPPROBE] Open 'tcp_windows' bpf_buffer failed.\n");
+                goto err;
+            }
         }
         prog->buffers[prog->num] = buffer;
         prog->num++;
@@ -930,10 +936,12 @@ static int tcp_load_probe_rate(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *pro
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_rate_bpf__destroy;
         prog->custom_btf_paths[prog->num] = tcp_rate_open_opts.btf_custom_path;
 
-        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
-        if (err) {
-            ERROR("[TCPPROBE] Open 'tcp_rate' bpf_buffer failed.\n");
-            goto err;
+        if (prog->num == 0) {  // All sub-probes share a output buffer
+            err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+            if (err) {
+                ERROR("[TCPPROBE] Open 'tcp_rate' bpf_buffer failed.\n");
+                goto err;
+            }
         }
         prog->buffers[prog->num] = buffer;
         prog->num++;
@@ -967,10 +975,12 @@ static int tcp_load_probe_abn(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_abn_bpf__destroy;
         prog->custom_btf_paths[prog->num] = tcp_abn_open_opts.btf_custom_path;
 
-        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
-        if (err) {
-            ERROR("[TCPPROBE] Open 'tcp_abn' bpf_buffer failed.\n");
-            goto err;
+        if (prog->num == 0) {   // All sub-probes share a output buffer
+            err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+            if (err) {
+                ERROR("[TCPPROBE] Open 'tcp_abn' bpf_buffer failed.\n");
+                goto err;
+            }
         }
         prog->buffers[prog->num] = buffer;
         prog->num++;
@@ -993,10 +1003,12 @@ static int tcp_load_probe_txrx(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *pro
         prog->skels[prog->num].skel = tcp_tx_rx_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_tx_rx_bpf__destroy;
         prog->custom_btf_paths[prog->num] = tcp_tx_rx_open_opts.btf_custom_path;
-        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
-        if (err) {
-            ERROR("[TCPPROBE] Open 'tcp_tx_rx' bpf_buffer failed.\n");
-            goto err;
+        if (prog->num == 0) {  // All sub-probes share a output buffer
+            err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+            if (err) {
+                ERROR("[TCPPROBE] Open 'tcp_txrx' bpf_buffer failed.\n");
+                goto err;
+            }
         }
         prog->buffers[prog->num] = buffer;
         prog->num++;
@@ -1030,10 +1042,12 @@ static int tcp_load_probe_delay(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *pr
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_delay_bpf__destroy;
         prog->custom_btf_paths[prog->num] = tcp_delay_open_opts.btf_custom_path;
 
-        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
-        if (err) {
-            ERROR("[TCPPROBE] Open 'tcp_delay' bpf_buffer failed.\n");
-            goto err;
+        if (prog->num == 0) {   // All sub-probes share a output buffer
+            err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+            if (err) {
+                ERROR("[TCPPROBE] Open 'tcp_delay' bpf_buffer failed.\n");
+                goto err;
+            }
         }
         prog->buffers[prog->num] = buffer;
         prog->num++;
@@ -1059,10 +1073,12 @@ static int tcp_load_probe_link(struct tcp_mng_s *tcp_mng, struct probe_params *a
     prog->skels[prog->num].fn = (skel_destroy_fn)tcp_link_bpf__destroy;
     prog->custom_btf_paths[prog->num] = tcp_link_open_opts.btf_custom_path;
 
-    err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
-    if (err) {
-        ERROR("[TCPPROBE] Open 'tcp_link' bpf_buffer failed.\n");
-        goto err;
+    if (prog->num == 0) {   // All sub-probes share a output buffer
+        err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
+        if (err) {
+            ERROR("[TCPPROBE] Open 'tcp_link' bpf_buffer failed.\n");
+            goto err;
+        }
     }
     prog->buffers[prog->num] = buffer;
     prog->num++;
