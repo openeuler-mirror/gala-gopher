@@ -46,35 +46,18 @@ repeat:
 static void sendOutputToIngresss(struct probe_s *probe, char *buffer, uint32_t bufferSize)
 {
     int ret = 0;
-    char *dataStr = NULL;
-    uint32_t index = 0;
+    char *dataStr;
 
-    for (int i = 0; i < bufferSize; i++) {
-        if (dataStr == NULL) {
-            dataStr = (char *)malloc(MAX_DATA_STR_LEN);
-            if (dataStr == NULL) {
-                break;
-            }
-            // memset(dataStr, 0, sizeof(MAX_DATA_STR_LEN));
-            index = 0;
-        }
+    buffer[bufferSize - 1] = '\0';
+    dataStr = strdup(buffer);
+    if (dataStr == NULL) {
+        return;
+    }
 
-        if (buffer[i] == '\n') {
-            dataStr[index] = '\0';
-            ret = FifoPut(probe->fifo, (void *)dataStr);
-            if (ret != 0) {
-                ERROR("[E-PROBE %s] fifo put failed.\n", probe->name);
-                (void)free(dataStr);
-                dataStr = NULL;
-                break;
-            }
-
-            // reset dataStr
-            dataStr = NULL;
-        } else {
-            dataStr[index] = buffer[i];
-            index++;
-        }
+    ret = FifoPut(probe->fifo, (void *)dataStr);
+    if (ret) {
+        ERROR("[E-PROBE %s] fifo put failed.\n", probe->name);
+        (void)free(dataStr);
     }
 
     return;
@@ -118,8 +101,9 @@ static void parseExtendProbeOutput(struct probe_s *probe, FILE *f)
             continue;
         }
 
-        if ((bufferSize = strlen(buffer)) >= MAX_DATA_STR_LEN) {
-            ERROR("[E-PROBE %s] stdout buf(len:%u) is too long\n", probe->name, bufferSize);
+        bufferSize = strlen(buffer);
+        if (bufferSize == 0 || buffer[bufferSize - 1] != '\n') {
+            ERROR("[E-PROBE %s] stdout buf is empty or exceeds max length %lu\n", probe->name, bufferSize);
             continue;
         }
 
