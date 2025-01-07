@@ -191,6 +191,7 @@ fi
 %attr(0640,root,root) %config(noreplace) /etc/gala-gopher/probes.init
 %attr(0640,root,root) %config(noreplace) /etc/gala-gopher/*.conf
 %attr(0640,root,root) %config(noreplace) /etc/gala-gopher/extend_probes/*.conf
+%attr(0640,root,root) %config(noreplace) /etc/gala-gopher/gala-gopher-custom.json
 %attr(0600,root,root) /usr/lib/systemd/system/gala-gopher.service
 %attr(0550,root,root) /usr/libexec/gala-gopher/init_probes.sh
 %attr(0550,root,root) /usr/libexec/gala-gopher/start_pre.sh

@@ -466,6 +466,61 @@ static int parser_cadvisor_port(struct probe_s *probe, const struct param_key_s 
     return 0;
 }
 
+static int parser_custom_param(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
+{
+    void *obj = NULL;
+    int size = Json_GetArraySize(key_item);
+    int custom_size = probe->custom.custom_ipc_msg.params_num;
+    struct key_value_pairs *kv;
+    int index = 0;
+
+    for (int i = 0; i < custom_size; i++) {
+        if (strlen(probe->custom.custom_ipc_msg.custom_param[i].label) > 0) {
+            memset(probe->custom.custom_ipc_msg.custom_param[i].value, 0, sizeof(char) * MAX_CUSTOM_PARAMS_LEN);
+        }
+    }
+    for (int i = 0; i < size; i++) {
+        obj = Json_GetArrayItem(key_item, i);
+        if (obj == NULL) {
+            PARSE_ERR("%s Get custom params from json error", param_key->key);
+            goto err;
+        }
+        kv = Json_GetKeyValuePairs(obj);
+        if (kv == NULL) {
+            PARSE_ERR("%s Custom params parsed error", param_key->key);
+            goto err;
+        }
+        for (index = 0; index < custom_size; index++) {
+            if (strcmp(probe->custom.custom_ipc_msg.custom_param[index].label, kv->kv_pairs->key) == 0) {
+                if (!Json_IsString(kv->kv_pairs->valuePtr)) {
+                    PARSE_ERR("%s Custom Curl params parsed error", param_key->key);
+                    Json_DeleteKeyValuePairs(kv);
+                    goto err;
+                }
+                if (check_custom_range((char *)Json_GetValueString(kv->kv_pairs->valuePtr), "param")) {
+                    PARSE_ERR("%s param value must range from 0 to %d.", param_key->key, MAX_CUSTOM_PARAMS_LEN);
+                    Json_DeleteKeyValuePairs(kv);
+                    goto err;
+                }
+                snprintf(probe->custom.custom_ipc_msg.custom_param[index].value, MAX_CUSTOM_PARAMS_LEN,
+                         "%s", (char *)Json_GetValueString(kv->kv_pairs->valuePtr));
+                break;
+            }
+        }
+        if (index == custom_size) {
+            PARSE_ERR("%s param value has unregistered param : %s.", param_key->key, kv->kv_pairs->key);
+            Json_DeleteKeyValuePairs(kv);
+            goto err;
+        }
+        Json_DeleteKeyValuePairs(kv);
+        kv = NULL;
+    }
+    kv = NULL;
+    return 0;
+err:
+    return -1;
+}
+
 #define SET_DEFAULT_PARAMS_INTER(field) \
     static void set_default_params_inter_##field(struct probe_params *params, const struct param_val_s *value) \
     { \
@@ -537,10 +592,12 @@ SET_DEFAULT_PARAMS_STR(flame_dir);
 #define PROFLING_CHANNEL    "profiling_channel"
 #define MIN_EXEC_DUR        "min_exec_dur"
 #define MIN_AGGR_DUR        "min_aggr_dur"
+#define CUSTOM_PARAMS       "custom_param"
 
 struct param_key_s param_keys[] = {
     {SAMPLE_PERIOD,       {DEFAULT_SAMPLE_PERIOD, 100, 10000, ""},   parser_sample_peirod,           set_default_params_inter_sample_period, JSON_NUMBER},
     {REPORT_PERIOD,       {DEFAULT_PERIOD, 5, 600, ""},              parser_report_peirod,           set_default_params_inter_period, JSON_NUMBER},
+    {CUSTOM_PARAMS,       {0, 0, 0, ""},                             parser_custom_param,            NULL, JSON_ARRAY},
 #ifdef ENABLE_REPORT_EVENT
     {LATENCY_THR,         {0, 10, 100000, ""},                       parser_latency_thr,             set_default_params_inter_latency_thr, JSON_NUMBER},
     {OFFLINE_THR,         {0, 10, 100000, ""},                       parser_offline_thr,             set_default_params_inter_offline_thr, JSON_NUMBER},
@@ -628,12 +685,36 @@ static void *param_flags_to_json(unsigned int flags, struct param_flags_s param_
     return arr;
 }
 
+static void *param_custom_to_json(struct custom_params *custom_param, size_t size)
+{
+    void *item = Json_CreateArray();
+    void *object;
+
+    for (size_t i = 0; i < size; i++) {
+        if (custom_param[i].label[0] == 0 || custom_param[i].value[0] == 0) {
+            continue;
+        }
+        object = Json_CreateObject();
+        Json_AddStringToObject(object, custom_param[i].label, custom_param[i].value);
+        Json_AddItemToArray(item, object);
+        Json_Delete(object);
+    }
+    return item;
+}
+
+void print_custom_params(void *params, struct probe_params *probe_param)
+{
+    Json_AddUIntItemToObject(params, SAMPLE_PERIOD, probe_param->sample_period);
+
+    Json_AddStringToObject(params, DEV_NAME_KEY, probe_param->target_dev);
+    Json_AddUIntItemToObject(params, CADVISOR_PORT, probe_param->cadvisor_port);
+}
 void probe_params_to_json(struct probe_s *probe, void *params)
 {
     struct probe_params *probe_param = &probe->probe_param;
     enum probe_type_e probe_type = probe->probe_type;
-    void *flags_arr;
-    size_t flags_size;
+    void *arr;
+    size_t size;
 
     Json_AddUIntItemToObject(params, REPORT_PERIOD, probe_param->period);
     if (probe_type == PROBE_IO || probe_type == PROBE_TCP) {
@@ -658,10 +739,10 @@ void probe_params_to_json(struct probe_s *probe, void *params)
 #endif
 
     if (probe_type == PROBE_L7) {
-        flags_size = sizeof(param_l7pro_flags) / sizeof(param_l7pro_flags[0]);
-        flags_arr = param_flags_to_json(probe_param->l7_probe_proto_flags, param_l7pro_flags, flags_size);
-        Json_AddItemToObject(params, L7_PROTOCOL, flags_arr);
-        Json_Delete(flags_arr);
+        size = sizeof(param_l7pro_flags) / sizeof(param_l7pro_flags[0]);
+        arr = param_flags_to_json(probe_param->l7_probe_proto_flags, param_l7pro_flags, size);
+        Json_AddItemToObject(params, L7_PROTOCOL, arr);
+        Json_Delete(arr);
         Json_AddCharItemToObject(params, SUPPORT_SSL, probe_param->support_ssl);
     }
     if (probe_type == PROBE_L7 || probe_type == PROBE_TCP) {
@@ -694,5 +775,12 @@ void probe_params_to_json(struct probe_s *probe, void *params)
     }
     if (probe_type == PROBE_CONTAINER) {
         Json_AddUIntItemToObject(params, CADVISOR_PORT, probe_param->cadvisor_port);
+    }
+    if (probe_type == PROBE_CUSTOM) {
+        print_custom_params(params, probe_param);
+        size = probe->custom.custom_ipc_msg.params_num;
+        arr = param_custom_to_json(probe->custom.custom_ipc_msg.custom_param, size);
+        Json_AddItemToObject(params, CUSTOM_PARAMS, arr);
+        Json_Delete(arr);
     }
 }

@@ -53,6 +53,16 @@ unsigned char Json_IsString(const void *jsonObj)
     return ret;
 }
 
+unsigned char Json_IsBool(const void *jsonObj)
+{
+    if (!jsonObj) {
+        return 0;
+    }
+    auto *jsObj = static_cast<const Json::Value *>(jsonObj);
+    bool ret = jsObj->isBool();
+    return ret;
+}
+
 unsigned char Json_IsNumeric(const void *jsonObj)
 {
     if (!jsonObj) {
@@ -128,6 +138,12 @@ const char *Json_GetValueString(const void *jsonObj)
     }
 }
 
+bool Json_GetValueBool(const void *jsonObj)
+{
+    auto *jsObj = static_cast<const Json::Value *>(jsonObj);
+    return jsObj->asBool();
+}
+
 struct key_value_pairs* Json_GetKeyValuePairs(const void *jsonObj)
 {
     if (!jsonObj) {
@@ -148,10 +164,16 @@ struct key_value_pairs* Json_GetKeyValuePairs(const void *jsonObj)
     for (Json::ValueConstIterator it = jsObj.begin(); it != jsObj.end(); ++it) {
         auto& kv = kv_pairs->kv_pairs[kv_pairs->len];
         kv.key = strdup(it.name().c_str());
+        if (!kv.key) {
+            goto err;
+        }
         kv.valuePtr = (void *)(&(*it));
         ++kv_pairs->len;
     }
     return kv_pairs;
+err:
+    Json_DeleteKeyValuePairs(kv_pairs);
+    return nullptr;
 }
 
 void Json_DeleteKeyValuePairs(struct key_value_pairs *kv_pairs)

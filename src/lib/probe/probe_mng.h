@@ -17,6 +17,7 @@
 
 #pragma once
 #include <pthread.h>
+#include <stdbool.h>
 
 #include "base.h"
 #include "fifo.h"
@@ -45,6 +46,10 @@ struct probe_define_s {
     char enable;
 };
 
+struct probe_threshold_verify {
+    char *name;
+    u32 max;
+};
 typedef int (*ParseParam)(const char*, struct probe_params *);
 struct param_define_s {
     char *desc;
@@ -53,6 +58,17 @@ struct param_define_s {
 
 struct probe_status_s {
     u32 status_flags;                                   // Refer to flags defined [PROBE_FLAGS_XXX]
+};
+
+struct custom {
+    u32 index;
+    bool privilege;
+    struct custom_ipc custom_ipc_msg;
+};
+
+struct custom_ini {
+    struct probe_s *custom[MAX_CUSTOM_NUM];   //The probe number starts from subscript 1.
+    u32 custom_num;
 };
 
 struct probe_s;
@@ -67,6 +83,7 @@ struct probe_s {
     char resnd_snooper_for_restart;                     // Need to resend snooper obj after probe is restarted
     u8 snooper_type;                                    // Specify the type of snoopers that one probe really concern */
     enum probe_type_e probe_type;
+    struct custom custom;                               // User-defined probe
     u32 probe_range_flags;                              // Refer to flags defined [PROBE_RANGE_XX_XX]
     ProbeMain probe_entry;                              // Main function for native probe
     ProbeCB cb;                                         // Thread cb for probe
@@ -88,6 +105,9 @@ struct probe_s {
 struct probe_mng_s {
     int msq_id;                                         // ipc control msg channel
     struct probe_s *probes[PROBE_TYPE_MAX];
+    struct probe_s *custom[MAX_CUSTOM_NUM];           //Used to manage external probes.
+    u32 custom_index;                                 //Used to define external probes index.
+
     void *snooper_skel;
     const char *btf_custom_path;
     void *snooper_proc_pb;                              // context in perf event
@@ -112,10 +132,15 @@ int parse_probe_json(const char *probe_name, const char *probe_content);
 char *get_probe_json(const char *probe_name);
 struct probe_mng_s *create_probe_mng(void);
 void destroy_probe_mng(void);
+void destroy_custom_ini(void);
 void destroy_probe_threads(void);
 u32 get_probe_status_flags(struct probe_s* probe);
 void set_probe_status_stopped(struct probe_s* probe);
 void set_probe_pid(struct probe_s *probe, int pid);
+int check_custom_range(const char *key, const char *comp);
+int file_handle(const char *file, char *data, size_t size);
+char *probe_extern_cmd_param(const char *key, const void *item);
+int is_file_exist(char *dir);
 
 #define IS_STOPPED_PROBE(probe)      (get_probe_status_flags(probe) & PROBE_FLAGS_STOPPED)
 #define IS_STARTED_PROBE(probe)      (get_probe_status_flags(probe) & PROBE_FLAGS_STARTED)

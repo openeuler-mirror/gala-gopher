@@ -648,12 +648,19 @@ static inline int need_send_snooper_obj(struct probe_s *probe)
 int send_snooper_obj(struct probe_s *probe)
 {
     struct ipc_body_s ipc_body; // Initialized at '__build_ipc_body' function
+    long probetype = 0;
 
     if (need_send_snooper_obj(probe) == 0) {
         return 0;
     }
 
     __build_ipc_body(probe, &ipc_body);
+    if (probe->probe_type == PROBE_CUSTOM) {
+        probetype = (long)(PROBE_CUSTOM_IPC + probe->custom.index);
+        return send_custom_ipc_msg(__probe_mng_snooper->msq_id, probetype, &ipc_body, &(probe->custom.custom_ipc_msg));
+    }
+
+    probetype = (long)probe->probe_type;
     return send_ipc_msg(__probe_mng_snooper->msq_id, (long)probe->probe_type, &ipc_body);
 }
 

@@ -16,7 +16,8 @@
 GOPHER_INITIAL_CONF="/etc/gala-gopher/probes.init"
 GOPHER_CMD_SOCK_PATH="/var/run/gala_gopher/gala_gopher_cmd.sock"
 GOPHER_PIDFILE="/var/run/gala_gopher/gala-gopher.pid"
-MAX_INIT_NUM=25
+MAX_INIT_NUM=30
+GOPHER_CUSTOM_JSON="/etc/gala-gopher/gala-gopher-custom.json"
 MAX_ATTEMPTS=20
 
 PROBES=(
@@ -42,6 +43,19 @@ PROBES=(
     "sli"
     "flowtracer"
     )
+
+function check_custom()
+{
+    if [ -e "$GOPHER_CUSTOM_JSON" ] && [ -s "$GOPHER_CUSTOM_JSON" ]; then
+        custome_keys=$(cat "$GOPHER_CUSTOM_JSON" | tr -d '\n' | tr -s ' ' | sed 's/"[[:space:]]*{/{/g; s/:[[:space:]]*{/:{/g; s/{/{\n/g; s/}/}\n/g' | grep -o '"[^"]*"[[:space:]]*:{' | cut -d '"' -f 2)
+        for key in $custome_keys; do
+            if [ -n "$key" ]; then
+                PROBES+=("$key")
+            fi
+        done
+    fi
+    echo "PROBES=(${PROBES[*]})"
+}
 
 function check_gopher_running()
 {
@@ -107,6 +121,7 @@ function save_probes_json()
         exit 1
     fi
 
+    check_custom
     for url in "${PROBES[@]}"; do
         response=$(gopher-ctl probe get "$url")
         if [ -z "${response}" ] || echo "${response}" | grep -qi "failed" || [ "${response}" = "{}" ]; then

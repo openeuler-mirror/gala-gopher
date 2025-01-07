@@ -185,6 +185,7 @@ static int ProbeMngInit(ResourceMgr *resourceMgr)
 static void ProbeMngDeinit(ResourceMgr *resourceMgr)
 {
     destroy_probe_mng();
+    destroy_custom_ini();
     resourceMgr->probe_mng = NULL;
 }
 

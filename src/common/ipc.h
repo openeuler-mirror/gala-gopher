@@ -211,10 +211,11 @@ enum probe_type_e {
     PROBE_FLOWTRACER,
 
     // If you want to add a probe, add the probe type.
-
+    PROBE_CUSTOM,
     PROBE_TYPE_MAX
 };
 
+#define PROBE_CUSTOM_IPC 100
 enum snooper_obj_e {
     SNOOPER_OBJ_PROC = 0,
     SNOOPER_OBJ_CON,
@@ -238,6 +239,18 @@ struct snooper_obj_s {
     } obj;
 };
 
+struct custom_params {
+    char label[MAX_CUSTOM_PARAMS_LEN];
+    char value[MAX_CUSTOM_PARAMS_LEN];
+};
+
+struct custom_ipc {
+    char subprobe[MAX_SUBPROBE_NUM][MAX_CUSTOM_NAME_LEN];
+    unsigned int subprobe_num;
+    struct custom_params custom_param[MAX_CUSTOM_NUM];
+    unsigned int params_num;
+};
+
 #define IPC_FLAGS_SNOOPER_CHG   0x00000001
 #define IPC_FLAGS_PARAMS_CHG    0x00000002
 struct ipc_body_s {
@@ -251,8 +264,10 @@ struct ipc_body_s {
 int create_ipc_msg_queue(unsigned int ipc_flag);
 void destroy_ipc_msg_queue(int msqid);
 int send_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body);
+int send_custom_ipc_msg(int msqid, long msg_type, struct ipc_body_s* ipc_body, struct custom_ipc *custom_ipc_msg);
 int recv_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body);
 void clear_ipc_msg(long msg_type);
 void destroy_ipc_body(struct ipc_body_s *ipc_body);
 char is_load_probe_ipc(struct ipc_body_s *ipc_body, u32 probe_range_flag);
+int recv_custom_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body, struct custom_ipc *custom_ipc_msg);
 #endif
