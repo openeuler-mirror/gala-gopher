@@ -1282,6 +1282,10 @@ static int IMDB_BuildJsonHistos(IMDB_DataBaseMgr *mgr, IMDB_Record *record, IMDB
             continue;
         }
 
+        if (strcmp(record->metrics[i]->val, INVALID_METRIC_VALUE) == 0) {
+            continue;
+        }
+
         if (first_flag) {
             ret = __snprintf(buffer, *maxLen, maxLen, "\"%s\":{",
                             record->metrics[i]->name);
