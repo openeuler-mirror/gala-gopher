@@ -27,7 +27,7 @@
 #define PROFILE_EVT_TYPE_LOCK   "lock"
 #define PROFILE_EVT_TYPE_IO     "io"
 #define PROFILE_EVT_TYPE_ONCPU  "oncpu"
-#define PROFILE_EVT_TYPE_OFFCPU  "offcpu"
+#define PROFILE_EVT_TYPE_OFFCPU "offcpu"
 #define PROFILE_EVT_TYPE_PYGC   "python_gc"
 #define PROFILE_EVT_TYPE_PTHRD_SYNC "pthread_sync"
 #define PROFILE_EVT_TYPE_SAMPLE "sample"

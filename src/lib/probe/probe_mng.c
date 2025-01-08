@@ -126,6 +126,7 @@ struct probe_range_define_s probe_range_define[] = {
     {PROBE_TP,     "oncpu_sample",        PROBE_RANGE_TPROFILING_ONCPU_SAMPLE},
     {PROBE_TP,     "mem_usage",           PROBE_RANGE_TPROFILING_MEM_USAGE},
     {PROBE_TP,     "mem_glibc",           PROBE_RANGE_TPROFILING_MEM_GLIBC},
+    {PROBE_TP,     "offcpu",              PROBE_RANGE_TPROFILING_OFFCPU},
 
     {PROBE_HW,     "hw_nic",              PROBE_RANGE_HW_NIC},
     {PROBE_HW,     "hw_mem",              PROBE_RANGE_HW_MEM},

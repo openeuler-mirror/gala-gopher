@@ -79,6 +79,9 @@
 #define LOAD_ONCPU_PROBE(probe_name, end, load, pbMgmt) \
     LOAD_PROBE_COMMON(probe_name, end, load, pbMgmt)
 
+#define LOAD_OFFCPU_PROBE(probe_name, end, load, pbMgmt) \
+    LOAD_PROBE_COMMON_WITH_STACK(probe_name, end, load, pbMgmt); \
+
 #define LOAD_PYGC_PROBE(probe_name, end, load, pbMgmt) \
     LOAD_PROBE_COMMON_WITH_STACK(probe_name, end, load, pbMgmt); \
     LOAD_ATTACH(tprofiling, probe_name, end, load);
