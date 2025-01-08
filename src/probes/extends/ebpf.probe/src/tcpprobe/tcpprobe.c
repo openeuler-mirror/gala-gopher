@@ -327,7 +327,7 @@ int main(int argc, char **argv)
 
             // poll from last buffer to adapt for pinned perf event map
             for (int i = (int)tcp_mng->tcp_progs->num - 1; i >= 0; i--) {
-                if (tcp_mng->tcp_progs->buffers[i]) {
+                if (tcp_mng->tcp_progs->buffers[i] && tcp_mng->tcp_progs->buffers[i]->inner) {
                     err = bpf_buffer__poll(tcp_mng->tcp_progs->buffers[i], THOUSAND);
                     if (err < 0 && err != -EINTR) {
                         ERROR("[TCPPROBE]: perf poll prog_%d failed.\n", i);
