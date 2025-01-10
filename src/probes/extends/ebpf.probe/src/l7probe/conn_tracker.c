@@ -47,21 +47,6 @@
 #define L7_TBL_RPC      "l7_rpc"
 #define L7_TBL_RPC_API  "l7_rpc_api"
 
-struct latency_histo_s {
-    enum latency_range_t range;
-    u64 min, max;
-};
-
-// unit: ns
-struct latency_histo_s latency_histios[__MAX_LT_RANGE] = {
-    {LT_RANGE_1, 0,          10000000},
-    {LT_RANGE_2, 10000000,   50000000},
-    {LT_RANGE_3, 50000000,   100000000},
-    {LT_RANGE_4, 100000000,  500000000},
-    {LT_RANGE_5, 500000000,  1000000000},
-    {LT_RANGE_6, 1000000000, 3000000000},
-    {LT_RANGE_7, 3000000000, 10000000000}
-};
 
 const char *proto_name[PROTO_MAX] = {
     "unknown",
@@ -88,13 +73,6 @@ const char *l4_role_name[L4_ROLE_MAX] = {
     "tcp_client",
     "tcp_server"
 };
-
-static void init_latency_buckets(struct histo_bucket_s latency_buckets[], size_t size)
-{
-    for (int i = 0; i < __MAX_LT_RANGE && i < size; i++) {
-        (void)init_histo_bucket(&(latency_buckets[i]), latency_histios[i].min, latency_histios[i].max);
-    }
-}
 
 static void destroy_tracker_record(struct conn_tracker_s* tracker)
 {
@@ -197,6 +175,7 @@ static void destroy_l7_api_statistic(struct l7_api_statistic_s* l7_api_statistic
     struct l7_api_statistic_s *item, *tmp;
     H_ITER(l7_api_statistic, item, tmp) {
         H_DEL(l7_api_statistic, item);
+        free_histo_buckets(&item->latency_buckets, __MAX_LT_RANGE);
         free(item);
     }
 }
@@ -214,7 +193,7 @@ static void destroy_l7_link(struct l7_link_s* link)
     if (link->l7_statistic) {
         destroy_l7_api_statistic(link->l7_statistic);
     }
-
+    free_histo_buckets(&link->latency_buckets, __MAX_LT_RANGE);
     free(link);
     return;
 }
@@ -247,7 +226,6 @@ static struct l7_link_s* create_l7_link(const struct l7_link_id_s *id)
         }
     }
 
-    init_latency_buckets(link->latency_buckets, __MAX_LT_RANGE);
     return link;
 }
 
@@ -327,8 +305,6 @@ static struct l7_api_statistic_s* create_l7_api_statistic(const struct api_stats
     memset(l7_api_statistic, 0, sizeof(struct l7_api_statistic_s));
     (void) snprintf(l7_api_statistic->id.api, MAX_API_LEN, "%s", id.api);
 
-    // Initialize latency buckets
-    init_latency_buckets(l7_api_statistic->latency_buckets, __MAX_LT_RANGE);
     return l7_api_statistic;
 }
 
@@ -561,7 +537,7 @@ static int proc_conn_data_msg(struct l7_mng_s *l7_mng, struct conn_data_msg_s *c
 }
 
 // Calculate api-level metrics for l7_statistics
-static void add_tracker_l7_stats(struct conn_tracker_s* tracker, struct l7_link_s* link)
+static void add_tracker_l7_stats(struct bucket_range_s bucket_range[], struct conn_tracker_s* tracker, struct l7_link_s* link)
 {
     int ret;
     struct api_stats *item, *tmp;
@@ -589,7 +565,7 @@ static void add_tracker_l7_stats(struct conn_tracker_s* tracker, struct l7_link_
         for (int i = 0; i < item->record_buf_size && i < RECORD_BUF_SIZE; i++) {
             if (item->records[i]) {
                 statistic->latency_sum += item->records[i]->latency;
-                ret = histo_bucket_add_value(statistic->latency_buckets, __MAX_LT_RANGE, item->records[i]->latency);
+                ret = histo_bucket_add_value(bucket_range, &statistic->latency_buckets, __MAX_LT_RANGE, item->records[i]->latency);
                 if (ret) {
                     ERROR("[L7PROBE] Failed to add latency to histogram bucket, value: %lu\n", item->records[i]->latency);
                 }
@@ -618,7 +594,7 @@ static void add_tracker_stats(struct l7_mng_s *l7_mng, struct conn_tracker_s* tr
     for (int i = 0; i < tracker->records.record_buf_size && i < RECORD_BUF_SIZE; i++) {
         if (tracker->records.records[i]) {
             link->latency_sum += tracker->records.records[i]->latency;
-            ret = histo_bucket_add_value(link->latency_buckets,
+            ret = histo_bucket_add_value(l7_mng->latency_buckets, &link->latency_buckets,
                             __MAX_LT_RANGE, tracker->records.records[i]->latency);
             if (ret) {
                 ERROR("[L7PROBE] Failed to add latency to histo bucket, value: %lu\n", tracker->records.records[i]->latency);
@@ -627,7 +603,7 @@ static void add_tracker_stats(struct l7_mng_s *l7_mng, struct conn_tracker_s* tr
     }
 
     // add l7 api statistics
-    add_tracker_l7_stats(tracker, link);
+    add_tracker_l7_stats(l7_mng->latency_buckets, tracker, link);
     return;
 }
 
@@ -659,7 +635,7 @@ static void l7_parser_tracker(struct l7_mng_s *l7_mng, struct conn_tracker_s* tr
 
 static void reset_api_stats(struct l7_api_statistic_s *statistic)
 {
-    histo_bucket_reset(statistic->latency_buckets, __MAX_LT_RANGE);
+    histo_bucket_reset(&statistic->latency_buckets, __MAX_LT_RANGE);
     statistic->latency_sum = 0;
     statistic->err_ratio = 0.0;
 
@@ -675,9 +651,9 @@ static void reset_link_stats(struct l7_link_s *link)
         reset_api_stats(item);
     }
 
-    histo_bucket_reset(link->latency_buckets, __MAX_LT_RANGE);
+    histo_bucket_reset(&link->latency_buckets, __MAX_LT_RANGE);
     link->latency_sum = 0;
-    link->err_ratio = 0.0;
+    link->err_ratio = 0.0f;
 
     memset(&(link->stats), 0, sizeof(u64) * __MAX_STATS);
     memset(&(link->throughput), 0, sizeof(float) * __MAX_THROUGHPUT);
@@ -740,11 +716,9 @@ static void calc_link_stats(struct l7_link_s *link, struct probe_params *probe_p
 
     link->throughput[THROUGHPUT_REQ] = (float)((float)link->stats[REQ_COUNT] / (float)probe_param->period);
     link->throughput[THROUGHPUT_RESP] = (float)((float)link->stats[RSP_COUNT] / (float)probe_param->period);
-
-    return;
 }
 
-static void calc_l7_api_statistics(struct l7_api_statistic_s *statistic, struct probe_params *probe_param)
+static void calc_l7_api_statistics(struct bucket_range_s latency_buckets[], struct l7_api_statistic_s *statistic, struct probe_params *probe_param)
 {
     statistic->err_ratio = statistic->stats[ERR_COUNT] == 0 ? 0.00f : (float)((float)statistic->stats[ERR_COUNT] / (float)statistic->stats[REQ_COUNT]);
     statistic->client_err_ratio = statistic->stats[CLIENT_ERR_COUNT] == 0 ? 0.00f : (float)((float)statistic->stats[CLIENT_ERR_COUNT] / (float)statistic->stats[REQ_COUNT]);
@@ -753,11 +727,9 @@ static void calc_l7_api_statistics(struct l7_api_statistic_s *statistic, struct 
     statistic->throughput[THROUGHPUT_REQ] = (float)((float)statistic->stats[REQ_COUNT] / (float)probe_param->period);
     statistic->throughput[THROUGHPUT_RESP] = (float)((float)statistic->stats[REQ_COUNT] / (float)probe_param->period);
 
-    (void)histo_bucket_value(statistic->latency_buckets, __MAX_LT_RANGE, HISTO_P50, &(statistic->latency[LATENCY_P50]));
-    (void)histo_bucket_value(statistic->latency_buckets, __MAX_LT_RANGE, HISTO_P90, &(statistic->latency[LATENCY_P90]));
-    (void)histo_bucket_value(statistic->latency_buckets, __MAX_LT_RANGE, HISTO_P99, &(statistic->latency[LATENCY_P99]));
-
-    return;
+    (void)histo_bucket_value(latency_buckets, &statistic->latency_buckets, __MAX_LT_RANGE, HISTO_P50, &(statistic->latency[LATENCY_P50]));
+    (void)histo_bucket_value(latency_buckets, &statistic->latency_buckets, __MAX_LT_RANGE, HISTO_P90, &(statistic->latency[LATENCY_P90]));
+    (void)histo_bucket_value(latency_buckets, &statistic->latency_buckets, __MAX_LT_RANGE, HISTO_P99, &(statistic->latency[LATENCY_P99]));
 }
 
 static void calc_l7_stats(struct l7_mng_s *l7_mng)
@@ -769,7 +741,7 @@ static void calc_l7_stats(struct l7_mng_s *l7_mng)
         calc_link_stats(link, &(l7_mng->ipc_body.probe_param));
 
         H_ITER(link->l7_statistic, statistic, tmp_stat) {
-            calc_l7_api_statistics(statistic, &(l7_mng->ipc_body.probe_param));
+            calc_l7_api_statistics(l7_mng->latency_buckets, statistic, &(l7_mng->ipc_body.probe_param));
         }
     }
 
@@ -807,12 +779,12 @@ static void report_l7_link(struct l7_link_s *link)
 // l4_role="tcp_server",l7_role="server",protocol="pgsql",ssl="no_ssl",api="/rest/api/example",
 // comm="gaussdb",machine_id="61d09cf3-3806-469e-9afd-770cd09076fe-71.76.51.175"}
 // 0.00 1692352573000
-static void report_l7_rpc_api(struct l7_link_s *link, struct l7_api_statistic_s *l7_api_statistic)
+static void report_l7_rpc_api(struct bucket_range_s latency_buckets[], struct l7_link_s *link, struct l7_api_statistic_s *l7_api_statistic)
 {
     char latency_historm[MAX_HISTO_SERIALIZE_SIZE];
 
     latency_historm[0] = 0;
-    if (serialize_histo(l7_api_statistic->latency_buckets, __MAX_LT_RANGE, latency_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+    if (serialize_histo(latency_buckets, &l7_api_statistic->latency_buckets, __MAX_LT_RANGE, latency_historm, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
 
@@ -859,12 +831,12 @@ static void report_l7_rpc_api(struct l7_link_s *link, struct l7_api_statistic_s 
 // l4_role="tcp_server",l7_role="server",protocol="pgsql",ssl="no_ssl",
 // comm="gaussdb",machine_id="61d09cf3-3806-469e-9afd-770cd09076fe-71.76.51.175"}
 // 0.00 1692352573000
-static void report_l7_rpc(struct l7_link_s *link)
+static void report_l7_rpc(struct bucket_range_s bucket_ranges[], struct l7_link_s *link)
 {
     char latency_historm[MAX_HISTO_SERIALIZE_SIZE];
 
     latency_historm[0] = 0;
-    if (serialize_histo(link->latency_buckets, __MAX_LT_RANGE, latency_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+    if (serialize_histo(bucket_ranges, &link->latency_buckets, __MAX_LT_RANGE, latency_historm, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
 
@@ -913,14 +885,14 @@ static void report_l7_stats(struct l7_mng_s *l7_mng)
         }
 
         if(probe_range_flags & PROBE_RANGE_L7RPC_METRICS) {
-            report_l7_rpc(link);
+            report_l7_rpc(l7_mng->latency_buckets, link);
         }
 
         // Traverse map l7_statistic
         if(probe_range_flags & PROBE_RANGE_L7RPC_METRICS) {
             struct l7_api_statistic_s *l7_statistic, *tmp_statistic;
             H_ITER(link->l7_statistic, l7_statistic, tmp_statistic) {
-                report_l7_rpc_api(link, l7_statistic);
+                report_l7_rpc_api(l7_mng->latency_buckets, link, l7_statistic);
             }
         }
     }

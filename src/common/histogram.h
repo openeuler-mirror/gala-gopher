@@ -27,26 +27,53 @@ enum histo_type_t {
     HISTO_P99
 };
 
+struct histo_bucket_with_range_s {
+    u64 count;
+    u64 sum;
+    u64 min;
+    u64 max;
+};
+
 struct histo_bucket_s {
-    u64 min, max;
     u64 count;
     u64 sum;              // sum of all values in this bucket
 };
 
-int init_histo_bucket(struct histo_bucket_s *bucket, u64 min, u64 max);
-int histo_bucket_add_value(struct histo_bucket_s bucket[], size_t bucket_size, u64 value);
-int histo_bucket_value(struct histo_bucket_s bucket[], size_t bucket_size, enum histo_type_t type, float *value);
-void histo_bucket_reset(struct histo_bucket_s bucket[], size_t bucket_size);
+struct histo_bucket_array_s {
+    struct histo_bucket_s **histo_buckets;
+};
 
+struct bucket_range_s {
+    u64 min, max;
+};
+
+int init_bucket(struct histo_bucket_array_s *bucket_array, size_t bucket_size);
+int init_bucket_with_content(struct histo_bucket_array_s *bucket_array, size_t bucket_size);
+int histo_bucket_add_value(struct bucket_range_s bucket_range[], struct histo_bucket_array_s *bucket_array, size_t bucket_size, u64 value);
+int histo_bucket_value(struct bucket_range_s latency_buckets[], struct histo_bucket_array_s *bucket_arr, size_t bucket_size, enum histo_type_t type, float *value);
+void histo_bucket_reset(struct histo_bucket_array_s *bucket_arr, size_t bucket_size);
+int init_bucket_range(struct bucket_range_s *bucket, u64 min, u64 max);
+void free_histo_buckets(struct histo_bucket_array_s *his_bk_arr, int size);
 /*
  * serialize histogram metric from a struct histo_bucket_s to a string.
  * string format like: "<bucket_size> <bucket1_max> <bucket1_count> <bucket2_max> <bucket2_count> ..."
  */
-int serialize_histo(struct histo_bucket_s bucket[], size_t bucket_size, char *buf, size_t buf_size);
+int serialize_histo(struct bucket_range_s bucket_ranges[], struct histo_bucket_array_s *buckets_arr, size_t bucket_size, char *buf, size_t buf_size);
 /*
  * deserialize histogram metric from a string to a struct histo_bucket_s.
  */
-int deserialize_histo(const char *buf, struct histo_bucket_s **bucket, size_t *bucket_size, u64 *bkt_sum);
+int deserialize_histo(const char *buf, struct histo_bucket_with_range_s **bucket, size_t *bucket_size, u64 *bkt_sum);
+
+#define HISTO_BUCKET_RANGE_INIT(buckets_rg, size, histios)                                                    \
+do {                                                                                                          \
+    for (int i = 0; i < (size); ++i) {                                                                        \
+        int histogram_ret = init_bucket_range(&((buckets_rg)[i]), (histios)[i].min, (histios)[i].max);        \
+        if (histogram_ret) {                                                                                  \
+            ERROR("[HISTOGRAM] init %s bucket failed, min %ld, max %ld\n",                                    \
+                #histios, (histios)[i].min, (histios)[i].max);                                                \
+        }                                                                                                     \
+    }                                                                                                         \
+} while (0)
 
 #endif
 

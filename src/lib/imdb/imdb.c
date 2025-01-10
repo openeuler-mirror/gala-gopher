@@ -1130,7 +1130,7 @@ static int IMDB_BuildPrometheusHistoMetrics(const IMDB_Metric *metric, char *buf
     time_t now;
     const char *fmt = "{%s} %llu %lld\n";  // Metrics##labels MetricsVal timestamp
 
-    struct histo_bucket_s *bkt = NULL;
+    struct histo_bucket_with_range_s *bkt = NULL;
     size_t bkt_sz = 0;
     u64 sum = 0, bkt_sum = 0;
     int i;
@@ -1231,7 +1231,7 @@ static int IMDB_BuildJsonHistosBkt(const IMDB_Metric *metric, char **buffer, int
 {
     int ret, i;
     char buf[INT_LEN];
-    struct histo_bucket_s *bkt = NULL;
+    struct histo_bucket_with_range_s *bkt = NULL;
     size_t bkt_sz = 0;
     u64 count = 0, bkt_sum = 0;
     char first_flag = 1;

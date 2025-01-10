@@ -40,6 +40,7 @@
 #include "l7_common.h"
 #include "bpf_mng.h"
 #include "java_mng.h"
+#include "histogram.h"
 
 #define RM_L7_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__l7*"
 #define CAPACITY 4096
@@ -48,9 +49,27 @@
 volatile sig_atomic_t g_stop;
 static struct l7_mng_s g_l7_mng;
 
+struct latency_histo_s latency_histios[__MAX_LT_RANGE] = {
+    {LT_RANGE_1, 0,          10000000},
+    {LT_RANGE_2, 10000000,   50000000},
+    {LT_RANGE_3, 50000000,   100000000},
+    {LT_RANGE_4, 100000000,  500000000},
+    {LT_RANGE_5, 500000000,  1000000000},
+    {LT_RANGE_6, 1000000000, 3000000000},
+    {LT_RANGE_7, 3000000000, 10000000000}
+};
+
 static void sig_int(int signo)
 {
     g_stop = 1;
+}
+
+static void init_l7_historm_range(struct l7_mng_s *l7_mng)
+{
+    for (int i = 0; i < __MAX_LT_RANGE; ++i) {
+        l7_mng->latency_buckets[i].min = latency_histios[i].min;
+        l7_mng->latency_buckets[i].max = latency_histios[i].max;
+    }
 }
 
 static void __do_l7_load_tcp_fd(int fd)
@@ -402,9 +421,9 @@ int main(int argc, char **argv)
         ERROR("[L7PROBE]: Get ipc msg que failed.\n");
         goto err;
     }
-
+    init_l7_historm_range(l7_mng);
     INIT_BPF_APP(l7probe, EBPF_RLIM_LIMITED);
-    INFO("[L7RPOBE]: Successfully started!\n");
+    INFO("[L7PROBE]: Successfully started!\n");
 
     while (!g_stop) {
         nanosleep(&ts, NULL);

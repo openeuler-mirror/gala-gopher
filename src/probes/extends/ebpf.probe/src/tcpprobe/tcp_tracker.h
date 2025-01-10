@@ -72,6 +72,17 @@ enum delay_size_t {
     __MAX_DELAY_SIZE
 };
 
+struct __tcp_histo_s {
+    u32 range;
+    u64 min, max;
+};
+
+extern struct __tcp_histo_s tcp_wind_histios[__MAX_WIND_SIZE];
+extern struct __tcp_histo_s tcp_sockbuf_histios[__MAX_SOCKBUF_SIZE];
+extern struct __tcp_histo_s tcp_rtt_histios[__MAX_RTT_SIZE];
+extern struct __tcp_histo_s tcp_rto_histios[__MAX_RTO_SIZE];
+extern struct __tcp_histo_s tcp_delay_histios[__MAX_DELAY_SIZE];
+
 enum tcp_stats_t {
     BYTES_SENT = 0,
     BYTES_RECV,
@@ -183,29 +194,53 @@ struct tcp_tracker_s {
     char *toa_src_ip;
     time_t last_report;
     time_t last_rcv_data;
-    struct histo_bucket_s snd_cwnd_buckets[__MAX_WIND_SIZE];
-    struct histo_bucket_s not_sent_buckets[__MAX_WIND_SIZE];
-    struct histo_bucket_s not_acked_buckets[__MAX_WIND_SIZE];
-    struct histo_bucket_s reordering_buckets[__MAX_WIND_SIZE];
+    struct histo_bucket_array_s snd_cwnd_buckets;
+    struct histo_bucket_array_s not_sent_buckets;
+    struct histo_bucket_array_s not_acked_buckets;
+    struct histo_bucket_array_s reordering_buckets;
 
-    struct histo_bucket_s snd_wnd_buckets[__MAX_WIND_SIZE];
-    struct histo_bucket_s rcv_wnd_buckets[__MAX_WIND_SIZE];
-    struct histo_bucket_s avl_snd_wnd_buckets[__MAX_WIND_SIZE];
+    struct histo_bucket_array_s snd_wnd_buckets;
+    struct histo_bucket_array_s rcv_wnd_buckets;
+    struct histo_bucket_array_s avl_snd_wnd_buckets;
 
-    struct histo_bucket_s srtt_buckets[__MAX_RTT_SIZE];
-    struct histo_bucket_s rcv_rtt_buckets[__MAX_RTT_SIZE];
-    struct histo_bucket_s syn_srtt_buckets[__MAX_RTT_SIZE];
+    struct histo_bucket_array_s srtt_buckets;
+    struct histo_bucket_array_s rcv_rtt_buckets;
+    struct histo_bucket_array_s syn_srtt_buckets;
 
-    struct histo_bucket_s rto_buckets[__MAX_RTO_SIZE];
-    struct histo_bucket_s ato_buckets[__MAX_RTO_SIZE];
+    struct histo_bucket_array_s rto_buckets;
+    struct histo_bucket_array_s ato_buckets;
 
-    struct histo_bucket_s rcv_buf_buckets[__MAX_SOCKBUF_SIZE];
-    struct histo_bucket_s snd_buf_buckets[__MAX_SOCKBUF_SIZE];
+    struct histo_bucket_array_s rcv_buf_buckets;
+    struct histo_bucket_array_s snd_buf_buckets;
 
     u64 stats[__MAX_STATS];
 
     float zero_win_rx_ratio;
     float zero_win_tx_ratio;
+};
+
+struct histo_attr_single {
+    struct bucket_range_s snd_cwnd_buckets[__MAX_WIND_SIZE];
+    struct bucket_range_s not_sent_buckets[__MAX_WIND_SIZE];
+    struct bucket_range_s not_acked_buckets[__MAX_WIND_SIZE];
+    struct bucket_range_s reordering_buckets[__MAX_WIND_SIZE];
+
+    struct bucket_range_s snd_wnd_buckets[__MAX_WIND_SIZE];
+    struct bucket_range_s rcv_wnd_buckets[__MAX_WIND_SIZE];
+    struct bucket_range_s avl_snd_wnd_buckets[__MAX_WIND_SIZE];
+
+    struct bucket_range_s srtt_buckets[__MAX_RTT_SIZE];
+    struct bucket_range_s rcv_rtt_buckets[__MAX_RTT_SIZE];
+    struct bucket_range_s syn_srtt_buckets[__MAX_RTT_SIZE];
+
+    struct bucket_range_s rto_buckets[__MAX_RTO_SIZE];
+    struct bucket_range_s ato_buckets[__MAX_RTO_SIZE];
+
+    struct bucket_range_s rcv_buf_buckets[__MAX_SOCKBUF_SIZE];
+    struct bucket_range_s snd_buf_buckets[__MAX_SOCKBUF_SIZE];
+
+    struct bucket_range_s send_delay_buckets[__MAX_DELAY_SIZE];
+    struct bucket_range_s recv_delay_buckets[__MAX_DELAY_SIZE];
 };
 
 struct tcp_flow_tracker_id_s {
@@ -222,8 +257,8 @@ struct tcp_flow_tracker_s {
     time_t last_report;
     time_t last_rcv_data;
 
-    struct histo_bucket_s send_delay_buckets[__MAX_DELAY_SIZE];
-    struct histo_bucket_s recv_delay_buckets[__MAX_DELAY_SIZE];
+    struct histo_bucket_array_s send_delay_buckets;
+    struct histo_bucket_array_s recv_delay_buckets;
 };
 
 struct tcp_mng_s {
@@ -235,6 +270,7 @@ struct tcp_mng_s {
     struct toa_socket_s *toa_socks;
     struct tcp_tracker_s *trackers;
     struct tcp_flow_tracker_s *flow_trackers;
+    struct histo_attr_single *histo_attr;
 
     char *historms[TCP_HISTORM_MAX];
 };
