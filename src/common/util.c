@@ -284,17 +284,11 @@ int get_system_hostname(char *buf, unsigned int size)
 
 int copy_file(const char *dst_file, const char *src_file)
 {
-    char dst_path[PATH_MAX];
-    char src_path[PATH_MAX];
-    if (realpath(dst_file, dst_path) == NULL || realpath(src_file, src_path) == NULL) {
-        return -1;
-    }
-
-    FILE *fp1 = fopen(dst_path, "w");
+    FILE *fp1 = fopen(dst_file, "w");
     if (fp1 == NULL) {
         return -1;
     }
-    FILE *fp2 = fopen(src_path, "r");
+    FILE *fp2 = fopen(src_file, "r");
     if(fp2 == NULL) {
         fclose(fp1);
         return -1;
