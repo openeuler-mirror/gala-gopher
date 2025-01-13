@@ -39,6 +39,7 @@
 #include "syscall_lock.skel.h"
 #include "syscall_sched.skel.h"
 #include "oncpu.skel.h"
+#include "offcpu.skel.h"
 #include "pygc.skel.h"
 #include "pthrd_sync.skel.h"
 #include "mem_glibc.skel.h"
@@ -165,6 +166,50 @@ int load_oncpu_bpf_prog(struct ipc_body_s *ipc_body, struct bpf_prog_s *prog)
 
     is_load_oncpu = is_load_probe_ipc(ipc_body, PROBE_RANGE_TPROFILING_ONCPU);
     if (__load_oncpu_bpf_prog(prog, is_load_oncpu)) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int __load_offcpu_bpf_prog(struct bpf_prog_s *prog, char is_load)
+{
+    int ret = 0;
+
+    LOAD_OFFCPU_PROBE(offcpu, err, is_load, &tprofiler.pbMgmt);
+    if (is_load) {
+        prog->skels[prog->num].skel = offcpu_skel;
+        prog->skels[prog->num].fn = (skel_destroy_fn)offcpu_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = offcpu_open_opts.btf_custom_path;
+
+        int is_attach_tp = (probe_kernel_version() >= KERNEL_VERSION(6, 4, 0));
+        PROG_ENABLE_ONLY_IF(offcpu, bpf_raw_trace_sched_switch, is_attach_tp);
+        PROG_ENABLE_ONLY_IF(offcpu, bpf_finish_task_switch, !is_attach_tp);
+
+        LOAD_ATTACH(tprofiling, offcpu, err, is_load);
+
+        ret = open_profiling_bpf_buffer(&tprofiler.pbMgmt);
+        if (ret) {
+            goto err;
+        }
+
+        prog->num++;
+    }
+
+    return ret;
+err:
+    UNLOAD(offcpu);
+    CLEANUP_CUSTOM_BTF(offcpu);
+    return -1;
+}
+
+int load_offcpu_bpf_prog(struct ipc_body_s *ipc_body, struct bpf_prog_s *prog)
+{
+
+    char is_load_offcpu;
+
+    is_load_offcpu = is_load_probe_ipc(ipc_body, PROBE_RANGE_TPROFILING_OFFCPU);
+    if (__load_offcpu_bpf_prog(prog, is_load_offcpu)) {
         return -1;
     }
 
@@ -881,6 +926,11 @@ int load_profiling_bpf_progs(struct ipc_body_s *ipc_body)
     ret = load_oncpu_bpf_prog(ipc_body, prog);
     if (ret) {
         TP_ERROR("Failed to load oncpu bpf prog\n");
+        goto err;
+    }
+    ret = load_offcpu_bpf_prog(ipc_body, prog);
+    if (ret) {
+        TP_ERROR("Failed to load offcpu bpf prog\n");
         goto err;
     }
     ret = load_pygc_bpf_prog(ipc_body, prog);

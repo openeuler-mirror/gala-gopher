@@ -2070,7 +2070,7 @@ int gen_oom_trace_file(char *file_path, int size)
     struct tm *tm = localtime(&now);
     file_path[0] = 0;
 
-    char timestamp[TASK_COMM_LEN];
+    char timestamp[MAX_PROCESS_NAME_LEN];
     sz = strftime(timestamp, sizeof(timestamp), "oom-trace-%Y%m%d%H%M.json", tm);
     if (sz == 0) {
         TP_ERROR("Failed to set oom trace file path\n");
