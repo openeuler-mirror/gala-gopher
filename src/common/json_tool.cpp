@@ -148,10 +148,16 @@ struct key_value_pairs* Json_GetKeyValuePairs(const void *jsonObj)
     for (Json::ValueConstIterator it = jsObj.begin(); it != jsObj.end(); ++it) {
         auto& kv = kv_pairs->kv_pairs[kv_pairs->len];
         kv.key = strdup(it.name().c_str());
+        if (!kv.key) {
+            goto err;
+        }
         kv.valuePtr = (void *)(&(*it));
         ++kv_pairs->len;
     }
     return kv_pairs;
+err:
+    Json_DeleteKeyValuePairs(kv_pairs);
+    return nullptr;
 }
 
 void Json_DeleteKeyValuePairs(struct key_value_pairs *kv_pairs)
@@ -307,5 +313,8 @@ char *Json_PrintUnformatted(void *jsonObj)
     Json::FastWriter writer;
     std::string strJson = writer.write(*jsObj);
     char *res = strdup(strJson.c_str());
+    if (!res) {
+        return nullptr;
+    }
     return res;
 }

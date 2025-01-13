@@ -113,6 +113,9 @@ static struct tcp_conntrack_s *parse_conntrack_tcp(const char *s)
         goto err;
     }
     conn_tcp->src = strdup((const char *)sub_str);
+    if (!conn_tcp->src) {
+        goto err;
+    }
 
     // parse conntrack tcp dst ip address
     p = strstr((const char *)s, "dst=");
@@ -124,6 +127,9 @@ static struct tcp_conntrack_s *parse_conntrack_tcp(const char *s)
         goto err;
     }
     conn_tcp->dst = strdup((const char *)sub_str);
+    if (!conn_tcp->dst) {
+        goto err;
+    }
 
     // parse conntrack tcp src port
     p = strstr((const char *)p, "sport=");
@@ -157,6 +163,9 @@ static struct tcp_conntrack_s *parse_conntrack_tcp(const char *s)
         goto err;
     }
     conn_tcp->reply_src = strdup((const char *)sub_str);
+    if (!conn_tcp->reply_src) {
+        goto err;
+    }
 
     // parse conntrack tcp reply dst ip address
     p = strstr((const char *)p, "dst=");
@@ -168,6 +177,9 @@ static struct tcp_conntrack_s *parse_conntrack_tcp(const char *s)
         goto err;
     }
     conn_tcp->reply_dst = strdup((const char *)sub_str);
+    if (!conn_tcp->reply_src) {
+        goto err;
+    }
 
     // parse conntrack tcp reply src port
     p = strstr((const char *)p, "sport=");

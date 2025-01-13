@@ -257,6 +257,7 @@ static void free_blk_cache(struct blk_cache_s *cache)
     }
 
     free(cache);
+    cache = NULL;
     return;
 }
 
@@ -293,14 +294,23 @@ static struct blk_cache_s *add_blk_cache(struct blk_cache_s **caches, int major,
 
     if (dev_name[0] != 0) {
         new_cache->dev_name = strdup((const char *)dev_name);
+        if (!new_cache->dev_name) {
+            goto err;
+        }
     }
     if (disk_name[0] != 0) {
         new_cache->disk_name = strdup((const char *)disk_name);
+        if (!new_cache->disk_name) {
+            goto err;
+        }
     }
 
     H_ADD_KEYPTR(*caches, &new_cache->id, sizeof(struct blk_id_s), new_cache);
 
     return new_cache;
+err:
+    free_blk_cache(new_cache);
+    return NULL;
 }
 
 static struct blk_cache_s *get_blk_cache(struct blk_tbl_s *tbl, int major, int minor)
