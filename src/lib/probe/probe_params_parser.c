@@ -235,7 +235,12 @@ static int parser_output_dir(struct probe_s *probe, const struct param_key_s *pa
         return -1;
     }
 
-    (void)snprintf(probe->probe_param.output_dir, sizeof(probe->probe_param.output_dir), "%s", value);
+    char real_path[PATH_LEN];
+    if (realpath(value, real_path) == NULL) {
+        return -1;
+    }
+
+    (void)snprintf(probe->probe_param.output_dir, sizeof(probe->probe_param.output_dir), "%s", real_path);
     return 0;
 }
 
@@ -251,7 +256,13 @@ static int parser_flame_dir(struct probe_s *probe, const struct param_key_s *par
         PARSE_ERR("params.%s contains unsafe characters", param_key->key);
         return -1;
     }
-    (void)snprintf(probe->probe_param.flame_dir, sizeof(probe->probe_param.flame_dir), "%s", value);
+
+    char real_path[PATH_LEN];
+    if (realpath(value, real_path) == NULL) {
+        return -1;
+    }
+
+    (void)snprintf(probe->probe_param.flame_dir, sizeof(probe->probe_param.flame_dir), "%s", real_path);
     return 0;
 }
 
@@ -449,7 +460,13 @@ static int parser_elf_path(struct probe_s *probe, const struct param_key_s *para
         PARSE_ERR("params.%s contains unsafe characters", param_key->key);
         return -1;
     }
-    (void)snprintf(probe->probe_param.elf_path, sizeof(probe->probe_param.elf_path), "%s", value);
+
+    char real_path[MAX_PATH_LEN];
+    if (realpath(value, real_path) == NULL) {
+        return -1;
+    }
+
+    (void)snprintf(probe->probe_param.elf_path, sizeof(probe->probe_param.elf_path), "%s", real_path);
     return 0;
 }
 
@@ -557,7 +574,7 @@ struct param_key_s param_keys[] = {
     {PERF_SAMPLE_PERIOD,  {10, 10, 1000, ""},                        parser_perf_sample_period,      set_default_params_inter_perf_sample_period, JSON_NUMBER},
     {MULTI_INSTANCE,      {0, 0, 1, ""},                             parser_multi_instance,          set_default_params_char_multi_instance_flag, JSON_NUMBER},
     {NATIVE_STACK,        {0, 0, 1, ""},                             parser_native_stack,            set_default_params_char_native_stack_flag, JSON_NUMBER},
-    {OUTPUT_DIR,          {0, 0, 0, ""},                             parser_output_dir,          set_default_params_str_output_dir, JSON_STRING},
+    {OUTPUT_DIR,          {0, 0, 0, ""},                             parser_output_dir,              set_default_params_str_output_dir, JSON_STRING},
     {FLAME_DIR,           {0, 0, 0, "/var/log/gala-gopher/flamegraph"},  parser_flame_dir,           set_default_params_str_flame_dir, JSON_STRING},
     {CLUSTER_IP_BACKEND,  {0, 0, 2, ""},                             parser_cluster_ip_backend_flag, set_default_params_char_cluster_ip_backend, JSON_NUMBER},
     {DEV_NAME_KEY,        {0, 0, 0, ""},                             parser_dev_name,                NULL, JSON_STRING},
