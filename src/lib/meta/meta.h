@@ -21,6 +21,7 @@
 #include "base.h"
 #ifdef KAFKA_CHANNEL
 #include "kafka.h"
+#include "probe_mng.h"
 #endif
 
 #define META_FIELD_TYPE_KEY                 "key"

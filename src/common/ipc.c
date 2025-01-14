@@ -28,7 +28,8 @@
 enum ipct_type_e {
     IPCT_PROBE_RANGE = 100,
     IPCT_PROBE_PARAMS = 101,
-    IPCT_SNOOPER_NUM = 102
+    IPCT_SNOOPER_NUM = 102,
+    IPCT_CUSTOM_MSG = 103
 };
 
 enum ipct_subtype_e {
@@ -352,12 +353,16 @@ static struct ipc_operator_s ipc_operators[SNOOPER_OBJ_MAX] = {
     {SNOOPER_OBJ_CON,       get_tlv_len_container,  build_tlv_container,    deserialize_tlv_container}
 };
 
-static u32 __calc_ipc_msg_len(struct ipc_body_s* ipc_body)
+static u32 __calc_ipc_msg_len(struct ipc_body_s* ipc_body, struct custom_ipc *custom_ipc_body)
 {
     u32 msg_len = IPC_TLV_LEN_DEFAULT;
 
     for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
         msg_len += ipc_operators[ipc_body->snooper_objs[i].type].get_tlv_len(&(ipc_body->snooper_objs[i]));
+    }
+
+    if (custom_ipc_body != NULL) {
+        msg_len += sizeof(struct custom_ipc) + sizeof(struct ipc_tlv_s);
     }
     return msg_len;
 }
@@ -421,7 +426,19 @@ static int __build_snooper_tlv(char *buf, size_t size, struct ipc_body_s* ipc_bo
     return fill_len;
 }
 
-static int __build_ipc_msg(char *buf, size_t size, struct ipc_body_s* ipc_body)
+static int __build_custom_tlv(char *buf, size_t size, struct custom_ipc *custom_ipc_msg)
+{
+    struct custom_ipc *value;
+    struct ipc_tlv_s *tlv = (struct ipc_tlv_s *)buf;
+
+    tlv->type = IPCT_CUSTOM_MSG;
+    tlv->len = sizeof(struct custom_ipc);
+    value = (struct custom_ipc *)(buf + sizeof(struct ipc_tlv_s));
+    (void)memcpy(value, custom_ipc_msg, sizeof(struct custom_ipc));
+    return (sizeof(struct ipc_tlv_s) + sizeof(struct custom_ipc));
+}
+
+static int __build_ipc_msg(char *buf, size_t size, struct ipc_body_s* ipc_body, struct custom_ipc *custom_ipc_msg)
 {
     int fill_len = 0, build_len = 0;
     int max_len = (int)size;
@@ -451,6 +468,16 @@ static int __build_ipc_msg(char *buf, size_t size, struct ipc_body_s* ipc_body)
     cur += build_len;
     fill_len += build_len;
 
+    if (custom_ipc_msg != NULL) {
+        build_len = __build_custom_tlv(cur, (size_t)max_len, custom_ipc_msg);
+        max_len = max_len - build_len;
+        if (max_len < 0) {
+            return -1;
+        }
+        cur += build_len;
+        fill_len += build_len;
+    }
+
     build_len = __build_snooper_tlv(cur, (size_t)max_len, ipc_body);
     if (build_len < 0) {
         return -1;
@@ -467,12 +494,12 @@ static void __free_ipc_msg(struct ipc_msg_s* ipc_msg)
     (void)free(ipc_msg);
 }
 
-static struct ipc_msg_s* __malloc_ipc_msg(struct ipc_body_s* ipc_body, long msg_type)
+static struct ipc_msg_s* __malloc_ipc_msg(struct ipc_body_s* ipc_body, struct custom_ipc *custom_ipc_msg, long msg_type)
 {
     size_t size;
     struct ipc_msg_s* ipc_msg;
 
-    u32 msg_len = __calc_ipc_msg_len(ipc_body);
+    u32 msg_len = __calc_ipc_msg_len(ipc_body, custom_ipc_msg);
 
     size = sizeof(struct ipc_msg_s) + msg_len;
     ipc_msg = (struct ipc_msg_s *)malloc(size);
@@ -486,11 +513,11 @@ static struct ipc_msg_s* __malloc_ipc_msg(struct ipc_body_s* ipc_body, long msg_
     return ipc_msg;
 }
 
-static struct ipc_msg_s* __create_ipc_msg(struct ipc_body_s* ipc_body, long msg_type)
+static struct ipc_msg_s* __create_ipc_msg(struct ipc_body_s* ipc_body, struct custom_ipc *custom_ipc_msg, long msg_type)
 {
     int ret;
     char *buf;
-    struct ipc_msg_s* ipc_msg = __malloc_ipc_msg(ipc_body, msg_type);
+    struct ipc_msg_s* ipc_msg = __malloc_ipc_msg(ipc_body, custom_ipc_msg, msg_type);
     if (ipc_msg == NULL) {
         return NULL;
     }
@@ -498,7 +525,7 @@ static struct ipc_msg_s* __create_ipc_msg(struct ipc_body_s* ipc_body, long msg_
     ipc_msg->msg_flag = ipc_body->probe_flags;
     buf = (char *)(ipc_msg->msg);
 
-    ret = __build_ipc_msg(buf, ipc_msg->msg_len, ipc_body);
+    ret = __build_ipc_msg(buf, ipc_msg->msg_len, ipc_body, custom_ipc_msg);
     if (ret) {
         __free_ipc_msg(ipc_msg);
         return NULL;
@@ -562,6 +589,18 @@ static int __deserialize_snooper_num_tlv(char *buf, size_t size, struct ipc_body
     return (tlv->len + sizeof(struct ipc_tlv_s));
 }
 
+static int __deserialize_custom_tlv(char *buf, size_t size, struct custom_ipc *custom_ipc_msg)
+{
+    struct ipc_tlv_s *tlv = (struct ipc_tlv_s *)buf;
+
+    if ((tlv->type != IPCT_CUSTOM_MSG) || (tlv->len != sizeof(struct custom_ipc))) {
+        return -1;
+    }
+
+    (void)memcpy(custom_ipc_msg, tlv->value, sizeof(struct custom_ipc));
+    return (tlv->len + sizeof(struct ipc_tlv_s));
+}
+
 static int __deserialize_snooper_tlv(char *buf, size_t size, struct ipc_body_s* ipc_body)
 {
     int max_len = (int)size, offset_len = 0, deserialize_len = 0;
@@ -598,7 +637,7 @@ static int __deserialize_snooper_tlv(char *buf, size_t size, struct ipc_body_s* 
     return (size_t)offset_len;
 }
 
-static int __deserialize_ipc_msg(struct ipc_msg_s* ipc_msg, struct ipc_body_s* ipc_body)
+static int __deserialize_ipc_msg(struct ipc_msg_s* ipc_msg, struct ipc_body_s* ipc_body, struct custom_ipc *custom_ipc_msg)
 {
     char *cur, *start;
     int max_len = ipc_msg->msg_len, offset = 0, deserialize_len = 0;
@@ -636,6 +675,19 @@ static int __deserialize_ipc_msg(struct ipc_msg_s* ipc_msg, struct ipc_body_s* i
     max_len -= deserialize_len;
     if (max_len < 0) {
         return -1;
+    }
+
+    if (custom_ipc_msg != NULL) {
+        cur = start + offset;
+        deserialize_len = __deserialize_custom_tlv(cur, (size_t)max_len, custom_ipc_msg);
+        if (deserialize_len < 0) {
+            return -1;
+        }
+        offset += deserialize_len;
+        max_len -= deserialize_len;
+        if (max_len < 0) {
+            return -1;
+        }
     }
 
     if (max_len == 0) {
@@ -708,17 +760,46 @@ int send_ipc_msg(int msqid, long msg_type, struct ipc_body_s* ipc_body)
         return -1;
     }
 
-    if (msg_type < PROBE_BASEINFO || msg_type >= PROBE_TYPE_MAX) {
+    if (msg_type < PROBE_BASEINFO || msg_type == PROBE_TYPE_MAX || msg_type > (MAX_CUSTOM_NUM + PROBE_CUSTOM_IPC)) {
         return -1;
     }
 
-    ipc_msg = __create_ipc_msg(ipc_body, msg_type);
+    ipc_msg = __create_ipc_msg(ipc_body, NULL, msg_type);
     if (ipc_msg == NULL) {
         return -1;
     }
 
     if (msgsnd(msqid, ipc_msg, ipc_msg->msg_len + sizeof(ipc_msg->msg_len) + sizeof(ipc_msg->msg_flag), 0) < 0) {
         ERROR("[IPC] send ipc message(msg_type = %ld) failed(%d). Try increasing sysctl param kernel.msgmax.\n", msg_type, errno);
+        err = -1;
+    }
+
+    __free_ipc_msg(ipc_msg);
+    ipc_msg = NULL;
+
+    return err;
+}
+
+int send_custom_ipc_msg(int msqid, long msg_type, struct ipc_body_s* ipc_body, struct custom_ipc *custom_ipc_msg)
+{
+    int err = 0;
+    struct ipc_msg_s* ipc_msg;
+
+    if (msqid < 0) {
+        return -1;
+    }
+
+    if (msg_type > (MAX_CUSTOM_NUM + PROBE_CUSTOM_IPC)) {
+        return -1;
+    }
+
+    ipc_msg = __create_ipc_msg(ipc_body, custom_ipc_msg, msg_type);
+    if (ipc_msg == NULL) {
+        return -1;
+    }
+
+    if (msgsnd(msqid, ipc_msg, ipc_msg->msg_len + sizeof(ipc_msg->msg_len) + sizeof(ipc_msg->msg_flag), 0) < 0) {
+        ERROR("[IPC] send ipc message(msg_type = %ld) failed(%d).\n", msg_type, errno);
         err = -1;
     }
 
@@ -756,9 +837,53 @@ int recv_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body)
             goto end;
         }
         (void)memset(ipc_body, 0, sizeof(struct ipc_body_s));
-        deserialize_len = __deserialize_ipc_msg(ipc_msg, ipc_body);
+        deserialize_len = __deserialize_ipc_msg(ipc_msg, ipc_body, NULL);
         if (deserialize_len < 0) {
             ERROR("[IPC] recv ipc message(msg_type = %d) deserialize failed.\n", msg_type);
+            goto end;
+        }
+        ipc_body->probe_flags = msg_flags;
+        err = 0;
+    }
+
+end:
+    if ((err != 0) && (msg_rcvd != 0)) {
+        destroy_ipc_body(ipc_body);
+    }
+    return err;
+}
+
+int recv_custom_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body, struct custom_ipc *custom_ipc_msg)
+{
+    int err = -1;
+    int deserialize_len;
+    struct ipc_msg_s* ipc_msg;
+    int msg_rcvd = 0;
+    u32 msg_len;
+    u32 msg_flags = 0;
+
+    if (msqid < 0) {
+        return -1;
+    }
+
+    ipc_msg = __get_raw_ipc_msg(msg_type);
+    msg_len = ipc_msg->msg_len + sizeof(ipc_msg->msg_len) + sizeof(ipc_msg->msg_flag);
+    /* Only deal with the last message within every check */
+    while (msgrcv(msqid, ipc_msg, msg_len, msg_type, IPC_NOWAIT) != -1) {
+        msg_rcvd = 1;
+        msg_flags |= ipc_msg->msg_flag;
+    }
+
+    if (msg_rcvd) {
+        if (ipc_msg->msg_len > __GOPHER_IPC_MSG_LEN) {
+            ERROR("[IPC] recv ipc message(msg_type = %d) invalid len.\n", msg_type);
+            goto end;
+        }
+        (void)memset(ipc_body, 0, sizeof(struct ipc_body_s));
+        (void)memset(custom_ipc_msg, 0, sizeof(struct custom_ipc));
+        deserialize_len = __deserialize_ipc_msg(ipc_msg, ipc_body, custom_ipc_msg);
+        if (deserialize_len < 0) {
+            ERROR("[CUSTOM IPC] recv ipc message(msg_type = %d) deserialize failed.\n", msg_type);
             goto end;
         }
         ipc_body->probe_flags = msg_flags;

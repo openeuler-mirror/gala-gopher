@@ -26,6 +26,8 @@
 #include <sys/epoll.h>
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
+#include <dirent.h>
+#include <pwd.h>
 
 #include "ipc.h"
 #include "pod_mng.h"
@@ -60,6 +62,13 @@ struct probe_define_s probe_define[] = {
     {"sli",           "/opt/gala-gopher/extend_probes/sliprobe",           PROBE_SLI,         SNOOPER_TYPE_CON,    ENABLE_SLI},
     {"flowtracer",    "/opt/gala-gopher/extend_probes/flowtracer",         PROBE_FLOWTRACER,  SNOOPER_TYPE_NONE,   ENABLE_FLOWTRACER}
     // If you want to add a probe, add the probe define.
+};
+
+struct probe_threshold_verify verify[] = {
+    {"name",       MAX_CUSTOM_NAME_LEN},
+    {"bin",        MAX_BIN_LEN},
+    {"probe_num",  MAX_SUBPROBE_NUM},
+    {"param",      MAX_CUSTOM_PARAMS_LEN}
 };
 
 struct probe_range_define_s {
@@ -196,6 +205,36 @@ static int check_probe_range(struct probe_s *probe)
     return 0;
 }
 
+static int check_duplicate(const char str[][MAX_CUSTOM_NAME_LEN], const unsigned int n) {
+    for (size_t i = 0; i < n; i++) {
+        for (size_t j = i + 1; j < n; j++) {
+            if (strcmp(str[i], str[j]) == 0) {
+                return -1;
+            }
+        }
+    }
+    return 0;
+}
+
+
+int check_custom_range(const char *key, const char *comp)
+{
+    if (key == NULL || comp == NULL) {
+        return -1;
+    }
+
+    int size = sizeof(verify) / sizeof(struct probe_threshold_verify);
+    for (int i = 0; i < size; i++) {
+        if (strcmp(verify[i].name, comp) != 0) {
+            continue;
+        }
+        if (strlen(key) == 0 || strlen(key) > verify[i].max) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
 static int check_probe_snooper_conf_num(struct probe_s *probe)
 {
     if (probe->snooper_conf_num == 0 && (!strcmp(probe->name, "tcp") ||
@@ -207,6 +246,7 @@ static int check_probe_snooper_conf_num(struct probe_s *probe)
 }
 
 static struct probe_mng_s *g_probe_mng;
+static struct custom_ini *g_custom_ini;
 
 char g_parse_json_err[PARSE_JSON_ERR_STR_LEN];
 
@@ -293,6 +333,10 @@ static int attach_probe_fd(struct probe_mng_s *probe_mng, struct probe_s *probe)
 static void detach_probe_fd(struct probe_mng_s *probe_mng, struct probe_s *probe)
 {
     struct epoll_event event;
+    if (probe_mng == NULL || probe == NULL) {
+        return;
+    }
+
     if (probe_mng->ingress_epoll_fd < 0 || probe->fifo == NULL) {
         return;
     }
@@ -519,10 +563,12 @@ static int try_start_probe(struct probe_s *probe)
     int ret;
 
     if (IS_RUNNING_PROBE(probe)) {
+        probe->resnd_snooper_for_restart = 0;
         return 0;
     }
 
     if (!IS_STARTED_PROBE(probe)) {
+        probe->resnd_snooper_for_restart = 0;
         return 0;
     }
 
@@ -549,7 +595,7 @@ static int try_start_probe(struct probe_s *probe)
     probe->probe_status.status_flags |= PROBE_FLAGS_RUNNING;
     probe->probe_status.status_flags &= ~(PROBE_FLAGS_STOPPED);
     (void)pthread_rwlock_unlock(&probe->rwlock);
-    probe->resnd_snooper_for_restart = 1;  // must be reset when start ends
+    probe->resnd_snooper_for_restart += 1;  // must be reset when start ends
     return 0;
 }
 
@@ -604,7 +650,7 @@ static int stop_probe(struct probe_s *probe)
 
     if (IS_NATIVE_PROBE(probe)) {
         set_probe_status_stopped(probe);
-        clear_ipc_msg((long)probe->probe_type);
+        clear_ipc_msg((long)(probe->probe_type == PROBE_CUSTOM) ? (PROBE_CUSTOM_IPC + probe->custom.index) : probe->probe_type);
     } else {
         if (kill_extend_probe(probe)) {
             return -1;
@@ -634,17 +680,89 @@ static enum probe_type_e get_probe_type_by_name(const char *probe_name)
             return probe_define[i].type;
         }
     }
-    PARSE_ERR("invalid probe name");
+
+    if (g_custom_ini) {
+        for (size_t i = 1; i <= g_custom_ini->custom_num; i++) {
+            if (!strcmp(g_custom_ini->custom[i]->name, probe_name)) {
+                return PROBE_CUSTOM;
+            }
+        }
+    }
+
+    PARSE_ERR("invalid probe name %s", probe_name);
     return PROBE_TYPE_MAX;
+}
+
+/* Pass the parameters of the init custom probe record to the currently probe. */
+static int information_transfer(struct probe_s *custom, struct probe_s *probe)
+{
+    char *bin;
+    unsigned int size;
+
+    /* Transfer the bin, privilege, subprobe, params information in the JSON file. */
+    bin = probe->bin;
+    probe->bin = strdup(custom->bin);
+    if (bin != NULL) {
+        free(bin);
+        bin = NULL;
+    }
+    if (probe->bin == NULL) {
+        ERROR("[Custom]Failed to allocate memory for the bin file of probe through strdup, bin is %s.\n", custom->bin);
+        return -1;
+    }
+
+    probe->custom.privilege = custom->custom.privilege;
+
+    size = custom->custom.custom_ipc_msg.params_num;
+    for (int i = 0; i < size; i++) {
+        snprintf(probe->custom.custom_ipc_msg.custom_param[i].label, MAX_CUSTOM_PARAMS_LEN,
+                 "%s", custom->custom.custom_ipc_msg.custom_param[i].label);
+    }
+    probe->custom.custom_ipc_msg.params_num = size;
+    probe->custom.index = custom->custom.index;
+
+    return 0;
+}
+
+static int find_custom_ini(struct probe_s *probe) {
+    u32 num = g_custom_ini->custom_num;
+    int ret;
+
+    for (int i = 0; i <= num; i++) {
+        if ((g_custom_ini->custom[i] != NULL) && (strcmp(g_custom_ini->custom[i]->name, probe->name)) == 0) {
+            ret = information_transfer(g_custom_ini->custom[i], probe);
+            return ret;
+        }
+    }
+    return -1;
 }
 
 static struct probe_s *get_probe_by_name(const char *probe_name)
 {
     enum probe_type_e probe_type = get_probe_type_by_name(probe_name);
+    u32 custom_index = g_probe_mng->custom_index;
+
     if (probe_type >= PROBE_TYPE_MAX) {
         return NULL;
     }
 
+    if (probe_type == PROBE_CUSTOM) {
+        for (size_t i = 1; i <= custom_index; i++) {
+            if (strcmp(probe_name, g_probe_mng->custom[i]->name) == 0) {
+                return g_probe_mng->custom[i];
+            }
+        }
+        custom_index++;
+        if (custom_index >= MAX_CUSTOM_NUM) {
+            PARSE_ERR("The number of external probes has over the threshold.");
+            return NULL;
+        }
+        g_probe_mng->custom[custom_index] = new_probe(probe_name, PROBE_CUSTOM);
+        if (g_probe_mng->custom[custom_index] != NULL && !find_custom_ini(g_probe_mng->custom[custom_index])) {
+            g_probe_mng->custom_index = custom_index;
+        }
+        return g_probe_mng->custom[custom_index];
+    }
     if (g_probe_mng->probes[probe_type]) {
         return g_probe_mng->probes[probe_type];
     }
@@ -657,14 +775,25 @@ static void probe_printer_cmd(struct probe_s *probe, void *json)
 {
     void *range;
     Json_AddStringToObject(json, "bin", probe->bin ? :"");
-
-    size_t size = sizeof(probe_range_define) / sizeof(struct probe_range_define_s);
+    size_t size = 0;
 
     range = Json_CreateArray();
-    for (size_t i = 0; i < size; i++) {
-        if (probe->probe_type == probe_range_define[i].probe_type) {
-            if (probe->probe_range_flags & probe_range_define[i].flags) {
-                Json_AddStringItemToArray(range, probe_range_define[i].desc);
+    if (probe->probe_type == PROBE_CUSTOM) {
+        size = probe->custom.custom_ipc_msg.subprobe_num;
+
+        for (size_t i = 0; i < size; i++) {
+            if (probe->custom.custom_ipc_msg.subprobe[i] != NULL) {
+                Json_AddStringItemToArray(range, probe->custom.custom_ipc_msg.subprobe[i]);
+            }
+        }
+    } else {
+        size = sizeof(probe_range_define) / sizeof(struct probe_range_define_s);
+
+        for (size_t i = 0; i < size; i++) {
+            if (probe->probe_type == probe_range_define[i].probe_type) {
+                if (probe->probe_range_flags & probe_range_define[i].flags) {
+                    Json_AddStringItemToArray(range, probe_range_define[i].desc);
+                }
             }
         }
     }
@@ -672,25 +801,76 @@ static void probe_printer_cmd(struct probe_s *probe, void *json)
     Json_Delete(range);
 }
 
+static int custom_subprobe_parser(struct probe_s *probe, const char *subprobe)
+{
+    unsigned int subsize;
+    size_t index;
+
+    if (subprobe == NULL) {
+        return -1;
+    }
+
+    subsize = g_custom_ini->custom[probe->custom.index]->custom.custom_ipc_msg.subprobe_num;
+    for (index = 0; index < subsize; index++) {
+        if (strcmp(subprobe, g_custom_ini->custom[probe->custom.index]->custom.custom_ipc_msg.subprobe[index]) == 0) {
+            break;
+        }
+    }
+    if (index == subsize) {
+        PARSE_ERR("invalid external probe range: subprobe name error,name is %s.", subprobe);
+        return -1;
+    }
+    snprintf(probe->custom.custom_ipc_msg.subprobe[probe->custom.custom_ipc_msg.subprobe_num],
+             MAX_CUSTOM_NAME_LEN, "%s", subprobe);
+    (probe->custom.custom_ipc_msg.subprobe_num)++;
+    return 0;
+}
 /* {"probe":["XX","YY"]} , XX must be string and must be in supported probe range*/
 static int probe_parser_range(struct probe_s *probe, void *probe_item)
 {
-    int range;
+    int range = 0;
     void *object;
+    unsigned int subnum_bak = 0;
+    char subprobe_bak[MAX_SUBPROBE_NUM][MAX_CUSTOM_NAME_LEN] = {0};
+    int ret = 0;
 
+    if (probe->probe_type == PROBE_CUSTOM) {
+        for (int j = 0; j < probe->custom.custom_ipc_msg.subprobe_num; j++) {
+            snprintf(subprobe_bak[j], MAX_CUSTOM_NAME_LEN, "%s", probe->custom.custom_ipc_msg.subprobe[j]);
+        }
+        subnum_bak = probe->custom.custom_ipc_msg.subprobe_num;
+        memset(probe->custom.custom_ipc_msg.subprobe, 0, sizeof(char) * MAX_SUBPROBE_NUM * MAX_CUSTOM_NAME_LEN);
+        probe->custom.custom_ipc_msg.subprobe_num = 0;
+    }
     probe->probe_range_flags = 0;
     size_t size = Json_GetArraySize(probe_item);
     for (size_t i = 0; i < size; i++) {
         object = Json_GetArrayItem(probe_item, i);
         if (!Json_IsString(object)) {
-            PARSE_ERR("invalid probe range: must be string");
+            PARSE_ERR("Invalid probe range: must be string.");
+            return -1;
+        }
+        if (check_custom_range((char *)Json_GetValueString(object), "name")) {
+            PARSE_ERR("The lengh of probe name must range from 0 to %d.", MAX_CUSTOM_NAME_LEN);
             return -1;
         }
 
-        range = get_probe_range(probe->probe_type, (const char*)Json_GetValueString(object));
-        if (!range) {
-            PARSE_ERR("unsupported probe range: %s", (const char*)Json_GetValueString(object));
-            return -1;
+        if (probe->probe_type == PROBE_CUSTOM) {
+            ret = custom_subprobe_parser(probe, (const char*)Json_GetValueString(object));
+            if (ret) {
+                for (int j = 0; j < subnum_bak; j++) {
+                    memset(probe->custom.custom_ipc_msg.subprobe[j], 0, sizeof(char) * MAX_CUSTOM_NAME_LEN);
+                    snprintf(probe->custom.custom_ipc_msg.subprobe[j], MAX_CUSTOM_NAME_LEN, "%s", subprobe_bak[j]);
+                }
+                probe->custom.custom_ipc_msg.subprobe_num = subnum_bak;
+                return -1;
+            }
+        } else {
+            range = get_probe_range(probe->probe_type, (const char*)Json_GetValueString(object));
+            if (!range) {
+                PARSE_ERR("unsupported probe range: %s.", (const char*)Json_GetValueString(object));
+                return -1;
+            }
         }
         probe->probe_range_flags |= (u32)range;
     }
@@ -698,17 +878,155 @@ static int probe_parser_range(struct probe_s *probe, void *probe_item)
     return check_probe_range(probe);
 }
 
+char *probe_extern_cmd_param(const char *key, const void *item)
+{
+    void *probe_object;
+
+    probe_object = Json_GetObjectItem(item, key);
+    if (probe_object == NULL || !Json_IsString(probe_object)) {
+        PARSE_ERR("invalid probe range: must be string and not null.");
+        return NULL;
+    }
+    return (char *)Json_GetValueString(probe_object);
+}
+
+static int custom_params_ini(struct probe_s *probe, char *param) {
+    char *ptr = NULL;
+    int count = 0;
+
+    if (param == NULL) {
+        return -1;
+    }
+    ptr = strtok(param, ",");
+    while (ptr != NULL) {
+        if (count == MAX_CUSTOM_PARAMS_NUM) {
+            ERROR("[CUSTOM INI]The number of custom params must less than MAX_CUSTOM_PARAMS_NUM.\n");
+            return -1;
+        }
+        if (check_custom_range(ptr, "param")) {
+            ERROR("[CUSTOM INI]The length of custom params must range from 0 to %d.\n", MAX_CUSTOM_PARAMS_LEN);
+            return -1;
+        }
+        for (size_t i = 0; i < count; ++i) {
+            if (strcmp(ptr, probe->custom.custom_ipc_msg.custom_param[i].label) == 0) {
+                ERROR("[CUSTOM INI] Duplicate parameter names are not allowed.");
+                return -1;
+            }
+        }
+        snprintf(probe->custom.custom_ipc_msg.custom_param[count].label, MAX_CUSTOM_PARAMS_LEN, "%s", ptr);
+        INFO("The NO.%d param is %s.\n", count, ptr);
+        count++;
+        ptr = strtok(NULL, ",");
+    }
+    probe->custom.custom_ipc_msg.params_num = count;
+    return 0;
+}
+
 static int probe_parser_cmd(struct probe_s *probe, const void *item)
 {
     int ret = 0;
     void *probe_object;
+    char *bin;
 
     probe_object = Json_GetObjectItem(item, "probe");
-    if (probe_object != NULL) {
-        ret = probe_parser_range(probe, probe_object);
+    if (probe_object == NULL) {
+        ERROR("[Custom ini]:Faild get probe params from json.\n");
+        return -1;
+    }
+    ret = probe_parser_range(probe, probe_object);
+    if (ret) {
+        return ret;
+    }
+
+    /* Custom probe dedicated, there are tow scenarios.*/
+    if (probe->probe_type == PROBE_CUSTOM) {
+        bin = probe_extern_cmd_param("bin", item);
+        if (bin == NULL || strcmp(probe->bin, bin)) {
+            PARSE_ERR("invalid custom probe bin path");
+            return -1;
+        }
     }
 
     return ret;
+}
+
+static int custom_parser(struct probe_s *probe, const void *item)
+{
+    int ret = 0;
+    size_t size;
+    void *probe_object;
+    void *object;
+    char *type;
+
+    probe_object = Json_GetObjectItem(item, "probe");
+    if (probe_object == NULL) {
+        ERROR("[Custom ini]Invalid json format: please check probe value.\n");
+        return -1;
+    }
+
+    size = Json_GetArraySize(probe_object);
+    if (size > MAX_SUBPROBE_NUM) {
+        ERROR("[Custom ini]The number of subprobe must less than %d.\n", MAX_SUBPROBE_NUM);
+        return -1;
+    }
+
+    for (size_t i = 0; i < size; i++) {
+        object = Json_GetArrayItem(probe_object, i);
+        if (!Json_IsString(object)) {
+            ERROR("[Custom ini]Invalid probe range: must be string.\n");
+            return -1;
+        }
+        if (check_custom_range((char *)Json_GetValueString(object), "name")) {
+            ERROR("[Custom ini]The lengh of probe name must range from 0 to %d.\n", MAX_CUSTOM_NAME_LEN);
+            return -1;
+        }
+
+        snprintf(probe->custom.custom_ipc_msg.subprobe[i], MAX_CUSTOM_NAME_LEN, "%s", (char *)Json_GetValueString(object));
+        (probe->custom.custom_ipc_msg.subprobe_num)++;
+    }
+
+    ret = check_duplicate(probe->custom.custom_ipc_msg.subprobe, probe->custom.custom_ipc_msg.subprobe_num);
+    if (ret) {
+        ERROR("[Custom ini] Duplicate subprobe names are not allowed.\n");
+        return -1;
+    }
+
+    type = probe_extern_cmd_param("bin", item);
+    if (type == NULL) {
+        ERROR("[Custom ini] Invalid json format: please check bin value.\n");
+        return -1;
+    }
+
+    if (check_path_for_security(type)) {
+        ERROR("[Custom ini] Custom probe bin contains insecure characters.\n");
+        return -1;
+    }
+
+    probe->bin = strdup(type);
+    if (probe->bin == NULL) {
+        ERROR("[Custom ini] Failed to strdup custom probe bin\n");
+        return -1;
+    }
+
+    if (check_custom_range(probe->bin, "bin")) {
+        ERROR("[Custom ini]:The length of bin must range from 0 to %d.\n", MAX_BIN_LEN);
+        return -1;
+    }
+
+    probe->custom.privilege = false;
+
+    type = probe_extern_cmd_param("custom_param", item);
+    if (type == NULL) {
+        ERROR("[Custom ini]Invalid json format: please check custom_param value.\n");
+        return -1;
+    }
+    ret = custom_params_ini(probe, type);
+    if (ret) {
+        ERROR("[Custom ini]invalid json type, check custom params.\n");
+        return -1;
+    }
+
+    return 0;
 }
 
 static void probe_backup_cmd(struct probe_s *probe, struct probe_s *probe_backup)
@@ -779,14 +1097,50 @@ static void print_params(struct probe_s *probe, void *json)
     probe_params_to_json(probe, json);
 }
 
+static void custom_param_backup(struct custom *custom, struct custom *custom_backup)
+{
+    custom_backup->index = custom->index;
+    custom_backup->privilege = custom->privilege;
+    custom_backup->custom_ipc_msg.params_num = custom->custom_ipc_msg.params_num;
+    custom_backup->custom_ipc_msg.subprobe_num = custom->custom_ipc_msg.subprobe_num;
+    for (int i = 0; i < custom->custom_ipc_msg.subprobe_num; i++) {
+        snprintf(custom_backup->custom_ipc_msg.subprobe[i], MAX_CUSTOM_NAME_LEN, "%s", custom->custom_ipc_msg.subprobe[i]);
+    }
+    for (int i = 0; i < custom->custom_ipc_msg.params_num; i++) {
+        snprintf(custom_backup->custom_ipc_msg.custom_param[i].label, MAX_CUSTOM_PARAMS_LEN, "%s", custom->custom_ipc_msg.custom_param[i].label);
+        snprintf(custom_backup->custom_ipc_msg.custom_param[i].value, MAX_CUSTOM_PARAMS_LEN, "%s", custom->custom_ipc_msg.custom_param[i].value);
+    }
+}
+
+static void custom_param_rollback(struct custom *custom, struct custom *custom_backup)
+{
+    custom->index = custom_backup->index;
+    custom->privilege = custom_backup->privilege;
+    custom->custom_ipc_msg.params_num = custom_backup->custom_ipc_msg.params_num;
+    custom->custom_ipc_msg.subprobe_num = custom_backup->custom_ipc_msg.subprobe_num;
+    for (int i = 0; i < custom->custom_ipc_msg.subprobe_num; i++) {
+        snprintf(custom->custom_ipc_msg.subprobe[i], MAX_CUSTOM_NAME_LEN, "%s", custom_backup->custom_ipc_msg.subprobe[i]);
+    }
+    for (int i = 0; i < custom->custom_ipc_msg.params_num; i++) {
+        snprintf(custom->custom_ipc_msg.custom_param[i].label, MAX_CUSTOM_PARAMS_LEN, "%s", custom_backup->custom_ipc_msg.custom_param[i].label);
+        snprintf(custom->custom_ipc_msg.custom_param[i].value, MAX_CUSTOM_PARAMS_LEN, "%s", custom_backup->custom_ipc_msg.custom_param[i].value);
+    }
+}
+
 static void probe_backup_params(struct probe_s *probe, struct probe_s *probe_backup)
 {
     memcpy(&probe_backup->probe_param, &probe->probe_param, sizeof(struct probe_params));
+    if (probe->probe_type == PROBE_CUSTOM) {
+        custom_param_backup(&probe->custom, &probe_backup->custom);
+    }
 }
 
 static void probe_rollback_params(struct probe_s *probe, struct probe_s *probe_backup)
 {
     memcpy(&probe->probe_param, &probe_backup->probe_param, sizeof(struct probe_params));
+    if (probe->probe_type == PROBE_CUSTOM) {
+        custom_param_rollback(&probe->custom, &probe_backup->custom);
+    }
 }
 
 typedef int (*probe_json_parser)(struct probe_s *, const void *);
@@ -972,6 +1326,16 @@ static void set_probe_modify(struct probe_s *probe, struct probe_s *backup_probe
     return;
 }
 
+static void probe_info_print(struct probe_s *probe)
+{
+    INFO("probe name = %s\n", probe->name);
+    INFO("probe bin = %s\n", probe->bin);
+    INFO("probe privilege = %s\n", (probe->custom.privilege == true ? "true" : "false"));
+    for (int i = 0; i < probe->custom.custom_ipc_msg.subprobe_num; i++) {
+        INFO("probe subprobe %d is %s\n", i, probe->custom.custom_ipc_msg.subprobe[i]);
+    }
+}
+
 int parse_probe_json(const char *probe_name, const char *probe_content)
 {
     int ret = -1;
@@ -996,11 +1360,10 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
         goto end;
     }
 
-    probe_backup = (struct probe_s *)malloc(sizeof(struct probe_s));
+    probe_backup = (struct probe_s *)calloc(1, sizeof(struct probe_s));
     if (probe_backup == NULL) {
         goto end;
     }
-    (void)memset(probe_backup, 0, sizeof(struct probe_s));
 
     size_t size = sizeof(probe_parsers) / sizeof(struct probe_parser_s);
     for (size_t i = 0; i < size; i++) {
@@ -1027,6 +1390,10 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
         set_probe_modify(probe, probe_backup, parse_flag);
     }
 
+    if (ret == 0) {
+        probe_info_print(probe);
+    }
+
     /* Send snooper obj after parsing successfully */
     if (ret == 0 && (IS_STARTED_PROBE(probe) || IS_RUNNING_PROBE(probe)) &&
         (probe->is_params_chg || probe->is_snooper_chg || probe->resnd_snooper_for_restart)) {
@@ -1050,7 +1417,7 @@ char *get_probe_json(const char *probe_name)
 {
     void *res = NULL, *item;
     char *buf = NULL;
-    struct probe_s *probe;
+    struct probe_s *probe = NULL;
     struct probe_parser_s *parser;
 
     get_probemng_lock();
@@ -1061,7 +1428,19 @@ char *get_probe_json(const char *probe_name)
     }
 
     res = Json_CreateObject();
-    probe = g_probe_mng->probes[probe_type];
+    if (probe_type == PROBE_CUSTOM) {
+        for (int i = 1; i <= g_probe_mng->custom_index; i++) {
+            if (strcmp(g_probe_mng->custom[i]->name, probe_name) == 0) {
+                probe = g_probe_mng->custom[i];
+                break;
+            }
+            if (i == g_probe_mng->custom_index) {
+                goto end;
+            }
+        }
+    } else {
+        probe = g_probe_mng->probes[probe_type];
+    }
     if (probe == NULL) {
         goto end;
     }
@@ -1100,7 +1479,7 @@ void destroy_probe_threads(void)
         struct probe_s *probe = g_probe_mng->probes[i];
         if (probe != NULL) {
             stop_probe(probe);
-            INFO("[PROBE_MNG] Probe %s is stopped\n", probe->name);
+            INFO("[PROBE_MNG] Probe %s is stopped.\n", probe->name);
         }
     }
 }
@@ -1125,6 +1504,255 @@ void destroy_probe_mng(void)
     free(g_probe_mng);
     g_probe_mng = NULL;
     del_pods();
+}
+
+void destroy_custom_ini(void)
+{
+    struct probe_s *probe;
+
+    if (g_custom_ini == NULL) {
+        return;
+    }
+    for (int i = 0; i <= g_custom_ini->custom_num; i++) {
+        probe = g_custom_ini->custom[i];
+        if (probe == NULL) {
+            continue;
+        }
+        stop_probe(probe);
+        INFO("[CUSTOM INI]Probe %s is stopped\n", probe->name);
+        destroy_probe(g_custom_ini->custom[i]);
+        g_custom_ini->custom[i] = NULL;
+    }
+    free(g_custom_ini);
+    g_custom_ini = NULL;
+}
+
+static struct probe_s* new_custom(const char* name, const u32 custom_index)
+{
+    struct probe_s *probe = NULL;
+    size_t size = sizeof(probe_define) / sizeof(struct probe_define_s);
+
+    for (int i = 0; i < size; i++) {
+        if (strcmp(name, probe_define[i].desc) == 0) {
+            ERROR("[CUSTOM INI]Custom name cannot be the same as internal probe.");
+            return NULL;
+        }
+    }
+
+    probe = (struct probe_s *)calloc(1, sizeof(struct probe_s));
+    if (probe == NULL) {
+        ERROR("[CUSTOM INI]Probe memory allocation failure.\n");
+        return NULL;
+    }
+
+    probe->name = strdup(name);
+    if (probe->name == NULL) {
+        ERROR("[CUSTOM INI]Probe name memory strdup failure.\n");
+        free(probe);
+        return NULL;
+    }
+
+    probe->probe_type = PROBE_CUSTOM;
+    probe->custom.index = custom_index;
+    probe->bin = NULL;
+    set_default_params(probe);
+
+    return probe;
+}
+
+static struct probe_s *creare_custom_by_name(char *name)
+{
+    u32 custom_index = g_custom_ini->custom_num;
+
+    if (check_custom_range(name, "name")) {
+        ERROR("[CUSTOM INIT]The length of custom name has out of range, it must range from 0 to %d.\n", MAX_CUSTOM_NAME_LEN);
+        return NULL;
+    }
+    custom_index++;
+    if (custom_index >= MAX_CUSTOM_NUM) {
+        ERROR("[CUSTOM INIT]The number of custom probes has over the threshold.\n");
+        return NULL;
+    }
+    g_custom_ini->custom[custom_index] = new_custom(name, custom_index);
+    if (g_custom_ini->custom[custom_index] != NULL) {
+        g_custom_ini->custom_num = custom_index;
+    }
+    return g_custom_ini->custom[custom_index];
+}
+/* Read data from a file*/
+int file_handle(const char *file, char *data, size_t size)
+{
+    FILE *fp;
+    u32 fsize;
+    size_t file_size;
+
+    fp = fopen(file, "r");
+    if (fp == NULL) {
+        ERROR("[CUSTOM INI]Unable to open file.\n");
+        return -1;
+    }
+    fseek(fp, 0, SEEK_END);
+    fsize = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    file_size = fread(data, 1, fsize, fp);
+    if (file_size != fsize || file_size >= size) {
+        ERROR("[CUSTOM INI]Please verify the value of file_size.\n");
+        fclose(fp);
+        return -1;
+    }
+    fclose(fp);
+    data[fsize] = '\0';
+    return 0;
+}
+
+static int init_custom_probe(const char* data)
+{
+    void *json_obj = NULL;
+    struct key_value_pairs *kv_pairs = NULL;
+    struct key_value *kv;
+    struct probe_s *probe;
+
+    json_obj = Json_Parse(data);
+    if (json_obj == NULL) {
+        ERROR("[CUSTOM INI]invalid json format.\n");
+        return -1;
+    }
+
+    kv_pairs = Json_GetKeyValuePairs(json_obj);
+    if (!kv_pairs) {
+        ERROR("[CUSTOM INI]invalid json param pairs.\n");
+        Json_Delete(json_obj);
+        return -1;
+    }
+    Json_ArrayForEach(kv, kv_pairs) {
+        probe = creare_custom_by_name(kv->key);
+        if (probe == NULL) {
+            ERROR("[CUSTOM INI]Failed to initialize the custom with name.\n");
+            Json_DeleteKeyValuePairs(kv_pairs);
+            Json_Delete(json_obj);
+            return -1;
+        }
+
+        if (custom_parser(probe, kv->valuePtr)) {
+            Json_DeleteKeyValuePairs(kv_pairs);
+            Json_Delete(json_obj);
+            return -1;
+        }
+    }
+
+    Json_DeleteKeyValuePairs(kv_pairs);
+    Json_Delete(json_obj);
+    for(int i = 1; i <= g_custom_ini->custom_num; ++i) {
+        INFO("[CUSTOM INI] custom probe %s has been obtained successfully.\n", g_custom_ini->custom[i]->name);
+    }
+    return 0;
+}
+
+static int init_custom(const char *custom_path)
+{
+    char *json_data;
+    int ret;
+
+    json_data = calloc(1, MAX_CUSTOM_CONFIG + 1);
+    if (json_data == NULL) {
+        ERROR("[CUSTOM INI]Custom memory allocation error\n");
+        return -1;
+    }
+    ret = file_handle(custom_path, json_data, MAX_CUSTOM_CONFIG + 1);
+    if (ret) {
+        free(json_data);
+        return ret;
+    }
+
+    ret = init_custom_probe(json_data);
+    free(json_data);
+    if (ret) {
+        return ret;
+    }
+
+    return 0;
+}
+
+static int verify_single_permission(char *path, bool is_true, unsigned int user, unsigned int group, unsigned int other)
+{
+    struct stat st;
+    struct passwd *pw;
+
+    if (lstat(path, &st)) {
+        ERROR("%s stat has error, Check whether the file exists.\n", path);
+        return -1;
+    }
+
+    if ((st.st_mode & S_IFMT) == S_IFLNK) {
+        ERROR("%s is a symbolic link\n", path);
+        return -1;
+    }
+
+    if ((st.st_mode & S_IFMT) != S_IFREG) {
+        ERROR("The path %s is not a standard path.\n", path);
+        return -1;
+    }
+
+    if (is_true == true) {
+        if (st.st_uid != 0) {
+            ERROR("%s must owned by root.\n", path);
+            return -1;
+        }
+    } else {
+        pw = getpwuid(st.st_uid);
+        if (pw == NULL) {
+            ERROR("Failed to obtain the owner name. Check the owner.\n");
+            return -1;
+        }
+
+        if (strcmp(pw->pw_name, "gala-gopher") != 0) {
+            ERROR("Failed to verify %s, the owner is not gala-gopher.\n", path);
+            return -1;
+        }
+    }
+
+    if (((st.st_mode & S_IRWXU) == user) && ((st.st_mode & S_IRWXG) == group) && ((st.st_mode & S_IRWXO) == other)) {
+        return 0;
+    }
+    ERROR("%s has permission error.\n", path);
+    return -1;
+
+}
+
+static int verify_permissions()
+{
+    int ret = 0;
+    int size = g_custom_ini->custom_num;
+
+    for (int i = 1; i <= size; i++) {
+        ret = verify_single_permission(g_custom_ini->custom[i]->bin, true, (S_IRUSR | S_IXUSR), (S_IRGRP | S_IXGRP), 0);
+        if (ret) {
+            return -1;
+        }
+    }
+    ret = verify_single_permission(GALA_GOPHER_CUSTOM_PATH, true, (S_IRUSR | S_IWUSR), S_IRGRP, 0);
+    if (ret) {
+        return -1;
+    }
+    return 0;
+}
+
+int is_file_exist(char *dir)
+{
+    FILE *file = fopen(dir, "r");
+
+    if (file != NULL) {
+        fseek(file, 0, SEEK_END);
+        if (ftell(file) != 0) {
+            (void)fclose(file);
+            return 0;
+        }
+        INFO("The custom probe json is null, gala-gopher continues.\n");
+        (void)fclose(file);
+        return -1;
+    }
+    INFO("The custom probe json does not exist, gala-gopher continues.\n");
+    return -1;
 }
 
 struct probe_mng_s *create_probe_mng(void)
@@ -1162,11 +1790,52 @@ struct probe_mng_s *create_probe_mng(void)
 
     g_probe_mng->keeplive_ts = (time_t)time(NULL);
 
+    if (is_file_exist(GALA_GOPHER_CUSTOM_PATH)) {
+        return g_probe_mng;
+    }
+
+    g_custom_ini = (struct custom_ini *)calloc(1, sizeof(struct custom_ini));
+    if (g_custom_ini == NULL) {
+        goto err;
+    }
+    ret = init_custom(GALA_GOPHER_CUSTOM_PATH);
+    if (ret) {
+        goto err;
+    }
+
+    ret = verify_permissions();
+    if (ret) {
+        goto err;
+    }
     return g_probe_mng;
 
 err:
     destroy_probe_mng();
+    destroy_custom_ini();
     return NULL;
+}
+
+#define __PROBE_KEEPLIVE_TIMEOUT    (60) // 60 Seconds
+static int is_start_today(const struct probe_mng_s *probe_mng, u8 *restart)
+{
+    time_t time = probe_mng->keeplive_ts;
+    time_t time2 = probe_mng->keeplive_ts - __PROBE_KEEPLIVE_TIMEOUT * 2;
+    struct tm tm_now, tm_before;
+
+    localtime_r(&time, &tm_now);
+    localtime_r(&time2, &tm_before);
+
+
+    if (*restart < MAX_RESTART_TIMES) {
+        return 1;
+    }
+
+    if (tm_now.tm_mday == tm_before.tm_mday) {
+        return 0;
+    }
+    INFO("Time comes the next day, reset the restart times.\n");
+    *restart = 0;
+    return 1;
 }
 
 static void keeplive_probes(struct probe_mng_s *probe_mng)
@@ -1186,9 +1855,24 @@ static void keeplive_probes(struct probe_mng_s *probe_mng)
             probe->resnd_snooper_for_restart = 0;
         }
     }
+
+    for (int i = 1; i <= probe_mng->custom_index; i++) {
+        probe = probe_mng->custom[i];
+        if (probe == NULL) {
+            continue;
+        }
+
+        if (is_start_today(probe_mng, &probe->resnd_snooper_for_restart)) {
+            if(try_start_probe(probe) == 0 && (probe->resnd_snooper_for_restart > 0)) {
+                probe->is_params_chg = 0;
+                probe->is_snooper_chg = 0;
+                (void)send_snooper_obj(probe);
+                INFO("probe %s has been tested to start.\n", probe->name);
+            }
+        }
+    }
 }
 
-#define __PROBE_KEEPLIVE_TIMEOUT    (60) // 60 Seconds
 static char is_keeplive_tmout(struct probe_mng_s *probe_mng)
 {
     time_t current = (time_t)time(NULL);

@@ -22,6 +22,7 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
 #include "limits.h"
 
 #define INVALID_INT_NUM (-INT_MAX)
@@ -69,6 +70,7 @@ unsigned char Json_IsString(const void *jsonObj);
 unsigned char Json_IsNumeric(const void *jsonObj);
 unsigned char Json_IsObject(const void *jsonObj);
 unsigned char Json_IsArray(const void *jsonObj);
+unsigned char Json_IsBool(const void *jsonObj);
 
 /***
  * brief return Number, Array, String, Other.
@@ -77,6 +79,7 @@ int Json_GetType(const void *jsonObj);
 
 /* get value */
 int Json_GetValueInt(const void *jsonObj);
+bool Json_GetValueBool(const void *jsonObj);
 
 /***
  *  write json data relative

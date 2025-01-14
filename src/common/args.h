@@ -14,7 +14,7 @@
  ******************************************************************************/
 #ifndef __GOPHER_ARGS_H__
 #define __GOPHER_ARGS_H__
-
+#include "../lib/base.h"
 #pragma once
 
 #define DEFAULT_PERIOD      60

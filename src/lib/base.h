@@ -60,6 +60,17 @@
 // probe config
 #define MAX_PROBE_NAME_LEN    32
 
+// custom config
+#define MAX_CUSTOM_NAME_LEN     64
+#define MAX_BIN_LEN             100
+#define MAX_SUBPROBE_NUM        8
+#define MAX_CUSTOM_NUM          (8 + 1)                 //The subscript of custom starts from 1.
+#define MAX_CUSTOM_PARAMS_LEN   64
+#define MAX_CUSTOM_PARAMS_NUM   8
+#define MAX_PRIVILEGE_LEN       8
+#define MAX_CUSTOM_CONFIG       (2048 * 2048 * 10)
+#define MAX_RESTART_TIMES       10
+
 // extend probe config
 #define MAX_EXTEND_PROBE_COMMAND_LEN 128
 #define MAX_PARAM_LEN 128
@@ -99,6 +110,8 @@ typedef enum {
 #define GALA_GOPHER_RUN_DIR           "/var/run/gala_gopher/"
 #define GALA_GOPHER_CMD_SOCK_PATH     "/var/run/gala_gopher/gala_gopher_cmd.sock"
 #define GALA_GOPHER_RUN_DIR_MODE      0750
+/* custom probe json path */
+#define GALA_GOPHER_CUSTOM_PATH        "/etc/gala-gopher/gala-gopher-custom.json"
 
 #endif
 

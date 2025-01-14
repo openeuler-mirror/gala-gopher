@@ -21,6 +21,8 @@
 #include <libconfig.h>
 #include "logs.h"
 #include "meta.h"
+#include "json_tool.h"
+#include "probe_mng.h"
 
 #if GALA_GOPHER_INFO("inner func")
 static Measurement *MeasurementCreate(void);
@@ -248,13 +250,25 @@ int MeasurementMgrLoadSingleMeta(MeasurementMgr *mgr, const char *metaPath)
     return 0;
 }
 
-int MeasurementMgrLoad(const MeasurementMgr *mgr, const char *metaDir)
+static int get_custom_meta_from_bin(char *meta, size_t meta_path_len, char *bin)
+{
+    char *ptr = strrchr(bin, '.');
+
+    if (ptr != NULL) {
+        *ptr = '\0';
+        (void)snprintf(meta, meta_path_len, "%s%s", bin, ".meta");
+        return 0;
+    }
+    return -1;
+}
+
+static int get_meta_from_dir(const MeasurementMgr *mgr, const char *metaDir)
 {
     int ret = 0;
     DIR *d = NULL;
+    d = opendir(metaDir);
     char metaPath[MAX_META_PATH_LEN] = {0};
 
-    d = opendir(metaDir);
     if (d == NULL) {
         ERROR("open meta directory failed.\n");
         return -1;
@@ -264,6 +278,10 @@ int MeasurementMgrLoad(const MeasurementMgr *mgr, const char *metaDir)
     while (file != NULL) {
         // skip current dir, parent dir and hidden files
         if (strncmp(file->d_name, ".", 1) == 0) {
+            file = readdir(d);
+            continue;
+        }
+        if (strstr(file->d_name, ".meta") == NULL) {
             file = readdir(d);
             continue;
         }
@@ -281,6 +299,85 @@ int MeasurementMgrLoad(const MeasurementMgr *mgr, const char *metaDir)
     }
 
     closedir(d);
+    return 0;
+}
+
+static int get_custom_meta(const MeasurementMgr *mgr)
+{
+    char *json_data;
+    int ret;
+    void *json_obj = NULL;
+    struct key_value_pairs *kv_pairs = NULL;
+    struct key_value *kv;
+    char meta_path[MAX_META_PATH_LEN] = {0};
+    char probe_path[MAX_META_PATH_LEN] = {0};
+
+    json_data = calloc(1, MAX_CUSTOM_CONFIG + 1);
+    if (json_data == NULL) {
+        ERROR("[CUSTOM META]Custom memory allocation error\r\n");
+        return -1;
+    }
+
+    ret = file_handle(GALA_GOPHER_CUSTOM_PATH, json_data, MAX_CUSTOM_CONFIG + 1);
+    if (ret) {
+        ERROR("[CUSTOM META]The file cannot be opened.\n");
+        free(json_data);
+        return -1;
+    }
+
+    json_obj = Json_Parse(json_data);
+    if (json_obj == NULL) {
+        free(json_data);
+        ERROR("[CUSTOM META]invalid json format.\r\n");
+        return -1;
+    }
+
+    kv_pairs = Json_GetKeyValuePairs(json_obj);
+    if (!kv_pairs) {
+        free(json_data);
+        Json_Delete(json_obj);
+        ERROR("[CUSTOM META]invalid json param pairs.\r\n");
+        return -1;
+    }
+
+    Json_ArrayForEach(kv, kv_pairs) {
+        snprintf(probe_path, sizeof(probe_path), "%s", probe_extern_cmd_param("bin", kv->valuePtr));
+        if (get_custom_meta_from_bin(meta_path, sizeof(meta_path) - 1, probe_path)) {
+            (void)snprintf(meta_path, sizeof(meta_path) - 1, "%s%s", probe_path, ".meta");
+        }
+        INFO("custom meta path is %s.\n", meta_path);
+        ret = MeasurementMgrLoadSingleMeta((MeasurementMgr *)mgr, meta_path);
+        if (ret != 0) {
+            ERROR("[META] load single meta file failed. meta file: %s.Check whether the file exists.\n", meta_path);
+            Json_DeleteKeyValuePairs(kv_pairs);
+            Json_Delete(json_obj);
+            free(json_data);
+            return -1;
+        }
+    }
+
+    Json_DeleteKeyValuePairs(kv_pairs);
+    Json_Delete(json_obj);
+    free(json_data);
+    return 0;
+}
+
+int MeasurementMgrLoad(const MeasurementMgr *mgr, const char *metaDir)
+{
+    int ret = 0;
+    /* Internal probe */
+    ret = get_meta_from_dir(mgr, metaDir);
+    if (ret) {
+        return -1;
+    }
+    if (is_file_exist(GALA_GOPHER_CUSTOM_PATH)) {
+        return 0;
+    }
+    /* Custom probe */
+    ret = get_custom_meta(mgr);
+    if (ret) {
+        return -1;
+    }
     return 0;
 }
 

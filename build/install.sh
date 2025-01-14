@@ -69,6 +69,7 @@ function install_conf() {
     GOPHER_CONF_FILE=${PROJECT_FOLDER}/config/gala-gopher.conf
     GOPHER_PROBES_INIT_FILE=${PROJECT_FOLDER}/config/probes.init
     GOPHER_CONF_TARGET_DIR=/etc/gala-gopher
+    GOPHER_CUSTOM_FILE=${PROJECT_FOLDER}/config/gala-gopher-custom.json
 
     if [ $# -eq 1 ]; then
         GOPHER_CONF_TARGET_DIR=$1
@@ -82,6 +83,9 @@ function install_conf() {
     if [ ! -f ${GOPHER_PROBES_INIT_FILE} ]; then
         echo "${GOPHER_PROBES_INIT_FILE} not exist. please check ./config dir."
     fi
+    if [ ! -f ${GOPHER_CUSTOM_FILE} ]; then
+        echo "${GOPHER_CUSTOM_FILE} not exist. please check ./config dir."
+    fi
 
     # install gala-gopher.conf
     if [ ! -d ${GOPHER_CONF_TARGET_DIR} ]; then
@@ -89,6 +93,8 @@ function install_conf() {
     fi
     cp -f ${GOPHER_CONF_FILE} ${GOPHER_CONF_TARGET_DIR}
     echo "install ${GOPHER_CONF_FILE} success."
+    cp -f ${GOPHER_CUSTOM_FILE} ${GOPHER_CONF_TARGET_DIR}
+    echo "install ${GOPHER_CUSTOM_FILE} success."
     cp -f ${GOPHER_PROBES_INIT_FILE} ${GOPHER_CONF_TARGET_DIR}
     echo "install ${GOPHER_PROBES_INIT_FILE} success."
 }

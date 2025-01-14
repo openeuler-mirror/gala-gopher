@@ -10,6 +10,9 @@ SNOOPER_MAX = 1000
 IPC_EXCL = 0o2000 # copy from linux/ipc.h
 IPC_FLAGS_SNOOPER_CHG = 0x00000001
 IPC_FLAGS_PARAMS_CHG = 0x00000002
+MAX_CUSTOM_PARAMS_LEN = 64
+MAX_CUSTOM_PARAMS_NUM = 9
+MAX_SUBPROBE_NUM      = 8
 
 IPC_LIB = CDLL("/opt/gala-gopher/lib/ipc.so")
 
@@ -18,6 +21,20 @@ ProbeType = IntEnum('ProbeType', ('PROBE_BASEINFO', 'PROBE_VIRT', 'PROBE_FG', 'P
     'PROBE_NGINX', 'PROBE_LVS', 'PROBE_KAFKA', 'PROBE_TP', 'PROBE_HW', 'PROBE_KSLI', 'PROBE_CONTAINER', \
     'PROBE_SERMANT', 'PROBE_SLI', 'PROBE_FLOWTRACER', 'PROBE_TYPE_MAX'))
 SnooperObjEnum = IntEnum('SnooperObjEnum', ('SNOOPER_OBJ_PROC', 'SNOOPER_OBJ_CON', 'SNOOPER_OBJ_MAX'), start = 0)
+
+class CustomParams(Structure):
+    _fields_ = [
+        ("label", c_char * MAX_CUSTOM_PARAMS_LEN),
+        ("value", c_char * MAX_CUSTOM_PARAMS_LEN),
+    ]
+
+class CustomIpc(Structure):
+    _fields_ = [
+        ("subprobe", c_char * MAX_SUBPROBE_NUM * MAX_CUSTOM_PARAMS_LEN),
+        ("subprobe_num", c_uint),
+        ("custom_param", CustomParams * MAX_CUSTOM_PARAMS_NUM),
+        ("params_num", c_uint),
+    ]
 
 class ProbeParams(Structure):
     _fields_ = [
@@ -96,6 +113,14 @@ def recv_ipc_msg(msq_id, msg_type, ipc_body):
     _ipc_body = pointer(ipc_body)
     IPC_LIB.recv_ipc_msg.restype = c_int
     return IPC_LIB.recv_ipc_msg(_msq_id, _msg_type, _ipc_body)
+
+def recv_custom_ipc_msg(msq_id, msg_type, ipc_body, custom_ipc_msg):
+    _msq_id = c_int(msq_id)
+    _msg_type = c_long(msg_type)
+    _ipc_body = pointer(ipc_body)
+    _custom_ipc_msg = pointer(custom_ipc_msg)
+    IPC_LIB.recv_custom_ipc_msg.restype = c_int
+    return IPC_LIB.recv_custom_ipc_msg(_msq_id, _msg_type, _ipc_body, _custom_ipc_msg)
 
 def destroy_ipc_body(ipc_body):
     _ipc_body = pointer(ipc_body)

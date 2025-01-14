@@ -162,7 +162,7 @@ retry:
     parseExtendProbeOutput(probe, f);
 
 out:
-    clear_ipc_msg((long)probe->probe_type);
+    clear_ipc_msg((long)(probe->probe_type == PROBE_CUSTOM) ? (PROBE_CUSTOM_IPC + probe->custom.index) : probe->probe_type);
     if (f) {
         pclose(f);
     }
