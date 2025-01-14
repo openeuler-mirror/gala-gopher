@@ -221,11 +221,14 @@ static parse_state_t parse_msg_recursive(enum message_type_t msg_type, struct ra
             free(str);
             return STATE_INVALID;
         }
-        memset(payload, 0, (strlen(str) + 2) * sizeof(char));
+        payload[0] = 0;
         strcpy(payload, "-");
         strcat(payload, str);
-        free(msg->payload);
 
+        if (msg->payload) {
+            free(msg->payload);
+            msg->payload = NULL;
+        }
         msg->payload = payload;
         if (msg_type == MESSAGE_RESPONSE) {
             ++msg->single_reply_error_msg_count;

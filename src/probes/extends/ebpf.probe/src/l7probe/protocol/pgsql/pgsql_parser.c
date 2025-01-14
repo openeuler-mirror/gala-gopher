@@ -73,11 +73,9 @@ parse_state_t pgsql_parse_startup_name_value(struct raw_data_s *raw_data_buf)
             }
             return parse_state;
         }
-        if (strlen(name) == 0) {
-            if (name != NULL) {
-                free(name);
-                name = NULL;
-            }
+        if ((name != NULL) && name[0] == 0) {
+            free(name);
+            name = NULL;
             break;
         }
         if (name != NULL) {
@@ -93,11 +91,9 @@ parse_state_t pgsql_parse_startup_name_value(struct raw_data_s *raw_data_buf)
             }
             return parse_state;
         }
-        if (strlen(value) == 0) {
-            if (value != NULL) {
-                free(value);
-                value = NULL;
-            }
+        if ((value != NULL) && value[0] == 0) {
+            free(value);
+            value = NULL;
             WARN("[Pgsql parser] Failed to parse startup msg , not enough data to extract payload value.\n");
             return STATE_INVALID;
         }

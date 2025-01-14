@@ -333,7 +333,6 @@ static char *format_as_str_separated_by_space(UT_array *args)
         ERROR("[Redis Parse] The result malloc failed.\n");
         return NULL;
     }
-    memset(result, 0, (total_len + 1) * sizeof(char));
     result[0] = '\0';
     for (int i = 0; i < len; ++i) {
         char *str = *(char **) utarray_eltptr(args, i);
@@ -375,6 +374,7 @@ static bool get_redis_cmd(UT_array *payloads, char *res)
             return false;
         }
         // 使用空格拼接redis double-words command
+        des[0] = 0;
         strcpy(des, first);
         strcat(des, " ");
         strcat(des, second);
