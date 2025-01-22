@@ -245,7 +245,8 @@ parse_state_t decoder_extract_str_until_str(struct raw_data_s *raw_data, char **
 {
     char *start_search_ptr = &raw_data->data[raw_data->current_pos];
     size_t unconsumed_len = raw_data->data_len - raw_data->current_pos;
-    char *search_str_ptr = memmem_custom(start_search_ptr, unconsumed_len, search_str, strlen(search_str));
+    size_t search_str_size = strlen(search_str);
+    char *search_str_ptr = memmem_custom(start_search_ptr, unconsumed_len, search_str, search_str_size);
     if (search_str_ptr == NULL) {
         ERROR("[Binary Decoder] Could not find search_str: %s in raw_data.\n", search_str);
         return STATE_NOT_FOUND;
@@ -253,7 +254,7 @@ parse_state_t decoder_extract_str_until_str(struct raw_data_s *raw_data, char **
 
     // 获取search_str在字符串缓存中的下标
     size_t str_pos = search_str_ptr - &raw_data->data[raw_data->current_pos];
-    size_t data_stream_offset = str_pos + strlen(search_str);
+    size_t data_stream_offset = str_pos + search_str_size;
     if (!extract_prefix_bytes_string(raw_data, res, str_pos, data_stream_offset)) {
         ERROR("[Binary Decoder] Extract %zu length of raw_data failed.\n", str_pos);
         return STATE_INVALID;
