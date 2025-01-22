@@ -94,7 +94,7 @@ KPROBE(tcp_rcv_space_adjust, pt_regs)
 }
 
 SEC("tracepoint/tcp/tcp_rcv_space_adjust")
-int bpf_trace_tcp_rcv_space_adjust_func(struct trace_event_raw_tcp_event_sk_skb *ctx)
+int bpf_trace_tcp_rcv_space_adjust_func(struct trace_event_raw_tcp_event_sk *ctx)
 {
     struct sock *sk = (struct sock*)ctx->skaddr;
     tcp_rate_probe_func(ctx, sk);
