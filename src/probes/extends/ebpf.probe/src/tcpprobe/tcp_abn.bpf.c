@@ -298,7 +298,7 @@ int bpf_trace_tcp_send_reset_func(struct trace_event_raw_tcp_event_sk_skb *ctx)
 }
 
 SEC("tracepoint/tcp/tcp_receive_reset")
-int bpf_trace_tcp_receive_reset_func(struct trace_event_raw_tcp_event_sk_skb *ctx)
+int bpf_trace_tcp_receive_reset_func(struct trace_event_raw_tcp_event_sk *ctx)
 {
     struct sock *sk = (struct sock *)ctx->skaddr;
     return tcp_abn_rcv_rsts_probe_func(ctx, sk);
