@@ -267,7 +267,7 @@ int main(int argc, char **argv)
     }
 
     if (init_tprofiler()) {
-        return -1;
+        goto cleanup;
     }
 
     INIT_BPF_APP(tprofiling, EBPF_RLIM_LIMITED);
@@ -493,8 +493,10 @@ static int init_syscall_metas(void)
         }
         scm->nr = g_syscall_metas[i].nr;
         scm->flag = g_syscall_metas[i].flag;
-        strcpy(scm->name, g_syscall_metas[i].name);
-        strcpy(scm->default_type, g_syscall_metas[i].default_type);
+        (void)snprintf(scm->name, sizeof(scm->name), "%s", g_syscall_metas[i].name);
+        (void)snprintf(scm->default_type, sizeof(scm->default_type), "%s", g_syscall_metas[i].default_type);
+
+        // 添加到哈希表
         HASH_ADD(hh, tprofiler.scmTable, nr, sizeof(unsigned long), scm);
     }
 
