@@ -27,6 +27,15 @@
 #define TCP_LINK_TCP_PATH       "/sys/fs/bpf/gala-gopher/__tcplink_tcp"
 #define TCP_LINK_FD_PATH        "/sys/fs/bpf/gala-gopher/__tcplink_tcp_fd"
 
+#define PROBE_RANGE_TCP_ABNORMAL    0x00000001
+#define PROBE_RANGE_TCP_WINDOWS     0x00000002
+#define PROBE_RANGE_TCP_RTT         0x00000004
+#define PROBE_RANGE_TCP_STATS       0x00000008
+#define PROBE_RANGE_TCP_SOCKBUF     0x00000010
+#define PROBE_RANGE_TCP_RATE        0x00000020
+#define PROBE_RANGE_TCP_SRTT        0x00000040
+#define PROBE_RANGE_TCP_DELAY       0x00000080
+
 #define TCP_PROBE_ABN       (u32)(1)
 #define TCP_PROBE_WINDOWS   (u32)(1 << 1)
 #define TCP_PROBE_RTT       (u32)(1 << 2)
@@ -188,20 +197,18 @@ struct sock_info_s {
 
 struct tcp_ts {
     u64 abn_ts;
-    u64 win_ts;
-    u64 rtt_ts;
     u64 txrx_ts;
-    u64 sockbuf_ts;
-    u64 rate_ts;
+    u64 stats_ts;
     u64 delay_ts;
 };
 
 struct sock_stats_s {
-    struct tcp_ts ts_stats;
+    struct tcp_ts ts;
     struct tcp_metrics_s metrics;
 };
 
 struct tcp_args_s {
+    __u32 probe_flags;
     __u64 sample_period;               // Sampling period, unit ns
 };
 

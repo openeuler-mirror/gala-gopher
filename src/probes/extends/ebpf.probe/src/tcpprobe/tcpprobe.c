@@ -261,12 +261,13 @@ static void clean_tcp_pin_map()
     }
 }
 
-static void tcp_load_args(int args_fd, struct probe_params* params)
+static void tcp_load_args(int args_fd, struct ipc_body_s *ipc_body)
 {
     u32 key = 0;
     struct tcp_args_s args = {0};
 
-    args.sample_period = MS2NS(params->sample_period);
+    args.probe_flags = ipc_body->probe_range_flags;
+    args.sample_period = MS2NS(ipc_body->probe_param.sample_period);
 
     (void)bpf_map_update_elem(args_fd, &key, &args, BPF_ANY);
 }
@@ -344,7 +345,7 @@ int main(int argc, char **argv)
             }
 
             if (ipc_body.probe_flags & IPC_FLAGS_PARAMS_CHG || ipc_body.probe_flags == 0) {
-                tcp_load_args(args_map_fd, &ipc_body.probe_param);
+                tcp_load_args(args_map_fd, &ipc_body);
             }
 
             if (ipc_body.probe_flags & IPC_FLAGS_SNOOPER_CHG || ipc_body.probe_flags == 0) {

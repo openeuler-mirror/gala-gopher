@@ -38,8 +38,8 @@ static __always_inline char is_tmout_txrx(struct sock *sk)
 
     u64 ts = bpf_ktime_get_ns();
     u64 period = get_period();
-    if ((ts > sock_stats->ts_stats.txrx_ts) && ((ts - sock_stats->ts_stats.txrx_ts) >= period)) {
-        sock_stats->ts_stats.txrx_ts = ts;
+    if ((ts > sock_stats->ts.txrx_ts) && ((ts - sock_stats->ts.txrx_ts) >= period)) {
+        sock_stats->ts.txrx_ts = ts;
         return 1;
     }
     return 0;
