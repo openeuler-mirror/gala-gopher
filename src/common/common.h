@@ -226,7 +226,7 @@ int check_path_for_security(const char *path);
 
 int access_check_read_line(u32 pid, const char *command, const char *fname, char *buf, u32 buf_len);
 int get_proc_start_time(u32 pid, char *buf, int buf_len);
-u64 get_proc_startup_ts(int pid);
+u64 get_proc_startup_ts(const char *pid);
 int get_proc_comm(u32 pid, char *buf, int buf_len);
 int get_proc_cmdline(u32 pid, char *buf, u32 buf_len);
 int get_proc_exe(u32 pid, char *buf, u32 buf_len);
