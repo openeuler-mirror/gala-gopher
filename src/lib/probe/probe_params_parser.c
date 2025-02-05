@@ -181,6 +181,19 @@ static int parser_report_event(struct probe_s *probe, const struct param_key_s *
     return 0;
 }
 
+static int parser_report_cport(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
+{
+    int value = Json_GetValueInt(key_item);
+    if (value < param_key->v.min || value > param_key->v.max || value == INVALID_INT_NUM) {
+        PARSE_ERR("params.%s invalid value %d, must be in [%d, %d]",
+                  param_key->key, value, param_key->v.min, param_key->v.max);
+        return -1;
+    }
+
+    probe->probe_param.report_cport = (char)value;
+    return 0;
+}
+
 static int parser_l7pro(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     void *object;
@@ -571,6 +584,7 @@ SET_DEFAULT_PARAMS_INTER(min_exec_dur);
 SET_DEFAULT_PARAMS_INTER(min_aggr_dur);
 
 SET_DEFAULT_PARAMS_CAHR(logs);
+SET_DEFAULT_PARAMS_CAHR(report_cport);
 SET_DEFAULT_PARAMS_CAHR(support_ssl);
 SET_DEFAULT_PARAMS_CAHR(res_percent_upper);
 SET_DEFAULT_PARAMS_CAHR(res_percent_lower);
@@ -591,6 +605,7 @@ SET_DEFAULT_PARAMS_STR(flame_dir);
 #define RES_LOWER_THR       "res_lower_thr"
 #define RES_UPPER_THR       "res_upper_thr"
 #define REPORT_EVENT        "report_event"
+#define REPORT_CPORT        "report_cport"
 #define L7_PROTOCOL         "l7_protocol"
 #define SUPPORT_SSL         "support_ssl"
 #define PYROSCOPE_SERVER    "pyroscope_server"
@@ -623,6 +638,7 @@ struct param_key_s param_keys[] = {
     {RES_UPPER_THR,       {0, 0, 100, ""},                           parser_res_upper_thr,           set_default_params_char_res_percent_upper, JSON_NUMBER},
     {REPORT_EVENT,        {0, 0, 1, ""},                             parser_report_event,            set_default_params_char_logs, JSON_NUMBER},
 #endif
+    {REPORT_CPORT,        {0, 0, 1, ""},                             parser_report_cport,            set_default_params_char_report_cport, JSON_NUMBER},
     {L7_PROTOCOL,         {0, 0, 0, ""},                             parser_l7pro,                   set_default_params_inter_l7_probe_proto_flags, JSON_ARRAY},
     {SUPPORT_SSL,         {0, 0, 1, ""},                             parser_support_ssl,             set_default_params_char_support_ssl, JSON_NUMBER},
 
@@ -640,7 +656,7 @@ struct param_key_s param_keys[] = {
     {KAFKA_PORT,          {DEFAULT_KAFKA_PORT, 1, 65535, ""},        parser_kafka_port,              set_default_params_inter_kafka_port, JSON_NUMBER},
     {CADVISOR_PORT,       {DEFAULT_CADVISOR_PORT, 1, 65535, ""},     parser_cadvisor_port,           set_default_params_inter_cadvisor_port, JSON_NUMBER},
     {PROFLING_CHANNEL,    {PROFILING_CHAN_LOCAL, 0, 0, ""},          parser_profiling_channel,       set_default_params_inter_profiling_chan, JSON_STRING},
-    {MIN_EXEC_DUR,        {1, 0, 1000000, ""},                       parser_min_exec_dur,            set_default_params_inter_min_exec_dur, JSON_NUMBER},  
+    {MIN_EXEC_DUR,        {1, 0, 1000000, ""},                       parser_min_exec_dur,            set_default_params_inter_min_exec_dur, JSON_NUMBER},
     {MIN_AGGR_DUR,        {100, 10, 10000, ""},                      parser_min_aggr_dur,            set_default_params_inter_min_aggr_dur, JSON_NUMBER},
 };
 
@@ -764,6 +780,9 @@ void probe_params_to_json(struct probe_s *probe, void *params)
     }
     if (probe_type == PROBE_L7 || probe_type == PROBE_TCP) {
         Json_AddCharItemToObject(params, CLUSTER_IP_BACKEND, probe_param->cluster_ip_backend);
+    }
+    if (probe_type == PROBE_TCP) {
+        Json_AddCharItemToObject(params, REPORT_CPORT, probe_param->report_cport);
     }
     if (probe_type == PROBE_BASEINFO) {
         Json_AddStringToObject(params, ELF_PATH, probe_param->elf_path);

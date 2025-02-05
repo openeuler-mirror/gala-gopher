@@ -143,7 +143,8 @@ struct tcp_tracker_id_s {
         u32 toa_c_ip;
         unsigned char toa_c_ip6[IP6_LEN];
     };
-    u16 port;
+    u16 port;         // server port
+    u16 cport;        // client port
     u16 family;
     u16 toa_famlily;
     u32 role;     // role: client:1/server:0

@@ -70,6 +70,7 @@ struct probe_params {
     unsigned int drops_count_thr;      // Threshold of the number of drop packets, default is 0
     unsigned int kafka_port;           // the port to which kafka server attach.
     char logs;                         // Enable the logs function
+    char report_cport;                 // Enable tcpprobe to report true client port
     char metrics_flags;                // Support for report metrics flags(0x01(raw metrics), 0x02(openTelemetry metrics, eg.. P50/P90/P99) );
     char env_flags;                    // Support for env flags(default 0x01(node), 0x02(container), 0x04(K8S));
     char support_ssl;                  // Support for SSL probe;
