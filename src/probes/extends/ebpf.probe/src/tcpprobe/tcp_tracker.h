@@ -265,6 +265,7 @@ struct tcp_mng_s {
     u32 tcp_tracker_count;
     u32 tcp_flow_tracker_count;
     time_t last_aging;
+    time_t last_scanning;
     struct ipc_body_s ipc_body;
     struct bpf_prog_s *tcp_progs;
     struct toa_socket_s *toa_socks;

@@ -165,6 +165,18 @@ static void reload_tc_bpf(struct ipc_body_s* ipc_body)
     }
 }
 
+static char is_need_scanning(struct tcp_mng_s *tcp_mng)
+{
+    time_t current = (time_t)time(NULL);
+
+    if (current > tcp_mng->last_scanning) {
+        tcp_mng->last_scanning = current;
+        return 1;
+    }
+
+    return 0;
+}
+
 static char is_need_aging(struct tcp_mng_s *tcp_mng)
 {
 #define __AGING_TIME_SECS     (5 * 60)       // 5min
@@ -237,7 +249,7 @@ static int load_established_tcps_mngt(int proc_obj_map_fd, int tcp_fd_map_fd)
         }
         last_load_time = now;
     } else {
-        if (now > last_load_time + UNLOAD_TCP_FD_PROBE) {
+        if (is_tcp_fd_probe_loaded() && (now > last_load_time + UNLOAD_TCP_FD_PROBE)) {
             tcp_unload_fd_probe();
             empty_tcp_fd_map(tcp_fd_map_fd);
         }
@@ -384,8 +396,10 @@ int main(int argc, char **argv)
             sleep(1);
         }
 
-        scan_tcp_trackers(tcp_mng);
-        scan_tcp_flow_trackers(tcp_mng);
+        if (is_need_scanning(tcp_mng)) {
+            scan_tcp_trackers(tcp_mng);
+            scan_tcp_flow_trackers(tcp_mng);
+        }
 
         // Aging all invalid TCP trackers trackers.
         if (is_need_aging(tcp_mng)) {
