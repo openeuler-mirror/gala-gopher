@@ -263,73 +263,62 @@ static __always_inline struct tcphdr *tcp_hdr(const struct sk_buff *skb)
  * @return NULL if we don't get client ip/port;
  *         value of toa_data in ret_ptr if we get client ip/port.
  */
-static void *get_toa_data(struct sk_buff *skb, int af, enum toa_type *type, struct toa_v6_entry *v6_toa_data)
+static __always_inline bool get_toa_data(const struct tcphdr *th, int af, struct tcp_link_s *link)
 {
-    const struct tcphdr *th = NULL;
     int length;
-    const unsigned char *ptr = NULL;
-    void *ret_ptr = NULL;
+    u8 buffer[MAX_TCPOPT_LEN];
+    u8 opcode, opsize = 0;
 
-    th = tcp_hdr((const struct sk_buff *) skb);
+    length = (BPF_CORE_READ_BITFIELD_PROBED(th, doff) << 2) - sizeof(struct tcphdr);
+    if (length < TCPOLEN_TOA)
+        return false;
 
-    u16 _doff = BPF_CORE_READ_BITFIELD_PROBED(th, doff);
-    length = _doff * 4 - sizeof(struct tcphdr);
-    if (length <= 0 || length > MAX_TCP_OPTIONS_LEN) {
-        return NULL;
-    }
+    if (bpf_probe_read_kernel(buffer, MAX_TCPOPT_LEN, (const unsigned char *)(th + 1)) < 0)
+        return false;
 
-    ptr = (const unsigned char *) (th + 1);
-    if (ptr == NULL) {
-        return NULL;
-    }
+    #pragma unroll(MAX_TCPOPT_LEN - sizeof(struct toa_opt) + 1)
+    for (int i = 0; i <= MAX_TCPOPT_LEN - sizeof(struct toa_opt); i++) {
+        if (i > length - TCPOLEN_TOA) {
+            return false;
+        }
 
-    // todo: 流程可优化为：先解套opcode&偏移opsize，再解出toa_opt或toa_opt_v6
-    while (length > 0) {
-        int opcode = _(*ptr);
-        ptr++;
-        int opsize;
-        switch (opcode) {
-            case TCPOPT_EOL: {
-                *type = TOA_NOT;
-                return NULL;
-            }
-            case TCPOPT_NOP:    /* Ref: RFC 793 section 3.1 */
-                length--;
-                continue;
-            default:
-                opsize = _(*ptr);
-                ptr++;
-                if (opsize < 2) {
-                    /* "silly options" */
-                    *type = TOA_NOT;
-                    return NULL;
-                }
-                if (opsize > length) {
-                    /* don't parse partial options */
-                    *type = TOA_NOT;
-                    return NULL;
-                }
+        // old version clang cannot unroll "i += opsize", so skip opsize of i in this way.
+        if (opsize) {
+            opsize--;
+            continue;
+        }
 
-                if (af == AF_INET && opcode == TCPOPT_TOA && opsize == TCPOLEN_TOA) {
-                    bpf_core_read(&ret_ptr, sizeof(struct toa_opt), ptr - 2);
-                    *type = TOA_IPV4;
-                    return ret_ptr;
-                } else if (af == AF_INET6 && opcode == TCPOPT_TOA_V6 && opsize == TCPOLEN_TOA_V6) {
-                    bpf_core_read(&v6_toa_data->toa_data, sizeof(struct toa_opt_v6), ptr - 2);
-                    *type = TOA_IPV6;
-                    return v6_toa_data;
-                } else if (af == AF_INET6 && opcode == TCPOPT_TOA && opsize == TCPOLEN_TOA) {
-                    bpf_core_read(&ret_ptr, sizeof(struct toa_opt), ptr - 2);
-                    *type = TOA_IPV4;
-                    return ret_ptr;
-                }
-                ptr += opsize - 2;
-                length -= opsize;
+        opcode = buffer[i];
+        if (opcode == TCPOPT_EOL)
+            return false;
+
+        if (opcode == TCPOPT_NOP) {
+            opsize = 0;
+            continue;
+        }
+
+        opsize = buffer[i + 1];
+        if (opsize < 2)
+            return false;
+
+        if (opcode == TCPOPT_TOA && opsize == TCPOLEN_TOA) {
+            __builtin_memcpy(&link->opt_c_ip, buffer + i + 4, sizeof(link->opt_c_ip));
+            link->family = af;
+            link->opt_family = AF_INET;
+            return true;
+        }
+
+        if (af == AF_INET6 && opcode == TCPOPT_TOA_V6 && opsize == TCPOLEN_TOA_V6) {
+            if (i > length - TCPOLEN_TOA_V6 || i > MAX_TCPOPT_LEN - TCPOLEN_TOA_V6)
+                return false;
+            __builtin_memcpy(link->opt_c_ip6, buffer + i + 4, IP6_LEN);
+            link->family = af;
+            link->opt_family = AF_INET6;
+            return true;
         }
     }
 
-    *type = TOA_NOT;
-    return NULL;
+    return false;
 }
 
 /**
@@ -352,35 +341,9 @@ static bool get_toa_from_opt(struct sk_buff *skb, struct tcp_link_s *link)
         return false;
     }
 
-    // 2. Get toa_data from skb, and set is_toa flag
-    void *toa_data_ptr = NULL;
-    struct toa_v6_entry v6_toa_data = {0};
-    enum toa_type type = TOA_NOT;
-    toa_data_ptr = get_toa_data(skb, af, &type, &v6_toa_data);
-    if (toa_data_ptr == NULL || type == TOA_NOT) {
-        return false;
-    }
-
-    // 3. Transfer Returned data into toa_opt or toa_v6_entry, and then extract ip and port
-    switch (type) {
-        case TOA_IPV4: {
-            struct toa_opt opt = {0};
-            bpf_core_read(&opt, sizeof(struct toa_opt), &toa_data_ptr);
-            link->opt_c_ip = opt.ip;
-            link->family = af;
-            link->opt_family = AF_INET;
-            break;
-        }
-        case TOA_IPV6: {
-            __builtin_memcpy(link->opt_c_ip6, v6_toa_data.toa_data.ip6, IP6_LEN);
-            link->family = af;
-            link->opt_family = AF_INET6;
-            break;
-        }
-        default:
-            return false;
-    }
-    return true;
+    // 2. Get toa_data from skb
+    struct tcphdr *th  = tcp_hdr((const struct sk_buff *)skb);
+    return get_toa_data(th, af, link);
 }
 
 static __always_inline int init_link_from_skb(struct sk_buff *skb, struct tcp_link_s *link)
