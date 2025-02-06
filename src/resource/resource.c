@@ -315,33 +315,27 @@ static void KafkaMgrDeinit(ResourceMgr *resourceMgr)
 static int IMDBMgrTableLoad(IMDB_Table *table, Measurement *mm)
 {
     int ret = 0;
-    IMDB_Record *meta = IMDB_RecordCreate(mm->fieldsNum);
+    uint32_t metricsCapacity = mm->fieldsNum;
+    IMDB_Metric *metric = NULL;
+    uint32_t keyNum = 0;
+    IMDB_Meta *meta;
+
+    meta = IMDB_MetaCreate(metricsCapacity);
     if (meta == NULL) {
         return -1;
     }
 
-    IMDB_Metric *metric = NULL;
-    uint32_t keyNum = 0;
-    for (int i = 0; i < mm->fieldsNum; i++) {
+    for (int i = 0; i < metricsCapacity; i++) {
         metric = IMDB_MetricCreate(mm->fields[i].name, mm->fields[i].description, mm->fields[i].type);
         if (metric == NULL) {
             goto ERR;
         }
 
-        ret = IMDB_RecordAddMetric(meta, metric);
-        if (ret != 0) {
-            goto ERR;
-        }
-
+        meta->metrics[i] = metric;
         metric = NULL;
         if (strcmp(mm->fields[i].type, METRIC_TYPE_KEY) == 0) {
             keyNum++;
         }
-    }
-
-    ret = IMDB_TableSetMeta(table, meta);
-    if (ret != 0) {
-        goto ERR;
     }
 
     ret = IMDB_TableSetRecordKeySize(table, keyNum);
@@ -349,11 +343,12 @@ static int IMDBMgrTableLoad(IMDB_Table *table, Measurement *mm)
         goto ERR;
     }
 
+    IMDB_TableSetMeta(table, meta);
     IMDB_TableSetEntityName(table, mm->entity);
 
     return 0;
 ERR:
-    IMDB_RecordDestroy(meta);
+    IMDB_MetaDestroy(meta);
     IMDB_MetricDestroy(metric);
     return -1;
 }

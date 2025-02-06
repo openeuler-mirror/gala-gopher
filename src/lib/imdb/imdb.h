@@ -74,23 +74,31 @@ typedef struct {
     // MetricType type;
     char type[MAX_IMDB_METRIC_TYPE_LEN];
     char name[MAX_IMDB_METRIC_NAME_LEN];
-    char val[MAX_IMDB_METRIC_VAL_LEN];
 } IMDB_Metric;
 
 typedef struct {
-    uint32_t keySize;
+    char val[MAX_IMDB_METRIC_VAL_LEN];
+} IMDB_MetricValue;
+
+struct IMDB_Table_s;
+typedef struct IMDB_Table_s IMDB_Table;
+typedef struct {
     char *key;
     time_t updateTime;     // Unit: second
-    uint32_t metricsCapacity;       // Capability for metrics count in one record
-    uint32_t metricsNum;
-    IMDB_Metric **metrics;
+    IMDB_MetricValue **value;
+    const IMDB_Table *table;     // table that this record belongs to
     UT_hash_handle hh;
 } IMDB_Record;
 
 typedef struct {
+    uint32_t metricsCapacity;       // Capability for metrics count in one record
+    IMDB_Metric **metrics;
+} IMDB_Meta;
+
+typedef struct IMDB_Table_s {
     char name[MAX_IMDB_TABLE_NAME_LEN];
     char entity_name[MAX_IMDB_TABLE_NAME_LEN];
-    IMDB_Record *meta;
+    IMDB_Meta *meta;
     char weighting;                 // 0: Highest Level(Entitlement to priority); >0: Low priority
     char pad[3];                    // rsvd
     uint32_t recordsCapability;     // Capability for records count in one table
@@ -129,12 +137,12 @@ typedef struct {
 } IMDB_DataBaseMgr;
 
 IMDB_Metric *IMDB_MetricCreate(char *name, char *description, char *type);
-int IMDB_MetricSetValue(IMDB_Metric *metric, char *val);
 void IMDB_MetricDestroy(IMDB_Metric *metric);
 
-IMDB_Record *IMDB_RecordCreate(uint32_t capacity);
-IMDB_Record *IMDB_RecordCreateWithKey(uint32_t capacity, uint32_t keySize);
-int IMDB_RecordAddMetric(IMDB_Record *record, IMDB_Metric *metric);
+IMDB_Meta *IMDB_MetaCreate(uint32_t capacity);
+void IMDB_MetaDestroy(IMDB_Meta *meta);
+
+IMDB_Record *IMDB_RecordCreateWithTable(const IMDB_Table *table);
 int IMDB_RecordAppendKey(IMDB_Record *record, uint32_t keyIdx, char *val);
 void IMDB_RecordUpdateTime(IMDB_Record *record, time_t seconds);
 void IMDB_RecordDestroy(IMDB_Record *record);
@@ -147,7 +155,7 @@ uint32_t HASH_recordCount(const IMDB_Record **records);
 
 IMDB_Table *IMDB_TableCreate(char *name, uint32_t capacity);
 void IMDB_TableSetEntityName(IMDB_Table *table, char *entity_name);
-int IMDB_TableSetMeta(IMDB_Table *table, IMDB_Record *metaRecord);
+void IMDB_TableSetMeta(IMDB_Table *table, IMDB_Meta *meta);
 int IMDB_TableSetRecordKeySize(IMDB_Table *table, uint32_t keyNum);
 int IMDB_TableAddRecord(IMDB_Table *table, IMDB_Record *record);
 void IMDB_TableUpdateExtLabelConf(IMDB_Table *table, struct ext_label_conf *conf);
