@@ -561,6 +561,7 @@ static int LogsMgrInit(ResourceMgr *resourceMgr)
     (void)snprintf(logsMgr->meta_path, sizeof(logsMgr->meta_path), "%s", configMgr->logsConfig->metaDir);
 
     if (init_log_mgr(logsMgr, is_meta_out_log, configMgr->globalConfig->logLevel) < 0) {
+        umask(old_mask);
         return -1;
     }
     resourceMgr->logsMgr = logsMgr;

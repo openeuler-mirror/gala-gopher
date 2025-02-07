@@ -184,6 +184,10 @@ static int get_softirq_info(void)
     }
     while (fgets(softirq_line, softirq_line_num - 1, f) != NULL) {
         field = __strtok_r(softirq_line, " ", &save);
+        if (!field) {
+            softirq_line[0] = 0;
+            continue;
+        }
         if (strcmp(field, "RCU:") == 0) {
             for (size_t i = 0; i < cpus_num; i++) {
                 cur_cpus[i]->rcu = strtoul(__strtok_r(NULL, " ", &save), NULL, 10);

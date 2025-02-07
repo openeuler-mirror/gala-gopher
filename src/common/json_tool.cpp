@@ -302,7 +302,7 @@ void Json_AddCharItemToObject(void *jsonObj, const char *nameCStr, char valChar)
 
 void Json_AddItemToObject(void *jsonObj, const char *nameCStr, void *item)
 {
-    if (!jsonObj or CHECK_STRING_INPUT(nameCStr)) {
+    if (!jsonObj or CHECK_STRING_INPUT(nameCStr) or CHECK_STRING_INPUT(item)) {
         return;
     }
     const std::string &nameStr = std::string(nameCStr);
