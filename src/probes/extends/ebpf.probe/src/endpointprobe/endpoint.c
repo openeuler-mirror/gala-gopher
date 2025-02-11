@@ -119,7 +119,7 @@ struct tcp_socket_s {
     u64 stats[EP_STATS_MAX];
     time_t last_rcv_data;
 
-    struct histo_bucket_s estab_latency_buckets[__MAX_LT_RANGE];
+    struct histo_bucket_array_s estab_latency_buckets;
 };
 
 struct udp_socket_id_s {
@@ -156,6 +156,7 @@ struct endpoint_probe_s {
     int udp_socks_num;
     time_t last_report;
     struct delaying_ring_buffer *drb;
+    struct bucket_range_s buckets_range[__MAX_LT_RANGE];
 };
 
 static volatile sig_atomic_t g_stop;
@@ -192,7 +193,7 @@ static void free_tcp_sock(struct tcp_socket_s *tcp_sock)
     if (tcp_sock->toa_client_ip != NULL) {
         free(tcp_sock->toa_client_ip);
     }
-
+    free_histo_buckets(&tcp_sock->estab_latency_buckets, __MAX_LT_RANGE);
     free(tcp_sock);
     return;
 }
@@ -365,7 +366,7 @@ static void output_tcp_socket(struct tcp_socket_s* tcp_sock)
     char estab_latency_histogram[MAX_HISTO_SERIALIZE_SIZE];
     estab_latency_histogram[0] = 0;
 
-    if (serialize_histo(tcp_sock->estab_latency_buckets, __MAX_LT_RANGE, estab_latency_histogram, MAX_HISTO_SERIALIZE_SIZE)) {
+    if (serialize_histo(g_ep_probe.buckets_range, &tcp_sock->estab_latency_buckets, __MAX_LT_RANGE, estab_latency_histogram, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
 
@@ -424,14 +425,7 @@ static void process_tcp_establish_latency(struct tcp_socket_s *tcp, struct tcp_s
         return;
     }
 
-    (void)histo_bucket_add_value(tcp->estab_latency_buckets, __MAX_LT_RANGE, evt->estab_latency);
-}
-
-static void init_tcp_sock_latency_buckets(struct histo_bucket_s latency_buckets[], size_t size)
-{
-    for (size_t i = 0; i < size; i++) {
-        (void)init_histo_bucket(&(latency_buckets[i]), estab_latency_histios[i].min, estab_latency_histios[i].max);
-    }
+    (void)histo_bucket_add_value(g_ep_probe.buckets_range, &tcp->estab_latency_buckets, __MAX_LT_RANGE, evt->estab_latency);
 }
 
 static int process_tcp_conn_close(struct tcp_socket_s *tcp, struct tcp_socket_event_s* evt)
@@ -615,7 +609,6 @@ static int add_tcp_sock_evt(struct endpoint_probe_s * probe, struct tcp_socket_e
     }
     memset(new_tcp, 0, sizeof(struct tcp_socket_s));
     memcpy(&(new_tcp->id), &id, sizeof(id));
-    init_tcp_sock_latency_buckets(new_tcp->estab_latency_buckets, __MAX_LT_RANGE);
 
     process_tcp_establish_latency(new_tcp, evt);
     new_tcp->stats[evt->evt] += 1;
@@ -1160,7 +1153,7 @@ static char is_report_tmout(struct endpoint_probe_s *probe)
 static void reset_tcp_socket(struct tcp_socket_s* tcp_sock)
 {
     memset(&(tcp_sock->stats), 0, sizeof(u64) * EP_STATS_MAX);
-    (void)histo_bucket_reset(tcp_sock->estab_latency_buckets, __MAX_LT_RANGE);
+    (void)histo_bucket_reset(&tcp_sock->estab_latency_buckets, __MAX_LT_RANGE);
 }
 
 static void reset_udp_socket(struct udp_socket_s* udp_sock)
@@ -1240,9 +1233,9 @@ int main(int argc, char **argv)
         ERROR("[ENDPOINTPROBE] Failed to allocate delaying ring buffer.\n");
         return -1;
     }
-
     INIT_BPF_APP(endpoint, EBPF_RLIM_LIMITED);
     INFO("[ENDPOINTPROBE] Successfully started!\n");
+    HISTO_BUCKET_RANGE_INIT(g_ep_probe.buckets_range, __MAX_LT_RANGE, estab_latency_histios);
 
     while(!g_stop) {
         ret = recv_ipc_msg(msq_id, (long)PROBE_SOCKET, &ipc_body);

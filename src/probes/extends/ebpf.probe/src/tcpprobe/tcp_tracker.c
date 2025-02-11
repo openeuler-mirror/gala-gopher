@@ -53,12 +53,6 @@ struct backend_ip_s {
     u16 family;
 };
 
-
-struct __tcp_histo_s {
-    u32 range;
-    u64 min, max;
-};
-
 struct __tcp_histo_s tcp_wind_histios[__MAX_WIND_SIZE] = {
     {WIND_SIZE_1, 0, 1000},
     {WIND_SIZE_2, 1000, 10000},
@@ -102,33 +96,7 @@ struct __tcp_histo_s tcp_delay_histios[__MAX_DELAY_SIZE] = {
     {DELAY_SIZE_5, 1000000000, 10000000000}
 };
 
-#define HISTO_BUCKET_INIT(buckets, size, histios) \
-do { \
-    for (int i = 0; i < size; i++) { \
-        (void)init_histo_bucket(&(buckets[i]), histios[i].min, histios[i].max); \
-    } \
-} while (0)
 
-static void init_tcp_buckets(struct tcp_tracker_s* tracker)
-{
-    HISTO_BUCKET_INIT(tracker->snd_wnd_buckets, __MAX_WIND_SIZE, tcp_wind_histios);
-    HISTO_BUCKET_INIT(tracker->rcv_wnd_buckets, __MAX_WIND_SIZE, tcp_wind_histios);
-    HISTO_BUCKET_INIT(tracker->avl_snd_wnd_buckets, __MAX_WIND_SIZE, tcp_wind_histios);
-    HISTO_BUCKET_INIT(tracker->snd_cwnd_buckets, __MAX_WIND_SIZE, tcp_wind_histios);
-    HISTO_BUCKET_INIT(tracker->not_sent_buckets, __MAX_WIND_SIZE, tcp_wind_histios);
-    HISTO_BUCKET_INIT(tracker->not_acked_buckets, __MAX_WIND_SIZE, tcp_wind_histios);
-    HISTO_BUCKET_INIT(tracker->reordering_buckets, __MAX_WIND_SIZE, tcp_wind_histios);
-
-    HISTO_BUCKET_INIT(tracker->srtt_buckets, __MAX_RTT_SIZE, tcp_rtt_histios);
-    HISTO_BUCKET_INIT(tracker->rcv_rtt_buckets, __MAX_RTT_SIZE, tcp_rtt_histios);
-    HISTO_BUCKET_INIT(tracker->syn_srtt_buckets, __MAX_RTT_SIZE, tcp_rtt_histios);
-
-    HISTO_BUCKET_INIT(tracker->rto_buckets, __MAX_RTO_SIZE, tcp_rto_histios);
-    HISTO_BUCKET_INIT(tracker->ato_buckets, __MAX_RTO_SIZE, tcp_rto_histios);
-
-    HISTO_BUCKET_INIT(tracker->snd_buf_buckets, __MAX_SOCKBUF_SIZE, tcp_sockbuf_histios);
-    HISTO_BUCKET_INIT(tracker->rcv_buf_buckets, __MAX_SOCKBUF_SIZE, tcp_sockbuf_histios);
-}
 
 struct toa_socket_s *create_toa_sock(const struct toa_sock_id_s *id)
 {
@@ -178,7 +146,6 @@ static struct tcp_tracker_s* create_tcp_tracker(struct tcp_mng_s *tcp_mng, const
     }
 
     tracker->last_report = (time_t)time(NULL);
-    init_tcp_buckets(tracker);
     tcp_mng->tcp_tracker_count++;
     return tracker;
 
@@ -300,16 +267,10 @@ static void __init_tracker_id(struct tcp_tracker_id_s *tracker_id, const struct 
     return;
 }
 
-static void init_tcp_flow_buckets(struct tcp_flow_tracker_s* tracker)
-{
-    HISTO_BUCKET_INIT(tracker->send_delay_buckets, __MAX_DELAY_SIZE, tcp_delay_histios);
-    HISTO_BUCKET_INIT(tracker->recv_delay_buckets, __MAX_DELAY_SIZE, tcp_delay_histios);
-}
-
+#define __TCP_FLOW_TRACKER_MAX (4 * 1024)
 static struct tcp_flow_tracker_s* create_tcp_flow_tracker(struct tcp_mng_s *tcp_mng,
     const struct tcp_flow_tracker_id_s *id)
 {
-#define __TCP_FLOW_TRACKER_MAX (4 * 1024)
     if (tcp_mng->tcp_flow_tracker_count >= __TCP_FLOW_TRACKER_MAX) {
         ERROR("[TCPPROBE]: Create 'tcp_flow_tracker' failed(upper to limited).\n");
         return NULL;
@@ -322,9 +283,7 @@ static struct tcp_flow_tracker_s* create_tcp_flow_tracker(struct tcp_mng_s *tcp_
 
     memset(tracker, 0, sizeof(struct tcp_flow_tracker_s));
     memcpy(&(tracker->id), id, sizeof(struct tcp_flow_tracker_id_s));
-
     tracker->last_report = (time_t)time(NULL);
-    init_tcp_flow_buckets(tracker);
     tcp_mng->tcp_flow_tracker_count++;
     return tracker;
 }
@@ -410,6 +369,24 @@ void destroy_tcp_tracker(struct tcp_tracker_s* tracker)
     if (tracker->toa_src_ip) {
         free(tracker->toa_src_ip);
     }
+    free_histo_buckets(&tracker->snd_wnd_buckets, __MAX_WIND_SIZE);
+    free_histo_buckets(&tracker->rcv_wnd_buckets, __MAX_WIND_SIZE);
+    free_histo_buckets(&tracker->avl_snd_wnd_buckets, __MAX_WIND_SIZE);
+    free_histo_buckets(&tracker->snd_cwnd_buckets, __MAX_WIND_SIZE);
+    free_histo_buckets(&tracker->not_sent_buckets, __MAX_WIND_SIZE);
+    free_histo_buckets(&tracker->not_acked_buckets, __MAX_WIND_SIZE);
+    free_histo_buckets(&tracker->reordering_buckets, __MAX_WIND_SIZE);
+
+    free_histo_buckets(&tracker->srtt_buckets, __MAX_RTT_SIZE);
+    free_histo_buckets(&tracker->rcv_rtt_buckets, __MAX_RTT_SIZE);
+    free_histo_buckets(&tracker->syn_srtt_buckets, __MAX_RTT_SIZE);
+
+    free_histo_buckets(&tracker->rto_buckets, __MAX_RTO_SIZE);
+    free_histo_buckets(&tracker->ato_buckets, __MAX_RTO_SIZE);
+
+    free_histo_buckets(&tracker->snd_buf_buckets, __MAX_SOCKBUF_SIZE);
+    free_histo_buckets(&tracker->rcv_buf_buckets, __MAX_SOCKBUF_SIZE);
+
     free(tracker);
 }
 
@@ -478,4 +455,6 @@ void destroy_tcp_flow_trackers(struct tcp_mng_s *tcp_mng)
         H_DEL(tcp_mng->flow_trackers, tracker);
         destroy_tcp_flow_tracker(tracker);
     }
+    free_histo_buckets(&tcp_mng->flow_trackers->send_delay_buckets, __MAX_DELAY_SIZE);
+    free_histo_buckets(&tcp_mng->flow_trackers->recv_delay_buckets, __MAX_DELAY_SIZE);
 }

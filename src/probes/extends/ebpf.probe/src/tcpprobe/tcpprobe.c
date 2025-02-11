@@ -61,6 +61,39 @@ static void sig_int(int signo)
     g_stop = 1;
 }
 
+                                                                                  \
+
+static int init_tcp_historm_range(struct tcp_mng_s *tcp_mng)
+{
+    tcp_mng->histo_attr = malloc(sizeof(struct histo_attr_single));
+    if (!tcp_mng->histo_attr) {
+        return -1;
+    }
+    struct histo_attr_single *attr = tcp_mng->histo_attr;
+    HISTO_BUCKET_RANGE_INIT(attr->snd_wnd_buckets, __MAX_WIND_SIZE, tcp_wind_histios);
+    HISTO_BUCKET_RANGE_INIT(attr->rcv_wnd_buckets, __MAX_WIND_SIZE, tcp_wind_histios);
+    HISTO_BUCKET_RANGE_INIT(attr->avl_snd_wnd_buckets, __MAX_WIND_SIZE, tcp_wind_histios);
+    HISTO_BUCKET_RANGE_INIT(attr->snd_cwnd_buckets, __MAX_WIND_SIZE, tcp_wind_histios);
+    HISTO_BUCKET_RANGE_INIT(attr->not_sent_buckets, __MAX_WIND_SIZE, tcp_wind_histios);
+    HISTO_BUCKET_RANGE_INIT(attr->not_acked_buckets, __MAX_WIND_SIZE, tcp_wind_histios);
+    HISTO_BUCKET_RANGE_INIT(attr->reordering_buckets, __MAX_WIND_SIZE, tcp_wind_histios);
+
+    HISTO_BUCKET_RANGE_INIT(attr->srtt_buckets, __MAX_RTT_SIZE, tcp_rtt_histios);
+    HISTO_BUCKET_RANGE_INIT(attr->rcv_rtt_buckets, __MAX_RTT_SIZE, tcp_rtt_histios);
+    HISTO_BUCKET_RANGE_INIT(attr->syn_srtt_buckets, __MAX_RTT_SIZE, tcp_rtt_histios);
+
+    HISTO_BUCKET_RANGE_INIT(attr->rto_buckets, __MAX_RTO_SIZE, tcp_rto_histios);
+    HISTO_BUCKET_RANGE_INIT(attr->ato_buckets, __MAX_RTO_SIZE, tcp_rto_histios);
+
+    HISTO_BUCKET_RANGE_INIT(attr->snd_buf_buckets, __MAX_SOCKBUF_SIZE, tcp_sockbuf_histios);
+    HISTO_BUCKET_RANGE_INIT(attr->rcv_buf_buckets, __MAX_SOCKBUF_SIZE, tcp_sockbuf_histios);
+
+    HISTO_BUCKET_RANGE_INIT(attr->send_delay_buckets, __MAX_DELAY_SIZE, tcp_delay_histios);
+    HISTO_BUCKET_RANGE_INIT(attr->recv_delay_buckets, __MAX_DELAY_SIZE, tcp_delay_histios);
+    return 0;
+}
+
+
 static void clear_unref_proc_map(int fd)
 {
     struct proc_s key = {0};
@@ -172,6 +205,9 @@ static void deinit_tcp_historm(struct tcp_mng_s *tcp_mng)
             tcp_mng->historms[i] = NULL;
         }
     }
+    if (tcp_mng->histo_attr) {
+        free(tcp_mng->histo_attr);
+    }
 }
 
 static void empty_tcp_fd_map(int map_fd)
@@ -266,6 +302,10 @@ int main(int argc, char **argv)
     }
 
     INIT_BPF_APP(tcpprobe, EBPF_RLIM_LIMITED);
+    if (init_tcp_historm_range(tcp_mng)) {
+        ERROR("[TCPPROBE] Init tco historm range failed.\n");
+        goto err;
+    }
 
     if (!supports_tstamp) {
         INFO("[TCPPROBE]: The kernel version does not support loading the tc tstamp program\n");

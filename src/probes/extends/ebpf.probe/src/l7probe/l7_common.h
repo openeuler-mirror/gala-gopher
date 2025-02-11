@@ -23,6 +23,15 @@
 
 
 #define LIBSSL_EBPF_PROG_MAX 256
+
+struct latency_histo_s {
+    enum latency_range_t range;
+    u64 min, max;
+};
+
+// unit: ns
+extern struct latency_histo_s latency_histios[__MAX_LT_RANGE];
+
 struct libssl_prog_s {
     char *libssl_path;
     struct bpf_prog_s* prog;
@@ -49,6 +58,7 @@ struct l7_mng_s {
     struct l7_ebpf_prog_s bpf_progs;
     struct l7_java_prog_s java_progs;
     struct conn_tracker_s *trackers;
+    struct bucket_range_s latency_buckets[__MAX_LT_RANGE];
     struct l7_link_s *l7_links;
     struct conn_data_s conn_data;
     struct java_proc_s *java_procs;

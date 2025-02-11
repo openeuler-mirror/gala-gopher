@@ -150,7 +150,7 @@ struct l7_api_statistic_s {
     struct api_stats_id id;
 
     u64 stats[__MAX_STATS];
-    struct histo_bucket_s latency_buckets[__MAX_LT_RANGE];
+    struct histo_bucket_array_s latency_buckets;
 
     float throughput[__MAX_THROUGHPUT];
     float latency[__MAX_LATENCY];
@@ -160,6 +160,10 @@ struct l7_api_statistic_s {
 
     float client_err_ratio;
     float server_err_ratio;
+};
+
+struct l7_latency_buckets_range {
+    struct bucket_range_s latency_buckets[__MAX_LT_RANGE];
 };
 
 struct l7_link_s {
@@ -172,7 +176,7 @@ struct l7_link_s {
     struct l7_api_statistic_s *l7_statistic;
 
     u64 stats[__MAX_STATS];
-    struct histo_bucket_s latency_buckets[__MAX_LT_RANGE];
+    struct histo_bucket_array_s latency_buckets;
     float throughput[__MAX_THROUGHPUT];
     float latency[__MAX_LATENCY];
     float err_ratio;

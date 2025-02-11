@@ -122,6 +122,12 @@ struct sli_io_lat_histo_s {
     u64 min, max;
 };
 
+struct sli_bucket_ranges_s {
+    struct bucket_range_s sli_cpu_lat_buckets[SLI_CPU_LAT_NR];
+    struct bucket_range_s sli_mem_lat_buckets[SLI_MEM_LAT_NR];
+    struct bucket_range_s sli_io_lat_buckets[SLI_IO_LAT_NR];
+};
+
 struct sli_probe_s {
     struct ipc_body_s ipc_body;
     struct sli_container_s *container_caches;
@@ -138,9 +144,10 @@ struct sli_probe_s {
     int sli_mem_fd;
     int sli_io_fd;
     time_t last_report;
-    struct histo_bucket_s sli_cpu_lat_buckets[SLI_CPU_LAT_NR];
-    struct histo_bucket_s sli_mem_lat_buckets[SLI_MEM_LAT_NR];
-    struct histo_bucket_s sli_io_lat_buckets[SLI_IO_LAT_NR];
+    struct histo_bucket_array_s sli_cpu_lat_buckets;
+    struct histo_bucket_array_s sli_mem_lat_buckets;
+    struct histo_bucket_array_s sli_io_lat_buckets;
+    struct sli_bucket_ranges_s sli_bucket_rgs;
     char cpu_wait_histo_str[MAX_HISTO_SERIALIZE_SIZE];
     char cpu_sleep_histo_str[MAX_HISTO_SERIALIZE_SIZE];
     char cpu_iowait_histo_str[MAX_HISTO_SERIALIZE_SIZE];
@@ -420,24 +427,14 @@ static void reload_sli_container_tbl(struct sli_probe_s *probe)
 
 static int probe_init(struct sli_probe_s *probe)
 {
-    for (int i = 0; i < SLI_CPU_LAT_NR; i++) {
-        (void)init_histo_bucket(&(probe->sli_cpu_lat_buckets[i]), sli_cpu_lat_histios[i].min, sli_cpu_lat_histios[i].max);
-    }
-
-    for (int i = 0; i < SLI_MEM_LAT_NR; i++) {
-        (void)init_histo_bucket(&(probe->sli_mem_lat_buckets[i]), sli_mem_lat_histios[i].min, sli_mem_lat_histios[i].max);
-    }
-
-    for (int i = 0; i < SLI_IO_LAT_NR; i++) {
-        (void)init_histo_bucket(&(probe->sli_io_lat_buckets[i]), sli_io_lat_histios[i].min, sli_io_lat_histios[i].max);
-    }
-
+    HISTO_BUCKET_RANGE_INIT(g_sli_probe.sli_bucket_rgs.sli_cpu_lat_buckets, SLI_CPU_LAT_NR, sli_cpu_lat_histios);
+    HISTO_BUCKET_RANGE_INIT(g_sli_probe.sli_bucket_rgs.sli_mem_lat_buckets, SLI_MEM_LAT_NR, sli_mem_lat_histios);
+    HISTO_BUCKET_RANGE_INIT(g_sli_probe.sli_bucket_rgs.sli_io_lat_buckets, SLI_IO_LAT_NR, sli_io_lat_histios);
     probe->host_cpu_cores = (int)sysconf(_SC_NPROCESSORS_CONF);
     if (probe->host_cpu_cores <= 0) {
         ERROR("[SLIPROBE]: sysconf to read the number of cpus error\n");
         return -1;
     }
-
     return 0;
 }
 
@@ -449,11 +446,11 @@ static void sig_int(int signo)
 static int __get_sli_cpu_histo_str(struct sli_probe_s *probe, struct sli_cpu_lat_s *cpu_lat, char histo_str[], size_t size)
 {
     for (int i = 0; i < SLI_CPU_LAT_NR; i++) {
-        probe->sli_cpu_lat_buckets[i].count = cpu_lat->cnt[i];
+        probe->sli_cpu_lat_buckets.histo_buckets[i]->count = cpu_lat->cnt[i];
     }
 
     histo_str[0] = 0;
-    if (serialize_histo(probe->sli_cpu_lat_buckets, SLI_CPU_LAT_NR, histo_str, size)) {
+    if (serialize_histo(g_sli_probe.sli_bucket_rgs.sli_cpu_lat_buckets, &probe->sli_cpu_lat_buckets, SLI_CPU_LAT_NR, histo_str, size)) {
         return -1;
     }
     return 0;
@@ -577,11 +574,11 @@ static int rcv_sli_cpu(void *ctx, void *data, __u32 size)
 static int __get_sli_mem_histo_str(struct sli_probe_s *probe, struct sli_mem_lat_s *mem_lat, char histo_str[], size_t size)
 {
     for (int i = 0; i < SLI_MEM_LAT_NR; i++) {
-        probe->sli_mem_lat_buckets[i].count = mem_lat->cnt[i];
+        probe->sli_mem_lat_buckets.histo_buckets[i]->count = mem_lat->cnt[i];
     }
 
     histo_str[0] = 0;
-    if (serialize_histo(probe->sli_mem_lat_buckets, SLI_MEM_LAT_NR, histo_str, size)) {
+    if (serialize_histo(g_sli_probe.sli_bucket_rgs.sli_mem_lat_buckets, &probe->sli_mem_lat_buckets, SLI_MEM_LAT_NR, histo_str, size)) {
         return -1;
     }
     return 0;
@@ -686,11 +683,11 @@ static int rcv_sli_mem(void *ctx, void *data, __u32 size)
 static int __get_sli_io_histo_str(struct sli_probe_s *probe, struct sli_io_lat_s *io_lat, char histo_str[], size_t size)
 {
     for (int i = 0; i < SLI_IO_LAT_NR; i++) {
-        probe->sli_io_lat_buckets[i].count = io_lat->cnt[i];
+        probe->sli_io_lat_buckets.histo_buckets[i]->count = io_lat->cnt[i];
     }
 
     histo_str[0] = 0;
-    if (serialize_histo(probe->sli_io_lat_buckets, SLI_IO_LAT_NR, histo_str, size)) {
+    if (serialize_histo(g_sli_probe.sli_bucket_rgs.sli_io_lat_buckets, &probe->sli_io_lat_buckets, SLI_IO_LAT_NR, histo_str, size)) {
         return -1;
     }
     return 0;
@@ -903,6 +900,31 @@ static void sliprobe_unload_bpf(struct sli_probe_s *sli_probe)
     sli_probe->sli_args_fd = -1;
 }
 
+static int init_sliprobe_histo()
+{
+    int status = 0;
+    if (init_bucket_with_content(&g_sli_probe.sli_cpu_lat_buckets, SLI_CPU_LAT_NR)) {
+        ERROR("[SLIPROBE] init_sliprobe_histo sli_cpu_lat_buckets failed\n");
+        status = -1;
+    }
+    if (init_bucket_with_content(&g_sli_probe.sli_mem_lat_buckets, SLI_MEM_LAT_NR)) {
+        ERROR("[SLIPROBE] init_sliprobe_histo sli_mem_lat_buckets failed\n");
+        status = -1;
+    }
+    if (init_bucket_with_content(&g_sli_probe.sli_io_lat_buckets, SLI_IO_LAT_NR)) {
+        ERROR("[SLIPROBE] init_sliprobe_histo sli_mem_lat_buckets failed\n");
+        status = -1;
+    }
+    return status;
+}
+
+void destroy_sliprobe_histo()
+{
+    free_histo_buckets(&g_sli_probe.sli_cpu_lat_buckets, SLI_CPU_LAT_NR);
+    free_histo_buckets(&g_sli_probe.sli_mem_lat_buckets, SLI_MEM_LAT_NR);
+    free_histo_buckets(&g_sli_probe.sli_io_lat_buckets, SLI_IO_LAT_NR);
+}
+
 static int sliprobe_load_bpf(struct sli_probe_s *sli_probe, struct ipc_body_s *ipc_body)
 {
     int ret;
@@ -1089,6 +1111,10 @@ int main(int argc, char **argv)
     INFO("[SLIPROBE]: Successfully started!\n");
 
     INIT_BPF_APP(sliprobe, EBPF_RLIM_LIMITED);
+    if (init_sliprobe_histo()) {
+        ERROR("[SLIPROBE]: init sliprobe histogram failed\n");
+        goto err;
+    }
 
     while (!g_stop) {
         ret = recv_ipc_msg(msq_id, (long)PROBE_SLI, &ipc_body);
@@ -1137,6 +1163,7 @@ int main(int argc, char **argv)
     }
 
 err:
+    destroy_sliprobe_histo();
     deinit_sli_container_tbl(sli_probe);
     sliprobe_unload_bpf(sli_probe);
     destroy_ipc_body(&(sli_probe->ipc_body));

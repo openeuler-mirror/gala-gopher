@@ -90,7 +90,7 @@ static void output_tcp_syn_rtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *
 
     syn_srtt_historm[0] = 0;
 
-    if (serialize_histo(tracker->syn_srtt_buckets, __MAX_RTT_SIZE, syn_srtt_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+    if (serialize_histo(tcp_mng->histo_attr->syn_srtt_buckets, &tracker->syn_srtt_buckets, __MAX_RTT_SIZE, syn_srtt_historm, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
 
@@ -111,10 +111,10 @@ static void output_tcp_rtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
     srtt_historm[0] = 0;
     rcv_rtt_historm[0] = 0;
 
-    if (serialize_histo(tracker->srtt_buckets, __MAX_RTT_SIZE, srtt_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+    if (serialize_histo(tcp_mng->histo_attr->srtt_buckets, &tracker->srtt_buckets, __MAX_RTT_SIZE, srtt_historm, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
-    if (serialize_histo(tracker->rcv_rtt_buckets, __MAX_RTT_SIZE, rcv_rtt_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+    if (serialize_histo(tcp_mng->histo_attr->rcv_rtt_buckets, &tracker->rcv_rtt_buckets, __MAX_RTT_SIZE, rcv_rtt_historm, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
 
@@ -145,6 +145,7 @@ static void output_tcp_win(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
     char *snd_wind_historm = tcp_mng->historms[TCP_HISTORM_WIND_SND];
     char *rcv_wind_historm = tcp_mng->historms[TCP_HISTORM_WIND_RCV];
     char *avl_snd_wind_historm = tcp_mng->historms[TCP_HISTORM_WIND_AVL_SND];
+    struct histo_attr_single *range_attr = tcp_mng->histo_attr;
 
     snd_cwnd_historm[0] = 0;
     not_sent_historm[0] = 0;
@@ -154,25 +155,25 @@ static void output_tcp_win(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
     rcv_wind_historm[0] = 0;
     avl_snd_wind_historm[0] = 0;
 
-    if (serialize_histo(tracker->snd_cwnd_buckets, __MAX_WIND_SIZE, snd_cwnd_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+    if (serialize_histo(range_attr->snd_cwnd_buckets, &tracker->snd_cwnd_buckets, __MAX_WIND_SIZE, snd_cwnd_historm, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
-    if (serialize_histo(tracker->not_sent_buckets, __MAX_WIND_SIZE, not_sent_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+    if (serialize_histo(range_attr->not_sent_buckets, &tracker->not_sent_buckets, __MAX_WIND_SIZE, not_sent_historm, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
-    if (serialize_histo(tracker->not_acked_buckets, __MAX_WIND_SIZE, not_acked_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+    if (serialize_histo(range_attr->not_acked_buckets, &tracker->not_acked_buckets, __MAX_WIND_SIZE, not_acked_historm, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
-    if (serialize_histo(tracker->reordering_buckets, __MAX_WIND_SIZE, reordering_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+    if (serialize_histo(range_attr->reordering_buckets, &tracker->reordering_buckets, __MAX_WIND_SIZE, reordering_historm, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
-    if (serialize_histo(tracker->snd_wnd_buckets, __MAX_WIND_SIZE, snd_wind_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+    if (serialize_histo(range_attr->snd_wnd_buckets, &tracker->snd_wnd_buckets, __MAX_WIND_SIZE, snd_wind_historm, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
-    if (serialize_histo(tracker->rcv_wnd_buckets, __MAX_WIND_SIZE, rcv_wind_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+    if (serialize_histo(range_attr->rcv_wnd_buckets, &tracker->rcv_wnd_buckets, __MAX_WIND_SIZE, rcv_wind_historm, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
-    if (serialize_histo(tracker->avl_snd_wnd_buckets, __MAX_WIND_SIZE, avl_snd_wind_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+    if (serialize_histo(range_attr->avl_snd_wnd_buckets, &tracker->avl_snd_wnd_buckets, __MAX_WIND_SIZE, avl_snd_wind_historm, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
 
@@ -215,10 +216,10 @@ static void output_tcp_rate(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tra
     rto_historm[0] = 0;
     ato_historm[0] = 0;
 
-    if (serialize_histo(tracker->rto_buckets, __MAX_RTO_SIZE, rto_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+    if (serialize_histo(tcp_mng->histo_attr->rto_buckets, &tracker->rto_buckets, __MAX_RTO_SIZE, rto_historm, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
-    if (serialize_histo(tracker->ato_buckets, __MAX_RTO_SIZE, ato_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+    if (serialize_histo(tcp_mng->histo_attr->ato_buckets, &tracker->ato_buckets, __MAX_RTO_SIZE, ato_historm, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
 
@@ -236,10 +237,10 @@ static void output_tcp_sockbuf(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *
     rcv_buf_historm[0] = 0;
     snd_buf_historm[0] = 0;
 
-    if (serialize_histo(tracker->rcv_buf_buckets, __MAX_SOCKBUF_SIZE, rcv_buf_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+    if (serialize_histo(tcp_mng->histo_attr->rcv_buf_buckets, &tracker->rcv_buf_buckets, __MAX_SOCKBUF_SIZE, rcv_buf_historm, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
-    if (serialize_histo(tracker->snd_buf_buckets, __MAX_SOCKBUF_SIZE, snd_buf_historm, MAX_HISTO_SERIALIZE_SIZE)) {
+    if (serialize_histo(tcp_mng->histo_attr->snd_buf_buckets, &tracker->snd_buf_buckets, __MAX_SOCKBUF_SIZE, snd_buf_historm, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
 
@@ -255,10 +256,10 @@ static void output_tcp_flow_delay(struct tcp_mng_s *tcp_mng, struct tcp_flow_tra
 
     send_delay_buf[0] = 0;
     recv_delay_buf[0] = 0;
-    if (serialize_histo(tracker->send_delay_buckets, __MAX_DELAY_SIZE, send_delay_buf, MAX_HISTO_SERIALIZE_SIZE)) {
+    if (serialize_histo(tcp_mng->histo_attr->send_delay_buckets, &tracker->send_delay_buckets, __MAX_DELAY_SIZE, send_delay_buf, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
-    if (serialize_histo(tracker->recv_delay_buckets, __MAX_DELAY_SIZE, recv_delay_buf, MAX_HISTO_SERIALIZE_SIZE)) {
+    if (serialize_histo(tcp_mng->histo_attr->recv_delay_buckets, &tracker->recv_delay_buckets, __MAX_DELAY_SIZE, recv_delay_buf, MAX_HISTO_SERIALIZE_SIZE)) {
         return;
     }
 
@@ -289,30 +290,30 @@ static void reset_tcp_abn_stats(struct tcp_tracker_s *tracker)
 
 static void reset_tcp_syn_rtt_stats(struct tcp_tracker_s *tracker)
 {
-    histo_bucket_reset(tracker->syn_srtt_buckets, __MAX_RTT_SIZE);
+    histo_bucket_reset(&tracker->syn_srtt_buckets, __MAX_RTT_SIZE);
     tracker->stats[SYN_SRTT_MAX] = 0;
 }
 
 static void reset_tcp_win_stats(struct tcp_tracker_s *tracker)
 {
-    histo_bucket_reset(tracker->snd_wnd_buckets, __MAX_WIND_SIZE);
-    histo_bucket_reset(tracker->rcv_wnd_buckets, __MAX_WIND_SIZE);
-    histo_bucket_reset(tracker->avl_snd_wnd_buckets, __MAX_WIND_SIZE);
-    histo_bucket_reset(tracker->snd_cwnd_buckets, __MAX_WIND_SIZE);
-    histo_bucket_reset(tracker->not_sent_buckets, __MAX_WIND_SIZE);
-    histo_bucket_reset(tracker->not_acked_buckets, __MAX_WIND_SIZE);
-    histo_bucket_reset(tracker->reordering_buckets, __MAX_WIND_SIZE);
+    histo_bucket_reset(&tracker->snd_wnd_buckets, __MAX_WIND_SIZE);
+    histo_bucket_reset(&tracker->rcv_wnd_buckets, __MAX_WIND_SIZE);
+    histo_bucket_reset(&tracker->avl_snd_wnd_buckets, __MAX_WIND_SIZE);
+    histo_bucket_reset(&tracker->snd_cwnd_buckets, __MAX_WIND_SIZE);
+    histo_bucket_reset(&tracker->not_sent_buckets, __MAX_WIND_SIZE);
+    histo_bucket_reset(&tracker->not_acked_buckets, __MAX_WIND_SIZE);
+    histo_bucket_reset(&tracker->reordering_buckets, __MAX_WIND_SIZE);
 
     tracker->stats[ZERO_WIN_RX] = 0;
     tracker->stats[ZERO_WIN_TX] = 0;
-    tracker->zero_win_rx_ratio = 0.0;
-    tracker->zero_win_tx_ratio = 0.0;
+    tracker->zero_win_rx_ratio = 0.0f;
+    tracker->zero_win_tx_ratio = 0.0f;
 }
 
 static void reset_tcp_rtt_stats(struct tcp_tracker_s *tracker)
 {
-    histo_bucket_reset(tracker->srtt_buckets, __MAX_RTT_SIZE);
-    histo_bucket_reset(tracker->rcv_rtt_buckets, __MAX_RTT_SIZE);
+    histo_bucket_reset(&tracker->srtt_buckets, __MAX_RTT_SIZE);
+    histo_bucket_reset(&tracker->rcv_rtt_buckets, __MAX_RTT_SIZE);
 }
 
 static void reset_tcp_txrx_stats(struct tcp_tracker_s *tracker)
@@ -325,20 +326,20 @@ static void reset_tcp_txrx_stats(struct tcp_tracker_s *tracker)
 
 static void reset_tcp_sockbuf_stats(struct tcp_tracker_s *tracker)
 {
-    histo_bucket_reset(tracker->snd_buf_buckets, __MAX_SOCKBUF_SIZE);
-    histo_bucket_reset(tracker->rcv_buf_buckets, __MAX_SOCKBUF_SIZE);
+    histo_bucket_reset(&tracker->snd_buf_buckets, __MAX_SOCKBUF_SIZE);
+    histo_bucket_reset(&tracker->rcv_buf_buckets, __MAX_SOCKBUF_SIZE);
 }
 
 static void reset_tcp_rate_stats(struct tcp_tracker_s *tracker)
 {
-    histo_bucket_reset(tracker->rto_buckets, __MAX_RTO_SIZE);
-    histo_bucket_reset(tracker->ato_buckets, __MAX_RTO_SIZE);
+    histo_bucket_reset(&tracker->rto_buckets, __MAX_RTO_SIZE);
+    histo_bucket_reset(&tracker->ato_buckets, __MAX_RTO_SIZE);
 }
 
 static void reset_tcp_flow_tracker_stats(struct tcp_flow_tracker_s *tracker)
 {
-    histo_bucket_reset(tracker->send_delay_buckets, __MAX_DELAY_SIZE);
-    histo_bucket_reset(tracker->recv_delay_buckets, __MAX_DELAY_SIZE);
+    histo_bucket_reset(&tracker->send_delay_buckets, __MAX_DELAY_SIZE);
+    histo_bucket_reset(&tracker->recv_delay_buckets, __MAX_DELAY_SIZE);
     return;
 }
 
@@ -498,14 +499,16 @@ static void proc_tcp_abnormal(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *t
 
 static void proc_tcp_windows(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker, const struct tcp_windows *data)
 {
-    (void)histo_bucket_add_value(tracker->snd_wnd_buckets, __MAX_WIND_SIZE, data->tcpi_snd_wnd);
-    (void)histo_bucket_add_value(tracker->rcv_wnd_buckets, __MAX_WIND_SIZE, data->tcpi_rcv_wnd);
-    (void)histo_bucket_add_value(tracker->avl_snd_wnd_buckets, __MAX_WIND_SIZE, data->tcpi_avl_snd_wnd);
-    (void)histo_bucket_add_value(tracker->snd_cwnd_buckets, __MAX_WIND_SIZE, data->tcpi_snd_cwnd);
+    struct histo_attr_single *rg_attr = tcp_mng->histo_attr;
+    (void)histo_bucket_add_value(rg_attr->snd_wnd_buckets, &tracker->snd_wnd_buckets, __MAX_WIND_SIZE, data->tcpi_snd_wnd);
+    (void)histo_bucket_add_value(rg_attr->rcv_wnd_buckets, &tracker->rcv_wnd_buckets, __MAX_WIND_SIZE, data->tcpi_rcv_wnd);
+    (void)histo_bucket_add_value(rg_attr->avl_snd_wnd_buckets, &tracker->avl_snd_wnd_buckets, __MAX_WIND_SIZE, data->tcpi_avl_snd_wnd);
+    (void)histo_bucket_add_value(rg_attr->snd_cwnd_buckets, &tracker->snd_cwnd_buckets, __MAX_WIND_SIZE, data->tcpi_snd_cwnd);
 
-    (void)histo_bucket_add_value(tracker->not_sent_buckets, __MAX_WIND_SIZE, data->tcpi_notsent_bytes);
-    (void)histo_bucket_add_value(tracker->not_acked_buckets, __MAX_WIND_SIZE, data->tcpi_notack_bytes);
-    (void)histo_bucket_add_value(tracker->reordering_buckets, __MAX_WIND_SIZE, data->tcpi_reordering);
+
+    (void)histo_bucket_add_value(rg_attr->not_sent_buckets, &tracker->not_sent_buckets, __MAX_WIND_SIZE, data->tcpi_notsent_bytes);
+    (void)histo_bucket_add_value(rg_attr->not_acked_buckets, &tracker->not_acked_buckets, __MAX_WIND_SIZE, data->tcpi_notack_bytes);
+    (void)histo_bucket_add_value(rg_attr->reordering_buckets, &tracker->reordering_buckets, __MAX_WIND_SIZE, data->tcpi_reordering);
 
     if (data->tcpi_snd_wnd == 0) {
         tracker->stats[ZERO_WIN_TX]++;
@@ -520,15 +523,15 @@ static void proc_tcp_windows(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tr
 
 static void proc_tcp_rtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker, const struct tcp_rtt *data)
 {
-    (void)histo_bucket_add_value(tracker->srtt_buckets, __MAX_RTT_SIZE, data->tcpi_srtt);
-    (void)histo_bucket_add_value(tracker->rcv_rtt_buckets, __MAX_RTT_SIZE, data->tcpi_rcv_rtt);
+    (void)histo_bucket_add_value(tcp_mng->histo_attr->srtt_buckets, &tracker->srtt_buckets, __MAX_RTT_SIZE, data->tcpi_srtt);
+    (void)histo_bucket_add_value(tcp_mng->histo_attr->rcv_rtt_buckets, &tracker->rcv_rtt_buckets, __MAX_RTT_SIZE, data->tcpi_rcv_rtt);
     tracker->report_flags |= TCP_PROBE_RTT;
     return;
 }
 
 static void proc_tcp_srtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker, const struct tcp_srtt *data)
 {
-    (void)histo_bucket_add_value(tracker->syn_srtt_buckets, __MAX_RTT_SIZE, data->syn_srtt);
+    (void)histo_bucket_add_value(tcp_mng->histo_attr->syn_srtt_buckets, &tracker->syn_srtt_buckets, __MAX_RTT_SIZE, data->syn_srtt);
     tracker->stats[SYN_SRTT_MAX] = max(tracker->stats[SYN_SRTT_MAX], data->syn_srtt);
     tracker->report_flags |= TCP_PROBE_SRTT;
     return;
@@ -536,16 +539,16 @@ static void proc_tcp_srtt(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *track
 
 static void proc_tcp_rate(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker, const struct tcp_rate *data)
 {
-    (void)histo_bucket_add_value(tracker->rto_buckets, __MAX_RTO_SIZE, data->tcpi_rto);
-    (void)histo_bucket_add_value(tracker->ato_buckets, __MAX_RTO_SIZE, data->tcpi_ato);
+    (void)histo_bucket_add_value(tcp_mng->histo_attr->rto_buckets, &tracker->rto_buckets, __MAX_RTO_SIZE, data->tcpi_rto);
+    (void)histo_bucket_add_value(tcp_mng->histo_attr->ato_buckets, &tracker->ato_buckets, __MAX_RTO_SIZE, data->tcpi_ato);
     tracker->report_flags |= TCP_PROBE_RATE;
     return;
 }
 
 static void proc_tcp_sockbuf(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker, const struct tcp_sockbuf *data)
 {
-    (void)histo_bucket_add_value(tracker->rcv_buf_buckets, __MAX_SOCKBUF_SIZE, data->sk_rcvbuf);
-    (void)histo_bucket_add_value(tracker->snd_buf_buckets, __MAX_SOCKBUF_SIZE, data->sk_sndbuf);
+    (void)histo_bucket_add_value(tcp_mng->histo_attr->rcv_buf_buckets, &tracker->rcv_buf_buckets, __MAX_SOCKBUF_SIZE, data->sk_rcvbuf);
+    (void)histo_bucket_add_value(tcp_mng->histo_attr->snd_buf_buckets, &tracker->snd_buf_buckets, __MAX_SOCKBUF_SIZE, data->sk_sndbuf);
     tracker->report_flags |= TCP_PROBE_SOCKBUF;
     return;
 }
@@ -554,10 +557,10 @@ static void proc_tcp_flow_delay(struct tcp_mng_s *tcp_mng, struct tcp_flow_track
     const struct tcp_delay *data)
 {
     if (data->recv_state == DELAY_SAMP_FINISH) {
-        (void)histo_bucket_add_value(tracker->recv_delay_buckets, __MAX_DELAY_SIZE, data->net_recv_delay);
+        (void)histo_bucket_add_value(tcp_mng->histo_attr->recv_delay_buckets, &tracker->recv_delay_buckets, __MAX_DELAY_SIZE, data->net_recv_delay);
     }
     if (data->send_state == DELAY_SAMP_FINISH) {
-        (void)histo_bucket_add_value(tracker->send_delay_buckets, __MAX_DELAY_SIZE, data->net_send_delay);
+        (void)histo_bucket_add_value(tcp_mng->histo_attr->send_delay_buckets, &tracker->send_delay_buckets, __MAX_DELAY_SIZE, data->net_send_delay);
     }
     tracker->report_flags |= TCP_PROBE_DELAY;
     return;
