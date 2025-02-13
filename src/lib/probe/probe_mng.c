@@ -1021,10 +1021,6 @@ static void probe_backup_cmd(struct probe_s *probe, struct probe_s *probe_backup
 
 static void probe_rollback_cmd(struct probe_s *probe, struct probe_s *probe_backup)
 {
-    if (probe->bin) {
-        free(probe->bin);
-    }
-
     probe->is_extend_probe = probe_backup->is_extend_probe;
     probe->probe_entry = probe_backup->probe_entry;
     probe->cb = probe_backup->cb;
