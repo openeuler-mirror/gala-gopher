@@ -325,9 +325,11 @@ int get_addr_stack(__u64 *addr_stack, int uid)
     }
 
     if (uid <= 0) {
+        TP_DEBUG("Stack uid[%d] <= 0, get addr stack failed\n", uid);
         return -1;
     }
     if (bpf_map_lookup_elem(stackMapFd, &uid, addr_stack) != 0) {
+        TP_DEBUG("Lookup elem uid[%d] from stackMap failed, get addr stack failed\n", uid);
         return -1;
     }
 
@@ -442,11 +444,13 @@ static int get_symb_stack_user(char *symbs_str, int symb_size, int uid, proc_inf
     // cache process symbol table if not
     symbs = get_symb_info(proc_info);
     if (symbs == NULL) {
+        TP_DEBUG("Get symb info failed\n");
         return -1;
     }
 
     ret = stack_transfer_addrs2symbs(ip, PERF_MAX_STACK_DEPTH, symbs_str, symb_size, proc_info);
     if (ret) {
+        TP_DEBUG("Failed to transfer user mode stack address into symbol\n");
         return -1;
     }
 

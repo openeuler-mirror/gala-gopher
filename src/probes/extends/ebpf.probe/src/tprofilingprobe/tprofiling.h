@@ -301,6 +301,7 @@ typedef struct {
     ubpf_link_t *pygc_link;
     ubpf_link_t *pthrd_sync_link;
     ubpf_link_t *mem_glibc_link;
+    ubpf_link_t *mem_pymem_link;
     UT_hash_handle hh;
 } proc_ubpf_link_t;
 
@@ -342,6 +343,7 @@ typedef struct {
     void *pygc_skel;            /* 用于后续挂载进程的 uprobe 探针 */
     void *pthrd_sync_skel;      /* 用于后续挂载进程的 uprobe 探针 */
     void *mem_glibc_skel;       /* 用于后续挂载进程的 uprobe 探针 */
+    void *mem_pymem_skel;       /* 用于后续挂载进程的 uprobe 探针 */
     void **oncpu_sample_bpf_links;  /* 用于 oncpu_sample 子探针 */
     int oncpu_sample_link_num;      /* 用于 oncpu_sample 子探针 */
     time_t stuck_evt_timer;     /* 记录上次巡检长时间未结束的事件的时间点 */

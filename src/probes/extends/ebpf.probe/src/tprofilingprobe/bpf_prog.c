@@ -43,6 +43,7 @@
 #include "pygc.skel.h"
 #include "pthrd_sync.skel.h"
 #include "mem_glibc.skel.h"
+#include "mem_pymem.skel.h"
 #include "oncpu_sample.skel.h"
 #include "bpf_prog.h"
 
@@ -388,6 +389,9 @@ static void unload_uprobe_links(void)
         if (link->mem_glibc_link != NULL) {
             unload_uprobe_link(&link->mem_glibc_link);
         }
+        if (link->mem_pymem_link != NULL) {
+            unload_uprobe_link(&link->mem_pymem_link);
+        }
     }
 }
 
@@ -404,6 +408,26 @@ ubpf_link_t *create_glibc_link(int pid)
     ret = get_so_path(pid, link->elf_path, sizeof(link->elf_path), "libc.so");
     if (ret) {
         TP_DEBUG("Failed to get libc.so path(pid=%d)\n", pid);
+        free(link);
+        return NULL;
+    }
+
+    return link;
+}
+
+ubpf_link_t *create_pymem_link(int pid)
+{
+    ubpf_link_t *link;
+    int ret;
+
+    link = (ubpf_link_t *)calloc(1, sizeof(ubpf_link_t));
+    if (!link) {
+        return NULL;
+    }
+
+    ret = get_so_path(pid, link->elf_path, sizeof(link->elf_path), "python");
+    if (ret) {
+        TP_DEBUG("Failed to get python path(pid=%d)\n", pid);
         free(link);
         return NULL;
     }
@@ -461,6 +485,26 @@ int attach_mem_glibc_probes_per_proc(struct bpf_object *obj, proc_ubpf_link_t *p
 
     return 0;
 }
+
+int attach_mem_pymem_probes_per_proc(struct bpf_object *obj, proc_ubpf_link_t *proc_link)
+{
+    ubpf_link_t *mem_pymem_link;
+    int ret;
+
+    mem_pymem_link = create_pymem_link(proc_link->pid);
+    if (!mem_pymem_link) {
+        return -1;
+    }
+    ret = attach_uprobe_link(obj, mem_pymem_link, proc_link->pid, get_elf_symb_addr);
+    if (ret) {
+        free(mem_pymem_link);
+        return -1;
+    }
+    proc_link->mem_pymem_link = mem_pymem_link;
+
+    return 0;
+}
+
 
 static proc_ubpf_link_t *find_proc_link(int pid)
 {
@@ -542,6 +586,9 @@ void destroy_proc_link(proc_ubpf_link_t *proc_link)
     if (proc_link->mem_glibc_link != NULL) {
         unload_uprobe_link(&proc_link->mem_glibc_link);
     }
+    if (proc_link->mem_pymem_link != NULL) {
+        unload_uprobe_link(&proc_link->mem_pymem_link);
+    }
     free(proc_link);
 }
 
@@ -551,6 +598,7 @@ int attach_uprobes(struct ipc_body_s *ipc_body)
     struct bpf_object *pygc_obj = NULL;
     struct bpf_object *pthrd_sync_obj = NULL;
     struct bpf_object *mem_glibc_obj = NULL;
+    struct bpf_object *mem_pymem_obj = NULL;
     int pid;
     int i;
     int ret;
@@ -564,7 +612,9 @@ int attach_uprobes(struct ipc_body_s *ipc_body)
     if (tprofiler.mem_glibc_skel != NULL) {
         mem_glibc_obj = GET_PROG_OBJ_BY_SKEL(tprofiler.mem_glibc_skel, mem_glibc);
     }
-
+    if (tprofiler.mem_pymem_skel != NULL) {
+        mem_pymem_obj = GET_PROG_OBJ_BY_SKEL(tprofiler.mem_pymem_skel, mem_pymem);
+    }
     for (i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
         if (ipc_body->snooper_objs[i].type != SNOOPER_OBJ_PROC) {
             continue;
@@ -590,10 +640,20 @@ int attach_uprobes(struct ipc_body_s *ipc_body)
                 TP_DEBUG("Failed to attach pthrd_sync probes: pid=%d\n", pid);
             }
         }
-        if (mem_glibc_obj != NULL && proc_link->mem_glibc_link == NULL) {
-            ret = attach_mem_glibc_probes_per_proc(mem_glibc_obj, proc_link);
-            if (ret) {
-                TP_DEBUG("Failed to attach mem_glibc probes: pid=%d\n", pid);
+
+        if (proc_link->lang == LANG_TYPE_PYTHON) {
+            if (mem_pymem_obj != NULL && proc_link->mem_pymem_link == NULL) {
+                ret = attach_mem_pymem_probes_per_proc(mem_pymem_obj, proc_link);
+                if (ret) {
+                    TP_DEBUG("Failed to attach mem_pymem probes: pid=%d\n", pid);
+                }
+            }
+        } else {
+            if (mem_glibc_obj != NULL && proc_link->mem_glibc_link == NULL) {
+                ret = attach_mem_glibc_probes_per_proc(mem_glibc_obj, proc_link);
+                if (ret) {
+                    TP_DEBUG("Failed to attach mem_glibc probes: pid=%d\n", pid);
+                }
             }
         }
     }
@@ -670,6 +730,29 @@ err:
     return -1;
 }
 
+int __load_mem_pymem_bpf_prog(struct bpf_prog_s *prog, struct ipc_body_s *ipc_body)
+{
+    int ret;
+
+    LOAD_MEM_GLIBC_PROBE(mem_pymem, err, 1, &tprofiler.pbMgmt);
+    prog->skels[prog->num].skel = mem_pymem_skel;
+    prog->skels[prog->num].fn = (skel_destroy_fn)mem_pymem_bpf__destroy;
+    prog->custom_btf_paths[prog->num] = mem_pymem_open_opts.btf_custom_path;
+
+    ret = open_profiling_bpf_buffer(&tprofiler.pbMgmt);
+    if (ret) {
+        goto err;
+    }
+
+    prog->num++;
+    tprofiler.mem_pymem_skel = (void *)mem_pymem_skel;
+    return 0;
+err:
+    UNLOAD(mem_pymem);
+    CLEANUP_CUSTOM_BTF(mem_pymem);
+    return -1;
+}
+
 void deactivate_proc_link_tbl()
 {
     proc_ubpf_link_t *link, *tmp;
@@ -728,7 +811,8 @@ void refresh_proc_link_tbl(struct ipc_body_s *ipc_body)
 
 void reattach_uprobes(struct ipc_body_s *ipc_body)
 {
-    if (tprofiler.pygc_skel == NULL && tprofiler.pthrd_sync_skel == NULL && tprofiler.mem_glibc_skel == NULL) {
+    if (tprofiler.pygc_skel == NULL && tprofiler.pthrd_sync_skel == NULL &&
+        tprofiler.mem_glibc_skel == NULL && tprofiler.mem_pymem_skel == NULL) {
         return;
     }
     refresh_proc_link_tbl(ipc_body);
@@ -782,7 +866,10 @@ int load_mem_glibc_bpf_prog(struct ipc_body_s *ipc_body, struct bpf_prog_s *prog
     if (ret) {
         return -1;
     }
-
+    ret = __load_mem_pymem_bpf_prog(prog, ipc_body);
+    if (ret) {
+        return -1;
+    }
     return 0;
 }
 
@@ -977,4 +1064,5 @@ void unload_profiling_bpf_prog()
     tprofiler.pygc_skel = NULL;
     tprofiler.pthrd_sync_skel = NULL;
     tprofiler.mem_glibc_skel = NULL;
+    tprofiler.mem_pymem_skel = NULL;
 }
