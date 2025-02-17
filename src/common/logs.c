@@ -659,7 +659,7 @@ static void check_file_state(struct logger *logger)
     }
 }
 
-static void write_log(const char *msg, struct logger *logger)
+static void write_log(const char *msg, size_t msg_len, struct logger *logger)
 {
     if (logger == NULL) {
         return;
@@ -682,12 +682,11 @@ static void write_log(const char *msg, struct logger *logger)
         }
     }
     (void)lseek(logger->file_fd, 0, SEEK_END);
-    const size_t buffer_length = strlen(msg);
-    write_ret = write(logger->file_fd, msg, buffer_length);
+    write_ret = write(logger->file_fd, msg, msg_len);
     if (write_ret == -1) {
         (void)printf("[ERROR]: write to log file failed, errno[%d].\n", errno);
     }
-    logger->buf_len += buffer_length;
+    logger->buf_len += msg_len;
     (void)pthread_rwlock_unlock(&logger->rwlock);
 }
 
@@ -708,11 +707,11 @@ static void log_without_date(struct logger *logger, const char *detail)
         free(msg);
         return;
     }
-    write_log(msg, logger);
+    write_log(msg, strlen(msg), logger);
     free(msg);
 }
 
-int wr_metrics_logs(const char* logs, size_t logs_len)
+int wr_metrics_logs(const char *logs, size_t logs_len)
 {
     struct log_mgr_s *mgr = local;
     if (!mgr) {
@@ -726,7 +725,7 @@ int wr_metrics_logs(const char* logs, size_t logs_len)
             return -1;
         }
     }
-    log_without_date(&g_metrics_logger, logs);
+    write_log(logs, logs_len, &g_metrics_logger);
     que_current_set_size(mgr->metrics_files, logs_len);
     pthread_mutex_unlock(&metric_mutex);
     return 0;
@@ -835,7 +834,7 @@ static void log_with_date(struct logger *logger, const char *detail, enum logger
     if (ret == -1) {
         return;
     }
-    write_log(msg, logger);
+    write_log(msg, strlen(msg), logger);
 }
 
 void convert_output_to_log(char *buffer, int bufferSize)
