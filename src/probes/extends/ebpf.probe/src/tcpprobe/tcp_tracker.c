@@ -243,6 +243,7 @@ static void __init_tracker_id(struct tcp_tracker_id_s *tracker_id, const struct 
     tracker_id->family = tcp_link->family;
     tracker_id->role = tcp_link->role;
     tracker_id->port = tcp_link->s_port;
+    tracker_id->cport = tcp_link->c_port;
     memcpy(tracker_id->comm, tcp_link->comm, TASK_COMM_LEN);
 
     if (tcp_link->family == AF_INET) {
@@ -322,6 +323,9 @@ struct tcp_tracker_s *get_tcp_tracker(struct tcp_mng_s *tcp_mng, const void *lin
     const struct tcp_link_s *tcp_link = link;
 
     __init_tracker_id(&tracker_id, tcp_link, toa_sock);
+    if (tcp_mng->ipc_body.probe_param.report_cport == 0) {
+        tracker_id.cport = 0;
+    }
 
     int transform = __transform_cluster_ip(tcp_mng, tcp_link, &connect);
     if (transform & ADDR_TRANSFORM_SERVER) {
@@ -357,7 +361,7 @@ void destroy_tcp_tracker(struct tcp_tracker_s* tracker)
 {
     if (!tracker) {
         return;
-    } 
+    }
     if (tracker->src_ip) {
         free(tracker->src_ip);
     }

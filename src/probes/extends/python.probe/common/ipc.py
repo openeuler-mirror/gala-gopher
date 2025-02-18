@@ -45,6 +45,7 @@ class ProbeParams(Structure):
         ("drops_count_thr", c_uint),
         ("kafka_port", c_uint),
         ("logs", c_char),
+        ("report_cport", c_char),
         ("metrics_flags", c_char),
         ("env_flags", c_char),
         ("support_ssl", c_char),

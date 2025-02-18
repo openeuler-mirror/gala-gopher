@@ -32,6 +32,11 @@ measurements:
                 name: "server_ip",
             },
             {
+                description: "client port",
+                type: "key",
+                name: "client_port",
+            },
+            {
                 description: "server port",
                 type: "key",
                 name: "server_port",

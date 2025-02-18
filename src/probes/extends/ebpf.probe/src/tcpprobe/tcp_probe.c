@@ -415,7 +415,7 @@ static int output_tcp_metrics(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *t
 
     if (outputted) {
         (void)fprintf(stdout,
-            "|%s|%u|%s|%s|%s|%s|%u|%u"
+            "|%s|%u|%s|%s|%s|%s|%u|%u|%u"
             "%s%s%s%s%s%s%s|\n",
             TCP_TBL_METRIC,
             tracker->id.tgid,
@@ -423,6 +423,7 @@ static int output_tcp_metrics(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *t
             tracker->src_ip,
             tracker->toa_src_ip ? : "",
             tracker->dst_ip,
+            tracker->id.cport,
             tracker->id.port,
             tracker->id.family,
 
