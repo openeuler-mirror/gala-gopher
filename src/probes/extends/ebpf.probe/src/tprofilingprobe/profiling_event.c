@@ -1726,6 +1726,7 @@ void do_report_syscall_stuck_event(syscall_m_enter_t *sce)
     }
 
     ret = local_write_event(&tprofiler.localStorage, stuck_evt);
+    free(stuck_evt);
     if (ret) {
         TP_WARN("Failed to write stuck event locally\n");
         return;

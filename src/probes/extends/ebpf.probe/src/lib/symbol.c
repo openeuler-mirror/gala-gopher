@@ -850,15 +850,15 @@ int proc_search_addr_symb(struct proc_symbs_s *proc_symbs,
                 }
                 continue;
             }
-            // search debug symbs
-            ret = search_elf_symb(proc_symbs->mods[i]->debug_symbs,
-                    addr, addr, proc_symbs->mods[i]->mod_name, addr_symb);
-            if (ret == 0) {
-                break;
-            }
-
-             // search other mods
             if (is_mod_contain_addr(proc_symbs->mods[i], addr, &target_addr)) {
+                // search debug symbs
+                ret = search_elf_symb(proc_symbs->mods[i]->debug_symbs,
+                        addr, target_addr, proc_symbs->mods[i]->mod_name, addr_symb);
+                if (ret == 0) {
+                    break;
+                }
+
+                // search other mods
                 is_contain_range = 1;
                 ret = search_elf_symb(proc_symbs->mods[i]->mod_symbs,
                         addr, target_addr, proc_symbs->mods[i]->mod_name, addr_symb);
