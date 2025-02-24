@@ -82,10 +82,6 @@ static void parseExtendProbeOutput(struct probe_s *probe, FILE *f)
     time_t secs;
 
     while (feof(f) == 0 && ferror(f) == 0) {
-        if (IS_STOPPING_PROBE(probe)) {
-            break;
-        }
-
         if (FifoFull(probe->fifo)) {
             writeIngressEvt(probe);
             sleep(1);   // Rate limiting for probes
