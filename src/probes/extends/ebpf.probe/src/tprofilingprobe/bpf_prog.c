@@ -281,6 +281,11 @@ int attach_uprobe_link(struct bpf_object *obj, ubpf_link_t *ulink, int pid, func
             goto err;
         }
         ret = callback(func_name, ulink, &func_offset);
+        if (ret) {
+            TP_DEBUG("Failed to attach uprobe: pid=%d, elf_path=%s, func_name=%s\n",
+                pid, ulink->elf_path, func_name);
+            goto err;
+        }
         link = bpf_program__attach_uprobe(program, is_retprobe, pid, ulink->elf_path, func_offset);
         ret = libbpf_get_error(link);
         if (ret) {
@@ -364,7 +369,6 @@ int attach_pygc_probes_per_proc(struct bpf_object *obj, proc_ubpf_link_t *proc_l
     }
     ret = attach_uprobe_link(obj, pygc_link, proc_link->pid, get_pygc_symb_addr);
     if (ret) {
-        free(pygc_link);
         return -1;
     }
     proc_link->pygc_link = pygc_link;
@@ -459,7 +463,6 @@ int attach_pthrd_sync_probes_per_proc(struct bpf_object *obj, proc_ubpf_link_t *
     }
     ret = attach_uprobe_link(obj, pthrd_sync_link, proc_link->pid, get_elf_symb_addr);
     if (ret) {
-        free(pthrd_sync_link);
         return -1;
     }
     proc_link->pthrd_sync_link = pthrd_sync_link;
@@ -478,7 +481,6 @@ int attach_mem_glibc_probes_per_proc(struct bpf_object *obj, proc_ubpf_link_t *p
     }
     ret = attach_uprobe_link(obj, mem_glibc_link, proc_link->pid, get_elf_symb_addr);
     if (ret) {
-        free(mem_glibc_link);
         return -1;
     }
     proc_link->mem_glibc_link = mem_glibc_link;
@@ -497,7 +499,6 @@ int attach_mem_pymem_probes_per_proc(struct bpf_object *obj, proc_ubpf_link_t *p
     }
     ret = attach_uprobe_link(obj, mem_pymem_link, proc_link->pid, get_elf_symb_addr);
     if (ret) {
-        free(mem_pymem_link);
         return -1;
     }
     proc_link->mem_pymem_link = mem_pymem_link;
@@ -644,16 +645,16 @@ int attach_uprobes(struct ipc_body_s *ipc_body)
         if (proc_link->lang == LANG_TYPE_PYTHON) {
             if (mem_pymem_obj != NULL && proc_link->mem_pymem_link == NULL) {
                 ret = attach_mem_pymem_probes_per_proc(mem_pymem_obj, proc_link);
-                if (ret) {
-                    TP_DEBUG("Failed to attach mem_pymem probes: pid=%d\n", pid);
+                if (ret == 0) {
+                    return 0;
                 }
+                TP_DEBUG("Failed to attach mem_pymem probes: pid=%d\n", next_key.proc_id);
             }
-        } else {
-            if (mem_glibc_obj != NULL && proc_link->mem_glibc_link == NULL) {
-                ret = attach_mem_glibc_probes_per_proc(mem_glibc_obj, proc_link);
-                if (ret) {
-                    TP_DEBUG("Failed to attach mem_glibc probes: pid=%d\n", pid);
-                }
+        }
+        if (mem_glibc_obj != NULL && proc_link->mem_glibc_link == NULL) {
+            ret = attach_mem_glibc_probes_per_proc(mem_glibc_obj, proc_link);
+            if (ret) {
+                TP_DEBUG("Failed to attach mem_glibc probes: pid=%d\n", next_key.proc_id);
             }
         }
     }
