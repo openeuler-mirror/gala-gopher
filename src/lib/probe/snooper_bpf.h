@@ -35,7 +35,7 @@ enum proc_event_t {
 };
 struct snooper_proc_evt_s {
     enum proc_event_t proc_event;
-    char filename[PATH_LEN];
+    char comm[TASK_COMM_LEN];
     u32 pid;
 };
 

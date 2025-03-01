@@ -1438,18 +1438,9 @@ static void __rcv_snooper_proc_exit(struct probe_mng_s *probe_mng, u32 proc_id)
 static int rcv_snooper_proc_evt(void *ctx, void *data, __u32 size)
 {
     struct snooper_proc_evt_s *evt = data;
-    char comm[TASK_COMM_LEN];
-
-    comm[0] = 0;
-    char *p = strrchr(evt->filename, '/');
-    if (p) {
-        (void)snprintf(comm, sizeof(comm), "%s", p + 1);
-    } else {
-        (void)snprintf(comm, sizeof(comm), "%s", evt->filename);
-    }
 
     if (evt->proc_event == PROC_EXEC) {
-        __rcv_snooper_proc_exec(__probe_mng_snooper, (const char *)comm, (u32)evt->pid);
+        __rcv_snooper_proc_exec(__probe_mng_snooper, (const char *)evt->comm, (u32)evt->pid);
     } else {
         __rcv_snooper_proc_exit(__probe_mng_snooper, (u32)evt->pid);
     }
