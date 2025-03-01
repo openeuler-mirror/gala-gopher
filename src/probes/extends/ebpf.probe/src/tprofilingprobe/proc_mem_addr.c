@@ -32,24 +32,22 @@ int mem_alloc_tbl_add_item(struct mem_alloc_s **mem_alloc_tbl, u32 proc_id, u64 
         TP_ERROR("Failed to add mem alloc item: malloc failed\n");
         return -1;
     }
+    memset(new_item, 0, sizeof(struct mem_alloc_s));
     new_item->key.proc_id = proc_id;
     new_item->key.addr = addr;
-    new_item->key.ts = ts;
+    new_item->ts = ts;
     new_item->symb_addr = symb_addr;
     new_item->size = size;
     H_ADD(*mem_alloc_tbl, key, sizeof(new_item->key), new_item);
     return 0;
 }
 
-struct mem_alloc_s *mem_alloc_tbl_find_item(struct mem_alloc_s **mem_alloc_tbl, u32 proc_id, u64 addr, u64 ts)
+struct mem_alloc_s *mem_alloc_tbl_find_item(struct mem_alloc_s **mem_alloc_tbl, u32 proc_id)
 {
-    struct mem_alloc_key_s key = {
-        .proc_id = proc_id,
-        .addr = addr,
-        .ts = ts
-    };
+    struct mem_alloc_key_s key = {0};
+    key.addr =addr;
+    key.proc_id = proc_id;
     struct mem_alloc_s *item = NULL;
-
     H_FIND(*mem_alloc_tbl, &key, sizeof(key), item);
     return item;
 }
@@ -58,20 +56,4 @@ void mem_alloc_tbl_delete_item(struct mem_alloc_s **mem_alloc_tbl, struct mem_al
 {
     H_DEL(*mem_alloc_tbl, item);
     free(item);
-}
-
-void destroy_mem_alloc_tbl(struct mem_alloc_s **mem_alloc_tbl)
-{
-    struct mem_alloc_s *item, *tmp;
-
-    if (*mem_alloc_tbl == NULL) {
-        return;
-    }
-
-    H_ITER(*mem_alloc_tbl, item, tmp) {
-        H_DEL(*mem_alloc_tbl, item);
-        (void)free(item);
-    }
-    *mem_alloc_tbl = NULL;
-    return;
 }
