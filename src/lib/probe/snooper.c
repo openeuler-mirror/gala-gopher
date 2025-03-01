@@ -984,25 +984,25 @@ static int add_snooper_obj_con_info(struct probe_s *probe, struct con_info_s *co
     DEBUG("[SNOOPER] Adding container %s to snooper obj\n", con_info->con_id ?:"unknown");
     snooper_obj->type = SNOOPER_OBJ_CON;
     snooper_obj->obj.con_info.cpucg_inode = con_info->cpucg_inode;
-    if (con_info->con_id[0] != 0) {
+    if (con_info->con_id[0]) {
         snooper_obj->obj.con_info.con_id = strdup(con_info->con_id);
         if (!snooper_obj->obj.con_info.con_id) {
             goto err;
         }
     }
-    if (probe->probe_type == PROBE_SLI && (!con_info->container_name[0])) {
+    if (probe->probe_type == PROBE_SLI && (con_info->container_name[0])) {
         snooper_obj->obj.con_info.container_name = strdup(con_info->container_name);
         if (!snooper_obj->obj.con_info.container_name) {
             goto err;
         }
     }
-    if (probe->probe_type == PROBE_PROC && (!con_info->libc_path[0])) {
+    if (probe->probe_type == PROBE_PROC && (con_info->libc_path[0])) {
         snooper_obj->obj.con_info.libc_path = strdup(con_info->libc_path);
         if (!snooper_obj->obj.con_info.libc_path) {
             goto err;
         }
     }
-    if (probe->probe_type == PROBE_L7 && (!con_info->libssl_path[0])) {
+    if (probe->probe_type == PROBE_L7 && (con_info->libssl_path[0])) {
         snooper_obj->obj.con_info.libssl_path = strdup(con_info->libssl_path);
         if (!snooper_obj->obj.con_info.libssl_path) {
             goto err;
