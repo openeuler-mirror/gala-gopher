@@ -1,0 +1,4 @@
+build.sh text eol=lf
+build.sh -text !eol
+build.sh export-ignore
+build.sh filter=fix-permissions
