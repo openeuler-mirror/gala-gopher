@@ -1785,7 +1785,7 @@ void add_alloc_event_to_mem_stack_tree(trace_event_data_t *evt_data, proc_info_t
     stack_trace_t *stack;
     int ret;
 
-    mem_alloc = mem_alloc_tbl_find_item(&tprofiler.mem_alloc_tbl, proc_info->tgid, mem_glibc_d->addr, mem_glibc_d->ts);
+    mem_alloc = mem_alloc_tbl_find_item(&tprofiler.mem_alloc_tbl, proc_info->tgid, mem_glibc_d->addr);
     if (mem_alloc != NULL) {
         if (mem_alloc->symb_addr == NULL) { // 内存释放事件
             mem_alloc_tbl_delete_item(&tprofiler.mem_alloc_tbl, mem_alloc);
@@ -1823,7 +1823,7 @@ void add_free_event_to_mem_stack_tree(trace_event_data_t *evt_data, proc_info_t 
 {
     struct mem_alloc_s *mem_alloc;
 
-    mem_alloc = mem_alloc_tbl_find_item(&tprofiler.mem_alloc_tbl, proc_info->tgid, evt_data->mem_glibc_d.addr, evt_data->mem_glibc_d.ts);
+    mem_alloc = mem_alloc_tbl_find_item(&tprofiler.mem_alloc_tbl, proc_info->tgid, evt_data->mem_glibc_d.addr);
     if (mem_alloc == NULL) {
         (void)mem_alloc_tbl_add_item(&tprofiler.mem_alloc_tbl, proc_info->tgid, evt_data->mem_glibc_d.addr, evt_data->mem_glibc_d.ts,
             NULL, evt_data->mem_glibc_d.size);

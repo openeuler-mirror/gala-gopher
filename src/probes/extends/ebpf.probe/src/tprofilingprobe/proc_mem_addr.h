@@ -21,13 +21,13 @@
 struct mem_alloc_key_s {
     u32 proc_id;
     u64 addr;
-    u64 ts;     // 确保malloc事件和对应的free事件精确匹配
 };
 
 struct mem_alloc_s {
     struct mem_alloc_key_s key;
     u64 size;
     void *symb_addr;    // 若值为NULL，则表示当前保存的是一个free事件
+    u64 ts; 
     H_HANDLE;
 };
 
@@ -35,7 +35,7 @@ struct mem_alloc_s {
 
 int mem_alloc_tbl_add_item(struct mem_alloc_s **mem_alloc_tbl, u32 proc_id, u64 addr, u64 ts,
     void *symb_addr, u64 size);
-struct mem_alloc_s *mem_alloc_tbl_find_item(struct mem_alloc_s **mem_alloc_tbl, u32 proc_id, u64 addr, u64 ts);
+struct mem_alloc_s *mem_alloc_tbl_find_item(struct mem_alloc_s **mem_alloc_tbl, u32 proc_id, u64 addr);
 void mem_alloc_tbl_delete_item(struct mem_alloc_s **mem_alloc_tbl, struct mem_alloc_s *item);
 void destroy_mem_alloc_tbl(struct mem_alloc_s **mem_alloc_tbl);
 
