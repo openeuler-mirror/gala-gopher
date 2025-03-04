@@ -42,7 +42,7 @@ int mem_alloc_tbl_add_item(struct mem_alloc_s **mem_alloc_tbl, u32 proc_id, u64 
     return 0;
 }
 
-struct mem_alloc_s *mem_alloc_tbl_find_item(struct mem_alloc_s **mem_alloc_tbl, u32 proc_id)
+struct mem_alloc_s *mem_alloc_tbl_find_item(struct mem_alloc_s **mem_alloc_tbl, u32 proc_id, u64 addr)
 {
     struct mem_alloc_key_s key = {0};
     key.addr =addr;
