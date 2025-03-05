@@ -828,24 +828,31 @@ static char __chk_snooper_pattern(const char *conf_pattern, const char *target)
 }
 
 #define __SYS_PROC_COMM             "/proc/%s/comm"
-#define __CAT_SYS_PROC_COMM         "/usr/bin/cat /proc/%s/comm 2> /dev/null"
-#define __PROC_NAME_MAX             64
 #define __PROC_CMDLINE_MAX          4096
 static int __read_proc_comm(const char *dir_name, char *comm, size_t size)
 {
     char proc_comm_path[PATH_LEN];
-    char cat_comm_cmd[COMMAND_LEN];
+    FILE *f;
 
     proc_comm_path[0] = 0;
-    (void)snprintf(proc_comm_path, PATH_LEN, __SYS_PROC_COMM, dir_name);
-    if (access((const char *)proc_comm_path, 0) != 0) {
+    (void)snprintf(proc_comm_path, sizeof(proc_comm_path), __SYS_PROC_COMM, dir_name);
+
+    f = fopen(proc_comm_path, "r");
+    if (f == NULL) {
         return -1;
     }
 
-    cat_comm_cmd[0] = 0;
-    (void)snprintf(cat_comm_cmd, COMMAND_LEN, __CAT_SYS_PROC_COMM, dir_name);
+    if (fgets(comm, size, f) == NULL) {
+        fclose(f);
+        return -1;
+    }
 
-    return exec_cmd((const char *)cat_comm_cmd, comm, size);
+    char *p = strchr(comm, '\n');
+    if (p) {
+        *p = 0;
+    }
+    fclose(f);
+    return 0;
 }
 
 #define __SYS_PROC_CMDLINE          "/proc/%s/cmdline"
@@ -892,25 +899,29 @@ static int __read_proc_cmdline(const char *dir_name, char *cmdline, u32 size)
     return 0;
 }
 
-#define PROC_STAT_CMD  "cat /proc/%s/stat 2>/dev/null"
+#define PROC_STAT_PATH          "/proc/%s/stat"
 static int __need_to_add_proc(const char *pid)
 {
-    char cmd[LINE_BUF_LEN];
-    char line[LINE_BUF_LEN];
-    cmd[0] = 0;
-    line[0] = 0;
+    char proc_stat_path[PATH_LEN];
+    pid_t ppid;
+    FILE *f;
+    int ret;
 
-    (void)snprintf(cmd, LINE_BUF_LEN, PROC_STAT_CMD, pid);
-    if (exec_cmd(cmd, line, LINE_BUF_LEN) != 0) {
+    proc_stat_path[0] = 0;
+    (void)snprintf(proc_stat_path, sizeof(proc_stat_path), PROC_STAT_PATH, pid);
+    f = fopen(proc_stat_path, "r");
+    if (f == NULL) {
         return 0;
     }
 
-    cmd[0] = 0;
-    (void)snprintf(cmd, LINE_BUF_LEN, "%d", getpid());
-    if (strstr(line, cmd) != NULL) {
+    /* /proc/pid/stat: pid comm task_state ppid ..., so skip first 3 fields */
+    ret = fscanf(f, "%*s %*s %*s %d", &ppid);
+    if (ret != 1 || ppid == getpid()) {
+        fclose(f);
         return 0;
     }
 
+    fclose(f);
     return 1;
 }
 
@@ -1024,7 +1035,7 @@ static int gen_snooper_by_procname(struct probe_s *probe)
     DIR *dir = NULL;
     struct dirent *entry;
     struct snooper_conf_s * snooper_conf;
-    char comm[__PROC_NAME_MAX];
+    char comm[TASK_COMM_LEN];
     char cmdline[__PROC_CMDLINE_MAX];
 
     dir = opendir(__SYS_PROC_DIR);
@@ -1042,7 +1053,7 @@ static int gen_snooper_by_procname(struct probe_s *probe)
         }
 
         comm[0] = 0;
-        ret = __read_proc_comm(entry->d_name, comm, __PROC_NAME_MAX);
+        ret = __read_proc_comm(entry->d_name, comm, sizeof(comm));
         if (ret) {
             continue;
         }
