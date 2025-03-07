@@ -648,13 +648,13 @@ int attach_uprobes(struct ipc_body_s *ipc_body)
                 if (ret == 0) {
                     return 0;
                 }
-                TP_DEBUG("Failed to attach mem_pymem probes: pid=%d\n", next_key.proc_id);
+                TP_DEBUG("Failed to attach mem_pymem probes: pid=%d\n", pid);
             }
         }
         if (mem_glibc_obj != NULL && proc_link->mem_glibc_link == NULL) {
             ret = attach_mem_glibc_probes_per_proc(mem_glibc_obj, proc_link);
             if (ret) {
-                TP_DEBUG("Failed to attach mem_glibc probes: pid=%d\n", next_key.proc_id);
+                TP_DEBUG("Failed to attach mem_glibc probes: pid=%d\n", pid);
             }
         }
     }
