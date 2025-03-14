@@ -31,10 +31,9 @@ static parse_state_t ProcessRequestWithBasicResponse(struct mysql_packet_msg_s *
         return STATE_NEEDS_MORE_DATA;
     }
     if (resp_packets->count > 1) {
-        ERROR("Did not expect more than one response packet [cmd=%d, "
+        DEBUG("Did not expect more than one response packet [cmd=0x%x, "
             "num_extra_packets=%d].\n",
             req->command_t, resp_packets->count - 1);
-        return STATE_INVALID;
     }
     struct mysql_packet_msg_s *rsp_msg;
     rsp_msg = (struct mysql_packet_msg_s *)resp_packets->packets[0]->frame;
@@ -49,6 +48,20 @@ static parse_state_t ProcessRequestWithBasicResponse(struct mysql_packet_msg_s *
         return STATE_SUCCESS;
     }
     return STATE_INVALID;
+}
+// Process a  request and incomplete response.
+static parse_state_t ProcessDataIncomplete(struct mysql_packet_msg_s *req, DequeView *resp_packets,
+    u64 *rsp_timestamp, struct record_buf_s *record_buf)
+{
+    if (resp_packets->count == 0) {
+        return STATE_NEEDS_MORE_DATA;
+    }
+    struct mysql_packet_msg_s *rsp_msg;
+    rsp_msg = (struct mysql_packet_msg_s *)resp_packets->packets[0]->frame;
+    *rsp_timestamp = rsp_msg->timestamp_ns;
+    ++resp_packets->start;
+
+    return STATE_SUCCESS;
 }
 
 // Process a COM_STMT_RESET request and response, and populate details into a record entry. MySQL documentation:
@@ -260,6 +273,9 @@ static int ProcessPackets(size_t req_index, struct mysql_packet_msg_s *req, stru
         case kSetOption:
         case kDebug:
             parse_state = ProcessRequestWithBasicResponse(req, resp_packets_view, &rsp_timestamp, record_buf);
+            break;
+        case kBrokenData:
+            parse_state = ProcessDataIncomplete(req, resp_packets_view, &rsp_timestamp, record_buf);
             break;
         case kQuit: // Response: OK_Packet or a connection close.
             parse_state = ProcessQuit(req, resp_packets_view, &rsp_timestamp, record_buf);

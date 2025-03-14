@@ -84,6 +84,7 @@ static int push_raw_data(struct data_stream_s *data_stream, const struct raw_dat
     struct raw_buf_s *raw_buf = &(data_stream->raw_bufs);
 
     if (raw_buf->raw_buf_size >= __RAW_BUF_SIZE) {
+        ERROR("raw_buf->raw_buf_size = %u\n", raw_buf->raw_buf_size);
         return -1;
     }
 
@@ -144,6 +145,9 @@ static struct raw_data_s* peek_raw_data(struct data_stream_s *data_stream)
 
 static struct raw_data_s* __do_overlay_raw_data(const struct raw_data_s* dst_data, const struct raw_data_s* src_data)
 {
+    if (src_data->index < dst_data->index) {
+        return (struct raw_data_s*)dst_data;
+    }
     char *p;
     struct raw_data_s* new_raw_data;
     size_t mem_size = dst_data->data_len + src_data->data_len + sizeof(struct raw_data_s);
@@ -156,7 +160,9 @@ static struct raw_data_s* __do_overlay_raw_data(const struct raw_data_s* dst_dat
     new_raw_data->data_len = mem_size - sizeof(struct raw_data_s);
     new_raw_data->timestamp_ns = dst_data->timestamp_ns;
     new_raw_data->current_pos = dst_data->current_pos;
+    new_raw_data->index = src_data->index;
     new_raw_data->flags = 0;
+    new_raw_data->isBrokeData = 0;
 
     p = new_raw_data->data;
     (void)memcpy(p, dst_data->data, dst_data->data_len);
@@ -183,6 +189,11 @@ static int overlay_raw_data(struct data_stream_s *data_stream)
     overlay_data = __do_overlay_raw_data(raw_buf->raw_datas[0], raw_buf->raw_datas[1]);
     if (overlay_data == NULL) {
         return -1;
+    }
+
+    if ((overlay_data->index == raw_buf->raw_datas[0]->index) && (overlay_data->index > 0)) {
+        overlay_data->isBrokeData = 1;
+        return 0;
     }
 
     // Pop and free 1st raw data
@@ -397,13 +408,19 @@ repeat:
 
         if (rslt == PARSE_ERROR) {
             // TODO: debugging
+            WARN("raw_data has parse error, please check.\n");
+            poped_raw_data = pop_raw_data(data_stream);
+            if (poped_raw_data) {
+                destroy_raw_data(poped_raw_data);
+                poped_raw_data = NULL;
+            }
         }
     } while(0);
 
     return 0;
 }
 
-int data_stream_add_raw_data(struct data_stream_s *data_stream, const char *data, size_t data_len, u64 timestamp_ns)
+int data_stream_add_raw_data(struct data_stream_s *data_stream, const char *data, size_t data_len, u64 timestamp_ns, u32 index)
 {
     int ret;
     struct raw_data_s *new_raw_data = create_raw_data(data_len);
@@ -414,6 +431,8 @@ int data_stream_add_raw_data(struct data_stream_s *data_stream, const char *data
     new_raw_data->timestamp_ns = timestamp_ns;
     new_raw_data->current_pos = 0;
     new_raw_data->flags = 0;
+    new_raw_data->index = index;
+    new_raw_data->isBrokeData = 0;
     (void)memcpy(new_raw_data->data, data, data_len);
 
     ret = push_raw_data(data_stream, (const struct raw_data_s *)new_raw_data);

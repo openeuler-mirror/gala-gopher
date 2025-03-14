@@ -464,6 +464,9 @@ static int proc_conn_stats_msg(struct l7_mng_s *l7_mng, struct conn_stats_s *con
     tracker_id.tgid = conn_stats_msg->conn_id.tgid;
 
     tracker = lkup_conn_tracker(l7_mng, (const struct tracker_id_s *)&tracker_id);
+    if (tracker->protocol == PROTO_UNKNOW || tracker->l7_role == L7_UNKNOW) {
+        return 0;
+    }
     if (tracker == NULL) {
         ERROR("[L7Probe]: Conn tracker[%d:%d] is not found when proc stats msg.\n", tracker_id.tgid, tracker_id.fd);
         return -1;
@@ -524,7 +527,8 @@ static int proc_conn_data_msg(struct l7_mng_s *l7_mng, struct conn_data_msg_s *c
             ret = data_stream_add_raw_data(&(tracker->send_stream),
                                             (const char *)conn_data_buf,
                                             (size_t)conn_data_msg->data_size,
-                                            conn_data_msg->timestamp_ns);
+                                            conn_data_msg->timestamp_ns,
+                                            conn_data_msg->index);
             break;
         }
         case L7_INGRESS:
@@ -533,7 +537,8 @@ static int proc_conn_data_msg(struct l7_mng_s *l7_mng, struct conn_data_msg_s *c
             ret = data_stream_add_raw_data(&(tracker->recv_stream),
                                             (const char *)conn_data_buf,
                                             (size_t)conn_data_msg->data_size,
-                                            conn_data_msg->timestamp_ns);
+                                            conn_data_msg->timestamp_ns,
+                                            conn_data_msg->index);
             break;
         }
         default:

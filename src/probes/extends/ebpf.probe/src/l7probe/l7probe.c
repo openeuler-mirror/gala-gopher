@@ -43,7 +43,7 @@
 #include "histogram.h"
 
 #define RM_L7_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__l7*"
-#define CAPACITY 4096
+#define CAPACITY 4096 * 10 * 5
 #define DELAY_MS 500
 
 volatile sig_atomic_t g_stop;

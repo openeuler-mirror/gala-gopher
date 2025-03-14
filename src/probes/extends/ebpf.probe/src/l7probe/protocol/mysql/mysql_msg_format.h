@@ -86,6 +86,7 @@ typedef enum {
     kDaemon = 0x1d,
     kBinlogDumpGTID = 0x1e,
     kResetConnection = 0x1f,
+    kBrokenData = 0x20,
 } Command;
 
 // 定义最大命令值

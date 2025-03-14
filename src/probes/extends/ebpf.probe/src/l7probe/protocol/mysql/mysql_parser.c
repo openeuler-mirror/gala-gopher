@@ -123,7 +123,10 @@ parse_state_t mysql_parse_frame(enum message_type_t msg_type, struct raw_data_s 
             ((u8)raw_data->data[raw_data->current_pos + 2] << 16);
         sequence_id = raw_data->data[raw_data->current_pos + 3];
         command = raw_data->data[raw_data->current_pos + kPacketHeaderLength];
-        if (raw_data->data_len < raw_data->current_pos + kPacketHeaderLength + packet_length) {
+        if (raw_data->isBrokeData) {
+            packet_length = raw_data->data_len - raw_data->current_pos - kPacketHeaderLength;
+        }
+        if ((raw_data->data_len < raw_data->current_pos + kPacketHeaderLength + packet_length) && (raw_data->isBrokeData == 0)) {
             return STATE_NEEDS_MORE_DATA;
         }
     }
@@ -154,6 +157,9 @@ parse_state_t mysql_parse_frame(enum message_type_t msg_type, struct raw_data_s 
 
     packet_msg->data_len = packet_length;
     packet_msg->sequence_id = sequence_id;
+    if (raw_data->isBrokeData == 1) {
+        command = (u8)kBrokenData;
+    }
     packet_msg->command_t = command;
 
     (*frame_data)->frame = packet_msg;
