@@ -58,7 +58,7 @@ struct frame_data_s {
 /*
   Used to cache L7 message frame from protocol parser
 */
-#define __FRAME_BUF_SIZE   (1024)
+#define __FRAME_BUF_SIZE   (1024 * 10)
 struct frame_buf_s {
     struct frame_data_s *frames[__FRAME_BUF_SIZE];
     size_t frame_buf_size;
@@ -74,6 +74,8 @@ struct raw_data_s {
     u32 flags;
     u64 timestamp_ns;
     size_t data_len;
+    u32 index;
+    u32 isBrokeData;
 
     // current_pos有效值：[0, data_len - 1]，current_pos = data_len时，证明已解析完当前data[]
     size_t current_pos;
@@ -137,7 +139,7 @@ struct record_buf_s {
 /*
   Used to cache continuity data from bpf
 */
-#define __RAW_BUF_SIZE   (50)
+#define __RAW_BUF_SIZE   (50 * 10 * 5)
 struct raw_buf_s {
     size_t raw_buf_size;
     struct raw_data_s *raw_datas[__RAW_BUF_SIZE];
@@ -157,6 +159,6 @@ int init_data_stream(struct data_stream_s *data_stream);
 void deinit_data_stream(struct data_stream_s *data_stream);
 void data_stream_pop_frames(struct data_stream_s *data_stream);
 int data_stream_parse_frames(enum message_type_t msg_type, struct data_stream_s *data_stream);
-int data_stream_add_raw_data(struct data_stream_s *data_stream, const char *data, size_t data_len, u64 timestamp_ns);
+int data_stream_add_raw_data(struct data_stream_s *data_stream, const char *data, size_t data_len, u64 timestamp_ns, u32 index);
 
 #endif

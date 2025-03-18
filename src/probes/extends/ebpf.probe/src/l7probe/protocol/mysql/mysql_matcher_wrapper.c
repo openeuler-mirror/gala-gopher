@@ -201,29 +201,7 @@ bool IsErrPacket(struct mysql_packet_msg_s* rsp_msg)
 bool IsOKPacket(struct mysql_packet_msg_s* rsp_msg)
 {
     u8 header = rsp_msg->command_t;
-    const u8 kOKPacketHeaderOffset = 1;
-    // Parse affected_rows.
-    size_t offset = kOKPacketHeaderOffset;
-    if (!IsStatusOk(ProcessLengthEncodedInt(rsp_msg->msg, rsp_msg->data_len, &offset))) {
-        return false;
-    }
-    // Parse last_insert_id.
-    if (!IsStatusOk(ProcessLengthEncodedInt(rsp_msg->msg, rsp_msg->data_len, &offset))) {
-        return false;
-    }
-    // Parse status flag.
-    if (!IsStatusOk(DissectInt(rsp_msg->msg, rsp_msg->data_len, &offset, 2))) {
-        return false;
-    }
-    // Parse warnings.
-    StatusOrInt64 result = DissectInt(rsp_msg->msg, rsp_msg->data_len, &offset, 2);
-    if (!IsStatusOk(result)) {
-        return false;
-    }
-    u16 warnings = result.value;
-    if (warnings > 1000) {
-        DEBUG("Large warnings count is a sign of misclassification of OK packet.\n");
-    }
+
     if (header == kRespHeaderOK && rsp_msg->data_len >= 7) {
         return true;
     }
@@ -261,18 +239,10 @@ parse_state_t HandleErrMessage(struct mysql_packet_msg_s* rsp_msg, u64* rsp_time
     //   x  error_message
     // https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_err_packet.html
     const int kMinErrPacketSize = 9;
-    const int kErrorCodePos = 1;
-    const int kErrorCodeSize = 2;
-    // const int kErrorMessagePos = 9;
+
     if (rsp_msg->data_len < kMinErrPacketSize) {
         return STATE_INVALID;
     }
-    // parse error code
-    size_t offset = kErrorCodePos;
-    StatusOrInt64 result = DissectInt(rsp_msg->msg, rsp_msg->data_len, &offset, kErrorCodeSize);
-    int error_code = result.value;
-    // TODO(wangshuyuan): Add error code into resp msg.
-    PX_UNUSED(error_code);
     *rsp_timestamp = rsp_msg->timestamp_ns;
     // TODO error count +1
     ++record_buf->err_count;
@@ -470,54 +440,6 @@ parse_state_t ProcessColumnDefPacket(struct mysql_packet_msg_s* rsp_msg)
     }
     if (catalog != NULL) {
         free(catalog);
-    }
-    // To reduce memory allocation and release, only the offset is moved and the specific string content is not
-    // obtained.
-    // schem
-    if (!DissectNonStringParam(rsp_msg, &offset)) {
-        return STATE_INVALID;
-    }
-    // table
-    if (!DissectNonStringParam(rsp_msg, &offset)) {
-        return STATE_INVALID;
-    }
-    // org_table
-    if (!DissectNonStringParam(rsp_msg, &offset)) {
-        return STATE_INVALID;
-    }
-    // name
-    if (!DissectNonStringParam(rsp_msg, &offset)) {
-        return STATE_INVALID;
-    }
-    // org_name
-    if (!DissectNonStringParam(rsp_msg, &offset)) {
-        return STATE_INVALID;
-    }
-    // next_length
-    u8 next_length;
-    PX_ASSIGN_OR_RETURN(next_length, ProcessLengthEncodedInt(rsp_msg->msg, rsp_msg->data_len, &offset));
-    if (next_length != 12) {
-        return STATE_INVALID;
-    }
-    // character_set
-    if (!IsStatusOk(DissectInt(rsp_msg->msg, rsp_msg->data_len, &offset, 2))) {
-        return STATE_INVALID;
-    }
-    // column_length
-    if (!IsStatusOk(DissectInt(rsp_msg->msg, rsp_msg->data_len, &offset, 4))) {
-        return STATE_INVALID;
-    }
-    // type
-    if (!IsStatusOk(DissectInt(rsp_msg->msg, rsp_msg->data_len, &offset, 1))) {
-        return STATE_INVALID;
-    }
-    // flags
-    if (!IsStatusOk(DissectInt(rsp_msg->msg, rsp_msg->data_len, &offset, 2))) {
-        return STATE_INVALID;
-    }
-    // decimals
-    if (!IsStatusOk(DissectInt(rsp_msg->msg, rsp_msg->data_len, &offset, 1))) {
-        return STATE_INVALID;
     }
 
     return STATE_SUCCESS;

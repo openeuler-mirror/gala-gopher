@@ -98,6 +98,7 @@ struct conn_data_msg_s {
     u64 offset_pos;      // The position is for the first data of this message.
     u32 data_size;       // The actually data size, maybe less than msg_size.
     u32 payload_size;    // The size that bpf will submit to the map.
+    u32 index;           // Identificate msg index
 };
 
 struct conn_data_buf_s {

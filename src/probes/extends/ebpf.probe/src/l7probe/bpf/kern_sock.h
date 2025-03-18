@@ -223,6 +223,7 @@ static __always_inline __maybe_unused void submit_conn_data(void* ctx, struct so
             }
 
             // summit perf buf
+            conn_data->msg.index = i;
             conn_data->msg.offset_pos = (u64)(bytes_truncated + bytes_sent);
             submit_perf_buf(ctx, args->buf + bytes_sent, (size_t)bytes_truncated, conn_data);
             bytes_sent += bytes_truncated;
@@ -245,6 +246,7 @@ static __always_inline __maybe_unused void submit_conn_data(void* ctx, struct so
             size_t iov_len = min(iov_cpy.iov_len, (size_t)bytes_remaining);
 
             // summit perf buf
+            conn_data->msg.index = i;
             conn_data->msg.offset_pos = (u64)(iov_len + bytes_sent);
             submit_perf_buf(ctx, (char *)iov_cpy.iov_base, iov_len, conn_data);
             bytes_sent += iov_len;
