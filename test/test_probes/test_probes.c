@@ -68,6 +68,7 @@ void TestSystemMeminfoProbe(void)
     // test the nprintf function
     uint32_t *elements = NULL;
     ret = FifoGet(g_probe->fifo, (void**) &elements);
+    CU_ASSERT(ret == 0);
     CU_ASSERT(g_probe->fifo->out == 1);
     substr = strstr(elements, "system_meminfo");
     CU_ASSERT(substr != NULL);
