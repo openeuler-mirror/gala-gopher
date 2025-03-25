@@ -31,8 +31,8 @@ static __always_inline char is_tmout_delay(struct sock_stats_s *sock_stats)
     u64 curr_ts;
 
     curr_ts = bpf_ktime_get_ns();
-    if (curr_ts > sock_stats->ts_stats.delay_ts + HIST_SAMPLE_PERIOD) {
-        sock_stats->ts_stats.delay_ts = curr_ts;
+    if (curr_ts > sock_stats->ts.delay_ts + HIST_SAMPLE_PERIOD) {
+        sock_stats->ts.delay_ts = curr_ts;
         return 1;
     }
     return 0;

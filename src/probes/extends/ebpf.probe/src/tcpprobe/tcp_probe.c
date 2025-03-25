@@ -35,10 +35,7 @@
 #include "tcp_tracker.h"
 #include "tcp_event.h"
 #include "tcp_tx_rx.skel.h"
-#include "tcp_windows.skel.h"
-#include "tcp_sockbuf.skel.h"
-#include "tcp_rtt.skel.h"
-#include "tcp_rate.skel.h"
+#include "tcp_stats.skel.h"
 #include "tcp_abn.skel.h"
 #include "tcp_link.skel.h"
 #include "tcp_delay.skel.h"
@@ -774,28 +771,28 @@ static int proc_tcp_metrics_evt(void *ctx, void *data, u32 size)
 
 #endif
 
-static int tcp_load_probe_sockbuf(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
+static int tcp_load_probe_stats(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
 {
     int err;
     struct bpf_buffer *buffer = NULL;
 
-    __OPEN_PROBE_WITH_OUTPUT(tcp_sockbuf, err, is_load, buffer);
+    __OPEN_PROBE_WITH_OUTPUT(tcp_stats, err, is_load, buffer);
 
     if (is_load) {
-        __SELECT_RCV_ESTABLISHED_HOOKPOINT(tcp_sockbuf);
+        __SELECT_RCV_ESTABLISHED_HOOKPOINT(tcp_stats);
     }
 
-    __LOAD_PROBE(tcp_sockbuf, err, is_load);
+    __LOAD_PROBE(tcp_stats, err, is_load);
 
     if (is_load) {
-        prog->skels[prog->num].skel = tcp_sockbuf_skel;
-        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_sockbuf_bpf__destroy;
-        prog->custom_btf_paths[prog->num] = tcp_sockbuf_open_opts.btf_custom_path;
+        prog->skels[prog->num].skel = tcp_stats_skel;
+        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_stats_bpf__destroy;
+        prog->custom_btf_paths[prog->num] = tcp_stats_open_opts.btf_custom_path;
 
         if (prog->num == 0) {  // All sub-probes share a output buffer
             err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
             if (err) {
-                ERROR("[TCPPROBE] Open 'tcp_sockbuf' bpf_buffer failed.\n");
+                ERROR("[TCPPROBE] Open 'tcp_stats' bpf_buffer failed.\n");
                 goto err;
             }
         }
@@ -806,115 +803,7 @@ static int tcp_load_probe_sockbuf(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *
     return 0;
 err:
     bpf_buffer__free(buffer);
-    __UNLOAD_PROBE(tcp_sockbuf);
-    return -1;
-}
-
-static int tcp_load_probe_rtt(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
-{
-    int err;
-    struct bpf_buffer *buffer = NULL;
-
-    __OPEN_PROBE_WITH_OUTPUT(tcp_rtt, err, is_load, buffer);
-
-    if (is_load) {
-        __SELECT_RCV_ESTABLISHED_HOOKPOINT(tcp_rtt);
-    }
-
-    __LOAD_PROBE(tcp_rtt, err, is_load);
-
-    if (is_load) {
-        prog->skels[prog->num].skel = tcp_rtt_skel;
-        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_rtt_bpf__destroy;
-        prog->custom_btf_paths[prog->num] = tcp_rtt_open_opts.btf_custom_path;
-
-        if (prog->num == 0) {  // All sub-probes share a output buffer
-            err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
-            if (err) {
-                ERROR("[TCPPROBE] Open 'tcp_rtt' bpf_buffer failed.\n");
-                goto err;
-            }
-        }
-        prog->buffers[prog->num] = buffer;
-        prog->num++;
-    }
-
-    return 0;
-err:
-    bpf_buffer__free(buffer);
-    __UNLOAD_PROBE(tcp_rtt);
-    return -1;
-}
-
-static int tcp_load_probe_win(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
-{
-    int err;
-    struct bpf_buffer *buffer = NULL;
-
-    __OPEN_PROBE_WITH_OUTPUT(tcp_windows, err, is_load, buffer);
-
-    if (is_load) {
-        __SELECT_SPACE_ADJUST_HOOKPOINT(tcp_windows);
-    }
-
-    __LOAD_PROBE(tcp_windows, err, is_load);
-
-    if (is_load) {
-        prog->skels[prog->num].skel = tcp_windows_skel;
-        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_windows_bpf__destroy;
-        prog->custom_btf_paths[prog->num] = tcp_windows_open_opts.btf_custom_path;
-
-        if (prog->num == 0) {  // All sub-probes share a output buffer
-            err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
-            if (err) {
-                ERROR("[TCPPROBE] Open 'tcp_windows' bpf_buffer failed.\n");
-                goto err;
-            }
-        }
-        prog->buffers[prog->num] = buffer;
-        prog->num++;
-    }
-
-    return 0;
-err:
-    bpf_buffer__free(buffer);
-    __UNLOAD_PROBE(tcp_windows);
-    return -1;
-}
-
-static int tcp_load_probe_rate(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
-{
-    int err;
-    struct bpf_buffer *buffer = NULL;
-
-    __OPEN_PROBE_WITH_OUTPUT(tcp_rate, err, is_load, buffer);
-
-    if (is_load) {
-        __SELECT_SPACE_ADJUST_HOOKPOINT(tcp_rate);
-    }
-
-    __LOAD_PROBE(tcp_rate, err, is_load);
-
-    if (is_load) {
-        prog->skels[prog->num].skel = tcp_rate_skel;
-        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_rate_bpf__destroy;
-        prog->custom_btf_paths[prog->num] = tcp_rate_open_opts.btf_custom_path;
-
-        if (prog->num == 0) {  // All sub-probes share a output buffer
-            err = bpf_buffer__open(buffer, proc_tcp_metrics_evt, NULL, tcp_mng);
-            if (err) {
-                ERROR("[TCPPROBE] Open 'tcp_rate' bpf_buffer failed.\n");
-                goto err;
-            }
-        }
-        prog->buffers[prog->num] = buffer;
-        prog->num++;
-    }
-
-    return 0;
-err:
-    bpf_buffer__free(buffer);
-    __UNLOAD_PROBE(tcp_rate);
+    __UNLOAD_PROBE(tcp_stats);
     return -1;
 }
 
@@ -1056,7 +945,7 @@ err:
 
 int tcp_load_probe(struct tcp_mng_s *tcp_mng, struct ipc_body_s *ipc_body, struct bpf_prog_s **new_prog)
 {
-    char is_load = 0;
+    char is_load = 0, is_load_stats = 0;
     struct bpf_prog_s *prog;
     char is_load_txrx, is_load_abn, is_load_win, is_load_rate, is_load_rtt, is_load_sockbuf, is_load_delay, is_load_srtt;
 
@@ -1070,6 +959,8 @@ int tcp_load_probe(struct tcp_mng_s *tcp_mng, struct ipc_body_s *ipc_body, struc
     is_load_srtt = ipc_body->probe_range_flags & PROBE_RANGE_TCP_SRTT;
 
     is_load = is_load_txrx | is_load_abn | is_load_rate | is_load_win | is_load_rtt | is_load_sockbuf | is_load_delay | is_load_srtt;
+    is_load_stats = is_load_rate | is_load_win | is_load_rtt | is_load_sockbuf;
+
     if (!is_load) {
         return 0;
     }
@@ -1093,19 +984,7 @@ int tcp_load_probe(struct tcp_mng_s *tcp_mng, struct ipc_body_s *ipc_body, struc
         goto err;
     }
 
-    if (tcp_load_probe_rate(tcp_mng, prog, is_load_rate)) {
-        goto err;
-    }
-
-    if (tcp_load_probe_win(tcp_mng, prog, is_load_win)) {
-        goto err;
-    }
-
-    if (tcp_load_probe_rtt(tcp_mng, prog, is_load_rtt)) {
-        goto err;
-    }
-
-    if (tcp_load_probe_sockbuf(tcp_mng, prog, is_load_sockbuf)) {
+    if (tcp_load_probe_stats(tcp_mng, prog, is_load_stats)) {
         goto err;
     }
 

@@ -94,6 +94,19 @@ static __always_inline __maybe_unused u64 get_period(void)
     return period; // units from second to nanosecond
 }
 
+static __always_inline __maybe_unused u32 get_probe_flags(void)
+{
+    u32 key = 0;
+    struct tcp_args_s *args;
+
+    args = (struct tcp_args_s *)bpf_map_lookup_elem(&args_map, &key);
+    if (args) {
+        return args->probe_flags;
+    }
+
+    return 0;
+}
+
 static __always_inline __maybe_unused char is_valid_tgid(u32 tgid)
 {
     struct proc_s obj = {.proc_id = tgid};
@@ -108,12 +121,8 @@ static __always_inline __maybe_unused int create_tcp_link(struct sock *sk, struc
     sock_stats.metrics.srtt_stats.syn_srtt = syn_srtt;
     __builtin_memcpy(&(sock_stats.metrics.link), link, sizeof(struct tcp_link_s));
     u64 ts = bpf_ktime_get_ns();
-    sock_stats.ts_stats.abn_ts = ts;
-    sock_stats.ts_stats.win_ts = ts;
-    sock_stats.ts_stats.rtt_ts = ts;
-    sock_stats.ts_stats.txrx_ts = ts;
-    sock_stats.ts_stats.sockbuf_ts = ts;
-    sock_stats.ts_stats.rate_ts = ts;
+    sock_stats.ts.abn_ts = ts;
+    sock_stats.ts.txrx_ts = ts;
 
     return bpf_map_update_elem(&tcp_link_map, &sk, &sock_stats, BPF_ANY);
 }

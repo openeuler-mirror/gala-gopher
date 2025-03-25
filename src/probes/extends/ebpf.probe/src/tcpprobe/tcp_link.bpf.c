@@ -31,9 +31,12 @@ char g_linsence[] SEC("license") = "GPL";
 
 static __always_inline void report_srtt(void *ctx, struct tcp_metrics_s *metrics)
 {
-    metrics->report_flags |= TCP_PROBE_SRTT;
-    (void)bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
-    metrics->report_flags &= ~TCP_PROBE_SRTT;
+    u32 probe_flags = get_probe_flags();
+    if (probe_flags & PROBE_RANGE_TCP_SRTT) {
+        metrics->report_flags |= TCP_PROBE_SRTT;
+        (void)bpfbuf_output(ctx, &tcp_output, metrics, sizeof(struct tcp_metrics_s));
+        metrics->report_flags &= ~TCP_PROBE_SRTT;
+    }
 }
 
 static __always_inline struct sock_info_s* is_exist_tcp_link(struct sock *sk, char *is_exist)
