@@ -599,9 +599,8 @@ static char is_flow_tracker_inactive(struct tcp_flow_tracker_s *tracker)
     return 0;
 }
 
-static char is_track_tmout(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker)
+static char is_track_tmout(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *tracker, time_t current)
 {
-    time_t current = (time_t)time(NULL);
     time_t secs;
 
     if (current > tracker->last_report) {
@@ -619,9 +618,8 @@ static char is_track_tmout(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *trac
     return 0;
 }
 
-static char is_flow_track_tmout(struct tcp_mng_s *tcp_mng, struct tcp_flow_tracker_s *tracker)
+static char is_flow_track_tmout(struct tcp_mng_s *tcp_mng, struct tcp_flow_tracker_s *tracker, time_t current)
 {
-    time_t current = (time_t)time(NULL);
     time_t secs;
 
     if (current > tracker->last_report) {
@@ -1155,16 +1153,27 @@ void aging_tcp_flow_trackers(struct tcp_mng_s *tcp_mng)
     }
 }
 
-#define __STEP (200)
+#define __STEP (5000)
 void scan_tcp_trackers(struct tcp_mng_s *tcp_mng)
 {
     int count = 0;
     struct tcp_tracker_s *tracker, *tmp;
+    time_t current = (time_t)time(NULL);
+    int max_step = max(__STEP, (tcp_mng->tcp_tracker_count / tcp_mng->ipc_body.probe_param.period) + 1);
 
     H_ITER(tcp_mng->trackers, tracker, tmp) {
-        if ((count < __STEP) && is_track_tmout(tcp_mng, tracker)) {
+        if (count < max_step)  {
+            if (!is_track_tmout(tcp_mng, tracker, current)) {
+                break;
+            }
             count += output_tcp_metrics(tcp_mng, tracker);
+
+            // Put it to the tail to avoid extra scan in next loop, this can improve some performance.
+            H_DEL(tcp_mng->trackers, tracker);
+            H_ADD_KEYPTR(tcp_mng->trackers, &tracker->id, sizeof(struct tcp_tracker_id_s), tracker);
+            continue;
         }
+        break;
     }
 }
 
@@ -1172,10 +1181,21 @@ void scan_tcp_flow_trackers(struct tcp_mng_s *tcp_mng)
 {
     int count = 0;
     struct tcp_flow_tracker_s *tracker, *tmp;
+    time_t current = (time_t)time(NULL);
+    int max_step = max(__STEP, (tcp_mng->tcp_flow_tracker_count / tcp_mng->ipc_body.probe_param.period) + 1);
 
     H_ITER(tcp_mng->flow_trackers, tracker, tmp) {
-        if ((count < __STEP) && is_flow_track_tmout(tcp_mng, tracker)) {
+        if (count < max_step) {
+            if (!is_flow_track_tmout(tcp_mng, tracker, current)) {
+                break;
+            }
             count += output_tcp_flow_metrics(tcp_mng, tracker);
+
+            // Put it to the tail to avoid extra scan in next loop, this can improve some performance.
+            H_DEL(tcp_mng->flow_trackers, tracker);
+            H_ADD_KEYPTR(tcp_mng->flow_trackers, &tracker->id, sizeof(struct tcp_flow_tracker_id_s), tracker);
+            continue;
         }
+        break;
     }
 }
