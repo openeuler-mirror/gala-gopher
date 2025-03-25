@@ -314,7 +314,6 @@ static void KafkaMgrDeinit(ResourceMgr *resourceMgr)
 
 static int IMDBMgrTableLoad(IMDB_Table *table, Measurement *mm)
 {
-    int ret = 0;
     uint32_t metricsCapacity = mm->fieldsNum;
     IMDB_Metric *metric = NULL;
     uint32_t keyNum = 0;
@@ -338,8 +337,8 @@ static int IMDBMgrTableLoad(IMDB_Table *table, Measurement *mm)
         }
     }
 
-    ret = IMDB_TableSetRecordKeySize(table, keyNum);
-    if (ret != 0) {
+    if (keyNum == 0) {
+        ERROR("[RESOURCE] Meta must contain at least one key field, table: %s\n", table->name);
         goto ERR;
     }
 
