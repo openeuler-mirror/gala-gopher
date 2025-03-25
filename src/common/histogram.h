@@ -54,6 +54,7 @@ int histo_bucket_value(struct bucket_range_s latency_buckets[], struct histo_buc
 void histo_bucket_reset(struct histo_bucket_array_s *bucket_arr, size_t bucket_size);
 int init_bucket_range(struct bucket_range_s *bucket, u64 min, u64 max);
 void free_histo_buckets(struct histo_bucket_array_s *his_bk_arr, int size);
+int resolve_bucket_size(char *buf, char **new_buf);
 /*
  * serialize histogram metric from a struct histo_bucket_s to a string.
  * string format like: "<bucket_size> <bucket1_max> <bucket1_count> <bucket2_max> <bucket2_count> ..."

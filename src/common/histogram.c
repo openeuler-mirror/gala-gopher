@@ -275,7 +275,7 @@ static int _deserialize_histo(char *buf, struct histo_bucket_with_range_s *bucke
     return 0;
 }
 
-static int resolve_bucket_size(char *buf, char **new_buf)
+int resolve_bucket_size(char *buf, char **new_buf)
 {
     int ret;
     char *pos;

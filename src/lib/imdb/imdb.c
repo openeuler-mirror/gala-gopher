@@ -308,13 +308,13 @@ void IMDB_TgidAddRecord(const IMDB_DataBaseMgr *mgr, TGID_Record *record)
     return;
 }
 
-TGID_Record* IMDB_TgidLkupRecord(const IMDB_DataBaseMgr *mgr, const char* tgid)
+TGID_Record* IMDB_TgidLkupRecord(const IMDB_DataBaseMgr *mgr, const char *tgid)
 {
     TGID_Record *record = NULL;
     TGID_RecordKey key = {0};
 
     strncpy(key.tgid, tgid, INT_LEN);
-    key.startup_ts = get_proc_startup_ts(strtol(tgid, NULL, 10));
+    key.startup_ts = get_proc_startup_ts(tgid);
 
     if (key.startup_ts == 0) {
         return NULL;
@@ -367,7 +367,7 @@ static void tgid_record_set_container_info(TGID_Record *record, IMDB_DataBaseMgr
     }
 }
 
-static TGID_Record* IMDB_TgidCreateRecord(IMDB_DataBaseMgr *mgr, const char* tgid)
+static TGID_Record* IMDB_TgidCreateRecord(IMDB_DataBaseMgr *mgr, const char *tgid)
 {
     int ret;
     int pid;
@@ -383,7 +383,7 @@ static TGID_Record* IMDB_TgidCreateRecord(IMDB_DataBaseMgr *mgr, const char* tgi
         return NULL;
     }
 
-    startup_ts = get_proc_startup_ts(pid);
+    startup_ts = get_proc_startup_ts(tgid);
     if (startup_ts == 0) {
         return NULL;
     }
@@ -1168,39 +1168,76 @@ static int IMDB_BuildJsonHistosBkt(const char *value, const char *metric_name, c
 {
     int ret, i;
     char buf[INT_LEN];
-    struct histo_bucket_with_range_s *bkt = NULL;
-    size_t bkt_sz = 0;
-    u64 count = 0, bkt_sum = 0;
+    char count[INT_LEN];
+    size_t bkt_sz = 0, buf_size;
     char first_flag = 1;
+    char *cur_pos, *next_pos;
+    char *buf_dup = NULL;
 
-    ret = deserialize_histo(value, &bkt, &bkt_sz, &bkt_sum);
-    if (ret) {
-        ERROR("[IMDB] Failed to deserialize histogram metric %s\n", metric_name);
-        return IMDB_BUILD_ERR;
+    buf_dup = strdup(value);
+    if (!buf_dup) {
+        goto err;
     }
+    buf_size = strlen(buf_dup);
+
+    ret = resolve_bucket_size(buf_dup, &cur_pos);
+    if (ret <= 0) {
+        goto err;
+    }
+    bkt_sz = ret;
 
     for (i = 0; i < bkt_sz; i++) {
-        buf[0] = 0;
-        (void)snprintf(buf, sizeof(buf), "%llu", bkt[i].max);
-        count += bkt[i].count;
+        next_pos = strchr(cur_pos, ' ');
+        if (!next_pos) {
+            goto err;
+        }
+        *next_pos = '\0';
+        (void)snprintf(buf, sizeof(buf), "%s", cur_pos);
+        cur_pos = next_pos + 1;
+        if (cur_pos - buf_dup >= buf_size) {
+            goto err;
+        }
+
+        next_pos = strchr(cur_pos, ' ');
+        if (!next_pos) {
+            goto err;
+        }
+        *next_pos = '\0';
         if (first_flag) {
-            ret = __snprintf(buffer, *maxLen, maxLen, "\"%s\":%llu", buf, count);
+            ret = __snprintf(buffer, *maxLen, maxLen, "\"%s\":%s", buf, cur_pos);
         } else {
-            ret = __snprintf(buffer, *maxLen, maxLen, ",\"%s\":%llu", buf, count);
+            ret = __snprintf(buffer, *maxLen, maxLen, ",\"%s\":%s", buf, cur_pos);
         }
         if (ret < 0) {
-            free(bkt);
+            free(buf_dup);
             return IMDB_BUFFER_FULL;
         }
+
+        if (i == bkt_sz - 1) {
+            (void)snprintf(count, sizeof(count), "%s", cur_pos);
+        }
+
+        cur_pos = next_pos + 1;
+        if (cur_pos - buf_dup >= buf_size) {
+            goto err;
+        }
+
         first_flag = 0;
     }
 
-    free(bkt);
-    ret = __snprintf(buffer, *maxLen, maxLen, ",\"count\":%llu,\"sum\":%llu}", count, bkt_sum);
+    ret = __snprintf(buffer, *maxLen, maxLen, ",\"count\":%s,\"sum\":%s}", count, cur_pos);
     if (ret < 0) {
+        free(buf_dup);
         return IMDB_BUFFER_FULL;
     }
+
+    free(buf_dup);
     return 0;
+
+err:
+    free(buf_dup);
+    ERROR("[HISTOGRAM] Failed to deserialize histogram: dup buffer failed\n");
+    return IMDB_BUILD_ERR;
 }
 
 static int IMDB_BuildJsonHistos(IMDB_DataBaseMgr *mgr, IMDB_Record *record, IMDB_Table *table,

@@ -61,8 +61,6 @@ static void sig_int(int signo)
     g_stop = 1;
 }
 
-                                                                                  \
-
 static int init_tcp_historm_range(struct tcp_mng_s *tcp_mng)
 {
     tcp_mng->histo_attr = malloc(sizeof(struct histo_attr_single));

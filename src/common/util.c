@@ -22,6 +22,7 @@
 #include <stdarg.h>
 #include <limits.h>
 #include <arpa/inet.h>
+#include <sys/stat.h>
 #include "common.h"
 
 #define CHROOT_CMD          "/usr/sbin/chroot %s %s"
@@ -384,18 +385,19 @@ int get_proc_start_time(u32 pid, char *buf, int buf_len)
     return read_starttime_from_procstat(line, buf, buf_len);
 }
 
-u64 get_proc_startup_ts(int pid)
+#define PROC_PID_STAT           "/proc/%s/stat"
+u64 get_proc_startup_ts(const char *pid)
 {
-    int ret;
-    char startup_ts[INT_LEN];
+    struct stat st;
+    char fname[PATH_LEN];
 
-    startup_ts[0] = 0;
-    ret = get_proc_start_time(pid, startup_ts, INT_LEN);
-    if (ret) {
-        return 0;
+    fname[0] = 0;
+    (void)snprintf(fname, sizeof(fname), PROC_PID_STAT, pid);
+    if (stat(fname, &st) == 0) {
+        return st.st_ctime;
     }
 
-    return strtoull(startup_ts, NULL, 10);
+    return 0;
 }
 
 int get_proc_comm(u32 pid, char *buf, int buf_len)
