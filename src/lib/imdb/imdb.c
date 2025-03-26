@@ -535,7 +535,7 @@ static int IMDB_DataBaseMgrParseContent(IMDB_DataBaseMgr *mgr, IMDB_Table *table
     }
 
     if (index != metricsCapacity) {
-        ERROR("[IMDB] Raw ingress data does not reach metrics num of table(%s)\n", table->name);
+        ERROR("[IMDB] Raw ingress data does not reach metrics num of table(%s), index = %lu, metricsCapacity = %lu.\n", table->name, index, metricsCapacity);
         goto ERR;
     }
 
@@ -1041,6 +1041,8 @@ static int append_label(strbuf_t *labels_buf, const char *key, const char *val)
 
 #define __HISTO_LABEL_NAME      "le"
 #define __HISTO_LABEL_VAL_INF   "+Inf"
+#define __HISTO_LABEL_VAL_SUM   "sum"
+#define __HISTO_LABEL_VAL_MAX  "max"
 static int append_label_histo_le(strbuf_t *labels_buf, u64 val)
 {
     char buf[INT_LEN];
@@ -1052,6 +1054,14 @@ static int append_label_histo_le(strbuf_t *labels_buf, u64 val)
 static int append_label_histo_le_inf(strbuf_t *labels_buf)
 {
     return append_label(labels_buf, __HISTO_LABEL_NAME, __HISTO_LABEL_VAL_INF);
+}
+
+static int append_label_histo_max_and_sum(char *buffer, uint32_t maxLen, const char *sym)
+{
+    const char *fmt = "%s_%s";
+    int size = (int)maxLen;
+
+    return __snprintf(&buffer, size, &size, fmt, buffer, sym);
 }
 
 static int IMDB_BuildPrometheusHistoMetrics(const char *value, const char *metric_name,
@@ -1068,10 +1078,10 @@ static int IMDB_BuildPrometheusHistoMetrics(const char *value, const char *metri
 
     struct histo_bucket_with_range_s *bkt = NULL;
     size_t bkt_sz = 0;
-    u64 sum = 0, bkt_sum = 0;
+    u64 sum = 0, bkt_sum = 0, bkt_max = 0;
     int i;
 
-    ret = deserialize_histo(value, &bkt, &bkt_sz, &bkt_sum);
+    ret = deserialize_histo(value, &bkt, &bkt_sz, &bkt_sum, &bkt_max);
     if (ret) {
         ERROR("[IMDB] Failed to deserialize histogram metric %s\n", metric_name);
         return -1;
@@ -1081,8 +1091,7 @@ static int IMDB_BuildPrometheusHistoMetrics(const char *value, const char *metri
     for (i = 0; i < bkt_sz + 1; i++) {
         ret = IMDB_BuildMetrics(entity_name, metric_name, p, (uint32_t)size);
         if (ret < 0) {
-            free(bkt);
-            return ret;
+            goto err;
         }
         len = strlen(p);
         p += len;
@@ -1090,20 +1099,56 @@ static int IMDB_BuildPrometheusHistoMetrics(const char *value, const char *metri
 
         orig_labels_len = labels_buf->len;
         if (i == bkt_sz) {
+            ret = append_label_histo_max_and_sum(p, (uint32_t)size, __HISTO_LABEL_VAL_MAX);
+            if (ret) {
+                ERROR("Append histo max has error.\n");
+                goto err;
+            }
+            len = strlen(p);
+            p += len;
+            size -= len;
+            ret = __snprintf(&p, size, &size, fmt, labels_buf->buf, bkt_max, now * THOUSAND);
+            if (ret) {
+                ERROR("snprintf histo max to buffer has error.\n");
+                goto err;
+            }
+        } else if (i == bkt_sz - 1) {
+            ret = append_label_histo_max_and_sum(p, (uint32_t)size, __HISTO_LABEL_VAL_SUM);
+            if (ret) {
+                ERROR("Append histo sum has error.\n");
+                goto err;
+            }
+            len = strlen(p);
+            p += len;
+            size -= len;
+            ret = __snprintf(&p, size, &size, fmt, labels_buf->buf, bkt_sum, now * THOUSAND);
+            if (ret) {
+                ERROR("snprintf histo sum to buffer has error.\n");
+                goto err;
+            }
+        } else if (i == bkt_sz - 2) {
             ret = append_label_histo_le_inf(labels_buf);
+            if (ret) {
+                ERROR("Append histo inf has error.\n");
+                goto err;
+            }
+            ret = __snprintf(&p, size, &size, fmt, labels_buf->buf, sum, now * THOUSAND);
+            if (ret) {
+                ERROR("snprintf histo lef to buffer has error.\n");
+                goto err;
+            }
         } else {
             sum += bkt[i].count;
             ret = append_label_histo_le(labels_buf, bkt[i].max);
-        }
-        if (ret) {
-            free(bkt);
-            return -1;
-        }
-
-        ret = __snprintf(&p, size, &size, fmt, labels_buf->buf, sum, now * THOUSAND);
-        if (ret < 0) {
-            free(bkt);
-            return ret;
+            if (ret) {
+                ERROR("Append histo le has error, range max = %llu.\n", bkt[i].max);
+                goto err;
+            }
+            ret = __snprintf(&p, size, &size, fmt, labels_buf->buf, sum, now * THOUSAND);
+            if (ret) {
+                ERROR("snprintf histo le to buffer has error, range max = %llu.\n", bkt[i].max);
+                goto err;
+            }
         }
 
         // restore labels
@@ -1113,6 +1158,10 @@ static int IMDB_BuildPrometheusHistoMetrics(const char *value, const char *metri
     free(bkt);
 
     return (int)((int)maxLen - size);   // Returns the number of printed characters
+err:
+    ERROR("Build Historm Metrics has error, entity_name = %s, metric_name = %s\n", entity_name, metric_name);
+    free(bkt);
+    return -1;
 }
 
 static int IMDB_Rec2Prometheus(IMDB_DataBaseMgr *mgr, IMDB_Record *record, IMDB_Table *table,
@@ -1173,6 +1222,7 @@ static int IMDB_BuildJsonHistosBkt(const char *value, const char *metric_name, c
     char first_flag = 1;
     char *cur_pos, *next_pos;
     char *buf_dup = NULL;
+    char sum[INT_LEN];
 
     buf_dup = strdup(value);
     if (!buf_dup) {
@@ -1224,8 +1274,18 @@ static int IMDB_BuildJsonHistosBkt(const char *value, const char *metric_name, c
 
         first_flag = 0;
     }
+    next_pos = strchr(cur_pos, ' ');
+    if (!next_pos) {
+        goto err;
+    }
+    *next_pos = '\0';
+    (void)snprintf(sum, sizeof(sum), "%s", cur_pos);
+    cur_pos = next_pos + 1;
+    if (cur_pos - buf_dup >= buf_size) {
+        goto err;
+    }
 
-    ret = __snprintf(buffer, *maxLen, maxLen, ",\"count\":%s,\"sum\":%s}", count, cur_pos);
+    ret = __snprintf(buffer, *maxLen, maxLen, ",\"count\":%s,\"sum\":%s,\"max\":%s}", count, sum, cur_pos);
     if (ret < 0) {
         free(buf_dup);
         return IMDB_BUFFER_FULL;

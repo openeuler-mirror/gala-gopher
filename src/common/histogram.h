@@ -37,6 +37,7 @@ struct histo_bucket_with_range_s {
 struct histo_bucket_s {
     u64 count;
     u64 sum;              // sum of all values in this bucket
+    u64 max;
 };
 
 struct histo_bucket_array_s {
@@ -63,7 +64,7 @@ int serialize_histo(struct bucket_range_s bucket_ranges[], struct histo_bucket_a
 /*
  * deserialize histogram metric from a string to a struct histo_bucket_s.
  */
-int deserialize_histo(const char *buf, struct histo_bucket_with_range_s **bucket, size_t *bucket_size, u64 *bkt_sum);
+int deserialize_histo(const char *buf, struct histo_bucket_with_range_s **bucket, size_t *bucket_size, u64 *bkt_sum, u64 *bkt_max);
 
 #define HISTO_BUCKET_RANGE_INIT(buckets_rg, size, histios)                                                    \
 do {                                                                                                          \
