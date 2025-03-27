@@ -125,9 +125,11 @@ int histo_bucket_add_value(struct bucket_range_s bucket_range[], struct histo_bu
                 }
                 buckets[i]->count = 0;
                 buckets[i]->sum = 0;
+                buckets[i]->max = 0;
             }
             buckets[i]->count++;
             buckets[i]->sum += value;
+            buckets[i]->max = buckets[i]->max > value ? buckets[i]->max : value;
             return 0;
         }
     }
@@ -197,7 +199,7 @@ int histo_bucket_value(struct bucket_range_s latency_buckets[], struct histo_buc
 int serialize_histo(struct bucket_range_s bucket_ranges[], struct histo_bucket_array_s *buckets_arr, size_t bucket_size, char *buf, size_t buf_size)
 {
     int ret;
-    u64 count = 0, sum = 0;
+    u64 count = 0, sum = 0, max = 0;
     int i;
     strbuf_t strbuf = {
         .buf = buf,
@@ -215,6 +217,7 @@ int serialize_histo(struct bucket_range_s bucket_ranges[], struct histo_bucket_a
     for (i = 0; i < bucket_size; i++) {
         count += (is_empty_bucket_array || buckets[i] == NULL ? 0 : buckets[i]->count);
         sum += (is_empty_bucket_array || buckets[i] == NULL ? 0 : buckets[i]->sum);
+        max = (is_empty_bucket_array || buckets[i] == NULL || max > buckets[i]->max ? max : buckets[i]->max);
         ret = snprintf(strbuf.buf, strbuf.size, " %llu %llu", bucket_ranges[i].max, count);
         if (ret < 0 || ret >= strbuf.size) {
             goto err;
@@ -222,7 +225,7 @@ int serialize_histo(struct bucket_range_s bucket_ranges[], struct histo_bucket_a
         strbuf_update_offset(&strbuf, ret);
     }
 
-    ret = snprintf(strbuf.buf, strbuf.size, " %llu", sum);
+    ret = snprintf(strbuf.buf, strbuf.size, " %llu %llu", sum, max);
     if (ret < 0 || ret >= strbuf.size) {
         goto err;
     }
@@ -232,7 +235,7 @@ err:
     return -1;
 }
 
-static int _deserialize_histo(char *buf, struct histo_bucket_with_range_s *bucket, size_t bucket_size, u64 *bkt_sum)
+static int _deserialize_histo(char *buf, struct histo_bucket_with_range_s *bucket, size_t bucket_size, u64 *bkt_sum, u64 *bkt_max)
 {
     char *cur_pos, *next_pos;
     u64 last_count = 0, count;
@@ -271,7 +274,17 @@ static int _deserialize_histo(char *buf, struct histo_bucket_with_range_s *bucke
         }
     }
 
+    next_pos = strchr(cur_pos, ' ');
+    if (!next_pos) {
+        return -1;
+    }
+    *next_pos = '\0';
     *bkt_sum = strtoull(cur_pos, NULL, 10);
+    cur_pos = next_pos + 1;
+    if (cur_pos - buf >= buf_size) {
+        return -1;
+    }
+    *bkt_max = strtoull(cur_pos, NULL, 10);
     return 0;
 }
 
@@ -295,7 +308,7 @@ int resolve_bucket_size(char *buf, char **new_buf)
     return ret;
 }
 
-int deserialize_histo(const char *buf, struct histo_bucket_with_range_s **bucket, size_t *bucket_size, u64 *bkt_sum)
+int deserialize_histo(const char *buf, struct histo_bucket_with_range_s **bucket, size_t *bucket_size, u64 *bkt_sum, u64 *bkt_max)
 {
     struct histo_bucket_with_range_s *bkt = NULL;
     size_t bkt_sz = 0;
@@ -321,13 +334,13 @@ int deserialize_histo(const char *buf, struct histo_bucket_with_range_s **bucket
         free(buf_dup);
         return -1;
     }
-    ret = _deserialize_histo(pos, bkt, bkt_sz, bkt_sum);
+    ret = _deserialize_histo(pos, bkt, bkt_sz, bkt_sum, bkt_max);
     if (ret) {
         goto err;
     }
 
     *bucket = bkt;
-    *bucket_size = bkt_sz;
+    *bucket_size = bkt_sz + 2;
     free(buf_dup);
     return 0;
 err:
