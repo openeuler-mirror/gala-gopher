@@ -66,7 +66,7 @@ struct {
 #ifndef TCP_FD_BPF
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 64);
+    __uint(max_entries, 4096);
 } tcp_output SEC(".maps");
 #endif
 

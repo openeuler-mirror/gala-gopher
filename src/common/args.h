@@ -28,6 +28,8 @@
 #define MAX_IP_NUM          8
 #define MAX_TGIDS_LEN       64
 #define DEFAULT_CADVISOR_PORT    8083
+#define DEFAULT_RB_MAP_SZ   1
+#define MAX_RB_MAP_SZ       32
 
 #define PYSCOPE_SERVER_URL_LEN  64  // compat for [domainName]:4040 for most of domains and xxx.xxx.xxx.xxx:4040
 #ifndef PATH_LEN
@@ -70,6 +72,7 @@ struct probe_params {
     unsigned int drops_count_thr;      // Threshold of the number of drop packets, default is 0
     unsigned int kafka_port;           // the port to which kafka server attach.
     char logs;                         // Enable the logs function
+    unsigned char ringbuf_map_size;    // size of output ringbuf map(unit: MB), only for tcpprobe and endpointprboe
     char report_cport;                 // Enable tcpprobe to report true client port
     char metrics_flags;                // Support for report metrics flags(0x01(raw metrics), 0x02(openTelemetry metrics, eg.. P50/P90/P99) );
     char env_flags;                    // Support for env flags(default 0x01(node), 0x02(container), 0x04(K8S));

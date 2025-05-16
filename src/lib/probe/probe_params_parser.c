@@ -77,6 +77,8 @@ struct param_key_s {
     int key_type;
 };
 
+#define IS_POWER_OF_TWO(n) ((n) != 0 && (((n) & ((n) - 1)) == 0))
+
 static int parser_sample_peirod(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
 {
     int value = Json_GetValueInt(key_item);
@@ -165,6 +167,29 @@ static int parser_res_upper_thr(struct probe_s *probe, const struct param_key_s 
     }
 
     probe->probe_param.res_percent_upper = (char)value;
+    return 0;
+}
+
+static int parser_ringbuf_map_size(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
+{
+    int value = Json_GetValueInt(key_item);
+    if (value < param_key->v.min || value > param_key->v.max || value == INVALID_INT_NUM) {
+        PARSE_ERR("params.%s invalid value %d, must be in [%d, %d]",
+                  param_key->key, value, param_key->v.min, param_key->v.max);
+        return -1;
+    }
+
+    if (!IS_POWER_OF_TWO(value)) {
+        PARSE_ERR("params.%s invalid value %d, must be power of 2", param_key->key, value);
+        return -1;
+    }
+
+    if (probe->probe_param.ringbuf_map_size != value && !IS_STOPPED_PROBE(probe)) {
+        PARSE_ERR("params.%s invalid can only be changed when probe is stopped", param_key->key);
+        return -1;
+    }
+
+    probe->probe_param.ringbuf_map_size = (unsigned char)value;
     return 0;
 }
 
@@ -584,6 +609,7 @@ SET_DEFAULT_PARAMS_INTER(min_exec_dur);
 SET_DEFAULT_PARAMS_INTER(min_aggr_dur);
 
 SET_DEFAULT_PARAMS_CAHR(logs);
+SET_DEFAULT_PARAMS_CAHR(ringbuf_map_size);
 SET_DEFAULT_PARAMS_CAHR(report_cport);
 SET_DEFAULT_PARAMS_CAHR(support_ssl);
 SET_DEFAULT_PARAMS_CAHR(res_percent_upper);
@@ -604,6 +630,7 @@ SET_DEFAULT_PARAMS_STR(flame_dir);
 #define DROPS_THR           "drops_thr"
 #define RES_LOWER_THR       "res_lower_thr"
 #define RES_UPPER_THR       "res_upper_thr"
+#define RB_MAP_SZ           "ringbuf_map_size"
 #define REPORT_EVENT        "report_event"
 #define REPORT_CPORT        "report_cport"
 #define L7_PROTOCOL         "l7_protocol"
@@ -638,6 +665,7 @@ struct param_key_s param_keys[] = {
     {RES_UPPER_THR,       {0, 0, 100, ""},                           parser_res_upper_thr,           set_default_params_char_res_percent_upper, JSON_NUMBER},
     {REPORT_EVENT,        {0, 0, 1, ""},                             parser_report_event,            set_default_params_char_logs, JSON_NUMBER},
 #endif
+    {RB_MAP_SZ,           {DEFAULT_RB_MAP_SZ, 1, MAX_RB_MAP_SZ, ""}, parser_ringbuf_map_size,        set_default_params_char_ringbuf_map_size, JSON_NUMBER},
     {REPORT_CPORT,        {0, 0, 1, ""},                             parser_report_cport,            set_default_params_char_report_cport, JSON_NUMBER},
     {L7_PROTOCOL,         {0, 0, 0, ""},                             parser_l7pro,                   set_default_params_inter_l7_probe_proto_flags, JSON_ARRAY},
     {SUPPORT_SSL,         {0, 0, 1, ""},                             parser_support_ssl,             set_default_params_char_support_ssl, JSON_NUMBER},
@@ -784,6 +812,11 @@ void probe_params_to_json(struct probe_s *probe, void *params)
     if (probe_type == PROBE_TCP) {
         Json_AddCharItemToObject(params, REPORT_CPORT, probe_param->report_cport);
     }
+
+    if (probe_type == PROBE_TCP || probe_type == PROBE_SOCKET) {
+        Json_AddUIntItemToObject(params, RB_MAP_SZ, probe_param->ringbuf_map_size);
+    }
+
     if (probe_type == PROBE_BASEINFO) {
         Json_AddStringToObject(params, ELF_PATH, probe_param->elf_path);
     }

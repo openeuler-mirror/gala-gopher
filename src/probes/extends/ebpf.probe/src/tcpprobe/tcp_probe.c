@@ -771,12 +771,12 @@ static int proc_tcp_metrics_evt(void *ctx, void *data, u32 size)
 
 #endif
 
-static int tcp_load_probe_stats(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
+static int tcp_load_probe_stats(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, unsigned char ringbuf_map_size, char is_load)
 {
     int err;
     struct bpf_buffer *buffer = NULL;
 
-    __OPEN_PROBE_WITH_OUTPUT(tcp_stats, err, is_load, buffer);
+    __OPEN_PROBE_WITH_OUTPUT(tcp_stats, err, is_load, buffer, ringbuf_map_size);
 
     if (is_load) {
         __SELECT_RCV_ESTABLISHED_HOOKPOINT(tcp_stats);
@@ -807,12 +807,12 @@ err:
     return -1;
 }
 
-static int tcp_load_probe_abn(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
+static int tcp_load_probe_abn(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, unsigned char ringbuf_map_size, char is_load)
 {
     int err;
     struct bpf_buffer *buffer = NULL;
 
-    __OPEN_PROBE_WITH_OUTPUT(tcp_abn, err, is_load, buffer);
+    __OPEN_PROBE_WITH_OUTPUT(tcp_abn, err, is_load, buffer, ringbuf_map_size);
 
     if (is_load) {
         __SELECT_RCV_ESTABLISHED_HOOKPOINT(tcp_abn);
@@ -846,12 +846,12 @@ err:
     return -1;
 }
 
-static int tcp_load_probe_txrx(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
+static int tcp_load_probe_txrx(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, unsigned char ringbuf_map_size, char is_load)
 {
     int err;
     struct bpf_buffer *buffer = NULL;
 
-    __OPEN_LOAD_PROBE_WITH_OUTPUT(tcp_tx_rx, err, is_load, buffer);
+    __OPEN_LOAD_PROBE_WITH_OUTPUT(tcp_tx_rx, err, is_load, buffer, ringbuf_map_size);
     if (is_load) {
         prog->skels[prog->num].skel = tcp_tx_rx_skel;
         prog->skels[prog->num].fn = (skel_destroy_fn)tcp_tx_rx_bpf__destroy;
@@ -874,12 +874,12 @@ err:
     return -1;
 }
 
-static int tcp_load_probe_delay(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, char is_load)
+static int tcp_load_probe_delay(struct tcp_mng_s *tcp_mng, struct bpf_prog_s *prog, unsigned char ringbuf_map_size, char is_load)
 {
     int err;
     struct bpf_buffer *buffer = NULL;
 
-    __OPEN_PROBE_WITH_OUTPUT(tcp_delay, err, is_load, buffer);
+    __OPEN_PROBE_WITH_OUTPUT(tcp_delay, err, is_load, buffer, ringbuf_map_size);
 
     if (is_load) {
         bool is_const = probe_kernel_version() > KERNEL_VERSION(5, 12, 0);
@@ -913,12 +913,12 @@ err:
     return -1;
 }
 
-static int tcp_load_probe_link(struct tcp_mng_s *tcp_mng, struct probe_params *args, struct bpf_prog_s *prog)
+static int tcp_load_probe_link(struct tcp_mng_s *tcp_mng, unsigned char ringbuf_map_size, struct bpf_prog_s *prog)
 {
     int err;
     struct bpf_buffer *buffer = NULL;
 
-    __OPEN_PROBE_WITH_OUTPUT(tcp_link, err, 1, buffer);
+    __OPEN_PROBE_WITH_OUTPUT(tcp_link, err, 1, buffer, ringbuf_map_size);
     __SELECT_DESTROY_SOCK_HOOKPOINT(tcp_link);
     __LOAD_PROBE(tcp_link, err, 1);
 
@@ -971,28 +971,28 @@ int tcp_load_probe(struct tcp_mng_s *tcp_mng, struct ipc_body_s *ipc_body, struc
     }
 
 #if defined(__x86_64__) || defined(__riscv)
-    if (tcp_load_probe_link(tcp_mng, &(ipc_body->probe_param), prog)) {
+    if (tcp_load_probe_link(tcp_mng, ipc_body->probe_param.ringbuf_map_size, prog)) {
         goto err;
     }
 #endif
 
-    if (tcp_load_probe_txrx(tcp_mng, prog, is_load_txrx)) {
+    if (tcp_load_probe_txrx(tcp_mng, prog, ipc_body->probe_param.ringbuf_map_size, is_load_txrx)) {
         goto err;
     }
 
-    if (tcp_load_probe_abn(tcp_mng, prog, is_load_abn)) {
+    if (tcp_load_probe_abn(tcp_mng, prog, ipc_body->probe_param.ringbuf_map_size, is_load_abn)) {
         goto err;
     }
 
-    if (tcp_load_probe_stats(tcp_mng, prog, is_load_stats)) {
+    if (tcp_load_probe_stats(tcp_mng, prog, ipc_body->probe_param.ringbuf_map_size, is_load_stats)) {
         goto err;
     }
 
-    if (tcp_load_probe_delay(tcp_mng, prog, is_load_delay)) {
+    if (tcp_load_probe_delay(tcp_mng, prog, ipc_body->probe_param.ringbuf_map_size, is_load_delay)) {
         goto err;
     }
 #ifdef __aarch64__
-    if (tcp_load_probe_link(tcp_mng, &(ipc_body->probe_param), prog)) {
+    if (tcp_load_probe_link(tcp_mng, ipc_body->probe_param.ringbuf_map_size, prog)) {
         goto err;
     }
 #endif

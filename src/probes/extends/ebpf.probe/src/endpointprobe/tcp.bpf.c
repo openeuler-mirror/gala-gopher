@@ -102,7 +102,7 @@ struct {
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 64);
+    __uint(max_entries, 4096);
 } tcp_evt_map SEC(".maps");
 
 struct sock_info_s {
