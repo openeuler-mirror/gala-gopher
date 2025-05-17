@@ -970,11 +970,9 @@ int tcp_load_probe(struct tcp_mng_s *tcp_mng, struct ipc_body_s *ipc_body, struc
         return -1;
     }
 
-#if defined(__x86_64__) || defined(__riscv)
     if (tcp_load_probe_link(tcp_mng, ipc_body->probe_param.ringbuf_map_size, prog)) {
         goto err;
     }
-#endif
 
     if (tcp_load_probe_txrx(tcp_mng, prog, ipc_body->probe_param.ringbuf_map_size, is_load_txrx)) {
         goto err;
@@ -991,11 +989,6 @@ int tcp_load_probe(struct tcp_mng_s *tcp_mng, struct ipc_body_s *ipc_body, struc
     if (tcp_load_probe_delay(tcp_mng, prog, ipc_body->probe_param.ringbuf_map_size, is_load_delay)) {
         goto err;
     }
-#ifdef __aarch64__
-    if (tcp_load_probe_link(tcp_mng, ipc_body->probe_param.ringbuf_map_size, prog)) {
-        goto err;
-    }
-#endif
 
     INFO("[TCPPROBE]: Successfully load ebpf prog.\n");
     *new_prog = prog;

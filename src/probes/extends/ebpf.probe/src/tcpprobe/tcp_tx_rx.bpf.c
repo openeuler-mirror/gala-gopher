@@ -73,7 +73,7 @@ static void get_tcp_tx_rx_segs(struct sock *sk, struct tcp_tx_rx* stats)
     stats->segs_out = _(tcp_sk->segs_out);
 }
 
-KPROBE(tcp_sendmsg, pt_regs)
+KPROBE(tcp_sendmsg_locked, pt_regs)
 {
     struct tcp_metrics_s *metrics;
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
