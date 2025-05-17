@@ -1006,7 +1006,8 @@ static void report_tcp_socks(struct endpoint_probe_s * probe)
 }
 #endif
 
-static int endpoint_load_probe_tcp(struct endpoint_probe_s *probe, struct bpf_prog_s *prog, char is_load)
+static int endpoint_load_probe_tcp(struct endpoint_probe_s *probe, struct bpf_prog_s *prog,
+                                   unsigned char ringbuf_map_size, char is_load)
 {
     struct bpf_buffer *buffer = NULL;
 
@@ -1016,7 +1017,7 @@ static int endpoint_load_probe_tcp(struct endpoint_probe_s *probe, struct bpf_pr
         int kernel_version = probe_kernel_version();
         PROG_ENABLE_ONLY_IF(tcp, bpf_raw_trace_tcp_retransmit_synack, kernel_version > KERNEL_VERSION(4, 18, 0));
         PROG_ENABLE_ONLY_IF(tcp, bpf_trace_tcp_retransmit_synack_func, kernel_version <= KERNEL_VERSION(4, 18, 0));
-
+        MAP_SET_MAX_ENTRIES(tcp, tcp_evt_map, buffer, ringbuf_map_size);
         LOAD_ATTACH(endpoint, tcp, err, is_load);
 
         prog->skels[prog->num].skel = tcp_skel;
@@ -1041,13 +1042,14 @@ err:
     return -1;
 }
 
-static int endpoint_load_probe_udp(struct endpoint_probe_s *probe, struct bpf_prog_s *prog, char is_load)
+static int endpoint_load_probe_udp(struct endpoint_probe_s *probe, struct bpf_prog_s *prog,
+                                   unsigned char ringbuf_map_size, char is_load)
 {
     struct bpf_buffer *buffer = NULL;
 
     OPEN_UDP_PROBE(udp, err, is_load, buffer);
     if (is_load) {
-
+        MAP_SET_MAX_ENTRIES(udp, udp_evt_map, buffer, ringbuf_map_size);
         LOAD_ATTACH(endpoint, udp, err, is_load);
 
         prog->skels[prog->num].skel = udp_skel;
@@ -1087,11 +1089,11 @@ static int endpoint_load_probe(struct endpoint_probe_s *probe, struct ipc_body_s
         return -1;
     }
 
-    if (endpoint_load_probe_tcp(probe, new_prog, is_load_tcp)) {
+    if (endpoint_load_probe_tcp(probe, new_prog, ipc_body->probe_param.ringbuf_map_size, is_load_tcp)) {
         goto err;
     }
 
-    if (endpoint_load_probe_udp(probe, new_prog, is_load_udp)) {
+    if (endpoint_load_probe_udp(probe, new_prog, ipc_body->probe_param.ringbuf_map_size, is_load_udp)) {
         goto err;
     }
 

@@ -219,6 +219,7 @@ curl -X PUT http://localhost:9999/tcp -d json='
 |      drops_thr      |            丢包上送门限            |                        0, [10~100000]                        | package |                  tcp, nic                   |     Y      |
 |    res_lower_thr    |           资源百分比下限           |                          0, [0~100]                          | percent |                     ALL                     |     Y      |
 |    res_upper_thr    |           资源百分比上限           |                          0, [0~100]                          | percent |                     ALL                     |     Y      |
+| ringbuf_map_size | 上报map大小 | 1,[1~32] | MB | tcp, socket | Y |
 |    report_event     |            上报异常事件            |                          0, [0, 1]                           |         |                     ALL                     |     Y      |
 |    metrics_type     |       上报telemetry metrics        |                 "raw", ["raw", "telemetry"]                  |         |                     ALL                     |     N      |
 |         env         |            工作环境类型            |           "node", ["node", "container", "kubenet"]           |         |                     ALL                     |     N      |

@@ -39,7 +39,7 @@ char g_license[] SEC("license") = "GPL";
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 64);
+    __uint(max_entries, 4096);
 } udp_evt_map SEC(".maps");
 
 static __always_inline unsigned char *skb_network_header(const struct sk_buff *skb)

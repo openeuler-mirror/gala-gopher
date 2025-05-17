@@ -120,6 +120,22 @@ static inline int bpf_buffer__reset(struct bpf_map *map, struct bpf_map *heap)
     return type;
 }
 
+#define MAX_RB_MAP_SZ       32
+static inline int bpf_buffer__set_max_entries(struct bpf_map *map, struct bpf_buffer *buffer, unsigned char map_size_mb)
+{
+
+    if (buffer == NULL || buffer->type != BPF_MAP_TYPE_RINGBUF) {
+        return 0;
+    }
+
+    if (map_size_mb == 0 || map_size_mb > MAX_RB_MAP_SZ) {
+        return -1;
+    }
+
+    u32 max_entries = map_size_mb * 1024 * 1024;
+    return bpf_map__set_max_entries(map, max_entries);
+}
+
 static inline struct bpf_buffer *bpf_buffer__new(struct bpf_map *map, struct bpf_map *heap)
 {
     struct bpf_buffer *buffer;

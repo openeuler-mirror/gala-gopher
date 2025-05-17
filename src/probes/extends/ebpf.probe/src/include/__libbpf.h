@@ -190,6 +190,15 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
         } \
     } while (0)
 
+#define MAP_SET_MAX_ENTRIES(probe_name, map_name, buffer, map_size_mb) \
+    do { \
+        int err; \
+        err = bpf_buffer__set_max_entries(probe_name##_skel->maps.map_name, buffer, map_size_mb); \
+        if (err) { \
+            WARN("Failed to set map size for " #map_name " in " #probe_name "\n"); \
+        } \
+    } while (0)
+
 #define MAP_INIT_BPF_BUFFER_SHARED(probe_name, map_name, buffer_ptr, load) \
     do { \
         if (load) { \
