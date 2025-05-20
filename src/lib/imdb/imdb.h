@@ -108,7 +108,7 @@ typedef struct {
 typedef struct {
     TGID_RecordKey key;
     char container_id[CONTAINER_ABBR_ID_LEN + 1];
-    char comm[TASK_COMM_LEN + 1];
+    char comm[TASK_COMM_LEN];
     char cmdline[PROC_CMDLINE_LEN];
     H_HANDLE;
 } TGID_Record;

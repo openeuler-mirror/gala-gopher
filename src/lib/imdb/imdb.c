@@ -372,13 +372,13 @@ static TGID_Record* IMDB_TgidCreateRecord(IMDB_DataBaseMgr *mgr, const char *tgi
     int ret;
     int pid;
     u64 startup_ts;
-    char comm[TASK_COMM_LEN + 1];
+    char comm[TASK_COMM_LEN];
     TGID_Record *record;
 
     comm[0] = 0;
     pid = strtol(tgid, NULL, 10);
 
-    ret = get_proc_comm(pid, comm, TASK_COMM_LEN + 1);
+    ret = get_proc_comm(pid, comm, TASK_COMM_LEN);
     if (ret) {
         return NULL;
     }
