@@ -23,7 +23,6 @@
 #include <dirent.h>
 #include <errno.h>
 #include <pthread.h>
-#include <regex.h>
 
 #include "bpf.h"
 #include "container.h"
@@ -32,6 +31,7 @@
 #include "json_tool.h"
 
 #include "ipc.h"
+#include "ext_label.h"
 #include "snooper.skel.h"
 #include "snooper_bpf.h"
 #include "snooper.h"
@@ -62,10 +62,10 @@
                 }
             ],
 */
-#define SNOOPER_OBJNAME_COMM        "comm"
-#define SNOOPER_OBJNAME_CMDLINE     "cmdline"
-#define SNOOPER_OBJNAME_DBGDIR      "debugging_dir"
-
+#define SNOOPER_OBJNAME_COMM              "comm"
+#define SNOOPER_OBJNAME_CMDLINE           "cmdline"
+#define SNOOPER_OBJNAME_DBGDIR            "debugging_dir"
+#define SNOOPER_OBJNAME_PROC_CUSTOM_LABEL "label"
 
 static struct probe_mng_s *__probe_mng_snooper = NULL;
 
@@ -88,6 +88,8 @@ void free_snooper_conf(struct snooper_conf_s* snooper_conf)
         if (snooper_conf->conf.app.debuging_dir) {
             (void)free(snooper_conf->conf.app.debuging_dir);
         }
+
+        free_custom_labels(snooper_conf->conf.app.label, PROC_CUSTOM_LABELS_NUM);
     }
 
     (void)free(snooper_conf);
@@ -131,7 +133,8 @@ static int add_snooper_conf_procid(struct probe_s *probe, u32 proc_id)
 }
 
 static int add_snooper_conf_procname(struct probe_s *probe,
-                            const char* comm, const char *cmdline, const char *dbgdir)
+                            const char* comm, const char *cmdline,
+                            const char *dbgdir, struct custom_label_elem *label)
 {
     if (probe->snooper_conf_num >= SNOOPER_CONF_MAX) {
         return -1;
@@ -161,6 +164,7 @@ static int add_snooper_conf_procname(struct probe_s *probe,
             return -1;
         }
     }
+    snooper_conf->conf.app.label = label;
     snooper_conf->type = SNOOPER_CONF_APP;
 
     if (probe->snooper_confs[probe->snooper_conf_num] != NULL) {
@@ -445,6 +449,24 @@ static int parse_snooper_pod_labels(struct probe_s *probe, const void *json)
     return 0;
 }
 
+static void print_procname_custom_label(struct snooper_conf_s *snooper_conf, void *snooper_obj)
+{
+    void *label;
+
+    if (snooper_conf->conf.app.label == NULL) {
+        return;
+    }
+
+    label = Json_CreateObject();
+    for (size_t i = 0; i < PROC_CUSTOM_LABELS_NUM; i++) {
+        Json_AddStringToObject(label, snooper_conf->conf.app.label->key,
+                               snooper_conf->conf.app.label->val);
+    }
+
+    Json_AddItemToObject(snooper_obj, SNOOPER_OBJNAME_PROC_CUSTOM_LABEL, label);
+    Json_Delete(label);
+}
+
 static void print_snooper_procname(struct probe_s *probe, void *json)
 {
     void *procname_item, *object;
@@ -461,6 +483,7 @@ static void print_snooper_procname(struct probe_s *probe, void *json)
         Json_AddStringToObject(object, SNOOPER_OBJNAME_COMM, snooper_conf->conf.app.comm);
         Json_AddStringToObject(object, SNOOPER_OBJNAME_CMDLINE, snooper_conf->conf.app.cmdline?:"");
         Json_AddStringToObject(object, SNOOPER_OBJNAME_DBGDIR, snooper_conf->conf.app.debuging_dir?:"");
+        print_procname_custom_label(snooper_conf, object);
         Json_AddItemToArray(procname_item, object);
         Json_Delete(object);
     }
@@ -468,11 +491,45 @@ static void print_snooper_procname(struct probe_s *probe, void *json)
     Json_Delete(procname_item);
 }
 
+static int parse_procname_custom_label(const void *json, struct custom_label_elem **label)
+{
+    void *label_item;
+    int proc_label_num;
+    struct custom_label_elem *custom_label;
+
+    label_item = Json_GetObjectItem(json, SNOOPER_OBJNAME_PROC_CUSTOM_LABEL);
+    if (!label_item) {
+        return 0;
+    }
+    if (!Json_IsObject(label_item)) {
+        return -1;
+    }
+
+    proc_label_num = (int)Json_GetArraySize(label_item);
+    if (proc_label_num == 0) {
+        return 0;
+    }
+
+    if (proc_label_num > PROC_CUSTOM_LABELS_NUM) {
+        return -1;
+    }
+
+    custom_label = dup_custom_labels_from_json(label_item, proc_label_num);
+    if (!custom_label) {
+        return -1;
+    }
+
+    *label = custom_label;
+    return 0;
+}
+
+
 static int parse_snooper_procname(struct probe_s *probe, const void *json)
 {
     int ret;
     void *procname_item, *comm_item, *cmdline_item, *dbgdir_item, *object;
     char *comm, *cmdline, *dbgdir;
+    struct custom_label_elem *label = NULL;
 
     procname_item = Json_GetObjectItem(json, SNOOPER_OBJNAME_PROCNAME);
     if (procname_item == NULL) {
@@ -504,7 +561,14 @@ static int parse_snooper_procname(struct probe_s *probe, const void *json)
         comm = (char *)Json_GetValueString(comm_item);
         cmdline = (cmdline_item != NULL) ? (char *)Json_GetValueString(cmdline_item) : NULL;
         dbgdir = (dbgdir_item != NULL) ? (char *)Json_GetValueString(dbgdir_item) : NULL;
-        ret = add_snooper_conf_procname(probe, (const char *)comm, (const char *)cmdline, (const char *)dbgdir);
+
+        ret = parse_procname_custom_label(object, &label);
+        if (ret != 0) {
+            return -1;
+        }
+
+        ret = add_snooper_conf_procname(probe, (const char *)comm, (const char *)cmdline,
+                                        (const char *)dbgdir, label);
         if (ret != 0) {
             return -1;
         }
@@ -808,27 +872,7 @@ static inline char __is_proc_dir(const char *dir_name)
     return 0;
 }
 
-static char __chk_snooper_pattern(const char *conf_pattern, const char *target)
-{
-    int status;
-    regex_t re;
-
-    if (target[0] == 0 || conf_pattern[0] == 0) {
-        return 0;
-    }
-
-    if (regcomp(&re, conf_pattern, REG_EXTENDED | REG_NOSUB) != 0) {
-        return 0;
-    }
-
-    status = regexec(&re, target, 0, NULL, 0);
-    regfree(&re);
-
-    return (status == 0) ? 1 : 0;
-}
-
 #define __SYS_PROC_COMM             "/proc/%s/comm"
-#define __PROC_CMDLINE_MAX          4096
 static int __read_proc_comm(const char *dir_name, char *comm, size_t size)
 {
     char proc_comm_path[PATH_LEN];
@@ -852,50 +896,6 @@ static int __read_proc_comm(const char *dir_name, char *comm, size_t size)
         *p = 0;
     }
     fclose(f);
-    return 0;
-}
-
-#define __SYS_PROC_CMDLINE          "/proc/%s/cmdline"
-static int __read_proc_cmdline(const char *dir_name, char *cmdline, u32 size)
-{
-    FILE *f = NULL;
-    char path[LINE_BUF_LEN];
-    int index = 0;
-
-    path[0] = 0;
-    (void)snprintf(path, LINE_BUF_LEN, __SYS_PROC_CMDLINE, dir_name);
-    f = fopen(path, "r");
-    if (f == NULL) {
-        return -1;
-    }
-
-    /* parse line */
-    while (!feof(f)) {
-        if (index >= size - 1) {
-            cmdline[size - 1] = '\0';
-            break;
-        }
-        cmdline[index] = fgetc(f);
-        if (cmdline[index] == '\"') {
-            if (index > size - 2) {
-                cmdline[index] = '\0';
-                break;
-            } else {
-                cmdline[index] = '\\';
-                cmdline[index + 1] =  '\"';
-                index++;
-            }
-        } else if (cmdline[index] == '\0') {
-            cmdline[index] = ' ';
-        } else if ((unsigned char)cmdline[index] == (unsigned char)EOF) {
-            cmdline[index] = '\0';
-        }
-        index++;
-    }
-
-    cmdline[index] = 0;
-
-    (void)fclose(f);
     return 0;
 }
 
@@ -928,14 +928,14 @@ static int __need_to_add_proc(const char *pid)
 static int __chk_cmdline_matched(const char *cmdline, const char *pid)
 {
     int ret;
-    char buf[__PROC_CMDLINE_MAX];
+    char buf[PROC_CMDLINE_MAX];
 
     if (cmdline == NULL) {
         return 0;
     }
 
     buf[0] = 0;
-    ret = __read_proc_cmdline(pid, buf, __PROC_CMDLINE_MAX);
+    ret = get_proc_str_cmdline(pid, buf, PROC_CMDLINE_MAX);
     if (ret) {
         return -1;
     }
@@ -1036,7 +1036,7 @@ static int gen_snooper_by_procname(struct probe_s *probe)
     struct dirent *entry;
     struct snooper_conf_s * snooper_conf;
     char comm[TASK_COMM_LEN];
-    char cmdline[__PROC_CMDLINE_MAX];
+    char cmdline[PROC_CMDLINE_MAX];
 
     dir = opendir(__SYS_PROC_DIR);
     if (dir == NULL) {
@@ -1063,7 +1063,7 @@ static int gen_snooper_by_procname(struct probe_s *probe)
             if (snooper_conf->type != SNOOPER_CONF_APP) {
                 continue;
             }
-            if (!__chk_snooper_pattern((const char *)snooper_conf->conf.app.comm, (const char *)comm)) {
+            if (!regex_pattern_matched((const char *)snooper_conf->conf.app.comm, (const char *)comm)) {
                 // 'comm' Unmatched
                 continue;
             }
@@ -1075,7 +1075,7 @@ static int gen_snooper_by_procname(struct probe_s *probe)
             if (snooper_conf->conf.app.cmdline) {
                 if (!cmdline_obtained) {
                     cmdline[0] = 0;
-                    ret = __read_proc_cmdline(entry->d_name, cmdline, __PROC_CMDLINE_MAX);
+                    ret = get_proc_str_cmdline(entry->d_name, cmdline, PROC_CMDLINE_MAX);
                     if (ret) {
                         break;
                     }
@@ -1327,7 +1327,7 @@ static char __rcv_snooper_proc_exec_sub(struct probe_s *probe, const char *comm,
     for (int j = 0; j < probe->snooper_conf_num && j < SNOOPER_CONF_MAX; j++) {
         snooper_conf = probe->snooper_confs[j];
         if (snooper_conf && snooper_conf->type == SNOOPER_CONF_APP) {
-            if (__chk_snooper_pattern((const char *)(snooper_conf->conf.app.comm), comm)) {
+            if (regex_pattern_matched((const char *)(snooper_conf->conf.app.comm), comm)) {
                 pid_str[0] = 0;
                 (void)snprintf(pid_str, sizeof(pid_str), "%u", proc_id);
                 if (__chk_cmdline_matched((const char *)(snooper_conf->conf.app.cmdline), (const char *)pid_str) == 0 &&

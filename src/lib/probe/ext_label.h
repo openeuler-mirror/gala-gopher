@@ -38,6 +38,7 @@ struct ext_label_conf {
 void update_custom_labels(struct ext_label_conf *ext_label_conf, struct custom_label_elem *custom_labels, int num);
 void update_custom_labels_locked(struct ext_label_conf *ext_label_conf, struct custom_label_elem *custom_labels, int num);
 void free_custom_labels(struct custom_label_elem *custom_labels, int num);
+struct custom_label_elem *dup_custom_labels(struct custom_label_elem *custom_labels, int num);
 
 void update_pod_labels(struct ext_label_conf *ext_label_conf, struct pod_label_elem *pod_labels, int num);
 void update_pod_labels_locked(struct ext_label_conf *ext_label_conf, struct pod_label_elem *pod_labels, int num);

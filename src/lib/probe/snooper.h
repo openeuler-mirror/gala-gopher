@@ -21,6 +21,8 @@
 #include "ipc.h"
 #include "probe_mng.h"
 
+#define PROC_CUSTOM_LABELS_NUM       1
+
 enum snooper_conf_e {
     SNOOPER_CONF_APP = 0,
     SNOOPER_CONF_PROC_ID,
@@ -37,6 +39,7 @@ struct snooper_app_s {
     char comm[TASK_COMM_LEN + 1];
     char *cmdline;
     char *debuging_dir;
+    struct custom_label_elem *label;
 };
 
 struct snooper_conf_s {

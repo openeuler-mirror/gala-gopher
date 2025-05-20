@@ -160,9 +160,9 @@ curl -X PUT http://localhost:9999/flamegraph -d json='
 
 探针上报指标数据时会根据meta文件上报相应的标签信息。此外，用户也可以通过动态配置接口增加一些扩展的标签信息进行上报。当前支持的拓展标签有：
 
-- 固定标签
+- 探针级标签
 
-  固定标签是指具有固定值的标签，用户可以在 `snoopers` 配置选项中添加 `custom_labels` 进行配置，该标签会在探针的指标数据上报时填充进去。
+  用户可以在 `snoopers` 配置选项中添加 `custom_labels` 配置固定标签，该标签会填充到该探针上报的所有指标数据中。每个探针最多同时设置10个探针级标签。
 
   例如，通过下面的配置为 proc 探针添加一个 `task="task1"` 的标签。
 
@@ -177,6 +177,29 @@ curl -X PUT http://localhost:9999/flamegraph -d json='
   }'
   ```
 
+- snooper级别标签
+
+  用户可以在某个单独的snooper中添加`label`配置固定标签，该标签会填充到该探针上报的所有指标数据中。
+
+  当前只支持proc_name类型的snooper，并且最多设置一个。
+
+  例如，通过下面的配置为 tcp 探针上报数据中符合匹配规格的进程添加一个 `task="task1"` 的标签。
+  
+  ```
+  curl -X PUT http://localhost:9999/tcp -d json='
+  {
+      "snoopers": {
+          "proc_name": [
+              {
+                  "comm": "app1",
+                  "cmdline": "",
+                  "label": {"task": "task1"}
+              }
+          ]
+      }
+  }'
+  ```
+  
 - Pod级标签
 
   Pod级标签是指 k8s 附加到 Pod 对象上的键值对，一个 Pod 对象一般包含多个 Pod 标签。用户可以在 `snoopers` 配置选项中添加 `pod_labels` 配置项来指定需要上报哪些 Pod 标签。

@@ -21,6 +21,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <limits.h>
+#include <regex.h>
 #include <arpa/inet.h>
 #include <sys/stat.h>
 #include "common.h"
@@ -28,7 +29,8 @@
 #define CHROOT_CMD          "/usr/sbin/chroot %s %s"
 #define PROC_COMM           "/proc/%u/comm"
 #define PROC_COMM_CMD       "/usr/bin/cat /proc/%u/comm 2> /dev/null"
-#define PROC_CMDLINE_CMD    "/proc/%u/cmdline"
+#define PROC_CMDLINE        "/proc/%u/cmdline"
+#define PROC_STR_CMDLINE    "/proc/%s/cmdline"
 #define PROC_EXE_CMD        "/usr/bin/readlink /proc/%u/exe 2> /dev/null"
 #define PROC_STAT           "/proc/%u/stat"
 #define PROC_START_TIME_CMD "/usr/bin/cat /proc/%u/stat | awk '{print $22}'"
@@ -414,7 +416,7 @@ int get_proc_cmdline(u32 pid, char *buf, u32 buf_len)
     (void)memset(buf, 0, buf_len);
 
     path[0] = 0;
-    (void)snprintf(path, LINE_BUF_LEN, PROC_CMDLINE_CMD, pid);
+    (void)snprintf(path, LINE_BUF_LEN, PROC_CMDLINE, pid);
     f = fopen(path, "r");
     if (f == NULL) {
         return -1;
@@ -442,6 +444,49 @@ int get_proc_cmdline(u32 pid, char *buf, u32 buf_len)
         }
         index++;
     }
+
+    (void)fclose(f);
+    return 0;
+}
+
+int get_proc_str_cmdline(const char *pid_str, char *buf, u32 buf_len)
+{
+    FILE *f = NULL;
+    char path[LINE_BUF_LEN];
+    int index = 0;
+
+    path[0] = 0;
+    (void)snprintf(path, LINE_BUF_LEN, PROC_STR_CMDLINE, pid_str);
+    f = fopen(path, "r");
+    if (f == NULL) {
+        return -1;
+    }
+
+    /* parse line */
+    while (!feof(f)) {
+        if (index >= buf_len - 1) {
+            buf[buf_len - 1] = '\0';
+            break;
+        }
+        buf[index] = fgetc(f);
+        if (buf[index] == '\"') {
+            if (index > buf_len - 2) {
+                buf[index] = '\0';
+                break;
+            } else {
+                buf[index] = '\\';
+                buf[index + 1] =  '\"';
+                index++;
+            }
+        } else if (buf[index] == '\0') {
+            buf[index] = ' ';
+        } else if ((unsigned char)buf[index] == (unsigned char)EOF) {
+            buf[index] = '\0';
+        }
+        index++;
+    }
+
+    buf[index] = 0;
 
     (void)fclose(f);
     return 0;
@@ -583,4 +628,23 @@ int check_path_for_security(const char *path)
     }
 
     return 0;
+}
+
+int regex_pattern_matched(const char *conf_pattern, const char *target)
+{
+    int status;
+    regex_t re;
+
+    if (target[0] == 0 || conf_pattern[0] == 0) {
+        return 0;
+    }
+
+    if (regcomp(&re, conf_pattern, REG_EXTENDED | REG_NOSUB) != 0) {
+        return 0;
+    }
+
+    status = regexec(&re, target, 0, NULL, 0);
+    regfree(&re);
+
+    return (status == 0) ? 1 : 0;
 }
