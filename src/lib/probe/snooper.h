@@ -34,7 +34,7 @@ enum snooper_conf_e {
 };
 
 struct snooper_app_s {
-    char comm[TASK_COMM_LEN + 1];
+    char comm[TASK_COMM_LEN];
     char *cmdline;
     char *debuging_dir;
 };
