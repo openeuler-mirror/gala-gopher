@@ -279,6 +279,9 @@ static int ProcessMetricData(IngressMgr *mgr, const char *content, const char *t
 
     if (probe) {
         IMDB_TableUpdateExtLabelConf(table, &probe->ext_label_conf);
+        if (table->probe == NULL) {
+            table->probe = probe;
+        }
     }
 
     if (mgr->imdbMgr->writeLogsType == METRIC_LOG_PROM || mgr->imdbMgr->writeLogsType == METRIC_LOG_JSON) {

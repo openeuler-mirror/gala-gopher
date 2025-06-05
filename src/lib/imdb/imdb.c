@@ -25,6 +25,7 @@
 #include "strbuf.h"
 #include "container.h"
 #include "meta.h"
+#include "snooper.h"
 #include "imdb.h"
 
 static uint32_t g_recordTimeout = 60;       // default timeout: 60 seconds
@@ -293,13 +294,21 @@ err:
 
 #define __IMDB_TGID_CACHE_SIZE  1024
 
+static void IMDB_TgidFreeRecord(TGID_Record *record)
+{
+    if (record) {
+        free_custom_labels(record->label, PROC_CUSTOM_LABELS_NUM);
+        free(record);
+    }
+}
+
 void IMDB_TgidAddRecord(const IMDB_DataBaseMgr *mgr, TGID_Record *record)
 {
     if (H_COUNT(*(mgr->tgids)) > __IMDB_TGID_CACHE_SIZE) {
         TGID_Record *r, *tmp;
         H_ITER(*(mgr->tgids), r, tmp) {
             HASH_DEL(*(mgr->tgids), r);
-            free(r);
+            IMDB_TgidFreeRecord(r);
             break;
         }
     }
@@ -403,6 +412,65 @@ static TGID_Record* IMDB_TgidCreateRecord(IMDB_DataBaseMgr *mgr, const char *tgi
     return record;
 }
 
+static char time_to_update_label(TGID_Record *record)
+{
+    time_t current = (time_t)time(NULL);
+    time_t secs;
+
+    if (current > record->last_label_update) {
+        secs = current - record->last_label_update;
+        if (secs >= 60) {
+            record->last_label_update = current;
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+void get_probemng_lock(void);
+void put_probemng_lock(void);
+static void IMDB_TgidRecordUpdateLabel(TGID_Record *record, struct probe_s *probe)
+{
+    struct snooper_conf_s *snooper_conf;
+    char buf[PROC_CMDLINE_MAX];
+
+    if (probe == NULL) {
+        return;
+    }
+
+    if (!time_to_update_label(record)) {
+        return;
+    }
+
+    get_probemng_lock();
+    for (int i = 0; i < probe->snooper_conf_num; i++) {
+        snooper_conf = probe->snooper_confs[i];
+        if (snooper_conf->type != SNOOPER_CONF_APP || snooper_conf->conf.app.label == NULL) {
+            continue;
+        }
+
+        if (!regex_pattern_matched((const char *)snooper_conf->conf.app.comm, (const char *)record->comm)) {
+            continue;
+        }
+
+        if (snooper_conf->conf.app.cmdline) {
+            if (get_proc_str_cmdline(record->key.tgid, buf, PROC_CMDLINE_MAX)) {
+                break;
+            }
+            if (strstr(buf, snooper_conf->conf.app.cmdline) == NULL) {
+                continue;
+            }
+        }
+
+        free_custom_labels(record->label, 1);
+        record->label = dup_custom_labels(snooper_conf->conf.app.label, 1);
+        break;
+    }
+    put_probemng_lock();
+    return;
+}
+
 void IMDB_deleteAndFreeTgids(TGID_Record **tgids)
 {
     if (tgids == NULL)  {
@@ -412,7 +480,7 @@ void IMDB_deleteAndFreeTgids(TGID_Record **tgids)
     TGID_Record *r, *tmp;
     H_ITER(*tgids, r, tmp) {
         HASH_DEL(*tgids, r);
-        free(r);
+        IMDB_TgidFreeRecord(r);
     }
     return;
 }
@@ -795,6 +863,24 @@ static int append_container_level_labels(const char *container_id, char **buffer
     return 0;
 }
 
+static int append_procname_custom_labels(TGID_Record *tgidRecord, char **buffer_ptr, int *size_ptr, char type_json)
+{
+    int ret;
+    struct custom_label_elem *proc_custom_label = tgidRecord->label;
+    const char *fmt = type_json ? ",\"%s\":\"%s\"" : ",%s=\"%s\"";
+
+    if (proc_custom_label == NULL) {
+        return 0;
+    }
+
+    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, fmt, proc_custom_label->key, proc_custom_label->val);
+    if (ret < 0) {
+        return IMDB_BUFFER_FULL;
+    }
+
+    return 0;
+}
+
 static int append_proc_level_labels(const char *tgid_str, char **buffer_ptr, int *size_ptr,
                                     IMDB_DataBaseMgr *mgr, IMDB_Table *table, char type_json)
 {
@@ -812,6 +898,7 @@ static int append_proc_level_labels(const char *tgid_str, char **buffer_ptr, int
         return IMDB_BUILD_ERR;
     }
 
+    IMDB_TgidRecordUpdateLabel(tgidRecord, table->probe);
     ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, cmd_fmt,
         META_COMMON_LABEL_PROC_COMM, tgidRecord->comm);
     if (ret < 0) {
@@ -829,6 +916,12 @@ static int append_proc_level_labels(const char *tgid_str, char **buffer_ptr, int
         if (ret < 0) {
             return IMDB_BUFFER_FULL;
         }
+    }
+
+    ret = append_procname_custom_labels(tgidRecord, buffer_ptr, size_ptr, type_json);
+    if (ret < 0) {
+        ERROR("[IMDB] Failed to append proc custom label(tgid=%s)\n", tgid_str);
+        return ret;
     }
 
     ret = append_container_level_labels(tgidRecord->container_id, buffer_ptr, size_ptr, mgr, table, 0, type_json);

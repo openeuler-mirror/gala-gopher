@@ -45,6 +45,7 @@
 
 #define TASK_COMM_LEN           16
 #define PROC_CMDLINE_LEN        128
+#define PROC_CMDLINE_MAX        4096
 #define MAX_PROCESS_NAME_LEN    32
 #define TASK_EXE_FILE_LEN       128
 #define JAVA_COMMAND_LEN        128
@@ -229,10 +230,11 @@ int get_proc_start_time(u32 pid, char *buf, int buf_len);
 u64 get_proc_startup_ts(const char *pid);
 int get_proc_comm(u32 pid, char *buf, int buf_len);
 int get_proc_cmdline(u32 pid, char *buf, u32 buf_len);
+int get_proc_str_cmdline(const char *pid_str, char *buf, u32 buf_len);
 int get_proc_exe(u32 pid, char *buf, u32 buf_len);
 int get_so_path(int pid, char *elf_path, int size, const char *so_keyword);
 int get_kern_version(u32 *kern_version);
 int is_valid_proc(int pid);
 void convert_to_host_path(char *host_path, const char *path, int path_len);
-
+int regex_pattern_matched(const char *conf_pattern, const char *target);
 #endif

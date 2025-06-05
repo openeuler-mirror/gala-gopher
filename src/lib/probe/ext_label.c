@@ -91,7 +91,7 @@ void free_pod_labels(struct pod_label_elem *pod_labels, int num)
     free(pod_labels);
 }
 
-static struct custom_label_elem *dup_custom_labels(struct custom_label_elem *custom_labels, int num)
+struct custom_label_elem *dup_custom_labels(struct custom_label_elem *custom_labels, int num)
 {
     struct custom_label_elem *dup = NULL;
     int i;

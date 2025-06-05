@@ -24,6 +24,7 @@
 #include "hash.h"
 #include "ext_label.h"
 #include "container_cache.h"
+#include "probe_mng.h"
 
 #define MAX_IMDB_DATABASEMGR_CAPACITY   256
 // metric specification
@@ -92,6 +93,7 @@ typedef struct IMDB_Table_s {
     char name[MAX_IMDB_TABLE_NAME_LEN];
     char entity_name[MAX_IMDB_TABLE_NAME_LEN];
     IMDB_Meta *meta;
+    struct probe_s *probe;
     char weighting;                 // 0: Highest Level(Entitlement to priority); >0: Low priority
     char pad[3];                    // rsvd
     uint32_t recordsCapability;     // Capability for records count in one table
@@ -110,6 +112,8 @@ typedef struct {
     char container_id[CONTAINER_ABBR_ID_LEN + 1];
     char comm[TASK_COMM_LEN];
     char cmdline[PROC_CMDLINE_LEN];
+    struct custom_label_elem *label;
+    time_t last_label_update;
     H_HANDLE;
 } TGID_Record;
 
