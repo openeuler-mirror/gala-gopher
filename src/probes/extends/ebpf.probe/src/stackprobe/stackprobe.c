@@ -2227,6 +2227,8 @@ void iter_histo_tbl(struct proc_stack_trace_histo_s *proc_histo, struct post_ser
         curl_post(svg_mng, post_server, &post_info, en_type, proc_histo->proc_id);
     }
 
+    free(post_info.buf_start);
+
     return;
 }
 
