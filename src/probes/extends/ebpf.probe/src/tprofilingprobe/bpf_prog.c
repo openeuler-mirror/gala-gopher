@@ -646,7 +646,7 @@ int attach_uprobes(struct ipc_body_s *ipc_body)
             if (mem_pymem_obj != NULL && proc_link->mem_pymem_link == NULL) {
                 ret = attach_mem_pymem_probes_per_proc(mem_pymem_obj, proc_link);
                 if (ret == 0) {
-                    return 0;
+                    continue;
                 }
                 TP_DEBUG("Failed to attach mem_pymem probes: pid=%d\n", pid);
             }
