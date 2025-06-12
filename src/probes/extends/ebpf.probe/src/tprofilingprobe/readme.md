@@ -17,6 +17,7 @@ Profiling 是 gala-gopher 提供的一个主机侧的进程/线程级应用性�
 - 网络 I/O 耗时、阻塞问题
 - 锁竞争问题
 - 死锁问题
+- DDR OOM问题
 
 随着更多类型的事件不断地补充和完善，tprofiling 将能够覆盖更多类型的应用性能问题场景。
 
@@ -45,7 +46,44 @@ tprofiling 当前已观测的系统调用事件参见章节： [支持的系统�
 
 此外，根据线程是否在 CPU 上运行可以将线程的运行状态分为两种：oncpu 和 offcpu ，前者表示线程正在 cpu 上运行，后者表示线程不在 cpu 上运行。通过观测线程的 oncpu 事件，可以识别线程是否正在执行耗时的 cpu 操作。通过观测线程的 offcpu 事件，可以观察线程在IO、锁等阻塞事件上等待的时间以及阻塞的原因。
 
+**DDR OOM 事件**
 
+| **函数名**         | **作用**                                                                 | **原型**                                                                                       | **描述**                                                                                                        | **使用场景**                                           |
+|--------------------|--------------------------------------------------------------------------|------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
+| `malloc`           | 分配指定大小的内存，未初始化。                                            | `void *malloc(size_t size);`                                                                    | 从堆中分配指定字节数的内存，内容未初始化。分配失败时返回 `NULL`。                                               | 动态分配内存。                                          |
+| `calloc`           | 分配指定大小的内存，并初始化为零。                                        | `void *calloc(size_t num, size_t size);`                                                        | 分配 `num` 个元素，每个元素大小为 `size` 字节，且内存初始化为零。分配失败时返回 `NULL`。                        | 需要初始化为零的动态内存。                              |
+| `realloc`          | 重新调整已分配内存的大小，若需要，复制数据并释放原内存。                  | `void *realloc(void *ptr, size_t new_size);`                                                     | 调整指针 `ptr` 指向的内存块大小到 `new_size` 字节。若无法扩展，尝试分配新内存并复制数据。                       | 动态调整数组或数据结构的大小。                          |
+| `mmap`             | 将文件或设备映射到内存，或分配匿名内存。                                 | `void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);`             | 将文件或设备映射到进程的地址空间，或分配匿名内存。返回映射区域的指针。失败时返回 `MAP_FAILED`。                | 内存映射文件或共享内存，提升内存访问效率。              |
+| `posix_memalign`   | 分配对齐到指定字节边界的内存。                                            | `int posix_memalign(void **ptr, size_t alignment, size_t size);`                               | 分配 `size` 字节的内存，且内存起始地址对齐到 `alignment` 字节边界。返回 `0` 表示成功，非零表示错误。              | 需要特定内存对齐的场景，如硬件加速。                     |
+| `valloc`           | 分配页面对齐的内存。                                                     | `void *valloc(size_t size);`                                                                    | 分配指定大小的内存，并确保起始地址是页面大小的整数倍（通常为 4KB）。                                            | 需要页面对齐的内存分配，底层内存管理。                  |
+| `memalign`         | 分配对齐到指定字节边界的内存。                                            | `void *memalign(size_t alignment, size_t size);`                                                | 分配大小为 `size` 字节的内存，且起始地址对齐到 `alignment` 字节边界。`alignment` 必须是 2 的幂。               | 需要特定内存对齐的内存分配。                             |
+| `pvalloc`          | 分配页面对齐的内存，并保证大小是页面大小的整数倍。                        | `void *pvalloc(size_t size);`                                                                   | 分配内存并保证其大小是页面大小的整数倍。类似 `valloc`，但总大小会四舍五入到页面大小的整数倍。                    | 需要页面对齐且大小是页面倍数的内存。                    |
+| `aligned_alloc`    | 分配对齐到指定字节边界的内存。                                            | `void *aligned_alloc(size_t alignment, size_t size);`                                           | 分配大小为 `size` 字节的内存，且起始地址对齐到 `alignment` 字节边界。`alignment` 必须是 2 的幂。               | 需要内存对齐且符合对齐要求的场景。                      |
+| `free`             | 释放通过 `malloc`、`calloc`、`realloc` 等分配的内存。                    | `void free(void *ptr);`                                                                         | 释放通过动态分配函数分配的内存。释放后该指针不再有效。                                                          | 释放动态分配的内存。                                     |
+| `munmap`           | 解除通过 `mmap` 映射的内存区域映射。                                      | `int munmap(void *addr, size_t length);`                                                        | 解除通过 `mmap` 映射的内存区域的映射，释放资源。                                                               | 解除映射文件或内存区域。                                 |
+
+Python 内存管理函数
+
+| 函数名称 | 作用描述 | 
+| --- | --- | 
+| `PyMem_RawMalloc` | 分配一块指定大小的原始内存，不进行任何初始化，返回指向分配内存的指针。 | 
+| `PyMem_RawCalloc` | 分配一块指定大小的原始内存，并将其初始化为零，返回指向分配内存的指针。 | 
+| `PyMem_RawRealloc` | 重新分配一块指定大小的原始内存，可能移动内存块，返回指向新内存的指针。 | 
+| `PyMem_Malloc` | 分配一块指定大小的内存，与 PyMem_RawMalloc 类似，但可能进行额外的管理。 | 
+| `PyMem_Calloc` | 分配一块指定大小的内存，并将其初始化为零，与 PyMem_RawCalloc 类似。 | 
+| `PyMem_Realloc` | 重新分配一块指定大小的内存，与 PyMem_RawRealloc 类似。 | 
+| `PyObject_Malloc` | 分配一块指定大小的内存，专门用于 Python 对象，可能进行额外的管理。 | 
+| `PyObject_Calloc` | 分配一块指定大小的内存，并将其初始化为零，专门用于 Python 对象。 | 
+| `PyObject_Realloc` | 重新分配一块指定大小的内存，专门用于 Python 对象。 | 
+| `PyMem_RawFree` | 释放一块之前通过 PyMem_RawMalloc 或 PyMem_RawRealloc 分配的原始内存。 | 
+| `PyMem_Free` | 释放一块之前通过 PyMem_Malloc 或 PyMem_Realloc 分配的内存。 | 
+| `PyObject_Free` | 释放一块之前通过 PyObject_Malloc 或 PyObject_Realloc 分配的内存。 |
+
+主机侧DDR内存OOM的定界定位策略包括如下几个步骤：
+
+1) 使用内存水线机制对主机OOM进行预警；
+2) OOM预警触发时，使用定位工具找到发生OOM的目标进程；
+3) 定位到OOM目标进程后，进一步使用定位工具定位到发生OOM的模块或代码堆栈。
 
 ### 事件内容
 
@@ -104,7 +142,154 @@ tprofiling 当前已观测的系统调用事件参见章节： [支持的系统�
     不同事件类型支持的扩展事件属性的详细情况参见章节：[支持的系统调用事件](###支持的系统调用事件) 。
 
 ### 事件输出
+### oncpu和syscall事件
 
+输出内容存放到本地文件，文件存放 /var/log/tprofiling 目录下，文件名格式：
+
+`timeline-trace-<timestamp>.json`
+
+其中`<timestamp>`是一个时间戳，表示启动 Profiling 监控任务的时间戳，一个完整的文件路径示例为：`/var/log/tprofiling /timeline-trace-202404261508.json`。
+
+文件内容的格式如下：
+
+```{
+"traceEvents": [
+    {},
+    {
+      "cat": "oncpu",
+      "name": "oncpu",
+      "ph": "b",
+      "pid": 1243695,
+      "tid": 1243707,
+      "ts": 1735379937905379,
+      "id": 57,
+      "cname": "good",
+      "args": {}
+    },
+    {
+      "cat": "oncpu",
+      "name": "oncpu",
+      "ph": "e",
+      "pid": 1243695,
+      "tid": 1243707,
+      "ts": 1735379937905403,
+      "id": 57,
+      "cname": "good",
+      "args": {
+        "count": 1,
+        "event.type": "oncpu",
+        "thread.name": "node"
+      }
+    },
+    {
+      "cat": "syscall",
+      "name": "poll",
+      "ph": "X",
+      "pid": 1243695,
+      "tid": 1243707,
+      "ts": 1735379937905397,
+      "dur": 500530.860,
+      "args": {
+        "count": 1,
+        "thread.name": "node",
+        "event.type": "sched"
+      },
+      "sf": "1"
+    }
+  ],
+  "stackFrames": {
+    "1": {
+      "category": "func",
+      "name": "Thread#_bootstrap[p]"
+    },
+    "2": {
+      "category": "func",
+      "name": "Thread#_bootstrap_inner[p]",
+      "parent": "1"
+    }
+  }
+}
+```
+
+说明：文件内容为json格式，它满足chrome 的trace event格式，输出的内容以事件的形式存放在traceEvents字段中，堆栈存放在stackFrames字段中。
+traceEvents：
+
+- `cat`：事件分类，oncpu或syscall;
+- `name`：事件类型，目前支持 oncpu、file、net、lock、sched 五种;
+- `ph`：单个字符，根据输出的事件类型而变化。参考[Trace Event Format](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview?pli=1&tab=t.0);
+- `pid`：事件所属的进程ID;
+- `tid`：事件所属的线程ID;
+- `ts`：事件上报的时间戳，单位是纳秒;
+- `id`：事件标识符，便于匹配异步事件开始和结束（仅异步事件涉及）;
+- `cname`：没有特殊含义，一个tricky，指向在UI展示的颜色，当前只有oncpu事件被赋值为绿色;
+- `dur`：表示事件的耗时，单位是微秒（oncpu事件不涉及）；
+- `sf`：表示事件的函数调用栈，内容是以分号（;）分隔的函数名列表，分号左边是调用方的函数名，分号右边是被调用的函数名（oncpu事件不涉及）;
+- `args`：表示每个事件特有的信息，内容主要包括：
+  - count字段，表示事件发生的计数；
+  - thread.name字段，表示事件所在的线程的名称；
+  - xxx.info：不同类型的事件包含不同的属性值(oncpu事件不涉及)；
+  - event.type字段，事件类型，目前支持 oncpu、file、net、lock、sched 五种
+
+stackFrames（oncpu不涉及，为空）：
+
+- `1`：调用栈ID；
+- `category`：调用栈类型；
+- `name`：调用栈具体名；
+- `parent`：父节点ID（非必须）。
+
+### DDR OOM事件
+
+#### 定位到OOM进程的代码堆栈
+
+输出内容存放到本地文件，文件存放在 gala-gopher 容器的 /var/log/gala-gopher/tprofiling 目录下，文件名格式：
+timeline-trace-<timestamp>.json
+其中<timestamp>是一个时间戳，表示启动 Profiling 监控任务的时间戳，一个完整的文件路径示例为： /var/log/gala-gopher/tprofiling /timeline-trace-202404261508.json 。
+文件内容的格式如下：
+
+```
+{
+    "traceEvents": [
+        {"name": "memory::Allocs", "ph": "C", "ts": 0, "pid": 100, "args": {"current_allocs": 0}},
+        {"name": "memory::Allocs", "ph": "C", "ts": 1, "pid": 100, "args": {"current_allocs": 20}},
+        {
+            "cat": "memory", "pid": 100, "ts": 1, "ph": "O", "name": "memory::Heap", "id": "0x1",
+            "args": {
+                "snapshot": [
+                    {"trace": "funcA;funcB;funcC", "current_allocs": 10},
+                    {"trace": "funcA;funcB;funcD", "current_allocs": 5},
+                    {"trace": "funcA;funcB;funcE", "current_allocs": 1}
+                ]
+            }
+        }
+    ]
+}
+
+```
+
+说明：文件内容为json格式，它满足chrome 的trace event格式，输出的内容以事件的形式存放在traceEvents字段中，包括两种类型的事件。
+
+* 当前申请的内存使用量
+  在整个Profiling周期内，会每隔一段时间将当前时间申请的内存使用量作为一个计数事件进行上报。计数事件的主要内容如下：
+* name：事件名，它的值为 memory::Allocs ，用于标识该计数事件类型
+  
+  * ts：事件上报的时间戳
+  * pid：进程号
+  * args.current_allocs：当前申请的内存使用量
+* 当前申请的内存堆栈快照
+  每次上报当前的内存使用量事件的同时，会将当前top3申请的热点内存占用的代码堆栈作为一个快照事件上报。快照事件的主要内容如下：
+  
+  * name：事件名，它的值为 memory::Heap ，用于标识该快照事件类型
+  * ts：事件上报的时间戳
+  * pid：进程号
+  * rgs.snapshot：当前申请的内存堆栈快照，保存了top3热点内存堆栈的信息。它是一个列表，列表中每一项的内容说明如下：
+    * trace：表示一个代码堆栈，函数之间使用分号（;）分隔。每个函数的组成如下
+      func_name[flag](mod_name:func_offset)
+      其中，
+    * func_name：函数名，若无法获取符号表，则使用 [unknown] 替代。
+    * flag：标记函数所处的层次，当前支持的flag值为：k – 内核函数，u – 用户函数，p – python语言函数。
+    * mod_name：函数所处的模块名，比如可执行文件或动态库的文件名（不包括文件所在的目录）。
+    * func_offset：函数在模块中的偏移量。
+    * current_allocs：表示该代码堆栈申请的内存大小
 
 
 ## 快速开始
@@ -136,7 +321,7 @@ curl -X PUT http://localhost:9999/tprofiling -d json='{"cmd":{"probe": ["oncpu",
 启动配置参数说明：
 
 - `"probe"` ：指定了 Profiling 事件的监控范围。
-  当前支持如下6类事件，用户可根据需要开启一个或多个事件类型。
+  当前支持如下事件，用户可根据需要开启一个或多个事件类型。
   
   - oncpu：线程oncpu事件和offcpu事件，以及offcpu的调用栈
   - oncpu_sample：线程在占用cpu期间的调用栈采样事件
@@ -146,6 +331,7 @@ curl -X PUT http://localhost:9999/tprofiling -d json='{"cmd":{"probe": ["oncpu",
   - syscall_sched：线程在执行调度相关的系统调用事件，比如 sleep/epoll_wait
   - python_gc：python线程执行的gc事件
   - pthread_sync：线程在执行 glibc 库中 pthread 相关的同步、锁事件，比如 pthread_mutex_lock/sem_wait
+  - mem_glibc：通过glibc相关API进行的内存申请释放事件
 - `"snoopers"`：指定了要监控的应用程序范围。
   根据应用的部署方式，我们支持通过Pod ID（`pod_id`）、容器ID（`container_id`）、进程ID（`proc_id`）、进程名（`proc_name`）的方式来指定待监控的应用程序。`snoopers` 相关的配置示例如下，
   
