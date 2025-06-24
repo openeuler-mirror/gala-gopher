@@ -133,7 +133,9 @@ struct udp_socket_s {
     struct udp_socket_id_s id;
     u64 stats[EP_STATS_MAX];
     char *local_ip;
+    u16 local_port;
     char *remote_ip;
+    u16 remote_port;
     time_t last_rcv_data;
 };
 
@@ -405,12 +407,14 @@ static void output_tcp_socket(struct tcp_socket_s* tcp_sock)
 static void output_udp_socket(struct udp_socket_s* udp_sock)
 {
     (void)fprintf(stdout,
-        "|%s|%d|%s|%s|%u"
+        "|%s|%d|%s|%u|%s|%u|%u"
         "|%llu|%llu|%llu|\n",
         OO_UDP_SOCK,
         udp_sock->id.tgid,
         udp_sock->local_ip,
+        udp_sock->local_port,
         udp_sock->remote_ip,
+        udp_sock->remote_port,
         udp_sock->id.local_ipaddr.family,
 
         udp_sock->stats[EP_STATS_QUE_RCV_FAILED],
@@ -650,8 +654,8 @@ static int add_udp_sock_evt(struct endpoint_probe_s * probe, struct udp_socket_e
     memcpy(&(id.local_ipaddr), &(evt->local_ipaddr), sizeof(id.local_ipaddr));
     memcpy(&(id.remote_ipaddr), &(evt->remote_ipaddr), sizeof(id.remote_ipaddr));
     id.tgid = evt->tgid;
-    id.local_ipaddr.port = 0;
-    id.remote_ipaddr.port = 0;
+    id.local_ipaddr.port = evt->local_ipaddr.port;
+    id.remote_ipaddr.port = evt->remote_ipaddr.port;
 
     udp = lkup_udp_socket(probe, (const struct udp_socket_id_s *)&id);
     if (udp) {
@@ -677,6 +681,8 @@ static int add_udp_sock_evt(struct endpoint_probe_s * probe, struct udp_socket_e
     ip_str(new_udp->id.remote_ipaddr.family, (unsigned char *)&(new_udp->id.remote_ipaddr.ip), remote_ip_str, INET6_ADDRSTRLEN);
     new_udp->local_ip = strdup((const char *)local_ip_str);
     new_udp->remote_ip = strdup((const char *)remote_ip_str);
+    new_udp->local_port = new_udp->id.local_ipaddr.port;
+    new_udp->remote_port = new_udp->id.remote_ipaddr.port;
 
     if (new_udp->local_ip == NULL || new_udp->remote_ip == NULL) {
         goto err;
