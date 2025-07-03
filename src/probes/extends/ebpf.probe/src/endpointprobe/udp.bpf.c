@@ -60,6 +60,16 @@ static __always_inline struct ipv6hdr *ipv6_hdr(const struct sk_buff *skb)
     return (struct ipv6hdr *)skb_network_header(skb);
 }
 
+static __always_inline void get_udp_ports_from_skb(struct sk_buff *skb, struct udp_socket_event_s *evt)
+{
+    unsigned char *head = BPF_CORE_READ(skb, head);
+    u16 transport_header = BPF_CORE_READ(skb, transport_header);
+    struct udphdr *uh = (struct udphdr *)(head + transport_header);
+
+    evt->local_ipaddr.port = bpf_ntohs(BPF_CORE_READ(uh, dest));
+    evt->remote_ipaddr.port = bpf_ntohs(BPF_CORE_READ(uh, source));
+}
+
 static __always_inline __maybe_unused void get_remote_addr(struct udp_socket_event_s* evt, const struct sockaddr* remote_addr)
 {
     const struct sockaddr_in *addr_in = (const struct sockaddr_in *)remote_addr;
@@ -89,6 +99,7 @@ static __always_inline void get_local_sockaddr(struct udp_socket_event_s* evt, c
     } else {
         BPF_CORE_READ_INTO(&(evt->local_ipaddr.ip6), sk, __sk_common.skc_v6_rcv_saddr);
     }
+    evt->local_ipaddr.port = BPF_CORE_READ(sk, __sk_common.skc_num);
     return;
 }
 
@@ -104,6 +115,8 @@ static __always_inline void get_remote_sockaddr(struct udp_socket_event_s* evt, 
     } else {
         BPF_CORE_READ_INTO(&(evt->remote_ipaddr.ip6), sk, __sk_common.skc_v6_daddr);
     }
+    evt->remote_ipaddr.port = BPF_CORE_READ(sk, __sk_common.skc_dport);
+    evt->remote_ipaddr.port = bpf_ntohs(evt->remote_ipaddr.port);
     return;
 }
 
@@ -167,6 +180,8 @@ KRETPROBE(__skb_recv_udp, pt_regs)
         evt.local_ipaddr.family = AF_INET6;
         evt.remote_ipaddr.family = AF_INET6;
     }
+
+    get_udp_ports_from_skb(skb, &evt);
 
     unsigned int len = _(skb->len);
     evt.val = (u64)len;
@@ -251,6 +266,8 @@ KRETPROBE(__udp_enqueue_schedule_skb, pt_regs)
         evt.local_ipaddr.family = AF_INET6;
         evt.remote_ipaddr.family = AF_INET6;
     }
+
+    get_udp_ports_from_skb(skb, &evt);
 
     unsigned int len = _(skb->len);
     evt.val = (u64)len;

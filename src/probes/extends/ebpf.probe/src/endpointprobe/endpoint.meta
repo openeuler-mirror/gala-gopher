@@ -135,9 +135,19 @@ measurements:
                 name: "local_ip",
             },
             {
+                description: "local port of udp socket.",
+                type: "key",
+                name: "local_port",
+            },
+            {
                 description: "remote ip of udp socket.",
                 type: "key",
                 name: "remote_ip",
+            },
+            {
+                description: "remote port of udp socket.",
+                type: "key",
+                name: "remote_port",
             },
             {
                 description: "protocol",
