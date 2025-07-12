@@ -949,6 +949,28 @@ KPROBE(inet_csk_reqsk_queue_drop_and_put, pt_regs)
     return 0;
 }
 
+KPROBE(__inet_csk_reqsk_queue_drop, pt_regs)
+{
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    struct request_sock *req = (struct request_sock *)PT_REGS_PARM2(ctx);
+
+    struct sock_info_s* info = lkup_sock((const struct sock *)sk);
+    if (info == NULL) {
+        return 0;
+    }
+
+    struct tcp_socket_event_s evt = {0};
+    get_request_sockaddr(&evt, req);
+    evt.evt = EP_STATS_REQ_DROP;
+    evt.tgid = info->tgid;
+    evt.is_multi = info->is_multi;
+
+    // report;
+    evt.role = TCP_SERVER;
+    (void)bpfbuf_output(ctx, &tcp_evt_map, &evt, sizeof(struct tcp_socket_event_s));
+    return 0;
+}
+
 #define TCPHDR_FIN 0x01
 #define TCPHDR_SYN 0x02
 #define TCPHDR_RST 0x04
