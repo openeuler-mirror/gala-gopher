@@ -155,6 +155,7 @@ static void fill_pod_info(struct pod_cache *pod_cache, const char *container_id)
     }
     struct key_value_pairs *kv_pairs = Json_GetKeyValuePairs(pod_labels_json);
     if (!kv_pairs) {
+        Json_Delete(pod_labels_json);
         return;
     }
     struct key_value *kv;

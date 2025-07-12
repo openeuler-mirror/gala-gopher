@@ -40,7 +40,7 @@ void IngressMgrDestroy(IngressMgr *mgr)
         return;
     }
 
-    if (mgr->epoll_fd > 0) {
+    if (mgr->epoll_fd >= 0) {
         close(mgr->epoll_fd);
     }
     free(mgr);
