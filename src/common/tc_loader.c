@@ -63,7 +63,7 @@ static int excute_cmd(const char *format, ...)
     va_start(args, format);
     ret = vsnprintf(g_cmdBuf, MAX_CMD_LEN, format, args);
     va_end(args);
-    if (ret < 0) {
+    if (ret < 0 || ret >= MAX_CMD_LEN) {
         return TC_ERR;
     }
 

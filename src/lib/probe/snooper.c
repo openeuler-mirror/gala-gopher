@@ -570,6 +570,7 @@ static int parse_snooper_procname(struct probe_s *probe, const void *json)
         ret = add_snooper_conf_procname(probe, (const char *)comm, (const char *)cmdline,
                                         (const char *)dbgdir, label);
         if (ret != 0) {
+            free_custom_labels(label, PROC_CUSTOM_LABELS_NUM);
             return -1;
         }
     }
