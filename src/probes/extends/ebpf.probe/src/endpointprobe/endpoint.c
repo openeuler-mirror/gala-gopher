@@ -19,6 +19,7 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <time.h>
+#include <linux/perf_event.h>
 #include <sys/syscall.h>
 #include <sys/stat.h>
 #include <sched.h>
@@ -163,6 +164,7 @@ struct endpoint_probe_s {
 
 static volatile sig_atomic_t g_stop;
 static struct endpoint_probe_s g_ep_probe;
+static char new_reqsk_drop_func_exist;
 
 static char is_snooper(struct endpoint_probe_s *probe, int tgid)
 {
@@ -1023,6 +1025,8 @@ static int endpoint_load_probe_tcp(struct endpoint_probe_s *probe, struct bpf_pr
         int kernel_version = probe_kernel_version();
         PROG_ENABLE_ONLY_IF(tcp, bpf_raw_trace_tcp_retransmit_synack, kernel_version > KERNEL_VERSION(4, 18, 0));
         PROG_ENABLE_ONLY_IF(tcp, bpf_trace_tcp_retransmit_synack_func, kernel_version <= KERNEL_VERSION(4, 18, 0));
+        PROG_ENABLE_ONLY_IF(tcp, bpf_inet_csk_reqsk_queue_drop_and_put, !new_reqsk_drop_func_exist);
+        PROG_ENABLE_ONLY_IF(tcp, bpf___inet_csk_reqsk_queue_drop, new_reqsk_drop_func_exist);
         MAP_SET_MAX_ENTRIES(tcp, tcp_evt_map, buffer, ringbuf_map_size);
         LOAD_ATTACH(endpoint, tcp, err, is_load);
 
@@ -1216,6 +1220,52 @@ static void clean_endpoint_pin_map()
     }
 }
 
+static int read_kprobe_perf_type(void)
+{
+    const char *file = "/sys/bus/event_source/devices/kprobe/type";
+    int ret, type;
+    FILE *f;
+
+    f = fopen(file, "r");
+    if (!f) {
+        return -1;
+    }
+    ret = fscanf(f, "%d\n", &type);
+    if (ret != 1) {
+        fclose(f);
+        return -1;
+    }
+    fclose(f);
+    return type;
+}
+
+static void select_req_drop_hook(void)
+{
+    int fd;
+    struct perf_event_attr pea = {};
+    char *func = "__inet_csk_reqsk_queue_drop";
+    int kprobe_perf_type = read_kprobe_perf_type();
+
+    if (kprobe_perf_type < 0) {
+        return;
+    }
+
+    pea.type = (__u32)kprobe_perf_type;
+    pea.size = sizeof(struct perf_event_attr);
+    pea.config1 = 0;
+    pea.config1 = (__u64)(unsigned long)func;
+
+    fd = syscall(__NR_perf_event_open, &pea, 0, -1, -1, 0);
+    if (fd == -1) {
+        return;
+    }
+
+    INFO("[ENDPOINTPROBE] New hook point of tcp_req_drops detected.\n");
+    new_reqsk_drop_func_exist = 1;
+    close(fd);
+    return;
+}
+
 int main(int argc, char **argv)
 {
     int ret = -1, msq_id;
@@ -1245,6 +1295,12 @@ int main(int argc, char **argv)
     INFO("[ENDPOINTPROBE] Successfully started!\n");
     HISTO_BUCKET_RANGE_INIT(g_ep_probe.buckets_range, __MAX_LT_RANGE, estab_latency_histios);
 
+    /*
+     * Due to patch of CVE-2024-50154 changes the call of inet_csk_reqsk_queue_drop_and_put
+     * to __inet_csk_reqsk_queue_drop in reqsk_timer_handler, so we need to first check which
+     * function to hook before started.
+     */
+    select_req_drop_hook();
     while(!g_stop) {
         ret = recv_ipc_msg(msq_id, (long)PROBE_SOCKET, &ipc_body);
         if (ret == 0) {
