@@ -28,7 +28,7 @@
 
 char g_linsence[] SEC("license") = "GPL";
 
-static __always_inline char is_tmout_stats(struct sock *sk)
+static __always_inline char is_tmout_stats(struct sock *sk, struct sock_stats_s **want)
 {
     struct sock_stats_s *sock_stats = bpf_map_lookup_elem(&tcp_link_map, &sk);
     if (!sock_stats) {
@@ -39,6 +39,7 @@ static __always_inline char is_tmout_stats(struct sock *sk)
     u64 period = get_period();
     if ((ts > sock_stats->ts.stats_ts) && ((ts - sock_stats->ts.stats_ts) >= period)) {
         sock_stats->ts.stats_ts = ts;
+        *want = sock_stats;
         return 1;
     }
     return 0;
@@ -103,12 +104,14 @@ static void set_last_win_stats(struct tcp_windows* stats, struct tcp_windows* la
 
 static int is_win_stats_changed(struct tcp_windows* stats, struct tcp_windows* last_stats)
 {
-    if (stats->tcpi_notsent_bytes != last_stats->tcpi_notsent_bytes) {
+    if (stats->tcpi_notsent_bytes && (stats->tcpi_notsent_bytes != last_stats->tcpi_notsent_bytes)) {
         return 1;
     }
-    if (stats->tcpi_notack_bytes != last_stats->tcpi_notack_bytes) {
+
+    if (stats->tcpi_notack_bytes && (stats->tcpi_notack_bytes != last_stats->tcpi_notack_bytes)) {
         return 1;
     }
+
     if (stats->tcpi_snd_wnd != last_stats->tcpi_snd_wnd) {
         return 1;
     }
@@ -162,19 +165,28 @@ static void get_tcp_rate(struct sock *sk, struct tcp_rate* stats)
     stats->tcpi_ato = _(icsk->icsk_ack.ato); // ms
 }
 
-static void tcp_stats_probe_func(void *ctx, struct sock *sk)
+static void tcp_stats_probe_func(void *ctx, struct sock *sk, struct sk_buff *skb)
 {
     struct tcp_metrics_s *metrics;
     u32 report_flags = 0;
+    u32 is_data_segment = 1;
+    struct tcp_sock *tcp_sk;
+    struct sock_stats_s *sock_stats = NULL;
 
     // Avoid high performance costs
-    if (!is_tmout_stats(sk)) {
+    if (!is_tmout_stats(sk, &sock_stats)) {
         return;
     }
 
-    metrics = get_tcp_metrics(sk);
+    metrics = get_tcp_metrics_fast(sk, sock_stats);
     if (metrics) {
         u32 probe_flags = get_probe_flags();
+        tcp_sk = (struct tcp_sock *)sk;
+        unsigned int len = _(skb->len);
+        if (len <= _(tcp_sk->tcp_header_len)) {
+            is_data_segment = 0;
+        }
+
         if (probe_flags & PROBE_RANGE_TCP_RTT) {
             get_tcp_rtt(sk, &(metrics->rtt_stats));
             report_flags |= TCP_PROBE_RTT;
@@ -184,6 +196,9 @@ static void tcp_stats_probe_func(void *ctx, struct sock *sk)
             struct tcp_windows last_win_stats = {0};
             set_last_win_stats(&(metrics->win_stats), &last_win_stats);
             get_tcp_wnd(sk, &(metrics->win_stats));
+            if (!is_data_segment) {
+                metrics->win_stats.tcpi_notack_bytes = 0;
+            }
             if (is_win_stats_changed(&(metrics->win_stats), &last_win_stats)) {
                 report_flags |= TCP_PROBE_WINDOWS;
             }
@@ -208,14 +223,16 @@ static void tcp_stats_probe_func(void *ctx, struct sock *sk)
 
 KRAWTRACE(tcp_probe, bpf_raw_tracepoint_args)
 {
-    struct sock *sk = (struct sock*)ctx->args[0];
-    tcp_stats_probe_func(ctx, sk);
+    struct sock *sk = (struct sock *)ctx->args[0];
+    struct sk_buff *skb = (struct sk_buff *)ctx->args[1];
+    tcp_stats_probe_func(ctx, sk, skb);
     return 0;
 }
 
 KPROBE(tcp_rcv_established, pt_regs)
 {
-    struct sock *sk = (struct sock*)PT_REGS_PARM1(ctx);
-    tcp_stats_probe_func(ctx, sk);
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    struct sk_buff *skb = (struct sk_buff *)PT_REGS_PARM2(ctx);
+    tcp_stats_probe_func(ctx, sk, skb);
     return 0;
 }
