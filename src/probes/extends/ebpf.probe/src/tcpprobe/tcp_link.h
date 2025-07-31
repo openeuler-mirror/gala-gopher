@@ -157,6 +157,21 @@ static __always_inline __maybe_unused struct tcp_metrics_s *get_tcp_metrics(stru
     return NULL;
 }
 
+
+static __always_inline struct tcp_metrics_s *get_tcp_metrics_fast(struct sock *sk, struct sock_stats_s *sock_stats)
+{
+    if (sock_stats == NULL) {
+        return NULL;
+    }
+
+    if (is_valid_tgid(sock_stats->metrics.link.tgid)) {
+        return &(sock_stats->metrics);
+    }
+    (void)delete_tcp_link(sk);
+    reset_sock_obj_link_state(sk);
+    return NULL;
+}
+
 static __always_inline __maybe_unused int create_sock_obj(u32 tgid, struct sock *sk, struct sock_info_s *info)
 {
     info->proc_id = tgid;
