@@ -38,6 +38,12 @@
  * and read and write operations in user mode.
  * MUST NOT BE perform write operations in kernel mode.
 */
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(key_size, sizeof(u32)); // const value 0
+    __uint(value_size, sizeof(u32));
+    __uint(max_entries, 1);
+} snooper_state_map SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
@@ -60,6 +66,18 @@ struct {
     __uint(max_entries, PROC_MAP_MAX_ENTRIES);
 } proc_obj_map SEC(".maps");
 
+static __always_inline __maybe_unused char is_snooper_blacklist()
+{
+    u32 key = 0;
+    u32 *snooper_state = bpf_map_lookup_elem(&snooper_state_map, &key);
+
+    if (snooper_state) {
+        return (*snooper_state) ? 1 : 0;
+    }
+
+    return 0;
+}
+
 static __always_inline __maybe_unused char is_cgrp_exist(struct cgroup_s *obj)
 {
     if (bpf_map_lookup_elem(&cgrp_obj_map, obj) == (void *)0) {
@@ -78,10 +96,11 @@ static __always_inline __maybe_unused char is_nm_exist(struct nm_s *obj)
 
 static __always_inline __maybe_unused char is_proc_exist(struct proc_s *obj)
 {
+    char blacklist = is_snooper_blacklist();
     if (bpf_map_lookup_elem(&proc_obj_map, obj) == (void *)0) {
-        return 0;
+        return blacklist;
     }
-    return 1;
+    return !blacklist;
 }
 
 static __always_inline __maybe_unused int proc_add(struct proc_s *obj)

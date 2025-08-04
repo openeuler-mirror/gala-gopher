@@ -412,10 +412,11 @@ static int output_tcp_metrics(struct tcp_mng_s *tcp_mng, struct tcp_tracker_s *t
 
     if (outputted) {
         (void)fprintf(stdout,
-            "|%s|%u|%s|%s|%s|%s|%u|%u|%u"
+            "|%s|%u|%s|%s|%s|%s|%s|%u|%u|%u"
             "%s%s%s%s%s%s%s|\n",
             TCP_TBL_METRIC,
             tracker->id.tgid,
+            tracker->id.comm,
             (tracker->id.role == 0) ? "server" : "client",
             tracker->src_ip,
             tracker->toa_src_ip ? : "",
@@ -918,6 +919,10 @@ static int tcp_load_probe_link(struct tcp_mng_s *tcp_mng, unsigned char ringbuf_
     int err;
     struct bpf_buffer *buffer = NULL;
 
+    if (prog->num) {
+        return 0;
+    }
+
     __OPEN_PROBE_WITH_OUTPUT(tcp_link, err, 1, buffer, ringbuf_map_size);
     __SELECT_DESTROY_SOCK_HOOKPOINT(tcp_link);
     __LOAD_PROBE(tcp_link, err, 1);
@@ -943,6 +948,45 @@ err:
     return -1;
 }
 
+void tcp_unload_probe(struct tcp_mng_s *tcp_mng)
+{
+    struct bpf_prog_s *prog = tcp_mng->tcp_progs;
+    if (prog == NULL || prog->num == 0) {
+        return;
+    }
+
+    // start from 1 to skip unload tcp_link
+    for (int i = 1; i < prog->num; i++) {
+        if (prog->skels[i].skel) {
+            prog->skels[i].fn(prog->skels[i].skel);
+
+            for (int j = 0; j < prog->skels[i]._link_num; j++) {
+                if (prog->skels[i]._link[j]) {
+                    (void)bpf_link__destroy(prog->skels[i]._link[j]);
+                }
+            }
+            prog->skels[i].skel = NULL;
+        }
+
+        if (prog->pbs[i]) {
+            perf_buffer__free(prog->pbs[i]);
+        }
+
+        if (prog->rbs[i]) {
+            ring_buffer__free(prog->rbs[i]);
+        }
+
+        if (prog->buffers[i]) {
+            bpf_buffer__free(prog->buffers[i]);
+        }
+
+        free((char *)prog->custom_btf_paths[i]);
+        prog->num--;
+    }
+    return;
+}
+
+
 int tcp_load_probe(struct tcp_mng_s *tcp_mng, struct ipc_body_s *ipc_body, struct bpf_prog_s **new_prog)
 {
     char is_load = 0, is_load_stats = 0;
@@ -965,9 +1009,12 @@ int tcp_load_probe(struct tcp_mng_s *tcp_mng, struct ipc_body_s *ipc_body, struc
         return 0;
     }
 
-    prog = alloc_bpf_prog();
+    prog = *new_prog;
     if (prog == NULL) {
-        return -1;
+        prog = alloc_bpf_prog();
+        if (prog == NULL) {
+            return -1;
+        }
     }
 
     if (tcp_load_probe_link(tcp_mng, ipc_body->probe_param.ringbuf_map_size, prog)) {
