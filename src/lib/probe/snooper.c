@@ -64,7 +64,6 @@
 */
 #define SNOOPER_OBJNAME_COMM              "comm"
 #define SNOOPER_OBJNAME_CMDLINE           "cmdline"
-#define SNOOPER_OBJNAME_DBGDIR            "debugging_dir"
 #define SNOOPER_OBJNAME_PROC_CUSTOM_LABEL "label"
 
 static struct probe_mng_s *__probe_mng_snooper = NULL;
@@ -84,9 +83,6 @@ void free_snooper_conf(struct snooper_conf_s* snooper_conf)
     if (snooper_conf->type == SNOOPER_CONF_APP) {
         if (snooper_conf->conf.app.cmdline) {
             (void)free(snooper_conf->conf.app.cmdline);
-        }
-        if (snooper_conf->conf.app.debuging_dir) {
-            (void)free(snooper_conf->conf.app.debuging_dir);
         }
 
         free_custom_labels(snooper_conf->conf.app.label, PROC_CUSTOM_LABELS_NUM);
@@ -134,7 +130,7 @@ static int add_snooper_conf_procid(struct probe_s *probe, u32 proc_id)
 
 static int add_snooper_conf_procname(struct probe_s *probe,
                             const char* comm, const char *cmdline,
-                            const char *dbgdir, struct custom_label_elem *label)
+                            struct custom_label_elem *label)
 {
     if (probe->snooper_conf_num >= SNOOPER_CONF_MAX) {
         return -1;
@@ -157,13 +153,7 @@ static int add_snooper_conf_procname(struct probe_s *probe,
             return -1;
         }
     }
-    if (dbgdir && dbgdir[0] != 0) {
-        snooper_conf->conf.app.debuging_dir = strdup(dbgdir);
-        if (!snooper_conf->conf.app.debuging_dir) {
-            free_snooper_conf(snooper_conf);
-            return -1;
-        }
-    }
+
     snooper_conf->conf.app.label = label;
     snooper_conf->type = SNOOPER_CONF_APP;
 
@@ -482,7 +472,6 @@ static void print_snooper_procname(struct probe_s *probe, void *json)
         object = Json_CreateObject();
         Json_AddStringToObject(object, SNOOPER_OBJNAME_COMM, snooper_conf->conf.app.comm);
         Json_AddStringToObject(object, SNOOPER_OBJNAME_CMDLINE, snooper_conf->conf.app.cmdline?:"");
-        Json_AddStringToObject(object, SNOOPER_OBJNAME_DBGDIR, snooper_conf->conf.app.debuging_dir?:"");
         print_procname_custom_label(snooper_conf, object);
         Json_AddItemToArray(procname_item, object);
         Json_Delete(object);
@@ -527,8 +516,8 @@ static int parse_procname_custom_label(const void *json, struct custom_label_ele
 static int parse_snooper_procname(struct probe_s *probe, const void *json)
 {
     int ret;
-    void *procname_item, *comm_item, *cmdline_item, *dbgdir_item, *object;
-    char *comm, *cmdline, *dbgdir;
+    void *procname_item, *comm_item, *cmdline_item, *object;
+    char *comm, *cmdline;
     struct custom_label_elem *label = NULL;
 
     procname_item = Json_GetObjectItem(json, SNOOPER_OBJNAME_PROCNAME);
@@ -545,7 +534,6 @@ static int parse_snooper_procname(struct probe_s *probe, const void *json)
 
         comm_item = Json_GetObjectItem(object, SNOOPER_OBJNAME_COMM);
         cmdline_item = Json_GetObjectItem(object, SNOOPER_OBJNAME_CMDLINE);
-        dbgdir_item = Json_GetObjectItem(object, SNOOPER_OBJNAME_DBGDIR);
 
         if ((comm_item == NULL) || (!Json_IsString(comm_item))) {
             return -1;
@@ -555,20 +543,16 @@ static int parse_snooper_procname(struct probe_s *probe, const void *json)
             return -1;
         }
 
-        if (dbgdir_item && (!Json_IsString(dbgdir_item))) {
-            return -1;
-        }
         comm = (char *)Json_GetValueString(comm_item);
         cmdline = (cmdline_item != NULL) ? (char *)Json_GetValueString(cmdline_item) : NULL;
-        dbgdir = (dbgdir_item != NULL) ? (char *)Json_GetValueString(dbgdir_item) : NULL;
 
         ret = parse_procname_custom_label(object, &label);
         if (ret != 0) {
             return -1;
         }
 
-        ret = add_snooper_conf_procname(probe, (const char *)comm, (const char *)cmdline,
-                                        (const char *)dbgdir, label);
+        ret = add_snooper_conf_procname(probe, (const char *)comm,
+                                        (const char *)cmdline, label);
         if (ret != 0) {
             free_custom_labels(label, PROC_CUSTOM_LABELS_NUM);
             return -1;

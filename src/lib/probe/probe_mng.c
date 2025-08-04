@@ -1193,11 +1193,6 @@ static char __snooper_app_is_modify(struct snooper_conf_s* conf, struct snooper_
         return 1;
     }
 
-    __COMP_STR_P(conf->conf.app.debuging_dir, backup_conf->conf.app.debuging_dir, is_modify);
-    if (is_modify) {
-        return 1;
-    }
-
     return 0;
 
 }
