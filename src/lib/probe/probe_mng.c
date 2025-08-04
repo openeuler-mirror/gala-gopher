@@ -45,7 +45,7 @@ struct probe_define_s probe_define[] = {
     {"flamegraph",    "/opt/gala-gopher/extend_probes/stackprobe",         PROBE_FG,          SNOOPER_TYPE_PROC,   ENABLE_FLAMEGRAPH},
     {"l7",            "/opt/gala-gopher/extend_probes/l7probe",            PROBE_L7,          SNOOPER_TYPE_ALL,    ENABLE_L7},
     {"tcp",           "/opt/gala-gopher/extend_probes/tcpprobe",           PROBE_TCP,         SNOOPER_TYPE_PROC,   ENABLE_TCP},
-    {"socket",        "/opt/gala-gopher/extend_probes/endpoint",           PROBE_SOCKET,      SNOOPER_TYPE_ALL,    ENABLE_SOCKET},
+    {"socket",        "/opt/gala-gopher/extend_probes/endpoint",           PROBE_SOCKET,      SNOOPER_TYPE_PROC,   ENABLE_SOCKET},
     {"io",            "/opt/gala-gopher/extend_probes/ioprobe",            PROBE_IO,          SNOOPER_TYPE_NONE,   ENABLE_IO},
     {"proc",          "/opt/gala-gopher/extend_probes/taskprobe",          PROBE_PROC,        SNOOPER_TYPE_ALL,    ENABLE_PROC},
     {"jvm",           "/opt/gala-gopher/extend_probes/jvmprobe",           PROBE_JVM,         SNOOPER_TYPE_PROC,   ENABLE_JVM},

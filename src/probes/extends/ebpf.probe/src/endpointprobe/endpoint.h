@@ -57,7 +57,8 @@ struct conn_addr_s {
 
 struct tcp_socket_event_s {
     int tgid;                   // process id
-    int is_multi;               // is_multi: 1: multi procs listen to one sock
+    char is_multi;               // is_multi: 1: multi procs listen to one sock
+    char comm[TASK_COMM_LEN];
     u64 estab_latency;          // unit: ns
     struct conn_addr_s client_ipaddr;
     struct conn_addr_s server_ipaddr;
@@ -70,6 +71,7 @@ struct tcp_socket_event_s {
 
 struct udp_socket_event_s {
     int tgid;                   // process id
+    char comm[TASK_COMM_LEN];
     struct conn_addr_s local_ipaddr;
     struct conn_addr_s remote_ipaddr;
     enum socket_evt_e evt;
@@ -84,6 +86,7 @@ struct tcp_listen_key_s {
 
 struct tcp_listen_val_s {
     unsigned int proc_id;
+    char comm[TASK_COMM_LEN];
     int is_multi;       // 1: proc_id is pgid of multi procs, used for multi procs listen to one sock
 };
 

@@ -57,7 +57,7 @@ BuildRequires: jsoncpp-devel java-1.8.0-openjdk-devel
 %endif
 
 Requires:      bash gawk procps-ng glibc elfutils libbpf >= 2:0.8
-Requires:      libconfig libevent iproute jsoncpp libstdc++
+Requires:      libconfig libevent iproute jsoncpp libstdc++ util-linux
 
 %if !0%{?disable_kafka_channel}
 Requires:      librdkafka

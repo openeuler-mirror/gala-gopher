@@ -233,7 +233,7 @@ int get_proc_cmdline(u32 pid, char *buf, u32 buf_len);
 int get_proc_str_cmdline(const char *pid_str, char *buf, u32 buf_len);
 int get_proc_exe(u32 pid, char *buf, u32 buf_len);
 int get_so_path(int pid, char *elf_path, int size, const char *so_keyword);
-int get_kern_version(u32 *kern_version);
+u32 get_kernel_version();
 int is_valid_proc(int pid);
 void convert_to_host_path(char *host_path, const char *path, int path_len);
 int regex_pattern_matched(const char *conf_pattern, const char *target);

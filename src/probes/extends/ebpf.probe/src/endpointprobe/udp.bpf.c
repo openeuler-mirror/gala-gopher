@@ -140,6 +140,7 @@ KPROBE(udp_sendmsg, pt_regs)
     get_local_sockaddr(&evt, (const struct sock *)sk);
     evt.val = (u64)len;
     evt.tgid = (int)(bpf_get_current_pid_tgid() >> INT_LEN);
+    bpf_get_current_comm(&evt.comm, sizeof(evt.comm));
     evt.evt = EP_STATS_UDP_SENDS;
 
     // report;
@@ -186,6 +187,7 @@ KRETPROBE(__skb_recv_udp, pt_regs)
     unsigned int len = _(skb->len);
     evt.val = (u64)len;
     evt.tgid = (int)(bpf_get_current_pid_tgid() >> INT_LEN);
+    bpf_get_current_comm(&evt.comm, sizeof(evt.comm));
     evt.evt = EP_STATS_UDP_RCVS;
 
     // report;
@@ -273,6 +275,7 @@ KRETPROBE(__udp_enqueue_schedule_skb, pt_regs)
     evt.val = (u64)len;
     evt.evt = EP_STATS_QUE_RCV_FAILED;
     evt.tgid = (int)(id >> INT_LEN);
+    bpf_get_current_comm(&evt.comm, sizeof(evt.comm));
 
     // report;
     (void)bpfbuf_output(ctx, &udp_evt_map, &evt, sizeof(struct udp_socket_event_s));
