@@ -335,6 +335,10 @@ static int IMDBMgrTableLoad(IMDB_Table *table, Measurement *mm)
         if (strcmp(mm->fields[i].type, METRIC_TYPE_KEY) == 0) {
             keyNum++;
         }
+
+        if (strcmp(mm->fields[i].name, META_COMMON_LABEL_PROC_COMM) == 0) {
+            table->metric_has_comm = 1;
+        }
     }
 
     if (keyNum == 0) {

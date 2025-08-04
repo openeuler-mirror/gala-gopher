@@ -894,15 +894,20 @@ static int append_proc_level_labels(const char *tgid_str, char **buffer_ptr, int
         tgidRecord = IMDB_TgidCreateRecord(mgr, tgid_str);
     }
     if (tgidRecord == NULL) {
+        if (table->metric_has_comm) {
+            return ret;
+        }
         DEBUG("[IMDB] Failed to create tgid cache(tgid=%s)\n", tgid_str);
         return IMDB_BUILD_ERR;
     }
 
     IMDB_TgidRecordUpdateLabel(tgidRecord, table->probe);
-    ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, cmd_fmt,
-        META_COMMON_LABEL_PROC_COMM, tgidRecord->comm);
-    if (ret < 0) {
-        return IMDB_BUFFER_FULL;
+    if (!table->metric_has_comm) {
+        ret = __snprintf(buffer_ptr, *size_ptr, size_ptr, cmd_fmt,
+            META_COMMON_LABEL_PROC_COMM, tgidRecord->comm);
+        if (ret < 0) {
+            return IMDB_BUFFER_FULL;
+        }
     }
 
     if (is_entity_proc(table->entity_name)) {

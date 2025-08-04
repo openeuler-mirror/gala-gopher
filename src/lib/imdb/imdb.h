@@ -95,7 +95,8 @@ typedef struct IMDB_Table_s {
     IMDB_Meta *meta;
     struct probe_s *probe;
     char weighting;                 // 0: Highest Level(Entitlement to priority); >0: Low priority
-    char pad[3];                    // rsvd
+    char metric_has_comm;
+    char pad[2];                    // rsvd
     uint32_t recordsCapability;     // Capability for records count in one table
     uint32_t recordNum;
     IMDB_Record *records;
