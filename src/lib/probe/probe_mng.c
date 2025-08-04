@@ -235,16 +235,6 @@ int check_custom_range(const char *key, const char *comp)
     return 0;
 }
 
-static int check_probe_snooper_conf_num(struct probe_s *probe)
-{
-    if (probe->snooper_conf_num == 0 && (!strcmp(probe->name, "tcp") ||
-        !strcmp(probe->name, "socket") || !strcmp(probe->name, "container"))) {
-        PARSE_ERR("the snooper for %s cannot be empty", probe->name);
-        return -1;
-    }
-    return 0;
-}
-
 static struct probe_mng_s *g_probe_mng;
 static struct custom_ini *g_custom_ini;
 
@@ -424,6 +414,7 @@ static struct probe_s* new_probe(const char* name, enum probe_type_e probe_type)
     probe->fifo->probe = probe;
     probe->probe_type = probe_type;
     probe->snooper_type = probe_define[probe_type - 1].snooper_type;
+    probe->snooper_state = SNOOPER_STATE_WHITELIST;
     ret = init_probe_bin(probe, probe_type);
     if (ret) {
         goto err;
@@ -1037,7 +1028,7 @@ static int probe_parser_state(struct probe_s *probe, const void *item)
     }
 
     if (!strcasecmp(PROBE_STATE_RUNNING, (const char *)Json_GetValueString(item))) {
-        if (check_probe_range(probe) || check_probe_snooper_conf_num(probe)) {
+        if (check_probe_range(probe)) {
             return -1;
         }
         return start_probe(probe);
@@ -1136,14 +1127,23 @@ struct probe_parser_s {
 // !!!NOTICE:The function sequence and macros cannot be changed.
 #define PARSER_FLAG_CMD       0x01
 #define PARSER_FLAG_SNOOPERS  0x02
-#define PARSER_FLAG_PARAMS    0x04
-#define PARSER_FLAG_STATE     0x08
+#define PARSER_FLAG_BLACKLIST 0x04
+#define PARSER_FLAG_PARAMS    0x08
+#define PARSER_FLAG_STATE     0x10
+
 struct probe_parser_s probe_parsers[] = {
-    {"cmd",      probe_parser_cmd,    probe_printer_cmd, probe_backup_cmd,    probe_rollback_cmd},
-    {"snoopers", parse_snooper,       print_snooper,     backup_snooper,      rollback_snooper},
-    {"params",   probe_parser_params, print_params,      probe_backup_params, probe_rollback_params},
-    {"state",    probe_parser_state,  print_state,       NULL,                NULL}
+    {"cmd",        probe_parser_cmd,    probe_printer_cmd, probe_backup_cmd,    probe_rollback_cmd},
+    {"snoopers",   parse_snooper,       print_snooper,     backup_snooper,      rollback_snooper},
+    {"blacklist",  parse_blacklist,     print_blacklist,   backup_snooper,      rollback_snooper},
+    {"params",     probe_parser_params, print_params,      probe_backup_params, probe_rollback_params},
+    {"state",      probe_parser_state,  print_state,       NULL,                NULL}
 };
+
+static inline int snooper_blacklist_dup(u32 tmp_flag, u32 parse_flag)
+{
+    return (tmp_flag == PARSER_FLAG_BLACKLIST) &&
+           (parse_flag & PARSER_FLAG_SNOOPERS);
+}
 
 static void rollback_probe(struct probe_s *probe, struct probe_s *probe_backup, u32 flag)
 {
@@ -1155,11 +1155,14 @@ static void rollback_probe(struct probe_s *probe, struct probe_s *probe_backup, 
 
     size_t size = sizeof(probe_parsers) / sizeof(struct probe_parser_s);
     for (size_t i = 0; i < size; i++) {
-        if ((flag >> i) & 0x1) {
+        u32 tmp_flag = 0x1 << i;
+        if (flag & tmp_flag) {
             parser = &(probe_parsers[i]);
 
             if (parser->rollbacker) {
-                parser->rollbacker(probe, probe_backup);
+                if (!snooper_blacklist_dup(tmp_flag, flag)) {
+                    parser->rollbacker(probe, probe_backup);
+                }
             }
         }
     }
@@ -1273,11 +1276,12 @@ static void set_probe_modify(struct probe_s *probe, struct probe_s *backup_probe
         probe->is_params_chg = 1;
     }
 
-    if (!(parse_flag & PARSER_FLAG_SNOOPERS)) {
+    if (!((parse_flag & PARSER_FLAG_SNOOPERS) || (parse_flag & PARSER_FLAG_BLACKLIST)))  {
         return;
     }
 
-    if (probe->snooper_conf_num != backup_probe->snooper_conf_num) {
+    if (probe->snooper_conf_num != backup_probe->snooper_conf_num ||
+        probe->snooper_state != backup_probe->snooper_state) {
         probe->is_snooper_chg = 1;
         return;
     }
@@ -1309,10 +1313,23 @@ static void probe_info_print(struct probe_s *probe)
     }
 }
 
+static inline int snooper_invalid(const struct probe_s *probe)
+{
+    if (probe->snooper_type == SNOOPER_TYPE_NONE) {
+        return 0;
+    }
+
+    if (probe->snooper_state == SNOOPER_STATE_WHITELIST && probe->snooper_conf_num == 0) {
+        PARSE_ERR("the snooper for %s cannot be empty", probe->name);
+        return -1;
+    }
+    return 0;
+}
+
 int parse_probe_json(const char *probe_name, const char *probe_content)
 {
     int ret = -1;
-    u32 parse_flag = 0;
+    u32 parse_flag = 0, tmp_flag;
     struct probe_parser_s *parser;
     struct probe_s *probe_backup = NULL;
 
@@ -1340,18 +1357,27 @@ int parse_probe_json(const char *probe_name, const char *probe_content)
 
     size_t size = sizeof(probe_parsers) / sizeof(struct probe_parser_s);
     for (size_t i = 0; i < size; i++) {
+        tmp_flag = 0x1 << i;
         parser = &(probe_parsers[i]);
 
-        itemObj = Json_GetObjectItem(jsonObj, parser->item);
+        if (tmp_flag == PARSER_FLAG_PARAMS && snooper_invalid(probe)) {
+            rollback_probe(probe, probe_backup, parse_flag);
+            ret = -1;
+            break;
+        }
 
+        itemObj = Json_GetObjectItem(jsonObj, parser->item);
         if (itemObj == NULL) {
             continue;
         }
 
-        parse_flag |= 0x1 << i;
+        parse_flag |= tmp_flag;
         if (parser->backuper) {
-            parser->backuper(probe, probe_backup);
+            if (!snooper_blacklist_dup(tmp_flag, parse_flag)) {
+                parser->backuper(probe, probe_backup);
+            }
         }
+
         ret = parser->parser(probe, itemObj);
         if (ret) {
             rollback_probe(probe, probe_backup, parse_flag);
@@ -1424,12 +1450,21 @@ char *get_probe_json(const char *probe_name)
         if (parser->printer) {
             if (strcmp(parser->item, "state") == 0) {
                 parser->printer(probe, res);
-            } else {
-                item = Json_CreateObject();
-                parser->printer(probe, item);
-                Json_AddItemToObject(res, parser->item, item);
-                Json_Delete(item);
+                continue;
             }
+
+            if (strcmp(parser->item, "snoopers") == 0 && probe->snooper_state != SNOOPER_STATE_WHITELIST) {
+                continue;
+            }
+
+            if (strcmp(parser->item, "blacklist") == 0 && probe->snooper_state != SNOOPER_STATE_BLACKLIST) {
+                continue;
+            }
+
+            item = Json_CreateObject();
+            parser->printer(probe, item);
+            Json_AddItemToObject(res, parser->item, item);
+            Json_Delete(item);
         }
     }
 

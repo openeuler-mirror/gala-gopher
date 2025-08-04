@@ -52,7 +52,8 @@ struct ipc_tlv_s {
 
 struct ipc_msg_s {
     long msg_type;  // Equivalent to enum probe_type_e
-    u32 msg_flag;
+    u16 msg_flag;
+    u16 snooper_state;
     u32 msg_len;
     char msg[0];
 };
@@ -62,6 +63,8 @@ IPC msg format:
                     1byte           2byte           3byte             4byte
          ---|----------------|----------------|----------------|----------------|
         /   |                     msg_type(enum probe_type_e)                   |
+        |   |----------------|----------------|----------------|----------------|
+        |   |             msg_flag            |           snooper_state         |
         |   |----------------|----------------|----------------|----------------|
         |   |                               msg_len                             |
     ----|---|----------------|----------------|----------------|----------------|
@@ -76,10 +79,6 @@ IPC msg format:
    |    |   ~                  value(struct probe_params)                       ~
    |    |   |                                                                   |
 msg_len |   |                                                                   |
-   |    |   |----------------|----------------|----------------|----------------|
-   |    |   |              type(102)          |           len(FIX 4 Bytes)      |
-   |    |   |----------------|----------------|----------------|----------------|
-   |    |   |                          value(probe_flags)                       |
    |    |   |----------------|----------------|----------------|----------------|
    |    |   |              type(103)          |           len(FIX 4 Bytes)      |
    |    |   |----------------|----------------|----------------|----------------|
@@ -523,6 +522,7 @@ static struct ipc_msg_s* __create_ipc_msg(struct ipc_body_s* ipc_body, struct cu
     }
 
     ipc_msg->msg_flag = ipc_body->probe_flags;
+    ipc_msg->snooper_state = ipc_body->snooper_state;
     buf = (char *)(ipc_msg->msg);
 
     ret = __build_ipc_msg(buf, ipc_msg->msg_len, ipc_body, custom_ipc_msg);
@@ -769,7 +769,7 @@ int send_ipc_msg(int msqid, long msg_type, struct ipc_body_s* ipc_body)
         return -1;
     }
 
-    if (msgsnd(msqid, ipc_msg, ipc_msg->msg_len + sizeof(ipc_msg->msg_len) + sizeof(ipc_msg->msg_flag), 0) < 0) {
+    if (msgsnd(msqid, ipc_msg, ipc_msg->msg_len + sizeof(struct ipc_msg_s) - sizeof(ipc_msg->msg_type), 0) < 0) {
         ERROR("[IPC] send ipc message(msg_type = %ld) failed(%d). Try increasing sysctl param kernel.msgmax.\n", msg_type, errno);
         err = -1;
     }
@@ -798,7 +798,7 @@ int send_custom_ipc_msg(int msqid, long msg_type, struct ipc_body_s* ipc_body, s
         return -1;
     }
 
-    if (msgsnd(msqid, ipc_msg, ipc_msg->msg_len + sizeof(ipc_msg->msg_len) + sizeof(ipc_msg->msg_flag), 0) < 0) {
+    if (msgsnd(msqid, ipc_msg, ipc_msg->msg_len + sizeof(struct ipc_msg_s) - sizeof(ipc_msg->msg_type), 0) < 0) {
         ERROR("[IPC] send ipc message(msg_type = %ld) failed(%d).\n", msg_type, errno);
         err = -1;
     }
@@ -824,7 +824,7 @@ int recv_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body)
     }
 
     ipc_msg = __get_raw_ipc_msg(msg_type);
-    msg_len = ipc_msg->msg_len + sizeof(ipc_msg->msg_len) + sizeof(ipc_msg->msg_flag);
+    msg_len = ipc_msg->msg_len + sizeof(struct ipc_msg_s) - sizeof(ipc_msg->msg_type);
     /* Only deal with the last message within every check */
     while (msgrcv(msqid, ipc_msg, msg_len, msg_type, IPC_NOWAIT) != -1) {
         msg_rcvd = 1;
@@ -843,6 +843,7 @@ int recv_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body)
             goto end;
         }
         ipc_body->probe_flags = msg_flags;
+        ipc_body->snooper_state = ipc_msg->snooper_state;
         err = 0;
     }
 
@@ -867,7 +868,7 @@ int recv_custom_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body, s
     }
 
     ipc_msg = __get_raw_ipc_msg(msg_type);
-    msg_len = ipc_msg->msg_len + sizeof(ipc_msg->msg_len) + sizeof(ipc_msg->msg_flag);
+    msg_len = ipc_msg->msg_len + sizeof(struct ipc_msg_s) - sizeof(ipc_msg->msg_type);
     /* Only deal with the last message within every check */
     while (msgrcv(msqid, ipc_msg, msg_len, msg_type, IPC_NOWAIT) != -1) {
         msg_rcvd = 1;
@@ -887,6 +888,7 @@ int recv_custom_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body, s
             goto end;
         }
         ipc_body->probe_flags = msg_flags;
+        ipc_body->snooper_state = ipc_msg->snooper_state;
         err = 0;
     }
 
@@ -909,7 +911,7 @@ void clear_ipc_msg(long msg_type)
     }
 
     ipc_msg = __get_raw_ipc_msg(msg_type);
-    msg_len = ipc_msg->msg_len + sizeof(u32);
+    msg_len = ipc_msg->msg_len + sizeof(struct ipc_msg_s) - sizeof(ipc_msg->msg_type);
     while (1) {
         if (msgrcv(msqid, ipc_msg, msg_len, msg_type, IPC_NOWAIT) == -1) {
             break;

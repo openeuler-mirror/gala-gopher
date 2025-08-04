@@ -240,6 +240,11 @@ struct snooper_obj_s {
     } obj;
 };
 
+enum snooper_state_e {
+    SNOOPER_STATE_WHITELIST = 0,
+    SNOOPER_STATE_BLACKLIST,
+};
+
 struct custom_params {
     char label[MAX_CUSTOM_PARAMS_LEN];
     char value[MAX_CUSTOM_PARAMS_LEN];
@@ -252,12 +257,13 @@ struct custom_ipc {
     unsigned int params_num;
 };
 
-#define IPC_FLAGS_SNOOPER_CHG   0x00000001
-#define IPC_FLAGS_PARAMS_CHG    0x00000002
+#define IPC_FLAGS_SNOOPER_CHG   0x01
+#define IPC_FLAGS_PARAMS_CHG    0x02
 struct ipc_body_s {
     u32 probe_range_flags;                              // Refer to flags defined [PROBE_RANGE_XX_XX]
     u32 snooper_obj_num;
-    u32 probe_flags;
+    u16 probe_flags;
+    u16 snooper_state;
     struct probe_params probe_param;
     struct snooper_obj_s snooper_objs[SNOOPER_MAX];
 };
