@@ -12,6 +12,11 @@ measurements:
                 name: "tgid",
             },
             {
+                description: "command of process",
+                type: "key",
+                name: "comm",
+            },
+            {
                 description: "role",
                 type: "key",
                 name: "role",

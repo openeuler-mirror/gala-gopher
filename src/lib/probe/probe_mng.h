@@ -82,6 +82,7 @@ struct probe_s {
     char is_snooper_chg;                                // Probe snoopers changed
     char resnd_snooper_for_restart;                     // Need to resend snooper obj after probe is restarted
     u8 snooper_type;                                    // Specify the type of snoopers that one probe really concern */
+    enum snooper_state_e snooper_state;
     enum probe_type_e probe_type;
     struct custom custom;                               // User-defined probe
     u32 probe_range_flags;                              // Refer to flags defined [PROBE_RANGE_XX_XX]

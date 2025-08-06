@@ -55,6 +55,8 @@
 
 #define OO_TCP_SOCK     "endpoint_tcp"
 #define OO_UDP_SOCK     "endpoint_udp"
+#define PROG_TCP_INDEX   0
+#define PROG_UDP_INDEX   1
 
 #define OPEN_TCP_PROBE(probe_name, end, load, buffer) \
     INIT_OPEN_OPTS(probe_name); \
@@ -105,6 +107,7 @@ struct tcp_socket_id_s {
     int tgid;                   // process id
     int is_multi;                // 1: multi procs listen to one sock
     enum socket_role_e role;
+    char comm[TASK_COMM_LEN];
     struct conn_addr_s client_ipaddr;
     struct conn_addr_s server_ipaddr;
     struct conn_addr_s toa_client_ipaddr;
@@ -165,19 +168,21 @@ struct endpoint_probe_s {
 static volatile sig_atomic_t g_stop;
 static struct endpoint_probe_s g_ep_probe;
 static char new_reqsk_drop_func_exist;
+static char listen_port_loaded;
 
 static char is_snooper(struct endpoint_probe_s *probe, int tgid)
 {
     struct snooper_obj_s *snooper;
+    char is_whitelist = probe->ipc_body.snooper_state == SNOOPER_STATE_WHITELIST ? 1 : 0;
     for (int i = 0; i < probe->ipc_body.snooper_obj_num; i++) {
         if (probe->ipc_body.snooper_objs[i].type == SNOOPER_OBJ_PROC) {
             snooper = &(probe->ipc_body.snooper_objs[i]);
             if (snooper->obj.proc.proc_id == (unsigned int )tgid) {
-                return 1;
+                return is_whitelist;
             }
         }
     }
-    return 0;
+    return !is_whitelist;
 }
 
 static void free_tcp_sock(struct tcp_socket_s *tcp_sock)
@@ -375,11 +380,12 @@ static void output_tcp_socket(struct tcp_socket_s* tcp_sock)
     }
 
     (void)fprintf(stdout,
-        "|%s|%d|%s|%s|%s|%s|%u|%u|%d"
+        "|%s|%d|%s|%s|%s|%s|%s|%u|%u|%d"
         "|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu|%llu"
         "|%s|\n",
         OO_TCP_SOCK,
         tcp_sock->id.tgid,
+        tcp_sock->id.comm,
         (tcp_sock->id.role == TCP_SERVER) ? "server" : "client",
         tcp_sock->client_ip,
         tcp_sock->toa_client_ip ? : "",
@@ -540,6 +546,7 @@ void __init_tcp_socket_id(struct tcp_socket_id_s *id, const struct tcp_socket_ev
 {
     memcpy(&(id->client_ipaddr), &(evt->client_ipaddr), sizeof(id->client_ipaddr));
     memcpy(&(id->server_ipaddr), &(evt->server_ipaddr), sizeof(id->server_ipaddr));
+    memcpy(id->comm, evt->comm, sizeof(evt->comm));
     id->is_multi = evt->is_multi;
     id->tgid = (id->is_multi == 1) ? getpgid(evt->tgid) : (evt->tgid);
     id->role = evt->role;
@@ -794,6 +801,7 @@ static int add_tcp_listen(struct endpoint_probe_s *probe, struct tcp_listen_port
     memset(listen, 0, sizeof(struct tcp_listen_s));
     memcpy(&(listen->key), &key, sizeof(key));
     listen->val.proc_id = tlp->pid;
+    memcpy(listen->val.comm, tlp->comm, sizeof(tlp->comm));
     H_ADD_KEYPTR(probe->listens, &listen->key, sizeof(struct tcp_listen_key_s), listen);
     return 0;
 }
@@ -811,7 +819,7 @@ static void load_tcp_listens(struct endpoint_probe_s *probe)
 
     for (int i = 0; i < tlps->tlp_num; i++) {
         tlp = tlps->tlp[i];
-        if (tlp && is_snooper(probe, tlp->pid)) {
+        if (tlp) {
             unsigned long ino;
             ret = get_listen_sock_inode(tlp, &ino);
             if (ret < 0) {
@@ -838,43 +846,6 @@ err:
     return;
 }
 
-static void reload_listen_port(struct endpoint_probe_s *probe)
-{
-    int ret, netns_fd;
-    struct snooper_con_info_s *container;
-    struct ipc_body_s *ipc_body = &probe->ipc_body;
-
-    destroy_tcp_listens(probe);
-
-    netns_fd = get_netns_fd(getpid());
-    if (netns_fd <= 0) {
-        ERROR("[EPPROBE]: Get netns fd failed.\n");
-        return;
-    }
-
-    load_tcp_listens(probe);
-
-    for (int i = 0; i < ipc_body->snooper_obj_num && i < SNOOPER_MAX; i++) {
-        if (ipc_body->snooper_objs[i].type != SNOOPER_OBJ_CON) {
-            continue;
-        }
-
-        container = &(ipc_body->snooper_objs[i].obj.con_info);
-        ret = enter_container_netns((const char *)container->con_id);
-        if (ret) {
-            ERROR("[EPPROBE]: Enter container netns failed.(container_id = %s)\n", container->con_id);
-            continue;
-        }
-
-        load_tcp_listens(probe);
-
-        (void)exit_container_netns(netns_fd);
-    }
-
-    (void)close(netns_fd);
-    return;
-}
-
 static void reload_listen_map(struct endpoint_probe_s *probe)
 {
     struct tcp_listen_val_s value;
@@ -890,6 +861,58 @@ static void reload_listen_map(struct endpoint_probe_s *probe)
     H_ITER(probe->listens, listen, tmp) {
         (void)bpf_map_update_elem(probe->listen_port_fd, &(listen->key), &(listen->val), BPF_ANY);
     }
+    return;
+}
+
+
+#define LS_ALL_NETNS     "lsns -t net -n"
+static void reload_listen_port(struct endpoint_probe_s *probe)
+{
+    int ret, netns_fd;
+    u32 ns_pid;
+    FILE *f = NULL;
+    char line[LINE_BUF_LEN];
+
+    if (listen_port_loaded) {
+        return;
+    }
+
+    netns_fd = get_netns_fd(getpid());
+    if (netns_fd <= 0) {
+        ERROR("[EPPROBE]: Get netns fd failed.\n");
+        return;
+    }
+
+    f = popen(LS_ALL_NETNS, "r");
+    if (f == NULL) {
+        ERROR("[EPPROBE]: Get netns fd failed.\n");
+        (void)close(netns_fd);
+        return;
+    }
+
+    destroy_tcp_listens(probe);
+    while (!feof(f)) {
+        if (fgets(line, LINE_BUF_LEN, f) == NULL) {
+            break;
+        }
+
+        if (sscanf(line, "%*d %*s %*d %u", &ns_pid) != 1) {
+            ERROR("[EPPROBE]: Failed to read pid of net namespace.\n");
+            continue;
+        }
+
+        ret = enter_proc_netns(ns_pid);
+        if (ret) {
+            ERROR("[EPPROBE]: Enter proc netns failed.(proc_id = %s)\n", ns_pid);
+            continue;
+        }
+        load_tcp_listens(probe);
+        (void)exit_container_netns(netns_fd);
+    }
+
+    listen_port_loaded = 1;
+    (void)close(netns_fd);
+    reload_listen_map(probe);
     return;
 }
 
@@ -1021,7 +1044,7 @@ static int endpoint_load_probe_tcp(struct endpoint_probe_s *probe, struct bpf_pr
 
     OPEN_TCP_PROBE(tcp, err, is_load, buffer);
     if (is_load) {
-
+        listen_port_loaded = 0;
         int kernel_version = probe_kernel_version();
         PROG_ENABLE_ONLY_IF(tcp, bpf_raw_trace_tcp_retransmit_synack, kernel_version > KERNEL_VERSION(4, 18, 0));
         PROG_ENABLE_ONLY_IF(tcp, bpf_trace_tcp_retransmit_synack_func, kernel_version <= KERNEL_VERSION(4, 18, 0));
@@ -1030,16 +1053,16 @@ static int endpoint_load_probe_tcp(struct endpoint_probe_s *probe, struct bpf_pr
         MAP_SET_MAX_ENTRIES(tcp, tcp_evt_map, buffer, ringbuf_map_size);
         LOAD_ATTACH(endpoint, tcp, err, is_load);
 
-        prog->skels[prog->num].skel = tcp_skel;
-        prog->skels[prog->num].fn = (skel_destroy_fn)tcp_bpf__destroy;
-        prog->custom_btf_paths[prog->num] = tcp_open_opts.btf_custom_path;
+        prog->skels[PROG_TCP_INDEX].skel = tcp_skel;
+        prog->skels[PROG_TCP_INDEX].fn = (skel_destroy_fn)tcp_bpf__destroy;
+        prog->custom_btf_paths[PROG_TCP_INDEX] = tcp_open_opts.btf_custom_path;
 
         int ret = bpf_buffer__open(buffer, proc_tcp_sock_evt, NULL, probe);
         if (ret) {
             ERROR("[ENDPOINT] Open 'tcp_evt_map' bpf_buffer failed.\n");
             goto err;
         }
-        prog->buffers[prog->num] = buffer;
+        prog->buffers[PROG_TCP_INDEX] = buffer;
         prog->num++;
         probe->listen_port_fd = GET_MAP_FD(tcp, tcp_listen_port);
     }
@@ -1062,16 +1085,16 @@ static int endpoint_load_probe_udp(struct endpoint_probe_s *probe, struct bpf_pr
         MAP_SET_MAX_ENTRIES(udp, udp_evt_map, buffer, ringbuf_map_size);
         LOAD_ATTACH(endpoint, udp, err, is_load);
 
-        prog->skels[prog->num].skel = udp_skel;
-        prog->skels[prog->num].fn = (skel_destroy_fn)udp_bpf__destroy;
-        prog->custom_btf_paths[prog->num] = udp_open_opts.btf_custom_path;
+        prog->skels[PROG_UDP_INDEX].skel = udp_skel;
+        prog->skels[PROG_UDP_INDEX].fn = (skel_destroy_fn)udp_bpf__destroy;
+        prog->custom_btf_paths[PROG_UDP_INDEX] = udp_open_opts.btf_custom_path;
 
         int ret = bpf_buffer__open(buffer, proc_udp_sock_evt, NULL, probe);
         if (ret) {
             ERROR("[ENDPOINT] Open 'udp_evt_map' bpf_buffer failed.\n");
             goto err;
         }
-        prog->buffers[prog->num] = buffer;
+        prog->buffers[PROG_UDP_INDEX] = buffer;
         prog->num++;
     }
 
@@ -1083,36 +1106,47 @@ err:
     return -1;
 }
 
-static int endpoint_load_probe(struct endpoint_probe_s *probe, struct ipc_body_s *ipc_body)
+static int endpoint_reload_probe(struct endpoint_probe_s *probe, struct ipc_body_s *ipc_body)
 {
-    char is_load_tcp, is_load_udp;
-    struct bpf_prog_s *new_prog = NULL;
+    char to_load_tcp, to_load_udp;
+    char is_tcp_loaded, is_udp_loaded;
+    struct bpf_prog_s *prog = probe->prog;
 
-    is_load_tcp = ipc_body->probe_range_flags & PROBE_RANGE_SOCKET_TCP;
-    is_load_udp = ipc_body->probe_range_flags & PROBE_RANGE_SOCKET_UDP;
-    if (!(is_load_tcp | is_load_udp)) {
+    to_load_tcp = ipc_body->probe_range_flags & PROBE_RANGE_SOCKET_TCP;
+    to_load_udp = ipc_body->probe_range_flags & PROBE_RANGE_SOCKET_UDP;
+    is_tcp_loaded = probe->ipc_body.probe_range_flags & PROBE_RANGE_SOCKET_TCP;
+    is_udp_loaded = probe->ipc_body.probe_range_flags & PROBE_RANGE_SOCKET_UDP;
+    if (!(to_load_tcp | to_load_udp)) {
+        unload_bpf_prog(&probe->prog);
         return 0;
     }
 
-    new_prog = alloc_bpf_prog();
-    if (new_prog == NULL) {
-        return -1;
+    if (prog == NULL) {
+        prog = alloc_bpf_prog();
+        if (prog == NULL) {
+            return -1;
+        }
     }
 
-    if (endpoint_load_probe_tcp(probe, new_prog, ipc_body->probe_param.ringbuf_map_size, is_load_tcp)) {
+    unload_bpf_subprog(prog, PROG_TCP_INDEX, is_tcp_loaded && !to_load_tcp);
+    if (endpoint_load_probe_tcp(probe, prog, ipc_body->probe_param.ringbuf_map_size,
+                                !is_tcp_loaded && to_load_tcp)) {
         goto err;
     }
 
-    if (endpoint_load_probe_udp(probe, new_prog, ipc_body->probe_param.ringbuf_map_size, is_load_udp)) {
+
+    unload_bpf_subprog(prog, PROG_UDP_INDEX, is_udp_loaded && !to_load_udp);
+    if (endpoint_load_probe_udp(probe, prog, ipc_body->probe_param.ringbuf_map_size,
+                                !is_udp_loaded && to_load_udp)) {
         goto err;
     }
 
     probe->last_report = time(NULL);
-    probe->prog = new_prog;
+    probe->prog = prog;
     return 0;
 
 err:
-    unload_bpf_prog(&new_prog);
+    unload_bpf_prog(&probe->prog);
     return -1;
 }
 
@@ -1305,8 +1339,7 @@ int main(int argc, char **argv)
         ret = recv_ipc_msg(msq_id, (long)PROBE_SOCKET, &ipc_body);
         if (ret == 0) {
             if (ipc_body.probe_range_flags != g_ep_probe.ipc_body.probe_range_flags) {
-                unload_bpf_prog(&(g_ep_probe.prog));
-                if (endpoint_load_probe(&g_ep_probe, &ipc_body)) {
+                if (endpoint_reload_probe(&g_ep_probe, &ipc_body)) {
                     break;
                 }
             }
@@ -1319,7 +1352,6 @@ int main(int argc, char **argv)
             destroy_ipc_body(&(g_ep_probe.ipc_body));
             (void)memcpy(&(g_ep_probe.ipc_body), &ipc_body, sizeof(g_ep_probe.ipc_body));
             reload_listen_port(&g_ep_probe);
-            reload_listen_map(&g_ep_probe);
         }
 
         if (poll_endpoint_pb(&g_ep_probe)) {

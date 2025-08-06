@@ -24,6 +24,7 @@
 #include <regex.h>
 #include <arpa/inet.h>
 #include <sys/stat.h>
+#include <sys/utsname.h>
 #include "common.h"
 
 #define CHROOT_CMD          "/usr/sbin/chroot %s %s"
@@ -542,29 +543,16 @@ int get_so_path(int pid, char *elf_path, int size, const char *so_keyword)
     return -1;
 }
 
-int get_kern_version(u32 *kern_version)
+u32 get_kernel_version()
 {
-    char major, minor, patch = 0;
+    struct utsname uts;
+    u32 major, minor, patch = 0;
 
-    char version[INT_LEN];
-    const char *major_cmd = "uname -r | awk -F '.' '{print $1}' 2>/dev/null";
-    const char *minor_cmd = "uname -r | awk -F '.' '{print $2}' 2>/dev/null";
-
-    version[0] = 0;
-    if (exec_cmd(major_cmd, version, INT_LEN)) {
-        return -1;
+    uname(&uts);
+    if (sscanf(uts.release, "%u.%u.%u", &major, &minor, &patch) != 3) {
+        return 0;
     }
-    major = (char)strtol(version, NULL, 10);
-
-    version[0] = 0;
-    if (exec_cmd(minor_cmd, version, INT_LEN)) {
-        return -1;
-    }
-
-    minor = (char)strtol(version, NULL, 10);
-
-    *kern_version = (u32)KERNEL_VERSION(major, minor, patch);
-    return 0;
+    return (u32)KERNEL_VERSION(major, minor, patch);
 }
 
 int is_valid_proc(int pid)

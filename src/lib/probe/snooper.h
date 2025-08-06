@@ -54,6 +54,8 @@ struct snooper_conf_s {
 
 void print_snooper(struct probe_s *probe, void *json);
 int parse_snooper(struct probe_s *probe, const void *json);
+int parse_blacklist(struct probe_s *probe, const void *json);
+void print_blacklist(struct probe_s *probe, void *json);
 void free_snooper_conf(struct snooper_conf_s* snooper_conf);
 void free_snooper_obj(struct snooper_obj_s* snooper_obj);
 int load_snooper_bpf(struct probe_mng_s *probe_mng);

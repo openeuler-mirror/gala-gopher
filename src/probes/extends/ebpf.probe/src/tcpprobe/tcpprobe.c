@@ -50,6 +50,7 @@ static struct tcp_mng_s g_tcp_mng;
 #define RM_COMMON_MAP_PATH "/usr/bin/rm -rf /sys/fs/bpf/gala-gopher/__tcpprobe_*"
 
 int load_established_tcps(int proc_obj_map_fd, int map_fd);
+void tcp_unload_probe(struct tcp_mng_s *tcp_mng);
 int tcp_load_probe(struct tcp_mng_s *tcp_mng, struct ipc_body_s *ipc_body, struct bpf_prog_s **new_prog);
 void scan_tcp_trackers(struct tcp_mng_s *tcp_mng);
 void scan_tcp_flow_trackers(struct tcp_mng_s *tcp_mng);
@@ -285,7 +286,9 @@ static void tcp_load_args(int args_fd, struct ipc_body_s *ipc_body)
 int main(int argc, char **argv)
 {
     int err = -1, ret;
-    int tcp_fd_map_fd = -1, proc_obj_map_fd = -1, args_map_fd = -1;
+    int tcp_fd_map_fd = -1, proc_obj_map_fd = -1;
+    int snooper_state_map_fd = -1, args_map_fd = -1;
+    u32 snooper_state_key = 0, is_snooper_blacklist = 0;
     struct tcp_mng_s *tcp_mng = &g_tcp_mng;
 
     struct ipc_body_s ipc_body;
@@ -331,8 +334,10 @@ int main(int argc, char **argv)
 
     tcp_fd_map_fd = bpf_obj_get(TCP_LINK_FD_PATH);
     proc_obj_map_fd = bpf_obj_get(GET_PROC_MAP_PIN_PATH(tcpprobe));
+    snooper_state_map_fd = bpf_obj_get(GET_SNOOPER_STATE_MAP_PIN_PATH(tcpprobe));
     args_map_fd = bpf_obj_get(TCP_LINK_ARGS_PATH);
-    if (tcp_fd_map_fd <= 0 || proc_obj_map_fd <= 0 || args_map_fd <= 0) {
+    if (tcp_fd_map_fd <= 0 || proc_obj_map_fd <= 0 ||
+        snooper_state_map_fd <= 0 || args_map_fd <= 0) {
         ERROR("[TCPPROBE]: Failed to get bpf map fd\n");
         goto err;
     }
@@ -347,7 +352,7 @@ int main(int argc, char **argv)
             if (tcp_mng->ipc_body.probe_range_flags != ipc_body.probe_range_flags || ipc_body.probe_flags == 0) {
                 INFO("[TCPPROBE]: Starting to unload ebpf prog.\n");
                 reload_tc_bpf(&ipc_body);
-                unload_bpf_prog(&(tcp_mng->tcp_progs));
+                tcp_unload_probe(tcp_mng);
                 if (tcp_load_probe(tcp_mng, &ipc_body, &(tcp_mng->tcp_progs))) {
                     destroy_ipc_body(&ipc_body);
                     break;
@@ -359,7 +364,14 @@ int main(int argc, char **argv)
             }
 
             if (ipc_body.probe_flags & IPC_FLAGS_SNOOPER_CHG || ipc_body.probe_flags == 0) {
-                lkup_established_tcp(proc_obj_map_fd, &ipc_body);
+                if (ipc_body.snooper_state != tcp_mng->ipc_body.snooper_state) {
+                    is_snooper_blacklist = (ipc_body.snooper_state == SNOOPER_STATE_WHITELIST) ? 0 : 1;
+                    (void)bpf_map_update_elem(snooper_state_map_fd, &snooper_state_key,
+                                              &is_snooper_blacklist, BPF_ANY);
+                }
+                if (!is_snooper_blacklist) {
+                    lkup_established_tcp(proc_obj_map_fd, &ipc_body);
+                }
                 reload_tcp_snoopers(proc_obj_map_fd, &(tcp_mng->ipc_body), &ipc_body);
             }
             destroy_ipc_body(&(tcp_mng->ipc_body));
@@ -371,9 +383,11 @@ int main(int argc, char **argv)
                 goto err;
             }
 
-            ret = load_established_tcps_mngt(proc_obj_map_fd, tcp_fd_map_fd);
-            if (ret) {
-                goto err;
+            if (!is_snooper_blacklist) {
+                ret = load_established_tcps_mngt(proc_obj_map_fd, tcp_fd_map_fd);
+                if (ret) {
+                    goto err;
+                }
             }
 
             // poll from last buffer to adapt for pinned perf event map

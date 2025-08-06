@@ -1391,9 +1391,8 @@ static int __set_netns_by_pid(pid_t pid)
 {
     int ret;
     int fd = -1;
-    u32 kern_version = 0;
+    u32 kern_version = get_kernel_version();
 
-    (void)get_kern_version(&kern_version);
     if (kern_version < KERNEL_VERSION(5, 3, 0)) {
         fd = __get_netns_fd(pid);
     } else {

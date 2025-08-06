@@ -643,9 +643,11 @@ static int parse_snooper_pod_container(struct probe_s *probe, const void *json, 
 
 void print_snooper(struct probe_s *probe, void *json)
 {
-    print_snooper_procid(probe, json);
-    print_snooper_procname(probe, json);
-    print_snooper_pod_container(probe, json);
+    if (probe->snooper_conf_num) {
+        print_snooper_procid(probe, json);
+        print_snooper_procname(probe, json);
+        print_snooper_pod_container(probe, json);
+    }
 }
 
 static void __build_ipc_body(struct probe_s *probe, struct ipc_body_s* ipc_body)
@@ -686,6 +688,7 @@ static void __build_ipc_body(struct probe_s *probe, struct ipc_body_s* ipc_body)
         ipc_body->probe_flags = (IPC_FLAGS_PARAMS_CHG | IPC_FLAGS_SNOOPER_CHG);
     }
     memcpy(&(ipc_body->probe_param), &probe->probe_param, sizeof(struct probe_params));
+    ipc_body->snooper_state = (u16)probe->snooper_state;
     return;
 }
 
@@ -721,21 +724,8 @@ int send_snooper_obj(struct probe_s *probe)
     return send_ipc_msg(__probe_mng_snooper->msq_id, (long)probe->probe_type, &ipc_body);
 }
 
-int parse_snooper(struct probe_s *probe, const void *json)
+static inline int __parse_snooper(struct probe_s *probe, const void *json)
 {
-    int i;
-
-    if (probe->snooper_type == SNOOPER_TYPE_NONE) {
-        return 0;
-    }
-
-    /* free current snooper config */
-    for (i = 0 ; i < probe->snooper_conf_num ; i++) {
-        free_snooper_conf(probe->snooper_confs[i]);
-        probe->snooper_confs[i] = NULL;
-    }
-    probe->snooper_conf_num = 0;
-
     if (parse_snooper_procid(probe, json)) {
         PARSE_ERR("Error occurs when parsing snooper %s", SNOOPER_OBJNAME_PROCID);
         return -1;
@@ -760,9 +750,15 @@ int parse_snooper(struct probe_s *probe, const void *json)
         PARSE_ERR("Error occurs when parsing snooper %s", SNOOPER_OBJNAME_CONTAINERNAME);
         return -1;
     }
+}
 
-    if (probe->snooper_conf_num == 0) {
-        PARSE_ERR("the snooper for %s cannot be empty", probe->name);
+int parse_snooper(struct probe_s *probe, const void *json)
+{
+    if (probe->snooper_type == SNOOPER_TYPE_NONE) {
+        return 0;
+    }
+
+    if (__parse_snooper(probe, json)) {
         return -1;
     }
 
@@ -776,8 +772,45 @@ int parse_snooper(struct probe_s *probe, const void *json)
         return -1;
     }
 
-    refresh_snooper_obj(probe);
+    probe->snooper_state = SNOOPER_STATE_WHITELIST;
+    if (probe->snooper_conf_num) {
+        refresh_snooper_obj(probe);
+    }
     return 0;
+}
+
+
+int parse_blacklist(struct probe_s *probe, const void *json)
+{
+    if (probe->snooper_type == SNOOPER_TYPE_NONE) {
+        return 0;
+    }
+
+    if (probe->snooper_conf_num) {
+        PARSE_ERR("snoopers and blacklist are mutually exclusive");
+        return -1;
+    }
+
+    if (__parse_snooper(probe, json)) {
+        return -1;
+    }
+
+    probe->snooper_state = SNOOPER_STATE_BLACKLIST;
+    if (probe->snooper_conf_num) {
+        refresh_snooper_obj(probe);
+    }
+
+    return 0;
+}
+
+
+void print_blacklist(struct probe_s *probe, void *json)
+{
+    if (probe->snooper_conf_num) {
+        print_snooper_procid(probe, json);
+        print_snooper_procname(probe, json);
+        print_snooper_pod_container(probe, json);
+    }
 }
 
 void free_snooper_obj(struct snooper_obj_s* snooper_obj)
@@ -815,10 +848,10 @@ static struct snooper_obj_s* new_snooper_obj(void)
 
 void backup_snooper(struct probe_s *probe, struct probe_s *probe_backup)
 {
-    u32 snooper_conf_num = probe->snooper_conf_num;
+    probe_backup->snooper_state = probe->snooper_state;
+    probe_backup->snooper_conf_num = probe->snooper_conf_num;
 
-    probe_backup->snooper_conf_num = snooper_conf_num;
-
+    probe->snooper_conf_num = 0;
     (void)memcpy(&probe_backup->snooper_confs, &probe->snooper_confs,
                     SNOOPER_CONF_MAX * (sizeof(struct snooper_conf_s *)));
     (void)memset(&probe->snooper_confs, 0, SNOOPER_CONF_MAX * (sizeof(struct snooper_conf_s *)));
@@ -845,6 +878,7 @@ void rollback_snooper(struct probe_s *probe, struct probe_s *probe_backup)
     }
 
     probe->snooper_conf_num = probe_backup->snooper_conf_num;
+    probe->snooper_state = probe_backup->snooper_state;
     probe_backup->snooper_conf_num = 0;
 }
 

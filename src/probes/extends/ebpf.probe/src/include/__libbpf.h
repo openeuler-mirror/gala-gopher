@@ -104,9 +104,11 @@ static __always_inline int set_memlock_rlimit(unsigned long limit)
                     __MAP_SET_PIN_PATH(probe_name, cgrp_obj_map, "/sys/fs/bpf/gala-gopher/__"#app_name"_cgroup_map"); \
                     __MAP_SET_PIN_PATH(probe_name, nm_obj_map, "/sys/fs/bpf/gala-gopher/__"#app_name"_nm_map"); \
                     __MAP_SET_PIN_PATH(probe_name, proc_obj_map, "/sys/fs/bpf/gala-gopher/__"#app_name"_proc_map"); \
+                    __MAP_SET_PIN_PATH(probe_name, snooper_state_map, "/sys/fs/bpf/gala-gopher/__"#app_name"_snooper_state_map"); \
                 } while (0)
 
-#define GET_PROC_MAP_PIN_PATH(app_name) ("/sys/fs/bpf/gala-gopher/__"#app_name"_proc_map")
+#define GET_PROC_MAP_PIN_PATH(app_name)          ("/sys/fs/bpf/gala-gopher/__"#app_name"_proc_map")
+#define GET_SNOOPER_STATE_MAP_PIN_PATH(app_name) ("/sys/fs/bpf/gala-gopher/__"#app_name"_snooper_state_map")
 
 #define INIT_BPF_APP(app_name, limit) \
     static char __init = 0; \
@@ -656,6 +658,38 @@ static __always_inline __maybe_unused void unload_bpf_prog(struct bpf_prog_s **u
     return;
 }
 
+static __always_inline __maybe_unused void unload_bpf_subprog(struct bpf_prog_s *prog, u32 index, char subprog_loaded)
+{
+    if (prog == NULL || index >= prog->num || !subprog_loaded) {
+        return;
+    }
+
+    if (prog->skels[index].skel) {
+        prog->skels[index].fn(prog->skels[index].skel);
+
+        for (int i = 0; i < prog->skels[i]._link_num; i++) {
+            if (prog->skels[index]._link[i]) {
+                (void)bpf_link__destroy(prog->skels[index]._link[i]);
+            }
+        }
+
+        prog->skels[index].skel = NULL;
+    }
+
+    perf_buffer__free(prog->pbs[index]);
+    prog->pbs[index] = NULL;
+
+    ring_buffer__free(prog->rbs[index]);
+    prog->rbs[index] = NULL;
+
+    bpf_buffer__free(prog->buffers[index]);
+    prog->buffers[index] = NULL;
+
+    free((char *)prog->custom_btf_paths[index]);
+    prog->custom_btf_paths[index] = NULL;
+
+    prog->num--;
+}
 
 #endif
 #endif
