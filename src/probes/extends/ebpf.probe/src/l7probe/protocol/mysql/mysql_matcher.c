@@ -253,77 +253,77 @@ static int ProcessPackets(size_t req_index, struct mysql_packet_msg_s *req, stru
     u64 rsp_timestamp;
     switch (req->command_t) {
         // Internal commands with response: ERR_Packet.
-        case kConnect:
-        case kConnectOut:
-        case kTime:
-        case kDelayedInsert:
-        case kDaemon:
-        case kInitDB:
-        case kCreateDB:
-        case kDropDB:
+        case CMD_CONNECT:
+        case CMD_CONNECT_OUT:
+        case CMD_TIME:
+        case CMD_DELAYED_INSERT:
+        case CMD_DAEMON:
+        case CMD_INITDB:
+        case CMD_CREATDB:
+        case CMD_DROPDB:
         // Basic Commands with response: OK_Packet or ERR_Packet
-        case kSleep:
-        case kRegisterSlave:
-        case kResetConnection:
-        case kProcessKill:
-        case kRefresh: // Deprecated.
-        case kPing:    // COM_PING can't actually send ERR_Packet.
+        case CMD_SLEEP:
+        case CMD_REGISTER_SLAVE:
+        case CMD_RESET_CONNECTION:
+        case CMD_PROCESS_KILL:
+        case CMD_REFRESH: // Deprecated.
+        case CMD_PING:    // COM_PING can't actually send ERR_Packet.
         // Basic Commands with response: EOF_Packet or ERR_Packet.
-        case kShutdown: // Deprecated.
-        case kSetOption:
-        case kDebug:
+        case CMD_SHUTDOWN: // Deprecated.
+        case CMD_SET_OPTION:
+        case CMD_DEBUG:
             parse_state = ProcessRequestWithBasicResponse(req, resp_packets_view, &rsp_timestamp, record_buf);
             break;
-        case kBrokenData:
+        case CMD_BROKEN_DATA:
             parse_state = ProcessDataIncomplete(req, resp_packets_view, &rsp_timestamp, record_buf);
             break;
-        case kQuit: // Response: OK_Packet or a connection close.
+        case CMD_QUIT: // Response: OK_Packet or a connection close.
             parse_state = ProcessQuit(req, resp_packets_view, &rsp_timestamp, record_buf);
             break;
         // COM_FIELD_LIST has its own COM_FIELD_LIST meta response (ERR_Packet or one
         // or more Column Definition packets and a closing EOF_Packet).
-        case kFieldList: // Deprecated.
+        case CMD_FIELDLIST: // Deprecated.
             parse_state = ProcessFieldList(req, resp_packets_view, &rsp_timestamp, record_buf);
             break;
         // COM_QUERY has its own COM_QUERY meta response (ERR_Packet, OK_Packet,
         // Protocol::LOCAL_INFILE_Request, or ProtocolText::Resultset).
-        case kQuery:
+        case CMD_QUERY:
             parse_state = ProcessQuery(req, resp_packets_view, &rsp_timestamp, record_buf);
             break;
         // COM_STMT_PREPARE returns COM_STMT_PREPARE_OK on success, ERR_Packet
         // otherwise.
-        case kStmtPrepare:
+        case CMD_STMT_PREPARE:
             parse_state = ProcessStmtPrepare(req, resp_packets_view, &rsp_timestamp, record_buf);
             break;
         // COM_STMT_SEND_LONG_DATA has no response.
-        case kStmtSendLongData:
+        case CMD_STMT_SEND_LONG_DATA:
             parse_state = ProcessStmtSendLongData(req, resp_packets_view, &rsp_timestamp, record_buf);
             break;
         // COM_STMT_EXECUTE has its own COM_STMT_EXECUTE meta response (OK_Packet,
         // ERR_Packet or a resultset: Binary Protocol Resultset).
-        case kStmtExecute:
+        case CMD_STMT_EXECUTE:
             parse_state = ProcessStmtExecute(req, resp_packets_view, &rsp_timestamp, record_buf);
             break;
         // COM_CLOSE has no response.
-        case kStmtClose:
+        case CMD_STMT_CLOSE:
             parse_state = ProcessStmtClose(req, resp_packets_view, &rsp_timestamp, record_buf);
             break;
         // COM_STMT_RESET response is OK_Packet if the statement could be reset,
         // ERR_Packet if not.
-        case kStmtReset:
+        case CMD_STMT_RESET:
             parse_state = ProcessStmtReset(req, resp_packets_view, &rsp_timestamp, record_buf);
             break;
         // COM_STMT_FETCH has a meta response (multi-resultset, or ERR_Packet).
-        case kStmtFetch:
+        case CMD_STMT_FETCH:
             parse_state = ProcessStmtFetch(req, resp_packets_view, &rsp_timestamp, record_buf);
             break;
-        case kProcessInfo: // a ProtocolText::Resultset or ERR_Packet
-        case kChangeUser:  // Authentication Method Switch Request Packet or
+        case CMD_PROCESS_INFO: // a ProtocolText::Resultset or ERR_Packet
+        case CMD_CHANGE_USER:  // Authentication Method Switch Request Packet or
         // ERR_Packet
-        case kBinlogDumpGTID: // binlog network stream, ERR_Packet or EOF_Packet
-        case kBinlogDump:     // binlog network stream, ERR_Packet or EOF_Packet
-        case kTableDump:      // a table dump or ERR_Packet
-        case kStatistics:     // string.EOF
+        case CMD_BINLOG_DUMP_GTID: // binlog network stream, ERR_Packet or EOF_Packet
+        case CMD_BINLOG_DUMP:     // binlog network stream, ERR_Packet or EOF_Packet
+        case CMD_TABLE_DUMP:      // a table dump or ERR_Packet
+        case CMD_STATISTICS:     // string.EOF
             // Rely on recovery to re-sync responses based on timestamps.
             parse_state = STATE_INVALID;
             break;

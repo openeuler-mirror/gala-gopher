@@ -183,7 +183,7 @@ bool DissectNonStringParam(struct mysql_packet_msg_s* rsp_msg, size_t* param_off
  */
 bool IsEOFPacket(struct mysql_packet_msg_s* rsp_msg)
 {
-    return ((rsp_msg->command_t == kRespHeaderEOF) && rsp_msg->data_len == 5);
+    return ((rsp_msg->command_t == RESP_HEADER_EOF) && rsp_msg->data_len == 5);
 }
 
 /**
@@ -191,7 +191,7 @@ bool IsEOFPacket(struct mysql_packet_msg_s* rsp_msg)
  */
 bool IsErrPacket(struct mysql_packet_msg_s* rsp_msg)
 {
-    return ((rsp_msg->command_t == kRespHeaderErr) && rsp_msg->data_len > 3);
+    return ((rsp_msg->command_t == RESP_HEADER_ERR) && rsp_msg->data_len > 3);
 }
 
 /**
@@ -202,10 +202,10 @@ bool IsOKPacket(struct mysql_packet_msg_s* rsp_msg)
 {
     u8 header = rsp_msg->command_t;
 
-    if (header == kRespHeaderOK && rsp_msg->data_len >= 7) {
+    if (header == RESP_HEADER_OK && rsp_msg->data_len >= 7) {
         return true;
     }
-    if (header == kRespHeaderEOF && rsp_msg->data_len < 9 && !IsEOFPacket(rsp_msg)) {
+    if (header == RESP_HEADER_EOF && rsp_msg->data_len < 9 && !IsEOFPacket(rsp_msg)) {
         return true;
     }
     return false;

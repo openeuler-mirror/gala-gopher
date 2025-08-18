@@ -23,23 +23,12 @@
 #include "hash.h"
 #include "../../include/data_stream.h"
 
-/**
- * The MySQL parsing structure has 3 different levels of abstraction. From low to high level:
- * 1. MySQL Packet (Output of MySQL Parser). The content of it is not parsed.
- *    https://dev.mysql.com/doc/internals/en/mysql-packet.html
- * 2. MySQL Message, a Request or Response, consisting of one or more MySQL Packets. It contains
- * parsed out fields based on the type of request/response.
- * 3. MySQL Event, containing a request and response pair.
- */
+#define MAX_PACKET_LENGTH (1 << 24) - 1
+#define PACKET_HEADER_LENGTH 4
 
-// Command Types
-// https://dev.mysql.com/doc/internals/en/command-phase.html
-#define kMaxPacketLength (1 << 24) - 1
-#define kPacketHeaderLength 4
-
-#define kRespHeaderEOF 0xfe
-#define kRespHeaderErr 0xff
-#define kRespHeaderOK 0x00
+#define RESP_HEADER_EOF 0xfe
+#define RESP_HEADER_ERR 0xff
+#define RESP_HEADER_OK 0x00
 
 // 定义 NumberRange 结构体
 typedef struct {
@@ -47,50 +36,44 @@ typedef struct {
     int max;
 } NumberRange;
 
-//-----------------------------------------------------------------------------
-// Packet Level Definitions
-//-----------------------------------------------------------------------------
-
-// Command Types
-// https://dev.mysql.com/doc/internals/en/command-phase.html
 typedef enum {
-    kSleep = 0x00,
-    kQuit = 0x01,
-    kInitDB = 0x02,
-    kQuery = 0x03,
-    kFieldList = 0x04,
-    kCreateDB = 0x05,
-    kDropDB = 0x06,
-    kRefresh = 0x07,
-    kShutdown = 0x08,
-    kStatistics = 0x09,
-    kProcessInfo = 0x0a,
-    kConnect = 0x0b,
-    kProcessKill = 0x0c,
-    kDebug = 0x0d,
-    kPing = 0x0e,
-    kTime = 0x0f,
-    kDelayedInsert = 0x10,
-    kChangeUser = 0x11,
-    kBinlogDump = 0x12,
-    kTableDump = 0x13,
-    kConnectOut = 0x14,
-    kRegisterSlave = 0x15,
-    kStmtPrepare = 0x16,
-    kStmtExecute = 0x17,
-    kStmtSendLongData = 0x18,
-    kStmtClose = 0x19,
-    kStmtReset = 0x1a,
-    kSetOption = 0x1b,
-    kStmtFetch = 0x1c,
-    kDaemon = 0x1d,
-    kBinlogDumpGTID = 0x1e,
-    kResetConnection = 0x1f,
-    kBrokenData = 0x20,
-} Command;
+    CMD_SLEEP = 0x00,
+    CMD_QUIT = 0x01,
+    CMD_INITDB = 0x02,
+    CMD_QUERY = 0x03,
+    CMD_FIELDLIST = 0x04,
+    CMD_CREATDB = 0x05,
+    CMD_DROPDB = 0x06,
+    CMD_REFRESH = 0x07,
+    CMD_SHUTDOWN = 0x08,
+    CMD_STATISTICS = 0x09,
+    CMD_PROCESS_INFO = 0x0a,
+    CMD_CONNECT = 0x0b,
+    CMD_PROCESS_KILL = 0x0c,
+    CMD_DEBUG = 0x0d,
+    CMD_PING = 0x0e,
+    CMD_TIME = 0x0f,
+    CMD_DELAYED_INSERT = 0x10,
+    CMD_CHANGE_USER = 0x11,
+    CMD_BINLOG_DUMP = 0x12,
+    CMD_TABLE_DUMP = 0x13,
+    CMD_CONNECT_OUT = 0x14,
+    CMD_REGISTER_SLAVE = 0x15,
+    CMD_STMT_PREPARE = 0x16,
+    CMD_STMT_EXECUTE = 0x17,
+    CMD_STMT_SEND_LONG_DATA = 0x18,
+    CMD_STMT_CLOSE = 0x19,
+    CMD_STMT_RESET = 0x1a,
+    CMD_SET_OPTION = 0x1b,
+    CMD_STMT_FETCH = 0x1c,
+    CMD_DAEMON = 0x1d,
+    CMD_BINLOG_DUMP_GTID = 0x1e,
+    CMD_RESET_CONNECTION = 0x1f,
+    CMD_BROKEN_DATA = 0x20,
+} MySQLCommand;
 
 // 定义最大命令值
-#define kMaxCommandValue 0x1f
+#define MAX_COMMAND_VALUE 0x1f
 
 struct mysql_packet_msg_s {
     // current_pos有效值：[0, data_len - 1]，current_pos = data_len时，证明已解析完当前data[]
