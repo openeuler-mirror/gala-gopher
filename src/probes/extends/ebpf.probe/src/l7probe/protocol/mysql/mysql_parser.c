@@ -22,43 +22,43 @@
 static bool is_first_packet = true;
 
 static NumberRange cmd_length_ranges[32] = {
-    [kSleep] = {1, 1},
-    [kQuit] = {1, 1},
-    [kInitDB] = {1, kMaxPacketLength},
-    [kQuery] = {1, kMaxPacketLength},
-    [kFieldList] = {2, kMaxPacketLength},
-    [kCreateDB] = {1, kMaxPacketLength},
-    [kDropDB] = {1, kMaxPacketLength},
-    [kRefresh] = {2, 2},
-    [kShutdown] = {1, 2},
-    [kStatistics] = {1, 1},
-    [kProcessInfo] = {1, 1},
-    [kConnect] = {1, 1},
-    [kProcessKill] = {1, 5},
-    [kDebug] = {1, 1},
-    [kPing] = {1, 1},
-    [kTime] = {1, 1},
-    [kDelayedInsert] = {1, 1},
-    [kChangeUser] = {4, kMaxPacketLength},
-    [kBinlogDump] = {11, kMaxPacketLength},
-    [kTableDump] = {3, kMaxPacketLength},
-    [kConnectOut] = {1, 1},
-    [kRegisterSlave] = {18, kMaxPacketLength},
-    [kStmtPrepare] = {1, kMaxPacketLength},
-    [kStmtExecute] = {10, kMaxPacketLength},
-    [kStmtSendLongData] = {7, kMaxPacketLength},
-    [kStmtClose] = {5, 5},
-    [kStmtReset] = {5, 5},
-    [kSetOption] = {3, 3},
-    [kStmtFetch] = {9, 9},
-    [kDaemon] = {1, 1},
-    [kBinlogDumpGTID] = {19, 19},
-    [kResetConnection] = {1, 1}
+    [CMD_SLEEP] = {1, 1},
+    [CMD_QUIT] = {1, 1},
+    [CMD_INITDB] = {1, MAX_PACKET_LENGTH},
+    [CMD_QUERY] = {1, MAX_PACKET_LENGTH},
+    [CMD_FIELDLIST] = {2, MAX_PACKET_LENGTH},
+    [CMD_CREATDB] = {1, MAX_PACKET_LENGTH},
+    [CMD_DROPDB] = {1, MAX_PACKET_LENGTH},
+    [CMD_REFRESH] = {2, 2},
+    [CMD_SHUTDOWN] = {1, 2},
+    [CMD_STATISTICS] = {1, 1},
+    [CMD_PROCESS_INFO] = {1, 1},
+    [CMD_CONNECT] = {1, 1},
+    [CMD_PROCESS_KILL] = {1, 5},
+    [CMD_DEBUG] = {1, 1},
+    [CMD_PING] = {1, 1},
+    [CMD_TIME] = {1, 1},
+    [CMD_DELAYED_INSERT] = {1, 1},
+    [CMD_CHANGE_USER] = {4, MAX_PACKET_LENGTH},
+    [CMD_BINLOG_DUMP] = {11, MAX_PACKET_LENGTH},
+    [CMD_TABLE_DUMP] = {3, MAX_PACKET_LENGTH},
+    [CMD_CONNECT_OUT] = {1, 1},
+    [CMD_REGISTER_SLAVE] = {18, MAX_PACKET_LENGTH},
+    [CMD_STMT_PREPARE] = {1, MAX_PACKET_LENGTH},
+    [CMD_STMT_EXECUTE] = {10, MAX_PACKET_LENGTH},
+    [CMD_STMT_SEND_LONG_DATA] = {7, MAX_PACKET_LENGTH},
+    [CMD_STMT_CLOSE] = {5, 5},
+    [CMD_STMT_RESET] = {5, 5},
+    [CMD_SET_OPTION] = {3, 3},
+    [CMD_STMT_FETCH] = {9, 9},
+    [CMD_DAEMON] = {1, 1},
+    [CMD_BINLOG_DUMP_GTID] = {19, 19},
+    [CMD_RESET_CONNECTION] = {1, 1}
 };
 
 static bool IsValidCommand(uint8_t command_byte)
 {
-    if (command_byte > kMaxCommandValue) {
+    if (command_byte > MAX_COMMAND_VALUE) {
         return false;
     }
     // The following are internal commands, and should not be sent on the connection.
@@ -66,11 +66,11 @@ static bool IsValidCommand(uint8_t command_byte)
     // error. But for the sake of identifying mis-classified MySQL connections, it helps to call these
     // out as invalid commands.
     switch (command_byte) {
-        case kSleep:
-        case kTime:
-        case kDelayedInsert:
-        case kConnectOut:
-        case kDaemon:
+        case CMD_SLEEP:
+        case CMD_TIME:
+        case CMD_DELAYED_INSERT:
+        case CMD_CONNECT_OUT:
+        case CMD_DAEMON:
             return false;
         default:
             return true;
@@ -107,7 +107,7 @@ parse_state_t mysql_parse_frame(enum message_type_t msg_type, struct raw_data_s 
         return STATE_INVALID;
     }
 
-    if (raw_data->data_len <= kPacketHeaderLength) {
+    if (raw_data->data_len <= PACKET_HEADER_LENGTH) {
         return STATE_NEEDS_MORE_DATA;
     }
 
@@ -122,11 +122,11 @@ parse_state_t mysql_parse_frame(enum message_type_t msg_type, struct raw_data_s 
             ((u8)raw_data->data[raw_data->current_pos + 1] << 8) |
             ((u8)raw_data->data[raw_data->current_pos + 2] << 16);
         sequence_id = raw_data->data[raw_data->current_pos + 3];
-        command = raw_data->data[raw_data->current_pos + kPacketHeaderLength];
+        command = raw_data->data[raw_data->current_pos + PACKET_HEADER_LENGTH];
         if (raw_data->isBrokeData) {
-            packet_length = raw_data->data_len - raw_data->current_pos - kPacketHeaderLength;
+            packet_length = raw_data->data_len - raw_data->current_pos - PACKET_HEADER_LENGTH;
         }
-        if ((raw_data->data_len < raw_data->current_pos + kPacketHeaderLength + packet_length) && (raw_data->isBrokeData == 0)) {
+        if ((raw_data->data_len < raw_data->current_pos + PACKET_HEADER_LENGTH + packet_length) && (raw_data->isBrokeData == 0)) {
             return STATE_NEEDS_MORE_DATA;
         }
     }
@@ -158,7 +158,7 @@ parse_state_t mysql_parse_frame(enum message_type_t msg_type, struct raw_data_s 
     packet_msg->data_len = packet_length;
     packet_msg->sequence_id = sequence_id;
     if (raw_data->isBrokeData == 1) {
-        command = (u8)kBrokenData;
+        command = (u8)CMD_BROKEN_DATA;
     }
     packet_msg->command_t = command;
 
@@ -175,22 +175,22 @@ size_t mysql_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s
         // the first packet.
         return raw_data->current_pos;
     }
-    if (raw_data->data_len < kPacketHeaderLength) {
+    if (raw_data->data_len < PACKET_HEADER_LENGTH) {
         return PARSER_INVALID_BOUNDARY_INDEX;
     }
     if (msg_type == MESSAGE_RESPONSE) {
         // No real search implemented for responses.
         return raw_data->current_pos;
     }
-    if (raw_data->data_len == kPacketHeaderLength) {
+    if (raw_data->data_len == PACKET_HEADER_LENGTH) {
         return 0;
     }
 
-    // Need at least kPacketHeaderLength bytes + 1 command byte in buf.
+    // Need at least PACKET_HEADER_LENGTH bytes + 1 command byte in buf.
     size_t i = raw_data->current_pos;
     u32 packet_length = (u8)raw_data->data[i] | ((u8)raw_data->data[i + 1] << 8) | ((u8)raw_data->data[i + 2] << 16);
     u8 sequence_id = raw_data->data[i + 3];
-    u8 command = raw_data->data[i + kPacketHeaderLength];
+    u8 command = raw_data->data[i + PACKET_HEADER_LENGTH];
 
     // Requests must have sequence id of 0.
     if (sequence_id != 0) {
@@ -198,7 +198,7 @@ size_t mysql_find_frame_boundary(enum message_type_t msg_type, struct raw_data_s
     }
 
     // If the command byte isn't a valid command, then this can't a message boundary.
-    if (command < 0 || command > kMaxCommandValue) {
+    if (command < 0 || command > MAX_COMMAND_VALUE) {
         return PARSER_INVALID_BOUNDARY_INDEX;
     }
 
