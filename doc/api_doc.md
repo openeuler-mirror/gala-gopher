@@ -189,13 +189,13 @@ gala_gopher_event
 原本的输出数据：
 
 ```json
-{"Attributes": { "entity_id": "xxxxx_system_disk_/honme"}}
+{"Attributes": { "entity_id": "xxxxx_system_disk_/home"}}
 ```
 
 可见entity_id中有 `/` 这个特殊符号，则将 `/` 替换为 `:` 后的输出数据为：
 
 ```json
-{"Attributes": { "entity_id": "xxxxx_system_disk_:honme"}}
+{"Attributes": { "entity_id": "xxxxx_system_disk_:home"}}
 ```
 
 3、Timestamp时间戳使用13位long型数字，不使用字符串；
