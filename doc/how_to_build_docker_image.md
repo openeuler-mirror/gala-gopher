@@ -98,5 +98,5 @@
 其他宿主机可以通过load命令导入容器镜像：
 
 ```shell
-[root@localhost build]# docker load gala-gopher_sp1_1.0.1.tar
+[root@localhost build]# docker load -i gala-gopher_sp1_1.0.1.tar
 ```
