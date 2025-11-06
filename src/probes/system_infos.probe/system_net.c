@@ -365,7 +365,7 @@ int system_net_probe(struct ipc_body_s *ipc_body)
         if (strchr(line, '|') != NULL) {
             continue;
         }
-        if (index >= g_netdev_num) {
+        if (index > g_netdev_num) {
             WARN("[SYSTEM_NET] net_probe records beyond max netdev nums(%d).\n", g_netdev_num);
             break;
         }
