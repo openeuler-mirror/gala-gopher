@@ -45,6 +45,9 @@ static void usage(char *pname)
 static int handle_evt(void *ctx, void *notification, size_t sz)
 {
     struct flow_log *flow_log = notification;
+    if (!ext_probe_debug_enabled) {
+        return 0;
+    }
 
     char local_ip4[16], remote_ip4[16], original_remote_ip4[16];
     inet_ntop(AF_INET, &flow_log->key.local_ip4, local_ip4, sizeof(local_ip4));

@@ -71,43 +71,29 @@ struct probe_params {
     unsigned int offline_thr;          // Threshold of offline time, unit ms, default is 0 milliseconds
     unsigned int drops_count_thr;      // Threshold of the number of drop packets, default is 0
     unsigned int kafka_port;           // the port to which kafka server attach.
-    char logs;                         // Enable the logs function
+    char logs;                         // Enable the event function
+    char enable_debug;                 // Enable printing debug logs
     unsigned char ringbuf_map_size;    // size of output ringbuf map(unit: MB), only for tcpprobe and endpointprboe
     char report_cport;                 // Enable tcpprobe to report true client port
-    char metrics_flags;                // Support for report metrics flags(0x01(raw metrics), 0x02(openTelemetry metrics, eg.. P50/P90/P99) );
-    char env_flags;                    // Support for env flags(default 0x01(node), 0x02(container), 0x04(K8S));
     char support_ssl;                  // Support for SSL probe;
-    char res_percent_upper;            //  Upper limit of resource percentage, default is 0%
-    char res_percent_lower;            //  Lower limit of resource percentage, default is 0%
-    char continuous_sampling_flag;     //  Enables the continuous sampling, default is 0
-    char multi_instance_flag;            //  Enables output of individual flame graphs for each process, default is 0
-    char native_stack_flag;            //  Enables output of native language call stack (only for java process), default is 0
-    char cluster_ip_backend;           // [-n <>] Indicates whether transform cluster IP address to backend, default is 0 (no transform)
-    char target_dev[DEV_NAME];         //  Device name, default is null
-    char elf_path[MAX_PATH_LEN];       //  Set ELF file path of the monitored software, default is null
-    /*
-        [-P <>]
-        L7 probe monitoring protocol flags, Refer to the below definitions(default is 0):
-        0x0001  HTTP
-        0x0002  DNS
-        0x0004  REDIS
-        0x0008  MYSQL
-        0x0010  PGSQL
-        0x0020  KAFKA
-        0x0040  MONGODB
-        0x0080  Cassandra
-        0x00100 NATS
-    */
-    unsigned int l7_probe_proto_flags;
+    char res_percent_upper;            // Upper limit of resource percentage, default is 0%
+    char res_percent_lower;            // Lower limit of resource percentage, default is 0%
+    char continuous_sampling_flag;     // Enables the continuous sampling, default is 0
+    char multi_instance_flag;          // Enables output of individual flame graphs for each process, default is 0
+    char native_stack_flag;            // Enables output of native language call stack (only for java process), default is 0
+    char cluster_ip_backend;           // Indicates whether transform cluster IP address to backend, default is 0 (no transform)
+    char target_dev[DEV_NAME];         // Device name, default is null
+    char elf_path[MAX_PATH_LEN];       // Set ELF file path of the monitored software, default is null
+    unsigned int l7_probe_proto_flags; // L7 probe monitoring protocol flags, Refer to L7PROBE_TRACING_x in args.h
     unsigned int svg_period;
     unsigned int perf_sample_period;
     char pyroscope_server[PYSCOPE_SERVER_URL_LEN];
     char output_dir[PATH_LEN];
     char flame_dir[PATH_LEN];
-    unsigned int cadvisor_port;         // the port which cadvisor start.
-    unsigned int profiling_chan;        // the output channel for profiling probes, include stackprobe and tprofiling.
-    unsigned int min_exec_dur;  // unit: microsecond(us)
-    unsigned int min_aggr_dur;  // unit: millisecond(ms)
+    unsigned int cadvisor_port;         // The port which cadvisor start.
+    unsigned int profiling_chan;        // The output channel for profiling probes, include stackprobe and tprofiling.
+    unsigned int min_exec_dur;
+    unsigned int min_aggr_dur;
 };
 
 

@@ -91,18 +91,16 @@
 
 #define HOST_PATH_PREFIX_ENV    "GOPHER_HOST_PATH"
 
+extern char ext_probe_debug_enabled;
 void convert_output_to_log(char *buffer, int bufferSize);
 void debug_logs(const char* format, ...);
+void ext_probe_debug_logs(const char* format, ...);
 void info_logs(const char* format, ...);
 void warn_logs(const char* format, ...);
 void error_logs(const char* format, ...);
 
-#ifndef GOPHER_DEBUG
-static inline int __debug_printf(const char *format, ...)
-{
-        return 0; // NOTHING TO DO...
-}
-#define DEBUG (void)__debug_printf
+#ifdef EXT_PROBE_DEBUG_LOG
+#define DEBUG ext_probe_debug_logs
 #else
 #define DEBUG debug_logs
 #endif

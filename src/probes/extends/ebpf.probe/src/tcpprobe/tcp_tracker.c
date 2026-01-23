@@ -23,9 +23,7 @@
 #include <sys/resource.h>
 #include <time.h>
 
-#ifdef GOPHER_DEBUG
 #include <arpa/inet.h>
-#endif
 
 #ifdef BPF_PROG_KERN
 #undef BPF_PROG_KERN
@@ -206,15 +204,16 @@ static int __transform_cluster_ip(struct tcp_mng_s *tcp_mng, const struct tcp_li
         return ADDR_TRANSFORM_NONE;
     }
 
-#ifdef GOPHER_DEBUG
-    char s_ip1[IP6_STR_LEN], s_ip2[IP6_STR_LEN], c_ip1[IP6_STR_LEN], c_ip2[IP6_STR_LEN];
-    inet_ntop(tcp_link->family, &tcp_link->s_ip, s_ip1, sizeof(s_ip1));
-    inet_ntop(connect->family, &connect->sip_addr, s_ip2, sizeof(s_ip2));
-    inet_ntop(tcp_link->family, &tcp_link->c_ip, c_ip1, sizeof(c_ip1));
-    inet_ntop(connect->family, &connect->cip_addr, c_ip2, sizeof(c_ip2));
-    DEBUG("[TCPPROBE]: Flow (%s:%u - %s:%u) is transformed into (%s:%u - %s:%u)\n",
-            c_ip1, tcp_link->c_port, s_ip1, tcp_link->s_port, c_ip2, connect->c_port, s_ip2, connect->s_port);
-#endif
+    if (ext_probe_debug_enabled) {
+        char s_ip1[IP6_STR_LEN], s_ip2[IP6_STR_LEN], c_ip1[IP6_STR_LEN], c_ip2[IP6_STR_LEN];
+        inet_ntop(tcp_link->family, &tcp_link->s_ip, s_ip1, sizeof(s_ip1));
+        inet_ntop(connect->family, &connect->sip_addr, s_ip2, sizeof(s_ip2));
+        inet_ntop(tcp_link->family, &tcp_link->c_ip, c_ip1, sizeof(c_ip1));
+        inet_ntop(connect->family, &connect->cip_addr, c_ip2, sizeof(c_ip2));
+        DEBUG("[TCPPROBE]: Flow (%s:%u - %s:%u) is transformed into (%s:%u - %s:%u)\n",
+                c_ip1, tcp_link->c_port, s_ip1, tcp_link->s_port, c_ip2, connect->c_port, s_ip2, connect->s_port);
+    }
+
 
     return transform;
 }

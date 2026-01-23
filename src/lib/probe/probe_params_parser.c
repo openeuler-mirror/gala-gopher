@@ -38,17 +38,6 @@ struct param_flags_s param_l7pro_flags[] = {
     {"crpc",    L7PROBE_TRACING_CRPC}
 };
 
-struct param_flags_s param_metrics_flags[] = {
-    {"raw",         SUPPORT_METRICS_RAW},
-    {"telemetry",   SUPPORT_METRICS_TELEM}
-};
-
-struct param_flags_s param_env_flags[] = {
-    {"node",        SUPPORT_NODE_ENV},
-    {"container",   SUPPORT_CONTAINER_ENV},
-    {"kubenet",     SUPPORT_K8S_ENV}
-};
-
 static unsigned int __get_params_flags(struct param_flags_s param_flags[], size_t size, const char *target)
 {
     for (size_t i = 0; i < size; i++) {
@@ -203,6 +192,19 @@ static int parser_report_event(struct probe_s *probe, const struct param_key_s *
     }
 
     probe->probe_param.logs = (char)value;
+    return 0;
+}
+
+static int parser_debug_log(struct probe_s *probe, const struct param_key_s *param_key, const void *key_item)
+{
+    int value = Json_GetValueInt(key_item);
+    if (value < param_key->v.min || value > param_key->v.max || value == INVALID_INT_NUM) {
+        PARSE_ERR("params.%s invalid value %d, must be in [%d, %d]",
+                  param_key->key, value, param_key->v.min, param_key->v.max);
+        return -1;
+    }
+
+    probe->probe_param.enable_debug = (char)value;
     return 0;
 }
 
@@ -609,6 +611,7 @@ SET_DEFAULT_PARAMS_INTER(min_exec_dur);
 SET_DEFAULT_PARAMS_INTER(min_aggr_dur);
 
 SET_DEFAULT_PARAMS_CAHR(logs);
+SET_DEFAULT_PARAMS_CAHR(enable_debug);
 SET_DEFAULT_PARAMS_CAHR(ringbuf_map_size);
 SET_DEFAULT_PARAMS_CAHR(report_cport);
 SET_DEFAULT_PARAMS_CAHR(support_ssl);
@@ -632,6 +635,7 @@ SET_DEFAULT_PARAMS_STR(flame_dir);
 #define RES_UPPER_THR       "res_upper_thr"
 #define RB_MAP_SZ           "ringbuf_map_size"
 #define REPORT_EVENT        "report_event"
+#define ENABLE_DEBUG_LOG    "log_debug"
 #define REPORT_CPORT        "report_cport"
 #define L7_PROTOCOL         "l7_protocol"
 #define SUPPORT_SSL         "support_ssl"
@@ -665,6 +669,7 @@ struct param_key_s param_keys[] = {
     {RES_UPPER_THR,       {0, 0, 100, ""},                           parser_res_upper_thr,           set_default_params_char_res_percent_upper, JSON_NUMBER},
     {REPORT_EVENT,        {0, 0, 1, ""},                             parser_report_event,            set_default_params_char_logs, JSON_NUMBER},
 #endif
+    {ENABLE_DEBUG_LOG,    {0, 0, 1, ""},                             parser_debug_log,               set_default_params_char_enable_debug, JSON_NUMBER},
     {RB_MAP_SZ,           {DEFAULT_RB_MAP_SZ, 1, MAX_RB_MAP_SZ, ""}, parser_ringbuf_map_size,        set_default_params_char_ringbuf_map_size, JSON_NUMBER},
     {REPORT_CPORT,        {0, 0, 1, ""},                             parser_report_cport,            set_default_params_char_report_cport, JSON_NUMBER},
     {L7_PROTOCOL,         {0, 0, 0, ""},                             parser_l7pro,                   set_default_params_inter_l7_probe_proto_flags, JSON_ARRAY},
@@ -778,6 +783,7 @@ void probe_params_to_json(struct probe_s *probe, void *params)
     size_t size;
 
     Json_AddUIntItemToObject(params, REPORT_PERIOD, probe_param->period);
+    Json_AddUIntItemToObject(params, ENABLE_DEBUG_LOG, probe_param->enable_debug);
     if (probe_type == PROBE_IO || probe_type == PROBE_TCP) {
         Json_AddUIntItemToObject(params, SAMPLE_PERIOD, probe_param->sample_period);
     }
