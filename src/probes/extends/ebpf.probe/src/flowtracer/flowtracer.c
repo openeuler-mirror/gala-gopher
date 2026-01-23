@@ -41,7 +41,6 @@ static void usage(char *pname)
     exit(1);
 }
 
-#ifdef GOPHER_DEBUG
 static int handle_evt(void *ctx, void *notification, size_t sz)
 {
     struct flow_log *flow_log = notification;
@@ -72,7 +71,6 @@ static int handle_evt(void *ctx, void *notification, size_t sz)
     );
     return 0;
 }
-#endif
 
 int main(int argc, char **argv)
 {
@@ -141,7 +139,6 @@ int main(int argc, char **argv)
         goto cleanup;
     }
 
-#ifdef GOPHER_DEBUG
     /* Setup ring buffer to poll FlowTracer map operations for debug purposes */
     ring_buffer = ring_buffer__new(bpf_map__fd(flowtracer_skel->maps.ring_buffer), handle_evt, NULL, NULL);
     if (!ring_buffer) {
@@ -149,19 +146,16 @@ int main(int argc, char **argv)
         ERROR("[FlowTracer] Failed to create ring buffer!\n");
         goto cleanup;
     }
-#endif
 
     INFO("[FlowTracer] Started successfully\n");
 
     /* Process events */
     while (!stop) {
-#ifdef GOPHER_DEBUG
         err = ring_buffer__poll(ring_buffer, THOUSAND);
         if (err < 0 && err != -EINTR) {
             ERROR("[FlowTracer] Error polling ring buffer: %d (%s)\n", err, strerror(errno));
             break;
         }
-#endif
         sleep(1);
     }
 

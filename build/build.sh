@@ -204,7 +204,7 @@ function compile_lib_clean()
     rm -rf *.so
 }
 
-function compile_daemon_release()
+function compile_daemon()
 {
     cd ${DAEMON_FOLDER}
     rm -rf build
@@ -212,30 +212,12 @@ function compile_daemon_release()
     cd build
 
     cmake -DBUILD_OPTS="${NATIVE_PROBE_OPTS} ${EXTEND_PROBE_OPTS} ${FEATURE_OPTS}" \
-        -DGOPHER_DEBUG="0" \
         -DPROBES_C_LIST="${PROBES_C_LIST}" \
         -DPROBES_LIST="${PROBES_LIST}" \
         -DPROBES_META_LIST="${PROBES_META_LIST}" \
         -DLIBBPF_VER_MAJOR="${LIBBPF_VER_MAJOR}" -DLIBBPF_VER_MINOR="${LIBBPF_VER_MINOR}" ..
     make
 }
-
-function compile_daemon_debug()
-{
-    cd ${DAEMON_FOLDER}
-    rm -rf build
-    mkdir build
-    cd build
-
-    cmake -DBUILD_OPTS="${NATIVE_PROBE_OPTS} ${EXTEND_PROBE_OPTS} ${FEATURE_OPTS}" \
-        -DGOPHER_DEBUG="1" \
-        -DPROBES_C_LIST="${PROBES_C_LIST}" \
-        -DPROBES_LIST="${PROBES_LIST}" \
-        -DPROBES_META_LIST="${PROBES_META_LIST}" \
-        -DLIBBPF_VER_MAJOR="${LIBBPF_VER_MAJOR}" -DLIBBPF_VER_MINOR="${LIBBPF_VER_MINOR}" ..
-    make
-}
-
 
 function compile_daemon_clean()
 {
@@ -269,21 +251,7 @@ function compile_extend_probes_clean()
     done
 }
 
-function compile_extend_probes_debug()
-{
-    # Search for build.sh in probe directory
-    echo "==== Begin to compile debug extend probes ===="
-    export BUILD_OPTS="$EXTEND_PROBE_OPTS $FEATURE_OPTS"
-    echo "BUILD_OPTS is $BUILD_OPTS"
-    cd ${EXT_PROBE_FOLDER}
-    for BUILD_PATH in ${EXT_PROBE_BUILD_LIST}
-    do
-        echo "==== BUILD_PATH: " ${BUILD_PATH}
-        sh ${BUILD_PATH} --build --debug || return 1
-    done
-}
-
-function compile_extend_probes_release()
+function compile_extend_probes()
 {
     # Search for build.sh in probe directory
     echo "==== Begin to compile release extend probes ===="
@@ -334,24 +302,13 @@ if [ "$1" == "--check" ]; then
     fi
 fi
 
-if [ "$1" = "--release" ];then
+if [[ "$1" = "--release" || "$1" = "--debug" ]]; then
     shift;
     load_tailor "$@"
     prepare_probes
     compile_lib || exit 1
-    compile_daemon_release || exit 1
-    compile_extend_probes_release  || exit 1
-    clean_env
-    exit
-fi
-
-if [ "$1" = "--debug" ];then
-    shift;
-    load_tailor "$@"
-    prepare_probes
-    compile_lib || exit 1
-    compile_daemon_debug || exit 1
-    compile_extend_probes_debug || exit 1
+    compile_daemon || exit 1
+    compile_extend_probes || exit 1
     clean_env
     exit
 fi

@@ -32,11 +32,6 @@ function check_dep()
     fi
 }
 
-function enable_debug()
-{
-    export BUILD_OPTS="${BUILD_OPTS} -DGOPHER_DEBUG"
-}
-
 function compile_probe()
 {
     cd ${SRC_DIR}
@@ -69,11 +64,6 @@ fi
 if [ "$1" == "-b"  -o  "$1" == "--build" ];
 then
     check_dep
-
-    if [ "$2" == "-d"  -o  "$2" == "--debug" ];
-    then
-        enable_debug
-    fi
     compile_probe || exit 1
     exit
 fi

@@ -100,10 +100,6 @@ FOREACH(FILE ${PROBES_C_LIST})
     SET(SOURCES ${SOURCES} ${FILE})
 ENDFOREACH()
 
-if("${GOPHER_DEBUG}" EQUAL 1)
-add_definitions(-DGOPHER_DEBUG)
-endif()
-
 execute_process(
     COMMAND bash "-c" "echo -n $(git rev-parse --short HEAD 2>/dev/null)"
     OUTPUT_VARIABLE GOPHER_COMMIT_SHA1
