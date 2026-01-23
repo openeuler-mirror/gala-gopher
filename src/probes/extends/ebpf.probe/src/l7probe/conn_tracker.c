@@ -27,9 +27,7 @@
 #undef BPF_PROG_USER
 #endif
 
-#ifdef GOPHER_DEBUG
 #include <arpa/inet.h>
-#endif
 
 #include "bpf.h"
 #include "container.h"
@@ -356,16 +354,16 @@ static void transform_cluster_ip(struct l7_mng_s *l7_mng, struct conn_tracker_s*
         return;
     }
 
-#ifdef GOPHER_DEBUG
-    char s_ip1[IP6_STR_LEN], s_ip2[IP6_STR_LEN], c_ip1[IP6_STR_LEN], c_ip2[IP6_STR_LEN];
-    inet_ntop(connect.family, &tracker->open_info.server_addr.ip, s_ip1, sizeof(s_ip1));
-    inet_ntop(connect.family, &connect.sip_addr, s_ip2, sizeof(s_ip2));
-    inet_ntop(connect.family, &tracker->open_info.client_addr.ip, c_ip1, sizeof(c_ip1));
-    inet_ntop(connect.family, &connect.cip_addr, c_ip2, sizeof(c_ip2));
-    DEBUG("[L7PROBE]: Flow (%s:%u - %s:%u) is transformed into (%s:%u - %s:%u)\n",
+    if (ext_probe_debug_enabled) {
+        char s_ip1[IP6_STR_LEN], s_ip2[IP6_STR_LEN], c_ip1[IP6_STR_LEN], c_ip2[IP6_STR_LEN];
+        inet_ntop(connect.family, &tracker->open_info.server_addr.ip, s_ip1, sizeof(s_ip1));
+        inet_ntop(connect.family, &connect.sip_addr, s_ip2, sizeof(s_ip2));
+        inet_ntop(connect.family, &tracker->open_info.client_addr.ip, c_ip1, sizeof(c_ip1));
+        inet_ntop(connect.family, &connect.cip_addr, c_ip2, sizeof(c_ip2));
+        DEBUG("[L7PROBE]: Flow (%s:%u - %s:%u) is transformed into (%s:%u - %s:%u)\n",
             c_ip1, tracker->open_info.client_addr.port, s_ip1, tracker->open_info.server_addr.port,
             c_ip2, connect.c_port, s_ip2, connect.s_port);
-#endif
+    }
 
     if (transform & ADDR_TRANSFORM_SERVER) {
         if (connect.family == AF_INET) {
@@ -425,15 +423,15 @@ static int proc_conn_ctl_msg(struct l7_mng_s *l7_mng, struct conn_ctl_s *conn_ct
                     // Client port just used for cluster IP address translation. Here, client port MUST set 0.
                     tracker->open_info.client_addr.port = 0;
                 }
-#ifdef GOPHER_DEBUG
-    char s_ip[IP6_STR_LEN], c_ip[IP6_STR_LEN];
-    s_ip[0] = 0;
-    (void)inet_ntop(tracker->open_info.server_addr.family, (const void *)&(tracker->open_info.server_addr.ip), s_ip, sizeof(s_ip));
-    c_ip[0] = 0;
-    (void)inet_ntop(tracker->open_info.client_addr.family, (const void *)&(tracker->open_info.client_addr.ip), c_ip, sizeof(c_ip));
-    DEBUG("[L7PROBE.proc_conn_ctl_msg]: CONN_EVT_OPEN: tracker flow (%s:%u - %s:%u)\n",
-            c_ip, tracker->open_info.client_addr.port, s_ip, tracker->open_info.server_addr.port);
-#endif
+                if (ext_probe_debug_enabled) {
+                    char s_ip[IP6_STR_LEN], c_ip[IP6_STR_LEN];
+                    s_ip[0] = 0;
+                    (void)inet_ntop(tracker->open_info.server_addr.family, (const void *)&(tracker->open_info.server_addr.ip), s_ip, sizeof(s_ip));
+                    c_ip[0] = 0;
+                    (void)inet_ntop(tracker->open_info.client_addr.family, (const void *)&(tracker->open_info.client_addr.ip), c_ip, sizeof(c_ip));
+                    DEBUG("[L7PROBE.proc_conn_ctl_msg]: CONN_EVT_OPEN: tracker flow (%s:%u - %s:%u)\n",
+                            c_ip, tracker->open_info.client_addr.port, s_ip, tracker->open_info.server_addr.port);
+                }
             }
             break;
         }

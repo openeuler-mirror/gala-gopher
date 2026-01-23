@@ -21,6 +21,7 @@
 static struct log_mgr_s *local = NULL;
 static pthread_mutex_t metric_mutex = PTHREAD_MUTEX_INITIALIZER;
 static char logger_level_str[LOGGER_MAX][LOG_LEVEL_STR_LEN] = {DEBUG_STR, INFO_STR, WARN_STR, ERROR_STR};
+char ext_probe_debug_enabled;
 
 static int mkdirp(const char *path, mode_t mode)
 {
@@ -866,6 +867,7 @@ void convert_output_to_log(char *buffer, int bufferSize)
     }
 }
 
+#ifndef GOPHER_DEBUG
 void debug_logs(const char* format, ...)
 {
     char buf[__DEBUG_LEN];
@@ -881,7 +883,21 @@ void debug_logs(const char* format, ...)
         }
     }
 }
+#else
+void debug_logs(const char* format, ...) {}
+#endif
 
+void ext_probe_debug_logs(const char* format, ...)
+{
+    char buf[__DEBUG_LEN];
+    if (!ext_probe_debug_enabled) {
+        return;
+    }
+
+    __FMT_LOGS(buf, __DEBUG_LEN, format);
+    printf("%s: %s", DEBUG_STR, buf);
+    (void)fflush(stdout);
+}
 
 void info_logs(const char* format, ...)
 {

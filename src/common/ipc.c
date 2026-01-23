@@ -844,6 +844,7 @@ int recv_ipc_msg(int msqid, long msg_type, struct ipc_body_s *ipc_body)
         }
         ipc_body->probe_flags = msg_flags;
         ipc_body->snooper_state = ipc_msg->snooper_state;
+        ext_probe_debug_enabled = ipc_body->probe_param.enable_debug;
         err = 0;
     }
 

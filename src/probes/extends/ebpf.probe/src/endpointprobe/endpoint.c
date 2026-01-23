@@ -491,16 +491,17 @@ static void transform_cluster_ip(struct endpoint_probe_s *probe_mng, struct tcp_
         return;
     }
 
-#ifdef GOPHER_DEBUG
-    char s_ip1[IP6_STR_LEN], s_ip2[IP6_STR_LEN], c_ip1[IP6_STR_LEN], c_ip2[IP6_STR_LEN];
-    inet_ntop(connect.family, &tracker->server_ipaddr.ip, s_ip1, sizeof(s_ip1));
-    inet_ntop(connect.family, &connect.sip_addr, s_ip2, sizeof(s_ip2));
-    inet_ntop(connect.family, &tracker->client_ipaddr.ip, c_ip1, sizeof(c_ip1));
-    inet_ntop(connect.family, &connect.cip_addr, c_ip2, sizeof(c_ip2));
-    DEBUG("[EPPROBE]: Flow (%s:%u - %s:%u) is transformed into (%s:%u - %s:%u)\n",
-            c_ip1, tracker->client_ipaddr.port, s_ip1, tracker->server_ipaddr.port,
-            c_ip2, connect.c_port, s_ip2, connect.s_port);
-#endif
+    if (ext_probe_debug_enabled) {
+        char s_ip1[IP6_STR_LEN], s_ip2[IP6_STR_LEN], c_ip1[IP6_STR_LEN], c_ip2[IP6_STR_LEN];
+        inet_ntop(connect.family, &tracker->server_ipaddr.ip, s_ip1, sizeof(s_ip1));
+        inet_ntop(connect.family, &connect.sip_addr, s_ip2, sizeof(s_ip2));
+        inet_ntop(connect.family, &tracker->client_ipaddr.ip, c_ip1, sizeof(c_ip1));
+        inet_ntop(connect.family, &connect.cip_addr, c_ip2, sizeof(c_ip2));
+        DEBUG("[EPPROBE]: Flow (%s:%u - %s:%u) is transformed into (%s:%u - %s:%u)\n",
+                c_ip1, tracker->client_ipaddr.port, s_ip1, tracker->server_ipaddr.port,
+                c_ip2, connect.c_port, s_ip2, connect.s_port);
+    }
+
 
     if (transform & ADDR_TRANSFORM_SERVER) {
         if (connect.family == AF_INET) {
@@ -568,13 +569,14 @@ static int add_tcp_sock_evt(struct endpoint_probe_s * probe, struct tcp_socket_e
 
     __init_tcp_socket_id(&id, evt);
 
-#ifdef GOPHER_DEBUG
-    char s_ip[INET6_ADDRSTRLEN] = {0}, c_ip[INET6_ADDRSTRLEN] = {0};
-    (void)inet_ntop(id.server_ipaddr.family, (const void *)&(id.server_ipaddr.ip), s_ip, sizeof(s_ip));
-    (void)inet_ntop(id.client_ipaddr.family, (const void *)&(id.client_ipaddr.ip), c_ip, sizeof(c_ip));
-    DEBUG("[EPPROBE]: tcp socket event %d, role: %d, observed flow: (%s:%u - %s:%u), tgid: %d\n",
-            evt->evt, evt->role, c_ip, id.client_ipaddr.port, s_ip, id.server_ipaddr.port, id.tgid);
-#endif
+    if (ext_probe_debug_enabled) {
+        char s_ip[INET6_ADDRSTRLEN] = {0}, c_ip[INET6_ADDRSTRLEN] = {0};
+        (void)inet_ntop(id.server_ipaddr.family, (const void *)&(id.server_ipaddr.ip), s_ip, sizeof(s_ip));
+        (void)inet_ntop(id.client_ipaddr.family, (const void *)&(id.client_ipaddr.ip), c_ip, sizeof(c_ip));
+        DEBUG("[EPPROBE]: tcp socket event %d, role: %d, observed flow: (%s:%u - %s:%u), tgid: %d\n",
+                evt->evt, evt->role, c_ip, id.client_ipaddr.port, s_ip, id.server_ipaddr.port, id.tgid);
+    }
+
 
     transform_cluster_ip(probe, &id);
 

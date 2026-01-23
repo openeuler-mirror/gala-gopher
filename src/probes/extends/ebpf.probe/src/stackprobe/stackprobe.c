@@ -2105,7 +2105,6 @@ static void clear_running_ctx(struct stack_trace_s *st)
 
 static void record_running_ctx(struct stack_trace_s *st)
 {
-#if 1 //GOPHER_DEBUG
     int i, len, ret;
     char *pos;
     char buf[LINE_BUF_LEN];
@@ -2139,7 +2138,6 @@ static void record_running_ctx(struct stack_trace_s *st)
     }
     (void)snprintf(pos, len, "%*llu\n", offset[i], st->stats.count[i]);
     DEBUG(buf);
-#endif
     return;
 }
 
