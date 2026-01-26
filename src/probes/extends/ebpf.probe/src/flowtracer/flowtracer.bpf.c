@@ -48,7 +48,6 @@ struct {
     __uint(pinning, LIBBPF_PIN_BY_NAME);  // map is located at /sys/fs/bpf/flowtracer_data
 } flowtracer_data SEC(".maps");
 
-#ifdef GOPHER_DEBUG
 // ring buffer to send events to user-space (for debug purposes)
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
@@ -69,9 +68,6 @@ static void notify(enum flow_log_op op, struct flow_key *flow_key, struct flow_d
     }
     bpf_ringbuf_submit(flow_log, 0);
 }
-#else
-static inline void notify(enum flow_log_op op, struct flow_key *flow_key, struct flow_data *flow_data) {}  // NOP
-#endif
 
 static inline int set_hdr_cb_flags(struct bpf_sock_ops *skops, __u32 extra)
 {

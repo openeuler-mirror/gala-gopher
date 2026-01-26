@@ -867,10 +867,13 @@ void convert_output_to_log(char *buffer, int bufferSize)
     }
 }
 
-#ifndef GOPHER_DEBUG
 void debug_logs(const char* format, ...)
 {
     char buf[__DEBUG_LEN];
+
+    if (local && g_debug_logger.level > LOGGER_DEBUG) {
+        return;
+    }
 
     __FMT_LOGS(buf, __DEBUG_LEN, format);
     if (!local) {
@@ -883,9 +886,6 @@ void debug_logs(const char* format, ...)
         }
     }
 }
-#else
-void debug_logs(const char* format, ...) {}
-#endif
 
 void ext_probe_debug_logs(const char* format, ...)
 {
