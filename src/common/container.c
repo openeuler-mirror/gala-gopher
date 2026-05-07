@@ -95,6 +95,7 @@
 #define PODID_PREFIX_CGRPFS       "/pod"
 #define CONTAINERD_PREFIX_CGRPFS  "/kubepods-"
 #define PODID_CONTAINERD_PREFIX_CGRPFS "-pod"
+#define K8SIO_PREFIX_CGRPFS       "/k8s.io/"
 #define POD_CONTAINERD_DELIM_CGRPFS "slice/cri-containerd:"
 #define CGRP_PATH_CGRPFS ".*[a-z0-9]{12}$" // cgroup path end with "<con_id>""
 
@@ -673,7 +674,8 @@ static enum cgrp_driver_t get_cgroup_drvier(const char *cgrp_path)
 {
     if (strncmp(cgrp_path, KUBEPODS_PREFIX_CGRPFS, strlen(KUBEPODS_PREFIX_CGRPFS)) == 0 ||
         strncmp(cgrp_path, DOCKER_PREFIX_CGRPFS, strlen(DOCKER_PREFIX_CGRPFS)) == 0 ||
-        strncmp(cgrp_path, CONTAINERD_PREFIX_CGRPFS, strlen(CONTAINERD_PREFIX_CGRPFS)) == 0 ) {
+        strncmp(cgrp_path, CONTAINERD_PREFIX_CGRPFS, strlen(CONTAINERD_PREFIX_CGRPFS)) == 0 ||
+        strncmp(cgrp_path, K8SIO_PREFIX_CGRPFS, strlen(K8SIO_PREFIX_CGRPFS)) == 0) {
         return CGRP_DRIVER_CGRPFS;
     }
 
@@ -709,6 +711,7 @@ static enum id_ret_t get_pod_container_id_by_type(const char *cgrp_path, char *p
     enum id_ret_t ret;
     int full_path_len;
     char *p, *kube_prefix, *podid_prefix, *docker_prefix;
+    char *kube_io_prefix;
     char delim;
     int i,j;
     bool is_containerd = false;
@@ -722,11 +725,13 @@ static enum id_ret_t get_pod_container_id_by_type(const char *cgrp_path, char *p
          * k8s scenario, cgrp_path is like: /kubepods/besteffort/pod<pod_id>/<con_id>
          * docker scenario, cgrp_path is like: /docker/<con_id>
          * containerd scenario, cgrp_path is like /kubepods-burstable-pod<pod_id>.slice:cri-containerd:<con_id>
+         * containerd SystemdCgroup = false scenario, cgrp_path is like: /k8s.io/<con_id>
          */
         if (!__chk_cgrp_path_pattern(CGRP_PATH_CGRPFS, cgrp_path)) {
             return ID_FAILED;
         }
         docker_prefix = DOCKER_PREFIX_CGRPFS;
+        kube_io_prefix = K8SIO_PREFIX_CGRPFS;
         if (is_containerd) {
             kube_prefix = CONTAINERD_PREFIX_CGRPFS;
             podid_prefix = PODID_CONTAINERD_PREFIX_CGRPFS;
@@ -791,6 +796,10 @@ static enum id_ret_t get_pod_container_id_by_type(const char *cgrp_path, char *p
         ret = ID_CON_POD;
     } else if ((p = strstr(cgrp_path, docker_prefix)) != NULL) {
         i = strlen(docker_prefix);
+        (void)snprintf(pod_id, POD_ID_LEN + 1, "%s", FAKE_POD_ID);
+        ret = ID_CON_ONLY;
+    } else if ((p = strstr(cgrp_path, kube_io_prefix)) != NULL) {
+        i = strlen(kube_io_prefix);
         (void)snprintf(pod_id, POD_ID_LEN + 1, "%s", FAKE_POD_ID);
         ret = ID_CON_ONLY;
     } else {
