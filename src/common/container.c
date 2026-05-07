@@ -711,7 +711,7 @@ static enum id_ret_t get_pod_container_id_by_type(const char *cgrp_path, char *p
     enum id_ret_t ret;
     int full_path_len;
     char *p, *kube_prefix, *podid_prefix, *docker_prefix;
-    char *kube_io_prefix;
+    char *k8sIoPrefix;
     char delim;
     int i,j;
     bool is_containerd = false;
@@ -731,7 +731,7 @@ static enum id_ret_t get_pod_container_id_by_type(const char *cgrp_path, char *p
             return ID_FAILED;
         }
         docker_prefix = DOCKER_PREFIX_CGRPFS;
-        kube_io_prefix = K8SIO_PREFIX_CGRPFS;
+        k8sIoPrefix = K8SIO_PREFIX_CGRPFS;
         if (is_containerd) {
             kube_prefix = CONTAINERD_PREFIX_CGRPFS;
             podid_prefix = PODID_CONTAINERD_PREFIX_CGRPFS;
@@ -798,8 +798,8 @@ static enum id_ret_t get_pod_container_id_by_type(const char *cgrp_path, char *p
         i = strlen(docker_prefix);
         (void)snprintf(pod_id, POD_ID_LEN + 1, "%s", FAKE_POD_ID);
         ret = ID_CON_ONLY;
-    } else if ((p = strstr(cgrp_path, kube_io_prefix)) != NULL) {
-        i = strlen(kube_io_prefix);
+    } else if ((p = strstr(cgrp_path, k8sIoPrefix)) != NULL) {
+        i = strlen(k8sIoPrefix);
         (void)snprintf(pod_id, POD_ID_LEN + 1, "%s", FAKE_POD_ID);
         ret = ID_CON_ONLY;
     } else {
