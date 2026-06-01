@@ -284,12 +284,10 @@ static int ProcessMetricData(IngressMgr *mgr, const char *content, const char *t
         }
     }
 
-    if (mgr->imdbMgr->writeLogsType == METRIC_LOG_PROM || mgr->imdbMgr->writeLogsType == METRIC_LOG_JSON) {
-        // save metric to imdb
-        rec = IMDB_DataBaseMgrCreateRec(mgr->imdbMgr, table, content);
-        if (rec == NULL) {
-            return -1;
-        }
+    // save metric to imdb
+    rec = IMDB_DataBaseMgrCreateRec(mgr->imdbMgr, table, content);
+    if (rec == NULL) {
+        return -1;
     }
 
 #ifdef KAFKA_CHANNEL
