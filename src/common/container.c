@@ -39,6 +39,12 @@
 #define DRIVER_BTRFS "btrfs"
 #define BTRFS_DOCKER_DIR "/var/lib/docker"
 
+#define POD_ID_COMPACT_LEN 32
+#define POD_ID_HYPHEN_INDEX_1 8
+#define POD_ID_HYPHEN_INDEX_2 13
+#define POD_ID_HYPHEN_INDEX_3 18
+#define POD_ID_HYPHEN_INDEX_4 23
+
 #define CONTAINERD_NAME_COMMAND "--output go-template --template='{{.status.metadata.name}}'"
 #define CONTAINERD_PID_COMMAND "--output go-template --template='{{.info.pid}}'"
 #define CONTAINERD_STATUS_COMMAND "--output go-template --template='{{.status.state}}'"
@@ -610,6 +616,10 @@ int get_container_root_path(const char *abbr_container_id, char *path, unsigned 
     unsigned int pid = 0;
     int ret;
 
+    if (!IsValidContainerId(abbr_container_id)) {
+        return -1;
+    }
+
     ret = __get_container_pid(abbr_container_id, &pid);
     if (ret || pid == 0) {
         return -1;
@@ -635,7 +645,7 @@ int get_container_merged_path(const char *abbr_container_id, char *path, unsigne
         return -1;
     }
 
-    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+    if (!IsValidContainerId(abbr_container_id)) {
         return -1;
     }
 
@@ -656,7 +666,7 @@ int exec_container_command(const char *abbr_container_id, const char *exec, char
     command[0] = 0;
     buf[0] = 0;
 
-    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+    if (!IsValidContainerId(abbr_container_id)) {
         return -1;
     }
 
@@ -838,24 +848,72 @@ enum id_ret_t get_pod_container_id(const char *cgrp_path, char *pod_id, char *co
 }
 
 #define __PROC_CPUSET           "/proc/%s/cpuset"
-static int __is_container_id(char *container_id)
+int IsValidContainerId(const char *containerId)
 {
-    int len = strlen(container_id);
+    if (containerId == NULL) {
+        return 0;
+    }
+
+    int len = strlen(containerId);
     if (len == 0 || len > CONTAINER_ID_LEN) {
         return 0;
     }
 
     for (int i = 0; i < len; i++) {
-        if (*(container_id + i) >= '0' && *(container_id + i) <= '9') {
+        if (*(containerId + i) >= '0' && *(containerId + i) <= '9') {
             continue;
-        } else if (*(container_id + i) >= 'A' && *(container_id + i) <= 'F') {
+        } else if (*(containerId + i) >= 'A' && *(containerId + i) <= 'F') {
             continue;
-        } else if (*(container_id + i) >= 'a' && *(container_id + i) <= 'f') {
+        } else if (*(containerId + i) >= 'a' && *(containerId + i) <= 'f') {
             continue;
         } else {
             return 0;
         }
     }
+    return 1;
+}
+
+static int IsHexChar(char c)
+{
+    return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
+}
+
+int IsValidPodId(const char *podId)
+{
+    int len;
+
+    if (podId == NULL) {
+        return 0;
+    }
+
+    len = strlen(podId);
+    if (len == POD_ID_COMPACT_LEN) {
+        for (int i = 0; i < len; i++) {
+            if (!IsHexChar(podId[i])) {
+                return 0;
+            }
+        }
+        return 1;
+    }
+
+    if (len != POD_ID_LEN) {
+        return 0;
+    }
+
+    for (int i = 0; i < len; i++) {
+        if (i == POD_ID_HYPHEN_INDEX_1 || i == POD_ID_HYPHEN_INDEX_2 ||
+            i == POD_ID_HYPHEN_INDEX_3 || i == POD_ID_HYPHEN_INDEX_4) {
+            if (podId[i] != '-') {
+                return 0;
+            }
+            continue;
+        }
+
+        if (!IsHexChar(podId[i])) {
+            return 0;
+        }
+    }
+
     return 1;
 }
 
@@ -891,7 +949,7 @@ int get_container_id_by_pid_cpuset(const char *pid, char *container_id, unsigned
         return 0;
     }
 
-    if (!__is_container_id(container_id)) {
+    if (!IsValidContainerId(container_id)) {
         container_id[0] = 0;
         return 0;
     }
@@ -949,7 +1007,7 @@ int get_elf_path_by_con_id(char *container_id, char elf_path[], int max_path_len
     unsigned int pid;
     int ret;
 
-    if (container_id == NULL || container_id[0] == 0) {
+    if (!IsValidContainerId(container_id)) {
         return CONTAINER_ERR;
     }
 
@@ -1064,7 +1122,7 @@ static int __get_fullpath_inode(const char *full_path, unsigned int *inode)
 #define CGROUP_SUBSYS_NETCLS    "net_cls,net_prio"
 int get_container_cpucg_dir(const char *abbr_container_id, char dir[], unsigned int dir_len)
 {
-    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+    if (!IsValidContainerId(abbr_container_id)) {
         return -1;
     }
     return __get_container_cgpdir(abbr_container_id, CGROUP_SUBSYS_CPUACCT, dir, dir_len);
@@ -1072,7 +1130,7 @@ int get_container_cpucg_dir(const char *abbr_container_id, char dir[], unsigned 
 
 int get_container_memcg_dir(const char *abbr_container_id, char dir[], unsigned int dir_len)
 {
-    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+    if (!IsValidContainerId(abbr_container_id)) {
         return -1;
     }
     return __get_container_cgpdir(abbr_container_id, CGROUP_SUBSYS_MEMORY, dir, dir_len);
@@ -1080,7 +1138,7 @@ int get_container_memcg_dir(const char *abbr_container_id, char dir[], unsigned 
 
 int get_container_pidcg_dir(const char *abbr_container_id, char dir[], unsigned int dir_len)
 {
-    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+    if (!IsValidContainerId(abbr_container_id)) {
         return -1;
     }
     return __get_container_cgpdir(abbr_container_id, CGROUP_SUBSYS_PIDS, dir, dir_len);
@@ -1088,7 +1146,7 @@ int get_container_pidcg_dir(const char *abbr_container_id, char dir[], unsigned 
 
 int get_container_netcg_dir(const char *abbr_container_id, char dir[], unsigned int dir_len)
 {
-    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+    if (!IsValidContainerId(abbr_container_id)) {
         return -1;
     }
     return __get_container_cgpdir(abbr_container_id, CGROUP_SUBSYS_NETCLS, dir, dir_len);
@@ -1098,7 +1156,7 @@ int get_container_cpucg_inode(const char *abbr_container_id, unsigned int *inode
 {
     char cpucg_dir[CG_PATH_LEN];
 
-    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+    if (!IsValidContainerId(abbr_container_id)) {
         return -1;
     }
 
@@ -1114,7 +1172,7 @@ int get_container_memcg_inode(const char *abbr_container_id, unsigned int *inode
 {
     char memcg_dir[CG_PATH_LEN];
 
-    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+    if (!IsValidContainerId(abbr_container_id)) {
         return -1;
     }
 
@@ -1130,7 +1188,7 @@ int get_container_pidcg_inode(const char *abbr_container_id, unsigned int *inode
 {
     char pidcg_dir[CG_PATH_LEN];
 
-    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+    if (!IsValidContainerId(abbr_container_id)) {
         return -1;
     }
 
@@ -1149,7 +1207,7 @@ int get_container_netns_id(const char *abbr_container_id, unsigned int *id)
     unsigned int pid;
     char proc[PATH_LEN];
 
-    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+    if (!IsValidContainerId(abbr_container_id)) {
         return -1;
     }
 
@@ -1178,7 +1236,7 @@ int get_container_mntns_id(const char *abbr_container_id, unsigned int *id)
     unsigned int pid;
     char proc[PATH_LEN];
 
-    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+    if (!IsValidContainerId(abbr_container_id)) {
         return -1;
     }
 
@@ -1198,7 +1256,7 @@ int get_container_mntns_id(const char *abbr_container_id, unsigned int *id)
 
 int get_container_pid(const char *abbr_container_id, unsigned int *pid)
 {
-    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+    if (!IsValidContainerId(abbr_container_id)) {
         return -1;
     }
     return __get_container_pid(abbr_container_id, pid);
@@ -1206,7 +1264,7 @@ int get_container_pid(const char *abbr_container_id, unsigned int *pid)
 
 int get_container_name(const char *abbr_container_id, char name[], unsigned int len)
 {
-    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+    if (!IsValidContainerId(abbr_container_id)) {
         return -1;
     }
     return __get_container_name(abbr_container_id, name, len);
@@ -1214,7 +1272,7 @@ int get_container_name(const char *abbr_container_id, char name[], unsigned int 
 
 int get_container_pod(const char *abbr_container_id, char pod[], unsigned int len)
 {
-    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+    if (!IsValidContainerId(abbr_container_id)) {
         return -1;
     }
     return __get_container_pod(abbr_container_id, pod, len);
@@ -1228,7 +1286,7 @@ int get_container_pod_id(const char *abbr_container_id, char pod_id[], unsigned 
         return -1;
     }
 
-    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+    if (!IsValidContainerId(abbr_container_id)) {
         return -1;
     }
 
@@ -1251,7 +1309,7 @@ int get_container_pod_id(const char *abbr_container_id, char pod_id[], unsigned 
 
 int get_container_pod_labels(const char *abbr_container_id, char pod_labels[], unsigned int len)
 {
-    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+    if (!IsValidContainerId(abbr_container_id)) {
         return -1;
     }
     return __get_container_pod_labels(abbr_container_id, pod_labels, len);
@@ -1265,7 +1323,7 @@ int get_pod_ip(const char *abbr_container_id, char *pod_ip_str, int len)
         return -1;
     }
 
-    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+    if (!IsValidContainerId(abbr_container_id)) {
         return -1;
     }
 
@@ -1354,7 +1412,7 @@ container_tbl* list_containers_by_pod_id(const char *pod_id)
         return NULL;
     }
 
-    if (pod_id == NULL || pod_id[0] == 0) {
+    if (!IsValidPodId(pod_id)) {
         return NULL;
     }
 
@@ -1476,7 +1534,7 @@ int get_container_image(const char *abbr_container_id, char image[], unsigned in
         return -1;
     }
 
-    if (abbr_container_id == NULL || abbr_container_id[0] == 0) {
+    if (!IsValidContainerId(abbr_container_id)) {
         return -1;
     }
 
@@ -1519,5 +1577,3 @@ int get_container_image(const char *abbr_container_id, char image[], unsigned in
     snprintf(image, image_len, "%s", orig_image);
     return 0;
 }
-
-

@@ -25,6 +25,7 @@
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <fcntl.h>
 
 #ifdef BPF_PROG_KERN
@@ -48,25 +49,19 @@ static struct elf_symbo_s* __head = NULL;
 #define symbs   __symbs
 
 #if 1
-#define __STAT_INODE "/usr/bin/stat --format=%%i %s"
 int __get_inode(const char *elf, u32 *inode)
 {
-    char command[COMMAND_LEN];
-    char inode_s[INT_LEN];
+    struct stat st;
 
-    if (access(elf, 0) != 0) {
+    if (elf == NULL || inode == NULL) {
         return -1;
     }
 
-    command[0] = 0;
-    inode_s[0] = 0;
-    (void)snprintf(command, COMMAND_LEN, __STAT_INODE, elf);
-
-    if (exec_cmd_chroot((const char *)command, inode_s, INT_LEN) < 0) {
+    if (stat(elf, &st) != 0) {
         return -1;
     }
 
-    *inode = (u32)atoi((const char *)inode_s);
+    *inode = (u32)st.st_ino;
     return 0;
 }
 
