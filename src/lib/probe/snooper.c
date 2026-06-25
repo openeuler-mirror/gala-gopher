@@ -176,6 +176,10 @@ static int add_snooper_conf_pod(struct probe_s *probe, const char* pod_id)
         return 0;
     }
 
+    if (!IsValidPodId(pod_id)) {
+        return -1;
+    }
+
     struct snooper_conf_s* snooper_conf = new_snooper_conf();
     if (snooper_conf == NULL) {
         return -1;
@@ -202,6 +206,10 @@ static int add_snooper_conf_container(struct probe_s *probe, const char* contain
 
     if (container_id == NULL || container_id[0] == 0) {
         return 0;
+    }
+
+    if (!IsValidContainerId(container_id)) {
+        return -1;
     }
 
     struct snooper_conf_s* snooper_conf = new_snooper_conf();
@@ -1201,6 +1209,7 @@ static int gen_snooper_by_container_name(struct probe_s *probe)
                 (void)pclose(f);
                 return -1;
             }
+            SPLIT_NEWLINE_SYMBOL(line);
 
             con_info = get_and_add_con_info(FAKE_POD_ID, line);
             if (con_info == NULL) {

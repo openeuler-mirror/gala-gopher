@@ -55,6 +55,8 @@ typedef struct container_tbl_s {
 } container_tbl;
 
 container_tbl* get_all_container(void);
+int IsValidContainerId(const char *containerId);
+int IsValidPodId(const char *podId);
 enum id_ret_t get_pod_container_id(const char *cgrp_path, char *pod_id, char *con_id);
 int get_container_id_by_pid_cpuset(const char *pid, char *container_id, unsigned int buf_len);
 int get_elf_path(unsigned int pid, char elf_path[], int max_path_len, const char *comm);

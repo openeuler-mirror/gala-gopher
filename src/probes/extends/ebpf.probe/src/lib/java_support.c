@@ -14,12 +14,15 @@
  ******************************************************************************/
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <signal.h>
 #include <unistd.h>
 #include <ctype.h>
 #include <time.h>
 #include <string.h>
 #include <sys/file.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include "common.h"
 #include "java_support.h"
@@ -46,6 +49,98 @@ static char attach_type[ATTACH_TYPE_LEN];   // start | stop
     "find /proc/%u/root/tmp/java-data-%u -type f -not -name " JAVA_SYM_FILE " -name \"java-symbols*.bin\" -delete"
 #define HOST_JAVA_TMP_PATH "/proc/%u/root/tmp/java-data-%u/%s"  // eg: /proc/<pid>/root/tmp/java-data-<pid>/java-symbols.bin
 #define NS_TMP_DIR "/tmp"
+#define AGENT_FILE_MODE (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
+
+static int RemoveOldAgentFile(const char *path)
+{
+    struct stat st;
+
+    if (lstat(path, &st) != 0) {
+        return (errno == ENOENT) ? 0 : -1;
+    }
+
+    if (S_ISDIR(st.st_mode)) {
+        return -1;
+    }
+
+    return unlink(path);
+}
+
+static int SafeInstallAgentFile(const char *dstFile, const char *srcFile, uid_t uid, gid_t gid)
+{
+    int srcFd = -1;
+    int dstFd = -1;
+    char buf[LINE_BUF_LEN];
+    ssize_t readLen;
+    int ret = -1;
+
+    srcFd = open(srcFile, O_RDONLY | O_CLOEXEC);
+    if (srcFd < 0) {
+        return -1;
+    }
+
+    if (RemoveOldAgentFile(dstFile) != 0) {
+        goto out;
+    }
+
+    dstFd = open(dstFile, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, AGENT_FILE_MODE);
+    if (dstFd < 0) {
+        goto out;
+    }
+
+    while ((readLen = read(srcFd, buf, sizeof(buf))) > 0) {
+        ssize_t written = 0;
+
+        while (written < readLen) {
+            ssize_t writeLen = write(dstFd, buf + written, (size_t)(readLen - written));
+            if (writeLen < 0) {
+                goto out;
+            }
+            written += writeLen;
+        }
+    }
+
+    if (readLen < 0) {
+        goto out;
+    }
+
+    if (fchown(dstFd, uid, gid) != 0) {
+        goto out;
+    }
+
+    ret = 0;
+
+out:
+    if (srcFd >= 0) {
+        (void)close(srcFd);
+    }
+    if (dstFd >= 0) {
+        (void)close(dstFd);
+    }
+    return ret;
+}
+
+static int SafeChownDirNoFollow(const char *path, uid_t uid, gid_t gid)
+{
+    int fd;
+    int ret;
+    struct stat st;
+
+    fd = open(path, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+    if (fd < 0) {
+        return -1;
+    }
+
+    ret = fstat(fd, &st);
+    if (ret != 0 || !S_ISDIR(st.st_mode)) {
+        (void)close(fd);
+        return -1;
+    }
+
+    ret = fchown(fd, uid, gid);
+    (void)close(fd);
+    return ret;
+}
 
 /*
     [root@localhost ~]# cat /proc/<pid>/status
@@ -164,20 +259,11 @@ static int _set_attach_argv(u32 pid, struct jvm_process_info *v)
     char host_agent_file_path[LINE_BUF_LEN];
     (void)snprintf(host_agent_file_path, LINE_BUF_LEN, "%s%s", v->host_proc_dir, ns_agent_path);
 
-    if ((access(host_agent_file_path, 0) != 0)) {
-        char src_agent_file[PATH_LEN] = {0};
-        (void)snprintf(src_agent_file, PATH_LEN, "%s/%s", HOST_SO_DIR, jvm_agent_file);
-        ret = copy_file(host_agent_file_path, src_agent_file); // overwrite is ok.
-        if (ret != 0) {
-            ERROR("[JAVA_SUPPORT]: proc %u copy %s from %s file fail \n", pid, host_agent_file_path, src_agent_file);
-            return ret;
-        }
-    }
-
-    ret = chown(host_agent_file_path, v->eUid, v->eGid);
+    char src_agent_file[PATH_LEN] = {0};
+    (void)snprintf(src_agent_file, PATH_LEN, "%s/%s", HOST_SO_DIR, jvm_agent_file);
+    ret = SafeInstallAgentFile(host_agent_file_path, src_agent_file, v->eUid, v->eGid);
     if (ret != 0) {
-        ERROR("[JAVA_SUPPORT]: chown %s to %u %u fail when set ns_agent_path\n",
-              host_agent_file_path, v->eUid, v->eGid);
+        ERROR("[JAVA_SUPPORT]: proc %u install %s from %s file fail \n", pid, host_agent_file_path, src_agent_file);
         return ret;
     }
 
@@ -191,7 +277,7 @@ static int _set_attach_argv(u32 pid, struct jvm_process_info *v)
         ERROR("[JAVA_SUPPORT]: proc %u mkdir fail when set host_java_data_dir\n", pid);
         return ret;
     }
-    ret = chown(host_java_data_dir, v->eUid, v->eGid);
+    ret = SafeChownDirNoFollow(host_java_data_dir, v->eUid, v->eGid);
     if (ret != 0) {
         ERROR("[JAVA_SUPPORT]: proc %u chown fail when set ns_java_data_path\n", pid);
         return ret;

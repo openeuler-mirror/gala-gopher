@@ -317,6 +317,10 @@ struct con_info_s *get_and_add_con_info(char *pod_id, char *container_id)
         return NULL;
     }
 
+    if (!IsValidContainerId(container_id)) {
+        return NULL;
+    }
+
     char con_id[CONTAINER_ABBR_ID_LEN + 1];
     con_id[0] = 0;
     (void)snprintf(con_id, sizeof(con_id), "%s", container_id);
@@ -338,6 +342,10 @@ struct con_info_s *get_and_add_con_info(char *pod_id, char *container_id)
 struct pod_info_s *get_and_add_pod_info(char *pod_id)
 {
     if (pod_id == NULL) {
+        return NULL;
+    }
+
+    if (!IsValidPodId(pod_id)) {
         return NULL;
     }
 
@@ -378,4 +386,3 @@ int append_con_id_list(con_id_element **con_id_list, struct con_info_s *con_info
     LL_APPEND(*con_id_list, con_info_elem);
     return 0;
 }
-

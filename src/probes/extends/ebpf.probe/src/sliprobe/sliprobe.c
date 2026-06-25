@@ -987,7 +987,7 @@ err:
 
 static int __get_cpu_busy(struct sli_probe_s *probe, struct sli_container_s *container_cache, time_t secs)
 {
-    if (container_cache == NULL || container_cache->cpu_usage_path == NULL) {
+    if (container_cache == NULL || container_cache->cpu_usage_path[0] == 0) {
         ERROR("[SLIPROBE] get cpu usage path failed.\n");
         return 0;
     }
@@ -1170,4 +1170,3 @@ err:
 
     return ret;
 }
-
