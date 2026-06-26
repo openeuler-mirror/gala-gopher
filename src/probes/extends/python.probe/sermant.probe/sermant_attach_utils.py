@@ -177,8 +177,13 @@ def check_and_copy_sermant(pid: int, path: str) -> bool:
     if not os.path.exists("/proc/" + str(pid) + "/root/tmp/sermant/"):
         # copy the sermant project package into the container
         try:
-            cp_command = "cp -r " + path + " /proc/" + str(pid) + "/root/tmp/"
-            result = subprocess.run(cp_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            real_path = os.path.realpath(path)
+            if not os.path.isdir(real_path):
+                print_to_log("[pid: %s ] elf_path '%s' is not a directory" % (str(pid), real_path), "[ERROR]")
+                return False
+            dest = "/proc/" + str(pid) + "/root/tmp/"
+            cp_command = ["cp", "-r", real_path, dest]
+            result = subprocess.run(cp_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             print_to_log("copy result code:" + str(result.returncode))
             return result.returncode == 0
         except:
