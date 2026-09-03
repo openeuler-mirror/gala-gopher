@@ -1,5 +1,7 @@
 # Deployment Guide for gala-gopher DaemonSet in the Kubernetes Environment
 
+English | [简体中文](./README.md)
+
 ## Environment Preparation
 
 Prepare a Kubernetes cluster environment. It is recommended that the OS architecture and version be consistent in the cluster. Only the following versions are supported: openEuler 20.03 LTS SP1, openEuler 22.03 LTS, openEuler 22.03 LTS SP1, and Kylin V10 x86.

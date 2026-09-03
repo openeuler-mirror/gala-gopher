@@ -1,5 +1,7 @@
 # Introduction to gala-gopher
 
+English | [简体中文](./README.md)
+
 gala-gopher provides a CUnit-based unit test framework and implements basic function tests on the probe framework, the start/stop of native/extend probes, and metric observation.
 
 ## CUnit Overview
