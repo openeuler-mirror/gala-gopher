@@ -1,5 +1,7 @@
 # gala-gopher
 
+简体中文 | [English](./README_EN.md)
+
 ![](./doc/pic/logo.png)
 
 ## 什么是gala-gopher
@@ -82,7 +84,7 @@ nginx/haproxy通常作为云原生应用之间的负载均衡，网络流量经�
 - [Redis性能监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#redis%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7)：提供精细化的（具体到某个TCP）redis时延监控能力。（注意不支持加密场景）
 - [PostgreSQL性能监控](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#postgresql%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7)：提供精细化的（具体到某个TCP）Postgre时延监控能力。
 
-备注：高负载应用性能监控与[应用访问性能监控](./README.md#%E5%BA%94%E7%94%A8%E5%BE%AE%E6%9C%8D%E5%8A%A1%E8%AE%BF%E9%97%AE%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7)的区别在于，前者SLI包括了应用处理时延、系统处理时延，后者只包括应用处理时延。
+备注：高负载应用性能监控与[应用访问性能监控](./README.md)的区别在于，前者SLI包括了应用处理时延、系统处理时延，后者只包括应用处理时延。
 
 ## 软件架构
 

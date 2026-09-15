@@ -1,5 +1,7 @@
 # gala-gopher测试框架介绍
 
+简体中文 | [English](./README_EN.md)
+
 gala-gopher提供了基于CUint的单元测试框架，并实现了探针框架、native/extends探针的启停、指标观测的基本功能测试；
 
 ## 什么是CUint

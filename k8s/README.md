@@ -1,5 +1,7 @@
 # k8s环境gala-gopher daemonset部署指导
 
+简体中文 | [English](./README_EN.md)
+
 ## 环境准备
 
 准备一套k8s集群环境，集群内操作系统的架构与版本建议保持一致，且只支持如下版本：openEuler 20.03 LTS SP1、openEuler 22.03 LTS、openEuler 22.03 LTS SP1、Kylin V10 x86。

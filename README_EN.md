@@ -1,5 +1,7 @@
 # gala-gopher
 
+English | [简体中文](./README.md)
+
 ![](./doc/pic/logo.png)
 
 ## Overview of gala-gopher
@@ -82,7 +84,7 @@ High-load applications include databases and caches, such as Redis and PostgreSQ
 - [Redis performance monitoring](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#redis%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7): provides refined (specific to a TCP connection) Redis delay monitoring capabilities. (Note that encryption scenarios are not supported.)
 - [PostgreSQL performance monitoring](https://gitee.com/openeuler/gala-docs/blob/master/gopher_tech.md#postgresql%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7): provides refined (specific to a TCP connection) PostgreSQL delay monitoring capabilities.
 
-Remarks: The difference between high-load application performance monitoring and [application access performance monitoring](./README.md#%E5%BA%94%E7%94%A8%E5%BE%AE%E6%9C%8D%E5%8A%A1%E8%AE%BF%E9%97%AE%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7) is that the former SLI includes the application processing delay and system processing delay, while the latter includes only the application processing delay.
+Remarks: The difference between high-load application performance monitoring and [application access performance monitoring](./README.md) is that the former SLI includes the application processing delay and system processing delay, while the latter includes only the application processing delay.
 
 ## Software Architecture
 
